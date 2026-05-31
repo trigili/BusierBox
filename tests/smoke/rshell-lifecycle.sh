@@ -4,7 +4,7 @@
 set -eu
 
 src=${1:-src/applet_rshell.c}
-autorun_src=${2:-src/busierbox.c}
+autorun_src=${2:-src/grit.c}
 config_src=${3:-src/effective_config.h}
 all_src="$src $autorun_src $config_src"
 
@@ -29,14 +29,14 @@ fi
 grep -q 'SIGTERM' "$src"
 grep -q 'dbclient\.pid\|dropbear\.pid' "$src"
 grep -q 'rshell\.pid' "$src"
-grep -q 'BB_RSHELL_RUN_MODE' "$src"
-grep -q 'BB_RSHELL_SESSION_POLICY' "$src"
+grep -q 'GRIT_RSHELL_RUN_MODE' "$src"
+grep -q 'GRIT_RSHELL_SESSION_POLICY' "$src"
 grep -q 'should_reconnect_after_success' "$src"
 grep -q '"single"' "$src"
 grep -q '"reconnect"' "$src"
 grep -q '"persistent"' "$src"
-grep -q 'BUSIERBOX_ZERO_ARG_CONTEXT' "$src"
-grep -q 'BUSIERBOX_RSHELL_BACKGROUND_CHILD' "$src"
+grep -q 'GRIT_ZERO_ARG_CONTEXT' "$src"
+grep -q 'GRIT_RSHELL_BACKGROUND_CHILD' "$src"
 grep -q 'LD_LIBRARY_PATH' "$src"
 grep -q 'payload_lib' "$src"
 
@@ -74,23 +74,23 @@ grep -q 'post_disconnect_retry_count' "$src"
 grep -q 'fresh_session_on_reconnect' "$src"
 grep -q 'policy-single-complete' "$src"
 grep -q 'dbclient-supervisor\.sh' "$src"
-grep -q 'bbx_reconnect_attempt' "$src"
+grep -q 'grit_reconnect_attempt' "$src"
 grep -q 'post-disconnect-retry-limit' "$src"
-grep -q 'bbx_dbclient.*-K 30 -N -R' "$src"
+grep -q 'grit_dbclient.*-K 30 -N -R' "$src"
 grep -q 'rshell dbclient supervisor' "$src"
 grep -q 'bb_ledger_record("write".*autorun lock' "$autorun_src"
 grep -q 'bb_ledger_record("write".*autorun status' "$autorun_src"
 
-# BB_ZERO_ARG_LOG_MODE=none redirects to /dev/null
-grep -q 'BB_ZERO_ARG_LOG_MODE.*none\|none.*BB_ZERO_ARG_LOG_MODE' "$src"
+# GRIT_ZERO_ARG_LOG_MODE=none redirects to /dev/null
+grep -q 'GRIT_ZERO_ARG_LOG_MODE.*none\|none.*GRIT_ZERO_ARG_LOG_MODE' "$src"
 grep -q '/dev/null' "$src"
 
 # autorun guard path uses runtime root, not /tmp
-if grep 'BB_AUTORUN_GUARD_PATH' $all_src | grep -q '"/tmp/busierbox-autorun"'; then
-    printf '%s\n' "rshell-lifecycle: BB_AUTORUN_GUARD_PATH default still uses /tmp/busierbox-autorun" >&2
+if grep 'GRIT_AUTORUN_GUARD_PATH' $all_src | grep -q '"/tmp/grit-autorun"'; then
+    printf '%s\n' "rshell-lifecycle: GRIT_AUTORUN_GUARD_PATH default still uses /tmp/grit-autorun" >&2
     exit 1
 fi
-grep -q 'BB_RUNTIME_ROOT.*run\|BB_AUTORUN_GUARD_PATH.*run' $all_src
+grep -q 'GRIT_RUNTIME_ROOT.*run\|GRIT_AUTORUN_GUARD_PATH.*run' $all_src
 
 if [ -f src/rshell_tls.c ]; then
     if grep -q 'wolfSSL_get_error(ssl, 0)' src/rshell_tls.c; then

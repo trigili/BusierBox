@@ -1,25 +1,25 @@
 #!/bin/sh
 set -eu
 
-tmp=${TMPDIR:-/tmp}/busierbox-target-test.$$
+tmp=${TMPDIR:-/tmp}/grit-target-test.$$
 trap 'rm -f "$tmp" "$tmp.err"' EXIT HUP INT TERM
 
 cat >"$tmp" <<'EOF'
-BB_TARGET_ARCH="mipsel"
-BB_TARGET_ENDIAN="little"
-BB_TARGET_CPU="mips32r2-24kc"
-BB_TARGET_ABI="default"
-BB_TARGET_LIBC="musl"
-BB_KERNEL_FLOOR="4.x"
-BB_STATIC_POLICY="static-preferred"
-BB_PAYLOAD_TIER="debug"
-BB_TARGET_QEMU_USER="qemu-mipsel-static"
-BB_PAYLOAD_FORMAT="tgz"
-BB_BUSYBOX_GROUPS="shell fileops disk process network text system"
-BB_HEAVY_TOOLS="tmux strace"
+GRIT_TARGET_ARCH="mipsel"
+GRIT_TARGET_ENDIAN="little"
+GRIT_TARGET_CPU="mips32r2-24kc"
+GRIT_TARGET_ABI="default"
+GRIT_TARGET_LIBC="musl"
+GRIT_KERNEL_FLOOR="4.x"
+GRIT_STATIC_POLICY="static-preferred"
+GRIT_PAYLOAD_TIER="debug"
+GRIT_TARGET_QEMU_USER="qemu-mipsel-static"
+GRIT_PAYLOAD_FORMAT="tgz"
+GRIT_BUSYBOX_GROUPS="shell fileops disk process network text system"
+GRIT_HEAVY_TOOLS="tmux strace"
 EOF
 
-resolved=$(BUSIERBOX_CONFIG="$tmp" scripts/resolve-target --config)
+resolved=$(GRIT_CONFIG="$tmp" scripts/resolve-target --config)
 printf '%s\n' "$resolved" | grep "TARGET_NAME=mipsel-linux-4.x-musl" >/dev/null
 printf '%s\n' "$resolved" | grep "TARGET_STATUS=supported" >/dev/null
 
@@ -31,37 +31,37 @@ grep '^BR2_mipsel=y' buildroot/generated-configs/mipsel-linux-4.x-musl_defconfig
 grep '^BR2_TOOLCHAIN_BUILDROOT_MUSL=y' buildroot/generated-configs/mipsel-linux-4.x-musl_defconfig >/dev/null
 
 cat >"$tmp" <<'EOF'
-BB_TARGET_ARCH="powerpc"
-BB_TARGET_ENDIAN="big"
-BB_TARGET_CPU="generic"
-BB_TARGET_ABI="default"
-BB_TARGET_LIBC="glibc"
-BB_KERNEL_FLOOR="4.x"
-BB_STATIC_POLICY="static-preferred"
-BB_PAYLOAD_TIER="core"
+GRIT_TARGET_ARCH="powerpc"
+GRIT_TARGET_ENDIAN="big"
+GRIT_TARGET_CPU="generic"
+GRIT_TARGET_ABI="default"
+GRIT_TARGET_LIBC="glibc"
+GRIT_KERNEL_FLOOR="4.x"
+GRIT_STATIC_POLICY="static-preferred"
+GRIT_PAYLOAD_TIER="core"
 EOF
 
-if BUSIERBOX_CONFIG="$tmp" scripts/resolve-target --config | grep "TARGET_STATUS=supported" >/dev/null; then
+if GRIT_CONFIG="$tmp" scripts/resolve-target --config | grep "TARGET_STATUS=supported" >/dev/null; then
     printf '%s\n' "expected unsupported tuple to be rejected" >&2
     exit 1
 fi
 
 cat >"$tmp" <<'EOF'
-BB_TARGET_PRESET="default"
-BB_TARGET_ARCH=""
-BB_TARGET_ENDIAN="auto"
-BB_TARGET_CPU="generic"
-BB_TARGET_ABI="default"
-BB_TARGET_LIBC=""
-BB_KERNEL_FLOOR=""
-BB_STATIC_POLICY="static-preferred"
-BB_PAYLOAD_TIER="core"
+GRIT_TARGET_PRESET="default"
+GRIT_TARGET_ARCH=""
+GRIT_TARGET_ENDIAN="auto"
+GRIT_TARGET_CPU="generic"
+GRIT_TARGET_ABI="default"
+GRIT_TARGET_LIBC=""
+GRIT_KERNEL_FLOOR=""
+GRIT_STATIC_POLICY="static-preferred"
+GRIT_PAYLOAD_TIER="core"
 EOF
 
-blank=$(BUSIERBOX_CONFIG="$tmp" scripts/resolve-target --config)
+blank=$(GRIT_CONFIG="$tmp" scripts/resolve-target --config)
 printf '%s\n' "$blank" | grep "TARGET_STATUS=blank" >/dev/null
 printf '%s\n' "$blank" | grep "default is a blank target configuration" >/dev/null
-if BUSIERBOX_CONFIG="$tmp" scripts/resolve-target --config | grep "TARGET_NAME=native" >/dev/null; then
+if GRIT_CONFIG="$tmp" scripts/resolve-target --config | grep "TARGET_NAME=native" >/dev/null; then
     printf '%s\n' "default/blank config unexpectedly resolved to native" >&2
     exit 1
 fi

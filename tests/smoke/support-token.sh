@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-bb=${1:-dist/busierbox-native-full}
+bb=${1:-dist/grit-native-full}
 tmp=${TMPDIR:-local/tmp}/support-token
 
 [ -x "$bb" ] || {
@@ -38,15 +38,15 @@ if "gdbserver_provider" not in payload:
     raise SystemExit("config-export manifest missing payload.gdbserver_provider")
 PY
 scripts/config-from-manifest "$tmp/config-export.json" >"$tmp/from-export.conf"
-grep -q '^BB_PAYLOAD_PRESET=' "$tmp/from-export.conf"
-grep -q '^BB_GDBSERVER_PROVIDER=' "$tmp/from-export.conf"
-grep -q '^BB_HEAVY_TOOLS=' "$tmp/from-export.conf"
-grep -q '^BB_DOTFILE_BASH_MODE=' "$tmp/from-export.conf"
-grep -q '^BB_RUNTIME_MODE=' "$tmp/from-export.conf"
-grep -q '^BB_NORESIDUE_LEVEL=' "$tmp/from-export.conf"
-grep -q '^BB_OPERATOR_SERVER_SSH_PORT=' "$tmp/from-export.conf"
-grep -q '^BB_RSHELL_SESSION_POLICY=' "$tmp/from-export.conf"
-grep -q '^BB_RSHELL_RETRY_BACKOFF=' "$tmp/from-export.conf"
+grep -q '^GRIT_PAYLOAD_PRESET=' "$tmp/from-export.conf"
+grep -q '^GRIT_GDBSERVER_PROVIDER=' "$tmp/from-export.conf"
+grep -q '^GRIT_HEAVY_TOOLS=' "$tmp/from-export.conf"
+grep -q '^GRIT_DOTFILE_BASH_MODE=' "$tmp/from-export.conf"
+grep -q '^GRIT_RUNTIME_MODE=' "$tmp/from-export.conf"
+grep -q '^GRIT_NORESIDUE_LEVEL=' "$tmp/from-export.conf"
+grep -q '^GRIT_OPERATOR_SERVER_SSH_PORT=' "$tmp/from-export.conf"
+grep -q '^GRIT_RSHELL_SESSION_POLICY=' "$tmp/from-export.conf"
+grep -q '^GRIT_RSHELL_RETRY_BACKOFF=' "$tmp/from-export.conf"
 
 "$bb" config-export --base64 >"$tmp/config-export.b64"
 python3 - "$tmp/config-export.b64" <<'PY'
@@ -56,7 +56,7 @@ import sys
 
 token = open(sys.argv[1], encoding="utf-8").read()
 doc = json.loads(base64.b64decode(token).decode("utf-8"))
-if doc.get("kind") != "busierbox-config-export":
+if doc.get("kind") != "grit-config-export":
     raise SystemExit("config-export base64 kind mismatch")
 PY
 
@@ -68,19 +68,19 @@ import sys
 
 token = open(sys.argv[1], encoding="utf-8").read()
 doc = json.loads(base64.b64decode(token).decode("utf-8"))
-if doc.get("kind") != "busierbox-support-token":
+if doc.get("kind") != "grit-support-token":
     raise SystemExit("support token kind mismatch")
 if "manifest" not in doc:
     raise SystemExit("support token missing manifest")
 PY
 scripts/config-from-support-token "$(cat "$tmp/support-token.b64")" >"$tmp/from-token.conf"
-grep -q '^BB_PAYLOAD_PRESET=' "$tmp/from-token.conf"
-grep -q '^BB_GDBSERVER_PROVIDER=' "$tmp/from-token.conf"
-grep -q '^BB_HEAVY_TOOLS=' "$tmp/from-token.conf"
-grep -q '^BB_DOTFILE_BASH_MODE=' "$tmp/from-token.conf"
-grep -q '^BB_RSHELL_TRANSPORT=' "$tmp/from-token.conf"
-grep -q '^BB_RSHELL_SESSION_POLICY=' "$tmp/from-token.conf"
-grep -q '^BB_OPERATOR_REMOTE_FORWARD_PORT=' "$tmp/from-token.conf"
-grep -q '^BB_RSHELL_AUTHKEYS_MODE=' "$tmp/from-token.conf"
+grep -q '^GRIT_PAYLOAD_PRESET=' "$tmp/from-token.conf"
+grep -q '^GRIT_GDBSERVER_PROVIDER=' "$tmp/from-token.conf"
+grep -q '^GRIT_HEAVY_TOOLS=' "$tmp/from-token.conf"
+grep -q '^GRIT_DOTFILE_BASH_MODE=' "$tmp/from-token.conf"
+grep -q '^GRIT_RSHELL_TRANSPORT=' "$tmp/from-token.conf"
+grep -q '^GRIT_RSHELL_SESSION_POLICY=' "$tmp/from-token.conf"
+grep -q '^GRIT_OPERATOR_REMOTE_FORWARD_PORT=' "$tmp/from-token.conf"
+grep -q '^GRIT_RSHELL_AUTHKEYS_MODE=' "$tmp/from-token.conf"
 
 printf '%s\n' "support-token ok"

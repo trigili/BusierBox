@@ -4,12 +4,12 @@ set -eu
 test -f LICENSE
 grep -q 'GNU GENERAL PUBLIC LICENSE' LICENSE
 grep -q 'Version 2, June 1991' LICENSE
-test -f LICENSE.busierbox
-grep -q 'SPDX-License-Identifier: GPL-2.0-or-later' LICENSE.busierbox
-grep -q 'Unless a file states a different license' LICENSE.busierbox
+test -f LICENSE.grit
+grep -q 'SPDX-License-Identifier: GPL-2.0-or-later' LICENSE.grit
+grep -q 'Unless a file states a different license' LICENSE.grit
 test -f NOTICE
 grep -q 'GPL-2.0-or-later' NOTICE
-grep -q 'LICENSE.busierbox' NOTICE
+grep -q 'LICENSE.grit' NOTICE
 test -f LICENSES/miniz.txt
 grep -q 'third_party/miniz/LICENSE' LICENSES/miniz.txt
 test -f LICENSES/busybox.txt
@@ -17,12 +17,12 @@ grep -q 'third_party/busybox/LICENSE' LICENSES/busybox.txt
 test -f LICENSES/buildroot.txt
 grep -q 'manifests/sources.lock.json' LICENSES/buildroot.txt
 test -f LICENSES/doom-ascii.txt
-grep -q 'BB_DOOM_WAD_PATH' LICENSES/doom-ascii.txt
+grep -q 'GRIT_DOOM_WAD_PATH' LICENSES/doom-ascii.txt
 test -f manifests/license-policy.json
 scripts/check-licensing
 make check-licensing
 
-tmp=${TMPDIR:-/tmp}/busierbox-licensing.$$
+tmp=${TMPDIR:-/tmp}/grit-licensing.$$
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 mkdir -p "$tmp"
 python3 - "$tmp/sources.lock.json" <<'PY'
@@ -75,14 +75,14 @@ fi
 grep -q 'source lock new-tool missing compatibility policy component' "$tmp/unreviewed-source.out"
 
 grep -q 'GPL-2.0-or-later' README.md
-grep -q 'LICENSE.busierbox' README.md
+grep -q 'LICENSE.grit' README.md
 grep -q 'NOTICE' README.md
 grep -q 'docs/licensing.md' README.md
 grep -q 'manifests/license-policy.json' README.md
-grep -q 'BusierBox is not a BusyBox replacement and is not a BusyBox fork' README.md
+grep -q 'griTTYkit is not a BusyBox replacement and is not a BusyBox fork' README.md
 
 grep -q 'GPL-2.0-or-later' docs/licensing.md
-grep -q 'LICENSE.busierbox' docs/licensing.md
+grep -q 'LICENSE.grit' docs/licensing.md
 grep -q 'GPL compatibility summary' docs/licensing.md
 grep -q 'explicit GPLv2 compatibility flags' docs/licensing.md
 grep -q 'Every downloadable source lock entry must have' docs/licensing.md
@@ -93,12 +93,12 @@ grep -q 'BusyBox' docs/licensing.md
 grep -q 'Buildroot' docs/licensing.md
 grep -q 'doom-ascii' docs/licensing.md
 grep -q 'miniz' docs/licensing.md
-grep -q 'BB_DOOM_WAD_PATH' docs/licensing.md
+grep -q 'GRIT_DOOM_WAD_PATH' docs/licensing.md
 grep -q 'GPLv2-compatible combined distributions' docs/licensing.md
 grep -q 'GPL is OK for the whole current default stack' docs/licensing.md
 grep -q 'not a blanket relicensing' docs/licensing.md
 grep -q 'Buildroot-selected package keeps its own upstream' docs/licensing.md
-grep -q "not part of BusierBox's license grant" docs/licensing.md
+grep -q "not part of griTTYkit's license grant" docs/licensing.md
 grep -q 'Corresponding source posture' docs/licensing.md
 grep -q 'corresponding_source_strategy' docs/licensing.md
 grep -q 'release bundles include it as both `sources.lock.json` and' docs/licensing.md
@@ -177,7 +177,7 @@ for key, needle in {
 }.items():
     if needle not in str(whole_project.get(key, "")):
         raise SystemExit(f"whole-project assessment {key} missing {needle}")
-if artifact_distribution.get("busierbox_project_terms") != "GPL-2.0-or-later":
+if artifact_distribution.get("grit_project_terms") != "GPL-2.0-or-later":
     raise SystemExit("artifact distribution project terms missing")
 if artifact_distribution.get("ok_for_current_default_stack") is not True:
     raise SystemExit("artifact distribution compatibility flag missing")
@@ -204,11 +204,11 @@ for expected_text in ("recorded release commit", "manifests/sources.lock.json", 
     if expected_text not in source_inputs:
         raise SystemExit(f"corresponding source reconstruction inputs missing {expected_text}")
 bundle_inputs = set(corresponding_source.get("release_bundle_inputs") or [])
-for expected_text in ("LICENSE", "LICENSE.busierbox", "NOTICE", "LICENSES/", "manifests/license-policy.json", "manifests/sources.lock.json", "sources.lock.json"):
+for expected_text in ("LICENSE", "LICENSE.grit", "NOTICE", "LICENSES/", "manifests/license-policy.json", "manifests/sources.lock.json", "sources.lock.json"):
     if expected_text not in bundle_inputs:
         raise SystemExit(f"corresponding source release inputs missing {expected_text}")
 guidance = "\n".join(policy.get("distribution_guidance") or [])
-for expected_text in ("LICENSE.busierbox", "LICENSES/", "manifests/sources.lock.json", "sources.lock.json"):
+for expected_text in ("LICENSE.grit", "LICENSES/", "manifests/sources.lock.json", "sources.lock.json"):
     if expected_text not in guidance:
         raise SystemExit(f"license policy guidance missing {expected_text}")
 

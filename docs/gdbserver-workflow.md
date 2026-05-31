@@ -1,12 +1,12 @@
 # gdbserver Workflow
 
-BusierBox treats target-side `gdbserver` as a provider-based payload tool. It
+griTTYkit treats target-side `gdbserver` as a provider-based payload tool. It
 keeps Buildroot support where that works, but for known-problem tuples such as
 mipsel/mips musl static builds, the preferred path is a local drop-in, user
 binary, or overlay.
 
 `gdbserver` is a staged heavy tool. It dispatches from `payload/bin/gdbserver`
-after full payload extraction, not from the native BusierBox supervisor and not
+after full payload extraction, not from the native griTTYkit supervisor and not
 through BusyBox.
 
 ## Local Drop-Ins
@@ -53,19 +53,19 @@ installed `metadata.json` so the selected provider can be audited without
 parsing the text view.
 
 Release and payload manifests may carry the same provider status under
-`tool_provider_status.gdbserver`. `scripts/busierbox-gdb-workspace` preserves
+`tool_provider_status.gdbserver`. `scripts/grit-gdb-workspace` preserves
 that status in `target.json` and summarizes it in the generated workspace
 README so the operator can see whether the artifact was built with a validated
 local drop-in or another provider state before starting a debug session.
 
-Set `BB_GDBSERVER_PROVIDER="local-dropin"` or leave it as `auto`.
+Set `GRIT_GDBSERVER_PROVIDER="local-dropin"` or leave it as `auto`.
 
 ## Operator Workspace
 
 Generate a local GDB workspace from survey, manifest, or config data:
 
 ```sh
-scripts/busierbox-gdb-workspace \
+scripts/grit-gdb-workspace \
   --survey local/bringup-runs/example/survey.json \
   --manifest local/bringup-runs/example/manifest.json \
   --host 127.0.0.1 --port 31337 --binary ./target-program
@@ -74,7 +74,7 @@ scripts/busierbox-gdb-workspace \
 Target side:
 
 ```sh
-busierbox gdbserver :31337 /path/to/binary
+grit gdbserver :31337 /path/to/binary
 ```
 
 Operator side:
@@ -90,7 +90,7 @@ explicitly selected and validated.
 ## Static MIPS Caveat
 
 Buildroot GDB/BFD is known to fail for some mipsel/mips musl static builds.
-BusierBox pre-excludes that Buildroot provider in best-effort mode and reports a
+griTTYkit pre-excludes that Buildroot provider in best-effort mode and reports a
 warning instead of turning package generation into a surprise build failure.
 
 ## Troubleshooting

@@ -16,8 +16,8 @@
 #define PATH_MAX 4096
 #endif
 
-#ifndef BB_RECOVERY_BINARY_NAME
-#define BB_RECOVERY_BINARY_NAME "busierbox_recovery"
+#ifndef GRIT_RECOVERY_BINARY_NAME
+#define GRIT_RECOVERY_BINARY_NAME "grit_recovery"
 #endif
 
 struct recovery_method {
@@ -31,14 +31,14 @@ struct recovery_method {
 };
 
 static const struct recovery_method recovery_methods[] = {
-    {"openwrt-procd", "etc/init.d/busierbox_recovery", "OpenWrt/procd init script", "yes", "medium", "backup/remove script", "yes"},
-    {"sysv-init", "etc/rc.d/S99busierbox_recovery", "SysV init.d/rcS hook", "yes", "medium", "backup/remove script", "yes"},
-    {"systemd-unit", "etc/systemd/system/busierbox-recovery.service", "systemd unit", "yes", "medium", "backup/remove unit", "yes"},
+    {"openwrt-procd", "etc/init.d/grit_recovery", "OpenWrt/procd init script", "yes", "medium", "backup/remove script", "yes"},
+    {"sysv-init", "etc/rc.d/S99grit_recovery", "SysV init.d/rcS hook", "yes", "medium", "backup/remove script", "yes"},
+    {"systemd-unit", "etc/systemd/system/grit-recovery.service", "systemd unit", "yes", "medium", "backup/remove unit", "yes"},
     {"cron-reboot", "etc/crontabs/root", "cron @reboot line", "yes", "medium", "remove marked block", "yes"},
     {"at-job", "var/spool/at", "at job spool", "maybe", "high", "manual/provider-specific", "yes"},
     {"rc-local", "etc/rc.local", "rc.local marked block", "yes", "low", "remove marked block", "yes"},
-    {"hotplug-iface", "etc/hotplug.d/iface/99-busierbox-recovery", "OpenWrt hotplug.d iface hook", "event", "medium", "remove script", "yes"},
-    {"profile", "etc/profile.d/busierbox-recovery.sh", "shell profile hook", "login-only", "low", "remove script", "yes"},
+    {"hotplug-iface", "etc/hotplug.d/iface/99-grit-recovery", "OpenWrt hotplug.d iface hook", "event", "medium", "remove script", "yes"},
+    {"profile", "etc/profile.d/grit-recovery.sh", "shell profile hook", "login-only", "low", "remove script", "yes"},
 };
 
 struct recovery_storage {
@@ -471,7 +471,7 @@ static int backup_existing_file(const char *path, char *backup, size_t backupsz)
     struct stat st;
     if (stat(path, &st) != 0)
         return 0;
-    snprintf(backup, backupsz, "%s.busierbox.bak.%ld", path, (long)time(NULL));
+    snprintf(backup, backupsz, "%s.grit.bak.%ld", path, (long)time(NULL));
     if (copy_file_path(path, backup) != 0)
         return -1;
     chmod(backup, st.st_mode & 0777);
@@ -490,7 +490,7 @@ static int append_recovery_block(const char *path, const char *method, const cha
         else if (!strcmp(method, "sysv-init") || !strcmp(method, "rc-local") || !strcmp(method, "hotplug-iface") || !strcmp(method, "profile"))
             fputs("#!/bin/sh\n", fp);
     }
-    fprintf(fp, "\n# BEGIN BUSIERBOX RECOVERY %s\n", name);
+    fprintf(fp, "\n# BEGIN GRIT RECOVERY %s\n", name);
     fprintf(fp, "# method=%s; action=%s; authorized lab persistence/recovery hook\n", method, action);
     fprintf(fp, "# generated_command=%s\n", command);
     if (!strcmp(method, "cron-reboot")) {
@@ -499,7 +499,7 @@ static int append_recovery_block(const char *path, const char *method, const cha
         fputs(" >/dev/null 2>&1\n", fp);
     }
     else if (!strcmp(method, "systemd-unit")) {
-        fputs("[Unit]\nDescription=BusierBox authorized lab recovery action\n[Service]\nType=oneshot\nExecStart=/bin/sh -c ", fp);
+        fputs("[Unit]\nDescription=griTTYkit authorized lab recovery action\n[Service]\nType=oneshot\nExecStart=/bin/sh -c ", fp);
         fprint_shell_quoted(fp, command);
         fputs("\n[Install]\nWantedBy=multi-user.target\n", fp);
     } else if (!strcmp(method, "openwrt-procd")) {
@@ -511,7 +511,7 @@ static int append_recovery_block(const char *path, const char *method, const cha
         fprint_shell_quoted(fp, command);
         fputs(" >/dev/null 2>&1 || true\n", fp);
     }
-    fprintf(fp, "# END BUSIERBOX RECOVERY %s\n", name);
+    fprintf(fp, "# END GRIT RECOVERY %s\n", name);
     return fclose(fp);
 }
 
@@ -522,8 +522,8 @@ static int remove_recovery_block(const char *path, const char *name)
     char line[4096];
     int skipping = 0, removed = 0;
 
-    snprintf(begin, sizeof(begin), "BEGIN BUSIERBOX RECOVERY %s", name);
-    snprintf(end, sizeof(end), "END BUSIERBOX RECOVERY %s", name);
+    snprintf(begin, sizeof(begin), "BEGIN GRIT RECOVERY %s", name);
+    snprintf(end, sizeof(end), "END GRIT RECOVERY %s", name);
     snprintf(tmp, sizeof(tmp), "%s.tmp.%ld", path, (long)getpid());
     in = fopen(path, "r");
     if (!in)
@@ -569,13 +569,13 @@ static int recovery_status_one(const char *root, const struct recovery_method *m
     char *text;
     char *begin, *end, *line;
     recovery_join(path, sizeof(path), root, m->path);
-    snprintf(marker, sizeof(marker), "BEGIN BUSIERBOX RECOVERY %s", name);
+    snprintf(marker, sizeof(marker), "BEGIN GRIT RECOVERY %s", name);
     text = bb_read_text_file(path, 1024 * 1024);
     if (!text)
         return 0;
     begin = strstr(text, marker);
     if (begin) {
-        end = strstr(begin, "END BUSIERBOX RECOVERY");
+        end = strstr(begin, "END GRIT RECOVERY");
         if (action && actionsz)
             action[0] = '\0';
         if (command && commandsz)
@@ -1400,7 +1400,7 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     const char *root = "/";
     const char *method = NULL;
     const char *action = "status-only";
-    const char *name = BB_RECOVERY_BINARY_NAME;
+    const char *name = GRIT_RECOVERY_BINARY_NAME;
     const char *script_file = NULL;
     const char *target_id_arg = NULL;
     const char *target_label_arg = NULL;
@@ -1481,9 +1481,9 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     recovery_join(hook, sizeof(hook), root, m->path);
     recovery_bin_path(bin, sizeof(bin), root, name);
     recovery_script_path(script_dst, sizeof(script_dst), root, name);
-    clean_recovery_arg_value(target_id_arg ? target_id_arg : first_nonempty_env("BB_TARGET_ID", "BUSIERBOX_TARGET_ID"),
+    clean_recovery_arg_value(target_id_arg ? target_id_arg : first_nonempty_env("GRIT_TARGET_ID", "GRIT_TARGET_ID"),
                              target_id, sizeof(target_id));
-    clean_recovery_arg_value(target_label_arg ? target_label_arg : first_nonempty_env("BB_TARGET_LABEL", "BUSIERBOX_TARGET_LABEL"),
+    clean_recovery_arg_value(target_label_arg ? target_label_arg : first_nonempty_env("GRIT_TARGET_LABEL", "GRIT_TARGET_LABEL"),
                              target_label, sizeof(target_label));
     upload_target_args[0] = '\0';
     if (append_upload_target_arg(upload_target_args, sizeof(upload_target_args), "--target-id", target_id) != 0 ||
@@ -1505,7 +1505,7 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
     else if (!strcmp(action, "evidence-then-rshell"))
         snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push%s --quiet && /usr/bin/%s rshell start", name, upload_target_args, name);
     else if (!strcmp(action, "dmesg-push"))
-        snprintf(generated, sizeof(generated), "bbx_dmesg_dir=%s/run; mkdir -p \"$bbx_dmesg_dir\" 2>/dev/null || bbx_dmesg_dir=.; bbx_dmesg=\"$bbx_dmesg_dir/%s-dmesg.txt\"; dmesg >\"$bbx_dmesg\" 2>&1; /usr/bin/%s evidence push \"$bbx_dmesg\"%s --dest %s-dmesg.txt --quiet; rm -f \"$bbx_dmesg\"", BB_RUNTIME_ROOT, name, name, upload_target_args, name);
+        snprintf(generated, sizeof(generated), "grit_dmesg_dir=%s/run; mkdir -p \"$grit_dmesg_dir\" 2>/dev/null || grit_dmesg_dir=.; grit_dmesg=\"$grit_dmesg_dir/%s-dmesg.txt\"; dmesg >\"$grit_dmesg\" 2>&1; /usr/bin/%s evidence push \"$grit_dmesg\"%s --dest %s-dmesg.txt --quiet; rm -f \"$grit_dmesg\"", GRIT_RUNTIME_ROOT, name, name, upload_target_args, name);
     else if (!strcmp(action, "script")) {
         if (!script_file || !*script_file) {
             fprintf(stderr, "%s: recovery action script requires --file FILE\n", applet);
@@ -1599,7 +1599,7 @@ static int applet_recovery_install(int argc, char **argv, int uninstall, const c
             printf("Would %s script: %s from %s\n", uninstall ? "remove" : "copy", script_dst, script_file);
         printf("Would %s hook: %s\n", uninstall ? "remove marked block/file" : "write marked hook", hook);
         if (!uninstall && path_exists(hook))
-            printf("Would backup existing hook before modification: %s.busierbox.bak.<timestamp>\n", hook);
+            printf("Would backup existing hook before modification: %s.grit.bak.<timestamp>\n", hook);
         return 0;
     }
     if (uninstall) {
@@ -1674,21 +1674,21 @@ int applet_recovery_main(int argc, char **argv)
     const char *cmd = argc > 1 ? argv[1] : "--help";
     const char *applet = payload_base_name(argc > 0 ? argv[0] : "persistence");
     const char *root = "/";
-    const char *name = BB_RECOVERY_BINARY_NAME;
+    const char *name = GRIT_RECOVERY_BINARY_NAME;
     int json = 0;
     int i;
 
     if (is_help(argc, argv) || !strcmp(cmd, "--help")) {
         if (!strcmp(applet, "recovery"))
             puts("recovery is a deprecated compatibility alias for persistence.");
-        puts("usage: busierbox persistence --survey|--plan [--json] [--root ROOT]");
-        puts("       busierbox persistence status [--json] [--root ROOT] [--name NAME]");
-        puts("       busierbox persistence install --method METHOD [--action rshell|evidence-push|evidence-then-rshell|dmesg-push|command|script|status-only] --dry-run|--apply [--json] [--external] [--root ROOT] [--name NAME] [--file SCRIPT] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS] [-- COMMAND]");
-        puts("       busierbox persistence uninstall --method METHOD --dry-run|--apply [--json] [--external] [--root ROOT] [--name NAME]");
+        puts("usage: grit persistence --survey|--plan [--json] [--root ROOT]");
+        puts("       grit persistence status [--json] [--root ROOT] [--name NAME]");
+        puts("       grit persistence install --method METHOD [--action rshell|evidence-push|evidence-then-rshell|dmesg-push|command|script|status-only] --dry-run|--apply [--json] [--external] [--root ROOT] [--name NAME] [--file SCRIPT] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS] [-- COMMAND]");
+        puts("       grit persistence uninstall --method METHOD --dry-run|--apply [--json] [--external] [--root ROOT] [--name NAME]");
         puts("Persistence is authorized lab persistence/recovery only. Survey and plan never modify the target.");
         puts("Install and uninstall require an explicit method plus --dry-run or --apply; real-root writes require --external --apply.");
         puts("Evidence actions upload target-initiated evidence to the configured receive-only operator file service.");
-        puts("Evidence actions preserve explicit --target-* identity, or BB_TARGET_ID/BB_TARGET_LABEL when set.");
+        puts("Evidence actions preserve explicit --target-* identity, or GRIT_TARGET_ID/GRIT_TARGET_LABEL when set.");
         return 0;
     }
     if (!strcmp(cmd, "install"))

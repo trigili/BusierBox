@@ -10,7 +10,7 @@ fi
 
 if [ -z "$artifact" ]; then
     resolved=$(scripts/resolve-target "$target" | sed -n 's/^TARGET_NAME=//p')
-    artifact="dist/busierbox-${resolved:-$target}-full"
+    artifact="dist/grit-${resolved:-$target}-full"
 fi
 
 tests/integration/glinet/push-and-test "$artifact"

@@ -1,0 +1,182 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat >&2 <<'EOF'
+usage: scripts/grit-gdb-workspace [options]
+
+Options:
+  --survey PATH
+  --manifest PATH
+  --config PATH
+  --out DIR
+  --target NAME
+  --host HOST          default: 127.0.0.1
+  --port PORT          default: 31337
+  --binary PATH
+  --sysroot PATH
+EOF
+}
+
+survey=
+manifest=
+config=
+out=
+target=
+host=127.0.0.1
+port=31337
+binary=
+sysroot=
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --survey) survey=$2; shift 2 ;;
+        --survey=*) survey=${1#--survey=}; shift ;;
+        --manifest) manifest=$2; shift 2 ;;
+        --manifest=*) manifest=${1#--manifest=}; shift ;;
+        --config) config=$2; shift 2 ;;
+        --config=*) config=${1#--config=}; shift ;;
+        --out) out=$2; shift 2 ;;
+        --out=*) out=${1#--out=}; shift ;;
+        --target) target=$2; shift 2 ;;
+        --target=*) target=${1#--target=}; shift ;;
+        --host) host=$2; shift 2 ;;
+        --host=*) host=${1#--host=}; shift ;;
+        --port) port=$2; shift 2 ;;
+        --port=*) port=${1#--port=}; shift ;;
+        --binary) binary=$2; shift 2 ;;
+        --binary=*) binary=${1#--binary=}; shift ;;
+        --sysroot) sysroot=$2; shift 2 ;;
+        --sysroot=*) sysroot=${1#--sysroot=}; shift ;;
+        --help|-h) usage; exit 0 ;;
+        *) usage; exit 2 ;;
+    esac
+done
+
+if [ -z "$out" ]; then
+    stamp=$(date -u +%Y%m%dT%H%M%SZ)
+    out="local/gdb-workspaces/${target:-$stamp}"
+fi
+
+python3 - "$survey" "$manifest" "$config" "$out" "$target" "$host" "$port" "$binary" "$sysroot" <<'PY'
+import json
+import pathlib
+import shlex
+import sys
+
+survey_path, manifest_path, config_path, out_dir, target, host, port, binary, sysroot = sys.argv[1:]
+
+def read_json(path):
+    if not path:
+        return {}
+    p = pathlib.Path(path)
+    if not p.exists():
+        return {}
+    return json.loads(p.read_text(encoding="utf-8"))
+
+def read_config(path):
+    cfg = {}
+    if not path:
+        return cfg
+    p = pathlib.Path(path)
+    if not p.exists():
+        return cfg
+    for line in p.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        cfg[k] = v.strip().strip('"')
+    return cfg
+
+survey = read_json(survey_path)
+manifest = read_json(manifest_path)
+cfg = read_config(config_path)
+
+target_data = manifest.get("target", {})
+payload_data = manifest.get("payload", {}) if isinstance(manifest.get("payload"), dict) else {}
+provider_status = manifest.get("tool_provider_status") or payload_data.get("tool_provider_status") or {}
+gdbserver_provider_status = provider_status.get("gdbserver") if isinstance(provider_status, dict) else {}
+if not isinstance(gdbserver_provider_status, dict):
+    gdbserver_provider_status = {}
+uname = survey.get("uname", {})
+recs = survey.get("recommendations", {})
+
+arch = target_data.get("arch") or cfg.get("GRIT_TARGET_ARCH") or recs.get("target_arch_guess") or survey.get("arch") or uname.get("machine") or "auto"
+endian = target_data.get("endian") or cfg.get("GRIT_TARGET_ENDIAN") or recs.get("endian_guess") or survey.get("endianness") or "auto"
+target_name = target or target_data.get("name") or cfg.get("GRIT_TARGET_NAME") or cfg.get("GRIT_TARGET_PRESET") or arch
+
+gdb_arch = {
+    "mipsel": "mips",
+    "mips": "mips",
+    "armv7": "arm",
+    "aarch64": "aarch64",
+    "x86_64": "i386:x86-64",
+    "i386": "i386",
+}.get(str(arch), "")
+
+out = pathlib.Path(out_dir)
+out.mkdir(parents=True, exist_ok=True)
+
+target_json = {
+    "target": target_name,
+    "arch": arch,
+    "endian": endian,
+    "host": host,
+    "port": port,
+    "binary": binary,
+    "sysroot": sysroot,
+    "survey": survey_path,
+    "manifest": manifest_path,
+    "config": config_path,
+    "gdbserver_provider_status": gdbserver_provider_status,
+}
+(out / "target.json").write_text(json.dumps(target_json, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+lines = [
+    "set pagination off",
+    "set confirm off",
+]
+if gdb_arch:
+    lines.append(f"set architecture {gdb_arch}")
+if endian in {"little", "big"}:
+    lines.append(f"set endian {endian}")
+if sysroot:
+    lines.append(f"set sysroot {sysroot}")
+    solibs = []
+    for rel in ("lib", "usr/lib"):
+        p = pathlib.Path(sysroot) / rel
+        if p.exists():
+            solibs.append(str(p))
+    if solibs:
+        lines.append("set solib-search-path " + ":".join(solibs))
+lines.append(f"target remote {host}:{port}")
+(out / "connect.gdb").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+readme = f"""# griTTYkit GDB Workspace
+
+Target: `{target_name}`
+
+gdbserver provider status: `{gdbserver_provider_status.get('overall') or gdbserver_provider_status.get('status') or 'unknown'}`
+
+Start gdbserver on the target:
+
+```sh
+grit gdbserver :{port} /path/to/binary
+```
+
+Connect from the operator machine:
+
+```sh
+gdb-multiarch -x connect.gdb {shlex.quote(binary) if binary else './binary'}
+```
+
+GEF and pwndbg are operator-side GDB plugins in this workflow. They are not
+bundled onto the target by default.
+"""
+(out / "README.md").write_text(readme, encoding="utf-8")
+(out / ".gdbinit").write_text("source connect.gdb\n", encoding="utf-8")
+
+print(f"workspace={out}")
+print(f"connect={out / 'connect.gdb'}")
+PY

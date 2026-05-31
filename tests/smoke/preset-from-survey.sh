@@ -34,9 +34,9 @@ for forbidden in (
     "rshell_transport",
     "operator_host",
     "zero_arg_mode",
-    "BB_PAYLOAD_PRESET",
-    "BB_RUNTIME_MODE",
-    "BB_RSHELL_TRANSPORT",
+    "GRIT_PAYLOAD_PRESET",
+    "GRIT_RUNTIME_MODE",
+    "GRIT_RSHELL_TRANSPORT",
 ):
     if forbidden in data:
         raise SystemExit(f"target preset leaked runtime field: {forbidden}")
@@ -76,14 +76,14 @@ if scripts/preset-from-survey --survey "$survey" --name "$preset_name" --write-l
 fi
 grep -q 'preset name already exists' "$work/dup.err"
 
-BUSIERBOX_LOCAL_TARGET_PRESETS="$work/presets" scripts/resolve-target "$preset_name" >"$work/resolved"
+GRIT_LOCAL_TARGET_PRESETS="$work/presets" scripts/resolve-target "$preset_name" >"$work/resolved"
 grep -q '^TARGET_ARCH=mipsel$' "$work/resolved"
 grep -q '^TARGET_ENDIAN=little$' "$work/resolved"
 grep -q '^TARGET_LIBC=musl$' "$work/resolved"
 grep -q '^TARGET_KERNEL_FLOOR=4.x$' "$work/resolved"
 grep -q '^TARGET_CPU=mips32r2-24kc$' "$work/resolved"
 
-BUSIERBOX_LOCAL_TARGET_PRESETS="$work/presets" scripts/resolve-target --list >"$work/list"
+GRIT_LOCAL_TARGET_PRESETS="$work/presets" scripts/resolve-target --list >"$work/list"
 grep -q "^$preset_name	" "$work/list"
 
 scripts/preset-from-survey \

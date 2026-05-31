@@ -14,8 +14,8 @@
 #define PATH_MAX 4096
 #endif
 
-#ifndef BB_RECOVERY_BINARY_NAME
-#define BB_RECOVERY_BINARY_NAME "busierbox_recovery"
+#ifndef GRIT_RECOVERY_BINARY_NAME
+#define GRIT_RECOVERY_BINARY_NAME "grit_recovery"
 #endif
 
 static int is_help(int argc, char **argv)
@@ -51,18 +51,18 @@ static void plan_print_config_source_json(void)
 
 static int noresidue_active(void)
 {
-    return !strcmp(BB_RUNTIME_MODE, "no-residue");
+    return !strcmp(GRIT_RUNTIME_MODE, "no-residue");
 }
 
 static int noresidue_aggressive(void)
 {
-    return !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+    return !strcmp(GRIT_NORESIDUE_LEVEL, "aggressive");
 }
 
 static const char *noresidue_guarantee_text(void)
 {
     return noresidue_aggressive() ?
-        "aggressive minimizes BusierBox runtime residue but cannot guarantee absence of residue" :
+        "aggressive minimizes griTTYkit runtime residue but cannot guarantee absence of residue" :
         "best-effort cleanup removes owned runtime state where reasonable";
 }
 
@@ -71,16 +71,16 @@ static void plan_print_noresidue_policy_json(void)
     fputs("{\"active\":", stdout);
     fputs(noresidue_active() ? "true" : "false", stdout);
     fputs(",\"level\":", stdout);
-    bb_json_string(stdout, BB_NORESIDUE_LEVEL);
+    bb_json_string(stdout, GRIT_NORESIDUE_LEVEL);
     fputs(",\"cleanup_scope\":", stdout);
-    bb_json_string(stdout, "BusierBox-owned runtime roots and ledgered files only");
+    bb_json_string(stdout, "griTTYkit-owned runtime roots and ledgered files only");
     fputs(",\"best_effort\":true", stdout);
     fputs(",\"aggressive_minimizes_runtime_residue\":", stdout);
     fputs(noresidue_aggressive() ? "true" : "false", stdout);
     fputs(",\"persistent_target_logs_default\":", stdout);
     bb_json_string(stdout, noresidue_aggressive() ? "no" : "configured");
     fputs(",\"stdout_stderr_log_suppression\":", stdout);
-    bb_json_string(stdout, noresidue_aggressive() ? "BB_ZERO_ARG_LOG_MODE=none" : "available via BB_ZERO_ARG_LOG_MODE=none");
+    bb_json_string(stdout, noresidue_aggressive() ? "GRIT_ZERO_ARG_LOG_MODE=none" : "available via GRIT_ZERO_ARG_LOG_MODE=none");
     fputs(",\"in_memory_log_guarantee\":false", stdout);
     fputs(",\"forensic_no_trace\":false", stdout);
     fputs(",\"external_writes_require_explicit_apply\":true", stdout);
@@ -92,13 +92,13 @@ static void plan_print_noresidue_policy_json(void)
 static void plan_print_noresidue_policy_text(void)
 {
     printf("noresidue_policy_active=%s\n", noresidue_active() ? "yes" : "no");
-    printf("noresidue_policy_level=%s\n", BB_NORESIDUE_LEVEL);
-    puts("noresidue_policy_cleanup_scope=BusierBox-owned runtime roots and ledgered files only");
+    printf("noresidue_policy_level=%s\n", GRIT_NORESIDUE_LEVEL);
+    puts("noresidue_policy_cleanup_scope=griTTYkit-owned runtime roots and ledgered files only");
     puts("noresidue_policy_best_effort=yes");
     printf("noresidue_policy_aggressive_minimizes_runtime_residue=%s\n", noresidue_aggressive() ? "yes" : "no");
     printf("noresidue_policy_persistent_target_logs_default=%s\n", noresidue_aggressive() ? "no" : "configured");
     printf("noresidue_policy_stdout_stderr_log_suppression=%s\n",
-           noresidue_aggressive() ? "BB_ZERO_ARG_LOG_MODE=none" : "available via BB_ZERO_ARG_LOG_MODE=none");
+           noresidue_aggressive() ? "GRIT_ZERO_ARG_LOG_MODE=none" : "available via GRIT_ZERO_ARG_LOG_MODE=none");
     puts("noresidue_policy_in_memory_log_guarantee=no");
     puts("noresidue_policy_forensic_no_trace=no");
     puts("noresidue_policy_external_writes_require_explicit_apply=yes");
@@ -114,22 +114,22 @@ static void plan_print_extract(int json)
 
     if (json) {
         fputs("{\"schema\":1,\"command\":\"extract\",\"would_create\":[", stdout);
-        bb_json_string(stdout, BB_RUNTIME_ROOT);
+        bb_json_string(stdout, GRIT_RUNTIME_ROOT);
         fputs(",", stdout);
         {
             char p[PATH_MAX];
-            snprintf(p, sizeof(p), "%s/payload", BB_RUNTIME_ROOT);
+            snprintf(p, sizeof(p), "%s/payload", GRIT_RUNTIME_ROOT);
             bb_json_string(stdout, p);
         }
         fputs("],\"would_modify\":[", stdout);
-        bb_json_string(stdout, BB_RUNTIME_ROOT);
+        bb_json_string(stdout, GRIT_RUNTIME_ROOT);
         fputs("],\"would_remove\":[],\"would_start\":[],\"would_connect\":[],\"requires_external_writes\":false", stdout);
-        fputs(",\"runtime_root\":", stdout); bb_json_string(stdout, BB_RUNTIME_ROOT);
-        fputs(",\"runtime_mode\":", stdout); bb_json_string(stdout, BB_RUNTIME_MODE);
-        fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, BB_NORESIDUE_LEVEL);
+        fputs(",\"runtime_root\":", stdout); bb_json_string(stdout, GRIT_RUNTIME_ROOT);
+        fputs(",\"runtime_mode\":", stdout); bb_json_string(stdout, GRIT_RUNTIME_MODE);
+        fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, GRIT_NORESIDUE_LEVEL);
         fputs(",\"noresidue_policy\":", stdout); plan_print_noresidue_policy_json();
-        fputs(",\"fallback_root\":", stdout); bb_json_string(stdout, BB_RUNTIME_FALLBACK_ROOT);
-        printf(",\"fallback_enabled\":%s", !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "true" : "false");
+        fputs(",\"fallback_root\":", stdout); bb_json_string(stdout, GRIT_RUNTIME_FALLBACK_ROOT);
+        printf(",\"fallback_enabled\":%s", !strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "true" : "false");
         fputs(",\"cleanup_ledger_path\":", stdout);
         bb_json_string(stdout, bb_ledger_path(ledger, sizeof(ledger)));
         printf(",\"payload_already_available\":%s,\"embedded_payload_available\":%s,\"dev_archive_available\":%s",
@@ -141,21 +141,21 @@ static void plan_print_extract(int json)
 
     puts("Plan: extract");
     plan_print_config_source_text();
-    printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
-    printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
-    printf("noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
+    printf("runtime_root=%s\n", GRIT_RUNTIME_ROOT);
+    printf("runtime_mode=%s\n", GRIT_RUNTIME_MODE);
+    printf("noresidue_level=%s\n", GRIT_NORESIDUE_LEVEL);
     plan_print_noresidue_policy_text();
-    printf("fallback_root=%s\n", BB_RUNTIME_FALLBACK_ROOT);
-    printf("fallback_enabled=%s\n", !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "yes" : "no");
+    printf("fallback_root=%s\n", GRIT_RUNTIME_FALLBACK_ROOT);
+    printf("fallback_enabled=%s\n", !strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "yes" : "no");
     printf("cleanup_ledger_path=%s\n", bb_ledger_path(ledger, sizeof(ledger)));
     printf("payload_already_available=%s\n", have_payload ? "yes" : "no");
     printf("embedded_payload_available=%s\n", have_embedded ? "yes" : "no");
     printf("dev_archive_available=%s\n", have_archive ? "yes" : "no");
     puts("would_create:");
-    printf("  %s\n", BB_RUNTIME_ROOT);
-    printf("  %s/payload\n", BB_RUNTIME_ROOT);
+    printf("  %s\n", GRIT_RUNTIME_ROOT);
+    printf("  %s/payload\n", GRIT_RUNTIME_ROOT);
     puts("would_modify:");
-    printf("  %s\n", BB_RUNTIME_ROOT);
+    printf("  %s\n", GRIT_RUNTIME_ROOT);
     puts("requires_external_writes=no");
 }
 
@@ -164,15 +164,15 @@ static void plan_print_clean(int json)
     char ledger[PATH_MAX];
     if (json) {
         fputs("{\"schema\":1,\"command\":\"clean\",\"would_create\":[],\"would_modify\":[],\"would_remove\":[", stdout);
-        bb_json_string(stdout, BB_RUNTIME_ROOT);
-        if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && BB_RUNTIME_FALLBACK_ROOT[0] && strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT)) {
+        bb_json_string(stdout, GRIT_RUNTIME_ROOT);
+        if (!strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && GRIT_RUNTIME_FALLBACK_ROOT[0] && strcmp(GRIT_RUNTIME_FALLBACK_ROOT, GRIT_RUNTIME_ROOT)) {
             fputs(",", stdout);
-            bb_json_string(stdout, BB_RUNTIME_FALLBACK_ROOT);
+            bb_json_string(stdout, GRIT_RUNTIME_FALLBACK_ROOT);
         }
         fputs("],\"would_start\":[],\"would_connect\":[],\"requires_external_writes\":false", stdout);
-        fputs(",\"runtime_root\":", stdout); bb_json_string(stdout, BB_RUNTIME_ROOT);
-        fputs(",\"runtime_mode\":", stdout); bb_json_string(stdout, BB_RUNTIME_MODE);
-        fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, BB_NORESIDUE_LEVEL);
+        fputs(",\"runtime_root\":", stdout); bb_json_string(stdout, GRIT_RUNTIME_ROOT);
+        fputs(",\"runtime_mode\":", stdout); bb_json_string(stdout, GRIT_RUNTIME_MODE);
+        fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, GRIT_NORESIDUE_LEVEL);
         fputs(",\"noresidue_policy\":", stdout); plan_print_noresidue_policy_json();
         fputs(",\"cleanup_ledger_path\":", stdout); bb_json_string(stdout, bb_ledger_path(ledger, sizeof(ledger)));
         plan_print_config_source_json();
@@ -181,15 +181,15 @@ static void plan_print_clean(int json)
     }
     puts("Plan: clean");
     plan_print_config_source_text();
-    printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
-    printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
-    printf("noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
+    printf("runtime_root=%s\n", GRIT_RUNTIME_ROOT);
+    printf("runtime_mode=%s\n", GRIT_RUNTIME_MODE);
+    printf("noresidue_level=%s\n", GRIT_NORESIDUE_LEVEL);
     plan_print_noresidue_policy_text();
     printf("cleanup_ledger_path=%s\n", bb_ledger_path(ledger, sizeof(ledger)));
     puts("would_remove:");
-    printf("  %s\n", BB_RUNTIME_ROOT);
-    if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && BB_RUNTIME_FALLBACK_ROOT[0] && strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT))
-        printf("  %s (fallback root, if used)\n", BB_RUNTIME_FALLBACK_ROOT);
+    printf("  %s\n", GRIT_RUNTIME_ROOT);
+    if (!strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && GRIT_RUNTIME_FALLBACK_ROOT[0] && strcmp(GRIT_RUNTIME_FALLBACK_ROOT, GRIT_RUNTIME_ROOT))
+        printf("  %s (fallback root, if used)\n", GRIT_RUNTIME_FALLBACK_ROOT);
     puts("requires_external_writes=no");
     puts("external_cleanup_note=external ledger cleanup still requires clean --external --apply");
 }
@@ -222,7 +222,7 @@ static const char *rshell_policy_post_disconnect_count(const char *policy)
         return "0";
     if (!strcmp(policy, "persistent"))
         return "-1";
-    return BB_RSHELL_RETRY_COUNT;
+    return GRIT_RSHELL_RETRY_COUNT;
 }
 
 static int plan_parse_int_default(const char *s, int def)
@@ -243,17 +243,17 @@ static int plan_parse_int_default(const char *s, int def)
 
 static int rshell_retry_delay_without_jitter_for_attempt(int attempt)
 {
-    int base = plan_parse_int_default(BB_RSHELL_RETRY_INTERVAL_SEC, 5);
-    int max = plan_parse_int_default(BB_RSHELL_RETRY_MAX_INTERVAL_SEC, 300);
+    int base = plan_parse_int_default(GRIT_RSHELL_RETRY_INTERVAL_SEC, 5);
+    int max = plan_parse_int_default(GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC, 300);
     int delay = base;
 
     if (base < 0)
         base = 0;
     if (max < base)
         max = base;
-    if (!strcmp(BB_RSHELL_RETRY_BACKOFF, "linear"))
+    if (!strcmp(GRIT_RSHELL_RETRY_BACKOFF, "linear"))
         delay = base * (attempt + 1);
-    else if (!strcmp(BB_RSHELL_RETRY_BACKOFF, "exponential")) {
+    else if (!strcmp(GRIT_RSHELL_RETRY_BACKOFF, "exponential")) {
         int i;
         delay = base;
         for (i = 0; i < attempt && delay < max; i++) {
@@ -272,16 +272,16 @@ static int rshell_retry_delay_without_jitter_for_attempt(int attempt)
 static void plan_print_rshell(int json)
 {
     char guard[PATH_MAX], log_path[PATH_MAX], server[256], connect[256];
-    snprintf(guard, sizeof(guard), "%s", BB_AUTORUN_GUARD_PATH);
+    snprintf(guard, sizeof(guard), "%s", GRIT_AUTORUN_GUARD_PATH);
     snprintf(log_path, sizeof(log_path), "%s/rshell.log", guard);
-    if (!strcmp(BB_RSHELL_TRANSPORT, "ssh")) {
-        snprintf(server, sizeof(server), "ssh server %s@%s:%s", BB_OPERATOR_SERVER_USER, BB_OPERATOR_SERVER_HOST, BB_OPERATOR_SERVER_SSH_PORT);
-        snprintf(connect, sizeof(connect), "remote forward %s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_REMOTE_FORWARD_PORT);
-    } else if (!strcmp(BB_RSHELL_TRANSPORT, "builtin")) {
-        snprintf(server, sizeof(server), "builtin TLS listener %s:%s", BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+    if (!strcmp(GRIT_RSHELL_TRANSPORT, "ssh")) {
+        snprintf(server, sizeof(server), "ssh server %s@%s:%s", GRIT_OPERATOR_SERVER_USER, GRIT_OPERATOR_SERVER_HOST, GRIT_OPERATOR_SERVER_SSH_PORT);
+        snprintf(connect, sizeof(connect), "remote forward %s:%s", GRIT_OPERATOR_TARGET_BIND_HOST, GRIT_OPERATOR_REMOTE_FORWARD_PORT);
+    } else if (!strcmp(GRIT_RSHELL_TRANSPORT, "builtin")) {
+        snprintf(server, sizeof(server), "builtin TLS listener %s:%s", GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_SOCAT_PORT);
         snprintf(connect, sizeof(connect), "builtin reverse shell");
-    } else if (!strcmp(BB_RSHELL_TRANSPORT, "socat")) {
-        snprintf(server, sizeof(server), "socat listener %s:%s", BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+    } else if (!strcmp(GRIT_RSHELL_TRANSPORT, "socat")) {
+        snprintf(server, sizeof(server), "socat listener %s:%s", GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_SOCAT_PORT);
         snprintf(connect, sizeof(connect), "socat reverse shell");
     } else {
         snprintf(server, sizeof(server), "disabled");
@@ -296,72 +296,72 @@ static void plan_print_rshell(int json)
         fputs("],\"would_modify\":[", stdout);
         bb_json_string(stdout, guard);
         fputs("],\"would_remove\":[],\"would_start\":[", stdout);
-        bb_json_string(stdout, BB_RSHELL_TRANSPORT);
+        bb_json_string(stdout, GRIT_RSHELL_TRANSPORT);
         fputs("],\"would_connect\":[", stdout);
         bb_json_string(stdout, server);
         fputs("],\"requires_external_writes\":false", stdout);
-        fputs(",\"runtime_root\":", stdout); bb_json_string(stdout, BB_RUNTIME_ROOT);
-        fputs(",\"transport\":", stdout); bb_json_string(stdout, BB_RSHELL_TRANSPORT);
-        fputs(",\"encryption\":", stdout); bb_json_string(stdout, BB_RSHELL_ENCRYPTION);
-        fputs(",\"run_mode\":", stdout); bb_json_string(stdout, BB_RSHELL_RUN_MODE);
-        fputs(",\"session_policy\":", stdout); bb_json_string(stdout, BB_RSHELL_SESSION_POLICY);
-        printf(",\"session_policy_valid\":%s", rshell_policy_valid(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+        fputs(",\"runtime_root\":", stdout); bb_json_string(stdout, GRIT_RUNTIME_ROOT);
+        fputs(",\"transport\":", stdout); bb_json_string(stdout, GRIT_RSHELL_TRANSPORT);
+        fputs(",\"encryption\":", stdout); bb_json_string(stdout, GRIT_RSHELL_ENCRYPTION);
+        fputs(",\"run_mode\":", stdout); bb_json_string(stdout, GRIT_RSHELL_RUN_MODE);
+        fputs(",\"session_policy\":", stdout); bb_json_string(stdout, GRIT_RSHELL_SESSION_POLICY);
+        printf(",\"session_policy_valid\":%s", rshell_policy_valid(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false");
         fputs(",\"session_policy_errors\":[", stdout);
-        if (!rshell_policy_valid(BB_RSHELL_SESSION_POLICY))
+        if (!rshell_policy_valid(GRIT_RSHELL_SESSION_POLICY))
             bb_json_string(stdout, "unsupported rshell session policy");
         fputs("]", stdout);
         printf(",\"session_semantics\":{\"retry_until_first_connection\":true,\"stop_after_first_success\":%s,\"reconnect_after_disconnect\":%s,\"persistent_lifecycle\":%s,\"fresh_session_on_reconnect\":%s,\"session_resume_supported\":false}",
-               rshell_policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
-               rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
-               rshell_policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
-               rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+               rshell_policy_stops_after_first_success(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_persistent_lifecycle(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false");
         printf(",\"session_policy_summary\":{\"valid\":%s,\"errors\":[",
-               rshell_policy_valid(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
-        if (!rshell_policy_valid(BB_RSHELL_SESSION_POLICY))
+               rshell_policy_valid(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false");
+        if (!rshell_policy_valid(GRIT_RSHELL_SESSION_POLICY))
             bb_json_string(stdout, "unsupported rshell session policy");
         fputs("],\"retry_scope\":\"pre-connect", stdout);
-        if (rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY))
+        if (rshell_policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY))
             fputs("+post-disconnect", stdout);
         fputs("\",\"post_disconnect_retry_count\":", stdout);
-        bb_json_string(stdout, rshell_policy_post_disconnect_count(BB_RSHELL_SESSION_POLICY));
+        bb_json_string(stdout, rshell_policy_post_disconnect_count(GRIT_RSHELL_SESSION_POLICY));
         printf(",\"stops_after_success\":%s,\"reconnects_after_disconnect\":%s,\"persistent_lifecycle\":%s,\"fresh_session_on_reconnect\":%s,\"session_resume_supported\":false}",
-               rshell_policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
-               rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
-               rshell_policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "true" : "false",
-               rshell_policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+               rshell_policy_stops_after_first_success(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_persistent_lifecycle(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false",
+               rshell_policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false");
         fputs(",\"retry\":{\"count\":", stdout);
-        bb_json_string(stdout, BB_RSHELL_RETRY_COUNT);
+        bb_json_string(stdout, GRIT_RSHELL_RETRY_COUNT);
         fputs(",\"interval_sec\":", stdout);
-        bb_json_string(stdout, BB_RSHELL_RETRY_INTERVAL_SEC);
+        bb_json_string(stdout, GRIT_RSHELL_RETRY_INTERVAL_SEC);
         fputs(",\"jitter_pct\":", stdout);
-        bb_json_string(stdout, BB_RSHELL_RETRY_JITTER_PCT);
+        bb_json_string(stdout, GRIT_RSHELL_RETRY_JITTER_PCT);
         fputs(",\"backoff\":", stdout);
-        bb_json_string(stdout, BB_RSHELL_RETRY_BACKOFF);
+        bb_json_string(stdout, GRIT_RSHELL_RETRY_BACKOFF);
         fputs(",\"max_interval_sec\":", stdout);
-        bb_json_string(stdout, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+        bb_json_string(stdout, GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC);
         fputs(",\"pre_connect_count\":", stdout);
-        bb_json_string(stdout, BB_RSHELL_RETRY_COUNT);
+        bb_json_string(stdout, GRIT_RSHELL_RETRY_COUNT);
         fputs(",\"post_disconnect_count\":", stdout);
-        bb_json_string(stdout, rshell_policy_post_disconnect_count(BB_RSHELL_SESSION_POLICY));
+        bb_json_string(stdout, rshell_policy_post_disconnect_count(GRIT_RSHELL_SESSION_POLICY));
         fputs("}", stdout);
         fputs(",\"retry_timing\":{\"backoff\":", stdout);
-        bb_json_string(stdout, BB_RSHELL_RETRY_BACKOFF);
+        bb_json_string(stdout, GRIT_RSHELL_RETRY_BACKOFF);
         fputs(",\"interval_sec\":", stdout);
-        bb_json_string(stdout, BB_RSHELL_RETRY_INTERVAL_SEC);
+        bb_json_string(stdout, GRIT_RSHELL_RETRY_INTERVAL_SEC);
         fputs(",\"max_interval_sec\":", stdout);
-        bb_json_string(stdout, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+        bb_json_string(stdout, GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC);
         fputs(",\"jitter_pct\":", stdout);
-        bb_json_string(stdout, BB_RSHELL_RETRY_JITTER_PCT);
+        bb_json_string(stdout, GRIT_RSHELL_RETRY_JITTER_PCT);
         printf(",\"sample_delays_sec\":[%d,%d,%d],\"sample_delays_exclude_jitter\":true}",
                rshell_retry_delay_without_jitter_for_attempt(0),
                rshell_retry_delay_without_jitter_for_attempt(1),
                rshell_retry_delay_without_jitter_for_attempt(2));
-        fputs(",\"shell_provider\":", stdout); bb_json_string(stdout, BB_RSHELL_SHELL_PROVIDER);
-        fputs(",\"operator_host\":", stdout); bb_json_string(stdout, BB_OPERATOR_SERVER_HOST);
+        fputs(",\"shell_provider\":", stdout); bb_json_string(stdout, GRIT_RSHELL_SHELL_PROVIDER);
+        fputs(",\"operator_host\":", stdout); bb_json_string(stdout, GRIT_OPERATOR_SERVER_HOST);
         fputs(",\"expected_transport_behavior\":", stdout); bb_json_string(stdout, connect);
-        printf(",\"zero_arg_autorun\":%s", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "true" : "false");
-        printf(",\"no_residue_cleanup\":%s", !strcmp(BB_RUNTIME_MODE, "no-residue") ? "true" : "false");
-        fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, BB_NORESIDUE_LEVEL);
+        printf(",\"zero_arg_autorun\":%s", !strcmp(GRIT_ZERO_ARG_MODE, "rshell") ? "true" : "false");
+        printf(",\"no_residue_cleanup\":%s", !strcmp(GRIT_RUNTIME_MODE, "no-residue") ? "true" : "false");
+        fputs(",\"noresidue_level\":", stdout); bb_json_string(stdout, GRIT_NORESIDUE_LEVEL);
         fputs(",\"noresidue_policy\":", stdout); plan_print_noresidue_policy_json();
         plan_print_config_source_json();
         puts("}");
@@ -370,36 +370,36 @@ static void plan_print_rshell(int json)
 
     puts("Plan: rshell");
     plan_print_config_source_text();
-    printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
-    printf("transport=%s\n", BB_RSHELL_TRANSPORT);
-    printf("encryption=%s\n", BB_RSHELL_ENCRYPTION);
-    printf("run_mode=%s\n", BB_RSHELL_RUN_MODE);
-    printf("session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
-    printf("session_policy_valid=%s\n", rshell_policy_valid(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
-    if (!rshell_policy_valid(BB_RSHELL_SESSION_POLICY))
+    printf("runtime_root=%s\n", GRIT_RUNTIME_ROOT);
+    printf("transport=%s\n", GRIT_RSHELL_TRANSPORT);
+    printf("encryption=%s\n", GRIT_RSHELL_ENCRYPTION);
+    printf("run_mode=%s\n", GRIT_RSHELL_RUN_MODE);
+    printf("session_policy=%s\n", GRIT_RSHELL_SESSION_POLICY);
+    printf("session_policy_valid=%s\n", rshell_policy_valid(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no");
+    if (!rshell_policy_valid(GRIT_RSHELL_SESSION_POLICY))
         puts("session_policy_error=unsupported rshell session policy");
     printf("retry_until_first_connection=yes\n");
-    printf("post_disconnect_retry_count=%s\n", rshell_policy_post_disconnect_count(BB_RSHELL_SESSION_POLICY));
-    printf("retry_backoff=%s\n", BB_RSHELL_RETRY_BACKOFF);
-    printf("retry_interval_sec=%s\n", BB_RSHELL_RETRY_INTERVAL_SEC);
-    printf("retry_max_interval_sec=%s\n", BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
-    printf("retry_jitter_pct=%s\n", BB_RSHELL_RETRY_JITTER_PCT);
+    printf("post_disconnect_retry_count=%s\n", rshell_policy_post_disconnect_count(GRIT_RSHELL_SESSION_POLICY));
+    printf("retry_backoff=%s\n", GRIT_RSHELL_RETRY_BACKOFF);
+    printf("retry_interval_sec=%s\n", GRIT_RSHELL_RETRY_INTERVAL_SEC);
+    printf("retry_max_interval_sec=%s\n", GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC);
+    printf("retry_jitter_pct=%s\n", GRIT_RSHELL_RETRY_JITTER_PCT);
     printf("retry_delay_attempt_0_sec=%d\n", rshell_retry_delay_without_jitter_for_attempt(0));
     printf("retry_delay_attempt_1_sec=%d\n", rshell_retry_delay_without_jitter_for_attempt(1));
     printf("retry_delay_attempt_2_sec=%d\n", rshell_retry_delay_without_jitter_for_attempt(2));
     printf("session_resume_supported=no\n");
-    printf("shell_provider=%s\n", BB_RSHELL_SHELL_PROVIDER);
-    printf("operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
+    printf("shell_provider=%s\n", GRIT_RSHELL_SHELL_PROVIDER);
+    printf("operator_host=%s\n", GRIT_OPERATOR_SERVER_HOST);
     printf("expected_transport_behavior=%s\n", connect);
-    printf("zero_arg_autorun=%s\n", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "yes" : "no");
-    printf("no_residue_cleanup=%s\n", !strcmp(BB_RUNTIME_MODE, "no-residue") ? "yes" : "no");
-    printf("noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
+    printf("zero_arg_autorun=%s\n", !strcmp(GRIT_ZERO_ARG_MODE, "rshell") ? "yes" : "no");
+    printf("no_residue_cleanup=%s\n", !strcmp(GRIT_RUNTIME_MODE, "no-residue") ? "yes" : "no");
+    printf("noresidue_level=%s\n", GRIT_NORESIDUE_LEVEL);
     plan_print_noresidue_policy_text();
     puts("would_create:");
     printf("  %s\n", guard);
     printf("  %s\n", log_path);
     puts("would_start:");
-    printf("  %s transport\n", BB_RSHELL_TRANSPORT);
+    printf("  %s transport\n", GRIT_RSHELL_TRANSPORT);
     puts("would_connect:");
     printf("  %s\n", server);
     puts("requires_external_writes=no");
@@ -612,10 +612,10 @@ static void plan_print_command_queue_api_collections(void)
 
 static void plan_print_command_queue(int json)
 {
-    int enabled = !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes");
+    int enabled = !strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes");
     struct command_queue_policy_report policy = bb_command_queue_validate_policy();
     int valid = bb_command_queue_policy_valid(&policy);
-    int configured = valid && enabled && BB_OPERATOR_SERVER_HOST[0];
+    int configured = valid && enabled && GRIT_OPERATOR_SERVER_HOST[0];
     int i;
 
     if (json) {
@@ -625,14 +625,14 @@ static void plan_print_command_queue(int json)
         fputs("],\"would_connect\":[", stdout);
         if (configured) {
             char endpoint[128];
-            snprintf(endpoint, sizeof(endpoint), "%s:%s", BB_OPERATOR_SERVER_HOST, BB_COMMAND_QUEUE_PORT);
+            snprintf(endpoint, sizeof(endpoint), "%s:%s", GRIT_OPERATOR_SERVER_HOST, GRIT_COMMAND_QUEUE_PORT);
             bb_json_string(stdout, endpoint);
         }
         fputs("],\"requires_external_writes\":false", stdout);
         printf(",\"enabled\":%s,\"policy_valid\":%s,\"configured_for_polling\":%s,\"missing_operator_host\":%s,\"execution_supported\":false,\"result_upload_supported\":true",
                enabled ? "true" : "false", valid ? "true" : "false",
                configured ? "true" : "false",
-               (valid && enabled && !BB_OPERATOR_SERVER_HOST[0]) ? "true" : "false");
+               (valid && enabled && !GRIT_OPERATOR_SERVER_HOST[0]) ? "true" : "false");
         fputs(",\"policy_errors\":[", stdout);
         for (i = 0; i < policy.count; i++) {
             if (i)
@@ -640,24 +640,24 @@ static void plan_print_command_queue(int json)
             bb_json_string(stdout, policy.errors[i]);
         }
         fputc(']', stdout);
-        fputs(",\"require_token\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_REQUIRE_TOKEN);
-        fputs(",\"token_source\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_TOKEN_SOURCE);
+        fputs(",\"require_token\":", stdout); bb_json_string(stdout, GRIT_COMMAND_QUEUE_REQUIRE_TOKEN);
+        fputs(",\"token_source\":", stdout); bb_json_string(stdout, GRIT_COMMAND_QUEUE_TOKEN_SOURCE);
         printf(",\"token_required\":%s,\"token_configured\":%s",
-               !strcmp(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false",
-               BB_COMMAND_QUEUE_TOKEN[0] ? "true" : "false");
-        fputs(",\"allowed_commands\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
-        fputs(",\"allow_arbitrary\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
-        fputs(",\"execution_mode\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
-        printf(",\"metadata_only_default\":%s", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
-        fputs(",\"poll_interval_sec\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
-        fputs(",\"poll_jitter_pct\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_JITTER_PCT);
-        fputs(",\"poll_backoff\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_BACKOFF);
-        fputs(",\"poll_max_interval_sec\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
-        fputs(",\"max_polls\":", stdout); bb_json_string(stdout, BB_COMMAND_QUEUE_MAX_POLLS);
+               !strcmp(GRIT_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false",
+               GRIT_COMMAND_QUEUE_TOKEN[0] ? "true" : "false");
+        fputs(",\"allowed_commands\":", stdout); bb_json_string(stdout, GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS);
+        fputs(",\"allow_arbitrary\":", stdout); bb_json_string(stdout, GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY);
+        fputs(",\"execution_mode\":", stdout); bb_json_string(stdout, GRIT_COMMAND_QUEUE_EXECUTION);
+        printf(",\"metadata_only_default\":%s", !strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
+        fputs(",\"poll_interval_sec\":", stdout); bb_json_string(stdout, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC);
+        fputs(",\"poll_jitter_pct\":", stdout); bb_json_string(stdout, GRIT_COMMAND_QUEUE_POLL_JITTER_PCT);
+        fputs(",\"poll_backoff\":", stdout); bb_json_string(stdout, GRIT_COMMAND_QUEUE_POLL_BACKOFF);
+        fputs(",\"poll_max_interval_sec\":", stdout); bb_json_string(stdout, GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
+        fputs(",\"max_polls\":", stdout); bb_json_string(stdout, GRIT_COMMAND_QUEUE_MAX_POLLS);
         fputs(",\"daemon_state_file\":", stdout);
         {
             char state_file[512];
-            snprintf(state_file, sizeof(state_file), "%s/run/command-queue-daemon.state", BB_RUNTIME_ROOT);
+            snprintf(state_file, sizeof(state_file), "%s/run/command-queue-daemon.state", GRIT_RUNTIME_ROOT);
             bb_json_string(stdout, state_file);
         }
         fputs(",\"daemon_state_file_supported\":true,\"daemon_status_supported\":true,\"daemon_stop_supported\":true", stdout);
@@ -672,27 +672,27 @@ static void plan_print_command_queue(int json)
     }
     puts("Plan: command-queue");
     plan_print_config_source_text();
-    printf("enabled=%s\n", BB_COMMAND_QUEUE_ENABLE);
+    printf("enabled=%s\n", GRIT_COMMAND_QUEUE_ENABLE);
     printf("policy_valid=%s\n", valid ? "yes" : "no");
     for (i = 0; i < policy.count; i++)
         printf("policy_error=%s\n", policy.errors[i]);
     printf("configured_for_polling=%s\n", configured ? "yes" : "no");
-    printf("missing_operator_host=%s\n", (valid && enabled && !BB_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
-    printf("port=%s\n", BB_COMMAND_QUEUE_PORT);
-    printf("tls=%s\n", BB_COMMAND_QUEUE_TLS);
-    printf("require_token=%s\n", BB_COMMAND_QUEUE_REQUIRE_TOKEN);
-    printf("token_source=%s\n", BB_COMMAND_QUEUE_TOKEN_SOURCE);
-    printf("token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
-    printf("allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
-    printf("allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
-    printf("execution_mode=%s\n", BB_COMMAND_QUEUE_EXECUTION);
-    printf("metadata_only_default=%s\n", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "yes" : "no");
-    printf("poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
-    printf("poll_jitter_pct=%s\n", BB_COMMAND_QUEUE_POLL_JITTER_PCT);
-    printf("poll_backoff=%s\n", BB_COMMAND_QUEUE_POLL_BACKOFF);
-    printf("poll_max_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
-    printf("max_polls=%s\n", BB_COMMAND_QUEUE_MAX_POLLS);
-    printf("daemon_state_file=%s/run/command-queue-daemon.state\n", BB_RUNTIME_ROOT);
+    printf("missing_operator_host=%s\n", (valid && enabled && !GRIT_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
+    printf("port=%s\n", GRIT_COMMAND_QUEUE_PORT);
+    printf("tls=%s\n", GRIT_COMMAND_QUEUE_TLS);
+    printf("require_token=%s\n", GRIT_COMMAND_QUEUE_REQUIRE_TOKEN);
+    printf("token_source=%s\n", GRIT_COMMAND_QUEUE_TOKEN_SOURCE);
+    printf("token_configured=%s\n", GRIT_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
+    printf("allowed_commands=%s\n", GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS);
+    printf("allow_arbitrary=%s\n", GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("execution_mode=%s\n", GRIT_COMMAND_QUEUE_EXECUTION);
+    printf("metadata_only_default=%s\n", !strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "yes" : "no");
+    printf("poll_interval_sec=%s\n", GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC);
+    printf("poll_jitter_pct=%s\n", GRIT_COMMAND_QUEUE_POLL_JITTER_PCT);
+    printf("poll_backoff=%s\n", GRIT_COMMAND_QUEUE_POLL_BACKOFF);
+    printf("poll_max_interval_sec=%s\n", GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
+    printf("max_polls=%s\n", GRIT_COMMAND_QUEUE_MAX_POLLS);
+    printf("daemon_state_file=%s/run/command-queue-daemon.state\n", GRIT_RUNTIME_ROOT);
     puts("daemon_state_file_supported=yes");
     puts("daemon_status_supported=yes");
     puts("daemon_stop_supported=yes");
@@ -708,14 +708,14 @@ struct plan_recovery_method {
 };
 
 static const struct plan_recovery_method plan_recovery_methods[] = {
-    {"openwrt-procd", "etc/init.d/busierbox_recovery"},
-    {"sysv-init", "etc/rc.d/S99busierbox_recovery"},
-    {"systemd-unit", "etc/systemd/system/busierbox-recovery.service"},
+    {"openwrt-procd", "etc/init.d/grit_recovery"},
+    {"sysv-init", "etc/rc.d/S99grit_recovery"},
+    {"systemd-unit", "etc/systemd/system/grit-recovery.service"},
     {"cron-reboot", "etc/crontabs/root"},
     {"at-job", "var/spool/at"},
     {"rc-local", "etc/rc.local"},
-    {"hotplug-iface", "etc/hotplug.d/iface/99-busierbox-recovery"},
-    {"profile", "etc/profile.d/busierbox-recovery.sh"},
+    {"hotplug-iface", "etc/hotplug.d/iface/99-grit-recovery"},
+    {"profile", "etc/profile.d/grit-recovery.sh"},
 };
 
 static const struct plan_recovery_method *find_plan_recovery_method(const char *name)
@@ -815,7 +815,7 @@ static int plan_recovery_install(int argc, char **argv, int json)
     const char *root = "/";
     const char *method = NULL;
     const char *action = "status-only";
-    const char *name = BB_RECOVERY_BINARY_NAME;
+    const char *name = GRIT_RECOVERY_BINARY_NAME;
     const char *script_file = NULL;
     const char *command = NULL;
     int external = 0;
@@ -899,7 +899,7 @@ static int plan_recovery_install(int argc, char **argv, int json)
     else if (!strcmp(action, "evidence-then-rshell"))
         snprintf(generated, sizeof(generated), "/usr/bin/%s evidence push --quiet && /usr/bin/%s rshell start", name, name);
     else if (!strcmp(action, "dmesg-push"))
-        snprintf(generated, sizeof(generated), "bbx_dmesg_dir=%s/run; mkdir -p \"$bbx_dmesg_dir\" 2>/dev/null || bbx_dmesg_dir=.; bbx_dmesg=\"$bbx_dmesg_dir/%s-dmesg.txt\"; dmesg >\"$bbx_dmesg\" 2>&1; /usr/bin/%s evidence push \"$bbx_dmesg\" --dest %s-dmesg.txt --quiet; rm -f \"$bbx_dmesg\"", BB_RUNTIME_ROOT, name, name, name);
+        snprintf(generated, sizeof(generated), "grit_dmesg_dir=%s/run; mkdir -p \"$grit_dmesg_dir\" 2>/dev/null || grit_dmesg_dir=.; grit_dmesg=\"$grit_dmesg_dir/%s-dmesg.txt\"; dmesg >\"$grit_dmesg\" 2>&1; /usr/bin/%s evidence push \"$grit_dmesg\" --dest %s-dmesg.txt --quiet; rm -f \"$grit_dmesg\"", GRIT_RUNTIME_ROOT, name, name, name);
     else if (!strcmp(action, "command"))
         snprintf(generated, sizeof(generated), "%s", command);
     else if (!strcmp(action, "script"))
@@ -921,7 +921,7 @@ static int plan_recovery_install(int argc, char **argv, int json)
         fputs("],\"would_connect\":[", stdout);
         if (!strcmp(action, "rshell") || !strcmp(action, "evidence-push") ||
             !strcmp(action, "evidence-then-rshell") || !strcmp(action, "dmesg-push"))
-            bb_json_string(stdout, BB_OPERATOR_SERVER_HOST);
+            bb_json_string(stdout, GRIT_OPERATOR_SERVER_HOST);
         fputs("],\"requires_external_writes\":", stdout);
         printf("%s", !strcmp(root, "/") ? "true" : "false");
         fputs(",\"root\":", stdout); bb_json_string(stdout, root);
@@ -993,8 +993,8 @@ int applet_plan_main(int argc, char **argv)
     int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox plan [--json] [extract|rshell|clean|command-queue]");
-        puts("       busierbox plan [--json] recovery install --method METHOD --action ACTION [options]");
+        puts("usage: grit plan [--json] [extract|rshell|clean|command-queue]");
+        puts("       grit plan [--json] recovery install --method METHOD --action ACTION [options]");
         puts("Shows intended filesystem, process, and network impact without modifying the target.");
         return 0;
     }
@@ -1038,11 +1038,11 @@ int applet_plan_main(int argc, char **argv)
             puts("}");
         } else {
             puts("Available plans:");
-            puts("  busierbox plan extract");
-            puts("  busierbox plan rshell");
-            puts("  busierbox plan clean");
-            puts("  busierbox plan command-queue");
-            puts("  busierbox plan recovery install --method openwrt-procd --action rshell");
+            puts("  grit plan extract");
+            puts("  grit plan rshell");
+            puts("  grit plan clean");
+            puts("  grit plan command-queue");
+            puts("  grit plan recovery install --method openwrt-procd --action rshell");
             plan_print_config_source_text();
         }
         return 0;

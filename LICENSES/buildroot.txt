@@ -1,7 +1,7 @@
 Buildroot is licensed primarily under GPL-2.0-or-later with per-file and
 package exceptions.
 
-BusierBox uses Buildroot as a target build system. Buildroot package recipes can
+griTTYkit uses Buildroot as a target build system. Buildroot package recipes can
 fetch and build software under many licenses; selected payload packages keep
 their own upstream license and notice obligations.
 

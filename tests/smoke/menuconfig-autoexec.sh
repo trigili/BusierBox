@@ -7,28 +7,28 @@ menu=${1:-scripts/menuconfig}
     exit 1
 }
 
-grep -q 'BB_ZERO_ARG_MODE=' "$menu"
-grep -q 'BB_ZERO_ARG_LOG_MODE=' "$menu"
-grep -q 'BB_ZERO_ARG_CUSTOM_COMMAND=' "$menu"
-grep -q 'BB_TRAILER_OVERRIDES_ENABLE=' "$menu"
+grep -q 'GRIT_ZERO_ARG_MODE=' "$menu"
+grep -q 'GRIT_ZERO_ARG_LOG_MODE=' "$menu"
+grep -q 'GRIT_ZERO_ARG_CUSTOM_COMMAND=' "$menu"
+grep -q 'GRIT_TRAILER_OVERRIDES_ENABLE=' "$menu"
 grep -q 'Artifact runtime overrides' "$menu"
 grep -q 'scripts/artifact-config' "$menu"
-grep -q 'BB_RSHELL_TRANSPORT=' "$menu"
-grep -q 'BB_RSHELL_AUTHKEYS_MODE=' "$menu"
-grep -q 'BB_DOTFILE_ZSH_MODE=' "$menu"
-grep -q 'BB_DOTFILE_BASH_MODE=' "$menu"
-grep -q 'BB_DOTFILE_TMUX_MODE=' "$menu"
-grep -q 'BB_DOTFILE_GDB_MODE=' "$menu"
-grep -q 'BB_DOTFILE_PROFILE_MODE=' "$menu"
+grep -q 'GRIT_RSHELL_TRANSPORT=' "$menu"
+grep -q 'GRIT_RSHELL_AUTHKEYS_MODE=' "$menu"
+grep -q 'GRIT_DOTFILE_ZSH_MODE=' "$menu"
+grep -q 'GRIT_DOTFILE_BASH_MODE=' "$menu"
+grep -q 'GRIT_DOTFILE_TMUX_MODE=' "$menu"
+grep -q 'GRIT_DOTFILE_GDB_MODE=' "$menu"
+grep -q 'GRIT_DOTFILE_PROFILE_MODE=' "$menu"
 grep -q 'configure_build_targets' "$menu"
 grep -q 'configure_runtime_mode' "$menu"
-grep -q 'BB_AUTORUN_GUARD_PATH=' "$menu"
+grep -q 'GRIT_AUTORUN_GUARD_PATH=' "$menu"
 grep -q 'Launch behavior: zero-arg=' "$menu"
-grep -q 'scripts/busierbox-server' "$menu"
+grep -q 'scripts/grit-server' "$menu"
 grep -q 'Applet configuration' "$menu"
 grep -q 'Reverse access' "$menu"
 grep -q 'Dotfiles by app' "$menu"
-grep -q 'BusierBox default initial config' "$menu"
+grep -q 'griTTYkit default initial config' "$menu"
 if grep -q 'default-comfort\\|default-operator\\|default-minimal' "$menu"; then
     printf '%s\n' "menuconfig-autoexec: old global dotfile profiles are still in menuconfig" >&2
     exit 1
@@ -53,7 +53,7 @@ fi
 
 if awk '
     /operator_session_enabled\(\)/ { in_fn=1 }
-    in_fn && /BB_FULL_CALLBACK_ENABLE/ { found=1 }
+    in_fn && /GRIT_FULL_CALLBACK_ENABLE/ { found=1 }
     in_fn && /^}/ { in_fn=0 }
     END { exit found ? 0 : 1 }
 ' "$menu"; then

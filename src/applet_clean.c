@@ -85,11 +85,11 @@ static int print_clean_dry_run(int include_external)
     struct clean_result result = {0, include_external ? 0 : count_external_entries(), 0, 0, 0, "dry-run only"};
 
     printf("Would remove:\n");
-    printf("  %s\n", BB_RUNTIME_ROOT);
-    if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
-        BB_RUNTIME_FALLBACK_ROOT[0] &&
-        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT))
-        printf("  %s (fallback root, if BusierBox used it)\n", BB_RUNTIME_FALLBACK_ROOT);
+    printf("  %s\n", GRIT_RUNTIME_ROOT);
+    if (!strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+        GRIT_RUNTIME_FALLBACK_ROOT[0] &&
+        strcmp(GRIT_RUNTIME_FALLBACK_ROOT, GRIT_RUNTIME_ROOT))
+        printf("  %s (fallback root, if griTTYkit used it)\n", GRIT_RUNTIME_FALLBACK_ROOT);
     if (!fp) {
         printf("Ledger: no ledger at %s\n", path);
         print_clean_result_text(&result);
@@ -112,15 +112,15 @@ static void print_clean_json_array_runtime_roots(int ledger)
 {
     int wrote = 0;
     fputc('[', stdout);
-    bb_json_string(stdout, BB_RUNTIME_ROOT);
+    bb_json_string(stdout, GRIT_RUNTIME_ROOT);
     wrote = 1;
     if (ledger &&
-        !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
-        BB_RUNTIME_FALLBACK_ROOT[0] &&
-        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT)) {
+        !strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+        GRIT_RUNTIME_FALLBACK_ROOT[0] &&
+        strcmp(GRIT_RUNTIME_FALLBACK_ROOT, GRIT_RUNTIME_ROOT)) {
         if (wrote)
             fputc(',', stdout);
-        bb_json_string(stdout, BB_RUNTIME_FALLBACK_ROOT);
+        bb_json_string(stdout, GRIT_RUNTIME_FALLBACK_ROOT);
     }
     fputc(']', stdout);
 }
@@ -184,13 +184,13 @@ static const char *ledger_cleanup_action(const char *path, const char *op, int l
 {
     if (op && !strcmp(op, "remove"))
         return "already-recorded-remove";
-    if (path_is_under_dir(path, BB_RUNTIME_ROOT))
+    if (path_is_under_dir(path, GRIT_RUNTIME_ROOT))
         return "remove_with_runtime_root";
     if (ledger &&
-        !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
-        BB_RUNTIME_FALLBACK_ROOT[0] &&
-        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT) &&
-        path_is_under_dir(path, BB_RUNTIME_FALLBACK_ROOT))
+        !strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+        GRIT_RUNTIME_FALLBACK_ROOT[0] &&
+        strcmp(GRIT_RUNTIME_FALLBACK_ROOT, GRIT_RUNTIME_ROOT) &&
+        path_is_under_dir(path, GRIT_RUNTIME_FALLBACK_ROOT))
         return "remove_with_fallback_root";
     return "not_in_default_clean_scope";
 }
@@ -438,9 +438,9 @@ static void print_ledger_json_counts(const struct ledger_json_record *records,
 static int residue_plan_uses_fallback_root(int ledger)
 {
     return ledger &&
-        !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
-        BB_RUNTIME_FALLBACK_ROOT[0] &&
-        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT);
+        !strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+        GRIT_RUNTIME_FALLBACK_ROOT[0] &&
+        strcmp(GRIT_RUNTIME_FALLBACK_ROOT, GRIT_RUNTIME_ROOT);
 }
 
 static int intended_write_path_count(int ledger)
@@ -467,23 +467,23 @@ static void print_intended_write_path_records_json(int ledger, const char *ledge
     int first = 1;
 
     fputc('[', stdout);
-    print_intended_write_path_record_json("runtime_root", BB_RUNTIME_ROOT,
+    print_intended_write_path_record_json("runtime_root", GRIT_RUNTIME_ROOT,
                                           "runtime extraction and transient state",
-                                          "busierbox clean removes runtime root");
+                                          "grit clean removes runtime root");
     first = 0;
     if (residue_plan_uses_fallback_root(ledger)) {
         if (!first)
             fputc(',', stdout);
-        print_intended_write_path_record_json("fallback_runtime_root", BB_RUNTIME_FALLBACK_ROOT,
+        print_intended_write_path_record_json("fallback_runtime_root", GRIT_RUNTIME_FALLBACK_ROOT,
                                               "fallback extraction root when primary root is unavailable",
-                                              "busierbox clean --ledger removes fallback root if used");
+                                              "grit clean --ledger removes fallback root if used");
         first = 0;
     }
     if (!first)
         fputc(',', stdout);
     print_intended_write_path_record_json("cleanup_ledger", ledger_path,
-                                          "ledger of BusierBox-controlled runtime writes",
-                                          "busierbox clean --ledger consumes ledgered cleanup paths");
+                                          "ledger of griTTYkit-controlled runtime writes",
+                                          "grit clean --ledger consumes ledgered cleanup paths");
     fputc(']', stdout);
 }
 
@@ -500,9 +500,9 @@ static void print_intended_write_path_index_json(int ledger, const char *ledger_
         first = 0; \
         index++; \
     } while (0)
-    PRINT_INTENDED_INDEX_ITEM("runtime_root", BB_RUNTIME_ROOT);
+    PRINT_INTENDED_INDEX_ITEM("runtime_root", GRIT_RUNTIME_ROOT);
     if (residue_plan_uses_fallback_root(ledger))
-        PRINT_INTENDED_INDEX_ITEM("fallback_runtime_root", BB_RUNTIME_FALLBACK_ROOT);
+        PRINT_INTENDED_INDEX_ITEM("fallback_runtime_root", GRIT_RUNTIME_FALLBACK_ROOT);
     PRINT_INTENDED_INDEX_ITEM("cleanup_ledger", ledger_path);
 #undef PRINT_INTENDED_INDEX_ITEM
     fputc('}', stdout);
@@ -571,18 +571,18 @@ static void print_residue_plan_json(int include_external, int ledger)
     const char *ledger_path = bb_ledger_path(ledger_path_buf, sizeof(ledger_path_buf));
     int intended_count = intended_write_path_count(ledger);
     int first = 1;
-    int aggressive = !strcmp(BB_RUNTIME_MODE, "no-residue") && !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+    int aggressive = !strcmp(GRIT_RUNTIME_MODE, "no-residue") && !strcmp(GRIT_NORESIDUE_LEVEL, "aggressive");
 
     fputs("{\"runtime_mode\":", stdout);
-    bb_json_string(stdout, BB_RUNTIME_MODE);
+    bb_json_string(stdout, GRIT_RUNTIME_MODE);
     fputs(",\"noresidue_level\":", stdout);
-    bb_json_string(stdout, BB_NORESIDUE_LEVEL);
+    bb_json_string(stdout, GRIT_NORESIDUE_LEVEL);
     fputs(",\"intended_write_paths\":[", stdout);
-    print_clean_json_string_array_item(BB_RUNTIME_ROOT, &first);
+    print_clean_json_string_array_item(GRIT_RUNTIME_ROOT, &first);
     if (ledger) {
         first = 0;
         if (residue_plan_uses_fallback_root(ledger))
-            print_clean_json_string_array_item(BB_RUNTIME_FALLBACK_ROOT, &first);
+            print_clean_json_string_array_item(GRIT_RUNTIME_FALLBACK_ROOT, &first);
     }
     print_clean_json_string_array_item(ledger_path, &first);
     printf("],\"intended_write_path_count\":%d", intended_count);
@@ -594,10 +594,10 @@ static void print_residue_plan_json(int include_external, int ledger)
     print_intended_write_path_index_json(ledger, ledger_path, "path");
     fputs(",\"cleanup_commands\":[", stdout);
     first = 1;
-    print_clean_json_string_array_item("busierbox clean --dry-run --json", &first);
-    print_clean_json_string_array_item("busierbox clean --ledger --json", &first);
+    print_clean_json_string_array_item("grit clean --dry-run --json", &first);
+    print_clean_json_string_array_item("grit clean --ledger --json", &first);
     if (count_external_entries() > 0)
-        print_clean_json_string_array_item("busierbox clean --external --apply", &first);
+        print_clean_json_string_array_item("grit clean --external --apply", &first);
     printf("],\"ledgered_cleanup_path_count\":%d", cleanup_count);
     printf(",\"external_blocked_count\":%d", include_external ? 0 : count_external_entries());
     fputs(",\"ledgered_cleanup_paths\":", stdout);
@@ -674,10 +674,10 @@ static void print_clean_json(int dry_run, int include_external, int ledger, int 
 
     printf("{\"schema\":1,\"command\":\"clean\",\"dry_run\":%s", dry_run ? "true" : "false");
     fputs(",\"runtime_root\":", stdout);
-    bb_json_string(stdout, BB_RUNTIME_ROOT);
+    bb_json_string(stdout, GRIT_RUNTIME_ROOT);
     fputs(",\"fallback_root\":", stdout);
-    bb_json_string(stdout, BB_RUNTIME_FALLBACK_ROOT);
-    printf(",\"fallback_enabled\":%s", !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "true" : "false");
+    bb_json_string(stdout, GRIT_RUNTIME_FALLBACK_ROOT);
+    printf(",\"fallback_enabled\":%s", !strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") ? "true" : "false");
     fputs(",\"cleanup_ledger_path\":", stdout);
     bb_json_string(stdout, bb_ledger_path(path, sizeof(path)));
     printf(",\"include_external\":%s,\"external_cleanup_applied\":%s",
@@ -754,22 +754,22 @@ static int remove_rshell_marked_block(const char *path)
     in = fopen(path, "r");
     if (!in)
         return errno == ENOENT ? 0 : -1;
-    snprintf(tmp, sizeof(tmp), "%s.busierbox.clean.%ld", path, (long)getpid());
+    snprintf(tmp, sizeof(tmp), "%s.grit.clean.%ld", path, (long)getpid());
     out = fopen(tmp, "w");
     if (!out) {
         fclose(in);
         return -1;
     }
     while (fgets(line, sizeof(line), in)) {
-        if (!strcmp(line, "# BEGIN BUSIERBOX RSHELL\n") ||
-            !strcmp(line, "# BEGIN BUSIERBOX RSHELL\r\n")) {
+        if (!strcmp(line, "# BEGIN GRIT RSHELL\n") ||
+            !strcmp(line, "# BEGIN GRIT RSHELL\r\n")) {
             skipping = 1;
             removed = 1;
             continue;
         }
         if (skipping) {
-            if (!strcmp(line, "# END BUSIERBOX RSHELL\n") ||
-                !strcmp(line, "# END BUSIERBOX RSHELL\r\n"))
+            if (!strcmp(line, "# END GRIT RSHELL\n") ||
+                !strcmp(line, "# END GRIT RSHELL\r\n"))
                 skipping = 0;
             continue;
         }
@@ -821,13 +821,13 @@ static int clean_external_from_ledger(int quiet, struct clean_result *result)
             !strcmp(op, "modify") && !strcmp(mode, "root-merge")) {
             int entry_failed = 0;
             if (remove_rshell_marked_block(path) != 0) {
-                fprintf(stderr, "clean: failed to remove BusierBox rshell block from %s: %s\n", path, strerror(errno));
+                fprintf(stderr, "clean: failed to remove griTTYkit rshell block from %s: %s\n", path, strerror(errno));
                 failures = 1;
                 entry_failed = 1;
                 if (result)
                     result->paths_failed++;
             } else if (!quiet) {
-                printf("clean: removed BusierBox rshell block from %s\n", path);
+                printf("clean: removed griTTYkit rshell block from %s\n", path);
             }
             if (result && !entry_failed)
                 result->paths_cleaned++;
@@ -846,7 +846,7 @@ static int clean_external_from_ledger(int quiet, struct clean_result *result)
             if (result && !entry_failed)
                 result->paths_cleaned++;
         } else if (!strcmp(op, "backup") &&
-                   !strncmp(path, "/root/.ssh/authorized_keys.busierbox.bak.", 41)) {
+                   !strncmp(path, "/root/.ssh/authorized_keys.grit.bak.", 41)) {
             int entry_failed = 0;
             if (unlink(path) != 0 && errno != ENOENT) {
                 fprintf(stderr, "clean: failed to remove backup %s: %s\n", path, strerror(errno));
@@ -885,8 +885,8 @@ int applet_cleanup_ledger_main(int argc, char **argv)
     int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox cleanup-ledger [--json]");
-        puts("Print the BusierBox-created cleanup ledger.");
+        puts("usage: grit cleanup-ledger [--json]");
+        puts("Print the griTTYkit-created cleanup ledger.");
         return 0;
     }
     for (i = 1; i < argc; i++)
@@ -1011,8 +1011,8 @@ int applet_clean_main(int argc, char **argv)
     int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox clean [--dry-run] [--json] [--ledger] [--external --apply]");
-        printf("Removes the configured BusierBox runtime directory (%s).\n", BB_RUNTIME_ROOT);
+        puts("usage: grit clean [--dry-run] [--json] [--ledger] [--external --apply]");
+        printf("Removes the configured griTTYkit runtime directory (%s).\n", GRIT_RUNTIME_ROOT);
         puts("External cleanup is never applied unless both --external and --apply are present.");
         return 0;
     }
@@ -1057,16 +1057,16 @@ int applet_clean_main(int argc, char **argv)
         result.writes_blocked = count_external_entries();
     }
     if (ledger) {
-        bb_ledger_record("remove", BB_RUNTIME_ROOT, "runtime", "clean --ledger");
-        if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
-            BB_RUNTIME_FALLBACK_ROOT[0] &&
-            strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT))
-            bb_ledger_record("remove", BB_RUNTIME_FALLBACK_ROOT, "runtime", "clean --ledger fallback root");
+        bb_ledger_record("remove", GRIT_RUNTIME_ROOT, "runtime", "clean --ledger");
+        if (!strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+            GRIT_RUNTIME_FALLBACK_ROOT[0] &&
+            strcmp(GRIT_RUNTIME_FALLBACK_ROOT, GRIT_RUNTIME_ROOT))
+            bb_ledger_record("remove", GRIT_RUNTIME_FALLBACK_ROOT, "runtime", "clean --ledger fallback root");
     }
     {
         int cleaned = 0;
         result.writes_attempted++;
-        if (remove_runtime_root_checked(BB_RUNTIME_ROOT, &cleaned) != 0) {
+        if (remove_runtime_root_checked(GRIT_RUNTIME_ROOT, &cleaned) != 0) {
             result.paths_failed++;
             result.cleanup_warning = "runtime root cleanup failed";
             if (json)
@@ -1077,17 +1077,17 @@ int applet_clean_main(int argc, char **argv)
         result.paths_cleaned += cleaned;
     }
     if (ledger &&
-        !strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
-        BB_RUNTIME_FALLBACK_ROOT[0] &&
-        strcmp(BB_RUNTIME_FALLBACK_ROOT, BB_RUNTIME_ROOT)) {
+        !strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+        GRIT_RUNTIME_FALLBACK_ROOT[0] &&
+        strcmp(GRIT_RUNTIME_FALLBACK_ROOT, GRIT_RUNTIME_ROOT)) {
         int cleaned = 0;
         result.writes_attempted++;
-        if (remove_runtime_root_checked(BB_RUNTIME_FALLBACK_ROOT, &cleaned) != 0) {
+        if (remove_runtime_root_checked(GRIT_RUNTIME_FALLBACK_ROOT, &cleaned) != 0) {
             result.paths_failed++;
             result.cleanup_warning = "fallback root cleanup failed";
             if (json)
                 print_clean_json(0, external, ledger, external && apply, &result);
-            fprintf(stderr, "clean: fallback root %s: %s\n", BB_RUNTIME_FALLBACK_ROOT, strerror(errno));
+            fprintf(stderr, "clean: fallback root %s: %s\n", GRIT_RUNTIME_FALLBACK_ROOT, strerror(errno));
             return 1;
         }
         result.paths_cleaned += cleaned;
@@ -1103,7 +1103,7 @@ int applet_clean_main(int argc, char **argv)
     }
     if (result.writes_blocked > 0)
         printf("clean: external cleanup blocked entries=%d; use --external --apply\n", result.writes_blocked);
-    printf("clean: removed %s\n", BB_RUNTIME_ROOT);
+    printf("clean: removed %s\n", GRIT_RUNTIME_ROOT);
     print_clean_result_text(&result);
     return 0;
 }

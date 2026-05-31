@@ -143,7 +143,7 @@ cat >"$work/manifest.json" <<'EOF'
   }
 }
 EOF
-scripts/busierbox-gdb-workspace --survey "$work/survey.json" --manifest "$work/manifest.json" \
+scripts/grit-gdb-workspace --survey "$work/survey.json" --manifest "$work/manifest.json" \
     --out "$work/ws" --host 127.0.0.1 --port 31337 --binary ./app >/dev/null
 test -f "$work/ws/target.json"
 test -f "$work/ws/connect.gdb"
@@ -220,20 +220,20 @@ grep -q '^provider_status_gdbserver=found$' "$work/inspect-artifact.out"
 grep -q '^provider_path_gdbserver=local/tools/mipsel-linux-4.x-musl/bin/gdbserver$' "$work/inspect-artifact.out"
 
 cat >"$work/gdb.conf" <<EOF
-BB_HEAVY_TOOLS="gdbserver"
-BB_GDBSERVER_PROVIDER="local-dropin"
-BB_TARGET_NAME="native"
-BB_TARGET_ARCH="native"
-BB_TARGET_LIBC="host"
-BB_DOTFILES_ENABLE="no"
-BB_USER_OVERLAY_ENABLE="no"
+GRIT_HEAVY_TOOLS="gdbserver"
+GRIT_GDBSERVER_PROVIDER="local-dropin"
+GRIT_TARGET_NAME="native"
+GRIT_TARGET_ARCH="native"
+GRIT_TARGET_LIBC="host"
+GRIT_DOTFILES_ENABLE="no"
+GRIT_USER_OVERLAY_ENABLE="no"
 EOF
 mkdir -p local/tools/native/bin
 cp "$fake" local/tools/native/bin/gdbserver
 chmod 0755 local/tools/native/bin/gdbserver
 trap 'rm -rf "$work"; rm -f local/tools/native/bin/gdbserver local/tools/native/bin/metadata.json' EXIT HUP INT TERM
 if [ -x runtime/payload/bin/busybox ]; then
-    BUSIERBOX_CONFIG="$work/gdb.conf" scripts/build-payload >/dev/null
+    GRIT_CONFIG="$work/gdb.conf" scripts/build-payload >/dev/null
     test -x runtime/payload/bin/gdbserver
     grep -qx gdbserver runtime/payload/staged-tools.txt
     grep -qx gdbserver runtime/payload/built-tools.txt
@@ -261,24 +261,24 @@ else
 fi
 
 cat >"$work/bad-buildroot.conf" <<'EOF'
-BB_HEAVY_TOOLS="gdbserver"
-BB_GDBSERVER_PROVIDER="auto"
-BB_TARGET_ARCH="mipsel"
-BB_TARGET_LIBC="musl"
-BB_STATIC_POLICY="static-preferred"
+GRIT_HEAVY_TOOLS="gdbserver"
+GRIT_GDBSERVER_PROVIDER="auto"
+GRIT_TARGET_ARCH="mipsel"
+GRIT_TARGET_LIBC="musl"
+GRIT_STATIC_POLICY="static-preferred"
 EOF
-BUSIERBOX_CONFIG="$work/bad-buildroot.conf" scripts/gen-buildroot-defconfig glinet-mt7621-openwrt-musl >"$work/defconfig.out" 2>"$work/defconfig.err" || true
+GRIT_CONFIG="$work/bad-buildroot.conf" scripts/gen-buildroot-defconfig glinet-mt7621-openwrt-musl >"$work/defconfig.out" 2>"$work/defconfig.err" || true
 grep -q 'gdbserver pre-excluded' "$work/defconfig.err"
 grep -q 'Buildroot GDB BFD fails' "$work/defconfig.err"
 
 cat >"$work/local-dropin-defconfig.conf" <<'EOF'
-BB_HEAVY_TOOLS="gdbserver"
-BB_GDBSERVER_PROVIDER="local-dropin"
-BB_TARGET_ARCH="mipsel"
-BB_TARGET_LIBC="uclibc"
-BB_STATIC_POLICY="static-preferred"
+GRIT_HEAVY_TOOLS="gdbserver"
+GRIT_GDBSERVER_PROVIDER="local-dropin"
+GRIT_TARGET_ARCH="mipsel"
+GRIT_TARGET_LIBC="uclibc"
+GRIT_STATIC_POLICY="static-preferred"
 EOF
-BUSIERBOX_CONFIG="$work/local-dropin-defconfig.conf" scripts/gen-buildroot-defconfig mipsel-linux-2.6-uclibc-legacy >/dev/null
+GRIT_CONFIG="$work/local-dropin-defconfig.conf" scripts/gen-buildroot-defconfig mipsel-linux-2.6-uclibc-legacy >/dev/null
 grep -q '^# gdbserver: provider=local-dropin (not Buildroot), no BR2 symbol emitted$' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig
 grep -q '^BR2_TOOLCHAIN_BUILDROOT_CXX=n$' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig
 ! grep -q '^BR2_PACKAGE_GDB' buildroot/generated-configs/mipsel-linux-2.6-uclibc_defconfig

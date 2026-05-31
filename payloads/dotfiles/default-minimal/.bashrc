@@ -1,3 +1,3 @@
-# BusierBox minimal bash startup.
-export BUSIERBOX_SHELL=bash
+# griTTYkit minimal bash startup.
+export GRIT_SHELL=bash
 

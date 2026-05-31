@@ -32,8 +32,8 @@ def wait_port(port, proc):
 
 
 def main():
-    bb = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "dist/busierbox-native-full")
-    with tempfile.TemporaryDirectory(prefix="busierbox-upload.") as td:
+    bb = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "dist/grit-native-full")
+    with tempfile.TemporaryDirectory(prefix="grit-upload.") as td:
         tmp = pathlib.Path(td)
         session_root = tmp / "sessions"
         cfg = tmp / "server.json"
@@ -52,7 +52,7 @@ def main():
         )
         server = subprocess.Popen(
             [
-                str(ROOT / "scripts/busierbox-server"),
+                str(ROOT / "scripts/grit-server"),
                 "--config",
                 str(cfg),
                 "--file-service",
@@ -71,18 +71,18 @@ def main():
             env = os.environ.copy()
             env.update(
                 {
-                    "BB_OPERATOR_SERVER_HOST": "127.0.0.1",
-                    "BB_OPERATOR_FILE_SERVICE_PORT": str(port),
-                    "BB_OPERATOR_FILE_SERVICE_TLS": "no",
-                    "BB_RUNTIME_ROOT": str(tmp / "target-runtime"),
+                    "GRIT_OPERATOR_SERVER_HOST": "127.0.0.1",
+                    "GRIT_OPERATOR_FILE_SERVICE_PORT": str(port),
+                    "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
+                    "GRIT_RUNTIME_ROOT": str(tmp / "target-runtime"),
                 }
             )
             help_checks = [
-                ([str(bb), "config-push", "--help"], "usage: busierbox config-push"),
-                ([str(bb), "evidence", "push", "--help"], "usage: busierbox evidence push"),
-                ([str(bb), "survey", "push", "--help"], "usage: busierbox survey push"),
-                ([str(bb), "manifest", "push", "--help"], "usage: busierbox manifest push"),
-                ([str(bb), "reality-test", "push", "--help"], "usage: busierbox reality-test push"),
+                ([str(bb), "config-push", "--help"], "usage: grit config-push"),
+                ([str(bb), "evidence", "push", "--help"], "usage: grit evidence push"),
+                ([str(bb), "survey", "push", "--help"], "usage: grit survey push"),
+                ([str(bb), "manifest", "push", "--help"], "usage: grit manifest push"),
+                ([str(bb), "reality-test", "push", "--help"], "usage: grit reality-test push"),
             ]
             for cmd, expected in help_checks:
                 result = subprocess.run(
@@ -120,11 +120,11 @@ def main():
                 names = {p.name for p in files if not p.name.endswith(".metadata.json")}
                 if {
                     "target-evidence.txt",
-                    "busierbox-config.json",
-                    "busierbox-evidence.json",
-                    "busierbox-survey.json",
-                    "busierbox-manifest.json",
-                    "busierbox-reality-test.json",
+                    "grit-config.json",
+                    "grit-evidence.json",
+                    "grit-survey.json",
+                    "grit-manifest.json",
+                    "grit-reality-test.json",
                 }.issubset(names):
                     break
                 time.sleep(0.05)
@@ -148,11 +148,11 @@ def main():
         assert meta["transfer_status"] == "ok"
         assert len(meta["sha256"]) == 64
         expected_kinds = {
-            "busierbox-config.json": "config",
-            "busierbox-evidence.json": "evidence",
-            "busierbox-survey.json": "survey",
-            "busierbox-manifest.json": "manifest",
-            "busierbox-reality-test.json": "reality-test",
+            "grit-config.json": "config",
+            "grit-evidence.json": "evidence",
+            "grit-survey.json": "survey",
+            "grit-manifest.json": "manifest",
+            "grit-reality-test.json": "reality-test",
         }
         for expected, upload_kind in expected_kinds.items():
             matches = list(session_root.glob(f"*/files/{expected}"))
@@ -162,19 +162,19 @@ def main():
             if generated_meta.get("upload_kind") != upload_kind:
                 raise SystemExit(f"operator-upload: {expected} metadata kind mismatch")
             doc = json.loads(matches[0].read_text(encoding="utf-8"))
-            if expected == "busierbox-config.json":
+            if expected == "grit-config.json":
                 if doc.get("schema") != 1 or doc.get("kind") != "config" or "runtime" not in doc or "effective_config" not in doc:
                     raise SystemExit("operator-upload: config-push uploaded invalid report")
-            elif expected == "busierbox-evidence.json":
+            elif expected == "grit-evidence.json":
                 if doc.get("schema") != 1 or doc.get("kind") != "evidence" or "runtime" not in doc or "rshell" not in doc:
                     raise SystemExit("operator-upload: evidence push uploaded invalid report")
-            elif expected == "busierbox-survey.json":
-                if doc.get("schema") != 2 or "busierbox" not in doc or "recommendations" not in doc:
+            elif expected == "grit-survey.json":
+                if doc.get("schema") != 2 or "grit" not in doc or "recommendations" not in doc:
                     raise SystemExit("operator-upload: survey push uploaded invalid report")
-            elif expected == "busierbox-manifest.json":
-                if doc.get("schema") != 1 or "busierbox" not in doc or "payload" not in doc or "operator_services" not in doc:
+            elif expected == "grit-manifest.json":
+                if doc.get("schema") != 1 or "grit" not in doc or "payload" not in doc or "operator_services" not in doc:
                     raise SystemExit("operator-upload: manifest push uploaded invalid report")
-            elif expected == "busierbox-reality-test.json":
+            elif expected == "grit-reality-test.json":
                 if doc.get("schema") != 1 or "checks" not in doc or "summary" not in doc:
                     raise SystemExit("operator-upload: reality-test push uploaded invalid report")
         ledger = tmp / "target-runtime" / "run" / "cleanup-ledger.jsonl"

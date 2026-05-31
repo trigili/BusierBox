@@ -1,6 +1,6 @@
 # Rehosted Router Examples
 
-BusierBox includes target presets derived from local firmware rehosting work.
+griTTYkit includes target presets derived from local firmware rehosting work.
 The firmware images themselves are not part of the repository and must stay
 under `local/`, for example through `local/testing/Routers`.
 

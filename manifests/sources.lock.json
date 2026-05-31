@@ -1,6 +1,6 @@
 {
     "schema": 2,
-    "description": "Pinned third-party source manifest for BusierBox offline cache releases.",
+    "description": "Pinned third-party source manifest for griTTYkit offline cache releases.",
     "sources": [
         {
             "name": "buildroot",

@@ -1,7 +1,7 @@
 # Build outputs
 dist/
-src/bbx_busybox_applets.h
-src/bbx_heavy_tools.h
+src/grit_busybox_applets.h
+src/grit_heavy_tools.h
 *.o
 *.a
 *.so
@@ -14,9 +14,9 @@ __pycache__/
 runtime/
 
 # Local extraction
-.busierbox/
-.busierbox-server/
-dist/.busierbox/
+.grit/
+.grit-server/
+dist/.grit/
 
 # Buildroot
 buildroot/buildroot-*/
@@ -63,4 +63,4 @@ tests/qemu-system/rootfs/
 # Local 
 local/*
 !local/.gitkeep
-configs/busierbox.conf
+configs/grit.conf

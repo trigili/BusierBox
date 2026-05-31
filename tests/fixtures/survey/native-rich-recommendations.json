@@ -30,7 +30,7 @@
     "target_preset_guess": "auto",
     "payload_preset_recommendation": "builtin-core-shell",
     "runtime_mode_recommendation": "extract",
-    "runtime_root_recommendation": "./.busierbox",
+    "runtime_root_recommendation": "./.grit",
     "external_writes_recommendation": "no",
     "rshell_transport_recommendation": "none",
     "warnings": [

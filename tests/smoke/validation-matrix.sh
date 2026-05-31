@@ -4,7 +4,7 @@ set -eu
 
 menu=${1:-scripts/menuconfig}
 pkg=${2:-scripts/package-target}
-tmp=${TMPDIR:-local/tmp}/busierbox-validation-matrix-$$
+tmp=${TMPDIR:-local/tmp}/grit-validation-matrix-$$
 mkdir -p "$tmp"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
@@ -22,26 +22,26 @@ require() {
 }
 
 require 'core-only + ssh/socat' 'core-only.*ssh|ssh.*core-only|core-only.*socat|socat.*core-only'
-require 'core-only + heavy tools' 'BB_HEAVY_TOOLS'
-require 'core-only + dotfiles' 'BB_DOTFILES_ENABLE'
-require 'core-only + overlay' 'BB_USER_OVERLAY_ENABLE'
-require 'rshell + transport none' 'BB_ZERO_ARG_MODE.*rshell|BB_RSHELL_TRANSPORT.*none'
-require 'builtin plaintext unsupported' 'builtin.*encryption=none|BB_RSHELL_ENCRYPTION.*none|BB_RSHELL_ALLOW_PLAINTEXT'
+require 'core-only + heavy tools' 'GRIT_HEAVY_TOOLS'
+require 'core-only + dotfiles' 'GRIT_DOTFILES_ENABLE'
+require 'core-only + overlay' 'GRIT_USER_OVERLAY_ENABLE'
+require 'rshell + transport none' 'GRIT_ZERO_ARG_MODE.*rshell|GRIT_RSHELL_TRANSPORT.*none'
+require 'builtin plaintext unsupported' 'builtin.*encryption=none|GRIT_RSHELL_ENCRYPTION.*none|GRIT_RSHELL_ALLOW_PLAINTEXT'
 require 'ssh without dropbear' 'dropbear'
 require 'socat without socat' 'socat'
-require 'custom zero-arg empty command' 'BB_ZERO_ARG_CUSTOM_COMMAND'
-require 'custom shell provider empty command' 'BB_RSHELL_CUSTOM_SHELL'
-require 'root authkeys without external writes' 'root-copy|root-merge|BB_RUNTIME_ALLOW_EXTERNAL_WRITES'
-require 'invalid retry values' 'BB_RSHELL_RETRY_COUNT|BB_RSHELL_RETRY_INTERVAL_SEC|BB_RSHELL_RETRY_JITTER_PCT|BB_RSHELL_RETRY_MAX_INTERVAL_SEC'
-require 'invalid run mode' 'BB_RSHELL_RUN_MODE'
-require 'invalid session policy' 'BB_RSHELL_SESSION_POLICY'
-require 'invalid shell provider' 'BB_RSHELL_SHELL_PROVIDER'
-require 'invalid retry backoff' 'BB_RSHELL_RETRY_BACKOFF'
-require 'invalid rshell transport' 'BB_RSHELL_TRANSPORT'
-require 'aggressive no-residue fallback guard' 'aggressive no-residue.*BB_RUNTIME_ALLOW_FALLBACK_ROOT|BB_RUNTIME_ALLOW_FALLBACK_ROOT.*aggressive no-residue'
-require 'invalid command queue policy' 'BB_COMMAND_QUEUE_ALLOWED_COMMANDS'
-require 'invalid command queue execution mode' 'BB_COMMAND_QUEUE_EXECUTION'
-require 'command queue arbitrary guard' 'BB_COMMAND_QUEUE_ALLOW_ARBITRARY'
+require 'custom zero-arg empty command' 'GRIT_ZERO_ARG_CUSTOM_COMMAND'
+require 'custom shell provider empty command' 'GRIT_RSHELL_CUSTOM_SHELL'
+require 'root authkeys without external writes' 'root-copy|root-merge|GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES'
+require 'invalid retry values' 'GRIT_RSHELL_RETRY_COUNT|GRIT_RSHELL_RETRY_INTERVAL_SEC|GRIT_RSHELL_RETRY_JITTER_PCT|GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC'
+require 'invalid run mode' 'GRIT_RSHELL_RUN_MODE'
+require 'invalid session policy' 'GRIT_RSHELL_SESSION_POLICY'
+require 'invalid shell provider' 'GRIT_RSHELL_SHELL_PROVIDER'
+require 'invalid retry backoff' 'GRIT_RSHELL_RETRY_BACKOFF'
+require 'invalid rshell transport' 'GRIT_RSHELL_TRANSPORT'
+require 'aggressive no-residue fallback guard' 'aggressive no-residue.*GRIT_RUNTIME_ALLOW_FALLBACK_ROOT|GRIT_RUNTIME_ALLOW_FALLBACK_ROOT.*aggressive no-residue'
+require 'invalid command queue policy' 'GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS'
+require 'invalid command queue execution mode' 'GRIT_COMMAND_QUEUE_EXECUTION'
+require 'command queue arbitrary guard' 'GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY'
 
 grep -q 'validate_build_config' "$pkg" || {
     printf '%s\n' "validation-matrix: package-target must validate configs outside menuconfig" >&2
@@ -53,7 +53,7 @@ for pattern in \
     'core-only runtime cannot stage heavy tools' \
     'transport=socat but socat is not in heavy tools' \
     'transport=ssh but dropbear is not in heavy tools' \
-    'BB_RSHELL_RETRY_COUNT must be an integer' \
+    'GRIT_RSHELL_RETRY_COUNT must be an integer' \
     'invalid rshell run mode' \
     'invalid rshell session policy' \
     'invalid shell provider' \
@@ -76,25 +76,25 @@ write_case_config() {
     out=$1
     shift
     {
-        printf '%s\n' 'BB_PAYLOAD_PRESET="default"'
-        printf '%s\n' 'BB_RUNTIME_MODE="extract"'
-        printf '%s\n' 'BB_RUNTIME_ALLOW_EXTERNAL_WRITES="no"'
-        printf '%s\n' 'BB_ZERO_ARG_MODE="help"'
-        printf '%s\n' 'BB_RSHELL_TRANSPORT="none"'
-        printf '%s\n' 'BB_RSHELL_ENCRYPTION="tls"'
-        printf '%s\n' 'BB_RSHELL_ALLOW_PLAINTEXT="no"'
-        printf '%s\n' 'BB_RSHELL_AUTHKEYS_MODE="disabled"'
-        printf '%s\n' 'BB_RSHELL_RUN_MODE="auto"'
-        printf '%s\n' 'BB_RSHELL_SESSION_POLICY="single"'
-        printf '%s\n' 'BB_RSHELL_SHELL_PROVIDER="auto"'
-        printf '%s\n' 'BB_RSHELL_RETRY_COUNT="1"'
-        printf '%s\n' 'BB_RSHELL_RETRY_INTERVAL_SEC="5"'
-        printf '%s\n' 'BB_RSHELL_RETRY_JITTER_PCT="20"'
-        printf '%s\n' 'BB_RSHELL_RETRY_BACKOFF="none"'
-        printf '%s\n' 'BB_RSHELL_RETRY_MAX_INTERVAL_SEC="300"'
-        printf '%s\n' 'BB_DOTFILES_ENABLE="no"'
-        printf '%s\n' 'BB_USER_OVERLAY_ENABLE="no"'
-        printf '%s\n' 'BB_HEAVY_TOOLS=""'
+        printf '%s\n' 'GRIT_PAYLOAD_PRESET="default"'
+        printf '%s\n' 'GRIT_RUNTIME_MODE="extract"'
+        printf '%s\n' 'GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES="no"'
+        printf '%s\n' 'GRIT_ZERO_ARG_MODE="help"'
+        printf '%s\n' 'GRIT_RSHELL_TRANSPORT="none"'
+        printf '%s\n' 'GRIT_RSHELL_ENCRYPTION="tls"'
+        printf '%s\n' 'GRIT_RSHELL_ALLOW_PLAINTEXT="no"'
+        printf '%s\n' 'GRIT_RSHELL_AUTHKEYS_MODE="disabled"'
+        printf '%s\n' 'GRIT_RSHELL_RUN_MODE="auto"'
+        printf '%s\n' 'GRIT_RSHELL_SESSION_POLICY="single"'
+        printf '%s\n' 'GRIT_RSHELL_SHELL_PROVIDER="auto"'
+        printf '%s\n' 'GRIT_RSHELL_RETRY_COUNT="1"'
+        printf '%s\n' 'GRIT_RSHELL_RETRY_INTERVAL_SEC="5"'
+        printf '%s\n' 'GRIT_RSHELL_RETRY_JITTER_PCT="20"'
+        printf '%s\n' 'GRIT_RSHELL_RETRY_BACKOFF="none"'
+        printf '%s\n' 'GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC="300"'
+        printf '%s\n' 'GRIT_DOTFILES_ENABLE="no"'
+        printf '%s\n' 'GRIT_USER_OVERLAY_ENABLE="no"'
+        printf '%s\n' 'GRIT_HEAVY_TOOLS=""'
         while [ $# -gt 0 ]; do
             printf '%s\n' "$1"
             shift
@@ -108,7 +108,7 @@ expect_package_invalid() {
     shift 2
     cfg="$tmp/$name.conf"
     write_case_config "$cfg" "$@"
-    if BUSIERBOX_CONFIG="$cfg" "$pkg" native >"$tmp/$name.out" 2>"$tmp/$name.err"; then
+    if GRIT_CONFIG="$cfg" "$pkg" native >"$tmp/$name.out" 2>"$tmp/$name.err"; then
         printf '%s\n' "validation-matrix: package-target accepted invalid case $name" >&2
         exit 1
     fi
@@ -125,49 +125,49 @@ expect_package_invalid() {
 }
 
 expect_package_invalid rshell-none 'zero-arg mode is.*rshell' \
-    'BB_ZERO_ARG_MODE="rshell"'
+    'GRIT_ZERO_ARG_MODE="rshell"'
 expect_package_invalid builtin-plaintext 'builtin plaintext is not implemented' \
-    'BB_RSHELL_TRANSPORT="builtin"' \
-    'BB_RSHELL_ENCRYPTION="none"' \
-    'BB_RSHELL_ALLOW_PLAINTEXT="yes"'
+    'GRIT_RSHELL_TRANSPORT="builtin"' \
+    'GRIT_RSHELL_ENCRYPTION="none"' \
+    'GRIT_RSHELL_ALLOW_PLAINTEXT="yes"'
 expect_package_invalid core-heavy 'core-only runtime cannot stage heavy tools' \
-    'BB_RUNTIME_MODE="core-only"' \
-    'BB_HEAVY_TOOLS="tmux"'
+    'GRIT_RUNTIME_MODE="core-only"' \
+    'GRIT_HEAVY_TOOLS="tmux"'
 expect_package_invalid core-socat 'core-only + transport=socat' \
-    'BB_RUNTIME_MODE="core-only"' \
-    'BB_RSHELL_TRANSPORT="socat"'
+    'GRIT_RUNTIME_MODE="core-only"' \
+    'GRIT_RSHELL_TRANSPORT="socat"'
 expect_package_invalid custom-zero-empty 'zero-arg custom mode requires' \
-    'BB_ZERO_ARG_MODE="custom"'
+    'GRIT_ZERO_ARG_MODE="custom"'
 expect_package_invalid root-copy-no-external 'authkeys mode root-copy writes outside' \
-    'BB_RSHELL_AUTHKEYS_MODE="root-copy"'
+    'GRIT_RSHELL_AUTHKEYS_MODE="root-copy"'
 expect_package_invalid socat-missing 'transport=socat but socat is not in heavy tools' \
-    'BB_RSHELL_TRANSPORT="socat"'
+    'GRIT_RSHELL_TRANSPORT="socat"'
 expect_package_invalid ssh-missing 'transport=ssh but dropbear is not in heavy tools' \
-    'BB_RSHELL_TRANSPORT="ssh"'
-expect_package_invalid invalid-retry 'BB_RSHELL_RETRY_COUNT must be an integer' \
-    'BB_RSHELL_RETRY_COUNT="abc"'
+    'GRIT_RSHELL_TRANSPORT="ssh"'
+expect_package_invalid invalid-retry 'GRIT_RSHELL_RETRY_COUNT must be an integer' \
+    'GRIT_RSHELL_RETRY_COUNT="abc"'
 expect_package_invalid invalid-run-mode 'invalid rshell run mode' \
-    'BB_RSHELL_RUN_MODE="sideways"'
+    'GRIT_RSHELL_RUN_MODE="sideways"'
 expect_package_invalid invalid-session-policy 'invalid rshell session policy' \
-    'BB_RSHELL_SESSION_POLICY="resume"'
+    'GRIT_RSHELL_SESSION_POLICY="resume"'
 expect_package_invalid invalid-shell-provider 'invalid shell provider' \
-    'BB_RSHELL_SHELL_PROVIDER="fish"'
+    'GRIT_RSHELL_SHELL_PROVIDER="fish"'
 expect_package_invalid invalid-runtime 'invalid runtime mode' \
-    'BB_RUNTIME_MODE="forever"'
+    'GRIT_RUNTIME_MODE="forever"'
 expect_package_invalid aggressive-fallback 'aggressive no-residue cannot use runtime fallback root' \
-    'BB_RUNTIME_MODE="no-residue"' \
-    'BB_NORESIDUE_LEVEL="aggressive"' \
-    'BB_RUNTIME_ALLOW_FALLBACK_ROOT="yes"'
+    'GRIT_RUNTIME_MODE="no-residue"' \
+    'GRIT_NORESIDUE_LEVEL="aggressive"' \
+    'GRIT_RUNTIME_ALLOW_FALLBACK_ROOT="yes"'
 expect_package_invalid invalid-transport 'invalid rshell transport' \
-    'BB_RSHELL_TRANSPORT="wireguard"'
+    'GRIT_RSHELL_TRANSPORT="wireguard"'
 expect_package_invalid invalid-command-queue-policy 'invalid command queue allowed commands policy' \
-    'BB_COMMAND_QUEUE_ALLOWED_COMMANDS="everything"'
+    'GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS="everything"'
 expect_package_invalid invalid-command-queue-execution 'invalid command queue execution mode' \
-    'BB_COMMAND_QUEUE_EXECUTION="automatic"'
+    'GRIT_COMMAND_QUEUE_EXECUTION="automatic"'
 expect_package_invalid disabled-command-queue-execute 'command queue is disabled but execution mode is execute' \
-    'BB_COMMAND_QUEUE_EXECUTION="execute"'
+    'GRIT_COMMAND_QUEUE_EXECUTION="execute"'
 expect_package_invalid disabled-command-queue-arbitrary 'command queue is disabled but arbitrary execution is allowed' \
-    'BB_COMMAND_QUEUE_ALLOW_ARBITRARY="yes"'
+    'GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY="yes"'
 
 if "$pkg" default >"$tmp/default-target.out" 2>"$tmp/default-target.err"; then
     printf '%s\n' "validation-matrix: package-target accepted blank default target" >&2

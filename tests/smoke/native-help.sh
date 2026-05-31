@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-bb=${1:-dist/busierbox-native-full}
+bb=${1:-dist/grit-native-full}
 
 tmp_root=${TMPDIR:-local/tmp}
 mkdir -p "$tmp_root"

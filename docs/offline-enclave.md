@@ -1,6 +1,6 @@
 # Offline / Enclave Builds
 
-BusierBox keeps source fetching explicit. Anything required by BusierBox itself
+griTTYkit keeps source fetching explicit. Anything required by griTTYkit itself
 must be pinned in `manifests/sources.lock.json` with version, URL, filename, and
 SHA-256. Buildroot package downloads for selected target and payload jobs are
 mirrored by generating the matching Buildroot defconfigs and running Buildroot's
@@ -48,7 +48,7 @@ The generated mirror contains:
 
 ```text
 all-supported/
-  busierbox-sources/
+  grit-sources/
   sources/
   buildroot-dl/
   buildroot-defconfigs/
@@ -58,7 +58,7 @@ all-supported/
   mirror-manifest.json
 ```
 
-`busierbox-sources/` is the canonical cache for pinned BusierBox source files.
+`grit-sources/` is the canonical cache for pinned griTTYkit source files.
 `sources/` is retained for compatibility with older offline tooling.
 `buildroot-dl/` is passed to Buildroot as `BR2_DL_DIR`.
 
@@ -79,7 +79,7 @@ scripts/check-offline-readiness \
 Build with offline flags:
 
 ```sh
-BUSIERBOX_OFFLINE=1 scripts/build-matrix \
+GRIT_OFFLINE=1 scripts/build-matrix \
   --matrix configs/matrix/all-supported.json \
   --offline \
   --mirror-dir /mnt/source-mirror/all-supported
@@ -88,8 +88,8 @@ BUSIERBOX_OFFLINE=1 scripts/build-matrix \
 The matrix script exports these values for each job:
 
 ```text
-BUSIERBOX_OFFLINE=1
-BUSIERBOX_MIRROR_DIR=/mnt/source-mirror/all-supported
+GRIT_OFFLINE=1
+GRIT_MIRROR_DIR=/mnt/source-mirror/all-supported
 BUILDROOT_DL_DIR=/mnt/source-mirror/all-supported/buildroot-dl
 ```
 
@@ -114,7 +114,7 @@ output.
 ## Troubleshooting
 
 - Missing lockfile source: run `scripts/check-offline-readiness --mirror <dir>`
-  and copy the reported filename into `busierbox-sources/`, `sources/`, or
+  and copy the reported filename into `grit-sources/`, `sources/`, or
   `buildroot-dl/`.
 - Hash mismatch: replace the file with the exact locked version; do not update
   the lockfile inside the enclave.

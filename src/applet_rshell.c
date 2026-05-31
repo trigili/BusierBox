@@ -19,11 +19,11 @@
 #define PATH_MAX 4096
 #endif
 
-#ifndef BUSIERBOX_ARTIFACT_TIER
-#define BUSIERBOX_ARTIFACT_TIER "full"
+#ifndef GRIT_ARTIFACT_TIER
+#define GRIT_ARTIFACT_TIER "full"
 #endif
-#ifndef BB_BUILTIN_TLS_ENABLE
-#define BB_BUILTIN_TLS_ENABLE "no"
+#ifndef GRIT_BUILTIN_TLS_ENABLE
+#define GRIT_BUILTIN_TLS_ENABLE "no"
 #endif
 #include "effective_config.h"
 
@@ -53,8 +53,8 @@ static int read_lock_pid(const char *lock_path, long *pid, char *mode, size_t mo
 
 static const char *autorun_guard_path(void)
 {
-    const char *env = getenv("BUSIERBOX_AUTORUN_GUARD_PATH");
-    return env && *env ? env : BB_AUTORUN_GUARD_PATH;
+    const char *env = getenv("GRIT_AUTORUN_GUARD_PATH");
+    return env && *env ? env : GRIT_AUTORUN_GUARD_PATH;
 }
 
 static void shquote_append(char *dst, size_t dstsz, const char *src)
@@ -114,33 +114,33 @@ static void append_rshell_ledger_setup(char *cmd, size_t cmdsz)
 {
     char ledger[PATH_MAX];
 
-    snprintf(ledger, sizeof(ledger), "%s/run/cleanup-ledger.jsonl", BB_RUNTIME_ROOT);
-    strcat(cmd, "bbx_l=");
+    snprintf(ledger, sizeof(ledger), "%s/run/cleanup-ledger.jsonl", GRIT_RUNTIME_ROOT);
+    strcat(cmd, "grit_l=");
     shquote_append(cmd, cmdsz, ledger);
-    strcat(cmd, "; bbx_ld=${bbx_l%/*}; mkdir -p \"$bbx_ld\" 2>/dev/null || true; ");
-    strcat(cmd, "bbx_ledger(){ bbx_ts=$(date +%s 2>/dev/null || printf 0); ");
-    strcat(cmd, "{ printf '{\"op\":\"%s\",\"path\":\"%s\",\"scope\":\"%s\",\"mode\":\"%s\",\"ts\":%s' \"$1\" \"$2\" \"$3\" \"$4\" \"$bbx_ts\"; ");
-    strcat(cmd, "[ -n \"${5:-}\" ] && printf ',\"backup\":\"%s\"' \"$5\"; printf '}\\n'; } >>\"$bbx_l\" 2>/dev/null || true; }; ");
+    strcat(cmd, "; grit_ld=${grit_l%/*}; mkdir -p \"$grit_ld\" 2>/dev/null || true; ");
+    strcat(cmd, "grit_ledger(){ grit_ts=$(date +%s 2>/dev/null || printf 0); ");
+    strcat(cmd, "{ printf '{\"op\":\"%s\",\"path\":\"%s\",\"scope\":\"%s\",\"mode\":\"%s\",\"ts\":%s' \"$1\" \"$2\" \"$3\" \"$4\" \"$grit_ts\"; ");
+    strcat(cmd, "[ -n \"${5:-}\" ] && printf ',\"backup\":\"%s\"' \"$5\"; printf '}\\n'; } >>\"$grit_l\" 2>/dev/null || true; }; ");
 }
 
 static void rshell_server_listener(char *out, size_t outsz, const char *transport)
 {
     if (!strcmp(transport, "ssh")) {
-        snprintf(out, outsz, "scripts/busierbox-server --transport ssh --ssh-port %s", BB_OPERATOR_SERVER_SSH_PORT);
+        snprintf(out, outsz, "scripts/grit-server --transport ssh --ssh-port %s", GRIT_OPERATOR_SERVER_SSH_PORT);
     } else {
-        const char *server_transport = !strcmp(BB_RSHELL_ENCRYPTION, "none") ? "plain-shell" : "tls-shell";
-        snprintf(out, outsz, "scripts/busierbox-server --transport %s --shell-port %s", server_transport, BB_RSHELL_SOCAT_PORT);
+        const char *server_transport = !strcmp(GRIT_RSHELL_ENCRYPTION, "none") ? "plain-shell" : "tls-shell";
+        snprintf(out, outsz, "scripts/grit-server --transport %s --shell-port %s", server_transport, GRIT_RSHELL_SOCAT_PORT);
     }
 }
 
 static void rshell_connect_hint(char *out, size_t outsz, const char *transport)
 {
     if (!strcmp(transport, "ssh")) {
-        snprintf(out, outsz, "ssh -p %s root@127.0.0.1", BB_OPERATOR_REMOTE_FORWARD_PORT);
-    } else if (!strcmp(BB_RSHELL_ENCRYPTION, "none")) {
-        snprintf(out, outsz, "target opens plaintext shell stream to %s:%s", BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+        snprintf(out, outsz, "ssh -p %s root@127.0.0.1", GRIT_OPERATOR_REMOTE_FORWARD_PORT);
+    } else if (!strcmp(GRIT_RSHELL_ENCRYPTION, "none")) {
+        snprintf(out, outsz, "target opens plaintext shell stream to %s:%s", GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_SOCAT_PORT);
     } else {
-        snprintf(out, outsz, "target opens encrypted shell stream to %s:%s", BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+        snprintf(out, outsz, "target opens encrypted shell stream to %s:%s", GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_SOCAT_PORT);
     }
 }
 
@@ -159,16 +159,16 @@ static void print_rshell_config_status_for_policy(FILE *out, const char *transpo
         const char *session_policy, const char *retry_count_text)
 {
     char target[128], server[256], hint[256];
-    const char *policy = session_policy && *session_policy ? session_policy : BB_RSHELL_SESSION_POLICY;
-    const char *retry_count = retry_count_text && *retry_count_text ? retry_count_text : BB_RSHELL_RETRY_COUNT;
+    const char *policy = session_policy && *session_policy ? session_policy : GRIT_RSHELL_SESSION_POLICY;
+    const char *retry_count = retry_count_text && *retry_count_text ? retry_count_text : GRIT_RSHELL_RETRY_COUNT;
 
-    snprintf(target, sizeof(target), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
+    snprintf(target, sizeof(target), "%s:%s", GRIT_OPERATOR_TARGET_BIND_HOST, GRIT_OPERATOR_TARGET_DROPBEAR_PORT);
     rshell_server_listener(server, sizeof(server), transport);
     rshell_connect_hint(hint, sizeof(hint), transport);
 
     fprintf(out, "transport=%s\n", transport);
-    fprintf(out, "encryption=%s\n", BB_RSHELL_ENCRYPTION);
-    fprintf(out, "run_mode=%s\n", BB_RSHELL_RUN_MODE);
+    fprintf(out, "encryption=%s\n", GRIT_RSHELL_ENCRYPTION);
+    fprintf(out, "run_mode=%s\n", GRIT_RSHELL_RUN_MODE);
     fprintf(out, "session_policy=%s\n", policy);
     fprintf(out, "session_policy_valid=%s\n", valid_session_policy_value(policy) ? "yes" : "no");
     if (!valid_session_policy_value(policy))
@@ -181,35 +181,35 @@ static void print_rshell_config_status_for_policy(FILE *out, const char *transpo
     fprintf(out, "session_resume_supported=no\n");
     fprintf(out, "pre_connect_retry_count=%s\n", retry_count);
     fprintf(out, "post_disconnect_retry_count=%s\n", policy_post_success_retry_count_for(policy, retry_count));
-    fprintf(out, "retry_backoff=%s\n", BB_RSHELL_RETRY_BACKOFF);
-    fprintf(out, "retry_interval_sec=%s\n", BB_RSHELL_RETRY_INTERVAL_SEC);
-    fprintf(out, "retry_max_interval_sec=%s\n", BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
-    fprintf(out, "retry_jitter_pct=%s\n", BB_RSHELL_RETRY_JITTER_PCT);
+    fprintf(out, "retry_backoff=%s\n", GRIT_RSHELL_RETRY_BACKOFF);
+    fprintf(out, "retry_interval_sec=%s\n", GRIT_RSHELL_RETRY_INTERVAL_SEC);
+    fprintf(out, "retry_max_interval_sec=%s\n", GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC);
+    fprintf(out, "retry_jitter_pct=%s\n", GRIT_RSHELL_RETRY_JITTER_PCT);
     fprintf(out, "retry_delay_attempt_0_sec=%d\n", retry_delay_without_jitter_for_attempt(0));
     fprintf(out, "retry_delay_attempt_1_sec=%d\n", retry_delay_without_jitter_for_attempt(1));
     fprintf(out, "retry_delay_attempt_2_sec=%d\n", retry_delay_without_jitter_for_attempt(2));
     fprintf(out, "would_reconnect_after_success_attempt_0=%s\n", should_reconnect_policy_after_success(policy, 0, retry_count) ? "yes" : "no");
     fprintf(out, "would_reconnect_after_success_attempt_1=%s\n", should_reconnect_policy_after_success(policy, 1, retry_count) ? "yes" : "no");
     fprintf(out, "would_reconnect_after_success_attempt_2=%s\n", should_reconnect_policy_after_success(policy, 2, retry_count) ? "yes" : "no");
-    fprintf(out, "operator_host=%s\n", BB_OPERATOR_SERVER_HOST);
-    fprintf(out, "operator_shell_port=%s\n", BB_RSHELL_SOCAT_PORT);
-    fprintf(out, "operator_ssh_port=%s\n", BB_OPERATOR_SERVER_SSH_PORT);
-    fprintf(out, "remote_forward_port=%s\n", BB_OPERATOR_REMOTE_FORWARD_PORT);
+    fprintf(out, "operator_host=%s\n", GRIT_OPERATOR_SERVER_HOST);
+    fprintf(out, "operator_shell_port=%s\n", GRIT_RSHELL_SOCAT_PORT);
+    fprintf(out, "operator_ssh_port=%s\n", GRIT_OPERATOR_SERVER_SSH_PORT);
+    fprintf(out, "remote_forward_port=%s\n", GRIT_OPERATOR_REMOTE_FORWARD_PORT);
     fprintf(out, "target_dropbear=%s\n", target);
-    fprintf(out, "authkeys_mode=%s\n", BB_RSHELL_AUTHKEYS_MODE);
-    fprintf(out, "shell_provider=%s\n", BB_RSHELL_SHELL_PROVIDER);
+    fprintf(out, "authkeys_mode=%s\n", GRIT_RSHELL_AUTHKEYS_MODE);
+    fprintf(out, "shell_provider=%s\n", GRIT_RSHELL_SHELL_PROVIDER);
     fprintf(out, "server_listener=%s\n", server);
     fprintf(out, "connect_hint=%s\n", hint);
-    fprintf(out, "zero_arg_autorun=%s\n", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "yes" : "no");
-    if (strcmp(BB_ZERO_ARG_MODE, "rshell"))
-        fputs("zero_arg_note=This artifact will not initiate reverse access when run with no arguments; start explicitly with './busierbox rshell start'.\n", out);
-    if (strcmp(transport, "ssh") && !strcmp(BB_RSHELL_ENCRYPTION, "none"))
+    fprintf(out, "zero_arg_autorun=%s\n", !strcmp(GRIT_ZERO_ARG_MODE, "rshell") ? "yes" : "no");
+    if (strcmp(GRIT_ZERO_ARG_MODE, "rshell"))
+        fputs("zero_arg_note=This artifact will not initiate reverse access when run with no arguments; start explicitly with './grit rshell start'.\n", out);
+    if (strcmp(transport, "ssh") && !strcmp(GRIT_RSHELL_ENCRYPTION, "none"))
         fputs("plaintext_warning=INSECURE debug-only plaintext shell transport is configured.\n", out);
 }
 
 static void print_rshell_config_status(FILE *out, const char *transport)
 {
-    print_rshell_config_status_for_policy(out, transport, BB_RSHELL_SESSION_POLICY, BB_RSHELL_RETRY_COUNT);
+    print_rshell_config_status_for_policy(out, transport, GRIT_RSHELL_SESSION_POLICY, GRIT_RSHELL_RETRY_COUNT);
 }
 
 static int parse_int_default(const char *s, int def)
@@ -230,18 +230,18 @@ static int parse_int_default(const char *s, int def)
 
 static int retry_delay_for_attempt(int attempt)
 {
-    int base = parse_int_default(BB_RSHELL_RETRY_INTERVAL_SEC, 5);
-    int max = parse_int_default(BB_RSHELL_RETRY_MAX_INTERVAL_SEC, 300);
-    int jitter = parse_int_default(BB_RSHELL_RETRY_JITTER_PCT, 20);
+    int base = parse_int_default(GRIT_RSHELL_RETRY_INTERVAL_SEC, 5);
+    int max = parse_int_default(GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC, 300);
+    int jitter = parse_int_default(GRIT_RSHELL_RETRY_JITTER_PCT, 20);
     int delay = base;
 
     if (base < 0)
         base = 0;
     if (max < base)
         max = base;
-    if (!strcmp(BB_RSHELL_RETRY_BACKOFF, "linear"))
+    if (!strcmp(GRIT_RSHELL_RETRY_BACKOFF, "linear"))
         delay = base * (attempt + 1);
-    else if (!strcmp(BB_RSHELL_RETRY_BACKOFF, "exponential")) {
+    else if (!strcmp(GRIT_RSHELL_RETRY_BACKOFF, "exponential")) {
         int i;
         delay = base;
         for (i = 0; i < attempt && delay < max; i++) {
@@ -264,17 +264,17 @@ static int retry_delay_for_attempt(int attempt)
 
 static int retry_delay_without_jitter_for_attempt(int attempt)
 {
-    int base = parse_int_default(BB_RSHELL_RETRY_INTERVAL_SEC, 5);
-    int max = parse_int_default(BB_RSHELL_RETRY_MAX_INTERVAL_SEC, 300);
+    int base = parse_int_default(GRIT_RSHELL_RETRY_INTERVAL_SEC, 5);
+    int max = parse_int_default(GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC, 300);
     int delay = base;
 
     if (base < 0)
         base = 0;
     if (max < base)
         max = base;
-    if (!strcmp(BB_RSHELL_RETRY_BACKOFF, "linear"))
+    if (!strcmp(GRIT_RSHELL_RETRY_BACKOFF, "linear"))
         delay = base * (attempt + 1);
-    else if (!strcmp(BB_RSHELL_RETRY_BACKOFF, "exponential")) {
+    else if (!strcmp(GRIT_RSHELL_RETRY_BACKOFF, "exponential")) {
         int i;
         delay = base;
         for (i = 0; i < attempt && delay < max; i++) {
@@ -292,7 +292,7 @@ static int retry_delay_without_jitter_for_attempt(int attempt)
 
 static int should_retry_after_attempt(int attempt)
 {
-    int retry_count = parse_int_default(BB_RSHELL_RETRY_COUNT, 1);
+    int retry_count = parse_int_default(GRIT_RSHELL_RETRY_COUNT, 1);
     if (retry_count < 0)
         return 1;
     return attempt < retry_count;
@@ -300,7 +300,7 @@ static int should_retry_after_attempt(int attempt)
 
 static int should_reconnect_after_success(int reconnects)
 {
-    return should_reconnect_policy_after_success(BB_RSHELL_SESSION_POLICY, reconnects, BB_RSHELL_RETRY_COUNT);
+    return should_reconnect_policy_after_success(GRIT_RSHELL_SESSION_POLICY, reconnects, GRIT_RSHELL_RETRY_COUNT);
 }
 
 static int should_reconnect_policy_after_success(const char *policy, int reconnects, const char *retry_count_text)
@@ -321,9 +321,9 @@ static int should_reconnect_policy_after_success(const char *policy, int reconne
 
 static int valid_session_policy(void)
 {
-    return !strcmp(BB_RSHELL_SESSION_POLICY, "single") ||
-           !strcmp(BB_RSHELL_SESSION_POLICY, "reconnect") ||
-           !strcmp(BB_RSHELL_SESSION_POLICY, "persistent");
+    return !strcmp(GRIT_RSHELL_SESSION_POLICY, "single") ||
+           !strcmp(GRIT_RSHELL_SESSION_POLICY, "reconnect") ||
+           !strcmp(GRIT_RSHELL_SESSION_POLICY, "persistent");
 }
 
 static int valid_session_policy_value(const char *policy)
@@ -339,12 +339,12 @@ static const char *policy_post_success_retry_count_for(const char *policy, const
         return "0";
     if (!strcmp(policy, "persistent"))
         return "-1";
-    return retry_count_text && *retry_count_text ? retry_count_text : BB_RSHELL_RETRY_COUNT;
+    return retry_count_text && *retry_count_text ? retry_count_text : GRIT_RSHELL_RETRY_COUNT;
 }
 
 static const char *policy_post_success_retry_count(const char *policy)
 {
-    return policy_post_success_retry_count_for(policy, BB_RSHELL_RETRY_COUNT);
+    return policy_post_success_retry_count_for(policy, GRIT_RSHELL_RETRY_COUNT);
 }
 
 static int connection_was_established(int rc, time_t started_at, time_t ended_at)
@@ -365,7 +365,7 @@ static void write_rshell_runtime_status(const char *transport, const char *state
     int fd;
     time_t now = time(NULL);
 
-    if (!yes_value(BB_AUTORUN_GUARD_ENABLE))
+    if (!yes_value(GRIT_AUTORUN_GUARD_ENABLE))
         return;
     bb_mkdir_p(guard, 0700);
     bb_ledger_record("mkdir", guard, "runtime", "rshell guard path");
@@ -384,15 +384,15 @@ static void write_rshell_runtime_status(const char *transport, const char *state
             "rshell_pid=%ld\nstarted_at=%ld\nupdated_at=%ld\n"
             "initial_attempts=%d\nreconnect_attempts=%d\nconnected_once=%s\n"
             "last_exit_code=%d\nlast_exit_reason=%s\n",
-            state, transport, BB_RSHELL_ENCRYPTION,
-            BB_RSHELL_RUN_MODE, BB_RSHELL_SESSION_POLICY,
+            state, transport, GRIT_RSHELL_ENCRYPTION,
+            GRIT_RSHELL_RUN_MODE, GRIT_RSHELL_SESSION_POLICY,
             valid_session_policy() ? "yes" : "no",
-            policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "pre-connect+post-disconnect" : "pre-connect",
-            BB_RSHELL_RETRY_COUNT, policy_post_success_retry_count(BB_RSHELL_SESSION_POLICY),
-            policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
-            policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
-            policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
-            policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+            policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "pre-connect+post-disconnect" : "pre-connect",
+            GRIT_RSHELL_RETRY_COUNT, policy_post_success_retry_count(GRIT_RSHELL_SESSION_POLICY),
+            policy_stops_after_first_success(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
+            policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
+            policy_persistent_lifecycle(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
+            policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
             (long)getpid(), (long)now, (long)now,
             initial_attempts, reconnect_attempts,
             connected_once ? "yes" : "no",
@@ -425,98 +425,98 @@ static int write_ssh_dbclient_supervisor(const char *script_path, const char *gu
     if (fd < 0)
         return -1;
     dprintf(fd, "#!/bin/sh\nset -u\n");
-    fd_write_shell_assignment(fd, "bbx_guard", guard);
-    fd_write_shell_assignment(fd, "bbx_dbclient", dbclient);
-    fd_write_shell_assignment(fd, "bbx_identity", identity);
-    fd_write_shell_assignment(fd, "bbx_remote_forward", remote_forward);
-    fd_write_shell_assignment(fd, "bbx_server_login", server_login);
-    fd_write_shell_assignment(fd, "bbx_ssh_port", BB_OPERATOR_SERVER_SSH_PORT);
-    fd_write_shell_assignment(fd, "bbx_known_hosts_policy", BB_OPERATOR_KNOWN_HOSTS_POLICY);
-    fd_write_shell_assignment(fd, "bbx_dbclient_log", dbclient_log);
-    fd_write_shell_assignment(fd, "bbx_policy", BB_RSHELL_SESSION_POLICY);
-    fd_write_shell_assignment(fd, "bbx_retry_count", BB_RSHELL_RETRY_COUNT);
-    fd_write_shell_assignment(fd, "bbx_retry_interval", BB_RSHELL_RETRY_INTERVAL_SEC);
-    fd_write_shell_assignment(fd, "bbx_retry_jitter", BB_RSHELL_RETRY_JITTER_PCT);
-    fd_write_shell_assignment(fd, "bbx_retry_backoff", BB_RSHELL_RETRY_BACKOFF);
-    fd_write_shell_assignment(fd, "bbx_retry_max_interval", BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
-    fd_write_shell_assignment(fd, "bbx_transport", "ssh");
-    fd_write_shell_assignment(fd, "bbx_encryption", BB_RSHELL_ENCRYPTION);
-    fd_write_shell_assignment(fd, "bbx_run_mode", BB_RSHELL_RUN_MODE);
-    fd_write_shell_assignment(fd, "bbx_remote_forward_port", BB_OPERATOR_REMOTE_FORWARD_PORT);
-    dprintf(fd, "bbx_dropbear_pid=${1:-%ld}\n", dropbear_pid);
+    fd_write_shell_assignment(fd, "grit_guard", guard);
+    fd_write_shell_assignment(fd, "grit_dbclient", dbclient);
+    fd_write_shell_assignment(fd, "grit_identity", identity);
+    fd_write_shell_assignment(fd, "grit_remote_forward", remote_forward);
+    fd_write_shell_assignment(fd, "grit_server_login", server_login);
+    fd_write_shell_assignment(fd, "grit_ssh_port", GRIT_OPERATOR_SERVER_SSH_PORT);
+    fd_write_shell_assignment(fd, "grit_known_hosts_policy", GRIT_OPERATOR_KNOWN_HOSTS_POLICY);
+    fd_write_shell_assignment(fd, "grit_dbclient_log", dbclient_log);
+    fd_write_shell_assignment(fd, "grit_policy", GRIT_RSHELL_SESSION_POLICY);
+    fd_write_shell_assignment(fd, "grit_retry_count", GRIT_RSHELL_RETRY_COUNT);
+    fd_write_shell_assignment(fd, "grit_retry_interval", GRIT_RSHELL_RETRY_INTERVAL_SEC);
+    fd_write_shell_assignment(fd, "grit_retry_jitter", GRIT_RSHELL_RETRY_JITTER_PCT);
+    fd_write_shell_assignment(fd, "grit_retry_backoff", GRIT_RSHELL_RETRY_BACKOFF);
+    fd_write_shell_assignment(fd, "grit_retry_max_interval", GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC);
+    fd_write_shell_assignment(fd, "grit_transport", "ssh");
+    fd_write_shell_assignment(fd, "grit_encryption", GRIT_RSHELL_ENCRYPTION);
+    fd_write_shell_assignment(fd, "grit_run_mode", GRIT_RSHELL_RUN_MODE);
+    fd_write_shell_assignment(fd, "grit_remote_forward_port", GRIT_OPERATOR_REMOTE_FORWARD_PORT);
+    dprintf(fd, "grit_dropbear_pid=${1:-%ld}\n", dropbear_pid);
     dprintf(fd,
-        "bbx_child=\n"
-        "bbx_started_at=$(date +%%s 2>/dev/null || printf 0)\n"
-        "bbx_initial_attempt=0\n"
-        "bbx_reconnect_attempt=0\n"
-        "bbx_initial_attempts=0\n"
-        "bbx_connected_once=no\n"
-        "bbx_int(){ case \"$1\" in ''|-|*[!0-9-]*) printf 0 ;; *) printf '%%s' \"$1\" ;; esac; }\n"
-        "bbx_nonneg(){ v=$(bbx_int \"$1\"); [ \"$v\" -lt 0 ] 2>/dev/null && v=0; printf '%%s' \"$v\"; }\n"
-        "bbx_post_count(){ case \"$bbx_policy\" in single) printf 0 ;; persistent) printf -1 ;; *) printf '%%s' \"$bbx_retry_count\" ;; esac; }\n"
-        "bbx_reconnects(){ [ \"$bbx_policy\" = reconnect ] || [ \"$bbx_policy\" = persistent ]; }\n"
-        "bbx_persistent(){ [ \"$bbx_policy\" = persistent ]; }\n"
-        "bbx_status(){\n"
-        "  bbx_state=$1 bbx_reason=$2 bbx_rc=$3 bbx_now=$(date +%%s 2>/dev/null || printf 0)\n"
+        "grit_child=\n"
+        "grit_started_at=$(date +%%s 2>/dev/null || printf 0)\n"
+        "grit_initial_attempt=0\n"
+        "grit_reconnect_attempt=0\n"
+        "grit_initial_attempts=0\n"
+        "grit_connected_once=no\n"
+        "grit_int(){ case \"$1\" in ''|-|*[!0-9-]*) printf 0 ;; *) printf '%%s' \"$1\" ;; esac; }\n"
+        "grit_nonneg(){ v=$(grit_int \"$1\"); [ \"$v\" -lt 0 ] 2>/dev/null && v=0; printf '%%s' \"$v\"; }\n"
+        "grit_post_count(){ case \"$grit_policy\" in single) printf 0 ;; persistent) printf -1 ;; *) printf '%%s' \"$grit_retry_count\" ;; esac; }\n"
+        "grit_reconnects(){ [ \"$grit_policy\" = reconnect ] || [ \"$grit_policy\" = persistent ]; }\n"
+        "grit_persistent(){ [ \"$grit_policy\" = persistent ]; }\n"
+        "grit_status(){\n"
+        "  grit_state=$1 grit_reason=$2 grit_rc=$3 grit_now=$(date +%%s 2>/dev/null || printf 0)\n"
         "  {\n"
-        "    printf 'state=%%s\\n' \"$bbx_state\"\n"
-        "    printf 'transport=%%s\\n' \"$bbx_transport\"\n"
-        "    printf 'encryption=%%s\\n' \"$bbx_encryption\"\n"
-        "    printf 'run_mode=%%s\\n' \"$bbx_run_mode\"\n"
-        "    printf 'session_policy=%%s\\n' \"$bbx_policy\"\n"
-        "    case \"$bbx_policy\" in single|reconnect|persistent) printf 'session_policy_valid=yes\\n' ;; *) printf 'session_policy_valid=no\\n' ;; esac\n"
-        "    if bbx_reconnects; then printf 'retry_scope=pre-connect+post-disconnect\\n'; else printf 'retry_scope=pre-connect\\n'; fi\n"
-        "    printf 'pre_connect_retry_count=%%s\\n' \"$bbx_retry_count\"\n"
-        "    printf 'post_disconnect_retry_count=%%s\\n' \"$(bbx_post_count)\"\n"
-        "    if [ \"$bbx_policy\" = single ]; then printf 'stop_after_first_success=yes\\n'; else printf 'stop_after_first_success=no\\n'; fi\n"
-        "    if bbx_reconnects; then printf 'reconnect_after_disconnect=yes\\n'; else printf 'reconnect_after_disconnect=no\\n'; fi\n"
-        "    if bbx_persistent; then printf 'persistent_lifecycle=yes\\n'; else printf 'persistent_lifecycle=no\\n'; fi\n"
-        "    if bbx_reconnects; then printf 'fresh_session_on_reconnect=yes\\n'; else printf 'fresh_session_on_reconnect=no\\n'; fi\n"
+        "    printf 'state=%%s\\n' \"$grit_state\"\n"
+        "    printf 'transport=%%s\\n' \"$grit_transport\"\n"
+        "    printf 'encryption=%%s\\n' \"$grit_encryption\"\n"
+        "    printf 'run_mode=%%s\\n' \"$grit_run_mode\"\n"
+        "    printf 'session_policy=%%s\\n' \"$grit_policy\"\n"
+        "    case \"$grit_policy\" in single|reconnect|persistent) printf 'session_policy_valid=yes\\n' ;; *) printf 'session_policy_valid=no\\n' ;; esac\n"
+        "    if grit_reconnects; then printf 'retry_scope=pre-connect+post-disconnect\\n'; else printf 'retry_scope=pre-connect\\n'; fi\n"
+        "    printf 'pre_connect_retry_count=%%s\\n' \"$grit_retry_count\"\n"
+        "    printf 'post_disconnect_retry_count=%%s\\n' \"$(grit_post_count)\"\n"
+        "    if [ \"$grit_policy\" = single ]; then printf 'stop_after_first_success=yes\\n'; else printf 'stop_after_first_success=no\\n'; fi\n"
+        "    if grit_reconnects; then printf 'reconnect_after_disconnect=yes\\n'; else printf 'reconnect_after_disconnect=no\\n'; fi\n"
+        "    if grit_persistent; then printf 'persistent_lifecycle=yes\\n'; else printf 'persistent_lifecycle=no\\n'; fi\n"
+        "    if grit_reconnects; then printf 'fresh_session_on_reconnect=yes\\n'; else printf 'fresh_session_on_reconnect=no\\n'; fi\n"
         "    printf 'session_resume_supported=no\\n'\n"
         "    printf 'rshell_pid=%%s\\n' \"$$\"\n"
-        "    printf 'dropbear_pid=%%s\\n' \"$bbx_dropbear_pid\"\n"
-        "    [ -n \"${bbx_child:-}\" ] && printf 'dbclient_pid=%%s\\n' \"$bbx_child\"\n"
-        "    printf 'started_at=%%s\\nupdated_at=%%s\\n' \"$bbx_started_at\" \"$bbx_now\"\n"
-        "    printf 'initial_attempts=%%s\\nreconnect_attempts=%%s\\nconnected_once=%%s\\n' \"$bbx_initial_attempts\" \"$bbx_reconnect_attempt\" \"$bbx_connected_once\"\n"
-        "    printf 'last_exit_code=%%s\\nlast_exit_reason=%%s\\n' \"$bbx_rc\" \"$bbx_reason\"\n"
-        "    printf 'connect_hint=ssh -p %%s root@127.0.0.1\\n' \"$bbx_remote_forward_port\"\n"
-        "  } >\"$bbx_guard/rshell.status\" 2>/dev/null || true\n"
+        "    printf 'dropbear_pid=%%s\\n' \"$grit_dropbear_pid\"\n"
+        "    [ -n \"${grit_child:-}\" ] && printf 'dbclient_pid=%%s\\n' \"$grit_child\"\n"
+        "    printf 'started_at=%%s\\nupdated_at=%%s\\n' \"$grit_started_at\" \"$grit_now\"\n"
+        "    printf 'initial_attempts=%%s\\nreconnect_attempts=%%s\\nconnected_once=%%s\\n' \"$grit_initial_attempts\" \"$grit_reconnect_attempt\" \"$grit_connected_once\"\n"
+        "    printf 'last_exit_code=%%s\\nlast_exit_reason=%%s\\n' \"$grit_rc\" \"$grit_reason\"\n"
+        "    printf 'connect_hint=ssh -p %%s root@127.0.0.1\\n' \"$grit_remote_forward_port\"\n"
+        "  } >\"$grit_guard/rshell.status\" 2>/dev/null || true\n"
         "}\n"
-        "bbx_delay(){\n"
-        "  bbx_attempt=$(bbx_nonneg \"$1\"); bbx_base=$(bbx_nonneg \"$bbx_retry_interval\"); bbx_max=$(bbx_nonneg \"$bbx_retry_max_interval\"); bbx_jitter=$(bbx_nonneg \"$bbx_retry_jitter\")\n"
-        "  [ \"$bbx_max\" -lt \"$bbx_base\" ] 2>/dev/null && bbx_max=$bbx_base\n"
-        "  case \"$bbx_retry_backoff\" in linear) bbx_delay=$((bbx_base * (bbx_attempt + 1))) ;; exponential) bbx_delay=$bbx_base; i=0; while [ \"$i\" -lt \"$bbx_attempt\" ] && [ \"$bbx_delay\" -lt \"$bbx_max\" ]; do bbx_delay=$((bbx_delay * 2)); i=$((i + 1)); done ;; *) bbx_delay=$bbx_base ;; esac\n"
-        "  [ \"$bbx_delay\" -gt \"$bbx_max\" ] 2>/dev/null && bbx_delay=$bbx_max\n"
-        "  if [ \"$bbx_jitter\" -gt 0 ] 2>/dev/null && [ \"$bbx_delay\" -gt 0 ] 2>/dev/null; then span=$((bbx_delay * bbx_jitter / 100)); if [ \"$span\" -gt 0 ]; then now=$(date +%%s 2>/dev/null || printf 0); bbx_delay=$((bbx_delay - span + now %% (span * 2 + 1))); fi; fi\n"
-        "  printf '%%s' \"$bbx_delay\"\n"
+        "grit_delay(){\n"
+        "  grit_attempt=$(grit_nonneg \"$1\"); grit_base=$(grit_nonneg \"$grit_retry_interval\"); grit_max=$(grit_nonneg \"$grit_retry_max_interval\"); grit_jitter=$(grit_nonneg \"$grit_retry_jitter\")\n"
+        "  [ \"$grit_max\" -lt \"$grit_base\" ] 2>/dev/null && grit_max=$grit_base\n"
+        "  case \"$grit_retry_backoff\" in linear) grit_delay=$((grit_base * (grit_attempt + 1))) ;; exponential) grit_delay=$grit_base; i=0; while [ \"$i\" -lt \"$grit_attempt\" ] && [ \"$grit_delay\" -lt \"$grit_max\" ]; do grit_delay=$((grit_delay * 2)); i=$((i + 1)); done ;; *) grit_delay=$grit_base ;; esac\n"
+        "  [ \"$grit_delay\" -gt \"$grit_max\" ] 2>/dev/null && grit_delay=$grit_max\n"
+        "  if [ \"$grit_jitter\" -gt 0 ] 2>/dev/null && [ \"$grit_delay\" -gt 0 ] 2>/dev/null; then span=$((grit_delay * grit_jitter / 100)); if [ \"$span\" -gt 0 ]; then now=$(date +%%s 2>/dev/null || printf 0); grit_delay=$((grit_delay - span + now %% (span * 2 + 1))); fi; fi\n"
+        "  printf '%%s' \"$grit_delay\"\n"
         "}\n"
-        "bbx_stop(){ [ -n \"${bbx_child:-}\" ] && kill \"$bbx_child\" 2>/dev/null || true; bbx_status exited stopped 143; exit 143; }\n"
-        "trap bbx_stop INT TERM\n"
+        "grit_stop(){ [ -n \"${grit_child:-}\" ] && kill \"$grit_child\" 2>/dev/null || true; grit_status exited stopped 143; exit 143; }\n"
+        "trap grit_stop INT TERM\n"
         "while :; do\n"
-        "  if [ \"$bbx_connected_once\" = yes ]; then bbx_state=reconnecting; bbx_reason=post-disconnect-retry; else bbx_state=connecting; bbx_reason=pre-connect-retry; bbx_initial_attempts=$((bbx_initial_attempt + 1)); fi\n"
-        "  bbx_status \"$bbx_state\" \"$bbx_reason\" -1\n"
-        "  bbx_start=$(date +%%s 2>/dev/null || printf 0)\n"
-        "  bbx_args=''\n"
-        "  [ \"$bbx_known_hosts_policy\" = off ] && bbx_args='-y'\n"
-        "  \"$bbx_dbclient\" -i \"$bbx_identity\" $bbx_args -K 30 -N -R \"$bbx_remote_forward\" -p \"$bbx_ssh_port\" \"$bbx_server_login\" >>\"$bbx_dbclient_log\" 2>&1 &\n"
-        "  bbx_child=$!\n"
-        "  printf 'pid=%%s\\n' \"$bbx_child\" >\"$bbx_guard/dbclient.pid\" 2>/dev/null || true\n"
-        "  wait \"$bbx_child\"; bbx_rc=$?\n"
-        "  bbx_end=$(date +%%s 2>/dev/null || printf 0)\n"
-        "  if [ \"$bbx_connected_once\" = no ] && { [ \"$bbx_rc\" -eq 0 ] 2>/dev/null || [ $((bbx_end - bbx_start)) -ge 2 ] 2>/dev/null; }; then bbx_connected_once=yes; fi\n"
-        "  if [ \"$bbx_connected_once\" = no ]; then\n"
-        "    bbx_status connect-failed connect-failed \"$bbx_rc\"\n"
-        "    bbx_limit=$(bbx_int \"$bbx_retry_count\")\n"
-        "    if [ \"$bbx_limit\" -ge 0 ] 2>/dev/null && [ \"$bbx_initial_attempt\" -ge \"$bbx_limit\" ] 2>/dev/null; then bbx_status exited initial-retry-limit \"$bbx_rc\"; exit \"$bbx_rc\"; fi\n"
-        "    sleep \"$(bbx_delay \"$bbx_initial_attempt\")\"\n"
-        "    bbx_initial_attempt=$((bbx_initial_attempt + 1))\n"
+        "  if [ \"$grit_connected_once\" = yes ]; then grit_state=reconnecting; grit_reason=post-disconnect-retry; else grit_state=connecting; grit_reason=pre-connect-retry; grit_initial_attempts=$((grit_initial_attempt + 1)); fi\n"
+        "  grit_status \"$grit_state\" \"$grit_reason\" -1\n"
+        "  grit_start=$(date +%%s 2>/dev/null || printf 0)\n"
+        "  grit_args=''\n"
+        "  [ \"$grit_known_hosts_policy\" = off ] && grit_args='-y'\n"
+        "  \"$grit_dbclient\" -i \"$grit_identity\" $grit_args -K 30 -N -R \"$grit_remote_forward\" -p \"$grit_ssh_port\" \"$grit_server_login\" >>\"$grit_dbclient_log\" 2>&1 &\n"
+        "  grit_child=$!\n"
+        "  printf 'pid=%%s\\n' \"$grit_child\" >\"$grit_guard/dbclient.pid\" 2>/dev/null || true\n"
+        "  wait \"$grit_child\"; grit_rc=$?\n"
+        "  grit_end=$(date +%%s 2>/dev/null || printf 0)\n"
+        "  if [ \"$grit_connected_once\" = no ] && { [ \"$grit_rc\" -eq 0 ] 2>/dev/null || [ $((grit_end - grit_start)) -ge 2 ] 2>/dev/null; }; then grit_connected_once=yes; fi\n"
+        "  if [ \"$grit_connected_once\" = no ]; then\n"
+        "    grit_status connect-failed connect-failed \"$grit_rc\"\n"
+        "    grit_limit=$(grit_int \"$grit_retry_count\")\n"
+        "    if [ \"$grit_limit\" -ge 0 ] 2>/dev/null && [ \"$grit_initial_attempt\" -ge \"$grit_limit\" ] 2>/dev/null; then grit_status exited initial-retry-limit \"$grit_rc\"; exit \"$grit_rc\"; fi\n"
+        "    sleep \"$(grit_delay \"$grit_initial_attempt\")\"\n"
+        "    grit_initial_attempt=$((grit_initial_attempt + 1))\n"
         "    continue\n"
         "  fi\n"
-        "  bbx_status disconnected session-disconnected \"$bbx_rc\"\n"
-        "  if [ \"$bbx_policy\" = single ]; then bbx_status exited policy-single-complete \"$bbx_rc\"; exit \"$bbx_rc\"; fi\n"
-        "  if [ \"$bbx_policy\" = reconnect ]; then bbx_limit=$(bbx_int \"$bbx_retry_count\"); if [ \"$bbx_limit\" -ge 0 ] 2>/dev/null && [ \"$bbx_reconnect_attempt\" -ge \"$bbx_limit\" ] 2>/dev/null; then bbx_status exited post-disconnect-retry-limit \"$bbx_rc\"; exit \"$bbx_rc\"; fi; fi\n"
-        "  sleep \"$(bbx_delay \"$bbx_reconnect_attempt\")\"\n"
-        "  bbx_reconnect_attempt=$((bbx_reconnect_attempt + 1))\n"
+        "  grit_status disconnected session-disconnected \"$grit_rc\"\n"
+        "  if [ \"$grit_policy\" = single ]; then grit_status exited policy-single-complete \"$grit_rc\"; exit \"$grit_rc\"; fi\n"
+        "  if [ \"$grit_policy\" = reconnect ]; then grit_limit=$(grit_int \"$grit_retry_count\"); if [ \"$grit_limit\" -ge 0 ] 2>/dev/null && [ \"$grit_reconnect_attempt\" -ge \"$grit_limit\" ] 2>/dev/null; then grit_status exited post-disconnect-retry-limit \"$grit_rc\"; exit \"$grit_rc\"; fi; fi\n"
+        "  sleep \"$(grit_delay \"$grit_reconnect_attempt\")\"\n"
+        "  grit_reconnect_attempt=$((grit_reconnect_attempt + 1))\n"
         "done\n");
     close(fd);
     chmod(script_path, 0700);
@@ -525,13 +525,13 @@ static int write_ssh_dbclient_supervisor(const char *script_path, const char *gu
 
 static int should_background_rshell(const char *transport)
 {
-    const char *zero_arg = getenv("BUSIERBOX_ZERO_ARG_CONTEXT");
+    const char *zero_arg = getenv("GRIT_ZERO_ARG_CONTEXT");
 
     if (!strcmp(transport, "ssh"))
         return 0; /* SSH starts Dropbear/dbclient workers itself. */
-    if (!strcmp(BB_RSHELL_RUN_MODE, "background"))
+    if (!strcmp(GRIT_RSHELL_RUN_MODE, "background"))
         return 1;
-    if (!strcmp(BB_RSHELL_RUN_MODE, "auto") && zero_arg && !strcmp(zero_arg, "1"))
+    if (!strcmp(GRIT_RSHELL_RUN_MODE, "auto") && zero_arg && !strcmp(zero_arg, "1"))
         return 1;
     return 0;
 }
@@ -545,7 +545,7 @@ static void write_rshell_background_status(const char *transport, pid_t pid)
     int fd;
     time_t now = time(NULL);
 
-    if (!yes_value(BB_AUTORUN_GUARD_ENABLE))
+    if (!yes_value(GRIT_AUTORUN_GUARD_ENABLE))
         return;
     bb_mkdir_p(guard, 0700);
     bb_ledger_record("mkdir", guard, "runtime", "rshell guard path");
@@ -570,15 +570,15 @@ static void write_rshell_background_status(const char *transport, pid_t pid)
                 "persistent_lifecycle=%s\nfresh_session_on_reconnect=%s\n"
                 "session_resume_supported=no\n"
                 "rshell_pid=%ld\nstarted_at=%ld\n",
-                transport, BB_RSHELL_ENCRYPTION, BB_RSHELL_RUN_MODE,
-                BB_RSHELL_SESSION_POLICY,
+                transport, GRIT_RSHELL_ENCRYPTION, GRIT_RSHELL_RUN_MODE,
+                GRIT_RSHELL_SESSION_POLICY,
                 valid_session_policy() ? "yes" : "no",
-                policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "pre-connect+post-disconnect" : "pre-connect",
-                BB_RSHELL_RETRY_COUNT, policy_post_success_retry_count(BB_RSHELL_SESSION_POLICY),
-                policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
-                policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
-                policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
-                policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "pre-connect+post-disconnect" : "pre-connect",
+                GRIT_RSHELL_RETRY_COUNT, policy_post_success_retry_count(GRIT_RSHELL_SESSION_POLICY),
+                policy_stops_after_first_success(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                policy_persistent_lifecycle(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
                 (long)pid, (long)now);
         close(fd);
         bb_ledger_record("write", path, "runtime", "rshell status");
@@ -587,7 +587,7 @@ static void write_rshell_background_status(const char *transport, pid_t pid)
 
 static int maybe_background_rshell(const char *transport)
 {
-    const char *child = getenv("BUSIERBOX_RSHELL_BACKGROUND_CHILD");
+    const char *child = getenv("GRIT_RSHELL_BACKGROUND_CHILD");
     pid_t pid;
 
     if ((child && !strcmp(child, "1")) || !should_background_rshell(transport))
@@ -606,8 +606,8 @@ static int maybe_background_rshell(const char *transport)
     }
 
     setsid();
-    setenv("BUSIERBOX_RSHELL_BACKGROUND_CHILD", "1", 1);
-    if (!strcmp(BB_ZERO_ARG_LOG_MODE, "none")) {
+    setenv("GRIT_RSHELL_BACKGROUND_CHILD", "1", 1);
+    if (!strcmp(GRIT_ZERO_ARG_LOG_MODE, "none")) {
         int devnull = open("/dev/null", O_WRONLY);
         if (devnull >= 0) {
             dup2(devnull, STDOUT_FILENO);
@@ -634,14 +634,14 @@ static int maybe_background_rshell(const char *transport)
 
 static const char *select_rshell_shell(char *buf, size_t bufsz, const char *payload)
 {
-    const char *provider = BB_RSHELL_SHELL_PROVIDER;
+    const char *provider = GRIT_RSHELL_SHELL_PROVIDER;
     char candidate[PATH_MAX];
 
     if (!strcmp(provider, "custom")) {
-        snprintf(buf, bufsz, "%s", BB_RSHELL_CUSTOM_SHELL);
+        snprintf(buf, bufsz, "%s", GRIT_RSHELL_CUSTOM_SHELL);
         return buf;
     }
-    if (!strcmp(provider, "target-sh") || !strcmp(BB_RUNTIME_MODE, "core-only")) {
+    if (!strcmp(provider, "target-sh") || !strcmp(GRIT_RUNTIME_MODE, "core-only")) {
         snprintf(buf, bufsz, "%s", "/bin/sh");
         return buf;
     }
@@ -677,24 +677,24 @@ int applet_rshell_main(int argc, char **argv)
     char cmd[16384] = "";
     char shell_cmd[PATH_MAX + 16];
     const char *subcmd = "start";
-    const char *transport = BB_RSHELL_TRANSPORT;
+    const char *transport = GRIT_RSHELL_TRANSPORT;
     int i;
     int rc;
 
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
-        puts("usage: busierbox rshell [start|status|logs|cleanup|stop|restart] [--json] [--dry-run] [--transport ssh|socat|builtin]");
+        puts("usage: grit rshell [start|status|logs|cleanup|stop|restart] [--json] [--dry-run] [--transport ssh|socat|builtin]");
         puts("Starts or manages the configured reverse access transport.");
         printf("Configured transport: %s  encryption: %s  run_mode: %s  session_policy: %s\n",
-               BB_RSHELL_TRANSPORT, BB_RSHELL_ENCRYPTION, BB_RSHELL_RUN_MODE, BB_RSHELL_SESSION_POLICY);
+               GRIT_RSHELL_TRANSPORT, GRIT_RSHELL_ENCRYPTION, GRIT_RSHELL_RUN_MODE, GRIT_RSHELL_SESSION_POLICY);
         printf("Shell provider: %s  retries: %s backoff=%s interval=%ss max=%ss\n",
-               BB_RSHELL_SHELL_PROVIDER, BB_RSHELL_RETRY_COUNT, BB_RSHELL_RETRY_BACKOFF,
-               BB_RSHELL_RETRY_INTERVAL_SEC, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+               GRIT_RSHELL_SHELL_PROVIDER, GRIT_RSHELL_RETRY_COUNT, GRIT_RSHELL_RETRY_BACKOFF,
+               GRIT_RSHELL_RETRY_INTERVAL_SEC, GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC);
         puts("Run mode: foreground keeps the shell in the current session; background is transport-specific; auto uses transport defaults.");
 #ifdef HAVE_WOLFSSL
         puts("Transports: ssh (Dropbear/dbclient reverse SSH), socat (staged socat /bin/sh), builtin (wolfSSL TLS shell).");
 #else
         puts("Transports: ssh (Dropbear/dbclient reverse SSH), socat (staged socat /bin/sh).");
-        puts("builtin TLS available when rebuilt with BB_BUILTIN_TLS_ENABLE=yes and wolfSSL installed.");
+        puts("builtin TLS available when rebuilt with GRIT_BUILTIN_TLS_ENABLE=yes and wolfSSL installed.");
 #endif
         return 0;
     }
@@ -703,10 +703,10 @@ int applet_rshell_main(int argc, char **argv)
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--transport") && i + 1 < argc) {
             transport = argv[++i];
-            bb_config_set_cli_override("BB_RSHELL_TRANSPORT", transport);
+            bb_config_set_cli_override("GRIT_RSHELL_TRANSPORT", transport);
         } else if (!strncmp(argv[i], "--transport=", 12)) {
             transport = argv[i] + 12;
-            bb_config_set_cli_override("BB_RSHELL_TRANSPORT", transport);
+            bb_config_set_cli_override("GRIT_RSHELL_TRANSPORT", transport);
         }
     }
 
@@ -733,7 +733,7 @@ int applet_rshell_main(int argc, char **argv)
             char target_dropbear[128], server_listener[256], connect_hint[256];
             int first = 1;
 
-            snprintf(target_dropbear, sizeof(target_dropbear), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
+            snprintf(target_dropbear, sizeof(target_dropbear), "%s:%s", GRIT_OPERATOR_TARGET_BIND_HOST, GRIT_OPERATOR_TARGET_DROPBEAR_PORT);
             rshell_server_listener(server_listener, sizeof(server_listener), transport);
             rshell_connect_hint(connect_hint, sizeof(connect_hint), transport);
 
@@ -773,16 +773,16 @@ int applet_rshell_main(int argc, char **argv)
                 fclose(fp);
                 fp = fopen(status_path, "r");
             }
-            effective_session_policy = recorded_session_policy[0] ? recorded_session_policy : BB_RSHELL_SESSION_POLICY;
-            effective_retry_count = recorded_pre_connect_retry_count[0] ? recorded_pre_connect_retry_count : BB_RSHELL_RETRY_COUNT;
+            effective_session_policy = recorded_session_policy[0] ? recorded_session_policy : GRIT_RSHELL_SESSION_POLICY;
+            effective_retry_count = recorded_pre_connect_retry_count[0] ? recorded_pre_connect_retry_count : GRIT_RSHELL_RETRY_COUNT;
             printf("{\"schema\":1,\"state\":");
             json_string_main(stdout, fp ? (state[0] ? state : "active") : "inactive");
             printf(",\"transport\":");
             json_string_main(stdout, transport);
             printf(",\"encryption\":");
-            json_string_main(stdout, BB_RSHELL_ENCRYPTION);
+            json_string_main(stdout, GRIT_RSHELL_ENCRYPTION);
             printf(",\"run_mode\":");
-            json_string_main(stdout, BB_RSHELL_RUN_MODE);
+            json_string_main(stdout, GRIT_RSHELL_RUN_MODE);
             printf(",\"session_policy\":");
             json_string_main(stdout, effective_session_policy);
             printf(",\"session_policy_valid\":%s", valid_session_policy_value(effective_session_policy) ? "true" : "false");
@@ -817,42 +817,42 @@ int applet_rshell_main(int argc, char **argv)
                    should_reconnect_policy_after_success(effective_session_policy, 2, effective_retry_count) ? "true" : "false",
                    policy_reconnects_after_disconnect(effective_session_policy) ? "true" : "false");
             printf(",\"operator_host\":");
-            json_string_main(stdout, BB_OPERATOR_SERVER_HOST);
+            json_string_main(stdout, GRIT_OPERATOR_SERVER_HOST);
             printf(",\"operator_shell_port\":");
-            json_string_main(stdout, BB_RSHELL_SOCAT_PORT);
+            json_string_main(stdout, GRIT_RSHELL_SOCAT_PORT);
             printf(",\"operator_ssh_port\":");
-            json_string_main(stdout, BB_OPERATOR_SERVER_SSH_PORT);
+            json_string_main(stdout, GRIT_OPERATOR_SERVER_SSH_PORT);
             printf(",\"remote_forward_port\":");
-            json_string_main(stdout, BB_OPERATOR_REMOTE_FORWARD_PORT);
+            json_string_main(stdout, GRIT_OPERATOR_REMOTE_FORWARD_PORT);
             printf(",\"target_dropbear\":");
             json_string_main(stdout, target_dropbear);
             printf(",\"authkeys_mode\":");
-            json_string_main(stdout, BB_RSHELL_AUTHKEYS_MODE);
+            json_string_main(stdout, GRIT_RSHELL_AUTHKEYS_MODE);
             printf(",\"shell_provider\":");
-            json_string_main(stdout, BB_RSHELL_SHELL_PROVIDER);
+            json_string_main(stdout, GRIT_RSHELL_SHELL_PROVIDER);
             printf(",\"retry\":{\"count\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_COUNT);
+            json_string_main(stdout, GRIT_RSHELL_RETRY_COUNT);
             printf(",\"interval_sec\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_INTERVAL_SEC);
+            json_string_main(stdout, GRIT_RSHELL_RETRY_INTERVAL_SEC);
             printf(",\"jitter_pct\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_JITTER_PCT);
+            json_string_main(stdout, GRIT_RSHELL_RETRY_JITTER_PCT);
             printf(",\"backoff\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_BACKOFF);
+            json_string_main(stdout, GRIT_RSHELL_RETRY_BACKOFF);
             printf(",\"max_interval_sec\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+            json_string_main(stdout, GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC);
             printf(",\"pre_connect_count\":");
             json_string_main(stdout, effective_retry_count);
             printf(",\"post_disconnect_count\":");
             json_string_main(stdout, policy_post_success_retry_count_for(effective_session_policy, effective_retry_count));
             printf("}");
             printf(",\"retry_timing\":{\"backoff\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_BACKOFF);
+            json_string_main(stdout, GRIT_RSHELL_RETRY_BACKOFF);
             printf(",\"interval_sec\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_INTERVAL_SEC);
+            json_string_main(stdout, GRIT_RSHELL_RETRY_INTERVAL_SEC);
             printf(",\"max_interval_sec\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+            json_string_main(stdout, GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC);
             printf(",\"jitter_pct\":");
-            json_string_main(stdout, BB_RSHELL_RETRY_JITTER_PCT);
+            json_string_main(stdout, GRIT_RSHELL_RETRY_JITTER_PCT);
             printf(",\"sample_delays_sec\":[%d,%d,%d],\"sample_delays_exclude_jitter\":true}",
                    retry_delay_without_jitter_for_attempt(0),
                    retry_delay_without_jitter_for_attempt(1),
@@ -875,7 +875,7 @@ int applet_rshell_main(int argc, char **argv)
             printf("}");
             printf(",\"runtime_config\":");
             bb_config_print_runtime_summary_json(stdout, json_string_main);
-            printf(",\"zero_arg_autorun\":%s", !strcmp(BB_ZERO_ARG_MODE, "rshell") ? "true" : "false");
+            printf(",\"zero_arg_autorun\":%s", !strcmp(GRIT_ZERO_ARG_MODE, "rshell") ? "true" : "false");
             printf(",\"guard_path\":");
             json_string_main(stdout, guard);
             printf(",\"pids\":{\"rshell\":");
@@ -946,13 +946,13 @@ int applet_rshell_main(int argc, char **argv)
             json_string_main(stdout, server_listener);
             printf(",\"connect_model\":");
             json_string_main(stdout, !strcmp(transport, "ssh") ? "operator connects through reverse SSH forward" :
-                             (!strcmp(BB_RSHELL_ENCRYPTION, "none") ? "target opens plaintext shell stream to server" :
+                             (!strcmp(GRIT_RSHELL_ENCRYPTION, "none") ? "target opens plaintext shell stream to server" :
                               "target opens encrypted shell stream to server"));
-            if (strcmp(BB_ZERO_ARG_MODE, "rshell")) {
+            if (strcmp(GRIT_ZERO_ARG_MODE, "rshell")) {
                 printf(",\"zero_arg_note\":");
-                json_string_main(stdout, "This artifact will not initiate reverse access when run with no arguments; start explicitly with './busierbox rshell start'.");
+                json_string_main(stdout, "This artifact will not initiate reverse access when run with no arguments; start explicitly with './grit rshell start'.");
             }
-            if (strcmp(transport, "ssh") && !strcmp(BB_RSHELL_ENCRYPTION, "none")) {
+            if (strcmp(transport, "ssh") && !strcmp(GRIT_RSHELL_ENCRYPTION, "none")) {
                 printf(",\"plaintext_warning\":");
                 json_string_main(stdout, "INSECURE debug-only plaintext shell transport is configured.");
             }
@@ -977,8 +977,8 @@ int applet_rshell_main(int argc, char **argv)
             if (fp)
                 fclose(fp);
             print_rshell_config_status_for_policy(stdout, transport,
-                    recorded_session_policy[0] ? recorded_session_policy : BB_RSHELL_SESSION_POLICY,
-                    recorded_pre_connect_retry_count[0] ? recorded_pre_connect_retry_count : BB_RSHELL_RETRY_COUNT);
+                    recorded_session_policy[0] ? recorded_session_policy : GRIT_RSHELL_SESSION_POLICY,
+                    recorded_pre_connect_retry_count[0] ? recorded_pre_connect_retry_count : GRIT_RSHELL_RETRY_COUNT);
             return 0;
         }
         if (access(lock_path, R_OK) == 0) {
@@ -1006,7 +1006,7 @@ int applet_rshell_main(int argc, char **argv)
             printf("==> %s <==\n", path);
             fp = fopen(path, "r");
             if (!fp) {
-                printf("(missing; zero_arg_log_mode=%s may suppress logs)\n", BB_ZERO_ARG_LOG_MODE);
+                printf("(missing; zero_arg_log_mode=%s may suppress logs)\n", GRIT_ZERO_ARG_LOG_MODE);
                 continue;
             }
             while (fgets(buf, sizeof(buf), fp))
@@ -1095,11 +1095,11 @@ int applet_rshell_main(int argc, char **argv)
         return 2;
     }
     if (!valid_session_policy()) {
-        fprintf(stderr, "rshell: unsupported session policy '%s' (supported: single, reconnect, persistent)\n", BB_RSHELL_SESSION_POLICY);
+        fprintf(stderr, "rshell: unsupported session policy '%s' (supported: single, reconnect, persistent)\n", GRIT_RSHELL_SESSION_POLICY);
         return 2;
     }
     if (!strcmp(transport, "none")) {
-        fputs("rshell: reverse shell is disabled in this build (BB_RSHELL_TRANSPORT=none)\n", stderr);
+        fputs("rshell: reverse shell is disabled in this build (GRIT_RSHELL_TRANSPORT=none)\n", stderr);
         return 1;
     }
     rc = maybe_background_rshell(transport);
@@ -1108,7 +1108,7 @@ int applet_rshell_main(int argc, char **argv)
 
     if (!strcmp(transport, "builtin")) {
 #ifdef HAVE_WOLFSSL
-        if (!strcmp(BB_RSHELL_ENCRYPTION, "tls") || !strcmp(BB_BUILTIN_TLS_ENABLE, "yes")) {
+        if (!strcmp(GRIT_RSHELL_ENCRYPTION, "tls") || !strcmp(GRIT_BUILTIN_TLS_ENABLE, "yes")) {
             int initial_attempt = 0;
             int reconnect_attempt = 0;
             int connected_once = 0;
@@ -1120,7 +1120,7 @@ int applet_rshell_main(int argc, char **argv)
                     initial_attempt + 1, reconnect_attempt, connected_once,
                     -1, connected_once ? "post-disconnect-retry" : "pre-connect-retry");
                 started_at = time(NULL);
-                rc = rshell_builtin_tls(BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT, shell_cmd);
+                rc = rshell_builtin_tls(GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_SOCAT_PORT, shell_cmd);
                 ended_at = time(NULL);
                 if (connection_was_established(rc, started_at, ended_at))
                     connected_once = 1;
@@ -1141,7 +1141,7 @@ int applet_rshell_main(int argc, char **argv)
                 if (!should_reconnect_after_success(reconnect_attempt)) {
                     write_rshell_runtime_status(transport, "exited",
                         initial_attempt + 1, reconnect_attempt, connected_once,
-                        rc, policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "policy-single-complete" : "post-disconnect-retry-limit");
+                        rc, policy_stops_after_first_success(GRIT_RSHELL_SESSION_POLICY) ? "policy-single-complete" : "post-disconnect-retry-limit");
                     return rc;
                 }
                 sleep((unsigned int)retry_delay_for_attempt(reconnect_attempt));
@@ -1151,19 +1151,19 @@ int applet_rshell_main(int argc, char **argv)
         fputs("rshell: builtin transport with encryption=none is not implemented\n", stderr);
         return 2;
 #else
-        fputs("rshell: builtin transport requires wolfSSL; rebuild with BB_BUILTIN_TLS_ENABLE=yes\n", stderr);
+        fputs("rshell: builtin transport requires wolfSSL; rebuild with GRIT_BUILTIN_TLS_ENABLE=yes\n", stderr);
         return 2;
 #endif
     }
-    if (!strcmp(BB_RUNTIME_MODE, "core-only")) {
+    if (!strcmp(GRIT_RUNTIME_MODE, "core-only")) {
         fprintf(stderr, "rshell: transport '%s' requires staged payload tools but runtime mode is core-only\n", transport);
         fputs("rshell: change Runtime mode to 'extract' or 'no-residue' in menuconfig, then rebuild\n", stderr);
 #ifndef HAVE_WOLFSSL
-        fputs("rshell: for a no-extraction shell, rebuild with BB_BUILTIN_TLS_ENABLE=yes (requires wolfSSL) and transport=builtin\n", stderr);
+        fputs("rshell: for a no-extraction shell, rebuild with GRIT_BUILTIN_TLS_ENABLE=yes (requires wolfSSL) and transport=builtin\n", stderr);
 #endif
         return 127;
     }
-    if (!BB_OPERATOR_SERVER_HOST[0]) {
+    if (!GRIT_OPERATOR_SERVER_HOST[0]) {
         fputs("rshell: operator host is not configured; set it in menuconfig under Payload Options -> Applet configuration -> Reverse shell\n", stderr);
         return 2;
     }
@@ -1188,12 +1188,12 @@ int applet_rshell_main(int argc, char **argv)
             fputs("rshell: socat transport requires staged socat; enable socat in Heavy tools and rebuild\n", stderr);
             return 127;
         }
-        if ((!strcmp(BB_RSHELL_SHELL_PROVIDER, "payload-busybox-sh") ||
-             !strcmp(BB_RSHELL_SHELL_PROVIDER, "payload-busybox-ash")) && !path_exec(busybox)) {
+        if ((!strcmp(GRIT_RSHELL_SHELL_PROVIDER, "payload-busybox-sh") ||
+             !strcmp(GRIT_RSHELL_SHELL_PROVIDER, "payload-busybox-ash")) && !path_exec(busybox)) {
             fputs("rshell: selected shell provider requires staged BusyBox\n", stderr);
             return 127;
         }
-        if (!strcmp(BB_RSHELL_SHELL_PROVIDER, "payload-zsh")) {
+        if (!strcmp(GRIT_RSHELL_SHELL_PROVIDER, "payload-zsh")) {
             char zsh_path[PATH_MAX + 16];
             snprintf(zsh_path, sizeof(zsh_path), "%s/bin/zsh", payload);
             if (!path_exec(zsh_path)) {
@@ -1201,16 +1201,16 @@ int applet_rshell_main(int argc, char **argv)
                 return 127;
             }
         }
-        if (!strcmp(BB_RSHELL_SHELL_PROVIDER, "custom") && !BB_RSHELL_CUSTOM_SHELL[0]) {
-            fputs("rshell: shell provider custom requires BB_RSHELL_CUSTOM_SHELL\n", stderr);
+        if (!strcmp(GRIT_RSHELL_SHELL_PROVIDER, "custom") && !GRIT_RSHELL_CUSTOM_SHELL[0]) {
+            fputs("rshell: shell provider custom requires GRIT_RSHELL_CUSTOM_SHELL\n", stderr);
             return 2;
         }
         strcat(cmd, "LD_LIBRARY_PATH=");
         shquote_append(cmd, sizeof(cmd), payload_lib);
         strcat(cmd, "${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}; export LD_LIBRARY_PATH; ");
-        if (!strcmp(BB_RSHELL_ENCRYPTION, "tls")) {
+        if (!strcmp(GRIT_RSHELL_ENCRYPTION, "tls")) {
             char _socat_target[512];
-            snprintf(_socat_target, sizeof(_socat_target), "%s:%s,verify=0", BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+            snprintf(_socat_target, sizeof(_socat_target), "%s:%s,verify=0", GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_SOCAT_PORT);
             strcat(cmd, "exec ");
             shquote_append(cmd, sizeof(cmd), socat);
             strcat(cmd, " OPENSSL:");
@@ -1220,14 +1220,14 @@ int applet_rshell_main(int argc, char **argv)
             strcat(cmd, ",pty,stderr,setsid,sigint,sane");
         } else {
             /* plaintext — only when explicitly allowed */
-            if (strcmp(BB_RSHELL_ALLOW_PLAINTEXT, "yes")) {
-                fputs("rshell: socat plaintext requires BB_RSHELL_ALLOW_PLAINTEXT=yes (insecure/debug only)\n", stderr);
+            if (strcmp(GRIT_RSHELL_ALLOW_PLAINTEXT, "yes")) {
+                fputs("rshell: socat plaintext requires GRIT_RSHELL_ALLOW_PLAINTEXT=yes (insecure/debug only)\n", stderr);
                 return 2;
             }
             fputs("rshell: WARNING: starting PLAINTEXT socat shell — insecure/debug only\n", stderr);
             {
                 char _socat_target[512];
-                snprintf(_socat_target, sizeof(_socat_target), "%s:%s", BB_OPERATOR_SERVER_HOST, BB_RSHELL_SOCAT_PORT);
+                snprintf(_socat_target, sizeof(_socat_target), "%s:%s", GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_SOCAT_PORT);
             strcat(cmd, "exec ");
             shquote_append(cmd, sizeof(cmd), socat);
             strcat(cmd, " TCP:");
@@ -1275,7 +1275,7 @@ int applet_rshell_main(int argc, char **argv)
                 if (!should_reconnect_after_success(reconnect_attempt)) {
                     write_rshell_runtime_status(transport, "exited",
                         initial_attempt + 1, reconnect_attempt, connected_once,
-                        rc, policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "policy-single-complete" : "post-disconnect-retry-limit");
+                        rc, policy_stops_after_first_success(GRIT_RSHELL_SESSION_POLICY) ? "policy-single-complete" : "post-disconnect-retry-limit");
                     return rc;
                 }
                 sleep((unsigned int)retry_delay_for_attempt(reconnect_attempt));
@@ -1304,7 +1304,7 @@ int applet_rshell_main(int argc, char **argv)
                 && existing_pid > 1 && kill((pid_t)existing_pid, 0) == 0) {
             printf("rshell_status=already-active\n");
             printf("rshell_dbclient_pid=%ld\n", existing_pid);
-            fputs("rshell: already running; use 'busierbox rshell stop' then 'start' to restart\n", stderr);
+            fputs("rshell: already running; use 'grit rshell stop' then 'start' to restart\n", stderr);
             return 0;
         }
     }
@@ -1321,7 +1321,7 @@ int applet_rshell_main(int argc, char **argv)
     strcat(cmd, "$(dirname ");
     shquote_append(cmd, sizeof(cmd), hostkey);
     strcat(cmd, "); ");
-    if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-copy")) {
+    if (!strcmp(GRIT_RSHELL_AUTHKEYS_MODE, "root-copy")) {
         append_rshell_ledger_setup(cmd, sizeof(cmd));
         strcat(cmd, "mkdir -p ");
         shquote_append(cmd, sizeof(cmd), rootssh);
@@ -1330,19 +1330,19 @@ int applet_rshell_main(int argc, char **argv)
         shquote_append(cmd, sizeof(cmd), authkeys);
         strcat(cmd, " ] && [ ! -f /root/.ssh/authorized_keys ]; then if cp ");
         shquote_append(cmd, sizeof(cmd), authkeys);
-        strcat(cmd, " /root/.ssh/authorized_keys 2>/dev/null; then chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; bbx_ledger write /root/.ssh/authorized_keys external root-copy ''; fi; fi; ");
-    } else if (!strcmp(BB_RSHELL_AUTHKEYS_MODE, "root-merge")) {
+        strcat(cmd, " /root/.ssh/authorized_keys 2>/dev/null; then chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; grit_ledger write /root/.ssh/authorized_keys external root-copy ''; fi; fi; ");
+    } else if (!strcmp(GRIT_RSHELL_AUTHKEYS_MODE, "root-merge")) {
         append_rshell_ledger_setup(cmd, sizeof(cmd));
         strcat(cmd, "mkdir -p ");
         shquote_append(cmd, sizeof(cmd), rootssh);
         strcat(cmd, "; ");
         strcat(cmd, "if [ -f ");
         shquote_append(cmd, sizeof(cmd), authkeys);
-        strcat(cmd, " ]; then tmp=/root/.ssh/authorized_keys.busierbox.$$; bak=''; if [ -f /root/.ssh/authorized_keys ]; then bak=/root/.ssh/authorized_keys.busierbox.bak.$$; cp /root/.ssh/authorized_keys \"$bak\" 2>/dev/null && bbx_ledger backup \"$bak\" external root-merge /root/.ssh/authorized_keys || bak=''; fi; { sed '/^# BEGIN BUSIERBOX RSHELL$/,/^# END BUSIERBOX RSHELL$/d' /root/.ssh/authorized_keys 2>/dev/null || true; echo '# BEGIN BUSIERBOX RSHELL'; cat ");
+        strcat(cmd, " ]; then tmp=/root/.ssh/authorized_keys.grit.$$; bak=''; if [ -f /root/.ssh/authorized_keys ]; then bak=/root/.ssh/authorized_keys.grit.bak.$$; cp /root/.ssh/authorized_keys \"$bak\" 2>/dev/null && grit_ledger backup \"$bak\" external root-merge /root/.ssh/authorized_keys || bak=''; fi; { sed '/^# BEGIN GRIT RSHELL$/,/^# END GRIT RSHELL$/d' /root/.ssh/authorized_keys 2>/dev/null || true; echo '# BEGIN GRIT RSHELL'; cat ");
         shquote_append(cmd, sizeof(cmd), authkeys);
-        strcat(cmd, "; echo '# END BUSIERBOX RSHELL'; } >$tmp && mv $tmp /root/.ssh/authorized_keys 2>/dev/null && { chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; bbx_ledger modify /root/.ssh/authorized_keys external root-merge \"$bak\"; } || rm -f $tmp; fi; ");
+        strcat(cmd, "; echo '# END GRIT RSHELL'; } >$tmp && mv $tmp /root/.ssh/authorized_keys 2>/dev/null && { chmod 600 /root/.ssh/authorized_keys 2>/dev/null || true; grit_ledger modify /root/.ssh/authorized_keys external root-merge \"$bak\"; } || rm -f $tmp; fi; ");
     }
-    if (!strcmp(BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING, "yes")) {
+    if (!strcmp(GRIT_RSHELL_GENERATE_HOSTKEY_IF_MISSING, "yes")) {
         strcat(cmd, "if [ ! -f ");
         shquote_append(cmd, sizeof(cmd), hostkey);
         strcat(cmd, " ] && [ -x ");
@@ -1363,12 +1363,12 @@ int applet_rshell_main(int argc, char **argv)
         snprintf(_db_log, sizeof(_db_log), "%s/dropbear.log", _guard);
         snprintf(_dc_log, sizeof(_dc_log), "%s/dbclient.log", _guard);
         snprintf(_supervisor, sizeof(_supervisor), "%s/dbclient-supervisor.sh", _guard);
-        snprintf(_dropbear_bind, sizeof(_dropbear_bind), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
+        snprintf(_dropbear_bind, sizeof(_dropbear_bind), "%s:%s", GRIT_OPERATOR_TARGET_BIND_HOST, GRIT_OPERATOR_TARGET_DROPBEAR_PORT);
         snprintf(_remote_forward, sizeof(_remote_forward), "127.0.0.1:%s:%s:%s",
-                 BB_OPERATOR_REMOTE_FORWARD_PORT, BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
-        snprintf(_server_login, sizeof(_server_login), "%s@%s", BB_OPERATOR_SERVER_USER, BB_OPERATOR_SERVER_HOST);
+                 GRIT_OPERATOR_REMOTE_FORWARD_PORT, GRIT_OPERATOR_TARGET_BIND_HOST, GRIT_OPERATOR_TARGET_DROPBEAR_PORT);
+        snprintf(_server_login, sizeof(_server_login), "%s@%s", GRIT_OPERATOR_SERVER_USER, GRIT_OPERATOR_SERVER_HOST);
         snprintf(_connect_hint, sizeof(_connect_hint), "echo connect_hint='ssh -p %s root@127.0.0.1'; ",
-                 BB_OPERATOR_REMOTE_FORWARD_PORT);
+                 GRIT_OPERATOR_REMOTE_FORWARD_PORT);
         bb_mkdir_p(_guard, 0700);
         if (write_ssh_dbclient_supervisor(_supervisor, _guard, dbclient, identity, _remote_forward, _server_login, _dc_log, 0) != 0) {
             fprintf(stderr, "rshell: failed to write dbclient supervisor at %s: %s\n", _supervisor, strerror(errno));
@@ -1426,7 +1426,7 @@ int applet_rshell_main(int argc, char **argv)
         if (rc != -1 && WIFEXITED(rc))
             exit_status = WEXITSTATUS(rc);
 
-        if ((dropbear_pid > 0 || dbclient_pid > 0) && yes_value(BB_AUTORUN_GUARD_ENABLE)) {
+        if ((dropbear_pid > 0 || dbclient_pid > 0) && yes_value(GRIT_AUTORUN_GUARD_ENABLE)) {
             char path[PATH_MAX];
             int lfd;
             time_t now = time(NULL);
@@ -1462,11 +1462,11 @@ int applet_rshell_main(int argc, char **argv)
             if (lfd >= 0) {
                 dprintf(lfd, "mode=rshell\npid=%ld\nstarted_at=%ld\nartifact_tier=%s\n",
                         dbclient_pid > 0 ? dbclient_pid : dropbear_pid,
-                        (long)now, BUSIERBOX_ARTIFACT_TIER);
+                        (long)now, GRIT_ARTIFACT_TIER);
                 close(lfd);
             }
 
-            /* rshell.status for 'busierbox rshell status' */
+            /* rshell.status for 'grit rshell status' */
             snprintf(path, sizeof(path), "%s/rshell.status", gp);
             lfd = open(path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
             if (lfd >= 0) {
@@ -1483,17 +1483,17 @@ int applet_rshell_main(int argc, char **argv)
                     "last_exit_reason=ssh-reverse-forward-active\n"
                     "connect_hint=ssh -p %s root@127.0.0.1\n"
                     "started_at=%ld\n",
-                    transport, BB_RSHELL_ENCRYPTION,
-                    BB_RSHELL_RUN_MODE, BB_RSHELL_SESSION_POLICY,
+                    transport, GRIT_RSHELL_ENCRYPTION,
+                    GRIT_RSHELL_RUN_MODE, GRIT_RSHELL_SESSION_POLICY,
                     valid_session_policy() ? "yes" : "no",
-                    policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "pre-connect+post-disconnect" : "pre-connect",
-                    BB_RSHELL_RETRY_COUNT, policy_post_success_retry_count(BB_RSHELL_SESSION_POLICY),
-                    policy_stops_after_first_success(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
-                    policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
-                    policy_persistent_lifecycle(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
-                    policy_reconnects_after_disconnect(BB_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                    policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "pre-connect+post-disconnect" : "pre-connect",
+                    GRIT_RSHELL_RETRY_COUNT, policy_post_success_retry_count(GRIT_RSHELL_SESSION_POLICY),
+                    policy_stops_after_first_success(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                    policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                    policy_persistent_lifecycle(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
+                    policy_reconnects_after_disconnect(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no",
                     dbclient_pid, dropbear_pid, dbclient_pid,
-                    BB_OPERATOR_REMOTE_FORWARD_PORT,
+                    GRIT_OPERATOR_REMOTE_FORWARD_PORT,
                     (long)now);
                 close(lfd);
             }

@@ -1,5 +1,5 @@
-#ifndef BUSIERBOX_SHA256_H
-#define BUSIERBOX_SHA256_H
+#ifndef GRIT_SHA256_H
+#define GRIT_SHA256_H
 
 #include <stddef.h>
 #include <stdint.h>

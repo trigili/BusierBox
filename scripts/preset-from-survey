@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate a reusable BusierBox target preset from survey JSON."""
+"""Generate a reusable griTTYkit target preset from survey JSON."""
 
 import argparse
 import datetime as dt
@@ -20,11 +20,11 @@ TARGET_ONLY_FORBIDDEN = {
     "zero_arg_mode",
     "overlays",
     "dotfiles",
-    "BB_PAYLOAD_PRESET",
-    "BB_RUNTIME_MODE",
-    "BB_RSHELL_TRANSPORT",
-    "BB_OPERATOR_SERVER_HOST",
-    "BB_ZERO_ARG_MODE",
+    "GRIT_PAYLOAD_PRESET",
+    "GRIT_RUNTIME_MODE",
+    "GRIT_RSHELL_TRANSPORT",
+    "GRIT_OPERATOR_SERVER_HOST",
+    "GRIT_ZERO_ARG_MODE",
 }
 
 
@@ -227,7 +227,7 @@ def generated_preset(data, survey_path, name):
     preset = {
         "schema": 1,
         "name": name,
-        "description": "Generated from BusierBox survey",
+        "description": "Generated from griTTYkit survey",
         "arch": arch,
         "endian": endian,
         "libc": libc,

@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SERVER = ROOT / "scripts" / "busierbox-server"
+SERVER = ROOT / "scripts" / "grit-server"
 
 
 def run(*args):
@@ -249,7 +249,7 @@ def start_echo_server(prefix=b"bridge:"):
         finally:
             done.set()
 
-    thread = threading.Thread(target=serve, name="busierbox-flaky-echo")
+    thread = threading.Thread(target=serve, name="grit-flaky-echo")
     thread.start()
     if not ready.wait(5):
         raise RuntimeError("echo server did not start")
@@ -323,13 +323,13 @@ def poll_request(target_id="", label="", interval="3600", token=""):
         "Connection: close",
     ]
     if token:
-        headers.append(f"X-BusierBox-Command-Queue-Token: {token}")
+        headers.append(f"X-griTTYkit-Command-Queue-Token: {token}")
     if target_id:
         headers.extend([
-            f"X-BusierBox-Target-Id: {target_id}",
-            f"X-BusierBox-Target-Label: {label}",
-            "X-BusierBox-Command-Queue-Mode: daemon",
-            f"X-BusierBox-Command-Queue-Poll-Interval-Sec: {interval}",
+            f"X-griTTYkit-Target-Id: {target_id}",
+            f"X-griTTYkit-Target-Label: {label}",
+            "X-griTTYkit-Command-Queue-Mode: daemon",
+            f"X-griTTYkit-Command-Queue-Poll-Interval-Sec: {interval}",
         ])
     return ("\r\n".join(headers) + "\r\n\r\n").encode("ascii")
 
@@ -347,8 +347,8 @@ def result_request(command_id, target_id, label, status="completed", exit_code=0
         "POST /command-queue/result HTTP/1.1\r\n"
         "Host: 127.0.0.1\r\n"
         "Content-Type: application/json\r\n"
-        f"X-BusierBox-Target-Id: {target_id}\r\n"
-        f"X-BusierBox-Target-Label: {label}\r\n"
+        f"X-griTTYkit-Target-Id: {target_id}\r\n"
+        f"X-griTTYkit-Target-Label: {label}\r\n"
         f"Content-Length: {len(body)}\r\n"
         "Connection: close\r\n\r\n"
     ).encode("ascii") + body
@@ -367,8 +367,8 @@ def dropped_result_request(command_id, target_id, label):
         "POST /command-queue/result HTTP/1.1\r\n"
         "Host: 127.0.0.1\r\n"
         "Content-Type: application/json\r\n"
-        f"X-BusierBox-Target-Id: {target_id}\r\n"
-        f"X-BusierBox-Target-Label: {label}\r\n"
+        f"X-griTTYkit-Target-Id: {target_id}\r\n"
+        f"X-griTTYkit-Target-Label: {label}\r\n"
         f"Content-Length: {expected}\r\n"
         "Connection: close\r\n\r\n"
     ).encode("ascii") + body
@@ -380,8 +380,8 @@ def malformed_result_request(target_id, label):
         "POST /command-queue/result HTTP/1.1\r\n"
         "Host: 127.0.0.1\r\n"
         "Content-Type: application/json\r\n"
-        f"X-BusierBox-Target-Id: {target_id}\r\n"
-        f"X-BusierBox-Target-Label: {label}\r\n"
+        f"X-griTTYkit-Target-Id: {target_id}\r\n"
+        f"X-griTTYkit-Target-Label: {label}\r\n"
         f"Content-Length: {len(body)}\r\n"
         "Connection: close\r\n\r\n"
     ).encode("ascii") + body
@@ -391,8 +391,8 @@ def survey_get_request(target_id, label):
     return (
         "GET /survey.sh HTTP/1.1\r\n"
         "Host: 127.0.0.1\r\n"
-        f"X-BusierBox-Target-Id: {target_id}\r\n"
-        f"X-BusierBox-Target-Label: {label}\r\n"
+        f"X-griTTYkit-Target-Id: {target_id}\r\n"
+        f"X-griTTYkit-Target-Label: {label}\r\n"
         "Connection: close\r\n\r\n"
     ).encode("ascii")
 
@@ -403,8 +403,8 @@ def survey_post_request(target_id, label):
         "POST /survey-bootstrap/result HTTP/1.1\r\n"
         "Host: 127.0.0.1\r\n"
         "Content-Type: application/x-www-form-urlencoded\r\n"
-        f"X-BusierBox-Target-Id: {target_id}\r\n"
-        f"X-BusierBox-Target-Label: {label}\r\n"
+        f"X-griTTYkit-Target-Id: {target_id}\r\n"
+        f"X-griTTYkit-Target-Label: {label}\r\n"
         f"Content-Length: {len(body)}\r\n"
         "Connection: close\r\n\r\n"
     ).encode("ascii") + body
@@ -416,10 +416,10 @@ def truncated_upload_request(target_id, label):
     return (
         "PUT /upload/evidence.txt HTTP/1.1\r\n"
         "Host: 127.0.0.1\r\n"
-        "X-BusierBox-Source-Path: /tmp/evidence.txt\r\n"
-        "X-BusierBox-Upload-Kind: evidence\r\n"
-        f"X-BusierBox-Target-Id: {target_id}\r\n"
-        f"X-BusierBox-Target-Label: {label}\r\n"
+        "X-griTTYkit-Source-Path: /tmp/evidence.txt\r\n"
+        "X-griTTYkit-Upload-Kind: evidence\r\n"
+        f"X-griTTYkit-Target-Id: {target_id}\r\n"
+        f"X-griTTYkit-Target-Label: {label}\r\n"
         f"Content-Length: {expected}\r\n"
         "Connection: close\r\n\r\n"
     ).encode("ascii") + body
@@ -1044,12 +1044,12 @@ def write_topology_artifact(artifact_dir, cfg, ports, phases):
             {"name": "return-offline", "state": "offline-after-short-window", "evidence": "return-offline.json"},
         ],
         "operator_commands": [
-            "scripts/busierbox-server --config CONFIG --target-id TARGET --queue-command COMMAND",
-            "scripts/busierbox-server --config CONFIG --transport command-queue --one-shot",
-            "scripts/busierbox-server --config CONFIG --transport survey-bootstrap --one-shot",
-            "scripts/busierbox-server --config CONFIG --transport file-service --one-shot",
-            "scripts/busierbox-server --config CONFIG --transport bridge --bridge-profile PROFILE --one-shot",
-            "scripts/busierbox-server --config CONFIG --daemon --daemon-service command-queue",
+            "scripts/grit-server --config CONFIG --target-id TARGET --queue-command COMMAND",
+            "scripts/grit-server --config CONFIG --transport command-queue --one-shot",
+            "scripts/grit-server --config CONFIG --transport survey-bootstrap --one-shot",
+            "scripts/grit-server --config CONFIG --transport file-service --one-shot",
+            "scripts/grit-server --config CONFIG --transport bridge --bridge-profile PROFILE --one-shot",
+            "scripts/grit-server --config CONFIG --daemon --daemon-service command-queue",
         ],
         "qemu_lab_followup": {
             "status": "planned",
@@ -1118,7 +1118,7 @@ def run_offline_workflow_queue_scenario(artifact_dir):
         "command_queue_tls": "no",
         "command_queue_port": str(queue_port),
         "command_queue_require_token": "no",
-        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allowed_commands": "grit-only",
         "command_queue_allow_arbitrary": "no",
         "survey_bootstrap_port": str(survey_port),
         "survey_bootstrap_name": "survey.sh",
@@ -1173,12 +1173,12 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition(staged_file_action.get("run_command", "").find("--run-staged-file-workflow-action workflow-payload.txt:queue-staged-fetch") >= 0, "staged-file workflow action missing stable run command", staged_file_action)
     assert_condition(staged_file_action.get("target_id") == "target-workflow", "staged-file workflow action lost target context", staged_file_action)
     assert_condition("wget -O-" in mailbox_commands and "survey.sh" in mailbox_commands, "queued survey bootstrap command missing", mailbox_commands)
-    assert_condition("busierbox fetch workflow-payload.txt" in mailbox_commands, "queued staged fetch command missing", mailbox_commands)
+    assert_condition("grit fetch workflow-payload.txt" in mailbox_commands, "queued staged fetch command missing", mailbox_commands)
     write_offline_workflow_artifact(artifact_dir, doc)
     tui_result = run_line_tui(cfg, "20\n18\ntarget-workflow\nq\n")
     assert_condition(tui_result["returncode"] == 0, "offline workflow line TUI failed", tui_result)
     tui_text = tui_result["stdout"]
-    assert_condition("headless_command: scripts/busierbox-server --config" in tui_text, "offline workflow TUI missing headless command", tui_text)
+    assert_condition("headless_command: scripts/grit-server --config" in tui_text, "offline workflow TUI missing headless command", tui_text)
     assert_condition("--list-command-queue" in tui_text, "offline workflow TUI missing command queue headless path", tui_text)
     assert_condition("Target mailbox records:" in tui_text, "offline workflow TUI missing mailbox section", tui_text)
     assert_condition("target=target-workflow" in tui_text, "offline workflow TUI missing target-scoped mailbox records", tui_text)
@@ -1222,7 +1222,7 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition(str(drain_target.get("latest_command_queue_poll_interval_sec") or "") == "3600", "offline workflow drain poll interval mismatch", drain_target)
     assert_condition(all(rec.get("status") == "delivered" for rec in drain_records), "offline workflow drain records not delivered", drain_records)
     assert_condition("wget -O-" in drain_commands and "survey.sh" in drain_commands, "drained survey bootstrap command missing", drain_commands)
-    assert_condition("busierbox fetch workflow-payload.txt" in drain_commands, "drained staged fetch command missing", drain_commands)
+    assert_condition("grit fetch workflow-payload.txt" in drain_commands, "drained staged fetch command missing", drain_commands)
     assert_condition(drain_doc["summary"]["target_phone_home_status_counts"].get("delivered", 0) >= 2, "offline workflow drain phone-home deliveries missing")
     drain_phone_home = [
         rec for rec in (drain_doc.get("target_phone_home_records") or [])
@@ -1268,11 +1268,11 @@ def run_mailbox_lifecycle_scenario(artifact_dir):
         "command_queue_tls": "no",
         "command_queue_port": str(queue_port),
         "command_queue_require_token": "no",
-        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allowed_commands": "grit-only",
         "command_queue_allow_arbitrary": "no",
     })
 
-    queue_command(cfg, "target-failed", "Failed Router", "busierbox survey --json")
+    queue_command(cfg, "target-failed", "Failed Router", "grit survey --json")
     label_result = run(
         str(SERVER), "--config", str(cfg),
         "--set-target-label", "target-expired",
@@ -1284,7 +1284,7 @@ def run_mailbox_lifecycle_scenario(artifact_dir):
         str(SERVER), "--config", str(cfg),
         "--target-id", "target-expired",
         "--target-label", "Expired Router",
-        "--queue-command", "busierbox survey --json",
+        "--queue-command", "grit survey --json",
         "--queue-expire-sec", "1",
     )
     if expired_queue.returncode != 0:
@@ -1354,11 +1354,11 @@ def run_restart_persistence_scenario(artifact_dir):
         "command_queue_tls": "no",
         "command_queue_port": str(queue_port),
         "command_queue_require_token": "no",
-        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allowed_commands": "grit-only",
         "command_queue_allow_arbitrary": "no",
     })
 
-    queue_command(cfg, "target-restart-a", "Restart Router A", "busierbox survey --json")
+    queue_command(cfg, "target-restart-a", "Restart Router A", "grit survey --json")
     before_start = status(cfg, artifact_dir, "restart-before-start")
     first_id = command_ids(queue_file)["target-restart-a"]
     assert_condition(before_start["summary"]["target_mailbox_pending_work_count"] == 1, "restart scenario initial queue missing", before_start["summary"])
@@ -1375,7 +1375,7 @@ def run_restart_persistence_scenario(artifact_dir):
             daemon.terminate()
             daemon.communicate(timeout=8)
 
-    queue_command(cfg, "target-restart-b", "Restart Router B", "busierbox survey --json")
+    queue_command(cfg, "target-restart-b", "Restart Router B", "grit survey --json")
     after_stop_queue = status(cfg, artifact_dir, "restart-after-stop-queue")
     second_id = command_ids(queue_file)["target-restart-b"]
     second_before = (after_stop_queue.get("target_mailbox_records_by_command_id") or {}).get(second_id) or {}
@@ -1419,11 +1419,11 @@ def run_bad_token_phone_home_scenario(artifact_dir):
         "command_queue_port": str(queue_port),
         "command_queue_require_token": "yes",
         "command_queue_token": "correct-token",
-        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allowed_commands": "grit-only",
         "command_queue_allow_arbitrary": "no",
     })
 
-    queue_command(cfg, "target-bad-token", "Bad Token Router", "busierbox survey --json")
+    queue_command(cfg, "target-bad-token", "Bad Token Router", "grit survey --json")
     command_id = command_ids(queue_file)["target-bad-token"]
     proc = start_one_shot(cfg, "command-queue")
     rejected = connect_with_retry(
@@ -1454,7 +1454,7 @@ def run_systemd_user_service_scenario(artifact_dir):
     scenario_dir = artifact_dir / "systemd-user-session"
     cfg = scenario_dir / "server-config.json"
     unit_dir = scenario_dir / "systemd-user"
-    unit_name = "busierbox-flaky.service"
+    unit_name = "grit-flaky.service"
     write_json(cfg, {
         "listen_host": "127.0.0.1",
         "operator_session_dir": str(scenario_dir),
@@ -1488,13 +1488,13 @@ def run_systemd_user_service_scenario(artifact_dir):
         })
 
     by_action = {rec["action"]: rec for rec in command_results}
-    assert_condition("Description=BusierBox Operator Daemon" in by_action["print"]["stdout"], "systemd print missing unit description")
+    assert_condition("Description=griTTYkit Operator Daemon" in by_action["print"]["stdout"], "systemd print missing unit description")
     assert_condition("--daemon --daemon-service file-service --daemon-service command-queue" in by_action["print"]["stdout"], "systemd print missing daemon command")
     assert_condition("would write" in by_action["install"]["stdout"], "systemd install dry-run missing write plan")
-    assert_condition("systemctl --user start busierbox-flaky.service" == by_action["start"]["stdout"].strip(), "systemd start dry-run mismatch")
-    assert_condition("systemctl --user stop busierbox-flaky.service" == by_action["stop"]["stdout"].strip(), "systemd stop dry-run mismatch")
-    assert_condition("systemctl --user restart busierbox-flaky.service" == by_action["restart"]["stdout"].strip(), "systemd restart dry-run mismatch")
-    assert_condition("systemctl --user status busierbox-flaky.service" == by_action["status"]["stdout"].strip(), "systemd status dry-run mismatch")
+    assert_condition("systemctl --user start grit-flaky.service" == by_action["start"]["stdout"].strip(), "systemd start dry-run mismatch")
+    assert_condition("systemctl --user stop grit-flaky.service" == by_action["stop"]["stdout"].strip(), "systemd stop dry-run mismatch")
+    assert_condition("systemctl --user restart grit-flaky.service" == by_action["restart"]["stdout"].strip(), "systemd restart dry-run mismatch")
+    assert_condition("systemctl --user status grit-flaky.service" == by_action["status"]["stdout"].strip(), "systemd status dry-run mismatch")
 
     doc = status(cfg, artifact_dir, "systemd-user-service-status", "--event-limit", "64")
     events = [
@@ -1539,7 +1539,7 @@ def run_tui_offline_queue_scenario(artifact_dir):
         "command_queue_tls": "no",
         "command_queue_port": str(queue_port),
         "command_queue_require_token": "no",
-        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allowed_commands": "grit-only",
         "command_queue_allow_arbitrary": "no",
         "survey_bootstrap_port": str(survey_port),
         "survey_bootstrap_name": "survey.sh",
@@ -1573,7 +1573,7 @@ def run_tui_offline_queue_scenario(artifact_dir):
 
     before_doc = status(cfg, artifact_dir, "tui-offline-queue-before")
     tui_results = [
-        run_line_tui(cfg, "15\ntarget-tui:queue-command\nbusierbox survey --json\nq\n"),
+        run_line_tui(cfg, "15\ntarget-tui:queue-command\ngrit survey --json\nq\n"),
         run_line_tui(cfg, "15\ntarget-tui:queue-survey-bootstrap\nq\n"),
         run_line_tui(cfg, f"15\ntarget-tui:stage-file-fetch\n{source}\ntui-payload.txt\nq\n"),
         run_line_tui(cfg, "15\ntarget-tui:queue-staged-fetch\ntui-payload.txt\nq\n"),
@@ -1593,10 +1593,10 @@ def run_tui_offline_queue_scenario(artifact_dir):
     assert_condition("target workflow action: target-tui:queue-bridge-start:tui-bridge" in tui_text, "TUI offline bridge queue action was not selected", tui_text)
     assert_condition("command to queue>" in tui_text, "TUI offline queue action did not prompt for command", tui_text)
     assert_condition("staged tui-payload.txt" in tui_text, "TUI offline file stage action did not stage file", tui_text)
-    assert_condition("queued " in tui_text and "busierbox survey --json" in tui_text, "TUI offline queue action did not queue command", tui_text)
+    assert_condition("queued " in tui_text and "grit survey --json" in tui_text, "TUI offline queue action did not queue command", tui_text)
     assert_condition("survey.sh" in tui_text, "TUI offline survey queue action did not queue survey command", tui_text)
-    assert_condition("busierbox fetch tui-payload.txt" in tui_text, "TUI offline staged-fetch action did not queue fetch command", tui_text)
-    assert_condition("bridge_profile=tui-bridge" in tui_text and "busierbox rshell start" in tui_text, "TUI offline bridge action did not queue bridge work", tui_text)
+    assert_condition("grit fetch tui-payload.txt" in tui_text, "TUI offline staged-fetch action did not queue fetch command", tui_text)
+    assert_condition("bridge_profile=tui-bridge" in tui_text and "grit rshell start" in tui_text, "TUI offline bridge action did not queue bridge work", tui_text)
 
     after_doc = status(cfg, artifact_dir, "tui-offline-queue-after", "--event-limit", "128")
     records = [
@@ -1608,12 +1608,12 @@ def run_tui_offline_queue_scenario(artifact_dir):
     assert_condition(all(command_ids_to_drain), "TUI offline queue command ids missing", records)
     queued_commands = "\n".join(rec.get("command") or "" for rec in records)
     survey_mailbox = next((rec for rec in records if "survey.sh" in str(rec.get("command") or "")), {})
-    fetch_mailbox = next((rec for rec in records if "busierbox fetch tui-payload.txt" in str(rec.get("command") or "")), {})
-    bridge_mailbox = next((rec for rec in records if rec.get("command") == "busierbox rshell start"), {})
-    assert_condition("busierbox survey --json" in queued_commands, "TUI offline queue command missing", queued_commands)
+    fetch_mailbox = next((rec for rec in records if "grit fetch tui-payload.txt" in str(rec.get("command") or "")), {})
+    bridge_mailbox = next((rec for rec in records if rec.get("command") == "grit rshell start"), {})
+    assert_condition("grit survey --json" in queued_commands, "TUI offline queue command missing", queued_commands)
     assert_condition("survey.sh" in queued_commands, "TUI offline queued survey command missing", queued_commands)
-    assert_condition("busierbox fetch tui-payload.txt" in queued_commands, "TUI offline queued fetch command missing", queued_commands)
-    assert_condition("busierbox rshell start" in queued_commands, "TUI offline queued bridge command missing", queued_commands)
+    assert_condition("grit fetch tui-payload.txt" in queued_commands, "TUI offline queued fetch command missing", queued_commands)
+    assert_condition("grit rshell start" in queued_commands, "TUI offline queued bridge command missing", queued_commands)
     assert_condition(survey_mailbox.get("work_kind") == "survey-bootstrap", "TUI offline survey mailbox work kind missing", survey_mailbox)
     assert_condition(survey_mailbox.get("workflow") == "survey-bootstrap", "TUI offline survey mailbox workflow missing", survey_mailbox)
     assert_condition(survey_mailbox.get("request_name") == "survey.sh", "TUI offline survey mailbox request name missing", survey_mailbox)
@@ -1696,8 +1696,8 @@ def run_tui_offline_queue_scenario(artifact_dir):
     ]
     target = drain_doc["targets_by_id"]["target-tui"]
     drained_survey = next((rec for rec in drained_records if "survey.sh" in str(rec.get("command") or "")), {})
-    drained_fetch = next((rec for rec in drained_records if "busierbox fetch tui-payload.txt" in str(rec.get("command") or "")), {})
-    drained_bridge = next((rec for rec in drained_records if rec.get("command") == "busierbox rshell start"), {})
+    drained_fetch = next((rec for rec in drained_records if "grit fetch tui-payload.txt" in str(rec.get("command") or "")), {})
+    drained_bridge = next((rec for rec in drained_records if rec.get("command") == "grit rshell start"), {})
     assert_condition(len(drained_records) == 4, "TUI offline queue drain records missing", drained_records)
     assert_condition(all(rec.get("status") == "delivered" for rec in drained_records), "TUI offline queued work did not become delivered", drained_records)
     assert_condition(all(rec.get("pending_work") is False for rec in drained_records), "TUI offline queued work should no longer be pending", drained_records)
@@ -1761,7 +1761,7 @@ def run_harness(artifact_dir):
         "command_queue_tls": "no",
         "command_queue_port": str(queue_port),
         "command_queue_require_token": "no",
-        "command_queue_allowed_commands": "busierbox-only",
+        "command_queue_allowed_commands": "grit-only",
         "command_queue_allow_arbitrary": "no",
         "survey_bootstrap_port": str(survey_port),
         "survey_bootstrap_name": "survey.sh",
@@ -1783,8 +1783,8 @@ def run_harness(artifact_dir):
     phases.append(run_systemd_user_service_scenario(artifact_dir))
     phases.append(run_tui_offline_queue_scenario(artifact_dir))
 
-    queue_command(cfg, "target-alpha", "Alpha Router", "busierbox survey --json")
-    queue_command(cfg, "target-bravo", "Bravo Router", "busierbox survey --json")
+    queue_command(cfg, "target-alpha", "Alpha Router", "grit survey --json")
+    queue_command(cfg, "target-bravo", "Bravo Router", "grit survey --json")
     ids = command_ids(queue_file)
     alpha_id = ids["target-alpha"]
     bravo_id = ids["target-bravo"]
@@ -1946,7 +1946,7 @@ def run_harness(artifact_dir):
     survey_get = connect_with_retry(survey_port, survey_get_request("target-alpha", "Alpha Router"))
     wait_proc(proc, "survey get")
     save_response(artifact_dir, "survey-get", survey_get)
-    assert_condition(b"busierbox survey bootstrap" in survey_get, "survey script was not served")
+    assert_condition(b"grit survey bootstrap" in survey_get, "survey script was not served")
 
     proc = start_one_shot(cfg, "survey-bootstrap")
     survey_post = connect_with_retry(survey_port, survey_post_request("target-alpha", "Alpha Router"))
@@ -2111,7 +2111,7 @@ def main():
     if args.artifact_dir:
         artifact_dir = Path(args.artifact_dir)
     else:
-        artifact_dir = Path(tempfile.mkdtemp(prefix="busierbox-flaky-network-"))
+        artifact_dir = Path(tempfile.mkdtemp(prefix="grit-flaky-network-"))
         cleanup = not args.keep_artifacts
 
     try:

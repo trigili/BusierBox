@@ -13,7 +13,7 @@ documentation, and safety tests were implemented first.
 ## What Changed
 
 - Server lifecycle and status handling now center on structured service/session
-  state in `scripts/busierbox-server`, with `--status`, `--stop`,
+  state in `scripts/grit-server`, with `--status`, `--stop`,
   `--json-status`, and `--api-status` surfaces for operator and future frontend
   use.
 - The workbench exposes services, staged files, uploads, sessions, events,
@@ -23,14 +23,14 @@ documentation, and safety tests were implemented first.
   activity in the top area, and details panes show target identity for staged
   files, uploads, and sessions when known.
 - Reverse shell lifecycle behavior is explicit through
-  `BB_RSHELL_SESSION_POLICY=single|reconnect|persistent`, with status, plan,
+  `GRIT_RSHELL_SESSION_POLICY=single|reconnect|persistent`, with status, plan,
   manifest, runtime-config, menuconfig, release, and server metadata exposure.
   The workbench guided build config now uses the same target-side transport
   names as the runtime config: `ssh|socat|builtin|none`.
 - Structured JSONL events are used for service starts/stops, bind failures,
   connections, uploads, fetches, staged-file changes, command-queue activity,
   jobs, and shutdown-related records.
-- `busierbox reality-test` provides local capability, constraint, and explicit
+- `grit reality-test` provides local capability, constraint, and explicit
   operator-side upload/fetch probes, with JSON indexes for integration and
   bringup consumers.
 - Compatibility scoring now distinguishes exact, likely, heuristic, unsafe, and
@@ -41,12 +41,12 @@ documentation, and safety tests were implemented first.
   failures are pre-excluded for affected MIPS tuples and local/user/overlay
   providers carry auditable status into payload manifests, release indexes, and
   generated operator workspaces.
-- No-residue behavior exposes `BB_NORESIDUE_LEVEL=best-effort|aggressive`, dry
+- No-residue behavior exposes `GRIT_NORESIDUE_LEVEL=best-effort|aggressive`, dry
   run residue plans, cleanup counters, aggressive-mode log policy boundaries,
   and non-forensic caveats in user-facing status and docs.
 - Recovery workflows include visible evidence push, evidence-then-rshell, and
   dmesg-push actions behind explicit apply and external-write gates.
-- `scripts/busierbox-bringup` now summarizes the requested ten-step onboarding
+- `scripts/grit-bringup` now summarizes the requested ten-step onboarding
   flow through `bringup_flow_steps`, lookup maps, summary counts, and API
   collection metadata.
 - Command queue behavior is explicit and opt-in. The current build supports
@@ -72,7 +72,7 @@ documentation, and safety tests were implemented first.
   lookups, payload preset and feature lookups, provider status, Doom WAD
   metadata, command-queue safety metadata, corresponding-source filters, and
   recommendation records.
-- Repository and release metadata now declare BusierBox-maintained code as
+- Repository and release metadata now declare griTTYkit-maintained code as
   `GPL-2.0-or-later`, preserve third-party component license inventory, and
   document current GPLv2-compatible combined distribution posture and
   corresponding-source requirements for BusyBox, Buildroot, doom-ascii, and
@@ -85,15 +85,15 @@ documentation, and safety tests were implemented first.
 ## Evidence Map
 
 Server lifecycle:
-- `scripts/busierbox-server --status`
-- `scripts/busierbox-server --stop`
-- `tests/smoke/busierbox-server.py`
+- `scripts/grit-server --status`
+- `scripts/grit-server --stop`
+- `tests/smoke/grit-server.py`
 
 Workbench and future API status:
-- `scripts/busierbox-server --json-status`
-- `scripts/busierbox-server --api-status`
+- `scripts/grit-server --json-status`
+- `scripts/grit-server --api-status`
 - `docs/release-bundles.md`
-- `tests/smoke/busierbox-server.py`
+- `tests/smoke/grit-server.py`
 
 Reverse shell policy:
 - `src/applet_rshell.c`
@@ -116,7 +116,7 @@ gdbserver provider workflow:
 - `scripts/gen-buildroot-defconfig`
 - `scripts/tools/check-dropin-tool`
 - `scripts/tools/install-dropin-gdbserver`
-- `scripts/busierbox-gdb-workspace`
+- `scripts/grit-gdb-workspace`
 - `tests/smoke/gdbserver-workflow.sh`
 
 No-residue cleanup:
@@ -133,37 +133,37 @@ Recovery and persistence:
 - `tests/smoke/recovery.sh`
 
 Bringup:
-- `scripts/busierbox-bringup`
+- `scripts/grit-bringup`
 - `docs/bringup.md`
 - `docs/survey-and-bringup.md`
 - `tests/smoke/integration-glinet-harness.sh`
 
 Command queue:
 - `src/applet_command_queue.c`
-- `scripts/busierbox-server`
+- `scripts/grit-server`
 - `docs/command-queue.md`
 - `docs/release-bundles.md`
 - `tests/smoke/command-queue.sh`
-- `tests/smoke/busierbox-server.py`
+- `tests/smoke/grit-server.py`
 
 Multi-target status:
-- `scripts/busierbox-server`
+- `scripts/grit-server`
 - `docs/release-bundles.md`
-- `tests/smoke/busierbox-server.py`
+- `tests/smoke/grit-server.py`
 
 Release and offline artifact browsing:
 - `scripts/make-release`
 - `scripts/index-release-repo`
 - `scripts/find-artifact`
 - `scripts/release-self-test`
-- `scripts/busierbox-server --status`
+- `scripts/grit-server --status`
 - `tests/smoke/release-bundles.sh`
 - `tests/smoke/release-repo-index.sh`
-- `tests/smoke/busierbox-server.py`
+- `tests/smoke/grit-server.py`
 
 Licensing:
 - `LICENSE`
-- `LICENSE.busierbox`
+- `LICENSE.grit`
 - `NOTICE`
 - `docs/licensing.md`
 - `manifests/license-policy.json`
@@ -171,19 +171,19 @@ Licensing:
 - `scripts/release-self-test --json`
 - `scripts/index-release-repo`
 - `scripts/find-artifact`
-- `scripts/busierbox-server --status`
+- `scripts/grit-server --status`
 - `tests/smoke/licensing.sh`
 - `tests/smoke/release-bundles.sh`
 - `tests/smoke/release-repo-index.sh`
-- `tests/smoke/busierbox-server.py`
+- `tests/smoke/grit-server.py`
 
 ## Verification Run
 
 Fresh completion-audit commands run on 2026-05-29:
 
 ```sh
-python3 -m py_compile scripts/busierbox-server tests/smoke/busierbox-server.py scripts/make-release scripts/index-release-repo scripts/find-artifact scripts/preset-from-survey
-sh -n scripts/config-from-survey scripts/busierbox-bringup tests/smoke/integration-glinet-harness.sh tests/smoke/release-bundles.sh tests/smoke/release-repo-index.sh tests/smoke/licensing.sh
+python3 -m py_compile scripts/grit-server tests/smoke/grit-server.py scripts/make-release scripts/index-release-repo scripts/find-artifact scripts/preset-from-survey
+sh -n scripts/config-from-survey scripts/grit-bringup tests/smoke/integration-glinet-harness.sh tests/smoke/release-bundles.sh tests/smoke/release-repo-index.sh tests/smoke/licensing.sh
 python3 -m json.tool manifests/license-policy.json
 scripts/check-licensing
 make check-licensing
@@ -192,7 +192,7 @@ tests/smoke/licensing.sh
 tests/smoke/command-queue.sh
 tests/smoke/recovery.sh
 tests/smoke/reality-test.sh
-python3 tests/smoke/busierbox-server.py
+python3 tests/smoke/grit-server.py
 make smoke-test
 ```
 
@@ -217,10 +217,10 @@ Fresh result:
 Commands run for earlier committed slices:
 
 ```sh
-python3 -m py_compile scripts/busierbox-server tests/smoke/busierbox-server.py
+python3 -m py_compile scripts/grit-server tests/smoke/grit-server.py
 tests/smoke/rshell-transport-names.sh
 git diff --check
-tests/smoke/busierbox-server.py
+tests/smoke/grit-server.py
 ```
 
 Result:
@@ -241,12 +241,12 @@ Result:
   summary counts by compatibility label, baseline label, release, and payload
   preset.
 - The server smoke test passed after guided workbench config examples were
-  aligned with the accepted `BB_RSHELL_TRANSPORT=ssh|socat|builtin|none`
+  aligned with the accepted `GRIT_RSHELL_TRANSPORT=ssh|socat|builtin|none`
   values. This keeps target-side transport settings separate from operator
   listener names such as `tls-shell` and `plain-shell`.
 - The server smoke test passed after the release summary text was extended to
   expose corresponding-source posture.
-- `scripts/busierbox-server --status` and the TUI release browser now render
+- `scripts/grit-server --status` and the TUI release browser now render
   `corresponding_source` with required/status/input-count/package-audit fields
   alongside the existing release license summary.
 - JSON/API status already exposes the same fields in `release.release_license`,
@@ -266,7 +266,7 @@ Result:
 - Generated Buildroot defconfigs pre-exclude affected static MIPS GDB/BFD builds
   and omit Buildroot `gdbserver` symbols when a local/user/overlay provider is
   selected instead.
-- `scripts/busierbox-gdb-workspace` preserves selected target architecture,
+- `scripts/grit-gdb-workspace` preserves selected target architecture,
   endian, remote address, and provider status in generated `connect.gdb` and
   workspace metadata.
 
@@ -301,9 +301,9 @@ python3 -m json.tool manifests/license-policy.json
 scripts/check-licensing
 make check-licensing
 tests/smoke/licensing.sh
-python3 -m py_compile scripts/find-artifact scripts/index-release-repo scripts/busierbox-server tests/smoke/busierbox-server.py
+python3 -m py_compile scripts/find-artifact scripts/index-release-repo scripts/grit-server tests/smoke/grit-server.py
 tests/smoke/release-repo-index.sh
-python3 tests/smoke/busierbox-server.py
+python3 tests/smoke/grit-server.py
 python3 -m py_compile scripts/make-release
 sh -n tests/smoke/release-bundles.sh
 tests/smoke/release-bundles.sh
@@ -318,7 +318,7 @@ Result:
   `tests/smoke/licensing.sh` validate that the repository declares
   `GPL-2.0-or-later`, preserves the current GPLv2-compatible stack assessment,
   and keeps the expected evidence references.
-- `scripts/busierbox-server --status`, `--json-status`, and API status expose
+- `scripts/grit-server --status`, `--json-status`, and API status expose
   release license evidence counts, verification date, evidence-source lookup
   maps, and evidence-source/license lookup maps.
 - `scripts/index-release-repo` and `scripts/find-artifact --recommendation-json`
@@ -331,9 +331,9 @@ Recent no-residue verification also included:
 
 ```sh
 make
-tests/smoke/plan-json.sh dist/busierbox.core
+tests/smoke/plan-json.sh dist/grit.core
 tests/smoke/runtime-modes.sh
-tests/smoke/clean-json.sh dist/busierbox-native-full
+tests/smoke/clean-json.sh dist/grit-native-full
 git diff --check
 make smoke-test
 ```
@@ -341,12 +341,12 @@ make smoke-test
 Result:
 
 - `make smoke-test` passed after the latest no-residue policy surface update.
-- `tests/smoke/plan-json.sh dist/busierbox.core` passed, covering no-residue
+- `tests/smoke/plan-json.sh dist/grit.core` passed, covering no-residue
   policy JSON/text output from plan surfaces.
 - `tests/smoke/runtime-modes.sh` passed, covering aggressive no-residue
   `config-info`, `doctor`, manifest, plan, residue-plan, fallback fail-closed,
   and signal cleanup behavior.
-- `tests/smoke/clean-json.sh dist/busierbox-native-full` passed, covering dry
+- `tests/smoke/clean-json.sh dist/grit-native-full` passed, covering dry
   run residue plans, cleanup counters, ledgered paths, external cleanup gating,
   and invalid ledger handling.
 
@@ -376,7 +376,7 @@ Result:
 Earlier full-goal verification also included:
 
 ```sh
-sh -n scripts/busierbox-bringup tests/smoke/integration-glinet-harness.sh
+sh -n scripts/grit-bringup tests/smoke/integration-glinet-harness.sh
 tests/smoke/integration-glinet-harness.sh
 git diff --check
 make smoke-test
@@ -426,8 +426,8 @@ Recent full smoke coverage included:
 Server lifecycle:
 
 ```sh
-scripts/busierbox-server --status
-scripts/busierbox-server --stop
+scripts/grit-server --status
+scripts/grit-server --stop
 ```
 
 Expected evidence includes configured versus actual service state, listener
@@ -437,8 +437,8 @@ sessions/uploads/fetches.
 Reverse shell policy:
 
 ```sh
-./busierbox rshell status --json
-./busierbox plan rshell --json
+./grit rshell status --json
+./grit plan rshell --json
 ```
 
 Expected evidence includes `session_policy`, `session_semantics`,
@@ -458,7 +458,7 @@ command hash.
 Reality and compatibility:
 
 ```sh
-./busierbox reality-test --json
+./grit reality-test --json
 scripts/config-from-survey --survey-json survey.json --reality-json reality.json --json
 scripts/find-artifact --index release-index.json --survey-json survey.json --reality-json reality.json --recommendation-json
 ```
@@ -470,9 +470,9 @@ such as `/tmp` noexec or read-only rootfs, and compatibility labels from
 Command queue safety:
 
 ```sh
-./busierbox command-queue status
-./busierbox command-queue poll --json
-scripts/busierbox-server --json-command-queue
+./grit command-queue status
+./grit command-queue poll --json
+scripts/grit-server --json-command-queue
 ```
 
 Expected evidence shows disabled-by-default policy, metadata-only default,

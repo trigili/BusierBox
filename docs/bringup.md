@@ -1,7 +1,7 @@
 # Bringup
 
-`scripts/busierbox-bringup` is a guided onboarding flow for a target that is not
-fully characterized yet. It is meant to answer: can a conservative BusierBox
+`scripts/grit-bringup` is a guided onboarding flow for a target that is not
+fully characterized yet. It is meant to answer: can a conservative griTTYkit
 artifact run, what did the target survey report, and what config should be tried
 next?
 
@@ -13,9 +13,9 @@ harness for known cases.
 
 - Creates `local/bringup-runs/<timestamp>-<pid>/`.
 - Builds a conservative survey artifact unless `--survey-json` is supplied.
-- Copies that artifact to `/tmp/busierbox-bringup-<timestamp>-<pid>/` on the target.
-- Runs `./busierbox survey --json` and `./busierbox config-info`.
-- Runs `./busierbox reality-test --json` when the survey artifact includes the
+- Copies that artifact to `/tmp/grit-bringup-<timestamp>-<pid>/` on the target.
+- Runs `./grit survey --json` and `./grit config-info`.
+- Runs `./grit reality-test --json` when the survey artifact includes the
   applet.
 - Runs `scripts/config-from-survey`.
 - Writes `survey.json`, `recommendation.json`, `recommended.conf`, logs, and
@@ -34,7 +34,7 @@ harness for known cases.
 
 ## What It Does Not Do
 
-- It does not start `scripts/busierbox-server`.
+- It does not start `scripts/grit-server`.
 - It does not start reverse access.
 - It does not enable network autorun.
 - It does not install persistence.
@@ -46,19 +46,19 @@ harness for known cases.
 Survey a reachable target and build a recommended artifact:
 
 ```sh
-scripts/busierbox-bringup --host root@192.168.8.1 --operator-host auto
+scripts/grit-bringup --host root@192.168.8.1 --operator-host auto
 ```
 
 Stop after survey and recommendation:
 
 ```sh
-scripts/busierbox-bringup --host root@192.168.8.1 --survey-only
+scripts/grit-bringup --host root@192.168.8.1 --survey-only
 ```
 
 Generate a recommendation from an existing survey without touching a target:
 
 ```sh
-scripts/busierbox-bringup \
+scripts/grit-bringup \
   --recommend-only \
   --survey-json local/survey.json \
   --target-preset glinet-mt7621-openwrt-musl
@@ -67,7 +67,7 @@ scripts/busierbox-bringup \
 Generate a reusable local target preset from a survey:
 
 ```sh
-scripts/busierbox-bringup \
+scripts/grit-bringup \
   --recommend-only \
   --survey-json local/survey.json \
   --write-target-preset lab-router \
@@ -79,7 +79,7 @@ containing multiple release bundles, and print the trailer override command
 without executing it:
 
 ```sh
-scripts/busierbox-bringup \
+scripts/grit-bringup \
   --recommend-only \
   --survey-json local/survey.json \
   --release-dir dist/releases/smoke \
@@ -99,7 +99,7 @@ Stage the selected release artifact, or `recommended.conf` when no artifact is
 available yet, for explicit target-side fetch:
 
 ```sh
-scripts/busierbox-bringup \
+scripts/grit-bringup \
   --recommend-only \
   --survey-json local/survey.json \
   --release-dir dist/releases/smoke \
@@ -109,13 +109,13 @@ scripts/busierbox-bringup \
 Preview the local plan only:
 
 ```sh
-scripts/busierbox-bringup --host root@192.168.8.1 --dry-run
+scripts/grit-bringup --host root@192.168.8.1 --dry-run
 ```
 
 Run one integration case after the recommended build:
 
 ```sh
-scripts/busierbox-bringup \
+scripts/grit-bringup \
   --host root@192.168.8.1 \
   --target-preset glinet-mt7621-openwrt-musl \
   --run-integration survey-core
@@ -216,7 +216,7 @@ records. It also publishes `api`, `api_resources`,
 `api_resources_by_summary_key` so future TUI/web clients can discover each
 record collection, its JSON path, summary counter, primary key, and index names
 without hard-coding bringup-specific paths. This mirrors the collection/index
-discovery pattern used by `scripts/busierbox-server --api-status` and the
+discovery pattern used by `scripts/grit-server --api-status` and the
 native JSON applets.
 It also includes a `safety_boundary` object that states that bringup does not
 enable network autorun, hidden control channels, command queue execution, or
@@ -225,12 +225,12 @@ default remote command execution.
 ## Safety Defaults
 
 The initial survey artifact uses the selected payload preset, defaults to
-`survey-core`, forces `BB_RUNTIME_ALLOW_EXTERNAL_WRITES="no"`, and keeps
-`BB_ZERO_ARG_MODE="help"`. `scripts/config-from-survey` remains conservative:
+`survey-core`, forces `GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES="no"`, and keeps
+`GRIT_ZERO_ARG_MODE="help"`. `scripts/config-from-survey` remains conservative:
 it does not enable external writes or network autorun unless explicitly asked.
 `--configure-trailer` prints an `scripts/artifact-config set ...` command; it
 does not run target-side code. `--stage-recommended-artifact` updates the
-operator staged-files index so the target can explicitly run `busierbox fetch`;
+operator staged-files index so the target can explicitly run `grit fetch`;
 it does not start the file-service listener by itself.
 
 Use `--keep-remote` only when debugging. Otherwise the remote temp directory is

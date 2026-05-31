@@ -1,17 +1,17 @@
 # Survey And Bring-Up
 
-BusierBox has two survey paths:
+griTTYkit has two survey paths:
 
-- `busierbox survey --json` runs the native supervisor probe.
-- `busierbox survey --shell-script` prints a portable `/bin/sh` probe that can run on targets where a native artifact is not ready yet.
-- `busierbox reality-test --json` actively checks runtime behavior such as
+- `grit survey --json` runs the native supervisor probe.
+- `grit survey --shell-script` prints a portable `/bin/sh` probe that can run on targets where a native artifact is not ready yet.
+- `grit reality-test --json` actively checks runtime behavior such as
   writing/executing under the runtime root, forking, spawning `/bin/sh`, opening
   pipes/PTYs, reading `/proc` and `/sys`, binding localhost, and reaching a
   configured operator endpoint. It also probes payload execution, noexec and
   read-only constraints, ptrace, `dmesg` command or kernel-buffer readability,
   and partial procfs behavior.
 
-The shell survey exists because a working native BusierBox binary only proves the artifact is close enough to execute. The next question is operational: where can BusierBox safely write, whether `/tmp` is executable, which tools already exist, what libc/kernel hints are visible, and whether a no-extraction workflow is safer.
+The shell survey exists because a working native griTTYkit binary only proves the artifact is close enough to execute. The next question is operational: where can griTTYkit safely write, whether `/tmp` is executable, which tools already exist, what libc/kernel hints are visible, and whether a no-extraction workflow is safer.
 `reality-test` complements that passive survey with active checks. It reports
 operator upload/fetch checks as skipped unless those side-effecting services are
 explicitly configured for the run.
@@ -32,7 +32,7 @@ Operator file-service checks are opt-in because they create target-initiated
 network traffic and upload a small probe file:
 
 ```sh
-busierbox reality-test --json \
+grit reality-test --json \
   --operator-host 192.0.2.10 --file-port 22204 --no-tls \
   --check-upload --check-fetch reality-fetch.txt
 ```
@@ -40,14 +40,14 @@ busierbox reality-test --json \
 `--check-upload` uploads a generated probe file to the receive-only operator
 file-service. `--check-fetch REQUEST` performs a staged-file fetch check for the
 given request name and URL-encodes it using the same staged fetch semantics as
-`busierbox fetch`, so path components and spaces in staged names are supported.
+`grit fetch`, so path components and spaces in staged names are supported.
 Fetch probing currently requires `--no-tls`; TLS upload probing follows the
 artifact's built-in TLS support.
 
 The generated shell probe is POSIX-ish and avoids required Python, Perl, awk,
 sed, grep, or coreutils dependencies. It uses common target commands only when
 they are present and writes probe files only under
-`BUSIERBOX_SURVEY_PROBE_DIR` or its chosen temporary probe directory. Output is
+`GRIT_SURVEY_PROBE_DIR` or its chosen temporary probe directory. Output is
 conservative JSON: strings that cannot be safely escaped by plain shell are
 reported as `unknown` rather than risking invalid JSON.
 
@@ -58,29 +58,29 @@ Safe defaults:
 - passive survey before reverse access
 - release bundles can configure operator host/ports later with trailer helpers
   without changing target tuple compatibility or payload contents
-- `./.busierbox` preferred when the current directory is writable
-- `/tmp/.busierbox` only when the current directory is not suitable
+- `./.grit` preferred when the current directory is writable
+- `/tmp/.grit` only when the current directory is not suitable
 
 Example workflow:
 
 ```sh
 make package TARGET=glinet-mt7621-openwrt-musl
-scripts/busierbox-bringup --host root@192.168.8.1 --operator-host auto
+scripts/grit-bringup --host root@192.168.8.1 --operator-host auto
 ```
 
-The bring-up script creates `local/bringup-runs/<timestamp>-<pid>/`, builds a survey artifact, transfers it under `/tmp/busierbox-bringup-<timestamp>-<pid>/`, captures `survey --json` and `config-info`, runs `scripts/config-from-survey`, and writes `recommended.conf` plus `summary.json`.
+The bring-up script creates `local/bringup-runs/<timestamp>-<pid>/`, builds a survey artifact, transfers it under `/tmp/grit-bringup-<timestamp>-<pid>/`, captures `survey --json` and `config-info`, runs `scripts/config-from-survey`, and writes `recommended.conf` plus `summary.json`.
 
 See [bringup.md](bringup.md) for the full command reference and safety model.
 
 Useful commands:
 
 ```sh
-busierbox survey --json --shell-probe
-busierbox survey --shell-script
-BUSIERBOX_SURVEY_PROBE_DIR=/tmp/bbx-probe /bin/sh ./busierbox-survey.sh
-busierbox survey --write-shell-script /tmp/busierbox-survey.sh
-busierbox reality-test --json
-busierbox reality-test push
+grit survey --json --shell-probe
+grit survey --shell-script
+GRIT_SURVEY_PROBE_DIR=/tmp/grit-probe /bin/sh ./grit-survey.sh
+grit survey --write-shell-script /tmp/grit-survey.sh
+grit reality-test --json
+grit reality-test push
 scripts/config-from-survey --format shell survey.json
 scripts/config-from-survey --format json survey.json
 scripts/config-from-survey --format json --reality-json reality.json survey.json
@@ -90,7 +90,7 @@ scripts/preset-from-survey --survey survey.json --name glinet-mt1300-lab --write
 scripts/release-find --release-dir dist/releases/lab --survey-json survey.json --reality-json reality.json
 ```
 
-`scripts/config-from-survey` is conservative. It emits comments for uncertainty, avoids external writes unless `--allow-external-writes` is set, and keeps `BB_ZERO_ARG_MODE="help"` unless `--allow-network-autorun` is explicitly requested.
+`scripts/config-from-survey` is conservative. It emits comments for uncertainty, avoids external writes unless `--allow-external-writes` is set, and keeps `GRIT_ZERO_ARG_MODE="help"` unless `--allow-network-autorun` is explicitly requested.
 Shell output includes `# compatibility=...` and `# compatibility_reason: ...`
 comments. JSON output includes a `compatibility` object with `schema`, `label`,
 and `reasons` so bringup tooling can show the same risk language used by

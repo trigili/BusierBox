@@ -1,17 +1,17 @@
-#ifndef BUSIERBOX_TRAILER_CONFIG_H
-#define BUSIERBOX_TRAILER_CONFIG_H
+#ifndef GRIT_TRAILER_CONFIG_H
+#define GRIT_TRAILER_CONFIG_H
 
 #include <stddef.h>
 
-#define BB_CONFIG_TRAILER_SIZE 4096
-#define BB_CONFIG_TRAILER_MAGIC "BBXCONFIGv1"
+#define GRIT_CONFIG_TRAILER_SIZE 4096
+#define GRIT_CONFIG_TRAILER_MAGIC "BBXCONFIGv1"
 
 struct bb_config_trailer {
     int present;
     int valid;
     char error[160];
     char encoding[16];
-    char payload[BB_CONFIG_TRAILER_SIZE + 1];
+    char payload[GRIT_CONFIG_TRAILER_SIZE + 1];
     size_t payload_len;
 };
 

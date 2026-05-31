@@ -19,58 +19,58 @@
 #define PATH_MAX 4096
 #endif
 
-#ifndef BB_ENABLE_SURVEY
-#define BB_ENABLE_SURVEY 1
+#ifndef GRIT_ENABLE_SURVEY
+#define GRIT_ENABLE_SURVEY 1
 #endif
-#ifndef BB_ENABLE_DOCTOR
-#define BB_ENABLE_DOCTOR 1
+#ifndef GRIT_ENABLE_DOCTOR
+#define GRIT_ENABLE_DOCTOR 1
 #endif
-#ifndef BB_ENABLE_CONFIG_INFO
-#define BB_ENABLE_CONFIG_INFO 1
+#ifndef GRIT_ENABLE_CONFIG_INFO
+#define GRIT_ENABLE_CONFIG_INFO 1
 #endif
-#ifndef BB_ENABLE_EXTRACT
-#define BB_ENABLE_EXTRACT 1
+#ifndef GRIT_ENABLE_EXTRACT
+#define GRIT_ENABLE_EXTRACT 1
 #endif
-#ifndef BB_ENABLE_FETCH_FULL
-#define BB_ENABLE_FETCH_FULL 1
+#ifndef GRIT_ENABLE_FETCH_FULL
+#define GRIT_ENABLE_FETCH_FULL 1
 #endif
-#ifndef BUSIERBOX_ARTIFACT_TIER
-#define BUSIERBOX_ARTIFACT_TIER "full"
+#ifndef GRIT_ARTIFACT_TIER
+#define GRIT_ARTIFACT_TIER "full"
 #endif
-#ifndef BB_ARTIFACT_KIND
-#define BB_ARTIFACT_KIND BUSIERBOX_ARTIFACT_TIER
+#ifndef GRIT_ARTIFACT_KIND
+#define GRIT_ARTIFACT_KIND GRIT_ARTIFACT_TIER
 #endif
-#ifndef BB_FULL_ZERO_ARG_MODE
-#define BB_FULL_ZERO_ARG_MODE "help"
+#ifndef GRIT_FULL_ZERO_ARG_MODE
+#define GRIT_FULL_ZERO_ARG_MODE "help"
 #endif
-#ifndef BB_ZERO_ARG_MODE
-#define BB_ZERO_ARG_MODE BB_FULL_ZERO_ARG_MODE
+#ifndef GRIT_ZERO_ARG_MODE
+#define GRIT_ZERO_ARG_MODE GRIT_FULL_ZERO_ARG_MODE
 #endif
 #include "effective_config.h"
 
 const struct bb_applet bb_applets[] = {
     {"list", applet_list_main, "list native applets and payload tools"},
-#if BB_ENABLE_SURVEY
+#if GRIT_ENABLE_SURVEY
     {"survey", applet_survey_main, "print embedded Linux triage information"},
 #endif
     {"envfix", applet_envfix_main, "print or apply environment repair commands"},
-#if BB_ENABLE_EXTRACT
+#if GRIT_ENABLE_EXTRACT
     {"extract", applet_extract_main, "extract or reuse the payload runtime"},
 #endif
     {"clean", applet_clean_main, "remove local extracted payload runtime"},
-    {"cleanup-ledger", applet_cleanup_ledger_main, "inspect BusierBox cleanup ledger"},
-#if BB_ENABLE_CONFIG_INFO
+    {"cleanup-ledger", applet_cleanup_ledger_main, "inspect griTTYkit cleanup ledger"},
+#if GRIT_ENABLE_CONFIG_INFO
     {"config-info", applet_config_info_main, "print build and payload information"},
 #endif
     {"config-export", applet_config_export_main, "export rebuild-oriented artifact config"},
     {"runtime-config", applet_runtime_config_main, "print effective runtime override configuration"},
-#if BB_ENABLE_DOCTOR
+#if GRIT_ENABLE_DOCTOR
     {"doctor", applet_doctor_main, "inspect embedded and extracted payload health"},
 #endif
     {"reality-test", applet_reality_test_main, "actively test target runtime capabilities"},
-#if BB_ENABLE_FETCH_FULL
+#if GRIT_ENABLE_FETCH_FULL
     {"fetch", applet_fetch_main, "fetch an operator-staged file"},
-    {"fetch-full", applet_fetch_full_main, "download a full BusierBox artifact"},
+    {"fetch-full", applet_fetch_full_main, "download a full griTTYkit artifact"},
 #endif
     {"manifest", applet_manifest_main, "print artifact manifest metadata"},
     {"persistence", applet_recovery_main, "survey and manage explicit persistence hooks"},
@@ -135,8 +135,8 @@ static int read_lock_pid(const char *lock_path, long *pid, char *mode, size_t mo
 
 static const char *autorun_guard_path(void)
 {
-    const char *env = getenv("BUSIERBOX_AUTORUN_GUARD_PATH");
-    return env && *env ? env : BB_AUTORUN_GUARD_PATH;
+    const char *env = getenv("GRIT_AUTORUN_GUARD_PATH");
+    return env && *env ? env : GRIT_AUTORUN_GUARD_PATH;
 }
 
 static void print_autorun_status(FILE *out)
@@ -146,21 +146,21 @@ static void print_autorun_status(FILE *out)
     long pid = -1;
     snprintf(lock_path, sizeof(lock_path), "%s/autorun.lock", guard_path);
     read_lock_pid(lock_path, &pid, mode, sizeof(mode));
-    fprintf(out, "BusierBox autorun already active.\n");
+    fprintf(out, "griTTYkit autorun already active.\n");
     fprintf(out, "  mode: %s\n", mode[0] ? mode : "unknown");
     fprintf(out, "  pid: %ld\n", pid);
     fprintf(out, "  guard: %s\n\n", guard_path);
     fprintf(out, "Explicit commands still work:\n");
-    fprintf(out, "  busierbox doctor\n");
-    fprintf(out, "  busierbox --help\n");
+    fprintf(out, "  grit doctor\n");
+    fprintf(out, "  grit --help\n");
 }
 
 static int reentry_action(void)
 {
     char *doctor_argv[] = { "doctor", NULL };
-    if (!strcmp(BB_AUTORUN_REENTRY_ACTION, "doctor"))
+    if (!strcmp(GRIT_AUTORUN_REENTRY_ACTION, "doctor"))
         return applet_doctor_main(1, doctor_argv);
-    if (!strcmp(BB_AUTORUN_REENTRY_ACTION, "help") || !strcmp(BB_AUTORUN_REENTRY_ACTION, "menu")) {
+    if (!strcmp(GRIT_AUTORUN_REENTRY_ACTION, "help") || !strcmp(GRIT_AUTORUN_REENTRY_ACTION, "menu")) {
         usage(stdout);
         return 0;
     }
@@ -180,8 +180,8 @@ static int acquire_autorun_guard(const char *mode)
     long old_pid = -1;
     int fd;
     time_t now;
-    if (!yes_value(BB_AUTORUN_GUARD_ENABLE) || !guard_needed(mode) ||
-        !strcmp(BB_AUTORUN_REENTRY_ACTION, "bootstrap-again"))
+    if (!yes_value(GRIT_AUTORUN_GUARD_ENABLE) || !guard_needed(mode) ||
+        !strcmp(GRIT_AUTORUN_REENTRY_ACTION, "bootstrap-again"))
         return 1;
     if (bb_mkdir_p(guard_path, 0700) != 0) {
         fprintf(stderr, "autorun: unable to create guard path %s: %s\n", guard_path, strerror(errno));
@@ -195,7 +195,7 @@ retry:
         if (errno == EEXIST) {
             if (read_lock_pid(lock_path, &old_pid, old_mode, sizeof(old_mode)) == 0 &&
                 old_pid > 0 && kill((pid_t)old_pid, 0) != 0 && errno == ESRCH &&
-                !strcmp(BB_AUTORUN_STALE_LOCK_POLICY, "recover")) {
+                !strcmp(GRIT_AUTORUN_STALE_LOCK_POLICY, "recover")) {
                 unlink(lock_path);
                 goto retry;
             }
@@ -206,13 +206,13 @@ retry:
         return 0;
     }
     now = time(NULL);
-    dprintf(fd, "mode=%s\npid=%ld\nstarted_at=%ld\nartifact_tier=%s\n", mode, (long)getpid(), (long)now, BUSIERBOX_ARTIFACT_TIER);
+    dprintf(fd, "mode=%s\npid=%ld\nstarted_at=%ld\nartifact_tier=%s\n", mode, (long)getpid(), (long)now, GRIT_ARTIFACT_TIER);
     close(fd);
     bb_ledger_record("write", lock_path, "runtime", "autorun lock");
     snprintf(status_path, sizeof(status_path), "%s/status", guard_path);
     fd = open(status_path, O_CREAT | O_TRUNC | O_WRONLY, 0600);
     if (fd >= 0) {
-        dprintf(fd, "mode=%s\npid=%ld\nstarted_at=%ld\nartifact_tier=%s\n", mode, (long)getpid(), (long)now, BUSIERBOX_ARTIFACT_TIER);
+        dprintf(fd, "mode=%s\npid=%ld\nstarted_at=%ld\nartifact_tier=%s\n", mode, (long)getpid(), (long)now, GRIT_ARTIFACT_TIER);
         close(fd);
         bb_ledger_record("write", status_path, "runtime", "autorun status");
     }
@@ -223,11 +223,11 @@ retry:
 static int run_custom_zero_arg(void)
 {
     int rc;
-    if (!BB_ZERO_ARG_CUSTOM_COMMAND[0]) {
-        fputs("zero-arg custom mode selected but BB_ZERO_ARG_CUSTOM_COMMAND is empty\n", stderr);
+    if (!GRIT_ZERO_ARG_CUSTOM_COMMAND[0]) {
+        fputs("zero-arg custom mode selected but GRIT_ZERO_ARG_CUSTOM_COMMAND is empty\n", stderr);
         return 2;
     }
-    rc = system(BB_ZERO_ARG_CUSTOM_COMMAND);
+    rc = system(GRIT_ZERO_ARG_CUSTOM_COMMAND);
     if (rc == -1)
         return 1;
     if (WIFEXITED(rc))
@@ -248,7 +248,7 @@ static int run_zero_arg_mode(const char *mode)
     if (!strcmp(mode, "survey"))
         return applet_survey_main(1, survey_argv);
     if (!strcmp(mode, "rshell")) {
-        setenv("BUSIERBOX_ZERO_ARG_CONTEXT", "1", 1);
+        setenv("GRIT_ZERO_ARG_CONTEXT", "1", 1);
         return applet_rshell_main(1, rshell_argv);
     }
     if (!strcmp(mode, "custom"))
@@ -260,8 +260,8 @@ static int run_zero_arg_mode(const char *mode)
 
 static const char *zero_arg_log_mode(void)
 {
-    const char *mode = getenv("BUSIERBOX_ZERO_ARG_LOG_MODE");
-    return (mode && *mode) ? mode : BB_ZERO_ARG_LOG_MODE;
+    const char *mode = getenv("GRIT_ZERO_ARG_LOG_MODE");
+    return (mode && *mode) ? mode : GRIT_ZERO_ARG_LOG_MODE;
 }
 
 static int zero_arg_log_at_least_status(const char *log_mode)
@@ -276,13 +276,13 @@ static int zero_arg_log_verbose(const char *log_mode)
 
 static int zero_arg_main(void)
 {
-    const char *mode = getenv("BUSIERBOX_ZERO_ARG_MODE");
+    const char *mode = getenv("GRIT_ZERO_ARG_MODE");
     const char *log_mode = zero_arg_log_mode();
     int rc;
     if (!mode || !*mode) {
-        mode = BB_ZERO_ARG_MODE;
+        mode = GRIT_ZERO_ARG_MODE;
     }
-    if (getenv("BUSIERBOX_NO_AUTORUN") && !strcmp(getenv("BUSIERBOX_NO_AUTORUN"), "1")) {
+    if (getenv("GRIT_NO_AUTORUN") && !strcmp(getenv("GRIT_NO_AUTORUN"), "1")) {
         usage(stdout);
         return 0;
     }
@@ -297,12 +297,12 @@ static int zero_arg_main(void)
     if (!acquire_autorun_guard(mode))
         return 0;
     if (zero_arg_log_at_least_status(log_mode))
-        fprintf(stderr, "busierbox: zero-arg mode=%s\n", mode);
+        fprintf(stderr, "grit: zero-arg mode=%s\n", mode);
     if (zero_arg_log_verbose(log_mode))
-        fprintf(stderr, "busierbox: zero-arg log_mode=%s runtime=%s\n", log_mode, BB_RUNTIME_MODE);
+        fprintf(stderr, "grit: zero-arg log_mode=%s runtime=%s\n", log_mode, GRIT_RUNTIME_MODE);
     rc = run_zero_arg_mode(mode);
     if (zero_arg_log_at_least_status(log_mode))
-        fprintf(stderr, "busierbox: zero-arg exit=%d\n", rc);
+        fprintf(stderr, "grit: zero-arg exit=%d\n", rc);
     return rc;
 }
 
@@ -318,7 +318,7 @@ int main(int argc, char **argv)
     bb_set_argv0(argv[0]);
 
     invoked = base_name(argv[0]);
-    if (strcmp(invoked, "busierbox") != 0 && strncmp(invoked, "busierbox-", 10) != 0) {
+    if (strcmp(invoked, "grit") != 0 && strncmp(invoked, "grit-", 10) != 0) {
         rc = bb_dispatch(invoked, argc, argv);
         if (rc >= 0)
             return rc;

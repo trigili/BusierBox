@@ -1,7 +1,7 @@
 #!/bin/sh
 set -u
 
-BB=${BUSIERBOX:-./busierbox}
+BB=${GRIT:-./grit}
 ARTIFACT_DIR=${ARTIFACT_DIR:-.}
 
 mkdir -p "$ARTIFACT_DIR" || exit 1

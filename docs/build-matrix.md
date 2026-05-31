@@ -1,6 +1,6 @@
 # Build Matrix
 
-`scripts/build-matrix` batches BusierBox builds across target presets, payload
+`scripts/build-matrix` batches griTTYkit builds across target presets, payload
 presets, and payload archive formats. It writes each run under
 `local/matrix-runs/<timestamp>/` by default and records a machine-readable
 `summary.json`.
@@ -57,7 +57,7 @@ the first failure.
   "variants": {
     "operator": {
       "payload_preset": "ssh-operator",
-      "BB_ZERO_ARG_MODE": "help"
+      "GRIT_ZERO_ARG_MODE": "help"
     }
   }
 }
@@ -86,7 +86,7 @@ workflows, the matrix script also accepts:
 scripts/build-matrix --offline --mirror-dir local/source-mirror --dry-run
 ```
 
-That exports `BUSIERBOX_OFFLINE=1`, `BUSIERBOX_MIRROR_DIR`, and
+That exports `GRIT_OFFLINE=1`, `GRIT_MIRROR_DIR`, and
 `BUILDROOT_DL_DIR=<mirror>/buildroot-dl` to each build command. Non-dry-run
 offline builds run `scripts/check-offline-readiness` before starting jobs. Use
 `--strict-offline` to require a complete mirror manifest for the selected matrix,

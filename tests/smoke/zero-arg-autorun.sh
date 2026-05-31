@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-bb=${1:-dist/busierbox-native-full}
+bb=${1:-dist/grit-native-full}
 [ -x "$bb" ] || {
     printf '%s\n' "zero-arg-autorun: missing artifact: $bb" >&2
     exit 1
@@ -11,21 +11,21 @@ bb_abs=$(cd "$(dirname "$bb")" && pwd)/$(basename "$bb")
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
-if BUSIERBOX_ZERO_ARG_MODE=help "$bb" >"$tmp/default.out" 2>&1; then
+if GRIT_ZERO_ARG_MODE=help "$bb" >"$tmp/default.out" 2>&1; then
     :
 fi
-grep -Eq 'usage: busierbox|native applets:' "$tmp/default.out"
+grep -Eq 'usage: grit|native applets:' "$tmp/default.out"
 
-BUSIERBOX_ZERO_ARG_MODE=help BUSIERBOX_ZERO_ARG_LOG_MODE=none "$bb" >"$tmp/none.out" 2>"$tmp/none.err" || true
+GRIT_ZERO_ARG_MODE=help GRIT_ZERO_ARG_LOG_MODE=none "$bb" >"$tmp/none.out" 2>"$tmp/none.err" || true
 [ ! -s "$tmp/none.out" ]
 [ ! -s "$tmp/none.err" ]
 
-BUSIERBOX_ZERO_ARG_MODE=help BUSIERBOX_ZERO_ARG_LOG_MODE=status "$bb" >"$tmp/status.out" 2>"$tmp/status.err" || true
+GRIT_ZERO_ARG_MODE=help GRIT_ZERO_ARG_LOG_MODE=status "$bb" >"$tmp/status.out" 2>"$tmp/status.err" || true
 grep -q 'zero-arg mode=help' "$tmp/status.err"
 grep -q 'zero-arg exit=' "$tmp/status.err"
 
-BUSIERBOX_NO_AUTORUN=1 "$bb" >"$tmp/no-autorun.out" 2>&1
-grep -Eq 'usage: busierbox|native applets:' "$tmp/no-autorun.out"
+GRIT_NO_AUTORUN=1 "$bb" >"$tmp/no-autorun.out" 2>&1
+grep -Eq 'usage: grit|native applets:' "$tmp/no-autorun.out"
 
 guard="$tmp/guard"
 mkdir -p "$guard"
@@ -36,17 +36,17 @@ pid=$$
 started_at=0
 artifact_tier=test
 EOF
-BUSIERBOX_AUTORUN_GUARD_PATH="$guard" BUSIERBOX_ZERO_ARG_MODE=rshell "$bb" >"$tmp/reentry.out" 2>&1
-grep -q 'BusierBox autorun already active' "$tmp/reentry.out"
+GRIT_AUTORUN_GUARD_PATH="$guard" GRIT_ZERO_ARG_MODE=rshell "$bb" >"$tmp/reentry.out" 2>&1
+grep -q 'griTTYkit autorun already active' "$tmp/reentry.out"
 
 ledger_run="$tmp/ledger-run"
 mkdir -p "$ledger_run"
 (
     cd "$ledger_run"
-    BUSIERBOX_AUTORUN_GUARD_PATH="$ledger_run/guard" BUSIERBOX_ZERO_ARG_MODE=rshell "$bb_abs" >"$tmp/ledger-rshell.out" 2>&1 || true
-    test -f ./.busierbox/run/cleanup-ledger.jsonl
-    grep -q '"detail":"autorun lock"' ./.busierbox/run/cleanup-ledger.jsonl
-    grep -q '"detail":"autorun status"' ./.busierbox/run/cleanup-ledger.jsonl
+    GRIT_AUTORUN_GUARD_PATH="$ledger_run/guard" GRIT_ZERO_ARG_MODE=rshell "$bb_abs" >"$tmp/ledger-rshell.out" 2>&1 || true
+    test -f ./.grit/run/cleanup-ledger.jsonl
+    grep -q '"detail":"autorun lock"' ./.grit/run/cleanup-ledger.jsonl
+    grep -q '"detail":"autorun status"' ./.grit/run/cleanup-ledger.jsonl
     if command -v python3 >/dev/null 2>&1; then
         "$bb_abs" cleanup-ledger --json | python3 -m json.tool >/dev/null
     fi
@@ -56,18 +56,18 @@ mkdir -p "$ledger_run"
 grep -q '^artifact_tier=' "$tmp/explicit-doctor.out"
 
 "$bb" rshell --help >"$tmp/rshell-help.out" 2>&1
-grep -q 'usage: busierbox rshell' "$tmp/rshell-help.out"
+grep -q 'usage: grit rshell' "$tmp/rshell-help.out"
 
 "$bb" rshell status >"$tmp/rshell-status.out" 2>&1
 grep -q 'rshell_status=' "$tmp/rshell-status.out"
 
-BUSIERBOX_AUTORUN_GUARD_PATH="$guard" "$bb" rshell start --transport invalid-transport >"$tmp/invalid-transport.out" 2>&1 && {
+GRIT_AUTORUN_GUARD_PATH="$guard" "$bb" rshell start --transport invalid-transport >"$tmp/invalid-transport.out" 2>&1 && {
     cat "$tmp/invalid-transport.out" >&2
     exit 1
 }
 grep -q 'unsupported transport' "$tmp/invalid-transport.out"
 
-BUSIERBOX_AUTORUN_GUARD_PATH="$guard" "$bb" rshell start --transport builtin >"$tmp/builtin.out" 2>&1 && {
+GRIT_AUTORUN_GUARD_PATH="$guard" "$bb" rshell start --transport builtin >"$tmp/builtin.out" 2>&1 && {
     cat "$tmp/builtin.out" >&2
     exit 1
 }

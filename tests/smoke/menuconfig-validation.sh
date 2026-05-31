@@ -30,34 +30,34 @@ if awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'Continue saving anyway';
 fi
 
 # zero-arg rshell without host → error
-awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_OPERATOR_SERVER_HOST'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'GRIT_OPERATOR_SERVER_HOST'
 
 # ssh without dropbear → hard error
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'dropbear'
-awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RUNTIME_ALLOW_EXTERNAL_WRITES'
-awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_SHELL_PROVIDER'
-awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_RUN_MODE'
-awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_SESSION_POLICY'
-awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_RSHELL_RETRY_BACKOFF'
-awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_COMMAND_QUEUE_ALLOWED_COMMANDS'
-awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_COMMAND_QUEUE_EXECUTION'
-awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'BB_COMMAND_QUEUE_ALLOW_ARBITRARY'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'GRIT_RSHELL_SHELL_PROVIDER'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'GRIT_RSHELL_RUN_MODE'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'GRIT_RSHELL_SESSION_POLICY'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'GRIT_RSHELL_RETRY_BACKOFF'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'GRIT_COMMAND_QUEUE_EXECUTION'
+awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY'
 awk '/^validate_config\(\)/,/^}/' "$menu" | grep -q 'payload-zsh'
 
-if grep -q 'BB_ARTIFACT_PROFILE\|Artifact profile\|configure_artifact_outputs' "$menu"; then
+if grep -q 'GRIT_ARTIFACT_PROFILE\|Artifact profile\|configure_artifact_outputs' "$menu"; then
     printf '%s\n' "menuconfig-validation: artifact profile UI/config still present" >&2
     exit 1
 fi
 
-grep -q 'Clear BB_HEAVY_TOOLS now' "$menu"
-grep -q 'Set BB_DOTFILES_ENABLE=no now' "$menu"
-grep -q 'Set BB_USER_OVERLAY_ENABLE=no now' "$menu"
+grep -q 'Clear GRIT_HEAVY_TOOLS now' "$menu"
+grep -q 'Set GRIT_DOTFILES_ENABLE=no now' "$menu"
+grep -q 'Set GRIT_USER_OVERLAY_ENABLE=no now' "$menu"
 grep -q 'Reverse access enabled: $_enabled' "$menu"
-grep -q 'Enable / transport: enabled=$_enabled transport=$BB_RSHELL_TRANSPORT' "$menu"
+grep -q 'Enable / transport: enabled=$_enabled transport=$GRIT_RSHELL_TRANSPORT' "$menu"
 
 # none log mode exists in menu
 grep -q '"none"' "$menu"
-grep -q 'BB_ZERO_ARG_LOG_MODE.*none\|none.*BB_ZERO_ARG_LOG_MODE' "$menu"
+grep -q 'GRIT_ZERO_ARG_LOG_MODE.*none\|none.*GRIT_ZERO_ARG_LOG_MODE' "$menu"
 
 # "default" blank preset is in presets.json
 presets=targets/presets.json
@@ -78,12 +78,12 @@ assert d.get('support_status') == 'blank', 'default preset must have support_sta
 print('presets ok')
 "
 
-# BB_AUTORUN_GUARD_PATH defaults to runtime root in menuconfig (not /tmp)
-if grep 'BB_AUTORUN_GUARD_PATH=' "$menu" | grep -v '#' | grep -q '"/tmp/busierbox-autorun"'; then
-    printf '%s\n' "menuconfig-validation: BB_AUTORUN_GUARD_PATH still defaults to /tmp/busierbox-autorun" >&2
+# GRIT_AUTORUN_GUARD_PATH defaults to runtime root in menuconfig (not /tmp)
+if grep 'GRIT_AUTORUN_GUARD_PATH=' "$menu" | grep -v '#' | grep -q '"/tmp/grit-autorun"'; then
+    printf '%s\n' "menuconfig-validation: GRIT_AUTORUN_GUARD_PATH still defaults to /tmp/grit-autorun" >&2
     exit 1
 fi
-grep -q 'BB_RUNTIME_ROOT.*run\|BB_AUTORUN_GUARD_PATH.*run' "$menu"
+grep -q 'GRIT_RUNTIME_ROOT.*run\|GRIT_AUTORUN_GUARD_PATH.*run' "$menu"
 
 # Stale reverse-access server command names must not reappear.
 stale_server_pattern='--r''shell\|wait-operator''-tunnel\|shell-''again'

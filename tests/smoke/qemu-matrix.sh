@@ -86,7 +86,7 @@ for entry in target_entries:
     require(name, "target entry missing name")
     require(name not in names, "duplicate target name: " + name)
     names.add(name)
-    require(entry.get("binary", "").startswith("dist/busierbox-"), name + " binary must point at dist/busierbox-*")
+    require(entry.get("binary", "").startswith("dist/grit-"), name + " binary must point at dist/grit-*")
     require(entry.get("binary", "").endswith("-full"), name + " binary must be a full self-extracting artifact")
     qemu = entry.get("qemu_user", "")
     if entry.get("arch") == "native":
@@ -116,7 +116,7 @@ for entry in system_entries:
     for field in (
         "kernel_path",
         "rootfs_path",
-        "busierbox_path",
+        "grit_path",
         "qemu_binary",
         "qemu_machine",
         "qemu_cpu",
@@ -126,7 +126,7 @@ for entry in system_entries:
     ):
         require(entry.get(field), name + " missing " + field)
     require(entry.get("enabled") is False, name + " must stay disabled in the example matrix")
-    require(entry.get("busierbox_path", "").startswith("dist/busierbox-"), name + " busierbox_path must point at dist/busierbox-*")
+    require(entry.get("grit_path", "").startswith("dist/grit-"), name + " grit_path must point at dist/grit-*")
 
 print("qemu-matrix ok")
 PY

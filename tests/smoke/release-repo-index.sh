@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/busierbox-release-repo.XXXXXX")
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/grit-release-repo.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 make_release() {
@@ -14,7 +14,7 @@ make_release() {
     compatibility_label=${7:-exact}
     doom_wads_json=${8:-[]}
     mkdir -p "$dir/bin" "$dir/manifests" "$dir/LICENSES" "$dir/docs"
-    printf '%s\n' "$name artifact" >"$dir/bin/busierbox-$name-full"
+    printf '%s\n' "$name artifact" >"$dir/bin/grit-$name-full"
     cat >"$dir/release.json" <<JSON
 {
   "schema": 1,
@@ -24,7 +24,7 @@ make_release() {
     "devices": {
       "$device": {
         "tuple_path": "by-tuple/mipsel/musl/4.x/mips32r2-24kc",
-        "artifacts": ["by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/busierbox-$name-full"]
+        "artifacts": ["by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-$name-full"]
       }
     },
     "tuples": {
@@ -36,28 +36,28 @@ make_release() {
           "cpu": "mips32r2-24kc",
           "abi": "default"
         },
-        "artifacts": ["by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/busierbox-$name-full"]
+        "artifacts": ["by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-$name-full"]
       }
     }
   },
   "artifacts": []
 }
 JSON
-    printf '%s\n' "BusierBox license grant" >"$dir/LICENSE.busierbox"
+    printf '%s\n' "griTTYkit license grant" >"$dir/LICENSE.grit"
     printf '%s\n' "GNU GENERAL PUBLIC LICENSE Version 2, June 1991" >"$dir/LICENSE"
-    printf '%s\n' "BusierBox project license notice" >"$dir/NOTICE"
+    printf '%s\n' "griTTYkit project license notice" >"$dir/NOTICE"
     printf '%s\n' "BusyBox notice" >"$dir/LICENSES/busybox.txt"
     printf '%s\n' "Buildroot notice" >"$dir/LICENSES/buildroot.txt"
     printf '%s\n' "doom-ascii notice" >"$dir/LICENSES/doom-ascii.txt"
     printf '%s\n' "miniz notice" >"$dir/LICENSES/miniz.txt"
-    printf '%s\n' "BusierBox licensing guide" >"$dir/docs/licensing.md"
+    printf '%s\n' "griTTYkit licensing guide" >"$dir/docs/licensing.md"
     cat >"$dir/manifests/license-policy.json" <<'JSON'
 {
   "schema": 1,
   "project": {
-    "name": "BusierBox",
+    "name": "griTTYkit",
     "license": "GPL-2.0-or-later",
-    "license_grant_file": "LICENSE.busierbox",
+    "license_grant_file": "LICENSE.grit",
     "license_file": "LICENSE",
     "notice_file": "NOTICE",
     "spdx_expression": "GPL-2.0-or-later"
@@ -80,14 +80,14 @@ JSON
   "artifact_distribution": {
     "corresponding_source_strategy": {
       "status": "required_for_distribution",
-      "summary": "Redistributed binaries should include corresponding source for BusierBox and BusyBox.",
-      "release_bundle_inputs": ["LICENSE", "LICENSE.busierbox", "NOTICE", "LICENSES/", "manifests/license-policy.json", "manifests/sources.lock.json", "sources.lock.json"],
+      "summary": "Redistributed binaries should include corresponding source for griTTYkit and BusyBox.",
+      "release_bundle_inputs": ["LICENSE", "LICENSE.grit", "NOTICE", "LICENSES/", "manifests/license-policy.json", "manifests/sources.lock.json", "sources.lock.json"],
       "source_reconstruction_inputs": ["this repository at the recorded release commit", "pinned downloadable sources in manifests/sources.lock.json", "Buildroot-generated package source manifests", "vendored third-party notices under third_party/"],
       "requires_package_license_audit": true
     }
   },
   "components": [
-    {"name": "BusierBox", "kind": "project", "license": "GPL-2.0-or-later", "source": "this repository"},
+    {"name": "griTTYkit", "kind": "project", "license": "GPL-2.0-or-later", "source": "this repository"},
     {"name": "BusyBox", "kind": "payload", "license": "GPL-2.0", "source": "third_party/busybox"},
     {"name": "Buildroot", "kind": "build-system", "license": "GPL-2.0-or-later with package exceptions", "source": "manifests/sources.lock.json:name=buildroot"},
     {"name": "doom-ascii", "kind": "optional-payload", "license": "GPL-2.0-or-later", "source": "manifests/sources.lock.json:name=doom-ascii"},
@@ -103,7 +103,7 @@ JSON
   "devices": {
     "$device": {
       "tuple_path": "by-tuple/mipsel/musl/4.x/mips32r2-24kc",
-      "artifacts": ["by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/busierbox-$name-full"]
+      "artifacts": ["by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-$name-full"]
     }
   },
   "tuples": {
@@ -115,13 +115,13 @@ JSON
         "cpu": "mips32r2-24kc",
         "abi": "default"
       },
-      "artifacts": ["by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/busierbox-$name-full"]
+      "artifacts": ["by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-$name-full"]
     }
   },
   "artifacts": [
     {
-      "artifact": "bin/busierbox-$name-full",
-      "tuple_artifact": "by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/busierbox-$name-full",
+      "artifact": "bin/grit-$name-full",
+      "tuple_artifact": "by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-$name-full",
       "tuple_path": "by-tuple/mipsel/musl/4.x/mips32r2-24kc",
       "tuple": {
         "arch": "mipsel",
@@ -164,7 +164,7 @@ JSON
   "combined_gplv2_compatible": true,
   "license_notice_count": 11,
   "license_notice_files": [
-    "LICENSE.busierbox",
+    "LICENSE.grit",
     "LICENSE",
     "NOTICE",
     "LICENSES/busybox.txt",
@@ -253,11 +253,11 @@ assert index["release_license_records_by_evidence_source"]["BusyBox"][0]["licens
 assert index["release_license_records_by_evidence_source_license"]["Buildroot:GPL-2.0-or-later with package exceptions"][0]["license_evidence_source_licenses"]["Buildroot"] == "GPL-2.0-or-later with package exceptions"
 assert index["release_license_records_by_release"]["one"][0]["corresponding_source_release_input_count"] == 7
 assert index["release_license_records_by_release"]["one"][0]["corresponding_source_reconstruction_input_count"] == 4
-assert "LICENSE.busierbox" in index["release_license_records_by_release"]["one"][0]["corresponding_source_release_inputs"]
-assert index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["notice_count"] == 11
-assert index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["missing_notice_count"] == 0
-assert "manifests/sources.lock.json" in index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["required_notice_files"]
-assert "docs/licensing.md" in index["release_license_records_by_notice_file"]["LICENSE.busierbox"][0]["required_notice_files"]
+assert "LICENSE.grit" in index["release_license_records_by_release"]["one"][0]["corresponding_source_release_inputs"]
+assert index["release_license_records_by_notice_file"]["LICENSE.grit"][0]["notice_count"] == 11
+assert index["release_license_records_by_notice_file"]["LICENSE.grit"][0]["missing_notice_count"] == 0
+assert "manifests/sources.lock.json" in index["release_license_records_by_notice_file"]["LICENSE.grit"][0]["required_notice_files"]
+assert "docs/licensing.md" in index["release_license_records_by_notice_file"]["LICENSE.grit"][0]["required_notice_files"]
 assert index["artifacts_by_release"]["one"][0]["release_self_test_status"] == "pass"
 assert index["artifacts_by_release"]["one"][0]["release_self_test"]["checked_artifact_count"] == 1
 assert index["artifacts_by_release"]["one"][0]["release_license"]["project_license"] == "GPL-2.0-or-later"

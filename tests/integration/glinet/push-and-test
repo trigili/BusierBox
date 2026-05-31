@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-artifact=${1:-${ARTIFACT:-dist/busierbox-mipsel-linux-4.x-musl-full}}
+artifact=${1:-${ARTIFACT:-dist/grit-mipsel-linux-4.x-musl-full}}
 router=${ROUTER:-root@192.168.8.1}
-remote_dir=${REMOTE_DIR:-/tmp/busierbox-itest}
+remote_dir=${REMOTE_DIR:-/tmp/grit-itest}
 keep=${KEEP_ARTIFACTS:-0}
 
 [ -f "$artifact" ] || {
@@ -22,7 +22,7 @@ if [ -z "$bind_addr" ]; then
 fi
 [ -n "$bind_addr" ] || bind_addr=0.0.0.0
 
-tmp=${TMPDIR:-/tmp}/busierbox-glinet-http.$$
+tmp=${TMPDIR:-/tmp}/grit-glinet-http.$$
 rm -f "$tmp"
 cleanup() {
     if [ -f "$tmp.pid" ]; then
@@ -74,14 +74,14 @@ ssh "$router" "set -eu
     mkdir -p '$remote_dir'
     cd '$remote_dir'
     if wget --help >/dev/null 2>&1; then
-        wget -O busierbox '$url'
+        wget -O grit '$url'
     elif curl --help >/dev/null 2>&1; then
-        curl -fL -o busierbox '$url'
+        curl -fL -o grit '$url'
     else
         echo 'neither wget nor curl is available on router' >&2
         exit 1
     fi
-    chmod +x busierbox
+    chmod +x grit
 "
 
 tests/integration/glinet/smoke "$artifact"

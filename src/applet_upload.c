@@ -25,14 +25,14 @@
 #define PATH_MAX 4096
 #endif
 
-#ifndef BB_OPERATOR_FILE_SERVICE_ENABLE
-#define BB_OPERATOR_FILE_SERVICE_ENABLE "no"
+#ifndef GRIT_OPERATOR_FILE_SERVICE_ENABLE
+#define GRIT_OPERATOR_FILE_SERVICE_ENABLE "no"
 #endif
-#ifndef BB_OPERATOR_FILE_SERVICE_PORT
-#define BB_OPERATOR_FILE_SERVICE_PORT "22204"
+#ifndef GRIT_OPERATOR_FILE_SERVICE_PORT
+#define GRIT_OPERATOR_FILE_SERVICE_PORT "22204"
 #endif
-#ifndef BB_OPERATOR_FILE_SERVICE_TLS
-#define BB_OPERATOR_FILE_SERVICE_TLS "yes"
+#ifndef GRIT_OPERATOR_FILE_SERVICE_TLS
+#define GRIT_OPERATOR_FILE_SERVICE_TLS "yes"
 #endif
 
 struct upload_opts {
@@ -328,9 +328,9 @@ static int send_tls_upload(int sock, int filefd, const char *header, off_t size,
 static int parse_common_opts(int argc, char **argv, struct upload_opts *opts)
 {
     int i;
-    opts->host = BB_OPERATOR_SERVER_HOST;
-    opts->port = BB_OPERATOR_FILE_SERVICE_PORT;
-    opts->tls = BB_OPERATOR_FILE_SERVICE_TLS;
+    opts->host = GRIT_OPERATOR_SERVER_HOST;
+    opts->port = GRIT_OPERATOR_FILE_SERVICE_PORT;
+    opts->tls = GRIT_OPERATOR_FILE_SERVICE_TLS;
     opts->dest = NULL;
     opts->method = "PUT";
     opts->target_id = NULL;
@@ -411,7 +411,7 @@ int bb_operator_upload_file(const char *path, const char *source_path, const cha
     if (parse_common_opts(argc, argv, &opts) != 0)
         return 2;
     if (!opts.host || !opts.host[0]) {
-        fputs("upload: operator host is not configured; set BB_OPERATOR_SERVER_HOST or pass --host\n", stderr);
+        fputs("upload: operator host is not configured; set GRIT_OPERATOR_SERVER_HOST or pass --host\n", stderr);
         return 2;
     }
     fd = open(path, O_RDONLY);
@@ -442,24 +442,24 @@ int bb_operator_upload_file(const char *path, const char *source_path, const cha
     target_headers[0] = '\0';
     if (target_id[0])
         snprintf(target_headers + strlen(target_headers), sizeof(target_headers) - strlen(target_headers),
-                 "X-BusierBox-Target-Id: %s\r\n", target_id);
+                 "X-griTTYkit-Target-Id: %s\r\n", target_id);
     if (target_label[0])
         snprintf(target_headers + strlen(target_headers), sizeof(target_headers) - strlen(target_headers),
-                 "X-BusierBox-Target-Label: %s\r\n", target_label);
+                 "X-griTTYkit-Target-Label: %s\r\n", target_label);
     if (target_aliases[0])
         snprintf(target_headers + strlen(target_headers), sizeof(target_headers) - strlen(target_headers),
-                 "X-BusierBox-Target-Alias: %s\r\n", target_aliases);
+                 "X-griTTYkit-Target-Alias: %s\r\n", target_aliases);
     snprintf(header, sizeof(header),
              "%s /upload/%s HTTP/1.1\r\n"
              "Host: %s\r\n"
-             "User-Agent: busierbox-upload/1\r\n"
+             "User-Agent: grit-upload/1\r\n"
              "Content-Length: %lld\r\n"
              "Content-Type: application/octet-stream\r\n"
-             "X-BusierBox-Upload-Kind: %s\r\n"
-             "X-BusierBox-Source-Path: %s\r\n"
-             "X-BusierBox-Uid: %ld\r\n"
-             "X-BusierBox-Gid: %ld\r\n"
-             "X-BusierBox-Mode: %04o\r\n"
+             "X-griTTYkit-Upload-Kind: %s\r\n"
+             "X-griTTYkit-Source-Path: %s\r\n"
+             "X-griTTYkit-Uid: %ld\r\n"
+             "X-griTTYkit-Gid: %ld\r\n"
+             "X-griTTYkit-Mode: %04o\r\n"
              "%s"
              "Connection: close\r\n\r\n",
              opts.method, url_name, opts.host, (long long)st.st_size,
@@ -478,7 +478,7 @@ int bb_operator_upload_file(const char *path, const char *source_path, const cha
 #ifdef HAVE_WOLFSSL
         status = send_tls_upload(sock, fd, header, st.st_size, opts.quiet);
 #else
-        fputs("upload: TLS requested but this artifact was built without wolfSSL; rebuild with BB_BUILTIN_TLS_ENABLE=yes or use --no-tls with a plaintext operator service\n", stderr);
+        fputs("upload: TLS requested but this artifact was built without wolfSSL; rebuild with GRIT_BUILTIN_TLS_ENABLE=yes or use --no-tls with a plaintext operator service\n", stderr);
         close(sock);
         close(fd);
         return 2;
@@ -499,16 +499,16 @@ int bb_operator_upload_file(const char *path, const char *source_path, const cha
 
 static void usage(void)
 {
-    puts("usage: busierbox put PATH [--host HOST] [--port PORT] [--tls yes|no] [--dest NAME] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS]");
-    puts("       busierbox upload PATH [--host HOST] [--port PORT] [--tls yes|no] [--dest NAME] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS]");
+    puts("usage: grit put PATH [--host HOST] [--port PORT] [--tls yes|no] [--dest NAME] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS]");
+    puts("       grit upload PATH [--host HOST] [--port PORT] [--tls yes|no] [--dest NAME] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS]");
     puts("Upload a local target file to the receive-only operator file service.");
 }
 
 static int write_generated_json_file(const char *label, int (*writer)(FILE *out), char *path, size_t pathsz)
 {
-    const char *roots[] = { BB_RUNTIME_ROOT, ".", "/tmp", NULL };
-    int aggressive_noresidue = !strcmp(BB_RUNTIME_MODE, "no-residue") &&
-                               !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+    const char *roots[] = { GRIT_RUNTIME_ROOT, ".", "/tmp", NULL };
+    int aggressive_noresidue = !strcmp(GRIT_RUNTIME_MODE, "no-residue") &&
+                               !strcmp(GRIT_NORESIDUE_LEVEL, "aggressive");
     int i;
 
     for (i = 0; roots[i]; i++) {
@@ -519,7 +519,7 @@ static int write_generated_json_file(const char *label, int (*writer)(FILE *out)
             if (bb_mkdir_p(roots[i], 0700) == 0)
                 bb_ledger_record("mkdir", roots[i], "runtime", "generated upload scratch root");
         }
-        snprintf(path, pathsz, "%s/.busierbox-%s.%ld.XXXXXX", roots[i], label, (long)getpid());
+        snprintf(path, pathsz, "%s/.grit-%s.%ld.XXXXXX", roots[i], label, (long)getpid());
         fd = mkstemp(path);
         if (fd < 0)
             continue;
@@ -580,7 +580,7 @@ static int write_evidence_json(FILE *out)
 
 static void config_push_usage(void)
 {
-    puts("usage: busierbox config-push [--host HOST] [--port PORT] [--tls yes|no] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS]");
+    puts("usage: grit config-push [--host HOST] [--port PORT] [--tls yes|no] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS]");
     puts("Generate effective config JSON and upload it to the receive-only operator file service.");
 }
 
@@ -605,7 +605,7 @@ int applet_upload_main(int argc, char **argv)
             fputs("config-push: unable to create temporary config JSON\n", stderr);
             return 1;
         }
-        rc = bb_operator_upload_file(tmp, "busierbox-config.json", "config", argc - 1, argv + 1);
+        rc = bb_operator_upload_file(tmp, "grit-config.json", "config", argc - 1, argv + 1);
         remove_generated_json_file(tmp);
         return rc;
     }
@@ -613,12 +613,12 @@ int applet_upload_main(int argc, char **argv)
         char tmp[PATH_MAX];
         int rc;
         if (argc < 2 || strcmp(argv[1], "push")) {
-            puts("usage: busierbox evidence push [PATH] [--host HOST] [--port PORT] [--tls yes|no]");
+            puts("usage: grit evidence push [PATH] [--host HOST] [--port PORT] [--tls yes|no]");
             return argc > 1 ? 2 : 0;
         }
         if (argc > 2 && (!strcmp(argv[2], "--help") || !strcmp(argv[2], "-h"))) {
-            puts("usage: busierbox evidence push [PATH] [--host HOST] [--port PORT] [--tls yes|no]");
-            puts("Upload a supplied evidence file or a generated BusierBox evidence summary.");
+            puts("usage: grit evidence push [PATH] [--host HOST] [--port PORT] [--tls yes|no]");
+            puts("Upload a supplied evidence file or a generated griTTYkit evidence summary.");
             return 0;
         }
         if (argc > 2 && argv[2][0] != '-') {
@@ -628,7 +628,7 @@ int applet_upload_main(int argc, char **argv)
             fputs("evidence: unable to create temporary evidence JSON\n", stderr);
             return 1;
         }
-        rc = bb_operator_upload_file(tmp, "busierbox-evidence.json", "evidence", argc - 2, argv + 2);
+        rc = bb_operator_upload_file(tmp, "grit-evidence.json", "evidence", argc - 2, argv + 2);
         remove_generated_json_file(tmp);
         return rc;
     }

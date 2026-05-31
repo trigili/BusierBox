@@ -82,13 +82,13 @@ validator_sample.mkdir()
         "target_scope": [],
         "assertions": ["systemd dry-run commands complete"],
         "evidence_checks": [
-            {"artifact": "systemd-user-service.json", "path": "unit_name", "expect": "busierbox-flaky.service"},
+            {"artifact": "systemd-user-service.json", "path": "unit_name", "expect": "grit-flaky.service"},
             {"artifact": "systemd-user-service.json", "path": "commands[*].returncode", "expect_all": 0},
         ],
     }],
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (validator_sample / "systemd-user-service.json").write_text(json.dumps({
-    "unit_name": "busierbox-flaky.service",
+    "unit_name": "grit-flaky.service",
     "commands": [{"returncode": 0}, {"returncode": 0}],
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 (validator_sample / "validation-report.json").write_text(json.dumps({
@@ -177,12 +177,12 @@ assert any(item["artifact"] == "return-offline.json" and item["path"] == "target
 assert len(topology["target_nodes"]) >= 3
 assert topology["environment_paths"]["kernel"]
 assert topology["environment_paths"]["rootfs"]
-assert topology["environment_paths"]["busierbox"]
+assert topology["environment_paths"]["grit"]
 assert topology["kernel_init_command_line"]
 assert topology["service_ports"]["command_queue"] == 22205
 assert topology["operator_node"]["host_forward_ports"]["survey_bootstrap"] == 22207
-assert topology["host_network_setup"]["bridge"] == "bbx-qemu-br0"
-assert topology["host_network_setup"]["target_taps"]["target-alpha"] == "bbx-alpha-tap0"
+assert topology["host_network_setup"]["bridge"] == "grit-qemu-br0"
+assert topology["host_network_setup"]["target_taps"]["target-alpha"] == "grit-alpha-tap0"
 assert topology["host_network_setup"]["link_control_commands"]["target-alpha-link-down"]
 transition_by_phase = {item["phase"]: item for item in topology["link_transitions"]}
 assert set(transition_by_phase) == set(summary["phase_names"])
@@ -211,19 +211,19 @@ assert plan["support_artifact_modes"]["link-transitions.json"] == "0644"
 assert plan["support_artifact_modes"]["phase-contracts.json"] == "0644"
 assert plan["support_artifact_modes"]["validation-report.json"] == "0644"
 assert "target-alpha" in plan["qemu_command_templates"]
-assert any("bbx-alpha-tap0" in item for item in plan["qemu_command_templates"]["target-alpha"])
+assert any("grit-alpha-tap0" in item for item in plan["qemu_command_templates"]["target-alpha"])
 host_script = (artifact_dir / "host-network-setup.sh").read_text(encoding="utf-8")
 qemu_script = (artifact_dir / "qemu-commands.sh").read_text(encoding="utf-8")
 operator_script = (artifact_dir / "operator-commands.sh").read_text(encoding="utf-8")
 target_script = (artifact_dir / "target-commands.sh").read_text(encoding="utf-8")
-assert "ip link add bbx-qemu-br0 type bridge" in host_script
+assert "ip link add grit-qemu-br0 type bridge" in host_script
 assert "target-alpha-link-down" in host_script
-assert "bbx-alpha-tap0" in qemu_script
+assert "grit-alpha-tap0" in qemu_script
 assert "target-workflow" in qemu_script
 assert "# phase: offline-queue" in operator_script
 assert "# phase: bridge-interruption" in operator_script
 assert "# phase: offline-workflow-drain" in target_script
-assert "busierbox command-queue once --target-id target-alpha" in target_script
+assert "grit command-queue once --target-id target-alpha" in target_script
 requirements = plan["requirements"]
 assert requirements["kind"] == "qemu-flaky-network-lab-requirements"
 assert requirements["qemu_binary"]
@@ -232,7 +232,7 @@ assert "kvm_available" in requirements
 assert "tap_available" in requirements
 assert requirements["path_requirements"]["kernel_path"]["path"]
 assert requirements["path_requirements"]["rootfs_path"]["path"]
-assert requirements["path_requirements"]["busierbox_path"]["path"]
+assert requirements["path_requirements"]["grit_path"]["path"]
 assert "offline-status.json" in plan["required_artifacts"]
 assert "tui-offline-queue.json" in plan["required_artifacts"]
 assert "tui-offline-queue-drain.json" in plan["required_artifacts"]
@@ -258,17 +258,17 @@ assert "offline-queue" in runbooks["phases_without_target_commands"]
 assert "systemd-user-service" in runbooks["phases_without_target_commands"]
 assert "offline-workflow-drain" in runbooks["phases_with_both_operator_and_target_commands"]
 assert "bridge-interruption" in runbooks["phases_with_both_operator_and_target_commands"]
-assert any("--queue-command 'busierbox survey --json'" in item for item in phases_by_name["offline-queue"]["operator_commands"])
+assert any("--queue-command 'grit survey --json'" in item for item in phases_by_name["offline-queue"]["operator_commands"])
 assert any("--line-tui" in item for item in phases_by_name["offline-queue"]["operator_commands"])
 assert any("systemd-user-dry-run" in item for item in phases_by_name["systemd-user-service"]["operator_commands"])
 assert any("--survey-bootstrap" in item for item in phases_by_name["survey-window"]["operator_commands"])
 assert any("--file-service" in item for item in phases_by_name["partial-transfer"]["operator_commands"])
 assert any("--save-bridge-profile flaky-bad-bridge" in item for item in phases_by_name["bridge-interruption"]["operator_commands"])
 assert any("command-queue once --target-id target-workflow" in item for item in phases_by_name["offline-workflow-drain"]["target_commands"])
-assert any("busierbox upload /tmp/evidence.txt" in item for item in phases_by_name["partial-transfer"]["target_commands"])
+assert any("grit upload /tmp/evidence.txt" in item for item in phases_by_name["partial-transfer"]["target_commands"])
 assert any("systemd-user-dry-run" in item for item in plan["operator_commands"])
 assert any("line-tui" in item for item in plan["operator_commands"])
-assert any("busierbox command-queue result --target-id target-alpha" in item for item in plan["target_commands"])
+assert any("grit command-queue result --target-id target-alpha" in item for item in plan["target_commands"])
 PY
 
 "$ROOT/tests/qemu-system/run-flaky-network-lab" --artifact-root "$tmp/qemu-flaky-run" --run >/dev/null

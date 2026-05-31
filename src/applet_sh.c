@@ -35,7 +35,7 @@ int applet_sh_main(int argc, char **argv)
     char line[1024];
 
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
-        puts("usage: busierbox sh");
+        puts("usage: grit sh");
         puts("Minimal interactive shell: whitespace splitting, exit, applet dispatch, execvp fallback.");
         puts("No job control, pipes, quoting, globbing, variables, or scripting.");
         return 0;
@@ -43,7 +43,7 @@ int applet_sh_main(int argc, char **argv)
 
     (void)argv;
     if (!isatty(STDIN_FILENO))
-        fprintf(stderr, "busierbox sh: interactive loop only; scripting is not implemented\n");
+        fprintf(stderr, "grit sh: interactive loop only; scripting is not implemented\n");
 
     while (1) {
         char *av[64];

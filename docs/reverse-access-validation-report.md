@@ -12,7 +12,7 @@ Branch: `reverse-access-hardening`
 - Improved builtin wolfSSL relay handling for handshake errors, EINTR,
   WANT_READ/WANT_WRITE, partial writes, EOF, hangups, child exit, and SIGPIPE.
 - Added a repeatable GL.iNet integration harness at `scripts/integration-glinet`.
-- Added scripted shell support to `scripts/busierbox-server` for TLS/plain shell
+- Added scripted shell support to `scripts/grit-server` for TLS/plain shell
   integration cases.
 - Added local regression coverage for validation-matrix cases and retired
   stager/callback UX text.
@@ -94,7 +94,7 @@ Observed local Penguin runs:
 - D-Link DIR-615 RevC: QEMU mipseb started, root shell exposed, HTTP/DHCP-related
   services came up, and the guest shut down before timeout.
 
-Tracked BusierBox target presets derived from those images:
+Tracked griTTYkit target presets derived from those images:
 
 - `tplink-archer-a7-v5-openwrt-uclibc`
 - `tplink-archer-ax1800-v56-openwrt-musl`
@@ -107,7 +107,7 @@ Tracked BusierBox target presets derived from those images:
 ## Remaining Limitations
 
 - PTY support is not claimed for builtin TLS; the relay is pipe-backed.
-- `BB_RSHELL_SESSION_POLICY` distinguishes single-shot, reconnect, and
+- `GRIT_RSHELL_SESSION_POLICY` distinguishes single-shot, reconnect, and
   persistent lifecycle behavior. Reconnect and persistent modes create fresh
   shell sessions after disconnect; session resume is not claimed. SSH
   reverse-forward mode supervises `dbclient` under the rshell guard path so

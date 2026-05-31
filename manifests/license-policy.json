@@ -1,19 +1,19 @@
 {
   "schema": 1,
   "project": {
-    "name": "BusierBox",
+    "name": "griTTYkit",
     "license": "GPL-2.0-or-later",
-    "license_grant_file": "LICENSE.busierbox",
+    "license_grant_file": "LICENSE.grit",
     "license_file": "LICENSE",
     "notice_file": "NOTICE",
-    "scope": "BusierBox-maintained source code, scripts, tests, and documentation unless a file states a different license",
+    "scope": "griTTYkit-maintained source code, scripts, tests, and documentation unless a file states a different license",
     "spdx_expression": "GPL-2.0-or-later"
   },
   "compatibility": {
     "combined_gplv2_compatible": true,
     "preferred_combined_terms_with_busybox": "GPL-2.0",
     "not_legal_advice": true,
-    "summary": "The default integrated stack is GPLv2-compatible: BusierBox is GPL-2.0-or-later, BusyBox is GPL-2.0, Buildroot is GPL-2.0-or-later with package exceptions, doom-ascii is GPL-2.0-or-later, and miniz is permissive.",
+    "summary": "The default integrated stack is GPLv2-compatible: griTTYkit is GPL-2.0-or-later, BusyBox is GPL-2.0, Buildroot is GPL-2.0-or-later with package exceptions, doom-ascii is GPL-2.0-or-later, and miniz is permissive.",
     "source_availability_required_for_distribution": true
   },
   "license_evidence": {
@@ -47,25 +47,25 @@
   },
   "whole_project_assessment": {
     "status": "ok_for_current_default_stack",
-    "summary": "GPL-2.0-or-later is appropriate for BusierBox-maintained repository content and GPLv2-compatible combined artifacts using the current default stack.",
+    "summary": "GPL-2.0-or-later is appropriate for griTTYkit-maintained repository content and GPLv2-compatible combined artifacts using the current default stack.",
     "current_stack_ok": true,
     "future_buildroot_packages_require_review": true,
     "not_blanket_relicense": true,
     "caveat": "Buildroot can select packages under many upstream licenses; each newly bundled payload package must be reviewed, pinned, and represented in this policy before distribution."
   },
   "artifact_distribution": {
-    "busierbox_project_terms": "GPL-2.0-or-later",
+    "grit_project_terms": "GPL-2.0-or-later",
     "combined_release_terms_when_busybox_included": "GPL-2.0-compatible distribution terms",
     "buildroot_role": "build-system; selected packages keep their own licenses",
     "payload_license_rule": "release artifacts must preserve the license and source obligations of every bundled payload component",
-    "user_supplied_data_rule": "user-provided data such as Doom WAD files is not bundled by BusierBox and is outside the BusierBox project license grant",
+    "user_supplied_data_rule": "user-provided data such as Doom WAD files is not bundled by griTTYkit and is outside the griTTYkit project license grant",
     "ok_for_current_default_stack": true,
     "corresponding_source_strategy": {
       "status": "required_for_distribution",
-      "summary": "Redistributed binaries should be accompanied by corresponding source or a compliant written offer for BusierBox-maintained code, BusyBox, and every bundled GPL payload component.",
+      "summary": "Redistributed binaries should be accompanied by corresponding source or a compliant written offer for griTTYkit-maintained code, BusyBox, and every bundled GPL payload component.",
       "release_bundle_inputs": [
         "LICENSE",
-        "LICENSE.busierbox",
+        "LICENSE.grit",
         "NOTICE",
         "LICENSES/",
         "manifests/license-policy.json",
@@ -83,14 +83,14 @@
   },
   "components": [
     {
-      "name": "BusierBox",
+      "name": "griTTYkit",
       "kind": "project",
       "license": "GPL-2.0-or-later",
       "source": "this repository",
       "gplv2_compatible_with_current_stack": true,
       "compatibility": "project license",
       "distribution_obligations": [
-        "Preserve LICENSE.busierbox, LICENSE, NOTICE, and BusierBox source availability for redistributed BusierBox code."
+        "Preserve LICENSE.grit, LICENSE, NOTICE, and griTTYkit source availability for redistributed griTTYkit code."
       ]
     },
     {
@@ -100,7 +100,7 @@
       "source": "third_party/busybox",
       "upstream_license_url": "https://busybox.net/license.html",
       "gplv2_compatible_with_current_stack": true,
-      "compatibility": "GPLv2-compatible combined distribution; BusierBox dispatches to BusyBox and is not a BusyBox fork",
+      "compatibility": "GPLv2-compatible combined distribution; griTTYkit dispatches to BusyBox and is not a BusyBox fork",
       "distribution_obligations": [
         "Preserve BusyBox GPLv2 notices and source availability when distributing artifacts that include the BusyBox payload."
       ]
@@ -151,7 +151,7 @@
     }
   ],
   "distribution_guidance": [
-    "Keep LICENSE.busierbox, LICENSE, NOTICE, and LICENSES/ with release bundles.",
+    "Keep LICENSE.grit, LICENSE, NOTICE, and LICENSES/ with release bundles.",
     "Keep manifests/sources.lock.json pinned for downloaded source archives; release bundles include it as both sources.lock.json and manifests/sources.lock.json.",
     "Preserve third-party notices in third_party/ and LICENSES/.",
     "Treat Buildroot-selected packages as separately licensed payload components.",

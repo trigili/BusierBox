@@ -18,7 +18,7 @@
 
 const char *bb_ledger_path(char *out, size_t outsz)
 {
-    snprintf(out, outsz, "%s/run/cleanup-ledger.jsonl", BB_RUNTIME_ROOT);
+    snprintf(out, outsz, "%s/run/cleanup-ledger.jsonl", GRIT_RUNTIME_ROOT);
     return out;
 }
 
@@ -35,12 +35,12 @@ static const char *first_nonempty_env(const char *a, const char *b)
 void bb_ledger_record(const char *op, const char *path, const char *scope, const char *detail)
 {
     char run_dir[PATH_MAX], ledger[PATH_MAX];
-    const char *target_id = first_nonempty_env("BB_TARGET_ID", "BUSIERBOX_TARGET_ID");
-    const char *target_label = first_nonempty_env("BB_TARGET_LABEL", "BUSIERBOX_TARGET_LABEL");
+    const char *target_id = first_nonempty_env("GRIT_TARGET_ID", "GRIT_TARGET_ID");
+    const char *target_label = first_nonempty_env("GRIT_TARGET_LABEL", "GRIT_TARGET_LABEL");
     FILE *fp;
     time_t now = time(NULL);
 
-    snprintf(run_dir, sizeof(run_dir), "%s/run", BB_RUNTIME_ROOT);
+    snprintf(run_dir, sizeof(run_dir), "%s/run", GRIT_RUNTIME_ROOT);
     if (bb_mkdir_p(run_dir, 0700) != 0)
         return;
     fp = fopen(bb_ledger_path(ledger, sizeof(ledger)), "a");

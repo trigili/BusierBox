@@ -46,31 +46,31 @@ size_t bb_config_file_trailer_span(const char *path)
 {
     FILE *fp;
     long fsize;
-    char magic[sizeof(BB_CONFIG_TRAILER_MAGIC)];
-    size_t magic_len = strlen(BB_CONFIG_TRAILER_MAGIC);
+    char magic[sizeof(GRIT_CONFIG_TRAILER_MAGIC)];
+    size_t magic_len = strlen(GRIT_CONFIG_TRAILER_MAGIC);
     if (!path)
         return 0;
     fp = fopen(path, "rb");
     if (!fp)
         return 0;
-    if (fseek(fp, 0, SEEK_END) != 0 || (fsize = ftell(fp)) < (long)BB_CONFIG_TRAILER_SIZE) {
+    if (fseek(fp, 0, SEEK_END) != 0 || (fsize = ftell(fp)) < (long)GRIT_CONFIG_TRAILER_SIZE) {
         fclose(fp);
         return 0;
     }
-    if (fseek(fp, fsize - BB_CONFIG_TRAILER_SIZE, SEEK_SET) != 0 ||
+    if (fseek(fp, fsize - GRIT_CONFIG_TRAILER_SIZE, SEEK_SET) != 0 ||
         fread(magic, 1, magic_len, fp) != magic_len) {
         fclose(fp);
         return 0;
     }
     fclose(fp);
-    return memcmp(magic, BB_CONFIG_TRAILER_MAGIC, magic_len) == 0 ? BB_CONFIG_TRAILER_SIZE : 0;
+    return memcmp(magic, GRIT_CONFIG_TRAILER_MAGIC, magic_len) == 0 ? GRIT_CONFIG_TRAILER_SIZE : 0;
 }
 
 void bb_config_read_trailer_file(const char *path, struct bb_config_trailer *out)
 {
-    unsigned char raw[BB_CONFIG_TRAILER_SIZE + 1];
-    unsigned char payload[BB_CONFIG_TRAILER_SIZE + 1];
-    char meta[BB_CONFIG_TRAILER_SIZE + 1];
+    unsigned char raw[GRIT_CONFIG_TRAILER_SIZE + 1];
+    unsigned char payload[GRIT_CONFIG_TRAILER_SIZE + 1];
+    char meta[GRIT_CONFIG_TRAILER_SIZE + 1];
     char *raw_text = (char *)raw;
     char *line, *save = NULL, *payload_start = NULL;
     char version[16] = "", encoding[16] = "plain", payload_format[16] = "raw", sha[65] = "", key_hex[129] = "";
@@ -95,18 +95,18 @@ void bb_config_read_trailer_file(const char *path, struct bb_config_trailer *out
     fp = fopen(path, "rb");
     if (!fp)
         return;
-    if (fseek(fp, 0, SEEK_END) != 0 || (fsize = ftell(fp)) < (long)BB_CONFIG_TRAILER_SIZE ||
-        fseek(fp, fsize - BB_CONFIG_TRAILER_SIZE, SEEK_SET) != 0 ||
-        fread(raw, 1, BB_CONFIG_TRAILER_SIZE, fp) != BB_CONFIG_TRAILER_SIZE) {
+    if (fseek(fp, 0, SEEK_END) != 0 || (fsize = ftell(fp)) < (long)GRIT_CONFIG_TRAILER_SIZE ||
+        fseek(fp, fsize - GRIT_CONFIG_TRAILER_SIZE, SEEK_SET) != 0 ||
+        fread(raw, 1, GRIT_CONFIG_TRAILER_SIZE, fp) != GRIT_CONFIG_TRAILER_SIZE) {
         fclose(fp);
         return;
     }
     fclose(fp);
-    raw[BB_CONFIG_TRAILER_SIZE] = '\0';
-    memcpy(meta, raw, BB_CONFIG_TRAILER_SIZE + 1);
+    raw[GRIT_CONFIG_TRAILER_SIZE] = '\0';
+    memcpy(meta, raw, GRIT_CONFIG_TRAILER_SIZE + 1);
 
     line = strtok_r(meta, "\n", &save);
-    if (!line || strcmp(line, BB_CONFIG_TRAILER_MAGIC))
+    if (!line || strcmp(line, GRIT_CONFIG_TRAILER_MAGIC))
         return;
     snprintf(out->encoding, sizeof(out->encoding), "%s", encoding);
     while ((line = strtok_r(NULL, "\n", &save)) != NULL) {
@@ -139,12 +139,12 @@ void bb_config_read_trailer_file(const char *path, struct bb_config_trailer *out
         trailer_set_error(out, "unsupported version");
         return;
     }
-    if (!payload_start || payload_size == 0 || payload_size >= BB_CONFIG_TRAILER_SIZE || strlen(sha) != 64) {
+    if (!payload_start || payload_size == 0 || payload_size >= GRIT_CONFIG_TRAILER_SIZE || strlen(sha) != 64) {
         trailer_set_error(out, "payload bounds invalid");
         return;
     }
     if (payload_offset != (unsigned long)(payload_start - (char *)raw) ||
-        payload_offset + payload_size > BB_CONFIG_TRAILER_SIZE) {
+        payload_offset + payload_size > GRIT_CONFIG_TRAILER_SIZE) {
         trailer_set_error(out, "payload bounds invalid");
         return;
     }

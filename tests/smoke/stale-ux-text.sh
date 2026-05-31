@@ -2,14 +2,14 @@
 # Ensure retired stager/callback UX does not return to user-facing files.
 set -eu
 
-tmp=${TMPDIR:-/tmp}/busierbox-stale-ux.$$
+tmp=${TMPDIR:-/tmp}/grit-stale-ux.$$
 trap 'rm -f "$tmp"' EXIT HUP INT TERM
 
 rg -n \
     -e '--rshell' \
     -e 'wait-operator-tunnel' \
-    -e 'scripts/busierbox-server --rshell' \
-    -e 'scripts/busierbox-server --wait-operator-tunnel' \
+    -e 'scripts/grit-server --rshell' \
+    -e 'scripts/grit-server --wait-operator-tunnel' \
     -e 'shell-again' \
     -e 'send_file' \
     -e 'framed callback' \
@@ -18,11 +18,11 @@ rg -n \
     >"$tmp" || true
 
 # Internal regression tests may mention forbidden strings as data.
-if grep -v '^tests/smoke/busierbox-server.py:' "$tmp" |
+if grep -v '^tests/smoke/grit-server.py:' "$tmp" |
     grep -v '^tests/smoke/stale-ux-text.sh:' |
     grep -q .; then
     printf '%s\n' "stale-ux-text: retired user-facing text found" >&2
-    grep -v '^tests/smoke/busierbox-server.py:' "$tmp" |
+    grep -v '^tests/smoke/grit-server.py:' "$tmp" |
         grep -v '^tests/smoke/stale-ux-text.sh:' >&2
     exit 1
 fi

@@ -1,8 +1,8 @@
 # GL.iNet Integration Harness
 
-`scripts/integration-glinet` builds BusierBox artifacts, copies them to a
+`scripts/integration-glinet` builds griTTYkit artifacts, copies them to a
 GL.iNet exemplar, runs selected cases, captures logs, and writes a JSON summary.
-Use `scripts/busierbox-bringup` first when onboarding an unknown target; use
+Use `scripts/grit-bringup` first when onboarding an unknown target; use
 this integration harness when validating known cases repeatedly.
 
 The default target is `root@192.168.8.1` and the default target preset is
@@ -13,7 +13,7 @@ cleanly unless `--require-target` is passed.
 
 - SSH access to the router, usually `root@192.168.8.1`.
 - Enough free space under `/tmp` for the artifact and extraction tests.
-- Buildroot prerequisites already installed for normal BusierBox packaging.
+- Buildroot prerequisites already installed for normal griTTYkit packaging.
 - For reverse shell cases, the operator host must be reachable from the router.
   Use `--operator-host <ip>` if auto-detection picks the wrong address.
 
@@ -52,7 +52,7 @@ checks remain opt-in through explicit external-write cases.
 command, then terminates a foreground payload command and verifies that the
 temporary runtime root is removed in both paths.
 No-residue is best-effort ephemeral runtime cleanup, not forensic no-trace
-execution. `BB_NORESIDUE_LEVEL=aggressive` minimizes BusierBox runtime residue
+execution. `GRIT_NORESIDUE_LEVEL=aggressive` minimizes griTTYkit runtime residue
 more strongly, but still does not claim stealth.
 
 Run one reverse shell case:
@@ -64,7 +64,7 @@ scripts/integration-glinet --host root@192.168.8.1 --operator-host 192.168.8.241
 Reuse an existing artifact instead of rebuilding:
 
 ```sh
-scripts/integration-glinet --artifact dist/busierbox-mipsel-linux-4.x-musl-full --case survey-core
+scripts/integration-glinet --artifact dist/grit-mipsel-linux-4.x-musl-full --case survey-core
 ```
 
 ## Cases
@@ -102,22 +102,22 @@ Each case directory contains build logs, generated config, SSH/SCP transcripts,
 target facts, target command output, server logs, cleanup logs, and post-case
 captures for:
 
-- `busierbox manifest --json`
-- `busierbox doctor --json`
-- `busierbox runtime-config --json`
-- `busierbox cleanup-ledger --json`
-- `busierbox plan --json`
-- `busierbox plan extract --json`
-- `busierbox plan rshell --json`
-- `busierbox plan clean --json`
-- `busierbox plan recovery install --method openwrt-procd --action rshell --json`
-- `busierbox plan recovery install --method cron-reboot --action command --json -- 'busierbox rshell start'`
-- `busierbox clean --dry-run`
-- `busierbox clean --dry-run --json`
-- `busierbox clean --dry-run --external --json`
-- `busierbox clean --external`
-- `busierbox rshell status --json`
-- `busierbox recovery status --json`
+- `grit manifest --json`
+- `grit doctor --json`
+- `grit runtime-config --json`
+- `grit cleanup-ledger --json`
+- `grit plan --json`
+- `grit plan extract --json`
+- `grit plan rshell --json`
+- `grit plan clean --json`
+- `grit plan recovery install --method openwrt-procd --action rshell --json`
+- `grit plan recovery install --method cron-reboot --action command --json -- 'grit rshell start'`
+- `grit clean --dry-run`
+- `grit clean --dry-run --json`
+- `grit clean --dry-run --external --json`
+- `grit clean --external`
+- `grit rshell status --json`
+- `grit recovery status --json`
 
 The harness validates captured `*-json.log` files locally after each command,
 so JSON regressions fail the case even when the target does not provide Python
@@ -154,7 +154,7 @@ Each case also records normalized phase status in `phases`:
 The allowed phase values are `pass`, `fail`, `skip`, and `pending`. `build`
 covers config generation and artifact packaging, `transfer` covers remote
 staging and target fact capture, `run` covers the case-specific target workflow,
-`validation` covers post-case BusierBox JSON/log captures, and `cleanup` covers
+`validation` covers post-case griTTYkit JSON/log captures, and `cleanup` covers
 remote teardown.
 
 Render the latest run:
@@ -208,5 +208,5 @@ generated `scripts/release-self-test` inside that bundle before copying
 artifacts to the target. That keeps release-helper, checksum, tuple-layout, and
 manifest problems visible before target execution starts.
 
-Remote workdirs default to `/tmp/busierbox-itest-<timestamp>-<case>` and are
+Remote workdirs default to `/tmp/grit-itest-<timestamp>-<case>` and are
 removed after each case unless `--keep-remote` is passed.

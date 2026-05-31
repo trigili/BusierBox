@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-bb=${1:-dist/busierbox-native-full}
+bb=${1:-dist/grit-native-full}
 
 [ -x "$bb" ] || {
     printf '%s\n' "clean-json: missing executable $bb" >&2
@@ -15,16 +15,16 @@ esac
 
 tmp_parent=${TMPDIR:-local/tmp}
 mkdir -p "$tmp_parent"
-tmp=$(mktemp -d "$tmp_parent/busierbox-clean-json.XXXXXX")
+tmp=$(mktemp -d "$tmp_parent/grit-clean-json.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
-cp "$bb_abs" "$tmp/busierbox"
-chmod 0755 "$tmp/busierbox"
+cp "$bb_abs" "$tmp/grit"
+chmod 0755 "$tmp/grit"
 
 (
     cd "$tmp"
 
-    ./busierbox clean --dry-run --json >dry-run.json
+    ./grit clean --dry-run --json >dry-run.json
     python3 -m json.tool dry-run.json >/dev/null
     python3 - dry-run.json <<'PY'
 import json
@@ -33,7 +33,7 @@ import sys
 doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 if doc.get("command") != "clean" or doc.get("dry_run") is not True:
     raise SystemExit("clean dry-run json did not identify clean dry-run")
-if ".busierbox" not in " ".join(doc.get("would_remove", [])):
+if ".grit" not in " ".join(doc.get("would_remove", [])):
     raise SystemExit("clean dry-run json missing runtime root")
 if "cleanup_ledger_path" not in doc:
     raise SystemExit("clean dry-run json missing ledger path")
@@ -65,14 +65,14 @@ if doc.get("writes_attempted") != 0 or doc.get("paths_cleaned") != 0 or doc.get(
     raise SystemExit("clean dry-run json cleanup result counters are wrong")
 if doc.get("cleanup_warning") != "dry-run only":
     raise SystemExit("clean dry-run json missing dry-run cleanup warning")
-if "busierbox clean --ledger --json" not in plan.get("cleanup_commands", []):
+if "grit clean --ledger --json" not in plan.get("cleanup_commands", []):
     raise SystemExit("clean dry-run residue plan missing cleanup command")
 if plan.get("forensic_no_trace") is not False:
     raise SystemExit("clean dry-run residue plan made forensic no-trace claim")
 if not isinstance(doc.get("external_entries"), list):
     raise SystemExit("clean dry-run external_entries must be a list")
 PY
-    ./busierbox clean --dry-run >dry-run.txt
+    ./grit clean --dry-run >dry-run.txt
     grep -q '^cleanup_writes_attempted=0$' dry-run.txt
     grep -q '^cleanup_writes_blocked=0$' dry-run.txt
     grep -q '^cleanup_paths_cleaned=0$' dry-run.txt
@@ -80,9 +80,9 @@ PY
     grep -q '^cleanup_complete=no$' dry-run.txt
     grep -q '^cleanup_warning=dry-run only$' dry-run.txt
 
-    BB_TARGET_ID=target-clean BB_TARGET_LABEL="Clean Router" ./busierbox extract >/dev/null
-    test -d .busierbox/payload
-    ./busierbox cleanup-ledger --json >ledger-after-extract.json
+    GRIT_TARGET_ID=target-clean GRIT_TARGET_LABEL="Clean Router" ./grit extract >/dev/null
+    test -d .grit/payload
+    ./grit cleanup-ledger --json >ledger-after-extract.json
     python3 -m json.tool ledger-after-extract.json >/dev/null
     python3 - ledger-after-extract.json <<'PY'
 import json
@@ -133,7 +133,7 @@ resources = doc.get("api_resources_by_name") or {}
 if resources.get("entries", {}).get("records_key") != "entries":
     raise SystemExit("cleanup ledger API resource metadata missing")
 PY
-    ./busierbox clean --dry-run --json >dry-run-after-extract.json
+    ./grit clean --dry-run --json >dry-run-after-extract.json
     python3 -m json.tool dry-run-after-extract.json >/dev/null
     python3 - dry-run-after-extract.json <<'PY'
 import json
@@ -147,7 +147,7 @@ if not isinstance(paths, list) or not paths:
 if plan.get("ledgered_cleanup_path_count") != len(paths):
     raise SystemExit("residue plan ledgered cleanup path count mismatch")
 joined = "\n".join(item.get("path", "") for item in paths if isinstance(item, dict))
-if ".busierbox/payload" not in joined:
+if ".grit/payload" not in joined:
     raise SystemExit("residue plan missing extracted payload path")
 scopes = {item.get("scope") for item in paths if isinstance(item, dict)}
 if "payload" not in scopes:
@@ -170,7 +170,7 @@ by_action = plan.get("ledgered_cleanup_paths_by_cleanup_action") or {}
 if "remove_with_runtime_root" not in by_action:
     raise SystemExit("residue plan missing cleanup paths by action")
 by_path = plan.get("ledgered_cleanup_paths_by_path") or {}
-if not any(".busierbox/payload" in key for key in by_path):
+if not any(".grit/payload" in key for key in by_path):
     raise SystemExit("residue plan missing cleanup paths by path")
 api = (plan.get("api_collections") or {}).get("ledgered_cleanup_paths") or {}
 if api.get("count") != len(paths):
@@ -185,7 +185,7 @@ if resources.get("ledgered_cleanup_paths", {}).get("records_key") != "ledgered_c
 if plan.get("external_blocked_count") != 0:
     raise SystemExit("residue plan unexpectedly blocked external entries")
 PY
-    ./busierbox clean --ledger --json >clean.json
+    ./grit clean --ledger --json >clean.json
     python3 -m json.tool clean.json >/dev/null
     python3 - clean.json <<'PY'
 import json
@@ -194,7 +194,7 @@ import sys
 doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 if doc.get("command") != "clean" or doc.get("dry_run") is not False:
     raise SystemExit("clean json did not identify applied clean")
-if ".busierbox" not in " ".join(doc.get("removed", [])):
+if ".grit" not in " ".join(doc.get("removed", [])):
     raise SystemExit("clean json missing removed runtime root")
 if doc.get("writes_attempted", 0) < 1:
     raise SystemExit("clean json missing writes_attempted")
@@ -203,21 +203,21 @@ if doc.get("paths_failed") != 0:
 if doc.get("cleanup_complete") is not True:
     raise SystemExit("clean json did not report complete cleanup")
 PY
-    BB_TARGET_ID=target-clean BB_TARGET_LABEL="Clean Router" ./busierbox extract >/dev/null
-    ./busierbox clean --ledger >clean.txt
+    GRIT_TARGET_ID=target-clean GRIT_TARGET_LABEL="Clean Router" ./grit extract >/dev/null
+    ./grit clean --ledger >clean.txt
     grep -q '^cleanup_writes_attempted=1$' clean.txt
     grep -q '^cleanup_writes_blocked=0$' clean.txt
     grep -q '^cleanup_paths_cleaned=1$' clean.txt
     grep -q '^cleanup_paths_failed=0$' clean.txt
     grep -q '^cleanup_complete=yes$' clean.txt
     grep -q '^cleanup_warning=$' clean.txt
-    test ! -d .busierbox
+    test ! -d .grit
 
-    mkdir -p .busierbox/run
-    cat >.busierbox/run/cleanup-ledger.jsonl <<'EOF'
+    mkdir -p .grit/run
+    cat >.grit/run/cleanup-ledger.jsonl <<'EOF'
 {"op":"modify","path":"/root/.ssh/authorized_keys","scope":"external","detail":"test external ledger","mode":"root-merge"}
 EOF
-    ./busierbox clean --dry-run --json >external-blocked.json
+    ./grit clean --dry-run --json >external-blocked.json
     python3 -m json.tool external-blocked.json >/dev/null
     python3 - external-blocked.json <<'PY'
 import json
@@ -239,14 +239,14 @@ if plan.get("external_blocked_count") != 1:
 if plan.get("ledgered_cleanup_path_count") != 0:
     raise SystemExit("external-only ledger should not create runtime cleanup paths")
 PY
-    ./busierbox clean --dry-run >external-blocked.txt
+    ./grit clean --dry-run >external-blocked.txt
     grep -q '^cleanup_writes_attempted=0$' external-blocked.txt
     grep -q '^cleanup_writes_blocked=1$' external-blocked.txt
     grep -q '^cleanup_paths_cleaned=0$' external-blocked.txt
     grep -q '^cleanup_paths_failed=0$' external-blocked.txt
     grep -q '^cleanup_complete=no$' external-blocked.txt
     grep -q '^cleanup_warning=dry-run only$' external-blocked.txt
-    ./busierbox clean --dry-run --external --json >external-included.json
+    ./grit clean --dry-run --external --json >external-included.json
     python3 -m json.tool external-included.json >/dev/null
     python3 - external-included.json <<'PY'
 import json
@@ -259,17 +259,17 @@ if not entries or entries[0].get("scope") != "external":
 if entries[0].get("blocked_without_external_apply"):
     raise SystemExit("--external dry-run incorrectly marked entry blocked")
 PY
-    if ./busierbox clean --external >external-no-apply.out 2>external-no-apply.err; then
+    if ./grit clean --external >external-no-apply.out 2>external-no-apply.err; then
         printf '%s\n' "clean-json: --external without --apply unexpectedly succeeded" >&2
         exit 1
     fi
     grep -q 'external cleanup requires --external --apply' external-no-apply.err
 
-    mkdir -p .busierbox/run
-    cat >.busierbox/run/cleanup-ledger.jsonl <<'EOF'
+    mkdir -p .grit/run
+    cat >.grit/run/cleanup-ledger.jsonl <<'EOF'
 {"op":"modify","path":"/opt/vendor/state","scope":"external","detail":"unsupported external ledger","mode":"vendor-file"}
 EOF
-    ./busierbox clean --external --apply --json >external-unsupported-apply.json
+    ./grit clean --external --apply --json >external-unsupported-apply.json
     python3 -m json.tool external-unsupported-apply.json >/dev/null
     python3 - external-unsupported-apply.json <<'PY'
 import json
@@ -290,12 +290,12 @@ if doc.get("cleanup_warning") != "unsupported external ledger entries require ma
     raise SystemExit("unsupported external apply warning missing")
 PY
 
-    mkdir -p .busierbox/run
-    cat >.busierbox/run/cleanup-ledger.jsonl <<'EOF'
-{"op":"write","path":".busierbox/payload","scope":"payload","detail":"valid entry"}
+    mkdir -p .grit/run
+    cat >.grit/run/cleanup-ledger.jsonl <<'EOF'
+{"op":"write","path":".grit/payload","scope":"payload","detail":"valid entry"}
 not-json
 EOF
-    ./busierbox cleanup-ledger --json >invalid-ledger.json
+    ./grit cleanup-ledger --json >invalid-ledger.json
     python3 -m json.tool invalid-ledger.json >/dev/null
     python3 - invalid-ledger.json <<'PY'
 import json

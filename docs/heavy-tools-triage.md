@@ -1,6 +1,6 @@
 # Heavy Tools Wishlist And Provider Triage
 
-BusierBox separates standard Unix utilities from heavy tools. Standard tools should come from BusyBox or another upstream payload. Heavy tools need provider metadata because static builds, payload size, privileges, and target kernel features vary heavily.
+griTTYkit separates standard Unix utilities from heavy tools. Standard tools should come from BusyBox or another upstream payload. Heavy tools need provider metadata because static builds, payload size, privileges, and target kernel features vary heavily.
 
 Current classifications:
 
@@ -29,6 +29,6 @@ Implemented provider hooks:
 - `scripts/check-buildroot-tool-mappings` validates Buildroot symbols for supported target-payload tools and reports tools that require a target-compatible drop-in/user/overlay binary without failing non-strict checks.
 - `scripts/gen-buildroot-defconfig` emits Buildroot package symbols for supported wishlist payloads.
 - `scripts/menuconfig` exposes a clearly labeled dangerous storage/flash diagnostics category; none of those tools are selected by default presets.
-- `doom` uses the BusierBox Buildroot `doom-ascii` package for static target builds. Set `BB_DOOM_WAD_PATH` to a local legally usable `.wad`; BusierBox records that path in the generated target profile and stages the file, but never fetches game data. Payload manifests record only the staged WAD basename, size, and sha256, not the local source path. Target packaging verifies that the staged `doom-ascii` ELF is static. BusierBox does not accept a user-provided Doom engine path for target payloads.
+- `doom` uses the griTTYkit Buildroot `doom-ascii` package for static target builds. Set `GRIT_DOOM_WAD_PATH` to a local legally usable `.wad`; griTTYkit records that path in the generated target profile and stages the file, but never fetches game data. Payload manifests record only the staged WAD basename, size, and sha256, not the local source path. Target packaging verifies that the staged `doom-ascii` ELF is static. griTTYkit does not accept a user-provided Doom engine path for target payloads.
 
 Provider-only tools such as full `gdb`, GEF/pwndbg, radare2/rizin, `gcore`, and `tshark` remain explicit local-dropin/overlay choices until a target tuple has validated package support.

@@ -1,8 +1,8 @@
-# BusierBox native MVP config
-BB_TARGET_ARCH=native
-BB_TARGET_OS=linux
-BB_KERNEL_FLOOR=host
-BB_LIBC=host
-BB_STATIC=auto
-BB_TOOLCHAIN_PREFIX=
+# griTTYkit native MVP config
+GRIT_TARGET_ARCH=native
+GRIT_TARGET_OS=linux
+GRIT_KERNEL_FLOOR=host
+GRIT_LIBC=host
+GRIT_STATIC=auto
+GRIT_TOOLCHAIN_PREFIX=
 

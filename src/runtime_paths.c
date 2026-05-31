@@ -239,18 +239,18 @@ int bb_enough_space_for_extract(unsigned long long size, const char *root)
 
 /*
  * Select and create the runtime root used for payload extraction.  Successful
- * directory creation is ledgered because cleanup owns only BusierBox-created
+ * directory creation is ledgered because cleanup owns only griTTYkit-created
  * runtime trees; callers receive the root path, not ownership of the ledger.
  */
 int bb_choose_extract_root(char *out, size_t outsz)
 {
     char path[PATH_MAX];
-    const char *runtime_root = bb_config_get("BB_RUNTIME_ROOT");
-    const char *fallback_enabled = bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT");
-    const char *fallback_root = bb_config_get("BB_RUNTIME_FALLBACK_ROOT");
+    const char *runtime_root = bb_config_get("GRIT_RUNTIME_ROOT");
+    const char *fallback_enabled = bb_config_get("GRIT_RUNTIME_ALLOW_FALLBACK_ROOT");
+    const char *fallback_root = bb_config_get("GRIT_RUNTIME_FALLBACK_ROOT");
     int aggressive_noresidue =
-        !strcmp(bb_config_get("BB_RUNTIME_MODE"), "no-residue") &&
-        !strcmp(bb_config_get("BB_NORESIDUE_LEVEL"), "aggressive");
+        !strcmp(bb_config_get("GRIT_RUNTIME_MODE"), "no-residue") &&
+        !strcmp(bb_config_get("GRIT_NORESIDUE_LEVEL"), "aggressive");
     const char *roots[2];
     int i, nroots = 0;
 
@@ -307,14 +307,14 @@ static void print_extract_root_probe_json(FILE *out, const char *role, const cha
 void bb_print_extraction_runtime_json(FILE *out, unsigned long long payload_size,
                                       void (*json_string)(FILE *, const char *))
 {
-    const char *runtime_root = bb_config_get("BB_RUNTIME_ROOT");
-    const char *fallback_root = bb_config_get("BB_RUNTIME_FALLBACK_ROOT");
-    const char *fallback_enabled_value = bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT");
+    const char *runtime_root = bb_config_get("GRIT_RUNTIME_ROOT");
+    const char *fallback_root = bb_config_get("GRIT_RUNTIME_FALLBACK_ROOT");
+    const char *fallback_enabled_value = bb_config_get("GRIT_RUNTIME_ALLOW_FALLBACK_ROOT");
     const char *selected = NULL;
     int fallback_configured = fallback_enabled_value && !strcmp(fallback_enabled_value, "yes");
     int aggressive_noresidue =
-        !strcmp(bb_config_get("BB_RUNTIME_MODE"), "no-residue") &&
-        !strcmp(bb_config_get("BB_NORESIDUE_LEVEL"), "aggressive");
+        !strcmp(bb_config_get("GRIT_RUNTIME_MODE"), "no-residue") &&
+        !strcmp(bb_config_get("GRIT_NORESIDUE_LEVEL"), "aggressive");
     int fallback_enabled = fallback_configured && !aggressive_noresidue;
 
     if (bb_extract_root_usable(runtime_root))

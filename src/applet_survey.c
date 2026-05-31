@@ -23,8 +23,8 @@
 #define PATH_MAX 4096
 #endif
 
-#ifndef BUSIERBOX_VERSION
-#define BUSIERBOX_VERSION "0.1.0-tier0"
+#ifndef GRIT_VERSION
+#define GRIT_VERSION "0.1.0-tier0"
 #endif
 
 static const char *dirs[] = {".", "/tmp", "/var/tmp", "/dev/shm", "/overlay", "/rom", "/var"};
@@ -184,9 +184,9 @@ static const char *recommended_extract_dir(void)
 static const char *recommended_runtime_root(void)
 {
     if (access(".", W_OK | X_OK) == 0)
-        return "./.busierbox";
+        return "./.grit";
     if (access("/tmp", W_OK | X_OK) == 0)
-        return "/tmp/.busierbox";
+        return "/tmp/.grit";
     return "none";
 }
 
@@ -443,8 +443,8 @@ static void json_os_markers(void)
 
 static const char *shell_survey_script =
 "#!/bin/sh\n"
-"# BusierBox portable shell survey. POSIX-ish and safe for OpenWrt-like targets.\n"
-"p=${BUSIERBOX_SURVEY_PROBE_DIR:-${TMPDIR:-/tmp}/busierbox-survey-$$}\n"
+"# griTTYkit portable shell survey. POSIX-ish and safe for OpenWrt-like targets.\n"
+"p=${GRIT_SURVEY_PROBE_DIR:-${TMPDIR:-/tmp}/grit-survey-$$}\n"
 "created=false; probe_ready=false\n"
 "if [ -d \"$p\" ]; then probe_ready=true; elif mkdir \"$p\" 2>/dev/null; then created=true; probe_ready=true; else p=; fi\n"
 "safe(){ case \"$1\" in *[!abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._/:,+@=%-]* ) printf unknown ;; *) printf '%s' \"$1\" ;; esac; }\n"
@@ -452,7 +452,7 @@ static const char *shell_survey_script =
 "have(){ command -v \"$1\" >/dev/null 2>&1 && printf true || printf false; }\n"
 "readable(){ [ -r \"$1\" ] && printf true || printf false; }\n"
 "exists(){ [ -e \"$1\" ] && printf true || printf false; }\n"
-"dirprobe(){ d=$1; wr=false; ex=false; cr=false; free=unknown; [ -d \"$d\" ] || { printf '{\"path\":\"'; safe \"$d\"; printf '\",\"exists\":false,\"writable\":false,\"shell_exec\":false,\"can_create_dirs\":false,\"df_available\":'; have df; printf '}'; return; }; if : >\"$d/busierbox.write.$$\" 2>/dev/null; then wr=true; rm -f \"$d/busierbox.write.$$\" 2>/dev/null || true; fi; if mkdir \"$d/busierbox.dir.$$\" 2>/dev/null; then cr=true; rmdir \"$d/busierbox.dir.$$\" 2>/dev/null || true; fi; if [ \"$wr\" = true ]; then printf '#!/bin/sh\\nexit 0\\n' >\"$d/busierbox.exec.$$\" 2>/dev/null && chmod +x \"$d/busierbox.exec.$$\" 2>/dev/null && \"$d/busierbox.exec.$$\" >/dev/null 2>&1 && ex=true; rm -f \"$d/busierbox.exec.$$\" 2>/dev/null || true; fi; if command -v df >/dev/null 2>&1; then set -- `df -k \"$d\" 2>/dev/null`; shift 6 2>/dev/null || true; free=${4:-unknown}; fi; printf '{\"path\":\"'; safe \"$d\"; printf '\",\"exists\":true,\"writable\":%s,\"shell_exec\":%s,\"can_create_dirs\":%s,\"df_available\":' \"$wr\" \"$ex\" \"$cr\"; have df; printf '}'; }\n"
+"dirprobe(){ d=$1; wr=false; ex=false; cr=false; free=unknown; [ -d \"$d\" ] || { printf '{\"path\":\"'; safe \"$d\"; printf '\",\"exists\":false,\"writable\":false,\"shell_exec\":false,\"can_create_dirs\":false,\"df_available\":'; have df; printf '}'; return; }; if : >\"$d/grit.write.$$\" 2>/dev/null; then wr=true; rm -f \"$d/grit.write.$$\" 2>/dev/null || true; fi; if mkdir \"$d/grit.dir.$$\" 2>/dev/null; then cr=true; rmdir \"$d/grit.dir.$$\" 2>/dev/null || true; fi; if [ \"$wr\" = true ]; then printf '#!/bin/sh\\nexit 0\\n' >\"$d/grit.exec.$$\" 2>/dev/null && chmod +x \"$d/grit.exec.$$\" 2>/dev/null && \"$d/grit.exec.$$\" >/dev/null 2>&1 && ex=true; rm -f \"$d/grit.exec.$$\" 2>/dev/null || true; fi; if command -v df >/dev/null 2>&1; then set -- `df -k \"$d\" 2>/dev/null`; shift 6 2>/dev/null || true; free=${4:-unknown}; fi; printf '{\"path\":\"'; safe \"$d\"; printf '\",\"exists\":true,\"writable\":%s,\"shell_exec\":%s,\"can_create_dirs\":%s,\"df_available\":' \"$wr\" \"$ex\" \"$cr\"; have df; printf '}'; }\n"
 "wr=false; ex=false; cr=false\n"
 "if [ \"$probe_ready\" = true ]; then\n"
 "if : >\"$p/write.probe\" 2>/dev/null; then wr=true; rm -f \"$p/write.probe\" 2>/dev/null || true; fi\n"
@@ -531,8 +531,8 @@ int applet_survey_main(int argc, char **argv)
     int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox survey [--json] [--shell-probe] [--shell-script] [--write-shell-script PATH]");
-        puts("       busierbox survey push [--host HOST] [--port PORT] [--tls yes|no]");
+        puts("usage: grit survey [--json] [--shell-probe] [--shell-script] [--write-shell-script PATH]");
+        puts("       grit survey push [--host HOST] [--port PORT] [--tls yes|no]");
         puts("Print embedded Linux target triage.");
         return 0;
     }
@@ -541,14 +541,14 @@ int applet_survey_main(int argc, char **argv)
         char path[PATH_MAX];
         int r;
         if (argc > 2 && (!strcmp(argv[2], "--help") || !strcmp(argv[2], "-h"))) {
-            puts("usage: busierbox survey push [--host HOST] [--port PORT] [--tls yes|no]");
+            puts("usage: grit survey push [--host HOST] [--port PORT] [--tls yes|no]");
             puts("Generate survey JSON and upload it to the receive-only operator file service.");
             return 0;
         }
         for (r = 0; roots[r]; r++) {
             int fd, saved, rc;
             char *survey_argv[] = { "survey", "--json", NULL };
-            snprintf(path, sizeof(path), "%s/.busierbox-survey.%ld.XXXXXX", roots[r], (long)getpid());
+            snprintf(path, sizeof(path), "%s/.grit-survey.%ld.XXXXXX", roots[r], (long)getpid());
             fd = mkstemp(path);
             if (fd < 0)
                 continue;
@@ -570,7 +570,7 @@ int applet_survey_main(int argc, char **argv)
                 unlink(path);
                 return rc;
             }
-            rc = bb_operator_upload_file(path, "busierbox-survey.json", "survey", argc - 2, argv + 2);
+            rc = bb_operator_upload_file(path, "grit-survey.json", "survey", argc - 2, argv + 2);
             unlink(path);
             return rc;
         }
@@ -612,7 +612,7 @@ int applet_survey_main(int argc, char **argv)
     const char *extract_dir = recommended_extract_dir();
 
     if (json) {
-        printf("{\"schema\":2,\"survey_engine\":{\"native\":true,\"shell\":%s,\"shell_path\":\"/bin/sh\"},\"busierbox\":{\"version\":", shell_probe ? "true" : "false"); json_string(BUSIERBOX_VERSION);
+        printf("{\"schema\":2,\"survey_engine\":{\"native\":true,\"shell\":%s,\"shell_path\":\"/bin/sh\"},\"grit\":{\"version\":", shell_probe ? "true" : "false"); json_string(GRIT_VERSION);
         printf(",\"build_date\":"); json_string(__DATE__ " " __TIME__);
         printf("},\"uname\":{\"sysname\":"); json_string(uts.sysname);
         printf(",\"nodename\":"); json_string(uts.nodename);
@@ -678,7 +678,7 @@ int applet_survey_main(int argc, char **argv)
         return 0;
     }
 
-    printf("busierbox: version=%s build=%s %s\n", BUSIERBOX_VERSION, __DATE__, __TIME__);
+    printf("grit: version=%s build=%s %s\n", GRIT_VERSION, __DATE__, __TIME__);
     printf("uname: %s %s %s %s %s\n", uts.sysname, uts.nodename, uts.release, uts.version, uts.machine);
     printf("arch: %s\nendianness: %s\npointer_width: %lu\n", uts.machine, endianness(), (unsigned long)(sizeof(void *) * 8));
     printf("uid: %ld euid: %ld gid: %ld egid: %ld\n", (long)getuid(), (long)geteuid(), (long)getgid(), (long)getegid());

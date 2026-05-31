@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "description": "All currently supported BusierBox targets and built-in payload presets.",
+  "description": "All currently supported griTTYkit targets and built-in payload presets.",
   "targets": ["all"],
   "payloads": ["all"],
   "formats": ["tgz"]

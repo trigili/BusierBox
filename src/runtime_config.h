@@ -1,5 +1,5 @@
-#ifndef BUSIERBOX_RUNTIME_CONFIG_H
-#define BUSIERBOX_RUNTIME_CONFIG_H
+#ifndef GRIT_RUNTIME_CONFIG_H
+#define GRIT_RUNTIME_CONFIG_H
 
 #include <stddef.h>
 #include <stdio.h>

@@ -181,8 +181,8 @@ static int core_payload_member(const char *name)
            !strcmp(name, "payload/built-tools.txt") ||
            !strcmp(name, "payload/requested-tools.txt") ||
            !strcmp(name, "payload/missing-tools.txt") ||
-           !strcmp(name, "payload/share/busierbox/missing-tools.txt") ||
-           !strcmp(name, "payload/share/busierbox/applet-symlink-count.txt");
+           !strcmp(name, "payload/share/grit/missing-tools.txt") ||
+           !strcmp(name, "payload/share/grit/applet-symlink-count.txt");
 }
 
 static int stream_skip(struct payload_stream *s, unsigned long long n)
@@ -243,7 +243,7 @@ static int tar_extract_stream(struct payload_stream *s, const char *root, int co
         }
         if (type == '5') {
             if (core_only && strcmp(name, "payload") && strcmp(name, "payload/bin") &&
-                strcmp(name, "payload/share") && strcmp(name, "payload/share/busierbox"))
+                strcmp(name, "payload/share") && strcmp(name, "payload/share/grit"))
                 continue;
             if (bb_mkdir_p(full, (mode_t)mode) != 0)
                 return -1;

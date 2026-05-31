@@ -1,20 +1,20 @@
 # Plan Mode
 
-`busierbox plan` previews filesystem, process, and network impact before
+`grit plan` previews filesystem, process, and network impact before
 running operations that can extract payloads, start reverse access, clean
 runtime state, or install recovery hooks.
 
 Supported forms:
 
 ```sh
-busierbox plan
-busierbox plan --json
-busierbox plan extract
-busierbox plan rshell
-busierbox plan command-queue
-busierbox plan clean
-busierbox plan recovery install --method openwrt-procd --action rshell
-busierbox plan recovery install --method cron-reboot --action command -- 'busierbox rshell start'
+grit plan
+grit plan --json
+grit plan extract
+grit plan rshell
+grit plan command-queue
+grit plan clean
+grit plan recovery install --method openwrt-procd --action rshell
+grit plan recovery install --method cron-reboot --action command -- 'grit rshell start'
 ```
 
 The command is read-only. It reports:
@@ -33,7 +33,7 @@ The command is read-only. It reports:
 JSON output is intended for integration harnesses:
 
 ```sh
-busierbox plan rshell --json | python3 -m json.tool
+grit plan rshell --json | python3 -m json.tool
 ```
 
 The `extract`, `clean`, and `rshell` JSON plans include a `noresidue_policy`

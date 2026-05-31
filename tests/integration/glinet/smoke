@@ -1,10 +1,10 @@
 #!/bin/sh
 set -eu
 
-artifact=${1:-${ARTIFACT:-dist/busierbox-mipsel-linux-4.x-musl-full}}
+artifact=${1:-${ARTIFACT:-dist/grit-mipsel-linux-4.x-musl-full}}
 router=${ROUTER:-root@192.168.8.1}
-remote_dir=${REMOTE_DIR:-/tmp/busierbox-itest}
-remote_bin="$remote_dir/busierbox"
+remote_dir=${REMOTE_DIR:-/tmp/grit-itest}
+remote_bin="$remote_dir/grit"
 
 [ -f "$artifact" ] || {
     printf '%s\n' "glinet smoke: artifact not found: $artifact" >&2
@@ -16,34 +16,34 @@ ssh "$router" "set -eu
     rm -rf '$remote_dir/extract'
     mkdir -p '$remote_dir/extract'
     cd '$remote_dir'
-    ./busierbox doctor >doctor.out 2>&1 || { cat doctor.out; exit 1; }
-    ./busierbox extract >extract.out 2>&1 || { cat extract.out; exit 1; }
-    ./busierbox extract >extract-2.out 2>&1 || { cat extract-2.out; exit 1; }
-    test -d .busierbox/payload/bin
-    test -x .busierbox/payload/bin/busybox
-    test -f .busierbox/payload/manifest.json
-    PATH=\"\$PWD/.busierbox/payload/bin:\$PATH\"
+    ./grit doctor >doctor.out 2>&1 || { cat doctor.out; exit 1; }
+    ./grit extract >extract.out 2>&1 || { cat extract.out; exit 1; }
+    ./grit extract >extract-2.out 2>&1 || { cat extract-2.out; exit 1; }
+    test -d .grit/payload/bin
+    test -x .grit/payload/bin/busybox
+    test -f .grit/payload/manifest.json
+    PATH=\"\$PWD/.grit/payload/bin:\$PATH\"
     case \":\$PATH:\" in
-        *:\$PWD/.busierbox/payload/bin:*\$PWD/.busierbox/payload/bin:*) echo 'payload/bin duplicated in PATH' >&2; exit 1 ;;
+        *:\$PWD/.grit/payload/bin:*\$PWD/.grit/payload/bin:*) echo 'payload/bin duplicated in PATH' >&2; exit 1 ;;
     esac
     for app in sh cp ls nc; do
-        test -e \".busierbox/payload/bin/\$app\" || { echo \"missing applet symlink: \$app\" >&2; exit 1; }
+        test -e \".grit/payload/bin/\$app\" || { echo \"missing applet symlink: \$app\" >&2; exit 1; }
     done
-    ./busierbox list --plain | awk '\$1 == \"busybox\" || \$1 == \"tool\" {print \$2}' > listed-tools.txt
+    ./grit list --plain | awk '\$1 == \"busybox\" || \$1 == \"tool\" {print \$2}' > listed-tools.txt
     while IFS= read -r name; do
         [ -n \"\$name\" ] || continue
-        test -e \".busierbox/payload/bin/\$name\" || { echo \"advertised tool missing: \$name\" >&2; exit 1; }
+        test -e \".grit/payload/bin/\$name\" || { echo \"advertised tool missing: \$name\" >&2; exit 1; }
     done < listed-tools.txt
-    ./busierbox sh -c 'which cp >/dev/null && which nc >/dev/null'
-    if test -x .busierbox/payload/bin/zsh; then ./busierbox zsh -fc 'command -v nc >/dev/null'; fi
-    if test -x .busierbox/payload/bin/tmux; then ./busierbox tmux -V >/dev/null; fi
-    if test -x .busierbox/payload/bin/curl; then ./busierbox curl --version >/dev/null; fi
-    if test -x .busierbox/payload/bin/strace; then ./busierbox strace -V >/dev/null; fi
-    if test -s .busierbox/payload/overlay-tools.txt; then
+    ./grit sh -c 'which cp >/dev/null && which nc >/dev/null'
+    if test -x .grit/payload/bin/zsh; then ./grit zsh -fc 'command -v nc >/dev/null'; fi
+    if test -x .grit/payload/bin/tmux; then ./grit tmux -V >/dev/null; fi
+    if test -x .grit/payload/bin/curl; then ./grit curl --version >/dev/null; fi
+    if test -x .grit/payload/bin/strace; then ./grit strace -V >/dev/null; fi
+    if test -s .grit/payload/overlay-tools.txt; then
         while IFS= read -r tool; do
             [ -n \"\$tool\" ] || continue
-            test -x \".busierbox/payload/bin/\$tool\" || { echo \"overlay tool missing: \$tool\" >&2; exit 1; }
-        done < .busierbox/payload/overlay-tools.txt
+            test -x \".grit/payload/bin/\$tool\" || { echo \"overlay tool missing: \$tool\" >&2; exit 1; }
+        done < .grit/payload/overlay-tools.txt
     fi
 "
 

@@ -20,7 +20,7 @@ summary="$ARTIFACT_ROOT/summary.txt"
 summary_json="$ARTIFACT_ROOT/summary.json"
 : >"$summary"
 
-python3 - "$MATRIX" <<'PY' | while IFS='	' read -r name arch kernel rootfs busierbox qemu machine cpu append enabled
+python3 - "$MATRIX" <<'PY' | while IFS='	' read -r name arch kernel rootfs grit qemu machine cpu append enabled
 import json
 import sys
 
@@ -33,7 +33,7 @@ for e in data.get("environments", []):
         e.get("arch", ""),
         e.get("kernel_path", ""),
         e.get("rootfs_path", ""),
-        e.get("busierbox_path", ""),
+        e.get("grit_path", ""),
         e.get("qemu_binary", ""),
         e.get("qemu_machine", ""),
         e.get("qemu_cpu", ""),
@@ -68,15 +68,15 @@ do
         printf '%s\n' "SKIP $name missing rootfs" >>"$summary"
         continue
     fi
-    if [ ! -f "$ROOT/$busierbox" ]; then
-        printf '%s\n' "SKIP $name missing busierbox $busierbox" | tee "$artifact_dir/skip.txt"
-        printf '%s\n' "SKIP $name missing busierbox" >>"$summary"
+    if [ ! -f "$ROOT/$grit" ]; then
+        printf '%s\n' "SKIP $name missing grit $grit" | tee "$artifact_dir/skip.txt"
+        printf '%s\n' "SKIP $name missing grit" >>"$summary"
         continue
     fi
 
-    prepare_payload_dir "$payload" "$ROOT/$busierbox" "$ROOT/tests/qemu-system/smoke-init.sh" "$ROOT/tests/smoke"
+    prepare_payload_dir "$payload" "$ROOT/$grit" "$ROOT/tests/qemu-system/smoke-init.sh" "$ROOT/tests/smoke"
 
-    cmd="$qemu -M $machine -cpu $cpu -kernel $ROOT/$kernel -drive file=$ROOT/$rootfs,if=virtio,format=raw -virtfs local,path=$payload,mount_tag=busierbox_payload,security_model=none,readonly=off -append \"$append init=/bin/sh\" -nographic -no-reboot"
+    cmd="$qemu -M $machine -cpu $cpu -kernel $ROOT/$kernel -drive file=$ROOT/$rootfs,if=virtio,format=raw -virtfs local,path=$payload,mount_tag=grit_payload,security_model=none,readonly=off -append \"$append init=/bin/sh\" -nographic -no-reboot"
     printf '%s\n' "$cmd" >"$artifact_dir/qemu-command.txt"
 
     if command -v timeout >/dev/null 2>&1; then
@@ -84,9 +84,9 @@ do
             sleep "$BOOT_WAIT"
             printf '%s\n' 'mount -t proc proc /proc 2>/dev/null || true'
             printf '%s\n' 'mount -t sysfs sysfs /sys 2>/dev/null || true'
-            printf '%s\n' 'mkdir -p /mnt/busierbox-test /tmp'
-            printf '%s\n' 'mount -t 9p -o trans=virtio,version=9p2000.L busierbox_payload /mnt/busierbox-test'
-            printf '%s\n' 'BUSIERBOX=/mnt/busierbox-test/busierbox ARTIFACT_DIR=/mnt/busierbox-test/artifacts sh /mnt/busierbox-test/busierbox-smoke.sh'
+            printf '%s\n' 'mkdir -p /mnt/grit-test /tmp'
+            printf '%s\n' 'mount -t 9p -o trans=virtio,version=9p2000.L grit_payload /mnt/grit-test'
+            printf '%s\n' 'BUSIERBOX=/mnt/grit-test/grit ARTIFACT_DIR=/mnt/grit-test/artifacts sh /mnt/grit-test/grit-smoke.sh'
             printf '%s\n' 'sync'
             printf '%s\n' 'poweroff -f 2>/dev/null || halt -f 2>/dev/null || exit'
             sleep 3
@@ -138,7 +138,7 @@ with open(summary_path, "r", encoding="utf-8") as fh:
             "arch": env.get("arch", ""),
             "kernel_path": env.get("kernel_path", ""),
             "rootfs_path": env.get("rootfs_path", ""),
-            "busierbox_path": env.get("busierbox_path", ""),
+            "grit_path": env.get("grit_path", ""),
             "qemu_binary": env.get("qemu_binary", ""),
             "qemu_machine": env.get("qemu_machine", ""),
             "qemu_cpu": env.get("qemu_cpu", ""),

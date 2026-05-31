@@ -16,161 +16,161 @@
 #define PATH_MAX 4096
 #endif
 
-#ifndef BB_RUNTIME_MODE
-#define BB_RUNTIME_MODE "extract"
+#ifndef GRIT_RUNTIME_MODE
+#define GRIT_RUNTIME_MODE "extract"
 #endif
-#ifndef BB_NORESIDUE_LEVEL
-#define BB_NORESIDUE_LEVEL "best-effort"
+#ifndef GRIT_NORESIDUE_LEVEL
+#define GRIT_NORESIDUE_LEVEL "best-effort"
 #endif
-#ifndef BB_RUNTIME_ROOT
-#define BB_RUNTIME_ROOT "./.busierbox"
+#ifndef GRIT_RUNTIME_ROOT
+#define GRIT_RUNTIME_ROOT "./.grit"
 #endif
-#ifndef BB_RUNTIME_ALLOW_FALLBACK_ROOT
-#define BB_RUNTIME_ALLOW_FALLBACK_ROOT "no"
+#ifndef GRIT_RUNTIME_ALLOW_FALLBACK_ROOT
+#define GRIT_RUNTIME_ALLOW_FALLBACK_ROOT "no"
 #endif
-#ifndef BB_RUNTIME_FALLBACK_ROOT
-#define BB_RUNTIME_FALLBACK_ROOT "/tmp/.busierbox"
+#ifndef GRIT_RUNTIME_FALLBACK_ROOT
+#define GRIT_RUNTIME_FALLBACK_ROOT "/tmp/.grit"
 #endif
-#ifndef BB_ZERO_ARG_MODE
-#define BB_ZERO_ARG_MODE "help"
+#ifndef GRIT_ZERO_ARG_MODE
+#define GRIT_ZERO_ARG_MODE "help"
 #endif
-#ifndef BB_ZERO_ARG_LOG_MODE
-#define BB_ZERO_ARG_LOG_MODE "quiet"
+#ifndef GRIT_ZERO_ARG_LOG_MODE
+#define GRIT_ZERO_ARG_LOG_MODE "quiet"
 #endif
-#ifndef BB_ZERO_ARG_CUSTOM_COMMAND
-#define BB_ZERO_ARG_CUSTOM_COMMAND ""
+#ifndef GRIT_ZERO_ARG_CUSTOM_COMMAND
+#define GRIT_ZERO_ARG_CUSTOM_COMMAND ""
 #endif
-#ifndef BB_RSHELL_TRANSPORT
-#define BB_RSHELL_TRANSPORT "ssh"
+#ifndef GRIT_RSHELL_TRANSPORT
+#define GRIT_RSHELL_TRANSPORT "ssh"
 #endif
-#ifndef BB_RSHELL_ENCRYPTION
-#define BB_RSHELL_ENCRYPTION "tls"
+#ifndef GRIT_RSHELL_ENCRYPTION
+#define GRIT_RSHELL_ENCRYPTION "tls"
 #endif
-#ifndef BB_RSHELL_ALLOW_PLAINTEXT
-#define BB_RSHELL_ALLOW_PLAINTEXT "no"
+#ifndef GRIT_RSHELL_ALLOW_PLAINTEXT
+#define GRIT_RSHELL_ALLOW_PLAINTEXT "no"
 #endif
-#ifndef BB_RSHELL_AUTHKEYS_MODE
-#define BB_RSHELL_AUTHKEYS_MODE "disabled"
+#ifndef GRIT_RSHELL_AUTHKEYS_MODE
+#define GRIT_RSHELL_AUTHKEYS_MODE "disabled"
 #endif
-#ifndef BB_RSHELL_RUN_MODE
-#define BB_RSHELL_RUN_MODE "auto"
+#ifndef GRIT_RSHELL_RUN_MODE
+#define GRIT_RSHELL_RUN_MODE "auto"
 #endif
-#ifndef BB_RSHELL_SESSION_POLICY
-#define BB_RSHELL_SESSION_POLICY "single"
+#ifndef GRIT_RSHELL_SESSION_POLICY
+#define GRIT_RSHELL_SESSION_POLICY "single"
 #endif
-#ifndef BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING
-#define BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING "no"
+#ifndef GRIT_RSHELL_GENERATE_HOSTKEY_IF_MISSING
+#define GRIT_RSHELL_GENERATE_HOSTKEY_IF_MISSING "no"
 #endif
-#ifndef BB_RSHELL_SOCAT_PORT
-#define BB_RSHELL_SOCAT_PORT "22203"
+#ifndef GRIT_RSHELL_SOCAT_PORT
+#define GRIT_RSHELL_SOCAT_PORT "22203"
 #endif
-#ifndef BB_RSHELL_SHELL_PROVIDER
-#define BB_RSHELL_SHELL_PROVIDER "auto"
+#ifndef GRIT_RSHELL_SHELL_PROVIDER
+#define GRIT_RSHELL_SHELL_PROVIDER "auto"
 #endif
-#ifndef BB_RSHELL_CUSTOM_SHELL
-#define BB_RSHELL_CUSTOM_SHELL ""
+#ifndef GRIT_RSHELL_CUSTOM_SHELL
+#define GRIT_RSHELL_CUSTOM_SHELL ""
 #endif
-#ifndef BB_RSHELL_RETRY_COUNT
-#define BB_RSHELL_RETRY_COUNT "1"
+#ifndef GRIT_RSHELL_RETRY_COUNT
+#define GRIT_RSHELL_RETRY_COUNT "1"
 #endif
-#ifndef BB_RSHELL_RETRY_INTERVAL_SEC
-#define BB_RSHELL_RETRY_INTERVAL_SEC "5"
+#ifndef GRIT_RSHELL_RETRY_INTERVAL_SEC
+#define GRIT_RSHELL_RETRY_INTERVAL_SEC "5"
 #endif
-#ifndef BB_RSHELL_RETRY_JITTER_PCT
-#define BB_RSHELL_RETRY_JITTER_PCT "20"
+#ifndef GRIT_RSHELL_RETRY_JITTER_PCT
+#define GRIT_RSHELL_RETRY_JITTER_PCT "20"
 #endif
-#ifndef BB_RSHELL_RETRY_BACKOFF
-#define BB_RSHELL_RETRY_BACKOFF "none"
+#ifndef GRIT_RSHELL_RETRY_BACKOFF
+#define GRIT_RSHELL_RETRY_BACKOFF "none"
 #endif
-#ifndef BB_RSHELL_RETRY_MAX_INTERVAL_SEC
-#define BB_RSHELL_RETRY_MAX_INTERVAL_SEC "300"
+#ifndef GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC
+#define GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC "300"
 #endif
-#ifndef BB_AUTORUN_GUARD_ENABLE
-#define BB_AUTORUN_GUARD_ENABLE "yes"
+#ifndef GRIT_AUTORUN_GUARD_ENABLE
+#define GRIT_AUTORUN_GUARD_ENABLE "yes"
 #endif
-#ifndef BB_AUTORUN_GUARD_PATH
-#define BB_AUTORUN_GUARD_PATH "./.busierbox/run"
+#ifndef GRIT_AUTORUN_GUARD_PATH
+#define GRIT_AUTORUN_GUARD_PATH "./.grit/run"
 #endif
-#ifndef BB_AUTORUN_REENTRY_ACTION
-#define BB_AUTORUN_REENTRY_ACTION "status"
+#ifndef GRIT_AUTORUN_REENTRY_ACTION
+#define GRIT_AUTORUN_REENTRY_ACTION "status"
 #endif
-#ifndef BB_AUTORUN_STALE_LOCK_POLICY
-#define BB_AUTORUN_STALE_LOCK_POLICY "recover"
+#ifndef GRIT_AUTORUN_STALE_LOCK_POLICY
+#define GRIT_AUTORUN_STALE_LOCK_POLICY "recover"
 #endif
-#ifndef BB_OPERATOR_REMOTE_FORWARD_PORT
-#define BB_OPERATOR_REMOTE_FORWARD_PORT "2200"
+#ifndef GRIT_OPERATOR_REMOTE_FORWARD_PORT
+#define GRIT_OPERATOR_REMOTE_FORWARD_PORT "2200"
 #endif
-#ifndef BB_OPERATOR_SERVER_HOST
-#define BB_OPERATOR_SERVER_HOST ""
+#ifndef GRIT_OPERATOR_SERVER_HOST
+#define GRIT_OPERATOR_SERVER_HOST ""
 #endif
-#ifndef BB_OPERATOR_SERVER_USER
-#define BB_OPERATOR_SERVER_USER "operator"
+#ifndef GRIT_OPERATOR_SERVER_USER
+#define GRIT_OPERATOR_SERVER_USER "operator"
 #endif
-#ifndef BB_OPERATOR_SERVER_SSH_PORT
-#define BB_OPERATOR_SERVER_SSH_PORT "22"
+#ifndef GRIT_OPERATOR_SERVER_SSH_PORT
+#define GRIT_OPERATOR_SERVER_SSH_PORT "22"
 #endif
-#ifndef BB_OPERATOR_TARGET_BIND_HOST
-#define BB_OPERATOR_TARGET_BIND_HOST "127.0.0.1"
+#ifndef GRIT_OPERATOR_TARGET_BIND_HOST
+#define GRIT_OPERATOR_TARGET_BIND_HOST "127.0.0.1"
 #endif
-#ifndef BB_OPERATOR_TARGET_DROPBEAR_PORT
-#define BB_OPERATOR_TARGET_DROPBEAR_PORT "2222"
+#ifndef GRIT_OPERATOR_TARGET_DROPBEAR_PORT
+#define GRIT_OPERATOR_TARGET_DROPBEAR_PORT "2222"
 #endif
-#ifndef BB_OPERATOR_KNOWN_HOSTS_POLICY
-#define BB_OPERATOR_KNOWN_HOSTS_POLICY "off"
+#ifndef GRIT_OPERATOR_KNOWN_HOSTS_POLICY
+#define GRIT_OPERATOR_KNOWN_HOSTS_POLICY "off"
 #endif
-#ifndef BB_OPERATOR_FILE_SERVICE_ENABLE
-#define BB_OPERATOR_FILE_SERVICE_ENABLE "no"
+#ifndef GRIT_OPERATOR_FILE_SERVICE_ENABLE
+#define GRIT_OPERATOR_FILE_SERVICE_ENABLE "no"
 #endif
-#ifndef BB_OPERATOR_FILE_SERVICE_PORT
-#define BB_OPERATOR_FILE_SERVICE_PORT "22204"
+#ifndef GRIT_OPERATOR_FILE_SERVICE_PORT
+#define GRIT_OPERATOR_FILE_SERVICE_PORT "22204"
 #endif
-#ifndef BB_OPERATOR_FILE_SERVICE_TLS
-#define BB_OPERATOR_FILE_SERVICE_TLS "yes"
+#ifndef GRIT_OPERATOR_FILE_SERVICE_TLS
+#define GRIT_OPERATOR_FILE_SERVICE_TLS "yes"
 #endif
-#ifndef BB_COMMAND_QUEUE_ENABLE
-#define BB_COMMAND_QUEUE_ENABLE "no"
+#ifndef GRIT_COMMAND_QUEUE_ENABLE
+#define GRIT_COMMAND_QUEUE_ENABLE "no"
 #endif
-#ifndef BB_COMMAND_QUEUE_PORT
-#define BB_COMMAND_QUEUE_PORT "22205"
+#ifndef GRIT_COMMAND_QUEUE_PORT
+#define GRIT_COMMAND_QUEUE_PORT "22205"
 #endif
-#ifndef BB_COMMAND_QUEUE_TLS
-#define BB_COMMAND_QUEUE_TLS "yes"
+#ifndef GRIT_COMMAND_QUEUE_TLS
+#define GRIT_COMMAND_QUEUE_TLS "yes"
 #endif
-#ifndef BB_COMMAND_QUEUE_REQUIRE_TOKEN
-#define BB_COMMAND_QUEUE_REQUIRE_TOKEN "yes"
+#ifndef GRIT_COMMAND_QUEUE_REQUIRE_TOKEN
+#define GRIT_COMMAND_QUEUE_REQUIRE_TOKEN "yes"
 #endif
-#ifndef BB_COMMAND_QUEUE_TOKEN_SOURCE
-#define BB_COMMAND_QUEUE_TOKEN_SOURCE "manual"
+#ifndef GRIT_COMMAND_QUEUE_TOKEN_SOURCE
+#define GRIT_COMMAND_QUEUE_TOKEN_SOURCE "manual"
 #endif
-#ifndef BB_COMMAND_QUEUE_TOKEN
-#define BB_COMMAND_QUEUE_TOKEN ""
+#ifndef GRIT_COMMAND_QUEUE_TOKEN
+#define GRIT_COMMAND_QUEUE_TOKEN ""
 #endif
-#ifndef BB_COMMAND_QUEUE_ALLOWED_COMMANDS
-#define BB_COMMAND_QUEUE_ALLOWED_COMMANDS "none"
+#ifndef GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS
+#define GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS "none"
 #endif
-#ifndef BB_COMMAND_QUEUE_EXECUTION
-#define BB_COMMAND_QUEUE_EXECUTION "metadata-only"
+#ifndef GRIT_COMMAND_QUEUE_EXECUTION
+#define GRIT_COMMAND_QUEUE_EXECUTION "metadata-only"
 #endif
-#ifndef BB_COMMAND_QUEUE_ALLOW_ARBITRARY
-#define BB_COMMAND_QUEUE_ALLOW_ARBITRARY "no"
+#ifndef GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY
+#define GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY "no"
 #endif
-#ifndef BB_COMMAND_QUEUE_POLL_INTERVAL_SEC
-#define BB_COMMAND_QUEUE_POLL_INTERVAL_SEC "5"
+#ifndef GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC
+#define GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC "5"
 #endif
-#ifndef BB_COMMAND_QUEUE_POLL_JITTER_PCT
-#define BB_COMMAND_QUEUE_POLL_JITTER_PCT "0"
+#ifndef GRIT_COMMAND_QUEUE_POLL_JITTER_PCT
+#define GRIT_COMMAND_QUEUE_POLL_JITTER_PCT "0"
 #endif
-#ifndef BB_COMMAND_QUEUE_POLL_BACKOFF
-#define BB_COMMAND_QUEUE_POLL_BACKOFF "none"
+#ifndef GRIT_COMMAND_QUEUE_POLL_BACKOFF
+#define GRIT_COMMAND_QUEUE_POLL_BACKOFF "none"
 #endif
-#ifndef BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC
-#define BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC "300"
+#ifndef GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC
+#define GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC "300"
 #endif
-#ifndef BB_COMMAND_QUEUE_MAX_POLLS
-#define BB_COMMAND_QUEUE_MAX_POLLS "0"
+#ifndef GRIT_COMMAND_QUEUE_MAX_POLLS
+#define GRIT_COMMAND_QUEUE_MAX_POLLS "0"
 #endif
-#ifndef BB_BUILTIN_TLS_ENABLE
-#define BB_BUILTIN_TLS_ENABLE "no"
+#ifndef GRIT_BUILTIN_TLS_ENABLE
+#define GRIT_BUILTIN_TLS_ENABLE "no"
 #endif
 
 struct cfg_entry {
@@ -183,57 +183,57 @@ struct cfg_entry {
 };
 
 static struct cfg_entry cfg[] = {
-    {"BB_RUNTIME_MODE", BB_RUNTIME_MODE, "", 0},
-    {"BB_NORESIDUE_LEVEL", BB_NORESIDUE_LEVEL, "", 0},
-    {"BB_RUNTIME_ROOT", BB_RUNTIME_ROOT, "", 0},
-    {"BB_RUNTIME_ALLOW_FALLBACK_ROOT", BB_RUNTIME_ALLOW_FALLBACK_ROOT, "", 0},
-    {"BB_RUNTIME_FALLBACK_ROOT", BB_RUNTIME_FALLBACK_ROOT, "", 0},
-    {"BB_ZERO_ARG_MODE", BB_ZERO_ARG_MODE, "", 0},
-    {"BB_ZERO_ARG_LOG_MODE", BB_ZERO_ARG_LOG_MODE, "", 0},
-    {"BB_ZERO_ARG_CUSTOM_COMMAND", BB_ZERO_ARG_CUSTOM_COMMAND, "", 0},
-    {"BB_RSHELL_TRANSPORT", BB_RSHELL_TRANSPORT, "", 0},
-    {"BB_RSHELL_ENCRYPTION", BB_RSHELL_ENCRYPTION, "", 0},
-    {"BB_RSHELL_ALLOW_PLAINTEXT", BB_RSHELL_ALLOW_PLAINTEXT, "", 0},
-    {"BB_RSHELL_AUTHKEYS_MODE", BB_RSHELL_AUTHKEYS_MODE, "", 0},
-    {"BB_RSHELL_RUN_MODE", BB_RSHELL_RUN_MODE, "", 0},
-    {"BB_RSHELL_SESSION_POLICY", BB_RSHELL_SESSION_POLICY, "", 0},
-    {"BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING", BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING, "", 0},
-    {"BB_RSHELL_SOCAT_PORT", BB_RSHELL_SOCAT_PORT, "", 0},
-    {"BB_RSHELL_SHELL_PROVIDER", BB_RSHELL_SHELL_PROVIDER, "", 0},
-    {"BB_RSHELL_CUSTOM_SHELL", BB_RSHELL_CUSTOM_SHELL, "", 0},
-    {"BB_RSHELL_RETRY_COUNT", BB_RSHELL_RETRY_COUNT, "", 0},
-    {"BB_RSHELL_RETRY_INTERVAL_SEC", BB_RSHELL_RETRY_INTERVAL_SEC, "", 0},
-    {"BB_RSHELL_RETRY_JITTER_PCT", BB_RSHELL_RETRY_JITTER_PCT, "", 0},
-    {"BB_RSHELL_RETRY_BACKOFF", BB_RSHELL_RETRY_BACKOFF, "", 0},
-    {"BB_RSHELL_RETRY_MAX_INTERVAL_SEC", BB_RSHELL_RETRY_MAX_INTERVAL_SEC, "", 0},
-    {"BB_AUTORUN_GUARD_ENABLE", BB_AUTORUN_GUARD_ENABLE, "", 0},
-    {"BB_AUTORUN_GUARD_PATH", BB_AUTORUN_GUARD_PATH, "", 0},
-    {"BB_AUTORUN_REENTRY_ACTION", BB_AUTORUN_REENTRY_ACTION, "", 0},
-    {"BB_AUTORUN_STALE_LOCK_POLICY", BB_AUTORUN_STALE_LOCK_POLICY, "", 0},
-    {"BB_OPERATOR_REMOTE_FORWARD_PORT", BB_OPERATOR_REMOTE_FORWARD_PORT, "", 0},
-    {"BB_OPERATOR_SERVER_HOST", BB_OPERATOR_SERVER_HOST, "", 0},
-    {"BB_OPERATOR_SERVER_USER", BB_OPERATOR_SERVER_USER, "", 0},
-    {"BB_OPERATOR_SERVER_SSH_PORT", BB_OPERATOR_SERVER_SSH_PORT, "", 0},
-    {"BB_OPERATOR_TARGET_BIND_HOST", BB_OPERATOR_TARGET_BIND_HOST, "", 0},
-    {"BB_OPERATOR_TARGET_DROPBEAR_PORT", BB_OPERATOR_TARGET_DROPBEAR_PORT, "", 0},
-    {"BB_OPERATOR_KNOWN_HOSTS_POLICY", BB_OPERATOR_KNOWN_HOSTS_POLICY, "", 0},
-    {"BB_OPERATOR_FILE_SERVICE_ENABLE", BB_OPERATOR_FILE_SERVICE_ENABLE, "", 0},
-    {"BB_OPERATOR_FILE_SERVICE_PORT", BB_OPERATOR_FILE_SERVICE_PORT, "", 0},
-    {"BB_OPERATOR_FILE_SERVICE_TLS", BB_OPERATOR_FILE_SERVICE_TLS, "", 0},
-    {"BB_COMMAND_QUEUE_ENABLE", BB_COMMAND_QUEUE_ENABLE, "", 0},
-    {"BB_COMMAND_QUEUE_PORT", BB_COMMAND_QUEUE_PORT, "", 0},
-    {"BB_COMMAND_QUEUE_TLS", BB_COMMAND_QUEUE_TLS, "", 0},
-    {"BB_COMMAND_QUEUE_REQUIRE_TOKEN", BB_COMMAND_QUEUE_REQUIRE_TOKEN, "", 0},
-    {"BB_COMMAND_QUEUE_TOKEN_SOURCE", BB_COMMAND_QUEUE_TOKEN_SOURCE, "", 0},
-    {"BB_COMMAND_QUEUE_TOKEN", BB_COMMAND_QUEUE_TOKEN, "", 0},
-    {"BB_COMMAND_QUEUE_ALLOWED_COMMANDS", BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "", 0},
-    {"BB_COMMAND_QUEUE_EXECUTION", BB_COMMAND_QUEUE_EXECUTION, "", 0},
-    {"BB_COMMAND_QUEUE_ALLOW_ARBITRARY", BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "", 0},
-    {"BB_COMMAND_QUEUE_POLL_INTERVAL_SEC", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC, "", 0},
-    {"BB_COMMAND_QUEUE_POLL_JITTER_PCT", BB_COMMAND_QUEUE_POLL_JITTER_PCT, "", 0},
-    {"BB_COMMAND_QUEUE_POLL_BACKOFF", BB_COMMAND_QUEUE_POLL_BACKOFF, "", 0},
-    {"BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC", BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC, "", 0},
-    {"BB_COMMAND_QUEUE_MAX_POLLS", BB_COMMAND_QUEUE_MAX_POLLS, "", 0},
+    {"GRIT_RUNTIME_MODE", GRIT_RUNTIME_MODE, "", 0},
+    {"GRIT_NORESIDUE_LEVEL", GRIT_NORESIDUE_LEVEL, "", 0},
+    {"GRIT_RUNTIME_ROOT", GRIT_RUNTIME_ROOT, "", 0},
+    {"GRIT_RUNTIME_ALLOW_FALLBACK_ROOT", GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "", 0},
+    {"GRIT_RUNTIME_FALLBACK_ROOT", GRIT_RUNTIME_FALLBACK_ROOT, "", 0},
+    {"GRIT_ZERO_ARG_MODE", GRIT_ZERO_ARG_MODE, "", 0},
+    {"GRIT_ZERO_ARG_LOG_MODE", GRIT_ZERO_ARG_LOG_MODE, "", 0},
+    {"GRIT_ZERO_ARG_CUSTOM_COMMAND", GRIT_ZERO_ARG_CUSTOM_COMMAND, "", 0},
+    {"GRIT_RSHELL_TRANSPORT", GRIT_RSHELL_TRANSPORT, "", 0},
+    {"GRIT_RSHELL_ENCRYPTION", GRIT_RSHELL_ENCRYPTION, "", 0},
+    {"GRIT_RSHELL_ALLOW_PLAINTEXT", GRIT_RSHELL_ALLOW_PLAINTEXT, "", 0},
+    {"GRIT_RSHELL_AUTHKEYS_MODE", GRIT_RSHELL_AUTHKEYS_MODE, "", 0},
+    {"GRIT_RSHELL_RUN_MODE", GRIT_RSHELL_RUN_MODE, "", 0},
+    {"GRIT_RSHELL_SESSION_POLICY", GRIT_RSHELL_SESSION_POLICY, "", 0},
+    {"GRIT_RSHELL_GENERATE_HOSTKEY_IF_MISSING", GRIT_RSHELL_GENERATE_HOSTKEY_IF_MISSING, "", 0},
+    {"GRIT_RSHELL_SOCAT_PORT", GRIT_RSHELL_SOCAT_PORT, "", 0},
+    {"GRIT_RSHELL_SHELL_PROVIDER", GRIT_RSHELL_SHELL_PROVIDER, "", 0},
+    {"GRIT_RSHELL_CUSTOM_SHELL", GRIT_RSHELL_CUSTOM_SHELL, "", 0},
+    {"GRIT_RSHELL_RETRY_COUNT", GRIT_RSHELL_RETRY_COUNT, "", 0},
+    {"GRIT_RSHELL_RETRY_INTERVAL_SEC", GRIT_RSHELL_RETRY_INTERVAL_SEC, "", 0},
+    {"GRIT_RSHELL_RETRY_JITTER_PCT", GRIT_RSHELL_RETRY_JITTER_PCT, "", 0},
+    {"GRIT_RSHELL_RETRY_BACKOFF", GRIT_RSHELL_RETRY_BACKOFF, "", 0},
+    {"GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC", GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC, "", 0},
+    {"GRIT_AUTORUN_GUARD_ENABLE", GRIT_AUTORUN_GUARD_ENABLE, "", 0},
+    {"GRIT_AUTORUN_GUARD_PATH", GRIT_AUTORUN_GUARD_PATH, "", 0},
+    {"GRIT_AUTORUN_REENTRY_ACTION", GRIT_AUTORUN_REENTRY_ACTION, "", 0},
+    {"GRIT_AUTORUN_STALE_LOCK_POLICY", GRIT_AUTORUN_STALE_LOCK_POLICY, "", 0},
+    {"GRIT_OPERATOR_REMOTE_FORWARD_PORT", GRIT_OPERATOR_REMOTE_FORWARD_PORT, "", 0},
+    {"GRIT_OPERATOR_SERVER_HOST", GRIT_OPERATOR_SERVER_HOST, "", 0},
+    {"GRIT_OPERATOR_SERVER_USER", GRIT_OPERATOR_SERVER_USER, "", 0},
+    {"GRIT_OPERATOR_SERVER_SSH_PORT", GRIT_OPERATOR_SERVER_SSH_PORT, "", 0},
+    {"GRIT_OPERATOR_TARGET_BIND_HOST", GRIT_OPERATOR_TARGET_BIND_HOST, "", 0},
+    {"GRIT_OPERATOR_TARGET_DROPBEAR_PORT", GRIT_OPERATOR_TARGET_DROPBEAR_PORT, "", 0},
+    {"GRIT_OPERATOR_KNOWN_HOSTS_POLICY", GRIT_OPERATOR_KNOWN_HOSTS_POLICY, "", 0},
+    {"GRIT_OPERATOR_FILE_SERVICE_ENABLE", GRIT_OPERATOR_FILE_SERVICE_ENABLE, "", 0},
+    {"GRIT_OPERATOR_FILE_SERVICE_PORT", GRIT_OPERATOR_FILE_SERVICE_PORT, "", 0},
+    {"GRIT_OPERATOR_FILE_SERVICE_TLS", GRIT_OPERATOR_FILE_SERVICE_TLS, "", 0},
+    {"GRIT_COMMAND_QUEUE_ENABLE", GRIT_COMMAND_QUEUE_ENABLE, "", 0},
+    {"GRIT_COMMAND_QUEUE_PORT", GRIT_COMMAND_QUEUE_PORT, "", 0},
+    {"GRIT_COMMAND_QUEUE_TLS", GRIT_COMMAND_QUEUE_TLS, "", 0},
+    {"GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", GRIT_COMMAND_QUEUE_REQUIRE_TOKEN, "", 0},
+    {"GRIT_COMMAND_QUEUE_TOKEN_SOURCE", GRIT_COMMAND_QUEUE_TOKEN_SOURCE, "", 0},
+    {"GRIT_COMMAND_QUEUE_TOKEN", GRIT_COMMAND_QUEUE_TOKEN, "", 0},
+    {"GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "", 0},
+    {"GRIT_COMMAND_QUEUE_EXECUTION", GRIT_COMMAND_QUEUE_EXECUTION, "", 0},
+    {"GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY, "", 0},
+    {"GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC", GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC, "", 0},
+    {"GRIT_COMMAND_QUEUE_POLL_JITTER_PCT", GRIT_COMMAND_QUEUE_POLL_JITTER_PCT, "", 0},
+    {"GRIT_COMMAND_QUEUE_POLL_BACKOFF", GRIT_COMMAND_QUEUE_POLL_BACKOFF, "", 0},
+    {"GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC", GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC, "", 0},
+    {"GRIT_COMMAND_QUEUE_MAX_POLLS", GRIT_COMMAND_QUEUE_MAX_POLLS, "", 0},
 };
 
 static int loaded;
@@ -487,17 +487,17 @@ void bb_config_print_effective_json(FILE *out, void (*json_string)(FILE *, const
 
 static const char *config_category(const char *key)
 {
-    if (!strncmp(key, "BB_RUNTIME_", strlen("BB_RUNTIME_")) || !strcmp(key, "BB_NORESIDUE_LEVEL"))
+    if (!strncmp(key, "GRIT_RUNTIME_", strlen("GRIT_RUNTIME_")) || !strcmp(key, "GRIT_NORESIDUE_LEVEL"))
         return "runtime";
-    if (!strncmp(key, "BB_ZERO_ARG_", strlen("BB_ZERO_ARG_")))
+    if (!strncmp(key, "GRIT_ZERO_ARG_", strlen("GRIT_ZERO_ARG_")))
         return "zero_arg";
-    if (!strncmp(key, "BB_RSHELL_", strlen("BB_RSHELL_")))
+    if (!strncmp(key, "GRIT_RSHELL_", strlen("GRIT_RSHELL_")))
         return "rshell";
-    if (!strncmp(key, "BB_AUTORUN_", strlen("BB_AUTORUN_")))
+    if (!strncmp(key, "GRIT_AUTORUN_", strlen("GRIT_AUTORUN_")))
         return "autorun";
-    if (!strncmp(key, "BB_OPERATOR_", strlen("BB_OPERATOR_")))
+    if (!strncmp(key, "GRIT_OPERATOR_", strlen("GRIT_OPERATOR_")))
         return "operator";
-    if (!strncmp(key, "BB_COMMAND_QUEUE_", strlen("BB_COMMAND_QUEUE_")))
+    if (!strncmp(key, "GRIT_COMMAND_QUEUE_", strlen("GRIT_COMMAND_QUEUE_")))
         return "command_queue";
     return "other";
 }
@@ -673,13 +673,13 @@ void bb_config_print_runtime_summary_json(FILE *out, void (*json_string)(FILE *,
 
 static int operator_reverse_ssh_possible(void)
 {
-    return !strcmp(bb_config_get("BB_RSHELL_TRANSPORT"), "ssh");
+    return !strcmp(bb_config_get("GRIT_RSHELL_TRANSPORT"), "ssh");
 }
 
 static void print_noresidue_policy_json(FILE *out)
 {
-    const char *runtime_mode = bb_config_get("BB_RUNTIME_MODE");
-    const char *level = bb_config_get("BB_NORESIDUE_LEVEL");
+    const char *runtime_mode = bb_config_get("GRIT_RUNTIME_MODE");
+    const char *level = bb_config_get("GRIT_NORESIDUE_LEVEL");
     int active = !strcmp(runtime_mode, "no-residue");
     int aggressive = !strcmp(level, "aggressive");
 
@@ -687,19 +687,19 @@ static void print_noresidue_policy_json(FILE *out)
     bb_json_string(out, level);
     fprintf(out, ",\"runtime_mode\":");
     bb_json_string(out, runtime_mode);
-    fprintf(out, ",\"cleanup_scope\":\"BusierBox-owned runtime roots and ledgered files only\"");
+    fprintf(out, ",\"cleanup_scope\":\"griTTYkit-owned runtime roots and ledgered files only\"");
     fprintf(out, ",\"best_effort\":true");
     fprintf(out, ",\"aggressive_minimizes_runtime_residue\":%s", aggressive ? "true" : "false");
     fprintf(out, ",\"persistent_target_logs_default\":");
     bb_json_string(out, aggressive ? "no" : "configured");
     fprintf(out, ",\"stdout_stderr_log_suppression\":");
-    bb_json_string(out, aggressive ? "BB_ZERO_ARG_LOG_MODE=none" : "available via BB_ZERO_ARG_LOG_MODE=none");
+    bb_json_string(out, aggressive ? "GRIT_ZERO_ARG_LOG_MODE=none" : "available via GRIT_ZERO_ARG_LOG_MODE=none");
     fprintf(out, ",\"in_memory_log_guarantee\":false");
     fprintf(out, ",\"forensic_no_trace\":false");
     fprintf(out, ",\"external_writes_require_explicit_apply\":true");
     fprintf(out, ",\"guarantee\":");
     bb_json_string(out, aggressive ?
-        "aggressive minimizes BusierBox runtime residue but cannot guarantee absence of residue" :
+        "aggressive minimizes griTTYkit runtime residue but cannot guarantee absence of residue" :
         "best-effort cleanup removes owned runtime state where reasonable");
     fprintf(out, "}");
 }
@@ -710,96 +710,96 @@ static const char *rshell_session_post_disconnect_retry_count(const char *policy
 
 void bb_print_autoexec_config(void)
 {
-    const char *zero_arg_custom_command = bb_config_get("BB_ZERO_ARG_CUSTOM_COMMAND");
-    const char *rshell_policy = bb_config_get("BB_RSHELL_SESSION_POLICY");
+    const char *zero_arg_custom_command = bb_config_get("GRIT_ZERO_ARG_CUSTOM_COMMAND");
+    const char *rshell_policy = bb_config_get("GRIT_RSHELL_SESSION_POLICY");
     int rshell_reconnects = rshell_session_policy_reconnects(rshell_policy);
 
-    printf("zero_arg_mode=%s\n", bb_config_get("BB_ZERO_ARG_MODE"));
-    printf("runtime_mode=%s\n", bb_config_get("BB_RUNTIME_MODE"));
-    printf("noresidue_level=%s\n", bb_config_get("BB_NORESIDUE_LEVEL"));
-    printf("runtime_root=%s\n", bb_config_get("BB_RUNTIME_ROOT"));
-    printf("runtime_allow_fallback_root=%s\n", bb_config_get("BB_RUNTIME_ALLOW_FALLBACK_ROOT"));
-    printf("runtime_fallback_root=%s\n", bb_config_get("BB_RUNTIME_FALLBACK_ROOT"));
-    printf("zero_arg_log_mode=%s\n", bb_config_get("BB_ZERO_ARG_LOG_MODE"));
+    printf("zero_arg_mode=%s\n", bb_config_get("GRIT_ZERO_ARG_MODE"));
+    printf("runtime_mode=%s\n", bb_config_get("GRIT_RUNTIME_MODE"));
+    printf("noresidue_level=%s\n", bb_config_get("GRIT_NORESIDUE_LEVEL"));
+    printf("runtime_root=%s\n", bb_config_get("GRIT_RUNTIME_ROOT"));
+    printf("runtime_allow_fallback_root=%s\n", bb_config_get("GRIT_RUNTIME_ALLOW_FALLBACK_ROOT"));
+    printf("runtime_fallback_root=%s\n", bb_config_get("GRIT_RUNTIME_FALLBACK_ROOT"));
+    printf("zero_arg_log_mode=%s\n", bb_config_get("GRIT_ZERO_ARG_LOG_MODE"));
     printf("zero_arg_custom_command_set=%s\n", zero_arg_custom_command[0] ? "yes" : "no");
-    printf("rshell_transport=%s\n", bb_config_get("BB_RSHELL_TRANSPORT"));
-    printf("rshell_encryption=%s\n", bb_config_get("BB_RSHELL_ENCRYPTION"));
-    printf("rshell_allow_plaintext=%s\n", bb_config_get("BB_RSHELL_ALLOW_PLAINTEXT"));
-    printf("rshell_authkeys_mode=%s\n", bb_config_get("BB_RSHELL_AUTHKEYS_MODE"));
-    printf("rshell_run_mode=%s\n", bb_config_get("BB_RSHELL_RUN_MODE"));
+    printf("rshell_transport=%s\n", bb_config_get("GRIT_RSHELL_TRANSPORT"));
+    printf("rshell_encryption=%s\n", bb_config_get("GRIT_RSHELL_ENCRYPTION"));
+    printf("rshell_allow_plaintext=%s\n", bb_config_get("GRIT_RSHELL_ALLOW_PLAINTEXT"));
+    printf("rshell_authkeys_mode=%s\n", bb_config_get("GRIT_RSHELL_AUTHKEYS_MODE"));
+    printf("rshell_run_mode=%s\n", bb_config_get("GRIT_RSHELL_RUN_MODE"));
     printf("rshell_session_policy=%s\n", rshell_policy);
     printf("rshell_session_policy_valid=%s\n", rshell_session_policy_valid(rshell_policy) ? "yes" : "no");
     printf("rshell_retry_scope=%s\n", rshell_reconnects ? "pre-connect+post-disconnect" : "pre-connect");
-    printf("rshell_pre_connect_retry_count=%s\n", bb_config_get("BB_RSHELL_RETRY_COUNT"));
+    printf("rshell_pre_connect_retry_count=%s\n", bb_config_get("GRIT_RSHELL_RETRY_COUNT"));
     printf("rshell_post_disconnect_retry_count=%s\n", rshell_session_post_disconnect_retry_count(rshell_policy));
     printf("rshell_stop_after_first_success=%s\n", !strcmp(rshell_policy, "single") ? "yes" : "no");
     printf("rshell_reconnect_after_disconnect=%s\n", rshell_reconnects ? "yes" : "no");
     printf("rshell_persistent_lifecycle=%s\n", !strcmp(rshell_policy, "persistent") ? "yes" : "no");
     printf("rshell_fresh_session_on_reconnect=%s\n", rshell_reconnects ? "yes" : "no");
     printf("rshell_session_resume_supported=no\n");
-    printf("rshell_generate_hostkey_if_missing=%s\n", bb_config_get("BB_RSHELL_GENERATE_HOSTKEY_IF_MISSING"));
-    printf("rshell_socat_port=%s\n", bb_config_get("BB_RSHELL_SOCAT_PORT"));
-    printf("rshell_shell_provider=%s\n", bb_config_get("BB_RSHELL_SHELL_PROVIDER"));
-    printf("rshell_retry_count=%s\n", bb_config_get("BB_RSHELL_RETRY_COUNT"));
-    printf("rshell_retry_interval_sec=%s\n", bb_config_get("BB_RSHELL_RETRY_INTERVAL_SEC"));
-    printf("rshell_retry_jitter_pct=%s\n", bb_config_get("BB_RSHELL_RETRY_JITTER_PCT"));
-    printf("rshell_retry_backoff=%s\n", bb_config_get("BB_RSHELL_RETRY_BACKOFF"));
-    printf("rshell_retry_max_interval_sec=%s\n", bb_config_get("BB_RSHELL_RETRY_MAX_INTERVAL_SEC"));
-    printf("builtin_tls_enabled=%s\n", BB_BUILTIN_TLS_ENABLE);
-    printf("rshell_operator_host=%s\n", bb_config_get("BB_OPERATOR_SERVER_HOST"));
-    printf("rshell_target_dropbear_port=%s\n", bb_config_get("BB_OPERATOR_TARGET_DROPBEAR_PORT"));
-    printf("operator_file_service_enable=%s\n", bb_config_get("BB_OPERATOR_FILE_SERVICE_ENABLE"));
-    printf("operator_file_service_port=%s\n", bb_config_get("BB_OPERATOR_FILE_SERVICE_PORT"));
-    printf("operator_file_service_tls=%s\n", bb_config_get("BB_OPERATOR_FILE_SERVICE_TLS"));
-    printf("command_queue_enable=%s\n", bb_config_get("BB_COMMAND_QUEUE_ENABLE"));
-    printf("command_queue_port=%s\n", bb_config_get("BB_COMMAND_QUEUE_PORT"));
-    printf("command_queue_tls=%s\n", bb_config_get("BB_COMMAND_QUEUE_TLS"));
-    printf("command_queue_require_token=%s\n", bb_config_get("BB_COMMAND_QUEUE_REQUIRE_TOKEN"));
-    printf("command_queue_token_source=%s\n", bb_config_get("BB_COMMAND_QUEUE_TOKEN_SOURCE"));
-    printf("command_queue_token_set=%s\n", bb_config_get("BB_COMMAND_QUEUE_TOKEN")[0] ? "yes" : "no");
-    printf("command_queue_allowed_commands=%s\n", bb_config_get("BB_COMMAND_QUEUE_ALLOWED_COMMANDS"));
-    printf("command_queue_execution=%s\n", bb_config_get("BB_COMMAND_QUEUE_EXECUTION"));
-    printf("command_queue_allow_arbitrary=%s\n", bb_config_get("BB_COMMAND_QUEUE_ALLOW_ARBITRARY"));
-    printf("command_queue_poll_interval_sec=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"));
-    printf("command_queue_poll_jitter_pct=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_JITTER_PCT"));
-    printf("command_queue_poll_backoff=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_BACKOFF"));
-    printf("command_queue_poll_max_interval_sec=%s\n", bb_config_get("BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC"));
-    printf("command_queue_max_polls=%s\n", bb_config_get("BB_COMMAND_QUEUE_MAX_POLLS"));
-    printf("autorun_guard_enabled=%s\n", bb_config_get("BB_AUTORUN_GUARD_ENABLE"));
-    printf("autorun_guard_path=%s\n", bb_config_get("BB_AUTORUN_GUARD_PATH"));
-    printf("autorun_reentry_action=%s\n", bb_config_get("BB_AUTORUN_REENTRY_ACTION"));
-    printf("autorun_stale_lock_policy=%s\n", bb_config_get("BB_AUTORUN_STALE_LOCK_POLICY"));
+    printf("rshell_generate_hostkey_if_missing=%s\n", bb_config_get("GRIT_RSHELL_GENERATE_HOSTKEY_IF_MISSING"));
+    printf("rshell_socat_port=%s\n", bb_config_get("GRIT_RSHELL_SOCAT_PORT"));
+    printf("rshell_shell_provider=%s\n", bb_config_get("GRIT_RSHELL_SHELL_PROVIDER"));
+    printf("rshell_retry_count=%s\n", bb_config_get("GRIT_RSHELL_RETRY_COUNT"));
+    printf("rshell_retry_interval_sec=%s\n", bb_config_get("GRIT_RSHELL_RETRY_INTERVAL_SEC"));
+    printf("rshell_retry_jitter_pct=%s\n", bb_config_get("GRIT_RSHELL_RETRY_JITTER_PCT"));
+    printf("rshell_retry_backoff=%s\n", bb_config_get("GRIT_RSHELL_RETRY_BACKOFF"));
+    printf("rshell_retry_max_interval_sec=%s\n", bb_config_get("GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC"));
+    printf("builtin_tls_enabled=%s\n", GRIT_BUILTIN_TLS_ENABLE);
+    printf("rshell_operator_host=%s\n", bb_config_get("GRIT_OPERATOR_SERVER_HOST"));
+    printf("rshell_target_dropbear_port=%s\n", bb_config_get("GRIT_OPERATOR_TARGET_DROPBEAR_PORT"));
+    printf("operator_file_service_enable=%s\n", bb_config_get("GRIT_OPERATOR_FILE_SERVICE_ENABLE"));
+    printf("operator_file_service_port=%s\n", bb_config_get("GRIT_OPERATOR_FILE_SERVICE_PORT"));
+    printf("operator_file_service_tls=%s\n", bb_config_get("GRIT_OPERATOR_FILE_SERVICE_TLS"));
+    printf("command_queue_enable=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_ENABLE"));
+    printf("command_queue_port=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_PORT"));
+    printf("command_queue_tls=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_TLS"));
+    printf("command_queue_require_token=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN"));
+    printf("command_queue_token_source=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_TOKEN_SOURCE"));
+    printf("command_queue_token_set=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_TOKEN")[0] ? "yes" : "no");
+    printf("command_queue_allowed_commands=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS"));
+    printf("command_queue_execution=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_EXECUTION"));
+    printf("command_queue_allow_arbitrary=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY"));
+    printf("command_queue_poll_interval_sec=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC"));
+    printf("command_queue_poll_jitter_pct=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_POLL_JITTER_PCT"));
+    printf("command_queue_poll_backoff=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_POLL_BACKOFF"));
+    printf("command_queue_poll_max_interval_sec=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC"));
+    printf("command_queue_max_polls=%s\n", bb_config_get("GRIT_COMMAND_QUEUE_MAX_POLLS"));
+    printf("autorun_guard_enabled=%s\n", bb_config_get("GRIT_AUTORUN_GUARD_ENABLE"));
+    printf("autorun_guard_path=%s\n", bb_config_get("GRIT_AUTORUN_GUARD_PATH"));
+    printf("autorun_reentry_action=%s\n", bb_config_get("GRIT_AUTORUN_REENTRY_ACTION"));
+    printf("autorun_stale_lock_policy=%s\n", bb_config_get("GRIT_AUTORUN_STALE_LOCK_POLICY"));
     printf("operator_reverse_ssh_possible=%s\n", operator_reverse_ssh_possible() ? "yes" : "no");
     printf("operator_reverse_ssh_catch_hint=ssh -p %s root@127.0.0.1\n",
-           bb_config_get("BB_OPERATOR_REMOTE_FORWARD_PORT"));
+           bb_config_get("GRIT_OPERATOR_REMOTE_FORWARD_PORT"));
 }
 
 static void rshell_server_listener(char *out, size_t outsz)
 {
-    const char *transport = bb_config_get("BB_RSHELL_TRANSPORT");
-    const char *encryption = bb_config_get("BB_RSHELL_ENCRYPTION");
-    const char *shell_port = bb_config_get("BB_RSHELL_SOCAT_PORT");
-    const char *ssh_port = bb_config_get("BB_OPERATOR_SERVER_SSH_PORT");
+    const char *transport = bb_config_get("GRIT_RSHELL_TRANSPORT");
+    const char *encryption = bb_config_get("GRIT_RSHELL_ENCRYPTION");
+    const char *shell_port = bb_config_get("GRIT_RSHELL_SOCAT_PORT");
+    const char *ssh_port = bb_config_get("GRIT_OPERATOR_SERVER_SSH_PORT");
 
     if (!strcmp(transport, "ssh"))
-        snprintf(out, outsz, "scripts/busierbox-server --transport ssh --ssh-port %s", ssh_port);
+        snprintf(out, outsz, "scripts/grit-server --transport ssh --ssh-port %s", ssh_port);
     else if (!strcmp(encryption, "none"))
-        snprintf(out, outsz, "scripts/busierbox-server --transport plain-shell --shell-port %s", shell_port);
+        snprintf(out, outsz, "scripts/grit-server --transport plain-shell --shell-port %s", shell_port);
     else
-        snprintf(out, outsz, "scripts/busierbox-server --transport tls-shell --shell-port %s", shell_port);
+        snprintf(out, outsz, "scripts/grit-server --transport tls-shell --shell-port %s", shell_port);
 }
 
 static void rshell_connect_hint(char *out, size_t outsz)
 {
-    const char *transport = bb_config_get("BB_RSHELL_TRANSPORT");
-    const char *remote_forward_port = bb_config_get("BB_OPERATOR_REMOTE_FORWARD_PORT");
+    const char *transport = bb_config_get("GRIT_RSHELL_TRANSPORT");
+    const char *remote_forward_port = bb_config_get("GRIT_OPERATOR_REMOTE_FORWARD_PORT");
 
     if (!strcmp(transport, "ssh"))
         snprintf(out, outsz, "ssh -p %s root@127.0.0.1", remote_forward_port);
     else if (!strcmp(transport, "none"))
         snprintf(out, outsz, "reverse access disabled");
     else
-        snprintf(out, outsz, "shell stream is attached by scripts/busierbox-server");
+        snprintf(out, outsz, "shell stream is attached by scripts/grit-server");
 }
 
 static int rshell_session_policy_valid(const char *policy)
@@ -820,23 +820,23 @@ static const char *rshell_session_post_disconnect_retry_count(const char *policy
         return "0";
     if (!strcmp(policy, "persistent"))
         return "-1";
-    return bb_config_get("BB_RSHELL_RETRY_COUNT");
+    return bb_config_get("GRIT_RSHELL_RETRY_COUNT");
 }
 
 void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *, const char *))
 {
-    const char *transport = bb_config_get("BB_RSHELL_TRANSPORT");
-    const char *encryption = bb_config_get("BB_RSHELL_ENCRYPTION");
-    const char *run_mode = bb_config_get("BB_RSHELL_RUN_MODE");
-    const char *session_policy = bb_config_get("BB_RSHELL_SESSION_POLICY");
-    const char *zero_arg_mode = bb_config_get("BB_ZERO_ARG_MODE");
-    const char *operator_host = bb_config_get("BB_OPERATOR_SERVER_HOST");
-    const char *shell_port = bb_config_get("BB_RSHELL_SOCAT_PORT");
-    const char *ssh_port = bb_config_get("BB_OPERATOR_SERVER_SSH_PORT");
-    const char *remote_forward_port = bb_config_get("BB_OPERATOR_REMOTE_FORWARD_PORT");
-    const char *target_bind_host = bb_config_get("BB_OPERATOR_TARGET_BIND_HOST");
-    const char *target_dropbear_port = bb_config_get("BB_OPERATOR_TARGET_DROPBEAR_PORT");
-    const char *retry_count = bb_config_get("BB_RSHELL_RETRY_COUNT");
+    const char *transport = bb_config_get("GRIT_RSHELL_TRANSPORT");
+    const char *encryption = bb_config_get("GRIT_RSHELL_ENCRYPTION");
+    const char *run_mode = bb_config_get("GRIT_RSHELL_RUN_MODE");
+    const char *session_policy = bb_config_get("GRIT_RSHELL_SESSION_POLICY");
+    const char *zero_arg_mode = bb_config_get("GRIT_ZERO_ARG_MODE");
+    const char *operator_host = bb_config_get("GRIT_OPERATOR_SERVER_HOST");
+    const char *shell_port = bb_config_get("GRIT_RSHELL_SOCAT_PORT");
+    const char *ssh_port = bb_config_get("GRIT_OPERATOR_SERVER_SSH_PORT");
+    const char *remote_forward_port = bb_config_get("GRIT_OPERATOR_REMOTE_FORWARD_PORT");
+    const char *target_bind_host = bb_config_get("GRIT_OPERATOR_TARGET_BIND_HOST");
+    const char *target_dropbear_port = bb_config_get("GRIT_OPERATOR_TARGET_DROPBEAR_PORT");
+    const char *retry_count = bb_config_get("GRIT_RSHELL_RETRY_COUNT");
     const char *post_disconnect_retry_count = rshell_session_post_disconnect_retry_count(session_policy);
     int policy_valid = rshell_session_policy_valid(session_policy);
     int reconnects = rshell_session_policy_reconnects(session_policy);
@@ -887,13 +887,13 @@ void bb_config_print_rshell_readiness_json(FILE *out, void (*json_string)(FILE *
     fprintf(out, ",\"retry\":{\"count\":");
     json_string(out, retry_count);
     fprintf(out, ",\"interval_sec\":");
-    json_string(out, bb_config_get("BB_RSHELL_RETRY_INTERVAL_SEC"));
+    json_string(out, bb_config_get("GRIT_RSHELL_RETRY_INTERVAL_SEC"));
     fprintf(out, ",\"jitter_pct\":");
-    json_string(out, bb_config_get("BB_RSHELL_RETRY_JITTER_PCT"));
+    json_string(out, bb_config_get("GRIT_RSHELL_RETRY_JITTER_PCT"));
     fprintf(out, ",\"backoff\":");
-    json_string(out, bb_config_get("BB_RSHELL_RETRY_BACKOFF"));
+    json_string(out, bb_config_get("GRIT_RSHELL_RETRY_BACKOFF"));
     fprintf(out, ",\"max_interval_sec\":");
-    json_string(out, bb_config_get("BB_RSHELL_RETRY_MAX_INTERVAL_SEC"));
+    json_string(out, bb_config_get("GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC"));
     fprintf(out, ",\"pre_connect_count\":");
     json_string(out, retry_count);
     fprintf(out, ",\"post_disconnect_count\":");
@@ -950,11 +950,11 @@ int applet_runtime_config_main(int argc, char **argv)
     size_t j;
     struct command_queue_policy_report command_queue_policy = bb_command_queue_validate_policy();
     int command_queue_policy_valid = bb_command_queue_policy_valid(&command_queue_policy);
-    const char *rshell_policy = bb_config_get("BB_RSHELL_SESSION_POLICY");
+    const char *rshell_policy = bb_config_get("GRIT_RSHELL_SESSION_POLICY");
     int rshell_reconnects = rshell_session_policy_reconnects(rshell_policy);
 
     if (argc > 1 && (!strcmp(argv[1], "--help") || !strcmp(argv[1], "-h"))) {
-        puts("usage: busierbox runtime-config [--json]");
+        puts("usage: grit runtime-config [--json]");
         puts("Print compiled, trailer, environment, CLI, and effective runtime configuration.");
         return 0;
     }
@@ -992,20 +992,20 @@ int applet_runtime_config_main(int argc, char **argv)
         fputs(",\"command_queue_policy\":{\"valid\":", stdout);
         fputs(command_queue_policy_valid ? "true" : "false", stdout);
         fputs(",\"enabled\":", stdout);
-        fputs(!strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") ? "true" : "false", stdout);
+        fputs(!strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") ? "true" : "false", stdout);
         fputs(",\"default_enabled\":false", stdout);
         fputs(",\"configured_for_polling\":", stdout);
-        fputs((command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && BB_OPERATOR_SERVER_HOST[0]) ? "true" : "false", stdout);
+        fputs((command_queue_policy_valid && !strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") && GRIT_OPERATOR_SERVER_HOST[0]) ? "true" : "false", stdout);
         fputs(",\"missing_operator_host\":", stdout);
-        fputs((command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !BB_OPERATOR_SERVER_HOST[0]) ? "true" : "false", stdout);
+        fputs((command_queue_policy_valid && !strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") && !GRIT_OPERATOR_SERVER_HOST[0]) ? "true" : "false", stdout);
         fputs(",\"token_required\":", stdout);
-        fputs(!strcmp(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false", stdout);
+        fputs(!strcmp(GRIT_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false", stdout);
         fputs(",\"token_configured\":", stdout);
-        fputs(BB_COMMAND_QUEUE_TOKEN[0] ? "true" : "false", stdout);
+        fputs(GRIT_COMMAND_QUEUE_TOKEN[0] ? "true" : "false", stdout);
         fputs(",\"execution_mode\":", stdout);
-        bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
+        bb_json_string(stdout, GRIT_COMMAND_QUEUE_EXECUTION);
         fputs(",\"metadata_only_default\":", stdout);
-        fputs(!strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false", stdout);
+        fputs(!strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false", stdout);
         fputs(",\"poll_transport_supported\":true", stdout);
         fputs(",\"live_polling_supported\":true", stdout);
         fputs(",\"delivery_supported\":false", stdout);
@@ -1015,10 +1015,10 @@ int applet_runtime_config_main(int argc, char **argv)
         fputs(",\"active_control_channel\":false", stdout);
         fputs(",\"operator_supplied_command_execution\":false", stdout);
         fputs(",\"arbitrary_policy_requested\":", stdout);
-        fputs((command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes")) ? "true" : "false", stdout);
+        fputs((command_queue_policy_valid && !strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && !strcmp(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes")) ? "true" : "false", stdout);
         fputs(",\"arbitrary_execution_allowed\":false", stdout);
         fputs(",\"safe_disabled_default\":", stdout);
-        fputs((command_queue_policy_valid && strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "true" : "false", stdout);
+        fputs((command_queue_policy_valid && strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") && !strcmp(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "true" : "false", stdout);
         fputs(",\"errors\":[", stdout);
         for (i = 0; i < command_queue_policy.count; i++) {
             if (i)
@@ -1038,10 +1038,10 @@ int applet_runtime_config_main(int argc, char **argv)
     printf("environment_override_count=%d\n", env_override_count());
     printf("cli_override_count=%d\n", cli_override_count());
     printf("command_queue_policy_valid=%s\n", command_queue_policy_valid ? "yes" : "no");
-    printf("command_queue_configured_for_polling=%s\n", (command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && BB_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
-    printf("command_queue_missing_operator_host=%s\n", (command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !BB_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
-    printf("command_queue_execution_mode=%s\n", BB_COMMAND_QUEUE_EXECUTION);
-    printf("command_queue_metadata_only_default=%s\n", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "yes" : "no");
+    printf("command_queue_configured_for_polling=%s\n", (command_queue_policy_valid && !strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") && GRIT_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
+    printf("command_queue_missing_operator_host=%s\n", (command_queue_policy_valid && !strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") && !GRIT_OPERATOR_SERVER_HOST[0]) ? "yes" : "no");
+    printf("command_queue_execution_mode=%s\n", GRIT_COMMAND_QUEUE_EXECUTION);
+    printf("command_queue_metadata_only_default=%s\n", !strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "yes" : "no");
     puts("command_queue_poll_transport_supported=yes");
     puts("command_queue_live_polling_supported=yes");
     puts("command_queue_delivery_supported=no");
@@ -1050,15 +1050,15 @@ int applet_runtime_config_main(int argc, char **argv)
     puts("command_queue_executes_commands=no");
     puts("command_queue_active_control_channel=no");
     puts("command_queue_operator_supplied_command_execution=no");
-    printf("command_queue_arbitrary_policy_requested=%s\n", (command_queue_policy_valid && !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes")) ? "yes" : "no");
+    printf("command_queue_arbitrary_policy_requested=%s\n", (command_queue_policy_valid && !strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && !strcmp(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes")) ? "yes" : "no");
     puts("command_queue_arbitrary_execution_allowed=no");
-    printf("command_queue_safe_disabled_default=%s\n", (command_queue_policy_valid && strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") && !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "yes" : "no");
+    printf("command_queue_safe_disabled_default=%s\n", (command_queue_policy_valid && strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") && !strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") && !strcmp(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY, "no")) ? "yes" : "no");
     for (i = 0; i < command_queue_policy.count; i++)
         printf("command_queue_policy_error=%s\n", command_queue_policy.errors[i]);
     printf("rshell_session_policy=%s\n", rshell_policy);
     printf("rshell_session_policy_valid=%s\n", rshell_session_policy_valid(rshell_policy) ? "yes" : "no");
     printf("rshell_retry_scope=%s\n", rshell_reconnects ? "pre-connect+post-disconnect" : "pre-connect");
-    printf("rshell_pre_connect_retry_count=%s\n", bb_config_get("BB_RSHELL_RETRY_COUNT"));
+    printf("rshell_pre_connect_retry_count=%s\n", bb_config_get("GRIT_RSHELL_RETRY_COUNT"));
     printf("rshell_post_disconnect_retry_count=%s\n", rshell_session_post_disconnect_retry_count(rshell_policy));
     printf("rshell_stop_after_first_success=%s\n", !strcmp(rshell_policy, "single") ? "yes" : "no");
     printf("rshell_reconnect_after_disconnect=%s\n", rshell_reconnects ? "yes" : "no");

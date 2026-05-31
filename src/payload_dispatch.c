@@ -56,7 +56,7 @@ static void set_payload_env(const char *payload)
         snprintf(path, sizeof(path), "%s", old_path);
     snprintf(home, sizeof(home), "%s/home", payload);
     snprintf(lib, sizeof(lib), "%s/lib", payload);
-    setenv("BUSIERBOX_PAYLOAD_DIR", payload, 1);
+    setenv("GRIT_PAYLOAD_DIR", payload, 1);
     setenv("PATH", path, 1);
     setenv("HOME", home, 1);
     if (!getenv("TERM"))
@@ -83,7 +83,7 @@ static void set_payload_env(const char *payload)
 static int execv_alloc(const char *path, char **argv)
 {
     execv(path, argv);
-    fprintf(stderr, "busierbox: exec %s failed: %s\n", path, strerror(errno));
+    fprintf(stderr, "grit: exec %s failed: %s\n", path, strerror(errno));
     return errno == ENOENT ? 127 : 126;
 }
 
@@ -108,19 +108,19 @@ static void no_residue_signal_handler(int sig)
 
 static void cleanup_no_residue_root(const char *root, const char *detail)
 {
-    const char *runtime_root = bb_config_get("BB_RUNTIME_ROOT");
-    const char *fallback_root = bb_config_get("BB_RUNTIME_FALLBACK_ROOT");
+    const char *runtime_root = bb_config_get("GRIT_RUNTIME_ROOT");
+    const char *fallback_root = bb_config_get("GRIT_RUNTIME_FALLBACK_ROOT");
 
     if (!root || !root[0])
         return;
     /*
-     * no-residue cleanup owns only BusierBox runtime roots.  Refuse any other
+     * no-residue cleanup owns only griTTYkit runtime roots.  Refuse any other
      * path before calling the shared recursive remover so interrupted payload
      * commands cannot turn a stale or malformed payload path into broad deletion.
      */
     if (strcmp(root, runtime_root) && strcmp(root, fallback_root))
         return;
-    if (!strcmp(bb_config_get("BB_NORESIDUE_LEVEL"), "aggressive"))
+    if (!strcmp(bb_config_get("GRIT_NORESIDUE_LEVEL"), "aggressive"))
         bb_ledger_record("remove", root, "runtime", "aggressive no-residue cleanup");
     else
         bb_ledger_record("remove", root, "runtime", detail);
@@ -134,7 +134,7 @@ static int exec_payload_command(const char *path, char **argv, const char *paylo
     char root[PATH_MAX];
     struct sigaction sa, old_int, old_term, old_hup, old_quit;
 
-    if (strcmp(bb_config_get("BB_RUNTIME_MODE"), "no-residue") != 0)
+    if (strcmp(bb_config_get("GRIT_RUNTIME_MODE"), "no-residue") != 0)
         return execv_alloc(path, argv);
 
     payload_root_from_payload(payload, root, sizeof(root));
@@ -142,13 +142,13 @@ static int exec_payload_command(const char *path, char **argv, const char *paylo
 
     pid = fork();
     if (pid < 0) {
-        fprintf(stderr, "busierbox: fork %s failed: %s\n", path, strerror(errno));
+        fprintf(stderr, "grit: fork %s failed: %s\n", path, strerror(errno));
         cleanup_no_residue_root(root, "no-residue fork failure");
         return 1;
     }
     if (pid == 0) {
         execv(path, argv);
-        fprintf(stderr, "busierbox: exec %s failed: %s\n", path, strerror(errno));
+        fprintf(stderr, "grit: exec %s failed: %s\n", path, strerror(errno));
         _exit(errno == ENOENT ? 127 : 126);
     }
 
@@ -190,13 +190,13 @@ int bb_exec_payload_applet(const char *name, int argc, char **argv)
     int i;
 
     if (!bb_payload_tool_supported(name)) {
-        fprintf(stderr, "busierbox: %s: applet not found\n\n", name);
+        fprintf(stderr, "grit: %s: applet not found\n\n", name);
         bb_print_applet_list(stderr);
         return 127;
     }
 
     if (bb_ensure_payload_mode(payload, sizeof(payload), bb_payload_tool_is_heavy(name)) != 0) {
-        fprintf(stderr, "busierbox: payload unavailable; run 'busierbox extract' after creating dist/payload.tar.gz\n");
+        fprintf(stderr, "grit: payload unavailable; run 'grit extract' after creating dist/payload.tar.gz\n");
         return 127;
     }
     set_payload_env(payload);
@@ -227,13 +227,13 @@ int bb_exec_payload_applet(const char *name, int argc, char **argv)
     for (i = 1; i < argc; i++)
         child[i + 1] = argv[i];
     child[argc + 1] = NULL;
-    if (strcmp(bb_config_get("BB_RUNTIME_MODE"), "no-residue") == 0) {
+    if (strcmp(bb_config_get("GRIT_RUNTIME_MODE"), "no-residue") == 0) {
         int ret = exec_payload_command(exe, child, payload);
         free(child);
         return ret;
     }
     execv(exe, child);
-    fprintf(stderr, "busierbox: exec BusyBox applet %s failed: %s\n", name, strerror(errno));
+    fprintf(stderr, "grit: exec BusyBox applet %s failed: %s\n", name, strerror(errno));
     free(child);
     return errno == ENOENT ? 127 : 126;
 }

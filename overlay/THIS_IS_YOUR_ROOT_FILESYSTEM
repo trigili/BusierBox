@@ -12,6 +12,6 @@ into a mipsel build) use a subdirectory named after the target:
   mipsel-linux-musl-host/bin/mytool
 
 Run "make menuconfig" > Payload Options > User overlay to enable,
-or set BB_USER_OVERLAY_ENABLE=yes BB_USER_OVERLAY_ROOT=./overlay.
+or set GRIT_USER_OVERLAY_ENABLE=yes GRIT_USER_OVERLAY_ROOT=./overlay.
 
 This file is never copied into the payload.

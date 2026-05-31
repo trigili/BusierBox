@@ -13,23 +13,23 @@
 #define PATH_MAX 4096
 #endif
 
-#ifndef BUSIERBOX_ARTIFACT_TIER
-#define BUSIERBOX_ARTIFACT_TIER "core"
+#ifndef GRIT_ARTIFACT_TIER
+#define GRIT_ARTIFACT_TIER "core"
 #endif
-#ifndef BB_TARGET_PRESET
-#define BB_TARGET_PRESET "native"
+#ifndef GRIT_TARGET_PRESET
+#define GRIT_TARGET_PRESET "native"
 #endif
-#ifndef BB_TARGET_NAME
-#define BB_TARGET_NAME "native"
+#ifndef GRIT_TARGET_NAME
+#define GRIT_TARGET_NAME "native"
 #endif
-#ifndef BB_PAYLOAD_PRESET
-#define BB_PAYLOAD_PRESET "default"
+#ifndef GRIT_PAYLOAD_PRESET
+#define GRIT_PAYLOAD_PRESET "default"
 #endif
-#ifndef BB_USER_OVERLAY_ENABLE
-#define BB_USER_OVERLAY_ENABLE "no"
+#ifndef GRIT_USER_OVERLAY_ENABLE
+#define GRIT_USER_OVERLAY_ENABLE "no"
 #endif
-#ifndef BB_USER_OVERLAY_ROOT
-#define BB_USER_OVERLAY_ROOT "./overlay"
+#ifndef GRIT_USER_OVERLAY_ROOT
+#define GRIT_USER_OVERLAY_ROOT "./overlay"
 #endif
 
 #define json_string_payload bb_json_string
@@ -47,19 +47,19 @@ static void print_doctor_manifest_summary_json(FILE *out, int payload_manifest_f
     for (i = 0; heavy_tools[i]; i++)
         heavy_count++;
     fprintf(out, ",\"manifest_summary\":{\"target_preset\":");
-    json_string_payload(out, BB_TARGET_PRESET);
+    json_string_payload(out, GRIT_TARGET_PRESET);
     fprintf(out, ",\"target_name\":");
-    json_string_payload(out, BB_TARGET_NAME);
+    json_string_payload(out, GRIT_TARGET_NAME);
     fprintf(out, ",\"payload_preset\":");
-    json_string_payload(out, BB_PAYLOAD_PRESET);
+    json_string_payload(out, GRIT_PAYLOAD_PRESET);
     fprintf(out, ",\"artifact_tier\":");
-    json_string_payload(out, BUSIERBOX_ARTIFACT_TIER);
+    json_string_payload(out, GRIT_ARTIFACT_TIER);
     fprintf(out, ",\"runtime_mode\":");
-    json_string_payload(out, BB_RUNTIME_MODE);
+    json_string_payload(out, GRIT_RUNTIME_MODE);
     fprintf(out, ",\"noresidue_level\":");
-    json_string_payload(out, BB_NORESIDUE_LEVEL);
+    json_string_payload(out, GRIT_NORESIDUE_LEVEL);
     fprintf(out, ",\"zero_arg_mode\":");
-    json_string_payload(out, BB_ZERO_ARG_MODE);
+    json_string_payload(out, GRIT_ZERO_ARG_MODE);
     fprintf(out, ",\"payload_manifest_found\":%s", payload_manifest_found ? "true" : "false");
     fprintf(out, ",\"busybox_applets_count\":%d,\"configured_heavy_tools_count\":%d}",
             applet_count, heavy_count);
@@ -77,7 +77,7 @@ static void print_doctor_payload_runtime_health_json(FILE *out, int have_payload
     }
     snprintf(busybox, sizeof(busybox), "%s/bin/busybox", payload);
     snprintf(symlink_count_path, sizeof(symlink_count_path),
-             "%s/share/busierbox/applet-symlink-count.txt", payload);
+             "%s/share/grit/applet-symlink-count.txt", payload);
     bb_read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
     snprintf(terminfo, sizeof(terminfo), "%s/share/terminfo", payload);
     snprintf(tmux_ti, sizeof(tmux_ti), "%s/share/terminfo/t/tmux", payload);
@@ -120,12 +120,12 @@ static void print_doctor_payload_inventory_json(FILE *out, const char *manifest,
         bb_json_write_raw_field_or(out, manifest, "missing_payload_tool_reasons", "{}");
     }
     fprintf(out, ",\"overlay_enabled\":");
-    bb_json_write_raw_field_or(out, manifest, "overlay_enabled", !strcmp(BB_USER_OVERLAY_ENABLE, "yes") ? "true" : "false");
+    bb_json_write_raw_field_or(out, manifest, "overlay_enabled", !strcmp(GRIT_USER_OVERLAY_ENABLE, "yes") ? "true" : "false");
     fprintf(out, ",\"overlay_root\":");
     if (manifest)
         bb_json_write_raw_field_or(out, manifest, "overlay_root", "null");
     else
-        json_string_payload(out, BB_USER_OVERLAY_ROOT);
+        json_string_payload(out, GRIT_USER_OVERLAY_ROOT);
     fprintf(out, ",\"overlay_applied_paths\":");
     bb_json_write_raw_field_or(out, manifest, "overlay_applied_paths", "[]");
     fprintf(out, ",\"overlay_files\":");
@@ -145,41 +145,41 @@ static void print_doctor_payload_inventory_json(FILE *out, const char *manifest,
 
 static void print_noresidue_policy_json(FILE *out)
 {
-    int active = !strcmp(BB_RUNTIME_MODE, "no-residue");
-    int aggressive = !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+    int active = !strcmp(GRIT_RUNTIME_MODE, "no-residue");
+    int aggressive = !strcmp(GRIT_NORESIDUE_LEVEL, "aggressive");
 
     fprintf(out, "{\"active\":%s,\"level\":", active ? "true" : "false");
-    json_string_payload(out, BB_NORESIDUE_LEVEL);
-    fprintf(out, ",\"cleanup_scope\":\"BusierBox-owned runtime roots and ledgered files only\"");
+    json_string_payload(out, GRIT_NORESIDUE_LEVEL);
+    fprintf(out, ",\"cleanup_scope\":\"griTTYkit-owned runtime roots and ledgered files only\"");
     fprintf(out, ",\"best_effort\":true");
     fprintf(out, ",\"aggressive_minimizes_runtime_residue\":%s", aggressive ? "true" : "false");
     fprintf(out, ",\"persistent_target_logs_default\":");
     json_string_payload(out, aggressive ? "no" : "configured");
     fprintf(out, ",\"stdout_stderr_log_suppression\":");
-    json_string_payload(out, aggressive ? "BB_ZERO_ARG_LOG_MODE=none" : "available via BB_ZERO_ARG_LOG_MODE=none");
+    json_string_payload(out, aggressive ? "GRIT_ZERO_ARG_LOG_MODE=none" : "available via GRIT_ZERO_ARG_LOG_MODE=none");
     fprintf(out, ",\"in_memory_log_guarantee\":false");
     fprintf(out, ",\"forensic_no_trace\":false");
     fprintf(out, ",\"external_writes_require_explicit_apply\":true");
     fprintf(out, ",\"guarantee\":");
     json_string_payload(out, aggressive ?
-        "aggressive minimizes BusierBox runtime residue but cannot guarantee absence of residue" :
+        "aggressive minimizes griTTYkit runtime residue but cannot guarantee absence of residue" :
         "best-effort cleanup removes owned runtime state where reasonable");
     fprintf(out, "}");
 }
 
 static void print_noresidue_policy_text(void)
 {
-    int active = !strcmp(BB_RUNTIME_MODE, "no-residue");
-    int aggressive = !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+    int active = !strcmp(GRIT_RUNTIME_MODE, "no-residue");
+    int aggressive = !strcmp(GRIT_NORESIDUE_LEVEL, "aggressive");
 
     printf("noresidue_active=%s\n", active ? "yes" : "no");
-    printf("noresidue_level=%s\n", BB_NORESIDUE_LEVEL);
-    puts("noresidue_cleanup_scope=BusierBox-owned runtime roots and ledgered files only");
+    printf("noresidue_level=%s\n", GRIT_NORESIDUE_LEVEL);
+    puts("noresidue_cleanup_scope=griTTYkit-owned runtime roots and ledgered files only");
     puts("noresidue_best_effort=yes");
     printf("noresidue_aggressive_minimizes_runtime_residue=%s\n", aggressive ? "yes" : "no");
     printf("noresidue_persistent_target_logs_default=%s\n", aggressive ? "no" : "configured");
     printf("noresidue_stdout_stderr_log_suppression=%s\n",
-           aggressive ? "BB_ZERO_ARG_LOG_MODE=none" : "available via BB_ZERO_ARG_LOG_MODE=none");
+           aggressive ? "GRIT_ZERO_ARG_LOG_MODE=none" : "available via GRIT_ZERO_ARG_LOG_MODE=none");
     puts("noresidue_in_memory_log_guarantee=no");
     puts("noresidue_forensic_no_trace=no");
     puts("noresidue_external_writes_require_explicit_apply=yes");
@@ -202,7 +202,7 @@ int applet_doctor_main(int argc, char **argv)
     memset(&ep, 0, sizeof(ep));
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox doctor [--json|--support-token] [--include-missing]");
+        puts("usage: grit doctor [--json|--support-token] [--include-missing]");
         puts("Reports embedded payload, extraction, BusyBox, and staged tool health.");
         return 0;
     }
@@ -236,11 +236,11 @@ int applet_doctor_main(int argc, char **argv)
                     manifest = bb_read_text_file(manifest_path, 1024 * 1024);
             } else {
                 root[0] = '\0';
-                if (bb_extract_root_usable(BB_RUNTIME_ROOT))
-                    snprintf(root, sizeof(root), "%s", BB_RUNTIME_ROOT);
-                else if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
-                         bb_extract_root_usable(BB_RUNTIME_FALLBACK_ROOT))
-                    snprintf(root, sizeof(root), "%s", BB_RUNTIME_FALLBACK_ROOT);
+                if (bb_extract_root_usable(GRIT_RUNTIME_ROOT))
+                    snprintf(root, sizeof(root), "%s", GRIT_RUNTIME_ROOT);
+                else if (!strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") &&
+                         bb_extract_root_usable(GRIT_RUNTIME_FALLBACK_ROOT))
+                    snprintf(root, sizeof(root), "%s", GRIT_RUNTIME_FALLBACK_ROOT);
             }
             if (manifest)
                 applet_count = bb_json_array_count_field(manifest, "busybox_applets");
@@ -302,13 +302,13 @@ int applet_doctor_main(int argc, char **argv)
             json_string_payload(stdout, bb_ptrace_probe_status());
             printf(",\"default_route_present\":%s}", bb_has_default_route() ? "true" : "false");
             printf(",\"artifact\":{\"tier\":");
-            json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
+            json_string_payload(stdout, GRIT_ARTIFACT_TIER);
             printf(",\"runtime_mode\":");
-            json_string_payload(stdout, BB_RUNTIME_MODE);
+            json_string_payload(stdout, GRIT_RUNTIME_MODE);
             printf(",\"noresidue_level\":");
-            json_string_payload(stdout, BB_NORESIDUE_LEVEL);
+            json_string_payload(stdout, GRIT_NORESIDUE_LEVEL);
             printf(",\"runtime_root\":");
-            json_string_payload(stdout, BB_RUNTIME_ROOT);
+            json_string_payload(stdout, GRIT_RUNTIME_ROOT);
             printf("}}\n");
             free(manifest);
             return 0;
@@ -370,13 +370,13 @@ int applet_doctor_main(int argc, char **argv)
             json_string_payload(stdout, bb_ptrace_probe_status());
             printf(",\"default_route_present\":%s}", bb_has_default_route() ? "true" : "false");
             printf(",\"artifact\":{\"tier\":");
-            json_string_payload(stdout, BUSIERBOX_ARTIFACT_TIER);
+            json_string_payload(stdout, GRIT_ARTIFACT_TIER);
             printf(",\"runtime_mode\":");
-            json_string_payload(stdout, BB_RUNTIME_MODE);
+            json_string_payload(stdout, GRIT_RUNTIME_MODE);
             printf(",\"noresidue_level\":");
-            json_string_payload(stdout, BB_NORESIDUE_LEVEL);
+            json_string_payload(stdout, GRIT_NORESIDUE_LEVEL);
             printf(",\"runtime_root\":");
-            json_string_payload(stdout, BB_RUNTIME_ROOT);
+            json_string_payload(stdout, GRIT_RUNTIME_ROOT);
             printf("}}\n");
             free(manifest);
             return 0;
@@ -448,7 +448,7 @@ int applet_doctor_main(int argc, char **argv)
         char terminfo[PATH_MAX], tmux_ti[PATH_MAX], zsh_path[PATH_MAX];
         char bin_dir[PATH_MAX];
         snprintf(symlink_count_path, sizeof(symlink_count_path),
-                 "%s/share/busierbox/applet-symlink-count.txt", payload);
+                 "%s/share/grit/applet-symlink-count.txt", payload);
         bb_read_first_line(symlink_count_path, symlink_count, sizeof(symlink_count));
         printf("applet_symlink_count=%s\n", symlink_count);
         snprintf(terminfo, sizeof(terminfo), "%s/share/terminfo", payload);
@@ -480,7 +480,7 @@ int applet_doctor_main(int argc, char **argv)
     printf("default_route_present=%s\n", bb_has_default_route() ? "yes" : "no");
     if (!bb_path_exists("/dev/pts"))
         puts("recommendation=mount devpts for tmux/dropbear interactive sessions");
-    printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
+    printf("artifact_tier=%s\n", GRIT_ARTIFACT_TIER);
     bb_print_autoexec_config();
     if (have_payload) {
         char ti[PATH_MAX];

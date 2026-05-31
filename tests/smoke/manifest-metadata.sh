@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-bb=${1:-dist/busierbox-native-full}
+bb=${1:-dist/grit-native-full}
 tmp=${TMPDIR:-local/tmp}/manifest-metadata
 
 [ -x "$bb" ] || {
@@ -29,10 +29,10 @@ for line in subprocess.check_output([bb, "config-info"], text=True).splitlines()
         config[k] = v
 
 required = [
-    ("busierbox", "payload_version"),
-    ("busierbox", "artifact_tier"),
-    ("busierbox", "build_timestamp"),
-    ("busierbox", "git_commit"),
+    ("grit", "payload_version"),
+    ("grit", "artifact_tier"),
+    ("grit", "build_timestamp"),
+    ("grit", "git_commit"),
     ("target", "preset"),
     ("target", "name"),
     ("target", "arch"),
@@ -113,14 +113,14 @@ key_index = manifest.get("config_records_by_key") or {}
 category_index = manifest.get("config_records_by_category") or {}
 source_index = manifest.get("config_records_by_source") or {}
 changed_index = manifest.get("config_records_by_changed") or {}
-runtime_indexes = key_index.get("BB_RUNTIME_MODE")
+runtime_indexes = key_index.get("GRIT_RUNTIME_MODE")
 if not isinstance(runtime_indexes, list) or len(runtime_indexes) != 1:
-    raise SystemExit("manifest-metadata: config_records_by_key missing BB_RUNTIME_MODE")
+    raise SystemExit("manifest-metadata: config_records_by_key missing GRIT_RUNTIME_MODE")
 runtime_record = config_records[runtime_indexes[0]]
 if runtime_record.get("category") != "runtime" or runtime_record.get("source") != "compiled":
-    raise SystemExit("manifest-metadata: BB_RUNTIME_MODE record metadata mismatch")
+    raise SystemExit("manifest-metadata: GRIT_RUNTIME_MODE record metadata mismatch")
 if runtime_record.get("compiled") != runtime_record.get("effective"):
-    raise SystemExit("manifest-metadata: baseline BB_RUNTIME_MODE record changed unexpectedly")
+    raise SystemExit("manifest-metadata: baseline GRIT_RUNTIME_MODE record changed unexpectedly")
 if not category_index.get("command_queue"):
     raise SystemExit("manifest-metadata: command queue config category index empty")
 if len(source_index.get("compiled", [])) != len(config_records):
@@ -165,9 +165,9 @@ if noresidue.get("external_writes_require_explicit_apply") is not True:
     raise SystemExit("manifest-metadata: no-residue policy must require explicit external apply")
 if config.get("noresidue_policy_external_writes_require_explicit_apply") != "yes":
     raise SystemExit("manifest-metadata: config-info external write gate missing")
-if "BusierBox-owned runtime roots" not in noresidue.get("cleanup_scope", ""):
+if "griTTYkit-owned runtime roots" not in noresidue.get("cleanup_scope", ""):
     raise SystemExit("manifest-metadata: no-residue policy cleanup scope missing")
-if "BusierBox-owned runtime roots" not in config.get("noresidue_policy_cleanup_scope", ""):
+if "griTTYkit-owned runtime roots" not in config.get("noresidue_policy_cleanup_scope", ""):
     raise SystemExit("manifest-metadata: config-info no-residue cleanup scope missing")
 payload_tools = manifest.get("payload_tools") or {}
 for key in ("requested_payload_tools", "missing_payload_tools", "missing_payload_tool_reasons"):
@@ -192,23 +192,23 @@ if trailer["override_count"] != 0:
     raise SystemExit("manifest-metadata: absent trailer should have zero overrides")
 
 for key in (
-    "BB_RUNTIME_MODE",
-    "BB_NORESIDUE_LEVEL",
-    "BB_RUNTIME_ROOT",
-    "BB_ZERO_ARG_MODE",
-    "BB_RSHELL_TRANSPORT",
-    "BB_RSHELL_SESSION_POLICY",
-    "BB_OPERATOR_SERVER_HOST",
-    "BB_OPERATOR_FILE_SERVICE_PORT",
-    "BB_COMMAND_QUEUE_ENABLE",
-    "BB_COMMAND_QUEUE_ALLOWED_COMMANDS",
-    "BB_COMMAND_QUEUE_EXECUTION",
-    "BB_COMMAND_QUEUE_ALLOW_ARBITRARY",
-    "BB_COMMAND_QUEUE_POLL_INTERVAL_SEC",
-    "BB_COMMAND_QUEUE_POLL_JITTER_PCT",
-    "BB_COMMAND_QUEUE_POLL_BACKOFF",
-    "BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC",
-    "BB_COMMAND_QUEUE_MAX_POLLS",
+    "GRIT_RUNTIME_MODE",
+    "GRIT_NORESIDUE_LEVEL",
+    "GRIT_RUNTIME_ROOT",
+    "GRIT_ZERO_ARG_MODE",
+    "GRIT_RSHELL_TRANSPORT",
+    "GRIT_RSHELL_SESSION_POLICY",
+    "GRIT_OPERATOR_SERVER_HOST",
+    "GRIT_OPERATOR_FILE_SERVICE_PORT",
+    "GRIT_COMMAND_QUEUE_ENABLE",
+    "GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS",
+    "GRIT_COMMAND_QUEUE_EXECUTION",
+    "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY",
+    "GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC",
+    "GRIT_COMMAND_QUEUE_POLL_JITTER_PCT",
+    "GRIT_COMMAND_QUEUE_POLL_BACKOFF",
+    "GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC",
+    "GRIT_COMMAND_QUEUE_MAX_POLLS",
 ):
     if key not in manifest["compiled_config"]:
         raise SystemExit(f"manifest-metadata: compiled_config missing {key}")
@@ -218,8 +218,8 @@ for key in (
         raise SystemExit(f"manifest-metadata: baseline effective config differs for {key}")
 
 checks = [
-    (manifest["busierbox"]["artifact_tier"], config.get("artifact_tier"), "artifact_tier"),
-    (manifest["busierbox"]["payload_version"], config.get("payload_version"), "payload_version"),
+    (manifest["grit"]["artifact_tier"], config.get("artifact_tier"), "artifact_tier"),
+    (manifest["grit"]["payload_version"], config.get("payload_version"), "payload_version"),
     (manifest["payload"]["gdbserver_provider"], config.get("gdbserver_provider"), "gdbserver_provider"),
     (manifest["runtime"]["mode"], config.get("runtime_mode"), "runtime_mode"),
     (manifest["runtime"]["noresidue_level"], config.get("noresidue_level"), "noresidue_level"),
@@ -236,32 +236,32 @@ for got, want, name in checks:
         raise SystemExit(f"manifest-metadata: {name} mismatch: manifest={got!r} config-info={want!r}")
 
 file_service = manifest.get("operator_services", {}).get("file_service", {})
-if file_service.get("port") != manifest["effective_config"]["BB_OPERATOR_FILE_SERVICE_PORT"]:
+if file_service.get("port") != manifest["effective_config"]["GRIT_OPERATOR_FILE_SERVICE_PORT"]:
     raise SystemExit("manifest-metadata: file service port does not match effective config")
-if file_service.get("tls") != manifest["effective_config"]["BB_OPERATOR_FILE_SERVICE_TLS"]:
+if file_service.get("tls") != manifest["effective_config"]["GRIT_OPERATOR_FILE_SERVICE_TLS"]:
     raise SystemExit("manifest-metadata: file service tls does not match effective config")
 if file_service.get("target_initiated") is not True or file_service.get("receive_only") is not True:
     raise SystemExit("manifest-metadata: file service safety metadata missing")
 command_queue = manifest.get("operator_services", {}).get("command_queue", {})
-if command_queue.get("enabled") != manifest["effective_config"]["BB_COMMAND_QUEUE_ENABLE"]:
+if command_queue.get("enabled") != manifest["effective_config"]["GRIT_COMMAND_QUEUE_ENABLE"]:
     raise SystemExit("manifest-metadata: command queue enable does not match effective config")
-if command_queue.get("allowed_commands") != manifest["effective_config"]["BB_COMMAND_QUEUE_ALLOWED_COMMANDS"]:
+if command_queue.get("allowed_commands") != manifest["effective_config"]["GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS"]:
     raise SystemExit("manifest-metadata: command queue policy does not match effective config")
-if command_queue.get("execution_mode") != manifest["effective_config"]["BB_COMMAND_QUEUE_EXECUTION"]:
+if command_queue.get("execution_mode") != manifest["effective_config"]["GRIT_COMMAND_QUEUE_EXECUTION"]:
     raise SystemExit("manifest-metadata: command queue execution mode does not match effective config")
 if command_queue.get("metadata_only_default") is not True:
     raise SystemExit("manifest-metadata: command queue metadata-only default missing")
-if command_queue.get("poll_interval_sec") != manifest["effective_config"]["BB_COMMAND_QUEUE_POLL_INTERVAL_SEC"]:
+if command_queue.get("poll_interval_sec") != manifest["effective_config"]["GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC"]:
     raise SystemExit("manifest-metadata: command queue poll interval does not match effective config")
-if command_queue.get("poll_jitter_pct") != manifest["effective_config"]["BB_COMMAND_QUEUE_POLL_JITTER_PCT"]:
+if command_queue.get("poll_jitter_pct") != manifest["effective_config"]["GRIT_COMMAND_QUEUE_POLL_JITTER_PCT"]:
     raise SystemExit("manifest-metadata: command queue poll jitter does not match effective config")
-if command_queue.get("poll_backoff") != manifest["effective_config"]["BB_COMMAND_QUEUE_POLL_BACKOFF"]:
+if command_queue.get("poll_backoff") != manifest["effective_config"]["GRIT_COMMAND_QUEUE_POLL_BACKOFF"]:
     raise SystemExit("manifest-metadata: command queue poll backoff does not match effective config")
-if command_queue.get("poll_max_interval_sec") != manifest["effective_config"]["BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC"]:
+if command_queue.get("poll_max_interval_sec") != manifest["effective_config"]["GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC"]:
     raise SystemExit("manifest-metadata: command queue poll max interval does not match effective config")
-if command_queue.get("max_polls") != manifest["effective_config"]["BB_COMMAND_QUEUE_MAX_POLLS"]:
+if command_queue.get("max_polls") != manifest["effective_config"]["GRIT_COMMAND_QUEUE_MAX_POLLS"]:
     raise SystemExit("manifest-metadata: command queue max polls does not match effective config")
-expected_state = manifest["effective_config"]["BB_RUNTIME_ROOT"] + "/run/command-queue-daemon.state"
+expected_state = manifest["effective_config"]["GRIT_RUNTIME_ROOT"] + "/run/command-queue-daemon.state"
 if command_queue.get("daemon_state_file") != expected_state:
     raise SystemExit("manifest-metadata: command queue daemon state file missing")
 if (command_queue.get("daemon_state_file_supported") is not True or
@@ -375,7 +375,7 @@ grep -q '^not_busybox_fork=yes$' "$tmp/manifest.txt"
 grep -q '^third_party_component=BusyBox GPL-2.0 payload applets$' "$tmp/manifest.txt"
 grep -q '^third_party_component=Buildroot GPL-2.0-or-later target build system$' "$tmp/manifest.txt"
 
-BB_RSHELL_SESSION_POLICY=bogus "$bb_abs" manifest --json >"$tmp/manifest-invalid-policy.json"
+GRIT_RSHELL_SESSION_POLICY=bogus "$bb_abs" manifest --json >"$tmp/manifest-invalid-policy.json"
 python3 -m json.tool "$tmp/manifest-invalid-policy.json" >/dev/null
 python3 - "$tmp/manifest-invalid-policy.json" <<'PY'
 import json
@@ -402,8 +402,8 @@ mkdir -p "$tmp"
 (
     cd "$tmp"
     "$bb_abs" extract --force >/dev/null
-    test -f ./.busierbox/manifest/artifact.json
-    python3 -m json.tool ./.busierbox/manifest/artifact.json >/dev/null
+    test -f ./.grit/manifest/artifact.json
+    python3 -m json.tool ./.grit/manifest/artifact.json >/dev/null
 )
 rm -rf "$tmp"
 

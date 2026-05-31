@@ -38,14 +38,14 @@ if len(jobs) != 2:
 for job in jobs:
     if job.get("status") != "dry-run":
         raise SystemExit(f"unexpected job status: {job}")
-    if "BUSIERBOX_CONFIG=" not in job.get("command", ""):
-        raise SystemExit("dry-run command missing BUSIERBOX_CONFIG")
+    if "GRIT_CONFIG=" not in job.get("command", ""):
+        raise SystemExit("dry-run command missing GRIT_CONFIG")
     if not job.get("resolved_target"):
         raise SystemExit("dry-run job missing resolved_target")
 PY
 
-grep -q '^BB_PAYLOAD_PRESET=survey-core$' "$tmp/run/configs/native-survey-core-tgz.conf"
-grep -q '^BB_TARGET_PRESET=native$' "$tmp/run/configs/native-default-tgz.conf"
+grep -q '^GRIT_PAYLOAD_PRESET=survey-core$' "$tmp/run/configs/native-survey-core-tgz.conf"
+grep -q '^GRIT_TARGET_PRESET=native$' "$tmp/run/configs/native-default-tgz.conf"
 
 cat >"$tmp/matrix.json" <<'EOF'
 {
@@ -55,7 +55,7 @@ cat >"$tmp/matrix.json" <<'EOF'
   "variants": {
     "operator": {
       "payload_preset": "ssh-operator",
-      "BB_ZERO_ARG_MODE": "help"
+      "GRIT_ZERO_ARG_MODE": "help"
     }
   }
 }
@@ -71,7 +71,7 @@ payloads = sorted(job["payload"] for job in data["jobs"])
 if payloads != ["ssh-operator", "survey-core"]:
     raise SystemExit(f"unexpected payload expansion: {payloads}")
 PY
-grep -q '^BB_ZERO_ARG_MODE=help$' "$tmp/matrix-run/configs/native-ssh-operator-tgz.conf"
+grep -q '^GRIT_ZERO_ARG_MODE=help$' "$tmp/matrix-run/configs/native-ssh-operator-tgz.conf"
 
 scripts/build-matrix \
     --matrix release/matrices/iot-lab.json \
@@ -123,7 +123,7 @@ for job in data.get("jobs") or []:
     if not job.get("resolved_target"):
         raise SystemExit("offline dry-run job missing resolved_target")
     cmd = job.get("command", "")
-    for token in ["BUSIERBOX_OFFLINE=1", "BUSIERBOX_MIRROR_DIR=", "BUILDROOT_DL_DIR="]:
+    for token in ["GRIT_OFFLINE=1", "GRIT_MIRROR_DIR=", "BUILDROOT_DL_DIR="]:
         if token not in cmd:
             raise SystemExit(f"offline dry-run command missing {token}: {cmd}")
 PY

@@ -14,15 +14,15 @@ script_dir=$(cd "$(dirname "$0")" && pwd)
 repo_root=$(cd "$script_dir/../.." && pwd)
 
 mkdir -p "$artifact_dir" || exit 1
-cp "$binary" "$artifact_dir/busierbox" || exit 1
-chmod 0755 "$artifact_dir/busierbox"
+cp "$binary" "$artifact_dir/grit" || exit 1
+chmod 0755 "$artifact_dir/grit"
 cd "$artifact_dir" || exit 1
 
 run_bb() {
     if [ "$qemu" = "native" ]; then
-        ./busierbox "$@"
+        ./grit "$@"
     else
-        "$qemu" ./busierbox "$@"
+        "$qemu" ./grit "$@"
     fi
 }
 

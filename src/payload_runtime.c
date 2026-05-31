@@ -18,22 +18,22 @@
 #define PATH_MAX 4096
 #endif
 
-#ifndef BUSIERBOX_PAYLOAD_VERSION
-#define BUSIERBOX_PAYLOAD_VERSION "dev"
+#ifndef GRIT_PAYLOAD_VERSION
+#define GRIT_PAYLOAD_VERSION "dev"
 #endif
 
 #define BBX_TRAILER_SIZE 512
 #define BBX_MAGIC "BBXPAYLOADv1"
-#define BBX_PAYLOAD_ID_FILE ".busierbox-payload-id"
-#define BBX_PAYLOAD_MODE_FILE ".busierbox-extract-mode"
+#define BBX_PAYLOAD_ID_FILE ".grit-payload-id"
+#define BBX_PAYLOAD_MODE_FILE ".grit-extract-mode"
 
 static const char *busybox_tools[] = {
-#include "bbx_busybox_applets.h"
+#include "grit_busybox_applets.h"
     NULL
 };
 
 static const char *heavy_tools[] = {
-#include "bbx_heavy_tools.h"
+#include "grit_heavy_tools.h"
     NULL
 };
 
@@ -187,7 +187,7 @@ int bb_payload_valid(const char *payload)
         return 0;
     if (bb_read_first_line(version, found, sizeof(found)) != 0)
         return 0;
-    return strcmp(found, BUSIERBOX_PAYLOAD_VERSION) == 0;
+    return strcmp(found, GRIT_PAYLOAD_VERSION) == 0;
 }
 
 static void payload_mode_path(char *out, size_t outsz, const char *payload)
@@ -238,12 +238,12 @@ static int yes_str(const char *s)
 
 static int candidate_payload(char *out, size_t outsz)
 {
-    const char *env = getenv("BUSIERBOX_PAYLOAD_DIR");
+    const char *env = getenv("GRIT_PAYLOAD_DIR");
     char exe_dir[PATH_MAX];
     char path[PATH_MAX];
     uid_t uid = getuid();
-    int fallback_ok = yes_str(BB_RUNTIME_ALLOW_FALLBACK_ROOT) ||
-                      yes_str(getenv("BUSIERBOX_ALLOW_FALLBACK_ROOT"));
+    int fallback_ok = yes_str(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT) ||
+                      yes_str(getenv("GRIT_ALLOW_FALLBACK_ROOT"));
 
     if (env && bb_payload_valid(env)) {
         snprintf(out, outsz, "%s", env);
@@ -258,8 +258,8 @@ static int candidate_payload(char *out, size_t outsz)
         }
     }
 
-    if (BB_RUNTIME_ROOT[0]) {
-        snprintf(path, sizeof(path), "%s/payload", BB_RUNTIME_ROOT);
+    if (GRIT_RUNTIME_ROOT[0]) {
+        snprintf(path, sizeof(path), "%s/payload", GRIT_RUNTIME_ROOT);
         if (bb_payload_valid(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
@@ -269,17 +269,17 @@ static int candidate_payload(char *out, size_t outsz)
     /* Legacy /tmp, /var/tmp, /dev/shm locations — only checked when fallback
      * root is explicitly permitted.  In strict mode these are not considered. */
     if (fallback_ok) {
-        snprintf(path, sizeof(path), "/tmp/busierbox-%ld/payload", (long)uid);
+        snprintf(path, sizeof(path), "/tmp/grit-%ld/payload", (long)uid);
         if (bb_payload_valid(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
         }
-        snprintf(path, sizeof(path), "/var/tmp/busierbox-%ld/payload", (long)uid);
+        snprintf(path, sizeof(path), "/var/tmp/grit-%ld/payload", (long)uid);
         if (bb_payload_valid(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
         }
-        snprintf(path, sizeof(path), "/dev/shm/busierbox-%ld/payload", (long)uid);
+        snprintf(path, sizeof(path), "/dev/shm/grit-%ld/payload", (long)uid);
         if (bb_payload_valid(path)) {
             snprintf(out, outsz, "%s", path);
             return 0;
@@ -498,7 +498,7 @@ int bb_extract_archive_file_to_root(const char *archive, const char *root, int c
     if (stat(archive, &st) != 0)
         return -1;
     ep.size = (unsigned long long)st.st_size;
-    snprintf(ep.version, sizeof(ep.version), "%s", BUSIERBOX_PAYLOAD_VERSION);
+    snprintf(ep.version, sizeof(ep.version), "%s", GRIT_PAYLOAD_VERSION);
     is_tgz = strstr(archive, ".gz") || strstr(archive, ".tgz");
     snprintf(ep.format, sizeof(ep.format), "%s", is_tgz ? "tgz" : "tar");
 
@@ -540,16 +540,16 @@ int bb_ensure_payload_mode(char *payload, size_t payloadsz, int require_full)
     struct embedded_payload ep;
     int have_ep = (bb_get_embedded_payload(&ep) == 0);
 
-    if (!strcmp(BB_RUNTIME_MODE, "core-only"))
+    if (!strcmp(GRIT_RUNTIME_MODE, "core-only"))
         return -1;
 
     if (candidate_payload(payload, payloadsz) == 0) {
         if (have_ep && !bb_payload_id_matches(&ep, payload)) {
-            fprintf(stderr, "busierbox: extracted payload is from a different binary; re-extracting...\n");
+            fprintf(stderr, "grit: extracted payload is from a different binary; re-extracting...\n");
             bb_rm_rf(payload);
             /* fall through to extract */
         } else if (require_full && !bb_payload_is_full(payload)) {
-            fprintf(stderr, "busierbox: upgrading core payload extraction to full payload...\n");
+            fprintf(stderr, "grit: upgrading core payload extraction to full payload...\n");
             bb_rm_rf(payload);
             /* fall through to extract */
         } else {
@@ -564,7 +564,7 @@ int bb_ensure_payload_mode(char *payload, size_t payloadsz, int require_full)
     } else {
         if (bb_payload_archive_path(archive, sizeof(archive)) != 0)
             return -1;
-        fprintf(stderr, "busierbox: warning: using dev-only external payload archive fallback: %s\n", archive);
+        fprintf(stderr, "grit: warning: using dev-only external payload archive fallback: %s\n", archive);
         if (bb_extract_archive_file_to_root(archive, root, !require_full) != 0)
             return -1;
     }

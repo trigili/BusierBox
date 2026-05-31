@@ -37,7 +37,7 @@ static const char *rshell_post_disconnect_retry_count(const char *policy)
         return "0";
     if (!strcmp(policy, "persistent"))
         return "-1";
-    return BB_RSHELL_RETRY_COUNT;
+    return GRIT_RSHELL_RETRY_COUNT;
 }
 
 static const char *command_queue_mode_lifecycle(const char *mode)
@@ -229,129 +229,129 @@ static void print_command_queue_mode_api_collections(FILE *out)
     fprintf(out, ",\"indexes\":[\"mode_records_by_mode\",\"mode_records_by_lifecycle\",\"mode_records_by_would_poll_if_configured\",\"mode_records_by_target_polling_supported\",\"mode_records_by_delivery_supported\",\"mode_records_by_result_upload_supported\",\"mode_records_by_execution_supported\",\"mode_records_by_active_control_channel\",\"mode_records_by_operator_supplied_command_execution\"]}}");
 }
 
-#ifndef BUSIERBOX_PAYLOAD_VERSION
-#define BUSIERBOX_PAYLOAD_VERSION "dev"
+#ifndef GRIT_PAYLOAD_VERSION
+#define GRIT_PAYLOAD_VERSION "dev"
 #endif
-#ifndef BUSIERBOX_ARTIFACT_TIER
-#define BUSIERBOX_ARTIFACT_TIER "core"
+#ifndef GRIT_ARTIFACT_TIER
+#define GRIT_ARTIFACT_TIER "core"
 #endif
-#ifndef BUSIERBOX_BUILD_TIMESTAMP
-#define BUSIERBOX_BUILD_TIMESTAMP "unknown"
+#ifndef GRIT_BUILD_TIMESTAMP
+#define GRIT_BUILD_TIMESTAMP "unknown"
 #endif
-#ifndef BUSIERBOX_GIT_COMMIT
-#define BUSIERBOX_GIT_COMMIT "unknown"
+#ifndef GRIT_GIT_COMMIT
+#define GRIT_GIT_COMMIT "unknown"
 #endif
-#ifndef BB_TARGET_PRESET
-#define BB_TARGET_PRESET "native"
+#ifndef GRIT_TARGET_PRESET
+#define GRIT_TARGET_PRESET "native"
 #endif
-#ifndef BB_TARGET_NAME
-#define BB_TARGET_NAME "native"
+#ifndef GRIT_TARGET_NAME
+#define GRIT_TARGET_NAME "native"
 #endif
-#ifndef BB_TARGET_ARCH
-#define BB_TARGET_ARCH "native"
+#ifndef GRIT_TARGET_ARCH
+#define GRIT_TARGET_ARCH "native"
 #endif
-#ifndef BB_TARGET_ENDIAN
-#define BB_TARGET_ENDIAN "auto"
+#ifndef GRIT_TARGET_ENDIAN
+#define GRIT_TARGET_ENDIAN "auto"
 #endif
-#ifndef BB_TARGET_CPU
-#define BB_TARGET_CPU "host"
+#ifndef GRIT_TARGET_CPU
+#define GRIT_TARGET_CPU "host"
 #endif
-#ifndef BB_TARGET_ABI
-#define BB_TARGET_ABI "default"
+#ifndef GRIT_TARGET_ABI
+#define GRIT_TARGET_ABI "default"
 #endif
-#ifndef BB_TARGET_LIBC
-#define BB_TARGET_LIBC "host"
+#ifndef GRIT_TARGET_LIBC
+#define GRIT_TARGET_LIBC "host"
 #endif
-#ifndef BB_KERNEL_FLOOR
-#define BB_KERNEL_FLOOR "host"
+#ifndef GRIT_KERNEL_FLOOR
+#define GRIT_KERNEL_FLOOR "host"
 #endif
-#ifndef BB_STATIC_POLICY
-#define BB_STATIC_POLICY "static-preferred"
+#ifndef GRIT_STATIC_POLICY
+#define GRIT_STATIC_POLICY "static-preferred"
 #endif
-#ifndef BB_PAYLOAD_PRESET
-#define BB_PAYLOAD_PRESET "default"
+#ifndef GRIT_PAYLOAD_PRESET
+#define GRIT_PAYLOAD_PRESET "default"
 #endif
-#ifndef BB_DOTFILES_ENABLE
-#define BB_DOTFILES_ENABLE "yes"
+#ifndef GRIT_DOTFILES_ENABLE
+#define GRIT_DOTFILES_ENABLE "yes"
 #endif
-#ifndef BB_DOTFILE_ZSH_MODE
-#define BB_DOTFILE_ZSH_MODE "default"
+#ifndef GRIT_DOTFILE_ZSH_MODE
+#define GRIT_DOTFILE_ZSH_MODE "default"
 #endif
-#ifndef BB_DOTFILE_BASH_MODE
-#define BB_DOTFILE_BASH_MODE "default"
+#ifndef GRIT_DOTFILE_BASH_MODE
+#define GRIT_DOTFILE_BASH_MODE "default"
 #endif
-#ifndef BB_DOTFILE_TMUX_MODE
-#define BB_DOTFILE_TMUX_MODE "default"
+#ifndef GRIT_DOTFILE_TMUX_MODE
+#define GRIT_DOTFILE_TMUX_MODE "default"
 #endif
-#ifndef BB_DOTFILE_GDB_MODE
-#define BB_DOTFILE_GDB_MODE "default"
+#ifndef GRIT_DOTFILE_GDB_MODE
+#define GRIT_DOTFILE_GDB_MODE "default"
 #endif
-#ifndef BB_DOTFILE_PROFILE_MODE
-#define BB_DOTFILE_PROFILE_MODE "default"
+#ifndef GRIT_DOTFILE_PROFILE_MODE
+#define GRIT_DOTFILE_PROFILE_MODE "default"
 #endif
-#ifndef BB_USER_OVERLAY_ENABLE
-#define BB_USER_OVERLAY_ENABLE "no"
+#ifndef GRIT_USER_OVERLAY_ENABLE
+#define GRIT_USER_OVERLAY_ENABLE "no"
 #endif
-#ifndef BB_USER_OVERLAY_ROOT
-#define BB_USER_OVERLAY_ROOT "./overlay"
+#ifndef GRIT_USER_OVERLAY_ROOT
+#define GRIT_USER_OVERLAY_ROOT "./overlay"
 #endif
-#ifndef BB_USER_OVERLAY_ALLOW_OVERRIDE
-#define BB_USER_OVERLAY_ALLOW_OVERRIDE "no"
+#ifndef GRIT_USER_OVERLAY_ALLOW_OVERRIDE
+#define GRIT_USER_OVERLAY_ALLOW_OVERRIDE "no"
 #endif
-#ifndef BB_GDBSERVER_PROVIDER
-#define BB_GDBSERVER_PROVIDER "auto"
+#ifndef GRIT_GDBSERVER_PROVIDER
+#define GRIT_GDBSERVER_PROVIDER "auto"
 #endif
-#ifndef BB_FULL_ZERO_ARG_MODE
-#define BB_FULL_ZERO_ARG_MODE "help"
+#ifndef GRIT_FULL_ZERO_ARG_MODE
+#define GRIT_FULL_ZERO_ARG_MODE "help"
 #endif
-#ifndef BB_ZERO_ARG_MODE
-#define BB_ZERO_ARG_MODE BB_FULL_ZERO_ARG_MODE
+#ifndef GRIT_ZERO_ARG_MODE
+#define GRIT_ZERO_ARG_MODE GRIT_FULL_ZERO_ARG_MODE
 #endif
-#ifndef BB_ENABLE_SURVEY
-#define BB_ENABLE_SURVEY 1
+#ifndef GRIT_ENABLE_SURVEY
+#define GRIT_ENABLE_SURVEY 1
 #endif
-#ifndef BB_ENABLE_DOCTOR
-#define BB_ENABLE_DOCTOR 1
+#ifndef GRIT_ENABLE_DOCTOR
+#define GRIT_ENABLE_DOCTOR 1
 #endif
-#ifndef BB_ENABLE_EXTRACT
-#define BB_ENABLE_EXTRACT 1
+#ifndef GRIT_ENABLE_EXTRACT
+#define GRIT_ENABLE_EXTRACT 1
 #endif
-#ifndef BB_ENABLE_CONFIG_INFO
-#define BB_ENABLE_CONFIG_INFO 1
+#ifndef GRIT_ENABLE_CONFIG_INFO
+#define GRIT_ENABLE_CONFIG_INFO 1
 #endif
 #include "effective_config.h"
 
 static void manifest_print_noresidue_policy(FILE *out)
 {
-    int active = !strcmp(BB_RUNTIME_MODE, "no-residue");
-    int aggressive = !strcmp(BB_NORESIDUE_LEVEL, "aggressive");
+    int active = !strcmp(GRIT_RUNTIME_MODE, "no-residue");
+    int aggressive = !strcmp(GRIT_NORESIDUE_LEVEL, "aggressive");
 
     fprintf(out, "{\"active\":%s,\"level\":", active ? "true" : "false");
-    json_string_payload(out, BB_NORESIDUE_LEVEL);
-    fprintf(out, ",\"cleanup_scope\":\"BusierBox-owned runtime roots and ledgered files only\"");
+    json_string_payload(out, GRIT_NORESIDUE_LEVEL);
+    fprintf(out, ",\"cleanup_scope\":\"griTTYkit-owned runtime roots and ledgered files only\"");
     fprintf(out, ",\"best_effort\":true");
     fprintf(out, ",\"aggressive_minimizes_runtime_residue\":%s", aggressive ? "true" : "false");
     fprintf(out, ",\"persistent_target_logs_default\":");
     json_string_payload(out, aggressive ? "no" : "configured");
     fprintf(out, ",\"stdout_stderr_log_suppression\":");
-    json_string_payload(out, aggressive ? "BB_ZERO_ARG_LOG_MODE=none" : "available via BB_ZERO_ARG_LOG_MODE=none");
+    json_string_payload(out, aggressive ? "GRIT_ZERO_ARG_LOG_MODE=none" : "available via GRIT_ZERO_ARG_LOG_MODE=none");
     fprintf(out, ",\"in_memory_log_guarantee\":false");
     fprintf(out, ",\"forensic_no_trace\":false");
     fprintf(out, ",\"external_writes_require_explicit_apply\":true");
     fprintf(out, ",\"guarantee\":");
     json_string_payload(out, aggressive ?
-        "aggressive minimizes BusierBox runtime residue but cannot guarantee absence of residue" :
+        "aggressive minimizes griTTYkit runtime residue but cannot guarantee absence of residue" :
         "best-effort cleanup removes owned runtime state where reasonable");
     fprintf(out, "}");
 }
 
 static const char *busybox_tools[] = {
-#include "bbx_busybox_applets.h"
+#include "grit_busybox_applets.h"
     NULL
 };
 
 static const char *heavy_tools[] = {
-#include "bbx_heavy_tools.h"
+#include "grit_heavy_tools.h"
     NULL
 };
 
@@ -364,7 +364,7 @@ typedef int (*manifest_capture_writer)(FILE *out, void *ctx);
 
 static FILE *manifest_temp_stream(void)
 {
-    const char *roots[] = { BB_RUNTIME_ROOT, ".", "/tmp", NULL };
+    const char *roots[] = { GRIT_RUNTIME_ROOT, ".", "/tmp", NULL };
     char path[PATH_MAX];
     int i;
 
@@ -375,7 +375,7 @@ static FILE *manifest_temp_stream(void)
             continue;
         if (strcmp(roots[i], ".") && bb_mkdir_p(roots[i], 0700) != 0)
             continue;
-        snprintf(path, sizeof(path), "%s/.busierbox-capture.%ld.XXXXXX", roots[i], (long)getpid());
+        snprintf(path, sizeof(path), "%s/.grit-capture.%ld.XXXXXX", roots[i], (long)getpid());
         fd = mkstemp(path);
         if (fd < 0)
             continue;
@@ -421,7 +421,7 @@ static char *capture_json_alloc(manifest_capture_writer writer, void *ctx, size_
     size_t len = 0;
     FILE *fp;
 
-#ifndef BUSIERBOX_NO_OPEN_MEMSTREAM
+#ifndef GRIT_NO_OPEN_MEMSTREAM
     fp = open_memstream(&buf, &len);
     if (!fp)
         return NULL;
@@ -462,167 +462,167 @@ static void write_manifest_json(FILE *out, int include_missing)
     struct command_queue_policy_report command_queue_policy = bb_command_queue_validate_policy();
     int command_queue_policy_valid = bb_command_queue_policy_valid(&command_queue_policy);
     int command_queue_arbitrary_requested = command_queue_policy_valid &&
-        !strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") &&
-        !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") &&
-        !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes");
+        !strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") &&
+        !strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") &&
+        !strcmp(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes");
     int i;
 
-    fprintf(out, "{\"schema\":1,\"busierbox\":{\"payload_version\":");
-    json_string_payload(out, BUSIERBOX_PAYLOAD_VERSION);
+    fprintf(out, "{\"schema\":1,\"grit\":{\"payload_version\":");
+    json_string_payload(out, GRIT_PAYLOAD_VERSION);
     fprintf(out, ",\"artifact_tier\":");
-    json_string_payload(out, BUSIERBOX_ARTIFACT_TIER);
+    json_string_payload(out, GRIT_ARTIFACT_TIER);
     fprintf(out, ",\"build_timestamp\":");
-    json_string_payload(out, BUSIERBOX_BUILD_TIMESTAMP);
+    json_string_payload(out, GRIT_BUILD_TIMESTAMP);
     fprintf(out, ",\"git_commit\":");
-    json_string_payload(out, BUSIERBOX_GIT_COMMIT);
+    json_string_payload(out, GRIT_GIT_COMMIT);
     fprintf(out, "},\"target\":{\"preset\":");
-    json_string_payload(out, BB_TARGET_PRESET);
+    json_string_payload(out, GRIT_TARGET_PRESET);
     fprintf(out, ",\"name\":");
-    json_string_payload(out, BB_TARGET_NAME);
+    json_string_payload(out, GRIT_TARGET_NAME);
     fprintf(out, ",\"arch\":");
-    json_string_payload(out, BB_TARGET_ARCH);
+    json_string_payload(out, GRIT_TARGET_ARCH);
     fprintf(out, ",\"endian\":");
-    json_string_payload(out, BB_TARGET_ENDIAN);
+    json_string_payload(out, GRIT_TARGET_ENDIAN);
     fprintf(out, ",\"cpu\":");
-    json_string_payload(out, BB_TARGET_CPU);
+    json_string_payload(out, GRIT_TARGET_CPU);
     fprintf(out, ",\"abi\":");
-    json_string_payload(out, BB_TARGET_ABI);
+    json_string_payload(out, GRIT_TARGET_ABI);
     fprintf(out, ",\"libc\":");
-    json_string_payload(out, BB_TARGET_LIBC);
+    json_string_payload(out, GRIT_TARGET_LIBC);
     fprintf(out, ",\"kernel_floor\":");
-    json_string_payload(out, BB_KERNEL_FLOOR);
+    json_string_payload(out, GRIT_KERNEL_FLOOR);
     fprintf(out, ",\"static_policy\":");
-    json_string_payload(out, BB_STATIC_POLICY);
+    json_string_payload(out, GRIT_STATIC_POLICY);
     fprintf(out, "},\"payload\":{\"preset\":");
-    json_string_payload(out, BB_PAYLOAD_PRESET);
+    json_string_payload(out, GRIT_PAYLOAD_PRESET);
     fprintf(out, ",\"gdbserver_provider\":");
-    json_string_payload(out, BB_GDBSERVER_PROVIDER);
+    json_string_payload(out, GRIT_GDBSERVER_PROVIDER);
     fprintf(out, "},\"runtime\":{\"mode\":");
-    json_string_payload(out, BB_RUNTIME_MODE);
+    json_string_payload(out, GRIT_RUNTIME_MODE);
     fprintf(out, ",\"noresidue_level\":");
-    json_string_payload(out, BB_NORESIDUE_LEVEL);
+    json_string_payload(out, GRIT_NORESIDUE_LEVEL);
     fprintf(out, ",\"noresidue_policy\":");
     manifest_print_noresidue_policy(out);
     fprintf(out, ",\"root\":");
-    json_string_payload(out, BB_RUNTIME_ROOT);
+    json_string_payload(out, GRIT_RUNTIME_ROOT);
     fprintf(out, ",\"allow_fallback_root\":");
-    json_string_payload(out, BB_RUNTIME_ALLOW_FALLBACK_ROOT);
+    json_string_payload(out, GRIT_RUNTIME_ALLOW_FALLBACK_ROOT);
     fprintf(out, ",\"fallback_root\":");
-    json_string_payload(out, BB_RUNTIME_FALLBACK_ROOT);
+    json_string_payload(out, GRIT_RUNTIME_FALLBACK_ROOT);
     fprintf(out, "},\"zero_arg\":{\"mode\":");
-    json_string_payload(out, BB_ZERO_ARG_MODE);
+    json_string_payload(out, GRIT_ZERO_ARG_MODE);
     fprintf(out, ",\"log_mode\":");
-    json_string_payload(out, BB_ZERO_ARG_LOG_MODE);
+    json_string_payload(out, GRIT_ZERO_ARG_LOG_MODE);
     fprintf(out, "},\"rshell\":{\"transport\":");
-    json_string_payload(out, BB_RSHELL_TRANSPORT);
+    json_string_payload(out, GRIT_RSHELL_TRANSPORT);
     fprintf(out, ",\"encryption\":");
-    json_string_payload(out, BB_RSHELL_ENCRYPTION);
+    json_string_payload(out, GRIT_RSHELL_ENCRYPTION);
     fprintf(out, ",\"run_mode\":");
-    json_string_payload(out, BB_RSHELL_RUN_MODE);
+    json_string_payload(out, GRIT_RSHELL_RUN_MODE);
     fprintf(out, ",\"session_policy\":");
-    json_string_payload(out, BB_RSHELL_SESSION_POLICY);
-    fprintf(out, ",\"session_policy_valid\":%s", rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    json_string_payload(out, GRIT_RSHELL_SESSION_POLICY);
+    fprintf(out, ",\"session_policy_valid\":%s", rshell_session_policy_valid(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false");
     fprintf(out, ",\"session_policy_errors\":[");
-    if (!rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY))
+    if (!rshell_session_policy_valid(GRIT_RSHELL_SESSION_POLICY))
         json_string_payload(out, "unsupported rshell session policy");
     fprintf(out, "]");
     fprintf(out, ",\"session_semantics\":{\"retry_until_first_connection\":true");
-    fprintf(out, ",\"stop_after_first_success\":%s", !strcmp(BB_RSHELL_SESSION_POLICY, "single") ? "true" : "false");
-    fprintf(out, ",\"reconnect_after_disconnect\":%s", rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
-    fprintf(out, ",\"persistent_lifecycle\":%s", !strcmp(BB_RSHELL_SESSION_POLICY, "persistent") ? "true" : "false");
-    fprintf(out, ",\"fresh_session_on_reconnect\":%s", rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"stop_after_first_success\":%s", !strcmp(GRIT_RSHELL_SESSION_POLICY, "single") ? "true" : "false");
+    fprintf(out, ",\"reconnect_after_disconnect\":%s", rshell_session_policy_reconnects(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"persistent_lifecycle\":%s", !strcmp(GRIT_RSHELL_SESSION_POLICY, "persistent") ? "true" : "false");
+    fprintf(out, ",\"fresh_session_on_reconnect\":%s", rshell_session_policy_reconnects(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false");
     fprintf(out, ",\"session_resume_supported\":false}");
-    fprintf(out, ",\"session_policy_summary\":{\"valid\":%s", rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"session_policy_summary\":{\"valid\":%s", rshell_session_policy_valid(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false");
     fprintf(out, ",\"errors\":[");
-    if (!rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY))
+    if (!rshell_session_policy_valid(GRIT_RSHELL_SESSION_POLICY))
         json_string_payload(out, "unsupported rshell session policy");
     fprintf(out, "]");
     fprintf(out, ",\"retry_scope\":\"pre-connect");
-    if (rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY))
+    if (rshell_session_policy_reconnects(GRIT_RSHELL_SESSION_POLICY))
         fprintf(out, "+post-disconnect");
     fprintf(out, "\",\"pre_connect_retry_count\":");
-    json_string_payload(out, BB_RSHELL_RETRY_COUNT);
+    json_string_payload(out, GRIT_RSHELL_RETRY_COUNT);
     fprintf(out, ",\"post_disconnect_retry_count\":");
-    json_string_payload(out, rshell_post_disconnect_retry_count(BB_RSHELL_SESSION_POLICY));
-    fprintf(out, ",\"stops_after_success\":%s", !strcmp(BB_RSHELL_SESSION_POLICY, "single") ? "true" : "false");
-    fprintf(out, ",\"reconnects_after_disconnect\":%s", rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
-    fprintf(out, ",\"persistent_lifecycle\":%s", !strcmp(BB_RSHELL_SESSION_POLICY, "persistent") ? "true" : "false");
-    fprintf(out, ",\"fresh_session_on_reconnect\":%s", rshell_session_policy_reconnects(BB_RSHELL_SESSION_POLICY) ? "true" : "false");
+    json_string_payload(out, rshell_post_disconnect_retry_count(GRIT_RSHELL_SESSION_POLICY));
+    fprintf(out, ",\"stops_after_success\":%s", !strcmp(GRIT_RSHELL_SESSION_POLICY, "single") ? "true" : "false");
+    fprintf(out, ",\"reconnects_after_disconnect\":%s", rshell_session_policy_reconnects(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false");
+    fprintf(out, ",\"persistent_lifecycle\":%s", !strcmp(GRIT_RSHELL_SESSION_POLICY, "persistent") ? "true" : "false");
+    fprintf(out, ",\"fresh_session_on_reconnect\":%s", rshell_session_policy_reconnects(GRIT_RSHELL_SESSION_POLICY) ? "true" : "false");
     fprintf(out, ",\"session_resume_supported\":false}");
     fprintf(out, ",\"shell_provider\":");
-    json_string_payload(out, BB_RSHELL_SHELL_PROVIDER);
+    json_string_payload(out, GRIT_RSHELL_SHELL_PROVIDER);
     fprintf(out, ",\"operator_host\":");
-    json_string_payload(out, BB_OPERATOR_SERVER_HOST);
+    json_string_payload(out, GRIT_OPERATOR_SERVER_HOST);
     fprintf(out, ",\"operator_shell_port\":");
-    json_string_payload(out, BB_RSHELL_SOCAT_PORT);
+    json_string_payload(out, GRIT_RSHELL_SOCAT_PORT);
     fprintf(out, ",\"operator_ssh_port\":");
-    json_string_payload(out, BB_OPERATOR_SERVER_SSH_PORT);
+    json_string_payload(out, GRIT_OPERATOR_SERVER_SSH_PORT);
     fprintf(out, ",\"remote_forward_port\":");
-    json_string_payload(out, BB_OPERATOR_REMOTE_FORWARD_PORT);
+    json_string_payload(out, GRIT_OPERATOR_REMOTE_FORWARD_PORT);
     {
         char target_dropbear[256];
-        snprintf(target_dropbear, sizeof(target_dropbear), "%s:%s", BB_OPERATOR_TARGET_BIND_HOST, BB_OPERATOR_TARGET_DROPBEAR_PORT);
+        snprintf(target_dropbear, sizeof(target_dropbear), "%s:%s", GRIT_OPERATOR_TARGET_BIND_HOST, GRIT_OPERATOR_TARGET_DROPBEAR_PORT);
         fprintf(out, ",\"target_dropbear\":");
         json_string_payload(out, target_dropbear);
     }
     fprintf(out, ",\"authkeys_mode\":");
-    json_string_payload(out, BB_RSHELL_AUTHKEYS_MODE);
+    json_string_payload(out, GRIT_RSHELL_AUTHKEYS_MODE);
     fprintf(out, ",\"retry\":{\"count\":");
-    json_string_payload(out, BB_RSHELL_RETRY_COUNT);
+    json_string_payload(out, GRIT_RSHELL_RETRY_COUNT);
     fprintf(out, ",\"interval_sec\":");
-    json_string_payload(out, BB_RSHELL_RETRY_INTERVAL_SEC);
+    json_string_payload(out, GRIT_RSHELL_RETRY_INTERVAL_SEC);
     fprintf(out, ",\"jitter_pct\":");
-    json_string_payload(out, BB_RSHELL_RETRY_JITTER_PCT);
+    json_string_payload(out, GRIT_RSHELL_RETRY_JITTER_PCT);
     fprintf(out, ",\"backoff\":");
-    json_string_payload(out, BB_RSHELL_RETRY_BACKOFF);
+    json_string_payload(out, GRIT_RSHELL_RETRY_BACKOFF);
     fprintf(out, ",\"max_interval_sec\":");
-    json_string_payload(out, BB_RSHELL_RETRY_MAX_INTERVAL_SEC);
+    json_string_payload(out, GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC);
     fprintf(out, ",\"pre_connect_count\":");
-    json_string_payload(out, BB_RSHELL_RETRY_COUNT);
+    json_string_payload(out, GRIT_RSHELL_RETRY_COUNT);
     fprintf(out, ",\"post_disconnect_count\":");
-    json_string_payload(out, rshell_post_disconnect_retry_count(BB_RSHELL_SESSION_POLICY));
+    json_string_payload(out, rshell_post_disconnect_retry_count(GRIT_RSHELL_SESSION_POLICY));
     fprintf(out, "}");
     fprintf(out, "},\"operator_services\":{\"file_service\":{\"enabled\":");
-    json_string_payload(out, BB_OPERATOR_FILE_SERVICE_ENABLE);
+    json_string_payload(out, GRIT_OPERATOR_FILE_SERVICE_ENABLE);
     fprintf(out, ",\"port\":");
-    json_string_payload(out, BB_OPERATOR_FILE_SERVICE_PORT);
+    json_string_payload(out, GRIT_OPERATOR_FILE_SERVICE_PORT);
     fprintf(out, ",\"tls\":");
-    json_string_payload(out, BB_OPERATOR_FILE_SERVICE_TLS);
+    json_string_payload(out, GRIT_OPERATOR_FILE_SERVICE_TLS);
     fprintf(out, ",\"target_initiated\":true,\"receive_only\":true}");
     fprintf(out, ",\"command_queue\":{\"enabled\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_ENABLE);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_ENABLE);
     fprintf(out, ",\"port\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_PORT);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_PORT);
     fprintf(out, ",\"tls\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_TLS);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_TLS);
     fprintf(out, ",\"require_token\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_REQUIRE_TOKEN);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_REQUIRE_TOKEN);
     fprintf(out, ",\"token_source\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_TOKEN_SOURCE);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_TOKEN_SOURCE);
     fprintf(out, ",\"token_required\":%s,\"token_configured\":%s",
-            !strcmp(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false",
-            BB_COMMAND_QUEUE_TOKEN[0] ? "true" : "false");
+            !strcmp(GRIT_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false",
+            GRIT_COMMAND_QUEUE_TOKEN[0] ? "true" : "false");
     fprintf(out, ",\"allowed_commands\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS);
     fprintf(out, ",\"allow_arbitrary\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY);
     fprintf(out, ",\"execution_mode\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_EXECUTION);
-    fprintf(out, ",\"metadata_only_default\":%s", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
+    json_string_payload(out, GRIT_COMMAND_QUEUE_EXECUTION);
+    fprintf(out, ",\"metadata_only_default\":%s", !strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
     fprintf(out, ",\"poll_interval_sec\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC);
     fprintf(out, ",\"poll_jitter_pct\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_POLL_JITTER_PCT);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_POLL_JITTER_PCT);
     fprintf(out, ",\"poll_backoff\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_POLL_BACKOFF);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_POLL_BACKOFF);
     fprintf(out, ",\"poll_max_interval_sec\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
     fprintf(out, ",\"max_polls\":");
-    json_string_payload(out, BB_COMMAND_QUEUE_MAX_POLLS);
+    json_string_payload(out, GRIT_COMMAND_QUEUE_MAX_POLLS);
     fprintf(out, ",\"daemon_state_file\":");
     {
         char state_file[512];
-        snprintf(state_file, sizeof(state_file), "%s/run/command-queue-daemon.state", BB_RUNTIME_ROOT);
+        snprintf(state_file, sizeof(state_file), "%s/run/command-queue-daemon.state", GRIT_RUNTIME_ROOT);
         json_string_payload(out, state_file);
     }
     fprintf(out, ",\"daemon_state_file_supported\":true,\"daemon_status_supported\":true,\"daemon_stop_supported\":true");
@@ -641,23 +641,23 @@ static void write_manifest_json(FILE *out, int include_missing)
     print_command_queue_mode_api_collections(out);
     fprintf(out, "}");
     fprintf(out, "},\"dotfiles\":{\"enabled\":");
-    json_string_payload(out, BB_DOTFILES_ENABLE);
+    json_string_payload(out, GRIT_DOTFILES_ENABLE);
     fprintf(out, ",\"zsh\":");
-    json_string_payload(out, BB_DOTFILE_ZSH_MODE);
+    json_string_payload(out, GRIT_DOTFILE_ZSH_MODE);
     fprintf(out, ",\"bash\":");
-    json_string_payload(out, BB_DOTFILE_BASH_MODE);
+    json_string_payload(out, GRIT_DOTFILE_BASH_MODE);
     fprintf(out, ",\"tmux\":");
-    json_string_payload(out, BB_DOTFILE_TMUX_MODE);
+    json_string_payload(out, GRIT_DOTFILE_TMUX_MODE);
     fprintf(out, ",\"gdb\":");
-    json_string_payload(out, BB_DOTFILE_GDB_MODE);
+    json_string_payload(out, GRIT_DOTFILE_GDB_MODE);
     fprintf(out, ",\"profile\":");
-    json_string_payload(out, BB_DOTFILE_PROFILE_MODE);
+    json_string_payload(out, GRIT_DOTFILE_PROFILE_MODE);
     fprintf(out, "},\"overlay\":{\"enabled\":");
-    json_string_payload(out, BB_USER_OVERLAY_ENABLE);
+    json_string_payload(out, GRIT_USER_OVERLAY_ENABLE);
     fprintf(out, ",\"root\":");
-    json_string_payload(out, BB_USER_OVERLAY_ROOT);
+    json_string_payload(out, GRIT_USER_OVERLAY_ROOT);
     fprintf(out, ",\"allow_override\":");
-    json_string_payload(out, BB_USER_OVERLAY_ALLOW_OVERRIDE);
+    json_string_payload(out, GRIT_USER_OVERLAY_ALLOW_OVERRIDE);
     fprintf(out, "},\"licensing\":{\"project_license\":\"GPL-2.0-or-later\"");
     fprintf(out, ",\"supervisor_license\":\"GPL-2.0-or-later\"");
     fprintf(out, ",\"license_file\":\"LICENSE\",\"notice_file\":\"NOTICE\"");
@@ -683,22 +683,22 @@ static void write_manifest_json(FILE *out, int include_missing)
     fprintf(out, ",\"trailer_override\":");
     bb_config_print_trailer_json(out, json_string_payload);
     fprintf(out, ",\"native_features\":{\"survey\":%s,\"doctor\":%s,\"extract\":%s,\"config_info\":%s,\"persistence\":true,\"recovery_alias\":true",
-#if BB_ENABLE_SURVEY
+#if GRIT_ENABLE_SURVEY
            "true",
 #else
            "false",
 #endif
-#if BB_ENABLE_DOCTOR
+#if GRIT_ENABLE_DOCTOR
            "true",
 #else
            "false",
 #endif
-#if BB_ENABLE_EXTRACT
+#if GRIT_ENABLE_EXTRACT
            "true",
 #else
            "false",
 #endif
-#if BB_ENABLE_CONFIG_INFO
+#if GRIT_ENABLE_CONFIG_INFO
            "true"
 #else
            "false"
@@ -788,7 +788,7 @@ static int write_config_export_json(FILE *out)
 
     if (!manifest)
         return -1;
-    fprintf(out, "{\"schema\":1,\"kind\":\"busierbox-config-export\",\"manifest\":%s}\n", manifest);
+    fprintf(out, "{\"schema\":1,\"kind\":\"grit-config-export\",\"manifest\":%s}\n", manifest);
     free(manifest);
     return ferror(out) ? -1 : 0;
 }
@@ -823,7 +823,7 @@ static int write_support_token_json_capture(FILE *out, void *ctx)
 {
     const char *manifest = ctx;
 
-    fprintf(out, "{\"schema\":1,\"kind\":\"busierbox-support-token\",");
+    fprintf(out, "{\"schema\":1,\"kind\":\"grit-support-token\",");
     fprintf(out, "\"warning\":\"operator host and ports may be embedded; private key material is not included\",");
     fprintf(out, "\"manifest\":%s}", manifest);
     return ferror(out) ? -1 : 0;
@@ -884,17 +884,17 @@ int applet_manifest_main(int argc, char **argv)
     int i;
 
     if (manifest_is_help(argc, argv)) {
-        puts("usage: busierbox manifest [--json|--base64] [--include-missing]");
-        puts("       busierbox manifest push [--host HOST] [--port PORT] [--tls yes|no]");
-        puts("Print artifact and preset metadata embedded in this BusierBox binary.");
+        puts("usage: grit manifest [--json|--base64] [--include-missing]");
+        puts("       grit manifest push [--host HOST] [--port PORT] [--tls yes|no]");
+        puts("Print artifact and preset metadata embedded in this griTTYkit binary.");
         return 0;
     }
     if (argc > 1 && !strcmp(argv[1], "push")) {
-        const char *roots[] = { BB_RUNTIME_ROOT, ".", "/tmp", NULL };
+        const char *roots[] = { GRIT_RUNTIME_ROOT, ".", "/tmp", NULL };
         char path[PATH_MAX];
         int r, rc;
         if (argc > 2 && (!strcmp(argv[2], "--help") || !strcmp(argv[2], "-h"))) {
-            puts("usage: busierbox manifest push [--host HOST] [--port PORT] [--tls yes|no]");
+            puts("usage: grit manifest push [--host HOST] [--port PORT] [--tls yes|no]");
             puts("Generate manifest JSON and upload it to the receive-only operator file service.");
             return 0;
         }
@@ -902,7 +902,7 @@ int applet_manifest_main(int argc, char **argv)
             int fd;
             if (roots[r][0] && strcmp(roots[r], "."))
                 bb_mkdir_p(roots[r], 0700);
-            snprintf(path, sizeof(path), "%s/.busierbox-manifest.%ld.XXXXXX", roots[r], (long)getpid());
+            snprintf(path, sizeof(path), "%s/.grit-manifest.%ld.XXXXXX", roots[r], (long)getpid());
             fd = mkstemp(path);
             if (fd < 0)
                 continue;
@@ -919,7 +919,7 @@ int applet_manifest_main(int argc, char **argv)
                     continue;
                 }
             }
-            rc = bb_operator_upload_file(path, "busierbox-manifest.json", "manifest", argc - 2, argv + 2);
+            rc = bb_operator_upload_file(path, "grit-manifest.json", "manifest", argc - 2, argv + 2);
             unlink(path);
             return rc;
         }
@@ -949,10 +949,10 @@ int applet_manifest_main(int argc, char **argv)
     if (base64)
         return print_manifest_base64();
 
-    printf("artifact_tier=%s\n", BUSIERBOX_ARTIFACT_TIER);
-    printf("payload_version=%s\n", BUSIERBOX_PAYLOAD_VERSION);
-    printf("build_timestamp=%s\n", BUSIERBOX_BUILD_TIMESTAMP);
-    printf("git_commit=%s\n", BUSIERBOX_GIT_COMMIT);
+    printf("artifact_tier=%s\n", GRIT_ARTIFACT_TIER);
+    printf("payload_version=%s\n", GRIT_PAYLOAD_VERSION);
+    printf("build_timestamp=%s\n", GRIT_BUILD_TIMESTAMP);
+    printf("git_commit=%s\n", GRIT_GIT_COMMIT);
     puts("project_license=GPL-2.0-or-later");
     puts("supervisor_license=GPL-2.0-or-later");
     puts("combined_gplv2_compatible=yes");
@@ -961,36 +961,36 @@ int applet_manifest_main(int argc, char **argv)
     puts("third_party_component=Buildroot GPL-2.0-or-later target build system");
     puts("third_party_component=doom-ascii GPL-2.0-or-later optional Doom engine");
     puts("third_party_component=miniz MIT OR Unlicense payload archive helper");
-    printf("target_preset=%s\n", BB_TARGET_PRESET);
-    printf("target_name=%s\n", BB_TARGET_NAME);
-    printf("target_arch=%s\n", BB_TARGET_ARCH);
-    printf("target_endian=%s\n", BB_TARGET_ENDIAN);
-    printf("target_cpu=%s\n", BB_TARGET_CPU);
-    printf("target_abi=%s\n", BB_TARGET_ABI);
-    printf("target_libc=%s\n", BB_TARGET_LIBC);
-    printf("kernel_floor=%s\n", BB_KERNEL_FLOOR);
-    printf("static_policy=%s\n", BB_STATIC_POLICY);
-    printf("payload_preset=%s\n", BB_PAYLOAD_PRESET);
-    printf("gdbserver_provider=%s\n", BB_GDBSERVER_PROVIDER);
-    printf("runtime_mode=%s\n", BB_RUNTIME_MODE);
-    printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
-    printf("zero_arg_mode=%s\n", BB_ZERO_ARG_MODE);
-    printf("rshell_transport=%s\n", BB_RSHELL_TRANSPORT);
-    printf("rshell_encryption=%s\n", BB_RSHELL_ENCRYPTION);
-    printf("rshell_session_policy=%s\n", BB_RSHELL_SESSION_POLICY);
-    printf("rshell_session_policy_valid=%s\n", rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY) ? "yes" : "no");
-    if (!rshell_session_policy_valid(BB_RSHELL_SESSION_POLICY))
+    printf("target_preset=%s\n", GRIT_TARGET_PRESET);
+    printf("target_name=%s\n", GRIT_TARGET_NAME);
+    printf("target_arch=%s\n", GRIT_TARGET_ARCH);
+    printf("target_endian=%s\n", GRIT_TARGET_ENDIAN);
+    printf("target_cpu=%s\n", GRIT_TARGET_CPU);
+    printf("target_abi=%s\n", GRIT_TARGET_ABI);
+    printf("target_libc=%s\n", GRIT_TARGET_LIBC);
+    printf("kernel_floor=%s\n", GRIT_KERNEL_FLOOR);
+    printf("static_policy=%s\n", GRIT_STATIC_POLICY);
+    printf("payload_preset=%s\n", GRIT_PAYLOAD_PRESET);
+    printf("gdbserver_provider=%s\n", GRIT_GDBSERVER_PROVIDER);
+    printf("runtime_mode=%s\n", GRIT_RUNTIME_MODE);
+    printf("runtime_root=%s\n", GRIT_RUNTIME_ROOT);
+    printf("zero_arg_mode=%s\n", GRIT_ZERO_ARG_MODE);
+    printf("rshell_transport=%s\n", GRIT_RSHELL_TRANSPORT);
+    printf("rshell_encryption=%s\n", GRIT_RSHELL_ENCRYPTION);
+    printf("rshell_session_policy=%s\n", GRIT_RSHELL_SESSION_POLICY);
+    printf("rshell_session_policy_valid=%s\n", rshell_session_policy_valid(GRIT_RSHELL_SESSION_POLICY) ? "yes" : "no");
+    if (!rshell_session_policy_valid(GRIT_RSHELL_SESSION_POLICY))
         puts("rshell_session_policy_error=unsupported rshell session policy");
-    printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
-    printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
-    printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
-    printf("command_queue_execution_mode=%s\n", BB_COMMAND_QUEUE_EXECUTION);
-    printf("command_queue_token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
-    printf("command_queue_poll_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_INTERVAL_SEC);
-    printf("command_queue_poll_jitter_pct=%s\n", BB_COMMAND_QUEUE_POLL_JITTER_PCT);
-    printf("command_queue_poll_backoff=%s\n", BB_COMMAND_QUEUE_POLL_BACKOFF);
-    printf("command_queue_poll_max_interval_sec=%s\n", BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
-    printf("command_queue_max_polls=%s\n", BB_COMMAND_QUEUE_MAX_POLLS);
+    printf("command_queue_enable=%s\n", GRIT_COMMAND_QUEUE_ENABLE);
+    printf("command_queue_allowed_commands=%s\n", GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS);
+    printf("command_queue_allow_arbitrary=%s\n", GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("command_queue_execution_mode=%s\n", GRIT_COMMAND_QUEUE_EXECUTION);
+    printf("command_queue_token_configured=%s\n", GRIT_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
+    printf("command_queue_poll_interval_sec=%s\n", GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC);
+    printf("command_queue_poll_jitter_pct=%s\n", GRIT_COMMAND_QUEUE_POLL_JITTER_PCT);
+    printf("command_queue_poll_backoff=%s\n", GRIT_COMMAND_QUEUE_POLL_BACKOFF);
+    printf("command_queue_poll_max_interval_sec=%s\n", GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC);
+    printf("command_queue_max_polls=%s\n", GRIT_COMMAND_QUEUE_MAX_POLLS);
     printf("heavy_tools=");
     for (i = 0; heavy_tools[i]; i++)
         printf("%s%s", i ? " " : "", heavy_tools[i]);
@@ -1004,7 +1004,7 @@ int applet_config_export_main(int argc, char **argv)
     int i;
 
     if (manifest_is_help(argc, argv)) {
-        puts("usage: busierbox config-export [--json|--base64]");
+        puts("usage: grit config-export [--json|--base64]");
         puts("Export rebuild-oriented artifact config metadata. No private key material is included.");
         return 0;
     }

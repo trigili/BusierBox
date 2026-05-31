@@ -1,0 +1,1507 @@
+#!/bin/sh
+set -eu
+
+usage() {
+    cat >&2 <<'EOF'
+usage: scripts/grit-bringup [--host USER@HOST] [options]
+
+Guided target bring-up flow. It builds or reuses a conservative survey
+artifact, copies it to the target, captures survey/config-info output, converts
+the survey into a recommended griTTYkit config, and can then build that
+recommended artifact.
+
+What it does:
+  - writes local run files under local/bringup-runs/<timestamp>-<pid>/
+  - builds a survey artifact unless --survey-json is supplied
+  - transfers only to /tmp/grit-bringup-<timestamp>-<pid>/ on the target
+  - runs ./grit survey --json and ./grit config-info
+  - runs ./grit reality-test --json when the artifact supports it
+  - writes recommended.conf, recommendation.json, and summary.json
+  - can generate a local target preset and select a compatible release artifact
+  - optionally runs one integration case when --run-integration is set
+
+What it does not do:
+  - does not start scripts/grit-server
+  - does not enable reverse access or network autorun
+  - does not install persistence or write outside the remote temp directory
+  - does not replace the repeatable integration harness
+
+Options:
+  --operator-host HOST|auto   operator address for generated reverse-access config
+  --target-id ID              target id to attach to generated target-side commands
+  --target-label LABEL        friendly label for generated target-side commands
+  --target-alias ALIAS        target alias for generated commands; may be repeated
+  --survey-only               stop after survey and recommendation
+  --recommend-only            use --survey-json or captured survey; do not build final artifact
+  --survey-json PATH          use an existing survey JSON instead of touching target
+  --reality-json PATH         use an existing reality-test JSON for release scoring
+  --write-target-preset NAME  write local/presets/targets/NAME.json from survey
+  --release-dir DIR           choose a compatible artifact from a release bundle or local release repository
+  --max-compatibility LABEL   reject release artifacts riskier than LABEL
+  --configure-trailer         print artifact-config command for operator overrides
+  --stage-recommended-artifact
+                              stage selected/recommended artifact for target fetch
+  --json                      print summary JSON to stdout
+  --payload-preset NAME       preset for initial survey artifact; default survey-core
+  --target-preset NAME        target preset to build; default native
+  --run-integration CASE      run one scripts/integration-glinet case after build
+  --dry-run                   create local plan/summary only; no build, SSH, or SCP
+  --keep-remote               leave remote temp directory for debugging
+  --help, -h                  show this help
+
+Examples:
+  scripts/grit-bringup --host root@192.168.8.1 --operator-host auto
+  scripts/grit-bringup --host root@192.168.8.1 --survey-only
+  scripts/grit-bringup --recommend-only --survey-json survey.json
+  scripts/grit-bringup --recommend-only --survey-json survey.json --write-target-preset lab-router
+  scripts/grit-bringup --recommend-only --survey-json survey.json --release-dir dist/releases/smoke --json
+
+Use scripts/integration-glinet for repeatable validation runs. Bringup is a
+guided onboarding flow; integration-glinet is the regression harness.
+EOF
+}
+
+host=
+operator_host=auto
+target_id=
+target_label=
+target_aliases=
+survey_only=no
+recommend_only=no
+payload_preset=survey-core
+target_preset=native
+run_integration=
+dry_run=no
+keep_remote=no
+survey_input=
+reality_input=
+write_target_preset=
+release_dir=
+max_compatibility=
+configure_trailer=no
+stage_recommended_artifact=no
+json_output=no
+remote_touched=no
+target_preset_path=
+release_find_json=
+release_selection_source=
+release_selection_command=
+selected_artifact=
+compatibility_label=
+compatibility_reasons_json='[]'
+compatibility_json='{}'
+selected_tool_provider_status_json='{}'
+selected_doom_wads_json='[]'
+selected_artifact_summary_json='{}'
+trailer_command=
+staged_fetch_command=
+staged_request_name=
+recommended_artifact=
+release_self_test_json=
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --host) host=$2; shift 2 ;;
+        --host=*) host=${1#--host=}; shift ;;
+        --operator-host) operator_host=$2; shift 2 ;;
+        --operator-host=*) operator_host=${1#--operator-host=}; shift ;;
+        --target-id) target_id=$2; shift 2 ;;
+        --target-id=*) target_id=${1#--target-id=}; shift ;;
+        --target-label) target_label=$2; shift 2 ;;
+        --target-label=*) target_label=${1#--target-label=}; shift ;;
+        --target-alias)
+            target_aliases=${target_aliases}${target_aliases:+'
+'}$2
+            shift 2
+            ;;
+        --target-alias=*)
+            target_aliases=${target_aliases}${target_aliases:+'
+'}${1#--target-alias=}
+            shift
+            ;;
+        --survey-only) survey_only=yes; shift ;;
+        --recommend-only) recommend_only=yes; shift ;;
+        --survey-json) survey_input=$2; shift 2 ;;
+        --survey-json=*) survey_input=${1#--survey-json=}; shift ;;
+        --reality-json) reality_input=$2; shift 2 ;;
+        --reality-json=*) reality_input=${1#--reality-json=}; shift ;;
+        --write-target-preset) write_target_preset=$2; shift 2 ;;
+        --write-target-preset=*) write_target_preset=${1#--write-target-preset=}; shift ;;
+        --release-dir) release_dir=$2; shift 2 ;;
+        --release-dir=*) release_dir=${1#--release-dir=}; shift ;;
+        --max-compatibility) max_compatibility=$2; shift 2 ;;
+        --max-compatibility=*) max_compatibility=${1#--max-compatibility=}; shift ;;
+        --configure-trailer) configure_trailer=yes; shift ;;
+        --stage-recommended-artifact) stage_recommended_artifact=yes; shift ;;
+        --json) json_output=yes; shift ;;
+        --payload-preset) payload_preset=$2; shift 2 ;;
+        --payload-preset=*) payload_preset=${1#--payload-preset=}; shift ;;
+        --target-preset) target_preset=$2; shift 2 ;;
+        --target-preset=*) target_preset=${1#--target-preset=}; shift ;;
+        --run-integration) run_integration=$2; shift 2 ;;
+        --run-integration=*) run_integration=${1#--run-integration=}; shift ;;
+        --dry-run) dry_run=yes; shift ;;
+        --keep-remote) keep_remote=yes; shift ;;
+        --help|-h) usage; exit 0 ;;
+        *) usage; exit 2 ;;
+    esac
+done
+
+[ -n "$host" ] || {
+    if [ -n "$survey_input" ] || [ "$dry_run" = yes ]; then
+        host="USER@TARGET"
+    else
+        usage
+        exit 2
+    fi
+}
+
+ts=$(date -u +%Y%m%d-%H%M%S)
+run_id="$ts-$$"
+run_dir="local/bringup-runs/$run_id"
+remote_dir="/tmp/grit-bringup-$run_id"
+if ! mkdir "$run_dir" 2>/dev/null; then
+    i=1
+    while :; do
+        run_id="$ts-$$-$i"
+        run_dir="local/bringup-runs/$run_id"
+        remote_dir="/tmp/grit-bringup-$run_id"
+        if mkdir "$run_dir" 2>/dev/null; then
+            break
+        fi
+        i=$((i + 1))
+        if [ "$i" -gt 100 ]; then
+            printf '%s\n' "bringup: unable to create unique run directory under local/bringup-runs" >&2
+            exit 1
+        fi
+    done
+fi
+
+summary="$run_dir/summary.json"
+config="$run_dir/survey-core.conf"
+survey="$run_dir/survey.json"
+recommended="$run_dir/recommended.conf"
+reality="$run_dir/reality-test.json"
+
+write_summary() {
+    status=$1
+    reason=${2:-}
+    SUMMARY_PATH="$summary" \
+    STATUS="$status" \
+    REASON="$reason" \
+    HOST="$host" \
+    RUN_DIR="$run_dir" \
+    REMOTE_DIR="$remote_dir" \
+    TARGET_ID="$target_id" \
+    TARGET_LABEL="$target_label" \
+    TARGET_ALIASES="$target_aliases" \
+    PAYLOAD_PRESET="$payload_preset" \
+    TARGET_PRESET="$target_preset" \
+    OPERATOR_HOST="$operator_host" \
+    SURVEY_JSON="$survey" \
+    REALITY_JSON="$reality" \
+    RECOMMENDATION_JSON="$run_dir/recommendation.json" \
+    RECOMMENDED_CONFIG="$recommended" \
+    TARGET_PRESET_PATH="$target_preset_path" \
+    RELEASE_DIR="$release_dir" \
+    MAX_COMPATIBILITY="$max_compatibility" \
+    RELEASE_FIND_JSON="$release_find_json" \
+    RELEASE_SELECTION_SOURCE="$release_selection_source" \
+    RELEASE_SELECTION_COMMAND="$release_selection_command" \
+    RELEASE_SELF_TEST_JSON="$release_self_test_json" \
+    SELECTED_ARTIFACT="$selected_artifact" \
+    COMPATIBILITY_LABEL="$compatibility_label" \
+    COMPATIBILITY_REASONS_JSON="$compatibility_reasons_json" \
+    COMPATIBILITY_JSON="$compatibility_json" \
+    SELECTED_TOOL_PROVIDER_STATUS_JSON="$selected_tool_provider_status_json" \
+    SELECTED_DOOM_WADS_JSON="$selected_doom_wads_json" \
+    SELECTED_ARTIFACT_SUMMARY_JSON="$selected_artifact_summary_json" \
+    TRAILER_COMMAND="$trailer_command" \
+    STAGED_FETCH_COMMAND="$staged_fetch_command" \
+    STAGED_REQUEST_NAME="$staged_request_name" \
+    RECOMMENDED_ARTIFACT="$recommended_artifact" \
+    RUN_INTEGRATION="$run_integration" \
+    python3 - <<'PY'
+import json
+import os
+
+def env(name):
+    return os.environ.get(name, "")
+
+def maybe_file(path):
+    return path if path and os.path.exists(path) else ""
+
+def file_record(name, path, expected_kind="file"):
+    rec = {
+        "name": name,
+        "path": path,
+        "expected_kind": expected_kind,
+        "exists": False,
+        "is_file": False,
+        "is_dir": False,
+        "size": 0,
+        "readable": False,
+        "writable": False,
+    }
+    if not path:
+        return rec
+    rec["exists"] = os.path.exists(path)
+    rec["is_file"] = os.path.isfile(path)
+    rec["is_dir"] = os.path.isdir(path)
+    rec["readable"] = bool(rec["exists"] and os.access(path, os.R_OK))
+    rec["writable"] = bool(rec["exists"] and os.access(path, os.W_OK))
+    if rec["exists"] and rec["is_file"]:
+        try:
+            rec["size"] = os.path.getsize(path)
+        except OSError:
+            rec["size"] = 0
+    rec["expected_kind_matches"] = (
+        bool(rec["is_dir"]) if expected_kind == "dir" else
+        bool(rec["is_file"]) if expected_kind == "file" else
+        bool(rec["exists"])
+    ) if rec["exists"] else False
+    rec["expected_kind_mismatch"] = bool(rec["exists"] and not rec["expected_kind_matches"])
+    return rec
+
+def split_lines(text):
+    return [line for line in text.splitlines() if line]
+
+try:
+    reasons = json.loads(env("COMPATIBILITY_REASONS_JSON") or "[]")
+    if not isinstance(reasons, list):
+        reasons = [reasons]
+except Exception:
+    reasons = split_lines(env("COMPATIBILITY_REASONS_JSON"))
+
+try:
+    selected_compatibility = json.loads(env("COMPATIBILITY_JSON") or "{}")
+    if not isinstance(selected_compatibility, dict):
+        selected_compatibility = {}
+except Exception:
+    selected_compatibility = {}
+if not selected_compatibility:
+    selected_compatibility = {
+        "label": env("COMPATIBILITY_LABEL"),
+        "reasons": reasons,
+    }
+if not reasons and isinstance(selected_compatibility.get("reasons"), list):
+    reasons = selected_compatibility.get("reasons") or []
+
+try:
+    selected_tool_provider_status = json.loads(env("SELECTED_TOOL_PROVIDER_STATUS_JSON") or "{}")
+    if not isinstance(selected_tool_provider_status, dict):
+        selected_tool_provider_status = {}
+except Exception:
+    selected_tool_provider_status = {}
+
+try:
+    selected_doom_wads = json.loads(env("SELECTED_DOOM_WADS_JSON") or "[]")
+    if not isinstance(selected_doom_wads, list):
+        selected_doom_wads = []
+except Exception:
+    selected_doom_wads = []
+
+try:
+    selected_artifact_summary = json.loads(env("SELECTED_ARTIFACT_SUMMARY_JSON") or "{}")
+    if not isinstance(selected_artifact_summary, dict):
+        selected_artifact_summary = {}
+except Exception:
+    selected_artifact_summary = {}
+
+host = env("HOST")
+operator_host = env("OPERATOR_HOST")
+target_id = env("TARGET_ID").strip()
+target_label = env("TARGET_LABEL").strip()
+target_aliases = [line.strip() for line in env("TARGET_ALIASES").splitlines() if line.strip()]
+target_context = {}
+if target_id:
+    target_context = {
+        "target_id": target_id,
+        "target_label": target_label,
+        "target_aliases": target_aliases,
+        "target_identity_source": "operator-selection",
+        "target_identity_confidence": "operator-assigned",
+    }
+
+def with_target_context(record):
+    rec = dict(record)
+    if target_context:
+        for key, value in target_context.items():
+            if value not in (None, "", []):
+                rec[key] = value
+    return rec
+
+next_operator = [
+    "scripts/grit-server --transport file-service",
+]
+if env("TRAILER_COMMAND"):
+    next_operator.append(env("TRAILER_COMMAND"))
+
+next_target = [
+    "./grit survey --json",
+    "./grit reality-test --json",
+]
+if env("STAGED_FETCH_COMMAND"):
+    next_target.append(env("STAGED_FETCH_COMMAND"))
+
+next_operator_records = [
+    {
+        "command": "scripts/grit-server --transport file-service",
+        "purpose": "start receive-only operator file service",
+        "side": "operator",
+        "service": "file-service",
+        "executes_on_target": False,
+        "starts_listener": True,
+        "requires_explicit_operator_action": True,
+    },
+]
+if env("TRAILER_COMMAND"):
+    next_operator_records.append({
+        "command": env("TRAILER_COMMAND"),
+        "purpose": "configure artifact trailer overrides",
+        "side": "operator",
+        "service": "artifact-config",
+        "executes_on_target": False,
+        "starts_listener": False,
+        "requires_explicit_operator_action": True,
+    })
+
+next_target_records = [
+    with_target_context({
+        "command": "./grit survey --json",
+        "purpose": "collect passive target facts",
+        "side": "target",
+        "service": "survey",
+        "requires_explicit_target_action": True,
+        "network": False,
+        "executes_operator_supplied_commands": False,
+    }),
+    with_target_context({
+        "command": "./grit reality-test --json",
+        "purpose": "run active local capability probes",
+        "side": "target",
+        "service": "reality-test",
+        "requires_explicit_target_action": True,
+        "network": False,
+        "executes_operator_supplied_commands": False,
+    }),
+]
+staged_stage_kind = ""
+staged_source_path = ""
+if env("STAGED_FETCH_COMMAND"):
+    if env("SELECTED_ARTIFACT"):
+        staged_stage_kind = "release-artifact"
+        staged_source_path = env("SELECTED_ARTIFACT")
+    elif env("RECOMMENDED_ARTIFACT"):
+        staged_stage_kind = "recommended-artifact"
+        staged_source_path = env("RECOMMENDED_ARTIFACT")
+    elif env("RECOMMENDED_CONFIG"):
+        staged_stage_kind = "config"
+        staged_source_path = env("RECOMMENDED_CONFIG")
+if env("STAGED_FETCH_COMMAND"):
+    next_target_records.append(with_target_context({
+        "command": env("STAGED_FETCH_COMMAND"),
+        "purpose": "explicitly fetch operator-staged artifact or config",
+        "side": "target",
+        "service": "file-service",
+        "requires_explicit_target_action": True,
+        "network": True,
+        "executes_operator_supplied_commands": False,
+        "request_name": env("STAGED_REQUEST_NAME"),
+        "source_path": staged_source_path,
+        "stage_kind": staged_stage_kind,
+        "selected_artifact": env("SELECTED_ARTIFACT"),
+        "compatibility": selected_compatibility,
+    }))
+
+next_command_records = next_operator_records + next_target_records
+
+def summary_count_by_key(records, key):
+    counts = {}
+    for item in records:
+        if key not in item:
+            continue
+        value = item.get(key)
+        if value is None or value == "":
+            continue
+        if isinstance(value, bool):
+            value = "true" if value else "false"
+        else:
+            value = str(value)
+        counts[value] = counts.get(value, 0) + 1
+    return counts
+
+def summary_count_by_nested_key(records, key, nested_key):
+    counts = {}
+    for item in records:
+        nested = item.get(key)
+        if not isinstance(nested, dict):
+            continue
+        value = nested.get(nested_key)
+        if value is None or value == "":
+            continue
+        value = str(value)
+        counts[value] = counts.get(value, 0) + 1
+    return counts
+
+command_record_summary = {
+    "total_count": len(next_command_records),
+    "operator_count": len(next_operator_records),
+    "target_count": len(next_target_records),
+    "side_counts": summary_count_by_key(next_command_records, "side"),
+    "service_counts": summary_count_by_key(next_command_records, "service"),
+    "purpose_counts": summary_count_by_key(next_command_records, "purpose"),
+    "stage_kind_counts": summary_count_by_key(next_command_records, "stage_kind"),
+    "network_counts": summary_count_by_key(next_command_records, "network"),
+    "requires_explicit_target_action_counts": summary_count_by_key(next_command_records, "requires_explicit_target_action"),
+    "requires_explicit_operator_action_counts": summary_count_by_key(next_command_records, "requires_explicit_operator_action"),
+    "executes_operator_supplied_commands_counts": summary_count_by_key(next_command_records, "executes_operator_supplied_commands"),
+    "executes_on_target_counts": summary_count_by_key(next_command_records, "executes_on_target"),
+    "compatibility_label_counts": summary_count_by_nested_key(next_command_records, "compatibility", "label"),
+    "compatibility_baseline_label_counts": summary_count_by_nested_key(next_command_records, "compatibility", "baseline_label"),
+    "compatibility_source_counts": summary_count_by_nested_key(next_command_records, "compatibility", "source"),
+    "target_id_counts": summary_count_by_key(next_command_records, "target_id"),
+    "target_label_counts": summary_count_by_key(next_command_records, "target_label"),
+    "target_network_count": sum(1 for item in next_target_records if item.get("network") is True),
+    "operator_listener_count": sum(1 for item in next_operator_records if item.get("starts_listener") is True),
+    "target_requires_explicit_action_count": sum(1 for item in next_target_records if item.get("requires_explicit_target_action") is True),
+    "target_executes_operator_supplied_commands_count": sum(1 for item in next_target_records if item.get("executes_operator_supplied_commands") is True),
+    "operator_executes_on_target_count": sum(1 for item in next_operator_records if item.get("executes_on_target") is True),
+    "target_staged_fetch_count": sum(1 for item in next_target_records if item.get("request_name")),
+    "all_target_commands_require_explicit_action": all(item.get("requires_explicit_target_action") is True for item in next_target_records),
+    "all_operator_commands_require_explicit_action": all(item.get("requires_explicit_operator_action") is True for item in next_operator_records),
+    "any_operator_command_executes_on_target": any(item.get("executes_on_target") is True for item in next_operator_records),
+    "any_target_command_executes_operator_supplied_commands": any(item.get("executes_operator_supplied_commands") is True for item in next_target_records),
+}
+next_command_records_by_side = {
+    "operator": next_operator_records,
+    "target": next_target_records,
+}
+next_command_records_by_service = {}
+next_command_records_by_purpose = {}
+next_command_records_by_side_service = {}
+next_command_records_by_service_purpose = {}
+next_command_records_by_request = {}
+next_command_records_by_stage_kind = {}
+next_command_records_by_source_path = {}
+next_command_records_by_network = {}
+next_command_records_by_requires_explicit_target_action = {}
+next_command_records_by_requires_explicit_operator_action = {}
+next_command_records_by_executes_operator_supplied_commands = {}
+next_command_records_by_executes_on_target = {}
+next_command_records_by_compatibility_label = {}
+next_command_records_by_compatibility_baseline_label = {}
+next_command_records_by_compatibility_source = {}
+next_command_records_by_target_id = {}
+next_command_records_by_target_label = {}
+next_command_records_by_target_alias = {}
+for item in next_command_records:
+    service = item.get("service") or ""
+    purpose = item.get("purpose") or ""
+    side = item.get("side") or ""
+    request_name = item.get("request_name") or ""
+    stage_kind = item.get("stage_kind") or ""
+    source_path = item.get("source_path") or ""
+    item_target_id = item.get("target_id") or ""
+    item_target_label = item.get("target_label") or ""
+    if service:
+        next_command_records_by_service.setdefault(service, []).append(item)
+    if purpose:
+        next_command_records_by_purpose.setdefault(purpose, []).append(item)
+    if request_name:
+        next_command_records_by_request[request_name] = item
+    if stage_kind:
+        next_command_records_by_stage_kind.setdefault(stage_kind, []).append(item)
+    if source_path:
+        next_command_records_by_source_path.setdefault(source_path, []).append(item)
+    if item_target_id:
+        next_command_records_by_target_id.setdefault(item_target_id, []).append(item)
+    if item_target_label:
+        next_command_records_by_target_label.setdefault(item_target_label, []).append(item)
+    for alias in item.get("target_aliases") or []:
+        alias = str(alias or "")
+        if alias:
+            next_command_records_by_target_alias.setdefault(alias, []).append(item)
+    if side and service:
+        next_command_records_by_side_service.setdefault(f"{side}:{service}", []).append(item)
+    if service and purpose:
+        next_command_records_by_service_purpose.setdefault(f"{service}:{purpose}", []).append(item)
+    if "network" in item:
+        next_command_records_by_network.setdefault("true" if item.get("network") is True else "false", []).append(item)
+    if "requires_explicit_target_action" in item:
+        key = "true" if item.get("requires_explicit_target_action") is True else "false"
+        next_command_records_by_requires_explicit_target_action.setdefault(key, []).append(item)
+    if "requires_explicit_operator_action" in item:
+        key = "true" if item.get("requires_explicit_operator_action") is True else "false"
+        next_command_records_by_requires_explicit_operator_action.setdefault(key, []).append(item)
+    if "executes_operator_supplied_commands" in item:
+        key = "true" if item.get("executes_operator_supplied_commands") is True else "false"
+        next_command_records_by_executes_operator_supplied_commands.setdefault(key, []).append(item)
+    if "executes_on_target" in item:
+        key = "true" if item.get("executes_on_target") is True else "false"
+        next_command_records_by_executes_on_target.setdefault(key, []).append(item)
+    compatibility = item.get("compatibility")
+    if isinstance(compatibility, dict):
+        label = str(compatibility.get("label") or "")
+        baseline_label = str(compatibility.get("baseline_label") or "")
+        source = str(compatibility.get("source") or "")
+        if label:
+            next_command_records_by_compatibility_label.setdefault(label, []).append(item)
+        if baseline_label:
+            next_command_records_by_compatibility_baseline_label.setdefault(baseline_label, []).append(item)
+        if source:
+            next_command_records_by_compatibility_source.setdefault(source, []).append(item)
+
+def api_collection_record(name, records, indexes, summary_key, primary_key=""):
+    return {
+        "name": name,
+        "count": len(records),
+        "count_summary_key": summary_key,
+        "primary_key": primary_key,
+        "indexes": list(indexes),
+        "summary_key": summary_key,
+    }
+
+def api_resource_records(api_collections):
+    resources = []
+    for name in sorted(api_collections):
+        collection = api_collections.get(name) or {}
+        resources.append({
+            "name": name,
+            "collection_key": f"api_collections.{name}",
+            "records_key": name,
+            "count": int(collection.get("count") or 0),
+            "summary_key": collection.get("summary_key") or collection.get("count_summary_key") or "",
+            "count_summary_key": collection.get("count_summary_key") or collection.get("summary_key") or "",
+            "primary_key": collection.get("primary_key") or "",
+            "indexes": collection.get("indexes") or [],
+        })
+    return resources
+
+def api_resource_indexes(resources):
+    by_name = {}
+    by_records_key = {}
+    by_summary_key = {}
+    for rec in resources:
+        name = rec.get("name") or ""
+        records_key = rec.get("records_key") or ""
+        summary_key = rec.get("summary_key") or ""
+        if name:
+            by_name[name] = rec
+        if records_key:
+            by_records_key.setdefault(records_key, []).append(rec)
+        if summary_key:
+            by_summary_key.setdefault(summary_key, []).append(rec)
+    return by_name, by_records_key, by_summary_key
+
+def records_by_key(records, key):
+    grouped = {}
+    for rec in records:
+        value = rec.get(key)
+        if value in (None, ""):
+            continue
+        grouped.setdefault(str(value), []).append(rec)
+    return grouped
+
+def step_record(ordinal, key, title, status, evidence_path="", command="", optional=False, details=None):
+    rec = {
+        "ordinal": ordinal,
+        "key": key,
+        "title": title,
+        "status": status,
+        "optional": bool(optional),
+        "evidence_path": evidence_path,
+        "evidence_exists": bool(evidence_path and os.path.exists(evidence_path)),
+        "command": command,
+    }
+    if details:
+        rec["details"] = details
+    if target_context:
+        rec["target_context"] = target_context
+    return rec
+
+survey_path = env("SURVEY_JSON")
+reality_path = env("REALITY_JSON")
+recommended_config_path = env("RECOMMENDED_CONFIG")
+target_preset_path_env = env("TARGET_PRESET_PATH")
+release_find_path = env("RELEASE_FIND_JSON")
+selected_artifact_path = env("SELECTED_ARTIFACT")
+trailer_cmd = env("TRAILER_COMMAND")
+staged_fetch_cmd = env("STAGED_FETCH_COMMAND")
+integration_case = env("RUN_INTEGRATION")
+status_value = env("STATUS")
+dry_run = status_value == "dry-run"
+
+bringup_flow_steps = [
+    step_record(1, "transfer_survey_artifact", "transfer survey/core artifact",
+                "planned" if dry_run else ("complete" if survey_path and os.path.exists(survey_path) else "pending"),
+                survey_path, "make package; scp grit to target",
+                details={"remote_dir": env("REMOTE_DIR"), "payload_preset": env("PAYLOAD_PRESET")}),
+    step_record(2, "run_survey", "run survey",
+                "planned" if dry_run else ("complete" if survey_path and os.path.exists(survey_path) else "pending"),
+                survey_path, "./grit survey --json"),
+    step_record(3, "run_reality_test", "run reality-test if available",
+                "complete" if reality_path and os.path.exists(reality_path) else ("planned" if dry_run else "skipped"),
+                reality_path, "./grit reality-test --json", optional=True),
+    step_record(4, "generate_recommended_config", "generate recommended config",
+                "planned" if dry_run else ("complete" if recommended_config_path and os.path.exists(recommended_config_path) else "pending"),
+                recommended_config_path, "scripts/config-from-survey --format shell --write-config"),
+    step_record(5, "generate_target_preset", "generate local target preset",
+                "complete" if target_preset_path_env and os.path.exists(target_preset_path_env) else ("planned" if dry_run and target_preset_path_env else "skipped"),
+                target_preset_path_env, "scripts/preset-from-survey --write-local", optional=True),
+    step_record(6, "choose_release_artifact", "choose compatible release artifact",
+                "complete" if selected_artifact_path else ("planned" if dry_run and env("RELEASE_DIR") else "skipped"),
+                release_find_path, env("RELEASE_SELECTION_COMMAND") or "scripts/find-artifact or release-find",
+                optional=True, details={"release_dir": env("RELEASE_DIR"), "compatibility_label": env("COMPATIBILITY_LABEL")}),
+    step_record(7, "configure_trailer", "configure trailer with operator host/ports",
+                "complete" if trailer_cmd else ("planned" if dry_run and env("OPERATOR_HOST") else "skipped"),
+                selected_artifact_path or env("RECOMMENDED_ARTIFACT"), trailer_cmd,
+                optional=True, details={"operator_host": env("OPERATOR_HOST")}),
+    step_record(8, "stage_artifact_or_config", "stage selected artifact or config for fetch",
+                "complete" if staged_fetch_cmd else ("planned" if dry_run else "skipped"),
+                selected_artifact_path or env("RECOMMENDED_ARTIFACT") or recommended_config_path, staged_fetch_cmd,
+                optional=True, details={"request_name": env("STAGED_REQUEST_NAME")}),
+    step_record(9, "print_next_commands", "print exact next target commands",
+                "complete" if status_value in ("pass", "dry-run") else "pending",
+                env("SUMMARY_PATH"), "summary.next_operator_commands and summary.next_target_commands"),
+    step_record(10, "run_integration_safe_checks", "optionally run integration-safe checks",
+                "complete" if integration_case and status_value == "pass" else ("planned" if dry_run and integration_case else "skipped"),
+                os.path.join(env("RUN_DIR"), "integration.log") if integration_case else "",
+                f"scripts/integration-glinet --case {integration_case}" if integration_case else "",
+                optional=True),
+]
+bringup_flow_steps_by_key = {item["key"]: item for item in bringup_flow_steps}
+bringup_flow_steps_by_status = records_by_key(bringup_flow_steps, "status")
+bringup_flow_steps_by_optional = records_by_key(
+    [dict(item, optional_key="yes" if item.get("optional") else "no") for item in bringup_flow_steps],
+    "optional_key",
+)
+bringup_flow_steps_by_evidence_exists = records_by_key(
+    [dict(item, evidence_exists_key="yes" if item.get("evidence_exists") else "no") for item in bringup_flow_steps],
+    "evidence_exists_key",
+)
+required_bringup_flow_steps = [item for item in bringup_flow_steps if not item.get("optional")]
+bringup_flow_summary = {
+    "step_count": len(bringup_flow_steps),
+    "required_step_count": len(required_bringup_flow_steps),
+    "optional_step_count": len(bringup_flow_steps) - len(required_bringup_flow_steps),
+    "complete_count": sum(1 for item in bringup_flow_steps if item.get("status") == "complete"),
+    "planned_count": sum(1 for item in bringup_flow_steps if item.get("status") == "planned"),
+    "skipped_count": sum(1 for item in bringup_flow_steps if item.get("status") == "skipped"),
+    "pending_count": sum(1 for item in bringup_flow_steps if item.get("status") == "pending"),
+    "required_complete_count": sum(1 for item in required_bringup_flow_steps if item.get("status") == "complete"),
+    "required_pending_count": sum(1 for item in required_bringup_flow_steps if item.get("status") == "pending"),
+    "status_counts": {key: len(value) for key, value in bringup_flow_steps_by_status.items()},
+    "optional_counts": {key: len(value) for key, value in bringup_flow_steps_by_optional.items()},
+    "evidence_exists_counts": {key: len(value) for key, value in bringup_flow_steps_by_evidence_exists.items()},
+}
+
+selected_tool_provider_status_records = []
+for tool, status in sorted(selected_tool_provider_status.items()):
+    record = {
+        "tool": str(tool),
+        "overall": "",
+        "status": "",
+        "selected_artifact": env("SELECTED_ARTIFACT"),
+    }
+    if isinstance(status, dict):
+        record.update(status)
+        record["overall"] = str(status.get("overall") or status.get("status") or "unknown")
+        record["status"] = str(status.get("status") or status.get("overall") or "unknown")
+    else:
+        record["overall"] = str(status)
+        record["status"] = str(status)
+        record["value"] = status
+    selected_tool_provider_status_records.append(record)
+
+selected_tool_provider_status_by_tool = records_by_key(selected_tool_provider_status_records, "tool")
+selected_tool_provider_status_by_overall = records_by_key(selected_tool_provider_status_records, "overall")
+selected_doom_wad_records = []
+for index, wad in enumerate(selected_doom_wads):
+    if isinstance(wad, dict):
+        record = dict(wad)
+    else:
+        record = {"value": wad}
+    record["index"] = index
+    record["filename"] = str(record.get("filename") or "")
+    record["sha256"] = str(record.get("sha256") or "")
+    record["selected_artifact"] = env("SELECTED_ARTIFACT")
+    selected_doom_wad_records.append(record)
+selected_doom_wads_by_filename = records_by_key(selected_doom_wad_records, "filename")
+selected_doom_wads_by_sha256 = records_by_key(selected_doom_wad_records, "sha256")
+
+recommendation_summary = {}
+recommendation_compatibility = {"label": "", "reasons": []}
+recommendation_path = env("RECOMMENDATION_JSON")
+if recommendation_path and os.path.exists(recommendation_path):
+    try:
+        with open(recommendation_path, "r", encoding="utf-8") as fh:
+            recommendation_doc = json.load(fh)
+        recs = recommendation_doc.get("recommendations") or {}
+        facts = recommendation_doc.get("facts") or {}
+        compat = recommendation_doc.get("compatibility") if isinstance(recommendation_doc, dict) else {}
+        if not isinstance(compat, dict):
+            compat = {}
+        compat_reasons = compat.get("reasons")
+        if not isinstance(compat_reasons, list):
+            compat_reasons = []
+        recommendation_compatibility = {
+            "schema": int(compat.get("schema") or 1),
+            "label": str(compat.get("label") or ""),
+            "reasons": [str(item) for item in compat_reasons if item not in (None, "")],
+        }
+        recommendation_summary = {
+            "warnings": recommendation_doc.get("warnings") or [],
+            "compatibility": recommendation_compatibility,
+            "facts": {
+                "arch": facts.get("arch", ""),
+                "libc": facts.get("libc", ""),
+                "kernel_floor": facts.get("kernel_floor", ""),
+                "endianness": facts.get("endianness", ""),
+                "payload_possible": facts.get("payload_possible", ""),
+                "recommended_extract_dir": facts.get("recommended_extract_dir", ""),
+                "reality": facts.get("reality") or {},
+            },
+            "config": {
+                key: recs.get(key, "")
+                for key in (
+                    "GRIT_TARGET_PRESET",
+                    "GRIT_PAYLOAD_PRESET",
+                    "GRIT_RUNTIME_MODE",
+                    "GRIT_RUNTIME_ROOT",
+                    "GRIT_RSHELL_TRANSPORT",
+                    "GRIT_ZERO_ARG_MODE",
+                )
+            },
+        }
+    except Exception as exc:
+        recommendation_summary = {"warning": f"could not parse recommendation JSON: {exc}"}
+
+reality_summary = {}
+reality_path = env("REALITY_JSON")
+if reality_path and os.path.exists(reality_path):
+    try:
+        with open(reality_path, "r", encoding="utf-8") as fh:
+            reality_doc = json.load(fh)
+        if isinstance(reality_doc, dict):
+            checks = reality_doc.get("checks") if isinstance(reality_doc.get("checks"), list) else []
+            summary_obj = reality_doc.get("summary") if isinstance(reality_doc.get("summary"), dict) else {}
+            api_obj = reality_doc.get("api_collections") if isinstance(reality_doc.get("api_collections"), dict) else {}
+            reality_summary = {
+                "source": reality_path,
+                "check_count": int(summary_obj.get("check_count") or len(checks)),
+                "pass": int(summary_obj.get("pass") or 0),
+                "fail": int(summary_obj.get("fail") or 0),
+                "skipped": int(summary_obj.get("skipped") or 0),
+                "capability_pass": int(summary_obj.get("capability_pass") or 0),
+                "capability_fail": int(summary_obj.get("capability_fail") or 0),
+                "operator_pass": int(summary_obj.get("operator_pass") or 0),
+                "operator_fail": int(summary_obj.get("operator_fail") or 0),
+                "operator_skipped": int(summary_obj.get("operator_skipped") or 0),
+                "constraints": summary_obj.get("constraints") if isinstance(summary_obj.get("constraints"), dict) else {},
+                "checks_by_name": reality_doc.get("checks_by_name") if isinstance(reality_doc.get("checks_by_name"), dict) else {},
+                "checks_by_status": reality_doc.get("checks_by_status") if isinstance(reality_doc.get("checks_by_status"), dict) else {},
+                "checks_by_type": reality_doc.get("checks_by_type") if isinstance(reality_doc.get("checks_by_type"), dict) else {},
+                "checks_by_skipped": reality_doc.get("checks_by_skipped") if isinstance(reality_doc.get("checks_by_skipped"), dict) else {},
+                "checks_by_available": reality_doc.get("checks_by_available") if isinstance(reality_doc.get("checks_by_available"), dict) else {},
+                "checks_by_detected": reality_doc.get("checks_by_detected") if isinstance(reality_doc.get("checks_by_detected"), dict) else {},
+                "api_collections": api_obj,
+            }
+    except Exception as exc:
+        reality_summary = {"source": reality_path, "warning": f"could not parse reality-test JSON: {exc}"}
+
+release_self_test_summary = {}
+release_self_test_path = env("RELEASE_SELF_TEST_JSON")
+if release_self_test_path and os.path.exists(release_self_test_path):
+    try:
+        with open(release_self_test_path, "r", encoding="utf-8") as fh:
+            release_self_test_doc = json.load(fh)
+        if isinstance(release_self_test_doc, dict):
+            release_self_test_summary = dict(release_self_test_doc)
+            release_self_test_summary["source"] = release_self_test_path
+            release_self_test_summary["valid"] = True
+        else:
+            release_self_test_summary = {
+                "source": release_self_test_path,
+                "valid": False,
+                "warning": "release self-test JSON is not an object",
+            }
+    except Exception as exc:
+        release_self_test_summary = {"source": release_self_test_path, "valid": False, "warning": f"could not parse release self-test JSON: {exc}"}
+
+target_preset_summary = {}
+target_preset_path = env("TARGET_PRESET_PATH")
+if target_preset_path and os.path.exists(target_preset_path):
+    try:
+        with open(target_preset_path, "r", encoding="utf-8") as fh:
+            target_preset_doc = json.load(fh)
+        if isinstance(target_preset_doc, dict):
+            target_preset_summary = {
+                "source": target_preset_path,
+                "valid": True,
+                "schema": target_preset_doc.get("schema", 1),
+                "name": str(target_preset_doc.get("name") or ""),
+                "arch": str(target_preset_doc.get("arch") or ""),
+                "endian": str(target_preset_doc.get("endian") or ""),
+                "libc": str(target_preset_doc.get("libc") or ""),
+                "kernel_floor": str(target_preset_doc.get("kernel_floor") or ""),
+                "cpu": str(target_preset_doc.get("cpu") or ""),
+                "abi": str(target_preset_doc.get("abi") or ""),
+                "static_policy": str(target_preset_doc.get("static_policy") or ""),
+                "confidence": target_preset_doc.get("confidence") if isinstance(target_preset_doc.get("confidence"), dict) else {},
+                "compatibility": target_preset_doc.get("compatibility") if isinstance(target_preset_doc.get("compatibility"), dict) else {},
+                "evidence": target_preset_doc.get("evidence") if isinstance(target_preset_doc.get("evidence"), dict) else {},
+                "notes": target_preset_doc.get("notes") if isinstance(target_preset_doc.get("notes"), list) else [],
+            }
+        else:
+            target_preset_summary = {
+                "source": target_preset_path,
+                "valid": False,
+                "warning": "target preset JSON is not an object",
+            }
+    except Exception as exc:
+        target_preset_summary = {"source": target_preset_path, "valid": False, "warning": f"could not parse target preset JSON: {exc}"}
+
+doc = {
+    "schema": 1,
+    "status": env("STATUS"),
+    "host": host,
+    "run_dir": env("RUN_DIR"),
+    "remote_dir": env("REMOTE_DIR"),
+    "payload_preset": env("PAYLOAD_PRESET"),
+    "target_preset": env("TARGET_PRESET"),
+    "operator_host": operator_host,
+    "target_context": target_context,
+    "survey_json": env("SURVEY_JSON"),
+    "reality_json": maybe_file(env("REALITY_JSON")),
+    "recommendation_json": env("RECOMMENDATION_JSON"),
+    "recommended_config": env("RECOMMENDED_CONFIG"),
+    "recommendation": recommendation_summary,
+    "recommendation_compatibility": recommendation_compatibility,
+    "reality_summary": reality_summary,
+    "recommended_target_preset": env("TARGET_PRESET_PATH"),
+    "recommended_target_preset_summary": target_preset_summary,
+    "release_dir": env("RELEASE_DIR"),
+    "max_compatibility": env("MAX_COMPATIBILITY"),
+    "release_find_json": maybe_file(env("RELEASE_FIND_JSON")),
+    "release_selection_source": env("RELEASE_SELECTION_SOURCE"),
+    "release_selection_command": env("RELEASE_SELECTION_COMMAND"),
+    "release_self_test_json": maybe_file(env("RELEASE_SELF_TEST_JSON")),
+    "release_self_test_summary": release_self_test_summary,
+    "selected_artifact": env("SELECTED_ARTIFACT"),
+    "selected_artifact_summary": selected_artifact_summary,
+    "selected_tool_provider_status": selected_tool_provider_status,
+    "selected_tool_provider_status_records": selected_tool_provider_status_records,
+    "selected_tool_provider_status_by_tool": selected_tool_provider_status_by_tool,
+    "selected_tool_provider_status_by_overall": selected_tool_provider_status_by_overall,
+    "selected_doom_wads": selected_doom_wads,
+    "selected_doom_wad_records": selected_doom_wad_records,
+    "selected_doom_wads_by_filename": selected_doom_wads_by_filename,
+    "selected_doom_wads_by_sha256": selected_doom_wads_by_sha256,
+    "compatibility": selected_compatibility,
+    "bringup_flow_steps": bringup_flow_steps,
+    "bringup_flow_steps_by_key": bringup_flow_steps_by_key,
+    "bringup_flow_steps_by_status": bringup_flow_steps_by_status,
+    "bringup_flow_steps_by_optional": bringup_flow_steps_by_optional,
+    "bringup_flow_steps_by_evidence_exists": bringup_flow_steps_by_evidence_exists,
+    "bringup_flow_summary": bringup_flow_summary,
+    "generated_trailer_override_command": env("TRAILER_COMMAND"),
+    "staged_request_name": env("STAGED_REQUEST_NAME"),
+    "staged_fetch_command": env("STAGED_FETCH_COMMAND"),
+    "next_operator_commands": next_operator,
+    "next_target_commands": next_target,
+    "next_operator_command_records": next_operator_records,
+    "next_target_command_records": next_target_records,
+    "next_command_records": next_command_records,
+    "next_command_records_by_side": next_command_records_by_side,
+    "next_command_records_by_service": next_command_records_by_service,
+    "next_command_records_by_purpose": next_command_records_by_purpose,
+    "next_command_records_by_side_service": next_command_records_by_side_service,
+    "next_command_records_by_service_purpose": next_command_records_by_service_purpose,
+    "next_command_records_by_request": next_command_records_by_request,
+    "next_command_records_by_stage_kind": next_command_records_by_stage_kind,
+    "next_command_records_by_source_path": next_command_records_by_source_path,
+    "next_command_records_by_network": next_command_records_by_network,
+    "next_command_records_by_requires_explicit_target_action": next_command_records_by_requires_explicit_target_action,
+    "next_command_records_by_requires_explicit_operator_action": next_command_records_by_requires_explicit_operator_action,
+    "next_command_records_by_executes_operator_supplied_commands": next_command_records_by_executes_operator_supplied_commands,
+    "next_command_records_by_executes_on_target": next_command_records_by_executes_on_target,
+    "next_command_records_by_compatibility_label": next_command_records_by_compatibility_label,
+    "next_command_records_by_compatibility_baseline_label": next_command_records_by_compatibility_baseline_label,
+    "next_command_records_by_compatibility_source": next_command_records_by_compatibility_source,
+    "next_command_records_by_target_id": next_command_records_by_target_id,
+    "next_command_records_by_target_label": next_command_records_by_target_label,
+    "next_command_records_by_target_alias": next_command_records_by_target_alias,
+    "command_record_summary": command_record_summary,
+    "safety_boundary": {
+        "network_autorun": False,
+        "target_must_run_fetch": bool(env("STAGED_FETCH_COMMAND")),
+        "remote_command_execution_by_default": False,
+        "command_queue_enabled_by_default": False,
+        "hidden_control_channel": False,
+    },
+}
+if env("REASON"):
+    doc["reason"] = env("REASON")
+run_files = {
+    "run_dir": file_record("run_dir", env("RUN_DIR"), "dir"),
+    "survey_json": file_record("survey_json", env("SURVEY_JSON")),
+    "reality_json": file_record("reality_json", env("REALITY_JSON")),
+    "recommendation_json": file_record("recommendation_json", env("RECOMMENDATION_JSON")),
+    "recommended_config": file_record("recommended_config", env("RECOMMENDED_CONFIG")),
+    "recommended_target_preset": file_record("recommended_target_preset", env("TARGET_PRESET_PATH")),
+    "release_find_json": file_record("release_find_json", env("RELEASE_FIND_JSON")),
+    "release_self_test_json": file_record("release_self_test_json", env("RELEASE_SELF_TEST_JSON")),
+    "selected_artifact": file_record("selected_artifact", env("SELECTED_ARTIFACT")),
+    "recommended_artifact": file_record("recommended_artifact", env("RECOMMENDED_ARTIFACT")),
+}
+run_file_records = list(run_files.values())
+run_files_by_name = {}
+run_files_by_path = {}
+run_files_by_expected_kind = {}
+run_files_by_exists = {"yes": [], "no": []}
+run_files_by_readable = {"yes": [], "no": []}
+run_files_by_writable = {"yes": [], "no": []}
+run_files_by_expected_kind_exists = {}
+run_files_by_expected_kind_mismatch = {"yes": [], "no": []}
+for item in run_file_records:
+    name = str(item.get("name") or "")
+    path = str(item.get("path") or "")
+    expected_kind = str(item.get("expected_kind") or "")
+    exists = "yes" if item.get("exists") else "no"
+    if name:
+        run_files_by_name[name] = item
+    if path:
+        run_files_by_path[path] = item
+    run_files_by_expected_kind.setdefault(expected_kind, []).append(item)
+    run_files_by_exists.setdefault(exists, []).append(item)
+    run_files_by_readable.setdefault("yes" if item.get("readable") else "no", []).append(item)
+    run_files_by_writable.setdefault("yes" if item.get("writable") else "no", []).append(item)
+    run_files_by_expected_kind_exists.setdefault(f"{expected_kind}:{exists}", []).append(item)
+    run_files_by_expected_kind_mismatch.setdefault("yes" if item.get("expected_kind_mismatch") else "no", []).append(item)
+doc["run_files"] = run_files
+doc["run_file_records"] = run_file_records
+doc["run_files_by_name"] = run_files_by_name
+doc["run_files_by_path"] = run_files_by_path
+doc["run_files_by_expected_kind"] = run_files_by_expected_kind
+doc["run_files_by_exists"] = run_files_by_exists
+doc["run_files_by_readable"] = run_files_by_readable
+doc["run_files_by_writable"] = run_files_by_writable
+doc["run_files_by_expected_kind_exists"] = run_files_by_expected_kind_exists
+doc["run_files_by_expected_kind_mismatch"] = run_files_by_expected_kind_mismatch
+doc["run_file_summary"] = {
+    "total_count": len(run_files),
+    "exists_count": sum(1 for item in run_files.values() if item.get("exists")),
+    "missing_count": sum(1 for item in run_files.values() if not item.get("exists")),
+    "readable_count": sum(1 for item in run_files.values() if item.get("readable")),
+    "writable_count": sum(1 for item in run_files.values() if item.get("writable")),
+    "expected_kind_mismatch_count": sum(1 for item in run_files.values() if item.get("expected_kind_mismatch")),
+    "expected_kind_counts": {key: len(value) for key, value in run_files_by_expected_kind.items()},
+    "exists_counts": {key: len(value) for key, value in run_files_by_exists.items()},
+    "readable_counts": {key: len(value) for key, value in run_files_by_readable.items()},
+    "writable_counts": {key: len(value) for key, value in run_files_by_writable.items()},
+    "expected_kind_exists_counts": {key: len(value) for key, value in run_files_by_expected_kind_exists.items()},
+    "expected_kind_mismatch_counts": {key: len(value) for key, value in run_files_by_expected_kind_mismatch.items()},
+    "total_size": sum(int(item.get("size") or 0) for item in run_files.values()),
+}
+doc["api_collections"] = {
+    "bringup_flow_steps": api_collection_record(
+        "bringup_flow_steps",
+        bringup_flow_steps,
+        (
+            "bringup_flow_steps_by_key",
+            "bringup_flow_steps_by_status",
+            "bringup_flow_steps_by_optional",
+            "bringup_flow_steps_by_evidence_exists",
+        ),
+        "bringup_flow_summary.step_count",
+        "key",
+    ),
+    "next_command_records": api_collection_record(
+        "next_command_records",
+        next_command_records,
+        (
+            "next_command_records_by_side",
+            "next_command_records_by_service",
+            "next_command_records_by_purpose",
+            "next_command_records_by_side_service",
+            "next_command_records_by_service_purpose",
+            "next_command_records_by_request",
+            "next_command_records_by_stage_kind",
+            "next_command_records_by_source_path",
+            "next_command_records_by_network",
+            "next_command_records_by_requires_explicit_target_action",
+            "next_command_records_by_requires_explicit_operator_action",
+            "next_command_records_by_executes_operator_supplied_commands",
+            "next_command_records_by_executes_on_target",
+            "next_command_records_by_compatibility_label",
+            "next_command_records_by_compatibility_baseline_label",
+            "next_command_records_by_compatibility_source",
+            "next_command_records_by_target_id",
+            "next_command_records_by_target_label",
+            "next_command_records_by_target_alias",
+        ),
+        "command_record_summary.total_count",
+        "command",
+    ),
+    "run_file_records": api_collection_record(
+        "run_file_records",
+        run_file_records,
+        (
+            "run_files",
+            "run_files_by_name",
+            "run_files_by_path",
+            "run_files_by_expected_kind",
+            "run_files_by_exists",
+            "run_files_by_readable",
+            "run_files_by_writable",
+            "run_files_by_expected_kind_exists",
+            "run_files_by_expected_kind_mismatch",
+        ),
+        "run_file_summary.total_count",
+        "name",
+    ),
+    "selected_tool_provider_status_records": api_collection_record(
+        "selected_tool_provider_status_records",
+        selected_tool_provider_status_records,
+        (
+            "selected_tool_provider_status_by_tool",
+            "selected_tool_provider_status_by_overall",
+        ),
+        "selected_artifact_detail_summary.tool_provider_status_count",
+        "tool",
+    ),
+    "selected_doom_wad_records": api_collection_record(
+        "selected_doom_wad_records",
+        selected_doom_wad_records,
+        (
+            "selected_doom_wads_by_filename",
+            "selected_doom_wads_by_sha256",
+        ),
+        "selected_artifact_detail_summary.doom_wad_count",
+        "filename",
+    ),
+}
+api_resources = api_resource_records(doc["api_collections"])
+api_resources_by_name, api_resources_by_records_key, api_resources_by_summary_key = api_resource_indexes(api_resources)
+doc["api"] = {
+    "schema": 1,
+    "summary_path": env("SUMMARY_PATH"),
+    "resources_key": "api_resources",
+    "collections_key": "api_collections",
+    "resource_count": len(api_resources),
+}
+doc["api_resources"] = api_resources
+doc["api_resources_by_name"] = api_resources_by_name
+doc["api_resources_by_records_key"] = api_resources_by_records_key
+doc["api_resources_by_summary_key"] = api_resources_by_summary_key
+doc["selected_artifact_detail_summary"] = {
+    "tool_provider_status_count": len(selected_tool_provider_status_records),
+    "tool_provider_overall_counts": {
+        key: len(value) for key, value in selected_tool_provider_status_by_overall.items()
+    },
+    "doom_wad_count": len(selected_doom_wad_records),
+    "doom_wad_filename_count": len(selected_doom_wads_by_filename),
+    "doom_wad_sha256_count": len(selected_doom_wads_by_sha256),
+}
+path = env("SUMMARY_PATH")
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(doc, fh, indent=2, sort_keys=True)
+    fh.write("\n")
+PY
+    if [ "$json_output" = yes ]; then
+        cat "$summary"
+    fi
+}
+
+shell_quote() {
+    printf "%s" "$1" | sed "s/'/'\\\\''/g; s/^/'/; s/$/'/"
+}
+
+command_string() {
+    out=
+    for arg do
+        quoted=$(shell_quote "$arg")
+        if [ -n "$out" ]; then
+            out="$out $quoted"
+        else
+            out=$quoted
+        fi
+    done
+    printf '%s\n' "$out"
+}
+
+append_target_args() {
+    if [ -n "$target_id" ]; then
+        set -- "$@" --target-id "$target_id"
+    fi
+    if [ -n "$target_label" ]; then
+        set -- "$@" --target-label "$target_label"
+    fi
+    if [ -n "$target_aliases" ]; then
+        old_ifs=$IFS
+        IFS='
+'
+        for alias in $target_aliases; do
+            [ -n "$alias" ] || continue
+            set -- "$@" --target-alias "$alias"
+        done
+        IFS=$old_ifs
+    fi
+    command_string "$@"
+}
+
+remote_quote() {
+    printf "%s" "$1" | sed "s/'/'\\\\''/g"
+}
+
+extract_release_selection() {
+    RELEASE_FIND_JSON="$release_find_json" python3 - <<'PY'
+import json
+import os
+
+path = os.environ["RELEASE_FIND_JSON"]
+with open(path, "r", encoding="utf-8") as fh:
+    data = json.load(fh)
+
+def first_string(*values):
+    for value in values:
+        if isinstance(value, str) and value:
+            return value
+    return ""
+
+artifact = first_string(
+    data.get("artifact"),
+    data.get("artifact_path"),
+    data.get("path"),
+    data.get("file"),
+)
+selected = data.get("selected")
+if isinstance(selected, dict):
+    artifact = artifact or first_string(
+        selected.get("artifact_path"),
+        selected.get("path"),
+        selected.get("file"),
+        selected.get("artifact"),
+    )
+
+compat = data.get("effective_compatibility") if isinstance(data.get("effective_compatibility"), dict) else data.get("compatibility")
+label = ""
+reasons = []
+tool_provider_status = {}
+doom_wads = []
+artifact_summary = {}
+if isinstance(compat, dict):
+    label = first_string(compat.get("label"), compat.get("score"), compat.get("status"))
+    raw = compat.get("reasons", [])
+    reasons = raw if isinstance(raw, list) else [raw]
+elif isinstance(compat, str):
+    label = compat
+if isinstance(selected, dict):
+    raw_provider_status = selected.get("tool_provider_status")
+    if isinstance(raw_provider_status, dict):
+        tool_provider_status = raw_provider_status
+    raw_doom_wads = selected.get("doom_wads")
+    if isinstance(raw_doom_wads, list):
+        doom_wads = raw_doom_wads
+    raw_summary = selected.get("tuple_summary") or selected.get("summary")
+    if isinstance(raw_summary, dict):
+        artifact_summary = raw_summary
+    if not artifact_summary:
+        artifact_summary = {
+            key: selected.get(key)
+            for key in ("reverse_access", "command_queue", "runtime_mode", "noresidue_level", "payload_preset")
+            if selected.get(key) not in (None, "", [], {})
+        }
+    if isinstance(selected.get("effective_compatibility"), dict):
+        compat = selected.get("effective_compatibility")
+        label = first_string(compat.get("label"), compat.get("score"), compat.get("status"))
+        raw = compat.get("reasons", [])
+        reasons = raw if isinstance(raw, list) else [raw]
+    elif not compat and isinstance(selected.get("compatibility"), dict):
+        compat = selected.get("compatibility")
+        label = first_string(compat.get("label"), compat.get("score"), compat.get("status"))
+        raw = compat.get("reasons", [])
+        reasons = raw if isinstance(raw, list) else [raw]
+if not label:
+    label = first_string(data.get("compatibility_label"), data.get("score"), data.get("label"))
+if not reasons:
+    raw = data.get("reasons", [])
+    reasons = raw if isinstance(raw, list) else [raw]
+release_self_test_json = ""
+release_self_test = selected.get("release_self_test") if isinstance(selected, dict) else None
+if isinstance(release_self_test, dict):
+    release_self_test_json = first_string(release_self_test.get("path"))
+
+import shlex
+
+values = {
+    "selected_artifact": artifact,
+    "compatibility_label": label,
+    "compatibility_reasons_json": json.dumps([str(x) for x in reasons if x not in (None, "")]),
+    "compatibility_json": json.dumps(compat if isinstance(compat, dict) else {"label": label, "reasons": [str(x) for x in reasons if x not in (None, "")]}),
+    "selected_tool_provider_status_json": json.dumps(tool_provider_status),
+    "selected_doom_wads_json": json.dumps(doom_wads),
+    "selected_artifact_summary_json": json.dumps(artifact_summary),
+}
+if release_self_test_json:
+    values["release_self_test_json"] = release_self_test_json
+for key, value in values.items():
+    print(f"{key}={shlex.quote(str(value))}")
+PY
+}
+
+choose_release_artifact() {
+    [ -n "$release_dir" ] || return 0
+    release_self_test_json="$run_dir/release-self-test.json"
+    if [ -x "$release_dir/scripts/release-self-test" ]; then
+        if ! "$release_dir/scripts/release-self-test" --json >"$release_self_test_json" 2>"$run_dir/release-self-test.err"; then
+            write_summary fail "release self-test failed"
+            printf '%s\n' "bringup: release self-test failed; see $run_dir/release-self-test.err" >&2
+            exit 1
+        fi
+    else
+        release_self_test_json=
+    fi
+    release_find_json="$run_dir/release-find.json"
+    max_args=
+    case "$max_compatibility" in
+        ""|exact|likely|heuristic|unsafe|incompatible) ;;
+        *)
+            write_summary fail "invalid max compatibility label"
+            printf '%s\n' "bringup: invalid --max-compatibility $max_compatibility" >&2
+            exit 2
+            ;;
+    esac
+    if [ -n "$max_compatibility" ]; then
+        max_args=yes
+    fi
+    if [ -x "$release_dir/scripts/release-find" ]; then
+        release_selection_source=bundle-helper
+        set -- scripts/release-find --release-dir "$release_dir" --survey-json "$survey"
+        if [ -f "$reality" ]; then
+            set -- "$@" --reality-json "$reality"
+        fi
+        if [ "$max_args" = yes ]; then
+            set -- "$@" --max-compatibility "$max_compatibility"
+        fi
+        set -- "$@" --json
+    else
+        release_selection_source=release-repository
+        set -- scripts/find-artifact --release-root "$release_dir" --survey-json "$survey" --payload-preset "$payload_preset" --recommendation-json
+        if [ -f "$reality" ]; then
+            set -- "$@" --reality-json "$reality"
+        fi
+        if [ "$max_args" = yes ]; then
+            set -- "$@" --max-compatibility "$max_compatibility"
+        fi
+    fi
+    release_selection_command=$(command_string "$@")
+    if "$@" >"$release_find_json" 2>"$run_dir/release-find.err"; then
+        eval "$(extract_release_selection)"
+    else
+        write_summary fail "release artifact selection failed"
+        printf '%s\n' "bringup: release artifact selection failed; see $run_dir/release-find.err" >&2
+        exit 1
+    fi
+}
+
+generate_trailer_command() {
+    [ "$configure_trailer" = yes ] || return 0
+    artifact_for_trailer=${selected_artifact:-$recommended_artifact}
+    [ -n "$artifact_for_trailer" ] || return 0
+    host_for_trailer=$operator_host
+    [ "$host_for_trailer" = auto ] && host_for_trailer=OPERATOR_IP
+    trailer_command="scripts/artifact-config set $(shell_quote "$artifact_for_trailer") GRIT_OPERATOR_SERVER_HOST=$(shell_quote "$host_for_trailer") GRIT_OPERATOR_FILE_SERVICE_ENABLE=yes GRIT_OPERATOR_FILE_SERVICE_PORT=22204"
+}
+
+stage_artifact_for_fetch() {
+    [ "$stage_recommended_artifact" = yes ] || return 0
+    artifact_to_stage=${selected_artifact:-$recommended_artifact}
+    [ -n "$artifact_to_stage" ] || artifact_to_stage=$recommended
+    [ -n "$artifact_to_stage" ] || return 0
+    [ -f "$artifact_to_stage" ] || {
+        write_summary fail "artifact selected for staging is missing"
+        printf '%s\n' "bringup: artifact selected for staging is missing: $artifact_to_stage" >&2
+        exit 1
+    }
+    staged_request_name=$(basename "$artifact_to_stage")
+    if [ -n "$selected_artifact" ] && [ -n "$release_dir" ] && [ -f "$release_dir/release.json" ]; then
+        set -- scripts/grit-server --release-dir "$release_dir"
+        [ -z "$target_id" ] || set -- "$@" --target-id "$target_id"
+        [ -z "$target_label" ] || set -- "$@" --target-label "$target_label"
+        if [ -n "$target_aliases" ]; then
+            old_ifs=$IFS
+            IFS='
+'
+            for alias in $target_aliases; do
+                [ -n "$alias" ] || continue
+                set -- "$@" --target-alias "$alias"
+            done
+            IFS=$old_ifs
+        fi
+        set -- "$@" --stage-release-artifact "$selected_artifact" --list-staged
+        "$@" >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
+            write_summary fail "release artifact staging failed"
+            printf '%s\n' "bringup: release artifact staging failed; see $run_dir/staged-artifact.err" >&2
+            exit 1
+        }
+    else
+        set -- scripts/grit-server
+        [ -z "$target_id" ] || set -- "$@" --target-id "$target_id"
+        [ -z "$target_label" ] || set -- "$@" --target-label "$target_label"
+        if [ -n "$target_aliases" ]; then
+            old_ifs=$IFS
+            IFS='
+'
+            for alias in $target_aliases; do
+                [ -n "$alias" ] || continue
+                set -- "$@" --target-alias "$alias"
+            done
+            IFS=$old_ifs
+        fi
+        set -- "$@" --serve-file "$artifact_to_stage" --as "$staged_request_name" --list-staged
+        "$@" >"$run_dir/staged-artifact.out" 2>"$run_dir/staged-artifact.err" || {
+            write_summary fail "artifact staging failed"
+            printf '%s\n' "bringup: artifact staging failed; see $run_dir/staged-artifact.err" >&2
+            exit 1
+        }
+    fi
+    staged_fetch_command=$(sed -n 's/^  //p; /^grit fetch /p' "$run_dir/staged-artifact.out" | sed -n '1p')
+    [ -n "$staged_fetch_command" ] || staged_fetch_command=$(append_target_args grit fetch "$staged_request_name" --host OPERATOR_IP --port 22204)
+}
+
+cat "presets/payload/$payload_preset.conf" >"$config"
+{
+    printf '\n# generated by scripts/grit-bringup\n'
+    printf 'GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES="no"\n'
+    printf 'GRIT_ZERO_ARG_MODE="help"\n'
+} >>"$config"
+
+if [ "$dry_run" = yes ]; then
+    generate_trailer_command
+    write_summary dry-run
+    if [ "$json_output" != yes ]; then
+        printf '%s\n' "bringup dry-run: would build $target_preset with $config"
+        printf '%s\n' "bringup dry-run: would transfer to $host:$remote_dir"
+        printf '%s\n' "bringup dry-run: summary at $summary"
+    fi
+    exit 0
+fi
+
+if [ -n "$survey_input" ]; then
+    cp "$survey_input" "$survey"
+fi
+if [ -n "$reality_input" ]; then
+    cp "$reality_input" "$reality"
+fi
+
+if [ ! -f "$survey" ]; then
+    env GRIT_CONFIG="$config" TARGET="$target_preset" make package >"$run_dir/build.log" 2>&1 || {
+        write_summary fail "survey artifact build failed"
+        printf '%s\n' "bringup: survey artifact build failed; see $run_dir/build.log" >&2
+        exit 1
+    }
+    artifact="dist/grit-$target_preset-full"
+    [ -f "$artifact" ] || artifact="dist/grit-native-full"
+    ssh "$host" "rm -rf '$(remote_quote "$remote_dir")'; mkdir -p '$(remote_quote "$remote_dir")'" >"$run_dir/ssh.log" 2>&1 || {
+        write_summary fail "target unreachable"
+        printf '%s\n' "bringup: target unreachable or remote dir unavailable" >&2
+        exit 1
+    }
+    remote_touched=yes
+    scp -O -q "$artifact" "$host:$remote_dir/grit" >>"$run_dir/ssh.log" 2>&1
+    ssh "$host" "cd '$(remote_quote "$remote_dir")' && chmod +x ./grit && ./grit survey --json > survey.json && ./grit config-info > config-info.out && if ./grit reality-test --help >/dev/null 2>&1; then ./grit reality-test --json > reality-test.json || true; fi" >>"$run_dir/ssh.log" 2>&1 || {
+        write_summary fail "survey artifact could not run"
+        printf '%s\n' "bringup: survey artifact could not run; likely arch/libc mismatch" >&2
+        exit 1
+    }
+    scp -O -q "$host:$remote_dir/survey.json" "$survey" >>"$run_dir/ssh.log" 2>&1
+    scp -O -q "$host:$remote_dir/config-info.out" "$run_dir/config-info.out" >>"$run_dir/ssh.log" 2>&1 || true
+    scp -O -q "$host:$remote_dir/reality-test.json" "$reality" >>"$run_dir/ssh.log" 2>&1 || true
+fi
+
+if [ -f "$survey" ]; then
+    if [ "$target_preset" = native ]; then
+        if [ -f "$reality" ]; then
+            scripts/config-from-survey --reality-json "$reality" --format shell --write-config "$recommended" "$survey"
+            scripts/config-from-survey --reality-json "$reality" --format json "$survey" >"$run_dir/recommendation.json"
+        else
+            scripts/config-from-survey --format shell --write-config "$recommended" "$survey"
+            scripts/config-from-survey --format json "$survey" >"$run_dir/recommendation.json"
+        fi
+    else
+        if [ -f "$reality" ]; then
+            scripts/config-from-survey --reality-json "$reality" --target-preset "$target_preset" --format shell --write-config "$recommended" "$survey"
+            scripts/config-from-survey --reality-json "$reality" --target-preset "$target_preset" --format json "$survey" >"$run_dir/recommendation.json"
+        else
+            scripts/config-from-survey --target-preset "$target_preset" --format shell --write-config "$recommended" "$survey"
+            scripts/config-from-survey --target-preset "$target_preset" --format json "$survey" >"$run_dir/recommendation.json"
+        fi
+    fi
+else
+    write_summary fail "survey json missing"
+    printf '%s\n' "bringup: missing $survey" >&2
+    exit 1
+fi
+
+if [ -n "$write_target_preset" ]; then
+    scripts/preset-from-survey --survey "$survey" --name "$write_target_preset" --write-local --overwrite >"$run_dir/target-preset.log" 2>&1 || {
+        write_summary fail "target preset generation failed"
+        printf '%s\n' "bringup: target preset generation failed; see $run_dir/target-preset.log" >&2
+        exit 1
+    }
+    target_preset_path="local/presets/targets/$write_target_preset.json"
+fi
+
+choose_release_artifact
+generate_trailer_command
+stage_artifact_for_fetch
+
+if [ "$survey_only" = yes ] || [ "$recommend_only" = yes ]; then
+    if [ "$remote_touched" = yes ] && [ "$keep_remote" != yes ]; then
+        ssh "$host" "rm -rf '$(remote_quote "$remote_dir")'" >>"$run_dir/ssh.log" 2>&1 || true
+    fi
+    write_summary pass
+    if [ "$json_output" != yes ]; then
+        printf '%s\n' "bringup: survey and recommendation written under $run_dir"
+        printf '%s\n' "bringup: recommended config: $recommended"
+        printf '%s\n' "bringup: recommendation JSON: $run_dir/recommendation.json"
+        [ -n "$target_preset_path" ] && printf '%s\n' "bringup: recommended target preset: $target_preset_path"
+        [ -n "$compatibility_label" ] && printf '%s\n' "bringup: compatibility: $compatibility_label"
+        [ -n "$selected_artifact" ] && printf '%s\n' "bringup: selected artifact: $selected_artifact"
+        [ -n "$trailer_command" ] && printf '%s\n' "bringup: trailer command: $trailer_command"
+        [ -n "$staged_fetch_command" ] && printf '%s\n' "bringup: staged fetch command: $staged_fetch_command"
+    fi
+    exit 0
+fi
+
+env GRIT_CONFIG="$recommended" make package >"$run_dir/recommended-build.log" 2>&1 || {
+    write_summary fail "recommended artifact build failed"
+    printf '%s\n' "bringup: recommended artifact build failed; see $run_dir/recommended-build.log" >&2
+    exit 1
+}
+recommended_artifact="dist/grit-$target_preset-full"
+[ -f "$recommended_artifact" ] || recommended_artifact="dist/grit-native-full"
+generate_trailer_command
+stage_artifact_for_fetch
+
+if [ -n "$run_integration" ]; then
+    scripts/integration-glinet --host "$host" --target-preset "$target_preset" --case "$run_integration" >>"$run_dir/integration.log" 2>&1 || {
+        write_summary fail "integration failed"
+        exit 1
+    }
+fi
+
+if [ "$remote_touched" = yes ] && [ "$keep_remote" != yes ]; then
+    ssh "$host" "rm -rf '$(remote_quote "$remote_dir")'" >>"$run_dir/ssh.log" 2>&1 || true
+fi
+write_summary pass
+if [ "$json_output" != yes ]; then
+    printf '%s\n' "bringup: complete; summary at $summary"
+    [ -n "$target_preset_path" ] && printf '%s\n' "bringup: recommended target preset: $target_preset_path"
+    [ -n "$compatibility_label" ] && printf '%s\n' "bringup: compatibility: $compatibility_label"
+    [ -n "$selected_artifact" ] && printf '%s\n' "bringup: selected artifact: $selected_artifact"
+    [ -n "$trailer_command" ] && printf '%s\n' "bringup: trailer command: $trailer_command"
+    [ -n "$staged_fetch_command" ] && printf '%s\n' "bringup: staged fetch command: $staged_fetch_command"
+fi

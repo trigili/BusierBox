@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-bb=${1:-dist/busierbox-native-full}
-tmp=${TMPDIR:-/tmp}/busierbox-doctor-json-$$
+bb=${1:-dist/grit-native-full}
+tmp=${TMPDIR:-/tmp}/grit-doctor-json-$$
 mkdir "$tmp"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
@@ -84,7 +84,7 @@ if noresidue.get("best_effort") is not True:
     raise SystemExit("doctor no-residue policy must report best-effort cleanup")
 if noresidue.get("external_writes_require_explicit_apply") is not True:
     raise SystemExit("doctor no-residue policy must require explicit external apply")
-if "BusierBox-owned runtime roots" not in noresidue.get("cleanup_scope", ""):
+if "griTTYkit-owned runtime roots" not in noresidue.get("cleanup_scope", ""):
     raise SystemExit("doctor no-residue policy cleanup scope missing")
 environment = data["environment"]
 for key in ["path_has_duplicates", "home_set", "shell_set"]:
@@ -103,7 +103,7 @@ if host.get("ptrace_probe") not in {"basic-ok", "denied", "unavailable", "unknow
     raise SystemExit(f"doctor ptrace status unexpected: {host.get('ptrace_probe')!r}")
 PY
 
-BB_RSHELL_SESSION_POLICY=bogus "$bb" doctor --json >"$tmp/doctor-invalid-policy.json"
+GRIT_RSHELL_SESSION_POLICY=bogus "$bb" doctor --json >"$tmp/doctor-invalid-policy.json"
 python3 -m json.tool "$tmp/doctor-invalid-policy.json" >/dev/null
 python3 - "$tmp/doctor-invalid-policy.json" <<'PY'
 import json

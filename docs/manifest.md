@@ -1,14 +1,14 @@
 # Artifact Manifest
 
-`busierbox manifest` explains what an artifact is:
+`grit manifest` explains what an artifact is:
 
 ```sh
-busierbox manifest
-busierbox manifest --json
-busierbox manifest --json --include-missing
-busierbox manifest --base64
-busierbox doctor --json
-busierbox doctor --json --include-missing
+grit manifest
+grit manifest --json
+grit manifest --json --include-missing
+grit manifest --base64
+grit doctor --json
+grit doctor --json --include-missing
 ```
 
 The JSON manifest includes:
@@ -23,7 +23,7 @@ The JSON manifest includes:
 - command-queue policy, interval polling settings, daemon state support, and
   mode records/indexes for status/poll/once/daemon/stop behavior
 - dotfile modes and user overlay policy
-- artifact licensing posture: BusierBox GPL license, combined GPLv2
+- artifact licensing posture: griTTYkit GPL license, combined GPLv2
   compatibility, BusyBox fork boundary, and third-party component license
   inventory for BusyBox, Buildroot, doom-ascii, and miniz
 - native feature flags
@@ -41,7 +41,7 @@ bundles keep broader builder-facing negative inventory in explicit
 `scripts/make-release --include-missing-reports` is used.
 
 Extraction writes the artifact manifest to
-`./.busierbox/manifest/artifact.json` next to the runtime payload. The extracted
+`./.grit/manifest/artifact.json` next to the runtime payload. The extracted
 payload also carries `payload/manifest.json`, produced during packaging. That
 payload manifest records requested tools, staged tools, missing tools, overlay
 metadata, staged Doom WAD basenames/sizes/hashes, gdbserver provider state, structured provider status under
@@ -51,17 +51,17 @@ checker output, executable state, and installed metadata so release bundles can
 audit what provider path was available when the artifact was built.
 
 Runtime extraction state is intentionally reported by runtime diagnostics rather
-than the compiled manifest. `busierbox config-info` and `busierbox doctor
+than the compiled manifest. `grit config-info` and `grit doctor
 --json` report `payload_extraction_mode` / `extraction_mode` as `core` or
 `full`. BusyBox applet dispatch may create a core payload containing
-`payload/bin/busybox` and metadata only; `busierbox extract` and heavy-tool
+`payload/bin/busybox` and metadata only; `grit extract` and heavy-tool
 dispatch upgrade that runtime root to full before use.
-`busierbox config-info` also prints `noresidue_policy_*` fields that mirror the
+`grit config-info` also prints `noresidue_policy_*` fields that mirror the
 manifest/doctor safety boundary: cleanup is best-effort, scoped to
-BusierBox-owned runtime roots and ledgered files, external writes require
+griTTYkit-owned runtime roots and ledgered files, external writes require
 explicit apply, and no mode claims forensic no-trace behavior.
 
-BusierBox is not a BusyBox fork. Native BusierBox applets are compiled into the
+griTTYkit is not a BusyBox fork. Native griTTYkit applets are compiled into the
 supervisor. BusyBox applets dispatch through `payload/bin/busybox`, while heavy
 tools dispatch through `payload/bin/<tool>` after full extraction.
 
@@ -82,19 +82,19 @@ the build scripts.
 
 ## Config Export
 
-`busierbox config-export` wraps the artifact manifest in a rebuild-oriented JSON
+`grit config-export` wraps the artifact manifest in a rebuild-oriented JSON
 document:
 
 ```sh
-busierbox config-export --json
-busierbox config-export --base64
+grit config-export --json
+grit config-export --base64
 ```
 
 On a build host, convert manifest or config-export JSON back into a shell config
 starter:
 
 ```sh
-busierbox config-export --json > artifact-config.json
+grit config-export --json > artifact-config.json
 scripts/config-from-manifest artifact-config.json > recovered.conf
 ```
 
@@ -104,11 +104,11 @@ intentionally does not include private keys or local operator secret material.
 
 ## Support Token
 
-`busierbox doctor --support-token` emits a single base64-encoded JSON token with
+`grit doctor --support-token` emits a single base64-encoded JSON token with
 the artifact manifest embedded:
 
 ```sh
-busierbox doctor --support-token > support.token
+grit doctor --support-token > support.token
 scripts/config-from-support-token "$(cat support.token)" > recovered.conf
 ```
 

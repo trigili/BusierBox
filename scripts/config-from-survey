@@ -436,7 +436,7 @@ elif not cwd_write and tmp_write:
 else:
     runtime_mode = "extract"
 
-runtime_root = useful(recs.get("runtime_root_recommendation")) or ("./.busierbox" if cwd_write else "/tmp/.busierbox")
+runtime_root = useful(recs.get("runtime_root_recommendation")) or ("./.grit" if cwd_write else "/tmp/.grit")
 
 if prefer_rshell != "auto":
     rshell_transport = prefer_rshell
@@ -469,21 +469,21 @@ else:
     payload_preset = "default"
 
 cfg = {
-    "BB_TARGET_PRESET": preset,
-    "BB_TARGET_ARCH": arch,
-    "BB_TARGET_ENDIAN": endian,
-    "BB_TARGET_CPU": first(recs.get("target_cpu_guess"), "auto"),
-    "BB_TARGET_LIBC": libc,
-    "BB_KERNEL_FLOOR": kfloor,
-    "BB_STATIC_POLICY": first(recs.get("static_policy"), "static-preferred"),
-    "BB_PAYLOAD_PRESET": payload_preset,
-    "BB_RUNTIME_MODE": runtime_mode,
-    "BB_NORESIDUE_LEVEL": "best-effort",
-    "BB_RUNTIME_ROOT": runtime_root,
-    "BB_RUNTIME_ALLOW_EXTERNAL_WRITES": "yes" if allow_external_writes == "yes" else "no",
-    "BB_ZERO_ARG_MODE": "rshell" if allow_network_autorun == "yes" and rshell_transport != "none" else "help",
-    "BB_RSHELL_TRANSPORT": rshell_transport,
-    "BB_RSHELL_ENCRYPTION": "tls",
+    "GRIT_TARGET_PRESET": preset,
+    "GRIT_TARGET_ARCH": arch,
+    "GRIT_TARGET_ENDIAN": endian,
+    "GRIT_TARGET_CPU": first(recs.get("target_cpu_guess"), "auto"),
+    "GRIT_TARGET_LIBC": libc,
+    "GRIT_KERNEL_FLOOR": kfloor,
+    "GRIT_STATIC_POLICY": first(recs.get("static_policy"), "static-preferred"),
+    "GRIT_PAYLOAD_PRESET": payload_preset,
+    "GRIT_RUNTIME_MODE": runtime_mode,
+    "GRIT_NORESIDUE_LEVEL": "best-effort",
+    "GRIT_RUNTIME_ROOT": runtime_root,
+    "GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES": "yes" if allow_external_writes == "yes" else "no",
+    "GRIT_ZERO_ARG_MODE": "rshell" if allow_network_autorun == "yes" and rshell_transport != "none" else "help",
+    "GRIT_RSHELL_TRANSPORT": rshell_transport,
+    "GRIT_RSHELL_ENCRYPTION": "tls",
 }
 
 result = {
@@ -533,7 +533,7 @@ def shell_quote(value):
 
 def render_shell():
     lines = [
-        "# BusierBox recommended config generated from survey JSON.",
+        "# griTTYkit recommended config generated from survey JSON.",
         "# Defaults are conservative: no external writes and no network autorun.",
         f"# compatibility={compatibility_label}",
     ]
@@ -542,21 +542,21 @@ def render_shell():
     for warning in warnings:
         lines.append(f"# WARNING: {warning}")
     for key in [
-        "BB_TARGET_PRESET",
-        "BB_TARGET_ARCH",
-        "BB_TARGET_ENDIAN",
-        "BB_TARGET_CPU",
-        "BB_TARGET_LIBC",
-        "BB_KERNEL_FLOOR",
-        "BB_STATIC_POLICY",
-        "BB_PAYLOAD_PRESET",
-        "BB_RUNTIME_MODE",
-        "BB_NORESIDUE_LEVEL",
-        "BB_RUNTIME_ROOT",
-        "BB_RUNTIME_ALLOW_EXTERNAL_WRITES",
-        "BB_ZERO_ARG_MODE",
-        "BB_RSHELL_TRANSPORT",
-        "BB_RSHELL_ENCRYPTION",
+        "GRIT_TARGET_PRESET",
+        "GRIT_TARGET_ARCH",
+        "GRIT_TARGET_ENDIAN",
+        "GRIT_TARGET_CPU",
+        "GRIT_TARGET_LIBC",
+        "GRIT_KERNEL_FLOOR",
+        "GRIT_STATIC_POLICY",
+        "GRIT_PAYLOAD_PRESET",
+        "GRIT_RUNTIME_MODE",
+        "GRIT_NORESIDUE_LEVEL",
+        "GRIT_RUNTIME_ROOT",
+        "GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES",
+        "GRIT_ZERO_ARG_MODE",
+        "GRIT_RSHELL_TRANSPORT",
+        "GRIT_RSHELL_ENCRYPTION",
     ]:
         lines.append(f'{key}={shell_quote(cfg[key])}')
     return "\n".join(lines) + "\n"

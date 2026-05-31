@@ -8,23 +8,23 @@ Current behavior is disabled and metadata-only by default, with explicit
 target-side execution available only when both the target and operator policies
 opt in:
 
-- `BB_COMMAND_QUEUE_ENABLE` defaults to `no`.
-- `BB_COMMAND_QUEUE_EXECUTION` defaults to `metadata-only`. Queued command
+- `GRIT_COMMAND_QUEUE_ENABLE` defaults to `no`.
+- `GRIT_COMMAND_QUEUE_EXECUTION` defaults to `metadata-only`. Queued command
   metadata may be delivered only during explicit live polling, and the target
   still rejects the execution decision instead of running the command.
-- `BB_COMMAND_QUEUE_EXECUTION=execute` permits target-side execution only with
-  a valid non-`none` command policy. `busierbox-only` accepts commands whose
-  first word is `busierbox` or `./busierbox`; `custom` additionally requires
-  `BB_COMMAND_QUEUE_ALLOW_ARBITRARY=yes`. These settings are the only supported
+- `GRIT_COMMAND_QUEUE_EXECUTION=execute` permits target-side execution only with
+  a valid non-`none` command policy. `grit-only` accepts commands whose
+  first word is `grit` or `./grit`; `custom` additionally requires
+  `GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY=yes`. These settings are the only supported
   way to execute queued commands.
-- `busierbox command-queue status --json` reports the compiled/effective policy
+- `grit command-queue status --json` reports the compiled/effective policy
   and a compact `policy_summary` for frontend/operator tooling.
 - Invalid effective policy is reported as `policy_valid=false` with explicit
   `policy_errors`; invalid policy suppresses `would_poll`.
-- `busierbox command-queue poll --json`, `once`, and `daemon` report a dry-run
+- `grit command-queue poll --json`, `once`, and `daemon` report a dry-run
   target polling plan by default. With explicit `--live`, they contact the
   configured operator command-queue endpoint and can append structured poll
-  events. Live polling currently requires `BB_COMMAND_QUEUE_TLS=no`; TLS
+  events. Live polling currently requires `GRIT_COMMAND_QUEUE_TLS=no`; TLS
   command-queue polling is reported as unsupported instead of silently falling
   back to plaintext. Live polls can receive queued command metadata, and
   target-side JSON reports the delivered command id, command text, timeout, and
@@ -36,17 +36,17 @@ opt in:
 - Operator status mirrors the same transport boundary:
   `poll_transport_supported=false`, `live_polling_supported=false`, and
   `poll_transport_unsupported_reason` explain the TLS constraint when the
-  effective queue config keeps `BB_COMMAND_QUEUE_TLS=yes`.
-- When `BB_COMMAND_QUEUE_REQUIRE_TOKEN=yes`, enabled queues require
-  `BB_COMMAND_QUEUE_TOKEN` on the target and `command_queue_token` on the
+  effective queue config keeps `GRIT_COMMAND_QUEUE_TLS=yes`.
+- When `GRIT_COMMAND_QUEUE_REQUIRE_TOKEN=yes`, enabled queues require
+  `GRIT_COMMAND_QUEUE_TOKEN` on the target and `command_queue_token` on the
   operator server config. Poll and result requests send/check
-  `X-BusierBox-Command-Queue-Token`.
-- `scripts/busierbox-server --queue-command ...` records explicit operator
+  `X-griTTYkit-Command-Queue-Token`.
+- `scripts/grit-server --queue-command ...` records explicit operator
   queue entries in `local/operator-session/command-queue.json` for inspection
   and tooling. The command-queue listener can mark a queued entry delivered to
   a polling target; the target decides whether to execute based on its effective
   command-queue policy.
-- `scripts/busierbox-server --json-status` or `--api-status` includes the
+- `scripts/grit-server --json-status` or `--api-status` includes the
   command queue path, counts, entries, `commands_by_id`,
   `commands_by_status`, result lookup maps, queue-time and delivery-time
   policy snapshot lookup maps, latest queue/result timestamps,
@@ -59,40 +59,40 @@ opt in:
   In line-mode TUI, action `20` prints the equivalent `--list-command-queue`
   output plus target mailbox result records for completed and pending
   target-scoped work.
-- `busierbox plan command-queue --json` and `manifest --json` expose the same
+- `grit plan command-queue --json` and `manifest --json` expose the same
   policy validity fields and normalized mode records so release tooling and
   frontends do not treat an inconsistent policy as ready to poll.
 
 Configuration keys:
 
 ```sh
-BB_COMMAND_QUEUE_ENABLE="no"
-BB_COMMAND_QUEUE_PORT="22205"
-BB_COMMAND_QUEUE_TLS="yes"
-BB_COMMAND_QUEUE_REQUIRE_TOKEN="yes"
-BB_COMMAND_QUEUE_TOKEN_SOURCE="manual"
-BB_COMMAND_QUEUE_TOKEN=""
-BB_COMMAND_QUEUE_ALLOWED_COMMANDS="none"
-BB_COMMAND_QUEUE_EXECUTION="metadata-only"
-BB_COMMAND_QUEUE_ALLOW_ARBITRARY="no"
-BB_COMMAND_QUEUE_POLL_INTERVAL_SEC="5"
-BB_COMMAND_QUEUE_POLL_JITTER_PCT="0"
-BB_COMMAND_QUEUE_POLL_BACKOFF="none"
-BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC="300"
-BB_COMMAND_QUEUE_MAX_POLLS="0"
+GRIT_COMMAND_QUEUE_ENABLE="no"
+GRIT_COMMAND_QUEUE_PORT="22205"
+GRIT_COMMAND_QUEUE_TLS="yes"
+GRIT_COMMAND_QUEUE_REQUIRE_TOKEN="yes"
+GRIT_COMMAND_QUEUE_TOKEN_SOURCE="manual"
+GRIT_COMMAND_QUEUE_TOKEN=""
+GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS="none"
+GRIT_COMMAND_QUEUE_EXECUTION="metadata-only"
+GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY="no"
+GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC="5"
+GRIT_COMMAND_QUEUE_POLL_JITTER_PCT="0"
+GRIT_COMMAND_QUEUE_POLL_BACKOFF="none"
+GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC="300"
+GRIT_COMMAND_QUEUE_MAX_POLLS="0"
 ```
 
 Live polling has additional target-side controls. These can be supplied as
 environment variables or CLI flags:
 
 ```sh
-BB_COMMAND_QUEUE_POLL_INTERVAL_SEC=5
-BB_COMMAND_QUEUE_POLL_JITTER_PCT=0
-BB_COMMAND_QUEUE_POLL_BACKOFF=none
-BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC=300
-BB_COMMAND_QUEUE_MAX_POLLS=0
+GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC=5
+GRIT_COMMAND_QUEUE_POLL_JITTER_PCT=0
+GRIT_COMMAND_QUEUE_POLL_BACKOFF=none
+GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC=300
+GRIT_COMMAND_QUEUE_MAX_POLLS=0
 
-busierbox command-queue daemon --live \
+grit command-queue daemon --live \
   --operator-host 192.0.2.10 \
   --poll-interval-sec 5 \
   --poll-backoff linear \
@@ -104,11 +104,11 @@ busierbox command-queue daemon --live \
 ```
 
 `--max-polls 0` means no fixed limit for `daemon`; `poll` and `once` always run
-a single live poll attempt. `BB_COMMAND_QUEUE_POLL_BACKOFF` may be `none`,
+a single live poll attempt. `GRIT_COMMAND_QUEUE_POLL_BACKOFF` may be `none`,
 `linear`, or `exponential`; jitter is applied only to daemon sleeps between
-poll attempts, and `BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC` caps the computed
+poll attempts, and `GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC` caps the computed
 delay. Each live attempt sends a plain HTTP
-`GET /command-queue/poll` request when `BB_COMMAND_QUEUE_TLS=no`, records
+`GET /command-queue/poll` request when `GRIT_COMMAND_QUEUE_TLS=no`, records
 `command_queue_poll_attempt`, then `command_queue_poll_no_command`,
 `command_queue_poll_complete`, or `command_queue_poll_error`. Delivered command
 metadata also records `command_queue_execution_decision` with status
@@ -129,23 +129,23 @@ show poll attempts, empty polls, delivery decisions, result uploads, errors,
 and shutdown outcomes without separately parsing the target-side event log.
 
 The live daemon writes a target-side state file, defaulting to
-`$BB_RUNTIME_ROOT/run/command-queue-daemon.state`. `command-queue status`
+`$GRIT_RUNTIME_ROOT/run/command-queue-daemon.state`. `command-queue status`
 reports that file, the recorded PID, whether the process is currently alive,
 whether the state is stale, and whether `/proc/<pid>/cmdline` verifies it as a
 command-queue process. `command-queue stop` reads the same state file and sends
 SIGTERM only when the state is valid and the recorded PID is verified as a
-BusierBox command-queue process. Use `--state-file PATH` to put this state in a
+griTTYkit command-queue process. Use `--state-file PATH` to put this state in a
 specific runtime-owned location. `manifest --json` and
 `plan command-queue --json` expose the default state path and booleans for
 daemon state-file, status, and stop support so release and frontend tooling can
 surface this lifecycle without probing target status first.
 
-Policy values for `BB_COMMAND_QUEUE_ALLOWED_COMMANDS` are `none`,
-`busierbox-only`, `allowlist`, and `custom`. `BB_COMMAND_QUEUE_ALLOW_ARBITRARY`
+Policy values for `GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS` are `none`,
+`grit-only`, `allowlist`, and `custom`. `GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY`
 is only valid with `custom`; disabled queues must keep `allowed_commands=none`
-`execution=metadata-only`, and `allow_arbitrary=no`. `BB_COMMAND_QUEUE_EXECUTION`
+`execution=metadata-only`, and `allow_arbitrary=no`. `GRIT_COMMAND_QUEUE_EXECUTION`
 may be `metadata-only` or `execute`; `execute` reports
-`execution_supported=true` only for valid `busierbox-only` or explicit
+`execution_supported=true` only for valid `grit-only` or explicit
 `custom`/`allow_arbitrary=yes` policy.
 
 Safety boundary:
@@ -176,7 +176,7 @@ Safety boundary:
   availability, delivery support, result-upload support, execution support, and
   active-control-channel posture.
 
-Operator `scripts/busierbox-server --json-status` mirrors the mode records for
+Operator `scripts/grit-server --json-status` mirrors the mode records for
 future TUI/web clients. The `command_queue_modes` API collection includes
 indexes by lifecycle, polling posture, live support, delivery support,
 result-upload support, execution support, active-control-channel posture, and
@@ -224,13 +224,13 @@ operator-supplied-command execution posture.
 Operator queue inspection:
 
 ```sh
-scripts/busierbox-server --queue-command 'busierbox reality-test --json'
-scripts/busierbox-server --queue-command 'busierbox survey --json' --queue-expire-sec 3600
-scripts/busierbox-server --transport command-queue --config local/server-config.json
-scripts/busierbox-server --list-command-queue
-scripts/busierbox-server --json-command-queue
-scripts/busierbox-server --record-command-result cq-id --result-json result.json
-scripts/busierbox-server --clear-command-queue
+scripts/grit-server --queue-command 'grit reality-test --json'
+scripts/grit-server --queue-command 'grit survey --json' --queue-expire-sec 3600
+scripts/grit-server --transport command-queue --config local/server-config.json
+scripts/grit-server --list-command-queue
+scripts/grit-server --json-command-queue
+scripts/grit-server --record-command-result cq-id --result-json result.json
+scripts/grit-server --clear-command-queue
 ```
 
 Queue entries include an id, timestamp, literal command text, command SHA-256,
@@ -518,25 +518,25 @@ The same actions can be run headlessly or from the line-oriented TUI. For
 automation, use the stable action id:
 
 ```sh
-scripts/busierbox-server --run-target-workflow-action target-alpha:queue-command \
-  --target-workflow-command 'busierbox survey --json'
+scripts/grit-server --run-target-workflow-action target-alpha:queue-command \
+  --target-workflow-command 'grit survey --json'
 
-scripts/busierbox-server --run-target-workflow-action target-alpha:queue-survey-bootstrap
+scripts/grit-server --run-target-workflow-action target-alpha:queue-survey-bootstrap
 
-scripts/busierbox-server --run-target-workflow-action target-alpha:stage-file-fetch \
-  --target-workflow-local-file ./dist/busierbox-target-full \
-  --target-workflow-request-name busierbox
+scripts/grit-server --run-target-workflow-action target-alpha:stage-file-fetch \
+  --target-workflow-local-file ./dist/grit-target-full \
+  --target-workflow-request-name grit
 
-scripts/busierbox-server --run-target-workflow-action target-alpha:stage-release-artifact \
+scripts/grit-server --run-target-workflow-action target-alpha:stage-release-artifact \
   --target-workflow-command by_device:lab-router
 
-scripts/busierbox-server --run-target-workflow-action target-alpha:queue-staged-fetch \
-  --target-workflow-request-name busierbox
+scripts/grit-server --run-target-workflow-action target-alpha:queue-staged-fetch \
+  --target-workflow-request-name grit
 
-scripts/busierbox-server --run-target-workflow-action target-alpha:show-upload-command \
+scripts/grit-server --run-target-workflow-action target-alpha:show-upload-command \
   --target-workflow-command /etc/config/network
 
-scripts/busierbox-server --run-target-workflow-action target-alpha:queue-bridge-start:lab-http
+scripts/grit-server --run-target-workflow-action target-alpha:queue-bridge-start:lab-http
 ```
 
 In line-mode TUI, action `15` lists the target workflow actions and prompts for

@@ -15,7 +15,7 @@
         "validation": "pass",
         "cleanup": "pass"
       },
-      "artifact": "dist/busierbox-mipsel-linux-4.x-musl-full",
+      "artifact": "dist/grit-mipsel-linux-4.x-musl-full",
       "artifact_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "artifact_size": 100,
       "duration_sec": 10.0

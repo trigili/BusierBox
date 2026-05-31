@@ -1,5 +1,5 @@
-# BusierBox comfort bash startup.
-export BUSIERBOX_SHELL=bash
+# griTTYkit comfort bash startup.
+export GRIT_SHELL=bash
 alias ll='ls -lah'
 alias la='ls -A'
 alias grep='grep --color=auto'

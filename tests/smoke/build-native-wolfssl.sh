@@ -29,7 +29,7 @@ chmod 0755 "$fake_cc_pass"
 # Scenario 1: transport=builtin + wolfSSL probe fails → clear error
 # -------------------------------------------------------------------
 out=$(CC="$fake_cc_fail" \
-    BB_RSHELL_TRANSPORT=builtin BB_BUILTIN_TLS_ENABLE=yes \
+    GRIT_RSHELL_TRANSPORT=builtin GRIT_BUILTIN_TLS_ENABLE=yes \
     OUT="$tmp/s1.out" \
     scripts/build-native 2>&1) && {
     printf '%s\n' "build-native-wolfssl: scenario 1 should have failed but succeeded" >&2
@@ -45,7 +45,7 @@ printf '%s\n' "$out" | grep -q 'WOLFSSL_CFLAGS\|WOLFSSL_LIBS'
 #             runs with those flags (fake-cc-pass will succeed)
 # -------------------------------------------------------------------
 out2=$(CC="$fake_cc_pass" \
-    BB_RSHELL_TRANSPORT=builtin BB_BUILTIN_TLS_ENABLE=yes \
+    GRIT_RSHELL_TRANSPORT=builtin GRIT_BUILTIN_TLS_ENABLE=yes \
     WOLFSSL_CFLAGS="-I$tmp/fake-include" \
     WOLFSSL_LIBS="-L$tmp/fake-lib -lwolfssl" \
     OUT="$tmp/s2.out" \
@@ -60,7 +60,7 @@ printf '%s\n' "$out2" | grep -qi 'env WOLFSSL_CFLAGS\|WOLFSSL_CFLAGS/WOLFSSL_LIB
 #             even with a broken CC
 # -------------------------------------------------------------------
 out3=$(CC="$fake_cc_fail" \
-    BB_RSHELL_TRANSPORT=none BB_BUILTIN_TLS_ENABLE=no \
+    GRIT_RSHELL_TRANSPORT=none GRIT_BUILTIN_TLS_ENABLE=no \
     OUT="$tmp/s3.out" \
     scripts/build-native 2>&1) && true
 # Should NOT mention wolfSSL probe failure
@@ -71,10 +71,10 @@ fi
 
 # -------------------------------------------------------------------
 # Scenario 4: transport=ssh → wolfSSL not needed, no probe even if
-#             BB_BUILTIN_TLS_ENABLE were accidentally set to yes
+#             GRIT_BUILTIN_TLS_ENABLE were accidentally set to yes
 # -------------------------------------------------------------------
 out4=$(CC="$fake_cc_fail" \
-    BB_RSHELL_TRANSPORT=ssh BB_BUILTIN_TLS_ENABLE=no \
+    GRIT_RSHELL_TRANSPORT=ssh GRIT_BUILTIN_TLS_ENABLE=no \
     OUT="$tmp/s4.out" \
     scripts/build-native 2>&1) && true
 if printf '%s\n' "$out4" | grep -q 'wolfSSL compile probe failed'; then

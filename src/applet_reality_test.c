@@ -61,22 +61,22 @@ static void set_errno_result(struct check_result *r, const char *prefix)
 
 static void runtime_probe_dir(char *out, size_t outsz)
 {
-    snprintf(out, outsz, "%s/reality-test", BB_RUNTIME_ROOT);
+    snprintf(out, outsz, "%s/reality-test", GRIT_RUNTIME_ROOT);
 }
 
 static void cleanup_reality_probe_dir(void)
 {
     char dir[PATH_MAX];
 
-    if (strcmp(BB_RUNTIME_MODE, "no-residue") != 0 ||
-        strcmp(BB_NORESIDUE_LEVEL, "aggressive") != 0)
+    if (strcmp(GRIT_RUNTIME_MODE, "no-residue") != 0 ||
+        strcmp(GRIT_NORESIDUE_LEVEL, "aggressive") != 0)
         return;
     runtime_probe_dir(dir, sizeof(dir));
     bb_rm_rf(dir);
-    if (strcmp(BB_RUNTIME_ROOT, ".") &&
-        strcmp(BB_RUNTIME_ROOT, "/") &&
-        strcmp(BB_RUNTIME_ROOT, dir))
-        rmdir(BB_RUNTIME_ROOT);
+    if (strcmp(GRIT_RUNTIME_ROOT, ".") &&
+        strcmp(GRIT_RUNTIME_ROOT, "/") &&
+        strcmp(GRIT_RUNTIME_ROOT, dir))
+        rmdir(GRIT_RUNTIME_ROOT);
 }
 
 static void check_runtime_root(struct check_result *r)
@@ -348,9 +348,9 @@ static void url_encode_request_name(const char *in, char *out, size_t outsz)
 static void check_outbound_operator(struct check_result *r)
 {
     char detail[256];
-    const char *host = BB_OPERATOR_SERVER_HOST;
-    const char *port = !strcmp(BB_RSHELL_TRANSPORT, "ssh") ? BB_OPERATOR_SERVER_SSH_PORT : BB_RSHELL_SOCAT_PORT;
-    if (!host || !*host || !strcmp(BB_RSHELL_TRANSPORT, "none")) {
+    const char *host = GRIT_OPERATOR_SERVER_HOST;
+    const char *port = !strcmp(GRIT_RSHELL_TRANSPORT, "ssh") ? GRIT_OPERATOR_SERVER_SSH_PORT : GRIT_RSHELL_SOCAT_PORT;
+    if (!host || !*host || !strcmp(GRIT_RSHELL_TRANSPORT, "none")) {
         set_result(r, 0, 1, "operator endpoint not configured");
         return;
     }
@@ -384,24 +384,24 @@ static void check_operator_upload(struct check_result *r, const struct reality_o
         set_errno_result(r, "create upload probe");
         return;
     }
-    if (write(fd, "busierbox reality-test upload\n", 30) != 30) {
+    if (write(fd, "grit reality-test upload\n", 30) != 30) {
         close(fd);
         unlink(path);
         set_errno_result(r, "write upload probe");
         return;
     }
     close(fd);
-    snprintf(portbuf, sizeof(portbuf), "%s", opts->file_port && *opts->file_port ? opts->file_port : BB_OPERATOR_FILE_SERVICE_PORT);
+    snprintf(portbuf, sizeof(portbuf), "%s", opts->file_port && *opts->file_port ? opts->file_port : GRIT_OPERATOR_FILE_SERVICE_PORT);
     argv[argc++] = "--host";
     argv[argc++] = (char *)opts->operator_host;
     argv[argc++] = "--port";
     argv[argc++] = portbuf;
     argv[argc++] = "--tls";
-    argv[argc++] = (char *)(opts->tls && *opts->tls ? opts->tls : BB_OPERATOR_FILE_SERVICE_TLS);
+    argv[argc++] = (char *)(opts->tls && *opts->tls ? opts->tls : GRIT_OPERATOR_FILE_SERVICE_TLS);
     argv[argc++] = "--dest";
     argv[argc++] = "reality-test-upload.txt";
     argv[argc++] = "--quiet";
-    rc = bb_operator_upload_file(path, "busierbox-reality-upload.txt", "reality-test", argc, argv);
+    rc = bb_operator_upload_file(path, "grit-reality-upload.txt", "reality-test", argc, argv);
     unlink(path);
     if (rc == 0)
         set_result(r, 1, 0, "upload accepted by operator file-service");
@@ -423,11 +423,11 @@ static void check_operator_fetch(struct check_result *r, const struct reality_op
         set_result(r, 0, 1, "operator host not configured");
         return;
     }
-    if (strcmp(opts->tls && *opts->tls ? opts->tls : BB_OPERATOR_FILE_SERVICE_TLS, "no")) {
+    if (strcmp(opts->tls && *opts->tls ? opts->tls : GRIT_OPERATOR_FILE_SERVICE_TLS, "no")) {
         set_result(r, 0, 1, "active fetch check currently requires --no-tls");
         return;
     }
-    snprintf(portbuf, sizeof(portbuf), "%s", opts->file_port && *opts->file_port ? opts->file_port : BB_OPERATOR_FILE_SERVICE_PORT);
+    snprintf(portbuf, sizeof(portbuf), "%s", opts->file_port && *opts->file_port ? opts->file_port : GRIT_OPERATOR_FILE_SERVICE_PORT);
     snprintf(hostbuf, sizeof(hostbuf), "%s", opts->operator_host);
     url_encode_request_name(opts->fetch_request, encoded, sizeof(encoded));
     snprintf(request, sizeof(request),
@@ -494,12 +494,12 @@ static void check_core_payload_extractable(struct check_result *r)
         set_result(r, 0, 1, "no embedded payload");
         return;
     }
-    if (bb_extract_root_usable(BB_RUNTIME_ROOT)) {
-        set_result(r, 1, 0, BB_RUNTIME_ROOT);
+    if (bb_extract_root_usable(GRIT_RUNTIME_ROOT)) {
+        set_result(r, 1, 0, GRIT_RUNTIME_ROOT);
         return;
     }
-    if (!strcmp(BB_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && bb_extract_root_usable(BB_RUNTIME_FALLBACK_ROOT)) {
-        set_result(r, 1, 0, BB_RUNTIME_FALLBACK_ROOT);
+    if (!strcmp(GRIT_RUNTIME_ALLOW_FALLBACK_ROOT, "yes") && bb_extract_root_usable(GRIT_RUNTIME_FALLBACK_ROOT)) {
+        set_result(r, 1, 0, GRIT_RUNTIME_FALLBACK_ROOT);
         return;
     }
     if (bb_choose_extract_root(root, sizeof(root)) == 0) {
@@ -742,9 +742,9 @@ static void print_json(struct check_result checks[], size_t n)
     int capability_pass = 0, capability_fail = 0, operator_pass = 0, operator_fail = 0, operator_skip = 0;
     int tmp_noexec = 0, rootfs_read_only = 0, procfs_partial = 0;
     printf("{\"schema\":1,\"runtime_root\":");
-    bb_json_string(stdout, BB_RUNTIME_ROOT);
+    bb_json_string(stdout, GRIT_RUNTIME_ROOT);
     printf(",\"operator_host\":");
-    bb_json_string(stdout, BB_OPERATOR_SERVER_HOST);
+    bb_json_string(stdout, GRIT_OPERATOR_SERVER_HOST);
     printf(",\"checks\":[");
     for (i = 0; i < n; i++) {
         if (i)
@@ -806,8 +806,8 @@ static void print_text(struct check_result checks[], size_t n)
 {
     size_t i;
     int pass = 0, fail = 0, skip = 0;
-    puts("BusierBox reality-test");
-    printf("runtime_root=%s\n", BB_RUNTIME_ROOT);
+    puts("griTTYkit reality-test");
+    printf("runtime_root=%s\n", GRIT_RUNTIME_ROOT);
     for (i = 0; i < n; i++) {
         const char *status = checks[i].skipped ? "skipped" : (checks[i].ok ? "pass" : "fail");
         printf("%-24s %s", checks[i].name, status);
@@ -853,25 +853,25 @@ int applet_reality_test_main(int argc, char **argv)
     int json = 0;
     int i;
 
-    opts.operator_host = BB_OPERATOR_SERVER_HOST;
-    opts.file_port = BB_OPERATOR_FILE_SERVICE_PORT;
-    opts.tls = BB_OPERATOR_FILE_SERVICE_TLS;
+    opts.operator_host = GRIT_OPERATOR_SERVER_HOST;
+    opts.file_port = GRIT_OPERATOR_FILE_SERVICE_PORT;
+    opts.tls = GRIT_OPERATOR_FILE_SERVICE_TLS;
     opts.check_upload = 0;
     opts.fetch_request = NULL;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox reality-test [--json] [--operator-host HOST] [--file-port PORT] [--tls yes|no|--no-tls] [--check-upload] [--check-fetch REQUEST]");
-        puts("       busierbox reality-test push [--host HOST] [--port PORT] [--tls yes|no]");
+        puts("usage: grit reality-test [--json] [--operator-host HOST] [--file-port PORT] [--tls yes|no|--no-tls] [--check-upload] [--check-fetch REQUEST]");
+        puts("       grit reality-test push [--host HOST] [--port PORT] [--tls yes|no]");
         puts("Actively probes target runtime capabilities and degrades gracefully on broken systems.");
         puts("Upload/fetch checks are side-effecting and run only when explicitly requested.");
         return 0;
     }
     if (argc > 1 && !strcmp(argv[1], "push")) {
-        const char *roots[] = { BB_RUNTIME_ROOT, ".", "/tmp", NULL };
+        const char *roots[] = { GRIT_RUNTIME_ROOT, ".", "/tmp", NULL };
         char path[PATH_MAX];
         int r;
         if (argc > 2 && (!strcmp(argv[2], "--help") || !strcmp(argv[2], "-h"))) {
-            puts("usage: busierbox reality-test push [--host HOST] [--port PORT] [--tls yes|no]");
+            puts("usage: grit reality-test push [--host HOST] [--port PORT] [--tls yes|no]");
             puts("Generate reality-test JSON and upload it to the receive-only operator file service.");
             puts("Operator upload/fetch probes are not enabled by this generated report.");
             return 0;
@@ -881,7 +881,7 @@ int applet_reality_test_main(int argc, char **argv)
             char *reality_argv[] = { "reality-test", "--json", NULL };
             if (roots[r][0] && strcmp(roots[r], "."))
                 bb_mkdir_p(roots[r], 0700);
-            snprintf(path, sizeof(path), "%s/.busierbox-reality-test.%ld.XXXXXX", roots[r], (long)getpid());
+            snprintf(path, sizeof(path), "%s/.grit-reality-test.%ld.XXXXXX", roots[r], (long)getpid());
             fd = mkstemp(path);
             if (fd < 0)
                 continue;
@@ -903,7 +903,7 @@ int applet_reality_test_main(int argc, char **argv)
                 unlink(path);
                 return rc;
             }
-            rc = bb_operator_upload_file(path, "busierbox-reality-test.json", "reality-test", argc - 2, argv + 2);
+            rc = bb_operator_upload_file(path, "grit-reality-test.json", "reality-test", argc - 2, argv + 2);
             unlink(path);
             cleanup_reality_probe_dir();
             return rc;

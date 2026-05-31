@@ -1,5 +1,5 @@
-#ifndef BUSIERBOX_COMMAND_QUEUE_POLICY_H
-#define BUSIERBOX_COMMAND_QUEUE_POLICY_H
+#ifndef GRIT_COMMAND_QUEUE_POLICY_H
+#define GRIT_COMMAND_QUEUE_POLICY_H
 
 struct command_queue_policy_report {
     const char *errors[12];

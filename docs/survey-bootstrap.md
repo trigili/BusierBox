@@ -1,14 +1,14 @@
 # Survey Bootstrap
 
-`scripts/busierbox-server --transport survey-bootstrap` serves a small
+`scripts/grit-server --transport survey-bootstrap` serves a small
 architecture-agnostic `/bin/sh` script and accepts the script's result upload.
 This is intended for first contact when the operator does not yet know which
-BusierBox artifact to send to the target.
+griTTYkit artifact to send to the target.
 
 Example:
 
 ```sh
-scripts/busierbox-server \
+scripts/grit-server \
   --transport survey-bootstrap \
   --listen-host 0.0.0.0 \
   --survey-bootstrap-port 22207 \
@@ -31,7 +31,7 @@ When a bridge profile is selected, generated target commands use the bridge's
 target-visible route instead of the direct survey listener:
 
 ```sh
-scripts/busierbox-server \
+scripts/grit-server \
   --transport survey-bootstrap \
   --survey-bootstrap-port 22207 \
   --bridge-profile rack-chain
@@ -73,6 +73,6 @@ Operator-side records:
 - Events include `survey_bootstrap_request`, `survey_bootstrap_result`, and
   `survey_bootstrap_error`.
 
-The bootstrap script is not a BusierBox binary and does not assume a target
+The bootstrap script is not a griTTYkit binary and does not assume a target
 architecture. It only requires `/bin/sh`; upload requires either `wget` or
 `curl` on the target.

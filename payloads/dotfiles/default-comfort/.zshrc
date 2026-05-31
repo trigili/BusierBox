@@ -4,16 +4,16 @@ case "${TERM:-vt100}" in
 esac
 
 # Payload bin on PATH
-_bbx_bin="${BUSIERBOX_PAYLOAD_DIR:-$HOME/..}/bin"
+_grit_bin="${GRIT_PAYLOAD_DIR:-$HOME/..}/bin"
 case ":${PATH}:" in
-    *":${_bbx_bin}:"*) ;;
-    *) export PATH="${_bbx_bin}:${PATH}" ;;
+    *":${_grit_bin}:"*) ;;
+    *) export PATH="${_grit_bin}:${PATH}" ;;
 esac
-unset _bbx_bin
+unset _grit_bin
 
 # Terminfo from payload (for ncurses-aware tools like tmux, htop)
-if [ -n "${BUSIERBOX_PAYLOAD_DIR:-}" ] && [ -d "$BUSIERBOX_PAYLOAD_DIR/share/terminfo" ]; then
-    export TERMINFO_DIRS="$BUSIERBOX_PAYLOAD_DIR/share/terminfo:/usr/share/terminfo:/lib/terminfo"
+if [ -n "${GRIT_PAYLOAD_DIR:-}" ] && [ -d "$GRIT_PAYLOAD_DIR/share/terminfo" ]; then
+    export TERMINFO_DIRS="$GRIT_PAYLOAD_DIR/share/terminfo:/usr/share/terminfo:/lib/terminfo"
 fi
 
 # History
@@ -25,16 +25,16 @@ setopt hist_ignore_dups hist_ignore_space share_history append_history extended_
 # Shell options
 setopt autocd extendedglob no_beep prompt_subst interactive_comments
 
-_bbx_has_zsh_function() {
-    local _bbx_dir
-    for _bbx_dir in $fpath; do
-        [ -r "$_bbx_dir/$1" ] && return 0
+_grit_has_zsh_function() {
+    local _grit_dir
+    for _grit_dir in $fpath; do
+        [ -r "$_grit_dir/$1" ] && return 0
     done
     return 1
 }
 
 # Colors
-if _bbx_has_zsh_function colors; then
+if _grit_has_zsh_function colors; then
     autoload -Uz colors 2>/dev/null && colors 2>/dev/null
 fi
 
@@ -46,18 +46,18 @@ RPROMPT='%F{yellow}%*%f'
 precmd() { print -Pn "\e]0;%n@%m: %~\a" }
 
 # History search on up/down arrows when the widget files are available.
-_bbx_bind_history_widget() {
-    local _bbx_widget=$1 _bbx_fallback=$2 _bbx_key=$3
-    if _bbx_has_zsh_function "$_bbx_widget"; then
-        if autoload -Uz "$_bbx_widget" 2>/dev/null && zle -N "$_bbx_widget" 2>/dev/null; then
-            bindkey "$_bbx_key" "$_bbx_widget"
+_grit_bind_history_widget() {
+    local _grit_widget=$1 _grit_fallback=$2 _grit_key=$3
+    if _grit_has_zsh_function "$_grit_widget"; then
+        if autoload -Uz "$_grit_widget" 2>/dev/null && zle -N "$_grit_widget" 2>/dev/null; then
+            bindkey "$_grit_key" "$_grit_widget"
             return
         fi
     fi
-    bindkey "$_bbx_key" "$_bbx_fallback"
+    bindkey "$_grit_key" "$_grit_fallback"
 }
-_bbx_bind_history_widget up-line-or-beginning-search up-line-or-history "^[[A"
-_bbx_bind_history_widget down-line-or-beginning-search down-line-or-history "^[[B"
+_grit_bind_history_widget up-line-or-beginning-search up-line-or-history "^[[A"
+_grit_bind_history_widget down-line-or-beginning-search down-line-or-history "^[[B"
 # Home / End / Delete
 bindkey "^[[H"  beginning-of-line
 bindkey "^[[F"  end-of-line
@@ -67,7 +67,7 @@ bindkey "^[[1;5D" backward-word
 bindkey "^[[1;5C" forward-word
 
 # Tab completion
-if _bbx_has_zsh_function compinit; then
+if _grit_has_zsh_function compinit; then
     autoload -Uz compinit 2>/dev/null && compinit -u 2>/dev/null
     zstyle ':completion:*' menu select
     zstyle ':completion:*' list-colors ''
@@ -85,15 +85,15 @@ alias grep='grep --color=auto'
 alias fgrep='fgrep --color=auto'
 alias egrep='egrep --color=auto'
 
-# BusierBox shortcuts
-alias bbx='busierbox'
-alias bbx-doctor='busierbox doctor'
-alias bbx-survey='busierbox survey'
-alias bbx-list='busierbox list'
+# griTTYkit shortcuts
+alias bbx='grit'
+alias grit-doctor='grit doctor'
+alias grit-survey='grit survey'
+alias grit-list='grit list'
 
 # Convenience
 alias ..='cd ..'
 alias ...='cd ../..'
 alias path='print -rl -- ${(s/:/)PATH}'
 
-unfunction _bbx_bind_history_widget _bbx_has_zsh_function 2>/dev/null || true
+unfunction _grit_bind_history_widget _grit_has_zsh_function 2>/dev/null || true

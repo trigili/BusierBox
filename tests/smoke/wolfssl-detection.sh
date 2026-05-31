@@ -10,10 +10,10 @@ build=${1:-scripts/build-native}
 }
 
 # Priority 1: WOLFSSL_CFLAGS / WOLFSSL_LIBS env vars are tried first
-awk '/BB_BUILTIN_TLS_ENABLE.*yes/,/wolfssl_ok=1/' "$build" | grep -q 'WOLFSSL_CFLAGS\|WOLFSSL_LIBS'
+awk '/GRIT_BUILTIN_TLS_ENABLE.*yes/,/wolfssl_ok=1/' "$build" | grep -q 'WOLFSSL_CFLAGS\|WOLFSSL_LIBS'
 
 # Priority 2: pkg-config is tried second
-awk '/BB_BUILTIN_TLS_ENABLE.*yes/,/wolfssl_ok=1/' "$build" | grep -q 'pkg-config'
+awk '/GRIT_BUILTIN_TLS_ENABLE.*yes/,/wolfssl_ok=1/' "$build" | grep -q 'pkg-config'
 
 # Fallback: -lwolfssl with no cflags
 grep -q 'lwolfssl' "$build"

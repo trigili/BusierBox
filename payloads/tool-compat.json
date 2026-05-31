@@ -155,7 +155,7 @@
           "suggested_action": "Use provider=local-dropin with local/tools/<target>/bin/gdbserver, provider=user with a pre-built static binary, or provider=overlay with the binary under your overlay root/target/bin/."
         }
       ],
-      "notes": "Requires ptrace and enough target memory for debug sessions. On mipsel/mips+musl the full GDB BFD library fails to build; use STRICT_HEAVY_TOOLS=1 to treat this as a fatal error. Use BB_GDBSERVER_PROVIDER=local-dropin, user, or overlay to supply a pre-built binary.",
+      "notes": "Requires ptrace and enough target memory for debug sessions. On mipsel/mips+musl the full GDB BFD library fails to build; use STRICT_HEAVY_TOOLS=1 to treat this as a fatal error. Use GRIT_GDBSERVER_PROVIDER=local-dropin, user, or overlay to supply a pre-built binary.",
       "classification": "debug target payload",
       "expected_payload_size": "large",
       "static_constraints": "Buildroot gdbserver can be statically linked where GDB/BFD supports the tuple; local-dropin/user/overlay providers must match the target ABI."
@@ -1096,7 +1096,7 @@
       ],
       "unsupported_libcs": [],
       "known_provider_issues": [],
-      "notes": "Classic Doom-compatible terminal runtime. Target builds compile doom-ascii statically through Buildroot and stage only the user-provided WAD from BB_DOOM_WAD_PATH; BusierBox does not download game data."
+      "notes": "Classic Doom-compatible terminal runtime. Target builds compile doom-ascii statically through Buildroot and stage only the user-provided WAD from GRIT_DOOM_WAD_PATH; griTTYkit does not download game data."
     }
   }
 }

@@ -1,29 +1,29 @@
 # Artifact Runtime Overrides
 
-BusierBox artifacts can carry an optional post-build override trailer. This
+griTTYkit artifacts can carry an optional post-build override trailer. This
 lets selected runtime/operator settings change after packaging without
-recompiling the BusierBox core or rebuilding the payload.
+recompiling the griTTYkit core or rebuilding the payload.
 
 ```sh
-scripts/artifact-config show dist/busierbox-native-full
-scripts/artifact-config set dist/busierbox-native-full BB_OPERATOR_SERVER_HOST=203.0.113.10 BB_ZERO_ARG_MODE=rshell
-scripts/artifact-config export dist/busierbox-native-full > overrides.env
-scripts/artifact-config import dist/busierbox-native-full overrides.env
-scripts/artifact-config clear dist/busierbox-native-full
+scripts/artifact-config show dist/grit-native-full
+scripts/artifact-config set dist/grit-native-full GRIT_OPERATOR_SERVER_HOST=203.0.113.10 GRIT_ZERO_ARG_MODE=rshell
+scripts/artifact-config export dist/grit-native-full > overrides.env
+scripts/artifact-config import dist/grit-native-full overrides.env
+scripts/artifact-config clear dist/grit-native-full
 ```
 
 Effective config precedence is compiled defaults, then valid trailer overrides,
-then environment overrides for the same `BB_*` keys, then command-specific CLI
+then environment overrides for the same `GRIT_*` keys, then command-specific CLI
 flags where an applet exposes them.
 
-`busierbox config-info` reports trailer presence, validity, encoding, and
-selected compiled/effective values. `busierbox runtime-config` and
-`busierbox runtime-config --json` report the full allowlisted compiled config,
+`grit config-info` reports trailer presence, validity, encoding, and
+selected compiled/effective values. `grit runtime-config` and
+`grit runtime-config --json` report the full allowlisted compiled config,
 effective config, trailer metadata, environment override count, and
-`effective_config_source` (`compiled`, `trailer`, `env`, or `cli`). `busierbox
+`effective_config_source` (`compiled`, `trailer`, `env`, or `cli`). `grit
 runtime-config --json` also includes `noresidue_policy`, `rshell_readiness`,
 and `command_queue_policy`, matching the doctor/manifest safety,
-reverse-access, and explicit command-queue capability fields. `busierbox
+reverse-access, and explicit command-queue capability fields. `grit
 runtime-config --json` additionally includes flat `config_records` plus
 `config_records_by_key`, `config_records_by_category`,
 `config_records_by_source`, and `config_records_by_changed` lookup maps so
@@ -31,7 +31,7 @@ operator UIs can filter effective values without diffing the compiled and
 effective config objects themselves. The accompanying
 `api_collections.config_records` descriptor includes `count`, `summary_key`,
 `count_summary_key`, `primary_key`, and the index names for frontend discovery.
-`busierbox
+`grit
 manifest --json` includes `compiled_config`,
 `effective_config`, and `trailer_override`.
 

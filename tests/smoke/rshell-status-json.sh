@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-bb=${1:-dist/busierbox-native-full}
-tmp=${TMPDIR:-/tmp}/busierbox-rshell-status-$$
+bb=${1:-dist/grit-native-full}
+tmp=${TMPDIR:-/tmp}/grit-rshell-status-$$
 mkdir "$tmp"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
@@ -30,7 +30,7 @@ reconnect_attempts=1
 connected_once=yes
 EOF
 
-BB_RSHELL_RETRY_COUNT=9 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json --transport ssh >"$tmp/status.json"
+GRIT_RSHELL_RETRY_COUNT=9 GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json --transport ssh >"$tmp/status.json"
 python3 -m json.tool "$tmp/status.json" >/dev/null
 python3 - "$tmp/status.json" "$tmp/guard" <<'PY'
 import json
@@ -186,7 +186,7 @@ if not data["zero_arg_autorun"] and "zero_arg_note" not in data:
     raise SystemExit("zero arg note missing for non-autorun artifact")
 PY
 
-BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"$tmp/status-human.out"
+GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"$tmp/status-human.out"
 grep -q '^operator_ssh_port=' "$tmp/status-human.out"
 grep -q '^remote_forward_port=' "$tmp/status-human.out"
 grep -q '^session_policy=' "$tmp/status-human.out"
@@ -208,11 +208,11 @@ grep -q '^would_reconnect_after_success_attempt_0=' "$tmp/status-human.out"
 grep -q '^would_reconnect_after_success_attempt_1=' "$tmp/status-human.out"
 grep -q '^would_reconnect_after_success_attempt_2=' "$tmp/status-human.out"
 grep -q '^target_dropbear=' "$tmp/status-human.out"
-grep -q '^server_listener=scripts/busierbox-server --transport ssh --ssh-port ' "$tmp/status-human.out"
+grep -q '^server_listener=scripts/grit-server --transport ssh --ssh-port ' "$tmp/status-human.out"
 grep -q '^zero_arg_autorun=' "$tmp/status-human.out"
 
 rm -f "$tmp/guard/rshell.status"
-BB_RSHELL_SESSION_POLICY=reconnect BB_RSHELL_RETRY_COUNT=1 BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"$tmp/status-human-reconnect.out"
+GRIT_RSHELL_SESSION_POLICY=reconnect GRIT_RSHELL_RETRY_COUNT=1 GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --transport ssh >"$tmp/status-human-reconnect.out"
 grep -q '^session_policy=reconnect$' "$tmp/status-human-reconnect.out"
 grep -q '^stop_after_first_success=no$' "$tmp/status-human-reconnect.out"
 grep -q '^reconnect_after_disconnect=yes$' "$tmp/status-human-reconnect.out"
@@ -222,7 +222,7 @@ grep -q '^post_disconnect_retry_count=' "$tmp/status-human-reconnect.out"
 grep -q '^would_reconnect_after_success_attempt_0=yes$' "$tmp/status-human-reconnect.out"
 grep -q '^would_reconnect_after_success_attempt_1=no$' "$tmp/status-human-reconnect.out"
 
-BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/inactive.json"
+GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/inactive.json"
 python3 -m json.tool "$tmp/inactive.json" >/dev/null
 python3 - "$tmp/inactive.json" <<'PY'
 import json
@@ -250,7 +250,7 @@ if sem.get("session_resume_supported") is not False:
     raise SystemExit("inactive status should not claim session resume")
 PY
 
-BB_RSHELL_SESSION_POLICY=single BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/single.json"
+GRIT_RSHELL_SESSION_POLICY=single GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/single.json"
 python3 -m json.tool "$tmp/single.json" >/dev/null
 python3 - "$tmp/single.json" <<'PY'
 import json
@@ -282,7 +282,7 @@ if decisions.get("after_success_reconnect_attempt_0") is not False:
 if decisions.get("uses_fresh_sessions") is not False:
     raise SystemExit("single policy should not report fresh reconnect sessions")
 PY
-BB_RSHELL_SESSION_POLICY=single BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status >"$tmp/status-human-single.out"
+GRIT_RSHELL_SESSION_POLICY=single GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status >"$tmp/status-human-single.out"
 grep -q '^session_policy=single$' "$tmp/status-human-single.out"
 grep -q '^stop_after_first_success=yes$' "$tmp/status-human-single.out"
 grep -q '^reconnect_after_disconnect=no$' "$tmp/status-human-single.out"
@@ -291,7 +291,7 @@ grep -q '^fresh_session_on_reconnect=no$' "$tmp/status-human-single.out"
 grep -q '^session_resume_supported=no$' "$tmp/status-human-single.out"
 grep -q '^post_disconnect_retry_count=0$' "$tmp/status-human-single.out"
 
-BB_RSHELL_SESSION_POLICY=persistent BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/persistent.json"
+GRIT_RSHELL_SESSION_POLICY=persistent GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/persistent.json"
 python3 -m json.tool "$tmp/persistent.json" >/dev/null
 python3 - "$tmp/persistent.json" <<'PY'
 import json
@@ -328,7 +328,7 @@ if decisions.get("uses_fresh_sessions") is not True:
     raise SystemExit("persistent policy should report fresh sessions on reconnect")
 PY
 
-BB_RSHELL_SESSION_POLICY=bogus BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/invalid-policy.json"
+GRIT_RSHELL_SESSION_POLICY=bogus GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status --json >"$tmp/invalid-policy.json"
 python3 -m json.tool "$tmp/invalid-policy.json" >/dev/null
 python3 - "$tmp/invalid-policy.json" <<'PY'
 import json
@@ -356,7 +356,7 @@ if sem.get("session_resume_supported") is not False:
 if decisions.get("after_success_reconnect_attempt_0") is not False:
     raise SystemExit("invalid policy should not reconnect after successful disconnect")
 PY
-BB_RSHELL_SESSION_POLICY=bogus BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status >"$tmp/invalid-policy.txt"
+GRIT_RSHELL_SESSION_POLICY=bogus GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" rshell status >"$tmp/invalid-policy.txt"
 grep -q '^session_policy_valid=no$' "$tmp/invalid-policy.txt"
 grep -q '^session_policy_error=unsupported rshell session policy$' "$tmp/invalid-policy.txt"
 

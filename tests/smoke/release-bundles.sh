@@ -6,7 +6,7 @@ mkdir -p "$tmp_root"
 work=$(mktemp -d "$tmp_root/release-bundles.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
-export BB_RSHELL_SESSION_POLICY=single
+export GRIT_RSHELL_SESSION_POLICY=single
 
 scripts/make-release --name smoke --targets native --payload-presets default --dry-run >"$work/dry-run.out"
 grep -q 'would build target=native payload=default format=tgz' "$work/dry-run.out"
@@ -91,12 +91,12 @@ fi
 grep -q 'missing payload preset no-such-payload' "$work/bad-payload.err"
 
 cat >"$work/base-a.conf" <<'EOF'
-BB_ZERO_ARG_MODE="help"
-BB_RUNTIME_MODE="extract"
+GRIT_ZERO_ARG_MODE="help"
+GRIT_RUNTIME_MODE="extract"
 EOF
 cat >"$work/base-b.conf" <<'EOF'
-BB_ZERO_ARG_MODE="help"
-BB_RUNTIME_MODE="core-only"
+GRIT_ZERO_ARG_MODE="help"
+GRIT_RUNTIME_MODE="core-only"
 EOF
 cat >"$work/config-matrix.json" <<EOF
 {
@@ -136,8 +136,8 @@ scripts/make-release --name reverse-matrix --matrix "$work/reverse-matrix.json" 
 grep -q 'would build target=native payload=survey-core format=tgz' "$work/reverse-matrix.out"
 grep -q 'would build target=native payload=ssh-operator format=tgz' "$work/reverse-matrix.out"
 
-if [ ! -x dist/busierbox-native-full ]; then
-    BUSIERBOX_CONFIG=presets/payload/default.conf BB_BUSYBOX_GROUPS="shell fileops disk process network text system" make package-native >/dev/null
+if [ ! -x dist/grit-native-full ]; then
+    GRIT_CONFIG=presets/payload/default.conf GRIT_BUSYBOX_GROUPS="shell fileops disk process network text system" make package-native >/dev/null
 fi
 
 scripts/make-release \
@@ -147,23 +147,23 @@ scripts/make-release \
     --skip-build \
     --out-dir "$work/release" >"$work/release.out"
 
-test -x "$work/release/bin/busierbox-native-default-full"
+test -x "$work/release/bin/grit-native-default-full"
 test -d "$work/release/by-tuple/native/host/host/host"
-test -x "$work/release/by-tuple/native/host/host/host/bin/busierbox-native-default-full"
-test -L "$work/release/by-tuple/native/host/host/host/bin/busierbox-native-default-full"
+test -x "$work/release/by-tuple/native/host/host/host/bin/grit-native-default-full"
+test -L "$work/release/by-tuple/native/host/host/host/bin/grit-native-default-full"
 test -f "$work/release/by-tuple/native/host/host/host/README.txt"
 test -f "$work/release/by-tuple/native/host/host/host/MANIFEST.txt"
 test -f "$work/release/by-tuple/native/host/host/host/MANIFEST.json"
 test -f "$work/release/by-tuple/native/host/host/host/configs/native-default.conf"
-test -f "$work/release/by-tuple/native/host/host/host/manifests/busierbox-native-default-full.manifest.json"
-test -f "$work/release/by-tuple/native/host/host/host/manifests/busierbox-native-default-full.payload-manifest.json"
+test -f "$work/release/by-tuple/native/host/host/host/manifests/grit-native-default-full.manifest.json"
+test -f "$work/release/by-tuple/native/host/host/host/manifests/grit-native-default-full.payload-manifest.json"
 test -d "$work/release/devices/native"
 test -L "$work/release/devices/native/artifacts"
 test -f "$work/release/devices/native/target.json"
 test -f "$work/release/devices/native/README.txt"
 test -f "$work/release/devices/native/notes.md"
 test -x "$work/release/scripts/artifact-config"
-test -x "$work/release/scripts/busierbox-server"
+test -x "$work/release/scripts/grit-server"
 test -x "$work/release/scripts/configure-artifact"
 test -x "$work/release/scripts/configure-all"
 test -x "$work/release/scripts/verify-checksums"
@@ -183,7 +183,7 @@ fi
 test -f "$work/release/SHA256SUMS.original"
 test -f "$work/release/RELEASE-QUICKSTART.txt"
 test -f "$work/release/LICENSE"
-test -f "$work/release/LICENSE.busierbox"
+test -f "$work/release/LICENSE.grit"
 test -f "$work/release/NOTICE"
 test -f "$work/release/LICENSES/busybox.txt"
 test -f "$work/release/LICENSES/buildroot.txt"
@@ -205,23 +205,23 @@ test -f "$work/release/docs/manifest.md"
 test -f "$work/release/docs/recovery.md"
 test -f "$work/release/docs/survey-and-bringup.md"
 test -f "$work/release.tar.gz"
-grep -q 'scripts/busierbox-server --transport tls-shell' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q 'GPL-2.0-or-later' "$work/release/LICENSE.busierbox"
+grep -q 'scripts/grit-server --transport tls-shell' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'GPL-2.0-or-later' "$work/release/LICENSE.grit"
 grep -q 'GPL-2.0-or-later' "$work/release/NOTICE"
 grep -q 'third_party/busybox/LICENSE' "$work/release/LICENSES/busybox.txt"
 grep -q 'manifests/sources.lock.json' "$work/release/LICENSES/buildroot.txt"
-grep -q 'BB_DOOM_WAD_PATH' "$work/release/LICENSES/doom-ascii.txt"
+grep -q 'GRIT_DOOM_WAD_PATH' "$work/release/LICENSES/doom-ascii.txt"
 grep -q 'third_party/miniz/LICENSE' "$work/release/LICENSES/miniz.txt"
 grep -q 'GPL compatibility summary' "$work/release/docs/licensing.md"
 python3 -m json.tool "$work/release/manifests/license-policy.json" >/dev/null
 grep -q '"combined_gplv2_compatible": true' "$work/release/manifests/license-policy.json"
-grep -q 'scripts/busierbox-server --file-service --file-port 22204' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q './busierbox survey push' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q './busierbox reality-test push' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q './busierbox config-push' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'scripts/grit-server --file-service --file-port 22204' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q './grit survey push' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q './grit reality-test push' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q './grit config-push' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'receive-only file uploads' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'not an artifact sender' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q 'scripts/busierbox-server' "$work/release/release-index.json"
+grep -q 'scripts/grit-server' "$work/release/release-index.json"
 
 python3 -m json.tool "$work/release/release.json" >/dev/null
 grep -q '"release_name": "smoke"' "$work/release/release.json"
@@ -256,7 +256,7 @@ if artifact.get("tuple_path") != "by-tuple/native/host/host/host":
     raise SystemExit("artifact tuple path missing")
 if artifact.get("tuple", {}).get("path") != artifact.get("tuple_path"):
     raise SystemExit("artifact tuple path drift")
-if artifact.get("tuple_artifact") != "by-tuple/native/host/host/host/bin/busierbox-native-default-full":
+if artifact.get("tuple_artifact") != "by-tuple/native/host/host/host/bin/grit-native-default-full":
     raise SystemExit("artifact tuple artifact missing")
 summary = artifact.get("tuple_summary") or {}
 for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extraction_behavior", "trailer_overridable_fields", "command_queue", "noresidue_policy", "recovery_workflows", "doom_wads"):
@@ -485,7 +485,7 @@ scripts/release-index --release-dir "$work/release" >/dev/null
 "$work/release/scripts/release-find" --arch native --libc host --kernel host --payload-preset default >"$work/release-find.out"
 scripts/release-find --release-dir "$work/release" --arch native --libc host --kernel host --payload-preset default >"$work/release-find.wrapper.out"
 cmp "$work/release-find.out" "$work/release-find.wrapper.out"
-grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/busierbox-native-default-full$' "$work/release-find.out"
+grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/grit-native-default-full$' "$work/release-find.out"
 grep -q '^compatibility=exact$' "$work/release-find.out"
 "$work/release/scripts/release-find" --device native --json >"$work/release-find.json"
 python3 -m json.tool "$work/release-find.json" >/dev/null
@@ -534,7 +534,7 @@ with open(path, "w", encoding="utf-8") as fh:
     fh.write("\n")
 PY
 "$work/release/scripts/release-find" --doom-wad doom.wad >"$work/release-find-doom.out"
-grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/busierbox-native-default-full$' "$work/release-find-doom.out"
+grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/grit-native-default-full$' "$work/release-find-doom.out"
 grep -q '^doom_wad=doom.wad size=9 sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef$' "$work/release-find-doom.out"
 "$work/release/scripts/release-find" --doom-wad-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef --json >"$work/release-find-doom-sha.json"
 python3 - "$work/release-find-doom-sha.json" <<'PY'
@@ -795,7 +795,7 @@ scripts/make-release \
     --payload-presets default \
     --skip-build \
     --out-dir "$work/failure-release" >"$work/failure-release.out"
-test -x "$work/failure-release/bin/busierbox-native-default-full"
+test -x "$work/failure-release/bin/grit-native-default-full"
 python3 - "$work/failure-release/release.json" <<'PY'
 import json
 import sys
@@ -824,8 +824,8 @@ scripts/make-release \
     --skip-build \
     --copy-layout \
     --out-dir "$work/copy-release" >"$work/copy-release.out"
-test -x "$work/copy-release/by-tuple/native/host/host/host/bin/busierbox-native-default-full"
-test ! -L "$work/copy-release/by-tuple/native/host/host/host/bin/busierbox-native-default-full"
+test -x "$work/copy-release/by-tuple/native/host/host/host/bin/grit-native-default-full"
+test ! -L "$work/copy-release/by-tuple/native/host/host/host/bin/grit-native-default-full"
 test -d "$work/copy-release/devices/native/artifacts"
 python3 - "$work/copy-release/release.json" <<'PY'
 import json
@@ -864,7 +864,7 @@ if "missing_tools=" not in text:
     raise SystemExit("tuple MANIFEST.txt lacks opt-in missing tools")
 PY
 
-if [ -f dist/busierbox-mipsel-linux-4.x-musl-full ]; then
+if [ -f dist/grit-mipsel-linux-4.x-musl-full ]; then
     scripts/make-release \
         --name glinet-layout \
         --targets glinet-mt7621-openwrt-musl \
@@ -873,7 +873,7 @@ if [ -f dist/busierbox-mipsel-linux-4.x-musl-full ]; then
         --out-dir "$work/glinet-release" >"$work/glinet-release.out"
     test -d "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc"
     test -L "$work/glinet-release/devices/glinet-mt1300/artifacts"
-    test -f "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc/manifests/busierbox-glinet-mt7621-openwrt-musl-default-full.payload-manifest.json"
+    test -f "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc/manifests/grit-glinet-mt7621-openwrt-musl-default-full.payload-manifest.json"
     python3 - "$work/glinet-release/release.json" "$work/glinet-release/by-tuple/mipsel/musl/4.x/mips32r2-24kc/MANIFEST.json" <<'PY'
 import json
 import sys
@@ -1013,8 +1013,8 @@ scripts/make-release \
     --matrix "$work/reverse-matrix.json" \
     --skip-build \
     --out-dir "$work/reverse-release" >"$work/reverse-release.out"
-test -x "$work/reverse-release/bin/busierbox-native-survey-core-full"
-test -x "$work/reverse-release/bin/busierbox-native-ssh-operator-full"
+test -x "$work/reverse-release/bin/grit-native-survey-core-full"
+test -x "$work/reverse-release/bin/grit-native-ssh-operator-full"
 python3 - "$work/reverse-release/release.json" <<'PY'
 import json
 import sys
@@ -1036,12 +1036,12 @@ scripts/make-release \
     --matrix "$work/config-matrix.json" \
     --skip-build \
     --out-dir "$work/config-release" >"$work/config-release.out"
-test -x "$work/config-release/bin/busierbox-native-default-base-a-full"
-test -x "$work/config-release/bin/busierbox-native-default-base-b-full"
+test -x "$work/config-release/bin/grit-native-default-base-a-full"
+test -x "$work/config-release/bin/grit-native-default-base-b-full"
 test -f "$work/config-release/configs/native-default-base-a.conf"
 test -f "$work/config-release/configs/native-default-base-b.conf"
-grep -q '^BB_RUNTIME_MODE="extract"$' "$work/config-release/configs/native-default-base-a.conf"
-grep -q '^BB_RUNTIME_MODE="core-only"$' "$work/config-release/configs/native-default-base-b.conf"
+grep -q '^GRIT_RUNTIME_MODE="extract"$' "$work/config-release/configs/native-default-base-a.conf"
+grep -q '^GRIT_RUNTIME_MODE="core-only"$' "$work/config-release/configs/native-default-base-b.conf"
 python3 - "$work/config-release/release.json" "$work/base-a.conf" "$work/base-b.conf" <<'PY'
 import json
 import sys
@@ -1066,8 +1066,8 @@ scripts/make-release \
     --formats tgz,tar \
     --skip-build \
     --out-dir "$work/format-release" >"$work/format-release.out"
-test -x "$work/format-release/bin/busierbox-native-default-full"
-test -x "$work/format-release/bin/busierbox-native-default-tar-full"
+test -x "$work/format-release/bin/grit-native-default-full"
+test -x "$work/format-release/bin/grit-native-default-tar-full"
 test -f "$work/format-release/configs/native-default.conf"
 test -f "$work/format-release/configs/native-default-tar.conf"
 python3 - "$work/format-release/release.json" <<'PY'
@@ -1085,8 +1085,8 @@ if len(paths) != len(set(paths)):
 if len(configs) != len(set(configs)):
     raise SystemExit(f"duplicate config paths: {configs}")
 expected = {
-    "bin/busierbox-native-default-full",
-    "bin/busierbox-native-default-tar-full",
+    "bin/grit-native-default-full",
+    "bin/grit-native-default-tar-full",
 }
 if set(paths) != expected:
     raise SystemExit(f"format artifact names mismatch: {paths}")
@@ -1098,25 +1098,25 @@ PY
 )
 
 "$work/release/scripts/configure-artifact" \
-    "$work/release/bin/busierbox-native-default-full" \
+    "$work/release/bin/grit-native-default-full" \
     --operator-host 192.0.2.55 \
     --transport builtin \
     --noresidue-level aggressive \
     --shell-port 22203 >/dev/null
 
-"$work/release/scripts/artifact-config" show "$work/release/bin/busierbox-native-default-full" >"$work/show.out"
+"$work/release/scripts/artifact-config" show "$work/release/bin/grit-native-default-full" >"$work/show.out"
 grep -q '^trailer_present=yes$' "$work/show.out"
-grep -q '^BB_OPERATOR_SERVER_HOST=192.0.2.55$' "$work/show.out"
-grep -q '^BB_NORESIDUE_LEVEL=aggressive$' "$work/show.out"
-test -x "$work/release/bin/busierbox-native-default-full"
+grep -q '^GRIT_OPERATOR_SERVER_HOST=192.0.2.55$' "$work/show.out"
+grep -q '^GRIT_NORESIDUE_LEVEL=aggressive$' "$work/show.out"
+test -x "$work/release/bin/grit-native-default-full"
 "$work/release/scripts/configure-artifact" \
-    "$work/release/bin/busierbox-native-default-full" \
+    "$work/release/bin/grit-native-default-full" \
     --show >"$work/wrapper-show.out"
 grep -q '^trailer_present=yes$' "$work/wrapper-show.out"
 "$work/release/scripts/configure-artifact" \
-    "$work/release/bin/busierbox-native-default-full" \
+    "$work/release/bin/grit-native-default-full" \
     --export "$work/export.env"
-grep -q '^BB_OPERATOR_SERVER_HOST=192.0.2.55$' "$work/export.env"
+grep -q '^GRIT_OPERATOR_SERVER_HOST=192.0.2.55$' "$work/export.env"
 test -f "$work/release/SHA256SUMS.configured"
 (
     cd "$work/release"
@@ -1124,19 +1124,19 @@ test -f "$work/release/SHA256SUMS.configured"
 )
 
 "$work/release/scripts/configure-all" --clear >/dev/null
-"$work/release/scripts/artifact-config" show "$work/release/bin/busierbox-native-default-full" >"$work/clear.out"
+"$work/release/scripts/artifact-config" show "$work/release/bin/grit-native-default-full" >"$work/clear.out"
 grep -q '^trailer_present=no$' "$work/clear.out"
 
 "$work/release/scripts/configure-artifact" \
-    "$work/release/bin/busierbox-native-default-full" \
+    "$work/release/bin/grit-native-default-full" \
     --import "$work/export.env" \
     --obfuscation xor >"$work/import-xor.out"
 grep -q 'not encryption' "$work/import-xor.out"
-"$work/release/scripts/artifact-config" show "$work/release/bin/busierbox-native-default-full" >"$work/xor-show.out"
+"$work/release/scripts/artifact-config" show "$work/release/bin/grit-native-default-full" >"$work/xor-show.out"
 grep -q '^trailer_present=yes$' "$work/xor-show.out"
 grep -q '^encoding=xor$' "$work/xor-show.out"
-grep -q '^BB_OPERATOR_SERVER_HOST=192.0.2.55$' "$work/xor-show.out"
-test -x "$work/release/bin/busierbox-native-default-full"
+grep -q '^GRIT_OPERATOR_SERVER_HOST=192.0.2.55$' "$work/xor-show.out"
+test -x "$work/release/bin/grit-native-default-full"
 (
     cd "$work/release"
     scripts/verify-checksums --configured >/dev/null

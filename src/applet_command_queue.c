@@ -121,15 +121,15 @@ static int yes_value(const char *s)
 
 static const char *execution_rejection_reason(void)
 {
-    if (!strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only"))
+    if (!strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only"))
         return "command queue execution mode is metadata-only";
-    if (!strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "busierbox-only"))
-        return "queued command is not a BusierBox command";
-    if (!strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "allowlist"))
+    if (!strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "grit-only"))
+        return "queued command is not a griTTYkit command";
+    if (!strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "allowlist"))
         return "command queue allowlist execution is not configured in this build";
-    if (!strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") &&
-        strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes"))
-        return "custom command queue execution requires BB_COMMAND_QUEUE_ALLOW_ARBITRARY=yes";
+    if (!strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") &&
+        strcmp(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes"))
+        return "custom command queue execution requires GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY=yes";
     return "command queue execution policy does not permit this command";
 }
 
@@ -139,13 +139,13 @@ static int command_queue_execution_supported(void)
 
     if (!bb_command_queue_policy_valid(&report))
         return 0;
-    if (strcmp(BB_COMMAND_QUEUE_ENABLE, "yes") ||
-        strcmp(BB_COMMAND_QUEUE_EXECUTION, "execute"))
+    if (strcmp(GRIT_COMMAND_QUEUE_ENABLE, "yes") ||
+        strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "execute"))
         return 0;
-    if (!strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "busierbox-only"))
+    if (!strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "grit-only"))
         return 1;
-    if (!strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") &&
-        !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes"))
+    if (!strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") &&
+        !strcmp(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes"))
         return 1;
     return 0;
 }
@@ -174,14 +174,14 @@ static int command_policy_allows_execution(const char *command, char *reason, si
         snprintf(reason, reasonsz, "%s", execution_rejection_reason());
         return 0;
     }
-    if (!strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "busierbox-only")) {
-        if (starts_with_word(command, "busierbox") || starts_with_word(command, "./busierbox"))
+    if (!strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "grit-only")) {
+        if (starts_with_word(command, "grit") || starts_with_word(command, "./grit"))
             return 1;
-        snprintf(reason, reasonsz, "queued command is not a BusierBox command");
+        snprintf(reason, reasonsz, "queued command is not a griTTYkit command");
         return 0;
     }
-    if (!strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") &&
-        !strcmp(BB_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes"))
+    if (!strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") &&
+        !strcmp(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY, "yes"))
         return 1;
     snprintf(reason, reasonsz, "%s", execution_rejection_reason());
     return 0;
@@ -265,10 +265,10 @@ static int is_help(int argc, char **argv)
 
 static void print_help(void)
 {
-    puts("usage: busierbox command-queue [status|poll|once|daemon|stop] [--json] [--dry-run|--live] [--operator-host HOST]");
-    puts("       busierbox command-queue daemon --live [--max-polls N] [--poll-interval-sec N] [--poll-backoff none|linear|exponential] [--poll-jitter-pct N] [--poll-max-interval-sec N] [--event-log PATH] [--state-file PATH]");
+    puts("usage: grit command-queue [status|poll|once|daemon|stop] [--json] [--dry-run|--live] [--operator-host HOST]");
+    puts("       grit command-queue daemon --live [--max-polls N] [--poll-interval-sec N] [--poll-backoff none|linear|exponential] [--poll-jitter-pct N] [--poll-max-interval-sec N] [--event-log PATH] [--state-file PATH]");
     puts("Inspect explicit opt-in command queue policy and target polling state.");
-    puts("Live mode can receive queued commands; execution requires BB_COMMAND_QUEUE_EXECUTION=execute and an allowed command policy.");
+    puts("Live mode can receive queued commands; execution requires GRIT_COMMAND_QUEUE_EXECUTION=execute and an allowed command policy.");
 }
 
 static int mode_would_poll(const char *mode, int enabled, const char *operator_host, const struct command_queue_policy_report *report)
@@ -323,7 +323,7 @@ static const char *mode_lifecycle(const char *mode)
 
 static void default_state_path(char *out, size_t outsz)
 {
-    snprintf(out, outsz, "%s/run/command-queue-daemon.state", BB_RUNTIME_ROOT);
+    snprintf(out, outsz, "%s/run/command-queue-daemon.state", GRIT_RUNTIME_ROOT);
 }
 
 static int ensure_parent_dir(const char *path)
@@ -543,7 +543,7 @@ static void append_poll_event(const char *path, const char *event, const char *m
                   !strcmp(event, "command_queue_execution_decision") ||
                   !strncmp(event, "command_queue_result_upload", strlen("command_queue_result_upload"))))
         live_poll_event = 1;
-    live_poll_supported = live_poll_event && !strcmp(BB_COMMAND_QUEUE_TLS, "no");
+    live_poll_supported = live_poll_event && !strcmp(GRIT_COMMAND_QUEUE_TLS, "no");
     utc_timestamp(ts, sizeof(ts));
     snprintf(id, sizeof(id), "cqevt-%ld-%d-%s", (long)getpid(), attempt, event ? event : "event");
     fputs("{\"schema\":1,\"ts\":", fh);
@@ -562,7 +562,7 @@ static void append_poll_event(const char *path, const char *event, const char *m
     bb_json_string(fh, endpoint ? endpoint : "");
     fprintf(fh, ",\"attempt\":%d,\"executes_commands\":%s,\"execution_mode\":",
             attempt, command_queue_execution_supported() ? "true" : "false");
-    bb_json_string(fh, BB_COMMAND_QUEUE_EXECUTION);
+    bb_json_string(fh, GRIT_COMMAND_QUEUE_EXECUTION);
     fprintf(fh, ",\"poll_interval_sec\":%d,\"poll_jitter_pct\":%d",
             event_poll_interval_sec, event_poll_jitter_pct);
     fputs(",\"poll_backoff\":", fh);
@@ -1011,8 +1011,8 @@ static int connect_operator_once(const char *host, const char *port, struct poll
 
     if (errsz)
         err[0] = '\0';
-    if (strcmp(BB_COMMAND_QUEUE_TLS, "no")) {
-        snprintf(err, errsz, "live command queue polling requires BB_COMMAND_QUEUE_TLS=no in this build");
+    if (strcmp(GRIT_COMMAND_QUEUE_TLS, "no")) {
+        snprintf(err, errsz, "live command queue polling requires GRIT_COMMAND_QUEUE_TLS=no in this build");
         return -1;
     }
     memset(&hints, 0, sizeof(hints));
@@ -1031,16 +1031,16 @@ static int connect_operator_once(const char *host, const char *port, struct poll
             snprintf(request, sizeof(request),
                      "GET /command-queue/poll HTTP/1.1\r\n"
                      "Host: %s:%s\r\n"
-                     "User-Agent: busierbox-command-queue\r\n"
-                     "X-BusierBox-Command-Queue-Mode: poll\r\n"
-                     "X-BusierBox-Command-Queue-Token: %s\r\n"
-                     "X-BusierBox-Command-Queue-Poll-Interval-Sec: %d\r\n"
-                     "X-BusierBox-Command-Queue-Poll-Jitter-Pct: %d\r\n"
-                     "X-BusierBox-Command-Queue-Poll-Backoff: %s\r\n"
-                     "X-BusierBox-Command-Queue-Poll-Max-Interval-Sec: %d\r\n"
-                     "X-BusierBox-Command-Queue-Max-Polls: %d\r\n"
+                     "User-Agent: grit-command-queue\r\n"
+                     "X-griTTYkit-Command-Queue-Mode: poll\r\n"
+                     "X-griTTYkit-Command-Queue-Token: %s\r\n"
+                     "X-griTTYkit-Command-Queue-Poll-Interval-Sec: %d\r\n"
+                     "X-griTTYkit-Command-Queue-Poll-Jitter-Pct: %d\r\n"
+                     "X-griTTYkit-Command-Queue-Poll-Backoff: %s\r\n"
+                     "X-griTTYkit-Command-Queue-Poll-Max-Interval-Sec: %d\r\n"
+                     "X-griTTYkit-Command-Queue-Max-Polls: %d\r\n"
                      "Connection: close\r\n\r\n",
-                     host, port, BB_COMMAND_QUEUE_TOKEN,
+                     host, port, GRIT_COMMAND_QUEUE_TOKEN,
                      event_poll_interval_sec, event_poll_jitter_pct,
                      event_poll_backoff, event_poll_max_interval_sec, event_max_polls);
             if (send_all(fd, request, strlen(request), err, errsz, "poll request") != 0) {
@@ -1061,9 +1061,9 @@ static int connect_operator_once(const char *host, const char *port, struct poll
             }
             if (!strncmp(response, "HTTP/1.1 200", 12) || !strncmp(response, "HTTP/1.0 200", 12)) {
                 const char *body = http_body(response);
-                parse_header_value(response, "X-BusierBox-Command-Id", err, errsz);
+                parse_header_value(response, "X-griTTYkit-Command-Id", err, errsz);
                 if (run) {
-                    parse_header_value(response, "X-BusierBox-Command-Sha256", run->last_command_sha256, sizeof(run->last_command_sha256));
+                    parse_header_value(response, "X-griTTYkit-Command-Sha256", run->last_command_sha256, sizeof(run->last_command_sha256));
                     if (!run->last_command_sha256[0])
                         json_get_string_field(body, "command_sha256", run->last_command_sha256, sizeof(run->last_command_sha256));
                     json_get_string_field(body, "command", run->last_command, sizeof(run->last_command));
@@ -1104,8 +1104,8 @@ static int post_command_result_once(const char *host, const char *port,
         snprintf(err, errsz, "missing command id for result upload");
         return -1;
     }
-    if (strcmp(BB_COMMAND_QUEUE_TLS, "no")) {
-        snprintf(err, errsz, "live command queue result upload requires BB_COMMAND_QUEUE_TLS=no in this build");
+    if (strcmp(GRIT_COMMAND_QUEUE_TLS, "no")) {
+        snprintf(err, errsz, "live command queue result upload requires GRIT_COMMAND_QUEUE_TLS=no in this build");
         return -1;
     }
     json_string_to_buffer(result ? result->output_preview : "", escaped_output, sizeof(escaped_output));
@@ -1123,7 +1123,7 @@ static int post_command_result_once(const char *host, const char *port,
              result ? result->stderr_bytes : 0,
              result ? result->output_bytes : 0,
              result && result->output_exceeded ? "true" : "false",
-             BB_COMMAND_QUEUE_EXECUTION,
+             GRIT_COMMAND_QUEUE_EXECUTION,
              command_queue_execution_supported() ? "true" : "false",
              result && result->executed ? "true" : "false",
              result && result->executed ? "executed" : "rejected",
@@ -1145,12 +1145,12 @@ static int post_command_result_once(const char *host, const char *port,
             snprintf(request, sizeof(request),
                      "POST /command-queue/result HTTP/1.1\r\n"
                      "Host: %s:%s\r\n"
-                     "User-Agent: busierbox-command-queue\r\n"
-                     "X-BusierBox-Command-Queue-Token: %s\r\n"
+                     "User-Agent: grit-command-queue\r\n"
+                     "X-griTTYkit-Command-Queue-Token: %s\r\n"
                      "Content-Type: application/json\r\n"
                      "Content-Length: %lu\r\n"
                      "Connection: close\r\n\r\n%s",
-                     host, port, BB_COMMAND_QUEUE_TOKEN, (unsigned long)strlen(body), body);
+                     host, port, GRIT_COMMAND_QUEUE_TOKEN, (unsigned long)strlen(body), body);
             if (send_all(fd, request, strlen(request), err, errsz, "result upload") != 0) {
                 close(fd);
                 freeaddrinfo(res);
@@ -1195,7 +1195,7 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
         snprintf(result.last_status, sizeof(result.last_status), "missing_operator_host");
         return result;
     }
-    snprintf(endpoint, sizeof(endpoint), "%s:%s", operator_host, BB_COMMAND_QUEUE_PORT);
+    snprintf(endpoint, sizeof(endpoint), "%s:%s", operator_host, GRIT_COMMAND_QUEUE_PORT);
     if (limit <= 0 && strcmp(mode, "daemon"))
         limit = 1;
     signal(SIGINT, handle_stop);
@@ -1220,7 +1220,7 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
         result.attempted = 1;
         result.attempts++;
         append_run_poll_event(event_log, &result, "command_queue_poll_attempt", mode, endpoint, result.attempts, "attempt", "");
-        int poll_rc = connect_operator_once(operator_host, BB_COMMAND_QUEUE_PORT, &result, error, sizeof(error));
+        int poll_rc = connect_operator_once(operator_host, GRIT_COMMAND_QUEUE_PORT, &result, error, sizeof(error));
         if (poll_rc == 0) {
             char upload_error[160] = "";
             struct command_execution_result exec_result;
@@ -1239,7 +1239,7 @@ static struct poll_run_result run_live_poll(const char *mode, const char *operat
                 snprintf(result.last_status, sizeof(result.last_status), "delivered-rejected");
                 append_run_poll_command_event(event_log, &result, "command_queue_execution_decision", mode, endpoint, result.attempts, "rejected", exec_result.reason);
             }
-            if (post_command_result_once(operator_host, BB_COMMAND_QUEUE_PORT,
+            if (post_command_result_once(operator_host, GRIT_COMMAND_QUEUE_PORT,
                                          result.last_command_id, &exec_result, upload_error, sizeof(upload_error)) == 0) {
                 result.result_uploads++;
                 append_run_poll_command_event(event_log, &result, "command_queue_result_upload", mode, endpoint, result.attempts, "result-uploaded", "");
@@ -1749,7 +1749,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
                        const char *state_file, const struct daemon_state *daemon_state,
                        const struct stop_result *stop, const struct poll_run_result *run)
 {
-    int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
+    int enabled = yes_value(GRIT_COMMAND_QUEUE_ENABLE);
     int arbitrary_requested;
     int configured_for_polling;
     int would_poll;
@@ -1759,10 +1759,10 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     int valid = bb_command_queue_policy_valid(&policy);
     int i;
 
-    arbitrary_requested = valid && enabled && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    arbitrary_requested = valid && enabled && !strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY);
     configured_for_polling = valid && enabled && operator_host && operator_host[0];
     would_poll = mode_would_poll(mode, enabled, operator_host, &policy);
-    safe_disabled_default = !enabled && valid && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") && !yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    safe_disabled_default = !enabled && valid && !strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "none") && !strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") && !yes_value(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY);
     execution_supported = command_queue_execution_supported();
 
     fputs("{\"schema\":1,\"command\":\"command-queue\",\"mode\":", stdout);
@@ -1786,8 +1786,8 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     printf(",\"would_poll\":%s", would_poll ? "true" : "false");
     printf(",\"operator_queue_records_only\":%s", dry_run ? "false" : "true");
     fputs(",\"execution_mode\":", stdout);
-    bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
-    printf(",\"metadata_only_default\":%s", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
+    bb_json_string(stdout, GRIT_COMMAND_QUEUE_EXECUTION);
+    printf(",\"metadata_only_default\":%s", !strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
     printf(",\"execution_supported\":%s", execution_supported ? "true" : "false");
     printf(",\"executes_commands\":%s", execution_supported ? "true" : "false");
     printf(",\"delivery_supported\":%s", (!dry_run && would_poll) ? "true" : "false");
@@ -1804,30 +1804,30 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     fputs(",\"operator_host\":", stdout);
     bb_json_string(stdout, operator_host ? operator_host : "");
     fputs(",\"port\":", stdout);
-    bb_json_string(stdout, BB_COMMAND_QUEUE_PORT);
+    bb_json_string(stdout, GRIT_COMMAND_QUEUE_PORT);
     fputs(",\"tls\":", stdout);
-    bb_json_string(stdout, BB_COMMAND_QUEUE_TLS);
+    bb_json_string(stdout, GRIT_COMMAND_QUEUE_TLS);
     fputs(",\"endpoint\":", stdout);
     if (operator_host && operator_host[0]) {
         char endpoint[512];
-        snprintf(endpoint, sizeof(endpoint), "%s:%s", operator_host, BB_COMMAND_QUEUE_PORT);
+        snprintf(endpoint, sizeof(endpoint), "%s:%s", operator_host, GRIT_COMMAND_QUEUE_PORT);
         bb_json_string(stdout, endpoint);
     } else {
         bb_json_string(stdout, "");
     }
     fputs(",\"require_token\":", stdout);
-    bb_json_string(stdout, BB_COMMAND_QUEUE_REQUIRE_TOKEN);
+    bb_json_string(stdout, GRIT_COMMAND_QUEUE_REQUIRE_TOKEN);
     fputs(",\"token_source\":", stdout);
-    bb_json_string(stdout, BB_COMMAND_QUEUE_TOKEN_SOURCE);
-    printf(",\"token_required\":%s", !strcmp(BB_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false");
-    printf(",\"token_configured\":%s", BB_COMMAND_QUEUE_TOKEN[0] ? "true" : "false");
+    bb_json_string(stdout, GRIT_COMMAND_QUEUE_TOKEN_SOURCE);
+    printf(",\"token_required\":%s", !strcmp(GRIT_COMMAND_QUEUE_REQUIRE_TOKEN, "yes") ? "true" : "false");
+    printf(",\"token_configured\":%s", GRIT_COMMAND_QUEUE_TOKEN[0] ? "true" : "false");
     fputs(",\"allowed_commands\":", stdout);
-    bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
+    bb_json_string(stdout, GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS);
     fputs(",\"allow_arbitrary\":", stdout);
-    bb_json_string(stdout, BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    bb_json_string(stdout, GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY);
     fputs(",\"execution_mode\":", stdout);
-    bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
-    printf(",\"metadata_only_default\":%s", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
+    bb_json_string(stdout, GRIT_COMMAND_QUEUE_EXECUTION);
+    printf(",\"metadata_only_default\":%s", !strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "true" : "false");
     printf(",\"arbitrary_policy_requested\":%s", arbitrary_requested ? "true" : "false");
     printf(",\"arbitrary_execution_allowed\":%s", arbitrary_requested && execution_supported ? "true" : "false");
     printf(",\"execution_supported\":%s", execution_supported ? "true" : "false");
@@ -1863,7 +1863,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
     fputs(",\"endpoint\":", stdout);
     if (operator_host && operator_host[0]) {
         char endpoint[512];
-        snprintf(endpoint, sizeof(endpoint), "%s:%s", operator_host, BB_COMMAND_QUEUE_PORT);
+        snprintf(endpoint, sizeof(endpoint), "%s:%s", operator_host, GRIT_COMMAND_QUEUE_PORT);
         bb_json_string(stdout, endpoint);
     } else {
         bb_json_string(stdout, "");
@@ -1899,7 +1899,7 @@ static void print_json(const char *mode, int dry_run, const char *operator_host,
         bb_json_string(stdout, run->last_command_sha256);
         printf(",\"timeout_sec\":%d,\"max_output_bytes\":%d", run->last_timeout_sec, run->last_max_output_bytes);
         fputs(",\"execution_mode\":", stdout);
-        bb_json_string(stdout, BB_COMMAND_QUEUE_EXECUTION);
+        bb_json_string(stdout, GRIT_COMMAND_QUEUE_EXECUTION);
         printf(",\"execution_supported\":%s,\"executes_commands\":%s",
                execution_supported ? "true" : "false",
                run->executed_commands > 0 ? "true" : "false");
@@ -1920,17 +1920,17 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
                        const char *state_file, const struct daemon_state *daemon_state,
                        const struct stop_result *stop, const struct poll_run_result *run)
 {
-    int enabled = yes_value(BB_COMMAND_QUEUE_ENABLE);
+    int enabled = yes_value(GRIT_COMMAND_QUEUE_ENABLE);
     int arbitrary_requested;
     struct command_queue_policy_report policy = bb_command_queue_validate_policy();
     int valid = bb_command_queue_policy_valid(&policy);
     int execution_supported = command_queue_execution_supported();
     int i;
 
-    arbitrary_requested = valid && enabled && !strcmp(BB_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    arbitrary_requested = valid && enabled && !strcmp(GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS, "custom") && yes_value(GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY);
 
     printf("command_queue_mode=%s\n", mode);
-    printf("command_queue_enable=%s\n", BB_COMMAND_QUEUE_ENABLE);
+    printf("command_queue_enable=%s\n", GRIT_COMMAND_QUEUE_ENABLE);
     printf("command_queue_dry_run=%s\n", dry_run ? "yes" : "no");
     printf("command_queue_policy_valid=%s\n", valid ? "yes" : "no");
     for (i = 0; i < policy.count; i++)
@@ -1939,19 +1939,19 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
     printf("command_queue_missing_operator_host=%s\n", (valid && enabled && (!operator_host || !operator_host[0])) ? "yes" : "no");
     printf("command_queue_would_poll=%s\n", mode_would_poll(mode, enabled, operator_host, &policy) ? "yes" : "no");
     printf("command_queue_operator_host=%s\n", operator_host ? operator_host : "");
-    printf("command_queue_port=%s\n", BB_COMMAND_QUEUE_PORT);
+    printf("command_queue_port=%s\n", GRIT_COMMAND_QUEUE_PORT);
     if (operator_host && operator_host[0])
-        printf("command_queue_endpoint=%s:%s\n", operator_host, BB_COMMAND_QUEUE_PORT);
+        printf("command_queue_endpoint=%s:%s\n", operator_host, GRIT_COMMAND_QUEUE_PORT);
     else
         puts("command_queue_endpoint=");
-    printf("command_queue_tls=%s\n", BB_COMMAND_QUEUE_TLS);
-    printf("command_queue_require_token=%s\n", BB_COMMAND_QUEUE_REQUIRE_TOKEN);
-    printf("command_queue_token_source=%s\n", BB_COMMAND_QUEUE_TOKEN_SOURCE);
-    printf("command_queue_token_configured=%s\n", BB_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
-    printf("command_queue_allowed_commands=%s\n", BB_COMMAND_QUEUE_ALLOWED_COMMANDS);
-    printf("command_queue_allow_arbitrary=%s\n", BB_COMMAND_QUEUE_ALLOW_ARBITRARY);
-    printf("command_queue_execution_mode=%s\n", BB_COMMAND_QUEUE_EXECUTION);
-    printf("command_queue_metadata_only_default=%s\n", !strcmp(BB_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "yes" : "no");
+    printf("command_queue_tls=%s\n", GRIT_COMMAND_QUEUE_TLS);
+    printf("command_queue_require_token=%s\n", GRIT_COMMAND_QUEUE_REQUIRE_TOKEN);
+    printf("command_queue_token_source=%s\n", GRIT_COMMAND_QUEUE_TOKEN_SOURCE);
+    printf("command_queue_token_configured=%s\n", GRIT_COMMAND_QUEUE_TOKEN[0] ? "yes" : "no");
+    printf("command_queue_allowed_commands=%s\n", GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS);
+    printf("command_queue_allow_arbitrary=%s\n", GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY);
+    printf("command_queue_execution_mode=%s\n", GRIT_COMMAND_QUEUE_EXECUTION);
+    printf("command_queue_metadata_only_default=%s\n", !strcmp(GRIT_COMMAND_QUEUE_EXECUTION, "metadata-only") ? "yes" : "no");
     printf("command_queue_arbitrary_policy_requested=%s\n", arbitrary_requested ? "yes" : "no");
     printf("command_queue_arbitrary_execution_allowed=%s\n", arbitrary_requested && execution_supported ? "yes" : "no");
     printf("command_queue_execution_supported=%s\n", execution_supported ? "yes" : "no");
@@ -2041,19 +2041,19 @@ static void print_text(const char *mode, int dry_run, const char *operator_host,
 int applet_command_queue_main(int argc, char **argv)
 {
     const char *mode = "status";
-    const char *operator_host = BB_OPERATOR_SERVER_HOST;
+    const char *operator_host = GRIT_OPERATOR_SERVER_HOST;
     const char *event_log = "";
     char default_state[PATH_MAX];
     const char *state_file;
-    const char *backoff = BB_COMMAND_QUEUE_POLL_BACKOFF;
+    const char *backoff = GRIT_COMMAND_QUEUE_POLL_BACKOFF;
     struct poll_run_result run;
     struct daemon_state daemon_state;
     struct stop_result stop;
     int json = 0, dry_run = 1;
-    int interval_sec = parse_nonnegative_int(BB_COMMAND_QUEUE_POLL_INTERVAL_SEC, 5);
-    int jitter_pct = parse_nonnegative_int(BB_COMMAND_QUEUE_POLL_JITTER_PCT, 0);
-    int backoff_max_interval_sec = parse_nonnegative_int(BB_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC, 300);
-    int max_polls = parse_nonnegative_int(BB_COMMAND_QUEUE_MAX_POLLS, 0);
+    int interval_sec = parse_nonnegative_int(GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC, 5);
+    int jitter_pct = parse_nonnegative_int(GRIT_COMMAND_QUEUE_POLL_JITTER_PCT, 0);
+    int backoff_max_interval_sec = parse_nonnegative_int(GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC, 300);
+    int max_polls = parse_nonnegative_int(GRIT_COMMAND_QUEUE_MAX_POLLS, 0);
     int i;
 
     memset(&run, 0, sizeof(run));
@@ -2115,7 +2115,7 @@ int applet_command_queue_main(int argc, char **argv)
         struct command_queue_policy_report policy = bb_command_queue_validate_policy();
         if (!bb_command_queue_policy_valid(&policy)) {
             snprintf(run.last_status, sizeof(run.last_status), "invalid_policy");
-        } else if (!yes_value(BB_COMMAND_QUEUE_ENABLE)) {
+        } else if (!yes_value(GRIT_COMMAND_QUEUE_ENABLE)) {
             snprintf(run.last_status, sizeof(run.last_status), "disabled");
         } else if (!operator_host || !operator_host[0]) {
             snprintf(run.last_status, sizeof(run.last_status), "missing_operator_host");

@@ -19,17 +19,17 @@ for name in default survey-core builtin-core-shell payload-bash socat-rescue ssh
         printf '%s\n' "payload-presets: missing $file" >&2
         exit 1
     }
-    if grep -q '^BB_TARGET_\|^BB_TARGETS=\|^BB_KERNEL_FLOOR=' "$file"; then
+    if grep -q '^GRIT_TARGET_\|^GRIT_TARGETS=\|^GRIT_KERNEL_FLOOR=' "$file"; then
         printf '%s\n' "payload-presets: target tuple variable found in $file" >&2
         exit 1
     fi
-    grep -q '^BB_RUNTIME_MODE=' "$file"
-    grep -q '^BB_ZERO_ARG_MODE=' "$file"
-    grep -q '^BB_TRAILER_OVERRIDES_ENABLE=' "$file"
-    grep -q '^BB_RSHELL_TRANSPORT=' "$file"
-    grep -q '^BB_RSHELL_RUN_MODE=' "$file"
-    grep -q '^BB_RSHELL_SESSION_POLICY=' "$file"
-    grep -q '^BB_HEAVY_TOOLS=' "$file"
+    grep -q '^GRIT_RUNTIME_MODE=' "$file"
+    grep -q '^GRIT_ZERO_ARG_MODE=' "$file"
+    grep -q '^GRIT_TRAILER_OVERRIDES_ENABLE=' "$file"
+    grep -q '^GRIT_RSHELL_TRANSPORT=' "$file"
+    grep -q '^GRIT_RSHELL_RUN_MODE=' "$file"
+    grep -q '^GRIT_RSHELL_SESSION_POLICY=' "$file"
+    grep -q '^GRIT_HEAVY_TOOLS=' "$file"
     meta="$preset_dir/$name.meta.json"
     [ -f "$meta" ] || {
         printf '%s\n' "payload-presets: missing $meta" >&2
@@ -105,14 +105,14 @@ for topic in top target payload payload-preset runtime launch artifact-overrides
     }
 done
 
-grep -q 'BB_PAYLOAD_PRESET=' "$menu"
-grep -q 'BB_RSHELL_RUN_MODE' "$menu"
-grep -q 'BB_RSHELL_SESSION_POLICY' "$menu"
-grep -q 'BB_TRAILER_OBFUSCATION' "$menu"
-grep -q 'BB_DOOM_WAD_PATH' "$menu"
-grep -q 'BB_PAYLOAD_PRESET=' configs/busierbox.conf.example
-grep -q 'BB_DOOM_WAD_PATH=' configs/busierbox.conf.example
-! grep -q 'BB_DOOM_USER_PATH' "$menu"
-! grep -q 'BB_DOOM_USER_PATH=' configs/busierbox.conf.example
+grep -q 'GRIT_PAYLOAD_PRESET=' "$menu"
+grep -q 'GRIT_RSHELL_RUN_MODE' "$menu"
+grep -q 'GRIT_RSHELL_SESSION_POLICY' "$menu"
+grep -q 'GRIT_TRAILER_OBFUSCATION' "$menu"
+grep -q 'GRIT_DOOM_WAD_PATH' "$menu"
+grep -q 'GRIT_PAYLOAD_PRESET=' configs/grit.conf.example
+grep -q 'GRIT_DOOM_WAD_PATH=' configs/grit.conf.example
+! grep -q 'GRIT_DOOM_USER_PATH' "$menu"
+! grep -q 'GRIT_DOOM_USER_PATH=' configs/grit.conf.example
 
 printf '%s\n' "payload-presets ok"

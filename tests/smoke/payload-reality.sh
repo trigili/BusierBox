@@ -6,15 +6,15 @@ set -eu
     exit 1
 }
 
-tmp=${TMPDIR:-/tmp}/busierbox-payload-reality.$$
+tmp=${TMPDIR:-/tmp}/grit-payload-reality.$$
 trap 'rm -f "$tmp"' EXIT HUP INT TERM
 
 cat >"$tmp" <<'EOF'
-BB_HEAVY_TOOLS="definitely-not-a-tool"
-BB_DROPBEAR_SERVER_MODE="no"
+GRIT_HEAVY_TOOLS="definitely-not-a-tool"
+GRIT_DROPBEAR_SERVER_MODE="no"
 EOF
 
-BUSIERBOX_CONFIG="$tmp" scripts/build-payload >/dev/null
+GRIT_CONFIG="$tmp" scripts/build-payload >/dev/null
 
 python3 - <<'PY'
 import json

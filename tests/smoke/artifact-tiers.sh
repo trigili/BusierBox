@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-full=${1:-dist/busierbox-native-full}
+full=${1:-dist/grit-native-full}
 
 [ -x "$full" ] || {
     printf '%s\n' "artifact-tiers: missing full artifact: $full" >&2
@@ -11,11 +11,11 @@ full=${1:-dist/busierbox-native-full}
 "$full" config-info | grep -q '^embedded_payload=yes$'
 "$full" --help >/dev/null
 
-if [ -e dist/busierbox-native.core ]; then
+if [ -e dist/grit-native.core ]; then
     printf '%s\n' "artifact-tiers: deployable-looking .core artifact leaked into dist/" >&2
     exit 1
 fi
-if [ -e dist/busierbox-native-stager ]; then
+if [ -e dist/grit-native-stager ]; then
     printf '%s\n' "artifact-tiers: retired stager artifact leaked into dist/" >&2
     exit 1
 fi

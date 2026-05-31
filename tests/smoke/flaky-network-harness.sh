@@ -78,7 +78,7 @@ assert any((rec.get("details") or {}).get("action_id") == "queue-staged-fetch" f
 assert any((rec.get("details") or {}).get("queues_offline_work") is True for rec in workflow["staged_file_workflow_action_events"])
 workflow_commands = "\n".join(rec.get("command") or "" for rec in workflow["target_mailbox_records"])
 assert "wget -O-" in workflow_commands and "survey.sh" in workflow_commands
-assert "busierbox fetch workflow-payload.txt" in workflow_commands
+assert "grit fetch workflow-payload.txt" in workflow_commands
 assert workflow_tui["kind"] == "offline-workflow-tui-artifact"
 assert workflow_tui["returncode"] == 0
 assert workflow_tui["summary"]["target_mailbox_pending_work_count"] == 2
@@ -107,7 +107,7 @@ assert len(set(workflow_drain["delivered_command_ids"])) == 2
 assert workflow_drain["http_statuses"] == ["HTTP/1.1 200 OK", "HTTP/1.1 200 OK"]
 drained_commands = "\n".join(rec.get("command") or "" for rec in workflow_drain["target_mailbox_records"])
 assert "wget -O-" in drained_commands and "survey.sh" in drained_commands
-assert "busierbox fetch workflow-payload.txt" in drained_commands
+assert "grit fetch workflow-payload.txt" in drained_commands
 assert all(rec["status"] == "delivered" for rec in workflow_drain["target_mailbox_records"])
 assert workflow_drain["summary"]["target_phone_home_status_counts"]["delivered"] >= 2
 assert len(workflow_drain["phone_home_records"]) >= 2
@@ -170,13 +170,13 @@ assert dropped_result["target"]["mailbox_result_received_command_count"] == 0
 assert any(rec["status"] == "rejected" and rec["failed"] is True and rec["http_status"] == "400" and rec["reason"] == "truncated request body" for rec in dropped_result["phone_home_records"])
 assert dropped_result["result_upload_events"]
 assert systemd["kind"] == "systemd-user-service-artifact"
-assert systemd["unit_name"] == "busierbox-flaky.service"
+assert systemd["unit_name"] == "grit-flaky.service"
 systemd_by_action = {rec["action"]: rec for rec in systemd["commands"]}
-assert "Description=BusierBox Operator Daemon" in systemd_by_action["print"]["stdout"]
+assert "Description=griTTYkit Operator Daemon" in systemd_by_action["print"]["stdout"]
 assert "--daemon --daemon-service file-service --daemon-service command-queue" in systemd_by_action["print"]["stdout"]
 assert "would write" in systemd_by_action["install"]["stdout"]
 for action in ("start", "stop", "restart", "status"):
-    assert systemd_by_action[action]["stdout"].strip() == f"systemctl --user {action} busierbox-flaky.service"
+    assert systemd_by_action[action]["stdout"].strip() == f"systemctl --user {action} grit-flaky.service"
 assert any(rec["event"] == "systemd_user_unit_printed" for rec in systemd["events"])
 assert any(rec["event"] == "systemd_user_unit_install_dry_run" for rec in systemd["events"])
 for action in ("start", "stop", "restart", "status"):
@@ -192,11 +192,11 @@ assert "target workflow action: target-tui:queue-bridge-start:tui-bridge" in tui
 assert "command to queue>" in tui_queue["stdout"]
 assert "queued " in tui_queue["stdout"]
 assert "staged tui-payload.txt" in tui_queue["stdout"]
-assert "busierbox survey --json" in tui_queue["stdout"]
+assert "grit survey --json" in tui_queue["stdout"]
 assert "survey.sh" in tui_queue["stdout"]
-assert "busierbox fetch tui-payload.txt" in tui_queue["stdout"]
+assert "grit fetch tui-payload.txt" in tui_queue["stdout"]
 assert "bridge_profile=tui-bridge" in tui_queue["stdout"]
-assert "busierbox rshell start" in tui_queue["stdout"]
+assert "grit rshell start" in tui_queue["stdout"]
 assert tui_queue["target"]["target_id"] == "target-tui"
 assert tui_queue["target"]["mailbox_pending_work_count"] == 4
 assert tui_queue["after"]["target_mailbox_waiting_for_counts"]["target-poll"] == 4
@@ -205,13 +205,13 @@ assert all(rec["status"] == "queued" for rec in tui_queue["target_mailbox_record
 assert all(rec["pending_work"] is True for rec in tui_queue["target_mailbox_records"])
 assert all(rec["waiting_for"] == "target-poll" for rec in tui_queue["target_mailbox_records"])
 tui_queued_commands = "\n".join(rec.get("command") or "" for rec in tui_queue["target_mailbox_records"])
-assert "busierbox survey --json" in tui_queued_commands
+assert "grit survey --json" in tui_queued_commands
 assert "survey.sh" in tui_queued_commands
-assert "busierbox fetch tui-payload.txt" in tui_queued_commands
-assert "busierbox rshell start" in tui_queued_commands
+assert "grit fetch tui-payload.txt" in tui_queued_commands
+assert "grit rshell start" in tui_queued_commands
 survey_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if "survey.sh" in rec["command"])
-fetch_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if "busierbox fetch tui-payload.txt" in rec["command"])
-bridge_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if rec["command"] == "busierbox rshell start")
+fetch_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if "grit fetch tui-payload.txt" in rec["command"])
+bridge_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if rec["command"] == "grit rshell start")
 assert survey_mailbox["work_kind"] == "survey-bootstrap"
 assert survey_mailbox["workflow"] == "survey-bootstrap"
 assert survey_mailbox["request_name"] == "survey.sh"
@@ -242,9 +242,9 @@ assert len(tui_queue_drain["command_ids"]) == 4
 assert len(tui_queue_drain["target_mailbox_records"]) == 4
 assert all(rec["status"] == "delivered" for rec in tui_queue_drain["target_mailbox_records"])
 assert all(rec["pending_work"] is False for rec in tui_queue_drain["target_mailbox_records"])
-drained_bridge_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if rec["command"] == "busierbox rshell start")
+drained_bridge_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if rec["command"] == "grit rshell start")
 drained_survey_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if "survey.sh" in rec["command"])
-drained_fetch_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if "busierbox fetch tui-payload.txt" in rec["command"])
+drained_fetch_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if "grit fetch tui-payload.txt" in rec["command"])
 assert drained_bridge_mailbox["work_kind"] == "bridge-start"
 assert drained_bridge_mailbox["bridge_profile"] == "tui-bridge"
 assert drained_survey_mailbox["work_kind"] == "survey-bootstrap"

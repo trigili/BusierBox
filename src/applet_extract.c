@@ -26,7 +26,7 @@ int applet_extract_main(int argc, char **argv)
             force = 1;
     }
     if (is_help(argc, argv)) {
-        puts("usage: busierbox extract [--force]");
+        puts("usage: grit extract [--force]");
         puts("Extracts embedded payload into a writable runtime directory.");
         puts("  --force  Remove any existing extracted payload before extracting.");
         return 0;

@@ -1,14 +1,14 @@
 #!/bin/sh
 set -eu
 
-bb=${1:-dist/busierbox-native-full}
-tmp=${TMPDIR:-/tmp}/busierbox-survey-shell-$$
+bb=${1:-dist/grit-native-full}
+tmp=${TMPDIR:-/tmp}/grit-survey-shell-$$
 mkdir "$tmp"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
 "$bb" survey --shell-script >"$tmp/survey.sh"
 chmod +x "$tmp/survey.sh"
-BUSIERBOX_SURVEY_PROBE_DIR="$tmp/probe" /bin/sh "$tmp/survey.sh" >"$tmp/shell-survey.json"
+GRIT_SURVEY_PROBE_DIR="$tmp/probe" /bin/sh "$tmp/survey.sh" >"$tmp/shell-survey.json"
 python3 -m json.tool "$tmp/shell-survey.json" >/dev/null
 
 python3 - "$tmp/shell-survey.json" <<'PY'

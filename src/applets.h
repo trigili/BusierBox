@@ -1,5 +1,5 @@
-#ifndef BUSIERBOX_APPLETS_H
-#define BUSIERBOX_APPLETS_H
+#ifndef GRIT_APPLETS_H
+#define GRIT_APPLETS_H
 
 #include <stddef.h>
 #include <stdio.h>

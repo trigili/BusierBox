@@ -1,14 +1,14 @@
 # Persistence
 
-`busierbox persistence` surveys and manages explicit, authorized lab
+`grit persistence` surveys and manages explicit, authorized lab
 persistence/recovery hooks. It is not stealth persistence: survey and plan modes
 never modify the target, and writes require an explicit method plus `--apply`.
 
 ```sh
-busierbox persistence --survey
-busierbox persistence --plan
-busierbox persistence --survey --json
-busierbox persistence --plan --json
+grit persistence --survey
+grit persistence --plan
+grit persistence --survey --json
+grit persistence --plan --json
 ```
 
 The survey reports likely persistent storage (`/overlay`, `/root`, `/etc`,
@@ -53,38 +53,38 @@ The default action is `status-only`, which installs a visible no-op health
 check. Explicit recovery actions are also available:
 
 ```sh
-busierbox persistence install --method rc-local --name busierbox_recovery --dry-run
-busierbox persistence install --method rc-local --action dmesg-push --dry-run --json
-busierbox persistence install --method openwrt-procd --action rshell --external --apply
-busierbox persistence install --method rc-local --action evidence-push --dry-run
-busierbox persistence install --method rc-local --action evidence-push --target-id router-a --target-label "Router A" --dry-run
-busierbox persistence install --method rc-local --action evidence-then-rshell --external --apply
-busierbox persistence install --method rc-local --action dmesg-push --external --apply
-busierbox persistence install --method cron-reboot --action command --dry-run -- 'busierbox rshell start'
-busierbox persistence install --method rc-local --action script --file ./recover.sh --external --apply
-busierbox persistence install --method rc-local --name busierbox_recovery --external --apply
-busierbox persistence status --name busierbox_recovery
-busierbox persistence status --json --name busierbox_recovery
-busierbox persistence uninstall --method rc-local --name busierbox_recovery --external --apply
+grit persistence install --method rc-local --name grit_recovery --dry-run
+grit persistence install --method rc-local --action dmesg-push --dry-run --json
+grit persistence install --method openwrt-procd --action rshell --external --apply
+grit persistence install --method rc-local --action evidence-push --dry-run
+grit persistence install --method rc-local --action evidence-push --target-id router-a --target-label "Router A" --dry-run
+grit persistence install --method rc-local --action evidence-then-rshell --external --apply
+grit persistence install --method rc-local --action dmesg-push --external --apply
+grit persistence install --method cron-reboot --action command --dry-run -- 'grit rshell start'
+grit persistence install --method rc-local --action script --file ./recover.sh --external --apply
+grit persistence install --method rc-local --name grit_recovery --external --apply
+grit persistence status --name grit_recovery
+grit persistence status --json --name grit_recovery
+grit persistence uninstall --method rc-local --name grit_recovery --external --apply
 ```
 
 Actions:
 
-- `status-only`: run `busierbox persistence status`; this is the conservative default.
-- `rshell`: run `busierbox rshell start` with the artifact's effective runtime config.
-- `evidence-push`: upload a generated BusierBox evidence summary to the configured receive-only file service.
+- `status-only`: run `grit persistence status`; this is the conservative default.
+- `rshell`: run `grit rshell start` with the artifact's effective runtime config.
+- `evidence-push`: upload a generated griTTYkit evidence summary to the configured receive-only file service.
 - `evidence-then-rshell`: upload generated evidence, then start `rshell` only if the upload command succeeds.
-- `dmesg-push`: capture `dmesg` to a temporary file under the BusierBox runtime root, upload it as evidence, then remove the temporary file.
+- `dmesg-push`: capture `dmesg` to a temporary file under the griTTYkit runtime root, upload it as evidence, then remove the temporary file.
 - `command`: run the explicit command provided after `--`.
 - `script`: copy `--file` to `/usr/bin/<name>.recovery.sh` and run it from the hook.
 
 Real-root changes require `--external --apply`. Fake-root tests can use
 `--root local/fake-root` without `--external`. Created or modified paths are
 recorded in the cleanup ledger. Existing hook files are backed up before a
-marked BusierBox block is appended. Hook blocks include action metadata and the
-generated command between `BEGIN BUSIERBOX RECOVERY` and `END BUSIERBOX
+marked griTTYkit block is appended. Hook blocks include action metadata and the
+generated command between `BEGIN GRIT RECOVERY` and `END GRIT
 RECOVERY` markers. Uninstall removes only those marked blocks and staged
-BusierBox files.
+griTTYkit files.
 
 Evidence actions are explicit crash/reboot workflows for lab targets that panic
 or reboot during testing. They do not add a hidden control channel, do not
@@ -93,8 +93,8 @@ configured with an operator host/file-service before upload can succeed.
 When `--target-id`, `--target-label`, or `--target-alias` are supplied to
 `persistence install`, evidence actions bake those identity options into the
 generated `evidence push` command so reboot uploads are scoped to the same
-operator target record. If explicit options are omitted, `BB_TARGET_ID` or
-`BUSIERBOX_TARGET_ID` and `BB_TARGET_LABEL` or `BUSIERBOX_TARGET_LABEL` are
+operator target record. If explicit options are omitted, `GRIT_TARGET_ID` or
+`GRIT_TARGET_ID` and `GRIT_TARGET_LABEL` or `GRIT_TARGET_LABEL` are
 used when present. Dry-run JSON reports the identity source under
 `target_identity`. Installed-hook status parses the generated command back into
 `installations[].target_identity` and indexes installed records by
@@ -123,6 +123,6 @@ without rescanning the full list. Status JSON mirrors the same `api` and
 state whether every installed hook requires an external write and whether any
 hook executes an operator-supplied command.
 
-`busierbox recovery` remains as a deprecated compatibility alias. Internal hook
-markers still use `BUSIERBOX RECOVERY` so older cleanup/status checks keep
+`grit recovery` remains as a deprecated compatibility alias. Internal hook
+markers still use `GRIT RECOVERY` so older cleanup/status checks keep
 working, but new help and docs prefer `persistence`.

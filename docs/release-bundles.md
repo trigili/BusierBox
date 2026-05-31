@@ -1,6 +1,6 @@
 # Release Bundles
 
-`scripts/make-release` builds or assembles a set of BusierBox artifacts into a
+`scripts/make-release` builds or assembles a set of griTTYkit artifacts into a
 reusable release directory and tarball under `dist/releases/`.
 
 Examples:
@@ -28,11 +28,11 @@ Each release contains:
 - `scripts/`: copied `artifact-config` plus wrapper helpers, release
   self-test, index, and finder tools.
 - `docs/`: release, licensing, and runtime override notes.
-- `LICENSE`, `LICENSE.busierbox`, and `NOTICE`: BusierBox GPL license text,
+- `LICENSE`, `LICENSE.grit`, and `NOTICE`: griTTYkit GPL license text,
   explicit project grant, and short project license notice.
 - `LICENSES/`: repository-maintained third-party notice summaries for named
   integrated components such as BusyBox, Buildroot, doom-ascii, and miniz.
-- `manifests/license-policy.json`: machine-readable BusierBox license and
+- `manifests/license-policy.json`: machine-readable griTTYkit license and
   third-party GPL compatibility policy for repository scanners and release
   consumers, including per-component GPLv2 compatibility flags and distribution
   obligations.
@@ -90,7 +90,7 @@ and `socat` maps to `socat-rescue`. They can be supplied with
 Trailer configuration after packaging:
 
 ```sh
-scripts/configure-artifact bin/busierbox-native-default-full \
+scripts/configure-artifact bin/grit-native-default-full \
   --operator-host 192.168.8.241 \
   --transport builtin \
   --shell-port 22203 \
@@ -292,7 +292,7 @@ matching `matches_by_project_license`, `matches_by_combined_gplv2_compatible`,
 `matches_by_corresponding_source_status`,
 `matches_by_package_license_audit_required`, `matches_by_license_component`,
 and `matches_by_component_license` maps.
-When `scripts/busierbox-server` is launched from a release bundle, `--status`,
+When `scripts/grit-server` is launched from a release bundle, `--status`,
 `--json-status`, and the workbench release browser expose the same compact
 release license record as `release.release_license`, `release_licenses`, and
 `api_collections.release_licenses`, plus summary counters for project license,
@@ -319,7 +319,7 @@ browser views. The policy used to prefer lower-risk compatibility labels also pr
 `--max-compatibility exact|likely|heuristic|unsafe|incompatible`
 to reject artifacts above an operator-selected risk threshold instead of only
 sorting them lower. `--survey-json` derives unset architecture, libc,
-kernel-floor, CPU, and ABI filters from `busierbox survey --json` output while
+kernel-floor, CPU, and ABI filters from `grit survey --json` output while
 leaving explicit CLI filters authoritative. `--reality-json` includes
 normalized reality-test checks, failed checks, and detected constraints in
 `--recommendation-json` output, and adds an `effective_compatibility` overlay
@@ -349,10 +349,10 @@ traversal logic.
 First contact:
 
 ```sh
-bin/busierbox-native-survey-core-full survey --json > survey.json
-bin/busierbox-native-default-full config-info
-bin/busierbox-native-default-full doctor
-bin/busierbox-native-default-full manifest --json
+bin/grit-native-survey-core-full survey --json > survey.json
+bin/grit-native-default-full config-info
+bin/grit-native-default-full doctor
+bin/grit-native-default-full manifest --json
 ```
 
 Choose a GL.iNet exemplar artifact:
@@ -378,8 +378,8 @@ scripts/verify-checksums --configured
 Start explicit reverse access on the target:
 
 ```sh
-./busierbox rshell status --json
-./busierbox rshell start
+./grit rshell status --json
+./grit rshell start
 ```
 
 `single` stops after the first successful shell session exits. `reconnect`
@@ -412,15 +412,15 @@ For the builtin TLS shell preset, prepare the operator listener and then run the
 artifact explicitly:
 
 ```sh
-scripts/busierbox-server --transport tls-shell --shell-port 22203
-./busierbox rshell start
+scripts/grit-server --transport tls-shell --shell-port 22203
+./grit rshell start
 ```
 
 For the SSH operator preset, listen for the reverse SSH forward and connect
 through the forwarded port:
 
 ```sh
-scripts/busierbox-server --transport ssh --ssh-port 22
+scripts/grit-server --transport ssh --ssh-port 22
 ssh -p 2200 root@127.0.0.1
 ```
 
@@ -431,25 +431,25 @@ JSON with source path, size, sha256, timestamp, and transfer status. It does
 not send artifacts, execute commands, or provide callback RPC.
 
 ```sh
-scripts/busierbox-server --file-service --file-port 22204
-./busierbox put /tmp/evidence.txt
-./busierbox survey push
-./busierbox reality-test push
-./busierbox manifest push
-./busierbox config-push
-./busierbox evidence push
+scripts/grit-server --file-service --file-port 22204
+./grit put /tmp/evidence.txt
+./grit survey push
+./grit reality-test push
+./grit manifest push
+./grit config-push
+./grit evidence push
 ```
 
 When launched from a release bundle, the operator workbench and JSON status can
 also browse release artifacts, device aliases, and tuple directories:
 
 ```sh
-scripts/busierbox-server --tui
-scripts/busierbox-server --json-status
-scripts/busierbox-server --api-status
-scripts/busierbox-server --api-status --event-limit 50
-scripts/busierbox-server --stage-release-artifact by_device:lab-router --list-staged
-scripts/busierbox-server --stage-release-artifact by-tuple/native/host/host/host/bin/busierbox-native-default-full --list-staged
+scripts/grit-server --tui
+scripts/grit-server --json-status
+scripts/grit-server --api-status
+scripts/grit-server --api-status --event-limit 50
+scripts/grit-server --stage-release-artifact by_device:lab-router --list-staged
+scripts/grit-server --stage-release-artifact by-tuple/native/host/host/host/bin/grit-native-default-full --list-staged
 ```
 
 `--json-status` and `--api-status` include top-level `summary` and `warnings`
@@ -555,7 +555,7 @@ service stop event, so targeted service lifecycle work can be repeated
 headlessly. Foreground operator-daemon lifecycle events also record the
 equivalent `--daemon --daemon-service ...` command, child service start
 commands, and `--stop` command used for managed shutdown. Systemd user-service
-print/install/control actions record the BusierBox headless command, rendered
+print/install/control actions record the griTTYkit headless command, rendered
 daemon command, and systemctl command strings where applicable.
 Listener ports are exposed as `ports`,
 `ports_by_number`, `ports_by_service`, and `ports_by_actual`. Service and port
@@ -766,7 +766,7 @@ release-state errors. Human `--status` and the line-oriented fallback print a
 compact release summary with validity, artifact/device/tuple counts, total
 artifact size, release directory, and release name before listing release
 browser entries. They also print compact release recommendation rows such as
-`by_device:lab-router -> bin/busierbox-target-full`, keeping the same safety
+`by_device:lab-router -> bin/grit-target-full`, keeping the same safety
 boundary: staging remains explicit through `--stage-release-artifact`, the
 curses action, or the line-oriented fallback release staging action, and
 nothing is pushed to or executed on the target automatically. The line-oriented
@@ -776,7 +776,7 @@ selector, staged request name, release path, tuple path, and payload preset.
 The curses workbench mirrors those rows in the release devices/tuples pane.
 Pressing `Enter` or `s` on a release artifact, recommendation, device alias, or
 tuple row stages the selected/recommended artifact for target-side
-`busierbox fetch`; `v` inspects the selected local path. Staging still does not
+`grit fetch`; `v` inspects the selected local path. Staging still does not
 push the artifact or run it on the target.
 Release artifact aggregates are exposed as
 `release.artifact_stats` and mirrored into `summary`
@@ -827,7 +827,7 @@ on both the workbench action event and the underlying service-start event. The
 target workflow action `queue-survey-bootstrap` records the generated
 `wget -O- ... | /bin/sh` survey command as target-scoped mailbox work, giving
 offline targets the same headless/TUI queue path as generic queued commands.
-Likewise, `queue-staged-fetch` records the generated `busierbox fetch` command
+Likewise, `queue-staged-fetch` records the generated `grit fetch` command
 for an existing staged request as mailbox work, so file-transfer requests can be
 prepared, inspected, delivered, and result-tracked through the same offline
 target queue. The
@@ -905,7 +905,7 @@ not scan the full queue policy object. When the effective queue config keeps
 TLS enabled in this build, `command_queue_poll_transport_supported` and
 `command_queue_live_polling_supported` are false and
 `poll_transport_unsupported_reason` records that live polling requires
-`BB_COMMAND_QUEUE_TLS=no`. The configured
+`GRIT_COMMAND_QUEUE_TLS=no`. The configured
 `command_queue_poll_interval_sec`, `command_queue_poll_jitter_pct`,
 `command_queue_poll_backoff`, `command_queue_poll_max_interval_sec`, and
 `command_queue_max_polls` are mirrored for interval-polling controls.
@@ -1001,8 +1001,8 @@ poll-setting lookups such as `poll`, `11`, or `exponential`,
 `command_result_received:<command-sha256>`,
 `workbench_job_completed:job-...`, or
 `workbench:job-...`, `workbench_job_completed:bringup-recommend`, or
-`workbench:package-artifact`, `workbench_config_updated:BB_NORESIDUE_LEVEL`, or
-`workbench:/path/to/busierbox.conf` without filtering broader event groups or
+`workbench:package-artifact`, `workbench_config_updated:GRIT_NORESIDUE_LEVEL`, or
+`workbench:/path/to/grit.conf` without filtering broader event groups or
 parsing each event detail payload.
 `event_log_state` reports the event log path, existence, validity, size, total
 valid event count, invalid JSONL line count, tail count, tail limit, and
@@ -1114,7 +1114,7 @@ transports, threads, and child processes like other status collections. Human
 `--status` prints the same manager counts as a compact `runtime_manager` line.
 
 `--stage-release-artifact` stages the selected artifact for explicit
-target-side `busierbox fetch`; it accepts an artifact basename, release path,
+target-side `grit fetch`; it accepts an artifact basename, release path,
 local path, or recommendation id such as `by_device:lab-router`, and does not
 push the artifact or run it. In the curses workbench, the Event Log pane can be
 selected like the other browser
@@ -1153,7 +1153,7 @@ The generic details view lists missing, invalid, or error state records when no
 selected pane item has more specific details. Status JSON and both workbench views
 also expose `workbench_actions` records for operator-side configuration and
 build workflows such as `scripts/menuconfig`, `make package`,
-`scripts/busierbox-bringup --recommend-only --json`,
+`scripts/grit-bringup --recommend-only --json`,
 `scripts/artifact-config set ARTIFACT KEY=VALUE`, and release self-tests. These
 records are show-command descriptors by default, include confirmation,
 background-job, and target-execution flags, and are indexed through
@@ -1170,7 +1170,7 @@ still leave an auditable CLI command. Workbench state records
 also keep `workbench_mode` (`curses`, `line`, or `noninteractive`) so status
 consumers can distinguish the active operator surface after shutdown. The same
 status output also exposes `workbench_config_fields` for guided edits of the existing
-`configs/busierbox.conf` shell assignment file, grouped by target, payload,
+`configs/grit.conf` shell assignment file, grouped by target, payload,
 build/static policy, runtime/trailer defaults, recovery, reverse shell policy,
 command queue policy, command queue transport/token settings, command queue
 interval polling settings, and no-residue behavior. Operators can inspect
@@ -1237,10 +1237,10 @@ a displayed release row number, recommendation id, artifact path,
 `by_device:NAME`, or `by_tuple_path:PATH` and stages the same explicit
 target-side fetch record as the curses browser.
 
-Inspect and clean BusierBox-controlled runtime state:
+Inspect and clean griTTYkit-controlled runtime state:
 
 ```sh
-./busierbox cleanup-ledger --json
-./busierbox clean --dry-run
-./busierbox clean --dry-run --json
+./grit cleanup-ledger --json
+./grit clean --dry-run
+./grit clean --dry-run --json
 ```

@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-bb=${1:-dist/busierbox-native-full}
+bb=${1:-dist/grit-native-full}
 tmp=${TMPDIR:-local/tmp}/reality-test-$$
 mkdir -p "$tmp"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
@@ -10,8 +10,8 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 "$bb" reality-test push --help >/dev/null
 "$bb" list --plain | grep -q '^native reality-test$'
 
-BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" reality-test >"$tmp/reality.txt"
-grep -q '^BusierBox reality-test$' "$tmp/reality.txt"
+GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" reality-test >"$tmp/reality.txt"
+grep -q '^griTTYkit reality-test$' "$tmp/reality.txt"
 grep -q '^runtime_root=' "$tmp/reality.txt"
 grep -q '^fork ' "$tmp/reality.txt"
 grep -q '^spawn_sh ' "$tmp/reality.txt"
@@ -19,7 +19,7 @@ grep -q '^bind_localhost ' "$tmp/reality.txt"
 grep -q '^dmesg_readable ' "$tmp/reality.txt"
 grep -q '^summary pass=' "$tmp/reality.txt"
 
-BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" reality-test --json >"$tmp/reality.json"
+GRIT_AUTORUN_GUARD_PATH="$tmp/guard" "$bb" reality-test --json >"$tmp/reality.json"
 python3 -m json.tool "$tmp/reality.json" >/dev/null
 python3 - "$tmp/reality.json" <<'PY'
 import json
@@ -215,17 +215,17 @@ cat >"$cfg" <<EOF
   "session_root": "$sessions_dir"
 }
 EOF
-scripts/busierbox-server --config "$cfg" --transport file-service --file-service-tls no \
+scripts/grit-server --config "$cfg" --transport file-service --file-service-tls no \
     --serve-file "$staged" --as reality-fetch.txt --timeout 10 >"$tmp/server.out" 2>"$tmp/server.err" &
 server_pid=$!
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-    scripts/busierbox-server --config "$cfg" --json-status >"$tmp/server-status.json"
+    scripts/grit-server --config "$cfg" --json-status >"$tmp/server-status.json"
     if grep -q "\"actual\": \"listening\"" "$tmp/server-status.json"; then
         break
     fi
     sleep 0.1
 done
-BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard-active" "$bb" reality-test --json \
+GRIT_AUTORUN_GUARD_PATH="$tmp/guard-active" "$bb" reality-test --json \
     --operator-host 127.0.0.1 --file-port "$port" --no-tls \
     --check-upload --check-fetch reality-fetch.txt >"$tmp/reality-active.json"
 kill "$server_pid" 2>/dev/null || true
@@ -250,17 +250,17 @@ for name in ("upload_operator", "fetch_operator"):
         raise SystemExit(f"reality-test: {name} did not pass against local operator service: {item}")
 PY
 
-scripts/busierbox-server --config "$cfg" --transport file-service --file-service-tls no \
+scripts/grit-server --config "$cfg" --transport file-service --file-service-tls no \
     --serve-file "$staged_spaced" --as "dir/reality fetch spaced.txt" --timeout 10 >"$tmp/server-spaced.out" 2>"$tmp/server-spaced.err" &
 server_pid=$!
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-    scripts/busierbox-server --config "$cfg" --json-status >"$tmp/server-spaced-status.json"
+    scripts/grit-server --config "$cfg" --json-status >"$tmp/server-spaced-status.json"
     if grep -q "\"actual\": \"listening\"" "$tmp/server-spaced-status.json"; then
         break
     fi
     sleep 0.1
 done
-BUSIERBOX_AUTORUN_GUARD_PATH="$tmp/guard-spaced-fetch" "$bb" reality-test --json \
+GRIT_AUTORUN_GUARD_PATH="$tmp/guard-spaced-fetch" "$bb" reality-test --json \
     --operator-host 127.0.0.1 --file-port "$port" --no-tls \
     --check-fetch "dir/reality fetch spaced.txt" >"$tmp/reality-spaced-fetch.json"
 kill "$server_pid" 2>/dev/null || true

@@ -13,7 +13,7 @@ static const char *sane_path = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bi
 
 static void print_commands(void)
 {
-    printf("# eval \"$(busierbox envfix)\" to repair the current shell environment\n");
+    printf("# eval \"$(grit envfix)\" to repair the current shell environment\n");
     printf("export PATH='%s'\n", sane_path);
     printf("[ -n \"${TERM:-}\" ] || export TERM='vt100'\n");
     printf("[ -n \"${HOME:-}\" ] || export HOME='/'\n");
@@ -41,13 +41,13 @@ static int apply_env(void)
         rc = 1;
     }
 
-    if (access(".busierbox-home", F_OK) != 0 && mkdir(".busierbox-home", 0700) != 0 && errno != EEXIST) {
-        fprintf(stderr, "envfix: mkdir .busierbox-home failed: %s\n", strerror(errno));
+    if (access(".grit-home", F_OK) != 0 && mkdir(".grit-home", 0700) != 0 && errno != EEXIST) {
+        fprintf(stderr, "envfix: mkdir .grit-home failed: %s\n", strerror(errno));
         rc = 1;
     }
 
-    puts("envfix: applied to current busierbox process environment");
-    puts("envfix: created .busierbox-home when possible for use as a local HOME fallback");
+    puts("envfix: applied to current grit process environment");
+    puts("envfix: created .grit-home when possible for use as a local HOME fallback");
     puts("envfix: note that child process changes cannot modify the parent shell");
     return rc;
 }
@@ -58,7 +58,7 @@ int applet_envfix_main(int argc, char **argv)
         return apply_env();
 
     if (argc > 1 && (strcmp(argv[1], "--help") == 0 || strcmp(argv[1], "-h") == 0)) {
-        puts("usage: busierbox envfix [--apply]");
+        puts("usage: grit envfix [--apply]");
         puts("without --apply, prints shell commands suitable for eval");
         return 0;
     }

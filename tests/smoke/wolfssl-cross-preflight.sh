@@ -23,7 +23,7 @@ trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 # -------------------------------------------------------------------
 # Test 1: package-target preflight probe present in source
 # -------------------------------------------------------------------
-grep -q 'BB_BUILTIN_TLS_ENABLE.*yes\|builtin.*wolfSSL' "$pkg"
+grep -q 'GRIT_BUILTIN_TLS_ENABLE.*yes\|builtin.*wolfSSL' "$pkg"
 grep -q 'cross_cc\|WOLFSSL_CFLAGS' "$pkg"
 grep -q 'cross sysroot\|cross-compiler' "$pkg"
 
@@ -52,7 +52,7 @@ chmod 0755 "$fake_cc"
 
 # Run build-native with the fake pkg-config and cross-like CC
 out=$(PATH="$tmp:$PATH" CC="$fake_cc" \
-    BB_RSHELL_TRANSPORT=builtin BB_BUILTIN_TLS_ENABLE=yes \
+    GRIT_RSHELL_TRANSPORT=builtin GRIT_BUILTIN_TLS_ENABLE=yes \
     OUT="$tmp/probe-out" \
     scripts/build-native 2>&1) && {
     printf '%s\n' "wolfssl-cross-preflight: build-native should have failed" >&2
@@ -87,7 +87,7 @@ EOF
 chmod 0755 "$fake_cc_check"
 
 out3=$(CC="$fake_cc_check" \
-    BB_RSHELL_TRANSPORT=builtin BB_BUILTIN_TLS_ENABLE=yes \
+    GRIT_RSHELL_TRANSPORT=builtin GRIT_BUILTIN_TLS_ENABLE=yes \
     WOLFSSL_CFLAGS="-I$tmp/cross/wolfssl/include" \
     WOLFSSL_LIBS="-L$tmp/cross/wolfssl/lib -lwolfssl" \
     OUT="$tmp/s3.out" \

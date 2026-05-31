@@ -8,11 +8,11 @@
 #include "json_helpers.h"
 #include "payload_runtime.h"
 
-#ifndef BUSIERBOX_ARTIFACT_TIER
-#define BUSIERBOX_ARTIFACT_TIER "core"
+#ifndef GRIT_ARTIFACT_TIER
+#define GRIT_ARTIFACT_TIER "core"
 #endif
-#ifndef BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS
-#define BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS 0
+#ifndef GRIT_ADVERTISE_PAYLOAD_TOOLS
+#define GRIT_ADVERTISE_PAYLOAD_TOOLS 0
 #endif
 
 #define json_string_payload bb_json_string
@@ -36,8 +36,8 @@ void bb_print_applet_list(FILE *out)
     const char **all_tools;
     int col = 0;
 
-    fprintf(out, "busierbox: %s artifact, launcher, survey, and payload runtime manager\n\n", BUSIERBOX_ARTIFACT_TIER);
-    fprintf(out, "usage: busierbox <command> [args...]\n");
+    fprintf(out, "grit: %s artifact, launcher, survey, and payload runtime manager\n\n", GRIT_ARTIFACT_TIER);
+    fprintf(out, "usage: grit <command> [args...]\n");
     fprintf(out, "       <command> [args...]   when invoked through a symlink\n\n");
 
     fprintf(out, "native applets:\n  ");
@@ -45,7 +45,7 @@ void bb_print_applet_list(FILE *out)
         fprintf(out, "%s%s", i ? ", " : "", bb_applets[i].name);
     fprintf(out, "\n\n");
 
-    if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+    if (GRIT_ADVERTISE_PAYLOAD_TOOLS) {
         for (i = 0; busybox_tools[i]; i++)
             total++;
         for (i = 0; heavy_tools[i]; i++)
@@ -63,7 +63,7 @@ void bb_print_applet_list(FILE *out)
         return;
     }
 
-    if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+    if (GRIT_ADVERTISE_PAYLOAD_TOOLS) {
         for (i = 0; busybox_tools[i]; i++)
             all_tools[idx++] = busybox_tools[i];
         for (i = 0; heavy_tools[i]; i++)
@@ -110,13 +110,13 @@ int applet_list_main(int argc, char **argv)
     const char *const *heavy_tools = bb_payload_heavy_tools();
     int i;
     if (is_help(argc, argv)) {
-        puts("usage: busierbox list [--plain|--json]");
+        puts("usage: grit list [--plain|--json]");
         return 0;
     }
     if (argc > 1 && !strcmp(argv[1], "--plain")) {
         for (i = 0; i < (int)bb_applet_count; i++)
             printf("native %s\n", bb_applets[i].name);
-        if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+        if (GRIT_ADVERTISE_PAYLOAD_TOOLS) {
             for (i = 0; busybox_tools[i]; i++)
                 printf("busybox %s\n", busybox_tools[i]);
             for (i = 0; heavy_tools[i]; i++)
@@ -125,16 +125,16 @@ int applet_list_main(int argc, char **argv)
         return 0;
     }
     if (argc > 1 && !strcmp(argv[1], "--json")) {
-        printf("{\"artifact_tier\":\"%s\",\"native\":[", BUSIERBOX_ARTIFACT_TIER);
+        printf("{\"artifact_tier\":\"%s\",\"native\":[", GRIT_ARTIFACT_TIER);
         for (i = 0; i < (int)bb_applet_count; i++)
             printf("%s\"%s\"", i ? "," : "", bb_applets[i].name);
         printf("],\"busybox_applets\":[");
-        if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+        if (GRIT_ADVERTISE_PAYLOAD_TOOLS) {
             for (i = 0; busybox_tools[i]; i++)
                 printf("%s\"%s\"", i ? "," : "", busybox_tools[i]);
         }
         printf("],\"staged_tools\":[");
-        if (BUSIERBOX_ADVERTISE_PAYLOAD_TOOLS) {
+        if (GRIT_ADVERTISE_PAYLOAD_TOOLS) {
             for (i = 0; heavy_tools[i]; i++)
                 printf("%s\"%s\"", i ? "," : "", heavy_tools[i]);
         }

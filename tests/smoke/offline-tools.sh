@@ -115,8 +115,8 @@ if scripts/check-offline-readiness \
 fi
 grep -q 'missing-mirror-manifest' "$tmp/readiness-strict.err"
 
-mkdir -p "$tmp/report/busierbox-sources"
-cp "$tmp/sample.tar" "$tmp/report/busierbox-sources/sample.tar"
+mkdir -p "$tmp/report/grit-sources"
+cp "$tmp/sample.tar" "$tmp/report/grit-sources/sample.tar"
 cat >"$tmp/report/mirror-manifest.json" <<EOF
 {
   "schema": 2,
@@ -124,10 +124,10 @@ cat >"$tmp/report/mirror-manifest.json" <<EOF
   "jobs": [{"name": "native-survey-core-tgz"}],
   "files": [
     {
-      "path": "busierbox-sources/sample.tar",
+      "path": "grit-sources/sample.tar",
       "sha256": "$sha",
       "size": 6,
-      "source_category": "busierbox-lockfile"
+      "source_category": "grit-lockfile"
     }
   ],
   "failures": []
@@ -144,7 +144,7 @@ if scripts/check-offline-readiness --mirror "$tmp/missing" --manifest "$tmp/sour
 fi
 grep -q 'missing-lockfile-source: sample.tar' "$tmp/missing.err"
 
-BUSIERBOX_OFFLINE=1 BUSIERBOX_MIRROR_DIR="$tmp/missing" \
+GRIT_OFFLINE=1 GRIT_MIRROR_DIR="$tmp/missing" \
     scripts/buildroot-build-payload --prepare-only >"$tmp/buildroot-offline.out" 2>"$tmp/buildroot-offline.err" && {
         printf '%s\n' "offline-tools: buildroot offline preflight unexpectedly passed" >&2
         exit 1

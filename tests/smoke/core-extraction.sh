@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-bb=${1:-dist/busierbox-native-full}
+bb=${1:-dist/grit-native-full}
 
 [ -x "$bb" ] || {
     printf '%s\n' "core-extraction: missing executable $bb" >&2
@@ -15,25 +15,25 @@ esac
 
 tmp_parent=${TMPDIR:-local/tmp}
 mkdir -p "$tmp_parent"
-tmp=$(mktemp -d "$tmp_parent/busierbox-core-extraction.XXXXXX")
+tmp=$(mktemp -d "$tmp_parent/grit-core-extraction.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
-cp "$bb_abs" "$tmp/busierbox"
-chmod 0755 "$tmp/busierbox"
+cp "$bb_abs" "$tmp/grit"
+chmod 0755 "$tmp/grit"
 
 (
     cd "$tmp"
 
-    ./busierbox cp --help >/dev/null 2>&1
+    ./grit cp --help >/dev/null 2>&1
 
-    test -x .busierbox/payload/bin/busybox
-    test ! -e .busierbox/payload/bin/sh
-    test "$(cat .busierbox/payload/.busierbox-extract-mode)" = core
-    ./busierbox config-info | grep -q '^payload_extraction_mode=core$'
-    ./busierbox doctor | grep -q '^payload_extraction_mode=core$'
+    test -x .grit/payload/bin/busybox
+    test ! -e .grit/payload/bin/sh
+    test "$(cat .grit/payload/.grit-extract-mode)" = core
+    ./grit config-info | grep -q '^payload_extraction_mode=core$'
+    ./grit doctor | grep -q '^payload_extraction_mode=core$'
 
     if command -v python3 >/dev/null 2>&1; then
-        ./busierbox doctor --json >doctor-core.json
+        ./grit doctor --json >doctor-core.json
         python3 -m json.tool doctor-core.json >/dev/null
         python3 - doctor-core.json <<'PY'
 import json
@@ -47,13 +47,13 @@ if payload.get("extraction_mode") != "core":
 PY
     fi
 
-    ./busierbox extract >/dev/null
-    test "$(cat .busierbox/payload/.busierbox-extract-mode)" = full
-    test -e .busierbox/payload/bin/sh
-    ./busierbox config-info | grep -q '^payload_extraction_mode=full$'
+    ./grit extract >/dev/null
+    test "$(cat .grit/payload/.grit-extract-mode)" = full
+    test -e .grit/payload/bin/sh
+    ./grit config-info | grep -q '^payload_extraction_mode=full$'
 
     if command -v python3 >/dev/null 2>&1; then
-        ./busierbox doctor --json >doctor-full.json
+        ./grit doctor --json >doctor-full.json
         python3 -m json.tool doctor-full.json >/dev/null
         python3 - doctor-full.json <<'PY'
 import json

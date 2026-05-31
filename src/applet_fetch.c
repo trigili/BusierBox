@@ -56,11 +56,11 @@ static int run_downloader(const char *tool, const char *url, const char *out, in
         int have_label = target_label && target_label[0];
         int have_alias = target_aliases && target_aliases[0];
         if (have_id)
-            snprintf(id_header, sizeof(id_header), "X-BusierBox-Target-Id: %s", target_id);
+            snprintf(id_header, sizeof(id_header), "X-griTTYkit-Target-Id: %s", target_id);
         if (have_label)
-            snprintf(label_header, sizeof(label_header), "X-BusierBox-Target-Label: %s", target_label);
+            snprintf(label_header, sizeof(label_header), "X-griTTYkit-Target-Label: %s", target_label);
         if (have_alias)
-            snprintf(alias_header, sizeof(alias_header), "X-BusierBox-Target-Alias: %s", target_aliases);
+            snprintf(alias_header, sizeof(alias_header), "X-griTTYkit-Target-Alias: %s", target_aliases);
         if (!strcmp(tool, "wget")) {
             if (tls && have_id && have_label && have_alias)
                 execlp("wget", "wget", "--no-check-certificate", "--header", id_header, "--header", label_header, "--header", alias_header, "-O", out, url, (char *)NULL);
@@ -197,8 +197,8 @@ int applet_fetch_main(int argc, char **argv)
     int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox fetch REQUEST --host HOST [--port PORT] [--output PATH] [--force] [--no-tls] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS]");
-        puts("Fetches an operator-staged file from busierbox-server only when explicitly run on the target.");
+        puts("usage: grit fetch REQUEST --host HOST [--port PORT] [--output PATH] [--force] [--no-tls] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS]");
+        puts("Fetches an operator-staged file from grit-server only when explicitly run on the target.");
         puts("Refuses path traversal and refuses to overwrite an existing output unless --force is present.");
         return 0;
     }
@@ -340,14 +340,14 @@ static int file_sha256_hex(const char *path, char out[65])
 int applet_fetch_full_main(int argc, char **argv)
 {
     const char *url = NULL;
-    const char *out = "busierbox-full";
+    const char *out = "grit-full";
     const char *expected_sha = NULL;
     int exec_after = 0;
     int i;
 
     if (is_help(argc, argv)) {
-        puts("usage: busierbox fetch-full URL [OUT] [--sha256 HASH] [--exec]");
-        puts("Downloads a full BusierBox artifact with wget or curl, chmods it executable,");
+        puts("usage: grit fetch-full URL [OUT] [--sha256 HASH] [--exec]");
+        puts("Downloads a full griTTYkit artifact with wget or curl, chmods it executable,");
         puts("optionally verifies a sha256 hash, and optionally execs it.");
         return 0;
     }

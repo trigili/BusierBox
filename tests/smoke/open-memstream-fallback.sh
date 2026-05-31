@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-tmp=${TMPDIR:-local/tmp}/busierbox-open-memstream-fallback.$$
+tmp=${TMPDIR:-local/tmp}/grit-open-memstream-fallback.$$
 trap 'chmod 700 "$tmp/nowrite" 2>/dev/null || true; rm -rf "$tmp"' EXIT HUP INT TERM
 mkdir -p "$tmp/runtime-root" "$tmp/nowrite"
 chmod 500 "$tmp/nowrite"
@@ -11,12 +11,12 @@ case "$tmp" in
     *) tmp_abs=$(pwd)/$tmp ;;
 esac
 
-out="$tmp_abs/busierbox-no-open-memstream"
+out="$tmp_abs/grit-no-open-memstream"
 runtime_root="$tmp_abs/runtime-root"
 
-CPPFLAGS="${CPPFLAGS:-} -DBUSIERBOX_NO_OPEN_MEMSTREAM=1" \
+CPPFLAGS="${CPPFLAGS:-} -DGRIT_NO_OPEN_MEMSTREAM=1" \
 OUT="$out" \
-BB_RUNTIME_ROOT="$runtime_root" \
+GRIT_RUNTIME_ROOT="$runtime_root" \
 scripts/build-native >/dev/null
 
 python3 - "$out" "$tmp_abs/nowrite" <<'PY'
@@ -35,7 +35,7 @@ def run_json(*args):
 manifest = run_json("manifest", "--json")
 if manifest.get("runtime", {}).get("root") != os.path.dirname(cwd) + "/runtime-root":
     raise SystemExit("open-memstream fallback manifest used unexpected runtime root")
-if manifest.get("busierbox", {}).get("artifact_tier") != "core":
+if manifest.get("grit", {}).get("artifact_tier") != "core":
     raise SystemExit("open-memstream fallback manifest missing artifact tier")
 
 config_export = run_json("config-export", "--json")

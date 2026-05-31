@@ -1,13 +1,13 @@
 # Licensing
 
-BusierBox's own source code, scripts, tests, and project documentation are
+griTTYkit's own source code, scripts, tests, and project documentation are
 licensed under GPL-2.0-or-later unless a file states a different license.
 
-The top-level `LICENSE.busierbox` file carries the explicit BusierBox project
+The top-level `LICENSE.grit` file carries the explicit griTTYkit project
 grant and SPDX expression. The top-level `LICENSE` file contains the GNU
-General Public License version 2 text. Because BusierBox is GPL-2.0-or-later,
-recipients may use BusierBox's own code under GPLv2 or any later GPL version.
-When BusierBox is distributed together with GPLv2-only components, GPLv2 is the
+General Public License version 2 text. Because griTTYkit is GPL-2.0-or-later,
+recipients may use griTTYkit's own code under GPLv2 or any later GPL version.
+When griTTYkit is distributed together with GPLv2-only components, GPLv2 is the
 compatible choice for that combined artifact.
 
 The top-level `NOTICE` file repeats the repository-level license declaration in
@@ -27,14 +27,14 @@ or release bundles.
 
 ## Third-party components
 
-BusierBox integrates upstream software instead of importing BusyBox code into
+griTTYkit integrates upstream software instead of importing BusyBox code into
 the supervisor:
 
-| Component | How BusierBox uses it | Recorded license | Compatibility note |
+| Component | How griTTYkit uses it | Recorded license | Compatibility note |
 | --- | --- | --- | --- |
-| BusyBox | Built or staged as `payload/bin/busybox`; BusierBox dispatches standard applets to it. | GPL-2.0 | Compatible with BusierBox under GPLv2 terms. BusierBox is not a BusyBox fork. |
+| BusyBox | Built or staged as `payload/bin/busybox`; griTTYkit dispatches standard applets to it. | GPL-2.0 | Compatible with griTTYkit under GPLv2 terms. griTTYkit is not a BusyBox fork. |
 | Buildroot | Downloaded or unpacked as a build system for target payloads and toolchains. | GPL-2.0-or-later with per-file/package exceptions | Compatible for project/build-system use. Buildroot package recipes can fetch software under many licenses; generated payloads still carry the licenses of their selected packages. |
-| doom-ascii | Optional Buildroot payload engine for the `doom` runtime. | GPL-2.0-or-later | Compatible with BusierBox GPL licensing. Game WAD data is user-provided and is not bundled by BusierBox. |
+| doom-ascii | Optional Buildroot payload engine for the `doom` runtime. | GPL-2.0-or-later | Compatible with griTTYkit GPL licensing. Game WAD data is user-provided and is not bundled by griTTYkit. |
 | miniz | Vendored inflate/archive helper in `third_party/miniz`. | MIT OR Unlicense-style notices | Permissive terms are compatible with GPL distribution. |
 
 Pinned downloadable source metadata lives in `manifests/sources.lock.json`.
@@ -48,40 +48,40 @@ components live under `LICENSES/`; vendored upstream notices remain under
 
 ## GPL compatibility summary
 
-The current default integrated stack is compatible with BusierBox's GPL license
+The current default integrated stack is compatible with griTTYkit's GPL license
 posture:
 
 - GPL components such as BusyBox and doom-ascii can be distributed together
-  with BusierBox under GPLv2-compatible terms.
+  with griTTYkit under GPLv2-compatible terms.
 - Buildroot is used to build payloads; it does not make every selected payload
   package GPL. Each selected package keeps its own license and notice
   requirements.
 - Permissive components such as miniz can be combined with GPL-licensed
-  BusierBox code as long as their notices are preserved.
+  griTTYkit code as long as their notices are preserved.
 - User-provided files, including Doom `.wad` data passed through
-  `BB_DOOM_WAD_PATH`, are not downloaded or bundled by BusierBox and must be
+  `GRIT_DOOM_WAD_PATH`, are not downloaded or bundled by griTTYkit and must be
   supplied under terms the user is allowed to use.
 
-So the repository can say "BusierBox is GPL-licensed" for BusierBox-maintained
+So the repository can say "griTTYkit is GPL-licensed" for griTTYkit-maintained
 code, and GPL is OK for the whole current default stack as a GPLv2-compatible
 combined distribution. That is not a blanket relicensing of every possible
 future payload: every newly selected Buildroot package still needs its own
 license/source/notice review before it is bundled or distributed.
 
-In practical distribution terms, the BusierBox-maintained repository content is
+In practical distribution terms, the griTTYkit-maintained repository content is
 GPL-2.0-or-later. Release artifacts that include BusyBox should be treated as
 GPLv2-compatible combined distributions, with source availability and notices
-preserved for BusierBox, BusyBox, and every bundled payload component. Buildroot
+preserved for griTTYkit, BusyBox, and every bundled payload component. Buildroot
 is a build system and package integrator here; using it is compatible with the
 project's GPL posture, but any Buildroot-selected package keeps its own upstream
 license and notice/source obligations. User-supplied data, including Doom WAD
-files, is not part of BusierBox's license grant and is not bundled by the
+files, is not part of griTTYkit's license grant and is not bundled by the
 project.
 
 ## Corresponding source posture
 
-When distributing BusierBox binaries or release bundles, treat corresponding
-source as required for BusierBox-maintained code, BusyBox, and every bundled GPL
+When distributing griTTYkit binaries or release bundles, treat corresponding
+source as required for griTTYkit-maintained code, BusyBox, and every bundled GPL
 payload component. The practical source reconstruction set is:
 
 - this repository at the recorded release commit;
@@ -91,7 +91,7 @@ payload component. The practical source reconstruction set is:
 - Buildroot-generated source/package manifests when optional payload packages
   are selected;
 - vendored notices and license texts under `third_party/`, `LICENSES/`,
-  `LICENSE`, `LICENSE.busierbox`, and `NOTICE`.
+  `LICENSE`, `LICENSE.grit`, and `NOTICE`.
 
 The license policy records this as `corresponding_source_strategy`. That record
 is intentionally conservative: it does not say every future Buildroot package is
@@ -100,18 +100,18 @@ notice metadata to audit and satisfy the obligations of whatever was bundled.
 
 ## Artifact guidance
 
-BusierBox release artifacts should preserve source availability and license
+griTTYkit release artifacts should preserve source availability and license
 notices for included components:
 
 - Keep `manifests/sources.lock.json` current for downloaded source archives;
   release bundles include it as both `sources.lock.json` and
   `manifests/sources.lock.json`.
-- Keep `LICENSE.busierbox`, `LICENSE`, and `NOTICE` in release bundles.
+- Keep `LICENSE.grit`, `LICENSE`, and `NOTICE` in release bundles.
 - Keep third-party license files with vendored source snippets.
 - Do not add a network-fetched component without pinned version, URL, SHA-256,
   filename, license, and homepage metadata.
 - Treat optional Buildroot packages as separately licensed payload components;
-  their package licenses do not change BusierBox's own license.
+  their package licenses do not change griTTYkit's own license.
 
 ## Validation
 
