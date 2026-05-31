@@ -240,8 +240,8 @@ def main():
         print("grit-server: keys_equal helper not found", file=sys.stderr)
         return 1
 
-    # New config field names: shell_listen_port, encryption (not socat_listen_port)
-    if "shell_listen_port" not in src:
+    # New config field names: GRIT_RSHELL_SOCAT_PORT (not socat_listen_port or shell_listen_port)
+    if "GRIT_RSHELL_SOCAT_PORT" not in src:
         print("grit-server: shell_listen_port not found (expected rename from socat_listen_port)", file=sys.stderr)
         return 1
     if "sys.stdin.isatty()" not in src or "--no-stdin" not in src or "--log-only" not in src:
@@ -316,7 +316,7 @@ def main():
         "metadata_path",
         "x-grit-source-path",
         "does not send artifacts",
-        "file_service_port",
+        "GRIT_OPERATOR_FILE_SERVICE_PORT",
     ):
         if word not in src:
             print(f"grit-server: file service feature missing: {word}", file=sys.stderr)
@@ -375,9 +375,9 @@ def main():
         cfg = Path(tmp) / "server-config.json"
         queue_operator_dir = Path(tmp) / "operator-session-queue"
         cfg.write_text(json.dumps({
-            "transport": "tls-shell",
+            "GRIT_RSHELL_TRANSPORT": "tls-shell",
             "listen_host": "127.0.0.1",
-            "shell_listen_port": port1,
+            "GRIT_RSHELL_SOCAT_PORT": port1,
             "session_root": str(Path(tmp) / "sessions"),
             "operator_session_dir": str(queue_operator_dir),
             "tls_cert": str(cert_path),
@@ -404,7 +404,7 @@ def main():
         bridge_operator_dir = Path(tmp) / "operator-session-bridge"
         bridge_profiles = bridge_operator_dir / "bridge-profiles.json"
         bridge_cfg.write_text(json.dumps({
-            "transport": "bridge",
+            "GRIT_RSHELL_TRANSPORT": "bridge",
             "listen_host": "127.0.0.1",
             "bridge_listen_port": bridge_port,
             "bridge_dest_host": "127.0.0.1",
@@ -1027,11 +1027,11 @@ def main():
         survey_state = Path(tmp) / "probe-state.json"
         survey_operator_dir = Path(tmp) / "operator-session-probe"
         survey_cfg.write_text(json.dumps({
-            "transport": "probe",
+            "GRIT_RSHELL_TRANSPORT": "probe",
             "listen_host": "127.0.0.1",
-            "operator_server_host": "127.0.0.1",
-            "probe_port": survey_port,
-            "probe_name": "yourfile.sh",
+            "GRIT_OPERATOR_SERVER_HOST": "127.0.0.1",
+            "GRIT_PROBE_PORT": survey_port,
+            "GRIT_PROBE_NAME": "yourfile.sh",
             "operator_session_dir": str(survey_operator_dir),
             "server_state": str(survey_state),
             "session_root": str(Path(tmp) / "probe-sessions"),
@@ -1266,7 +1266,7 @@ def main():
         survey_line_text = survey_line_output.decode("utf-8", errors="replace")
         if (survey_tui_proc.returncode != 0 or
                 "Traceback" in (survey_line_stderr or "") or
-                "Survey bootstrap:" not in survey_line_text or
+                "Probe:" not in survey_line_text or
                 f"target_command: {expected_survey_command}" not in survey_line_text or
                 "probe_workflow_actions: 4" not in survey_line_text or
                 "show_action_state=ready reason=show-command" not in survey_line_text or
@@ -2677,12 +2677,12 @@ def main():
             "listen_host": "127.0.0.1",
             "operator_session_dir": str(expired_dir),
             "command_queue_file": str(expired_queue_file),
-            "command_queue_enable": "yes",
-            "command_queue_tls": "no",
-            "command_queue_port": str(expired_port),
-            "command_queue_require_token": "no",
-            "command_queue_allowed_commands": "grit-only",
-            "command_queue_allow_arbitrary": "no",
+            "GRIT_COMMAND_QUEUE_ENABLE": "yes",
+            "GRIT_COMMAND_QUEUE_TLS": "no",
+            "GRIT_COMMAND_QUEUE_PORT": str(expired_port),
+            "GRIT_COMMAND_QUEUE_REQUIRE_TOKEN": "no",
+            "GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS": "grit-only",
+            "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "no",
         }), encoding="utf-8")
         expired_label = run(
             "scripts/grit-server", "--config", str(expired_cfg),
@@ -2991,9 +2991,9 @@ def main():
         invalid_queue_cfg.write_text(json.dumps({
             "operator_session_dir": str(queue_operator_dir),
             "command_queue_file": str(queue_file),
-            "command_queue_enable": "no",
-            "command_queue_allowed_commands": "grit-only",
-            "command_queue_allow_arbitrary": "yes",
+            "GRIT_COMMAND_QUEUE_ENABLE": "no",
+            "GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS": "grit-only",
+            "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "yes",
         }), encoding="utf-8")
         invalid_queue_list = run(
             "scripts/grit-server",
@@ -3113,12 +3113,12 @@ def main():
             "listen_host": "127.0.0.1",
             "operator_session_dir": str(http_queue_dir),
             "command_queue_file": str(http_queue_file),
-            "command_queue_enable": "yes",
-            "command_queue_tls": "no",
-            "command_queue_port": str(result_port),
-            "command_queue_require_token": "no",
-            "command_queue_allowed_commands": "grit-only",
-            "command_queue_allow_arbitrary": "no",
+            "GRIT_COMMAND_QUEUE_ENABLE": "yes",
+            "GRIT_COMMAND_QUEUE_TLS": "no",
+            "GRIT_COMMAND_QUEUE_PORT": str(result_port),
+            "GRIT_COMMAND_QUEUE_REQUIRE_TOKEN": "no",
+            "GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS": "grit-only",
+            "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "no",
         }), encoding="utf-8")
         http_queued = run(
             "scripts/grit-server",
@@ -3190,12 +3190,12 @@ def main():
             "listen_host": "127.0.0.1",
             "operator_session_dir": str(poll_target_dir),
             "command_queue_file": str(poll_target_queue_file),
-            "command_queue_enable": "yes",
-            "command_queue_tls": "no",
-            "command_queue_port": str(poll_target_port),
-            "command_queue_require_token": "no",
-            "command_queue_allowed_commands": "grit-only",
-            "command_queue_allow_arbitrary": "no",
+            "GRIT_COMMAND_QUEUE_ENABLE": "yes",
+            "GRIT_COMMAND_QUEUE_TLS": "no",
+            "GRIT_COMMAND_QUEUE_PORT": str(poll_target_port),
+            "GRIT_COMMAND_QUEUE_REQUIRE_TOKEN": "no",
+            "GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS": "grit-only",
+            "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "no",
         }), encoding="utf-8")
         for target_id, label in (("target-bravo", "Bravo Router"), ("target-alpha", "Alpha Router")):
             labeled = run(
@@ -3966,13 +3966,13 @@ def main():
             "listen_host": "127.0.0.1",
             "operator_session_dir": str(Path(tmp) / "operator-session"),
             "session_root": str(Path(tmp) / "sessions-daemon"),
-            "file_service_enable": "yes",
-            "file_service_port": daemon_file_port,
-            "file_service_tls": "no",
-            "command_queue_enable": "yes",
-            "command_queue_port": str(daemon_queue_port),
-            "command_queue_tls": "no",
-            "command_queue_require_token": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "yes",
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": daemon_file_port,
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
+            "GRIT_COMMAND_QUEUE_ENABLE": "yes",
+            "GRIT_COMMAND_QUEUE_PORT": str(daemon_queue_port),
+            "GRIT_COMMAND_QUEUE_TLS": "no",
+            "GRIT_COMMAND_QUEUE_REQUIRE_TOKEN": "no",
             "server_state": str(daemon_state),
             "staged_files": str(daemon_staged),
             "command_queue_file": str(daemon_queue),
@@ -4520,7 +4520,7 @@ def main():
         invalid_rshell_cfg = Path(tmp) / "server-config-invalid-rshell-policy.json"
         invalid_rshell_cfg.write_text(json.dumps({
             "operator_session_dir": str(queue_operator_dir),
-            "rshell_session_policy": "bogus",
+            "GRIT_RSHELL_SESSION_POLICY": "bogus",
         }), encoding="utf-8")
         invalid_rshell_status_doc = run(
             "scripts/grit-server",
@@ -4544,7 +4544,7 @@ def main():
                 "unsupported rshell session policy" not in invalid_rshell_policy_record.get("session_policy_errors", []) or
                 invalid_rshell_status.get("rshell_session_policy_records_by_session_policy_valid", {}).get("False", [{}])[0].get("id") != "rshell" or
                 invalid_rshell_status.get("summary", {}).get("rshell_session_policy_record_count") != 1 or
-                invalid_rshell_status.get("summary", {}).get("rshell_session_policy") != "bogus" or
+                invalid_rshell_status.get("summary", {}).get("GRIT_RSHELL_SESSION_POLICY") != "bogus" or
                 invalid_rshell_status.get("summary", {}).get("rshell_session_policy_valid") is not False or
                 invalid_rshell_status.get("summary", {}).get("rshell_session_policy_error_count") != 1 or
                 not invalid_rshell_warnings or
@@ -4627,10 +4627,10 @@ def main():
         arbitrary_queue_cfg.write_text(json.dumps({
             "operator_session_dir": str(queue_operator_dir),
             "command_queue_file": str(queue_file),
-            "command_queue_enable": "yes",
-            "command_queue_require_token": "no",
-            "command_queue_allowed_commands": "custom",
-            "command_queue_allow_arbitrary": "yes",
+            "GRIT_COMMAND_QUEUE_ENABLE": "yes",
+            "GRIT_COMMAND_QUEUE_REQUIRE_TOKEN": "no",
+            "GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS": "custom",
+            "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "yes",
         }), encoding="utf-8")
         arbitrary_queue_doc = run(
             "scripts/grit-server",
@@ -5425,11 +5425,11 @@ def main():
                 "command_queue_policy_records_by_poll_transport_supported" not in ((queue_status_json.get("api_collections") or {}).get("command_queue_policy_records") or {}).get("indexes", []) or
                 queue_status_json["summary"].get("command_queue_poll_transport_supported") is not False or
                 queue_status_json["summary"].get("command_queue_live_polling_supported") is not False or
-                queue_status_json["summary"].get("command_queue_poll_interval_sec") != "5" or
-                queue_status_json["summary"].get("command_queue_poll_jitter_pct") != "0" or
-                queue_status_json["summary"].get("command_queue_poll_backoff") != "none" or
-                queue_status_json["summary"].get("command_queue_poll_max_interval_sec") != "300" or
-                queue_status_json["summary"].get("command_queue_max_polls") != "0" or
+                queue_status_json["summary"].get("GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC") != "5" or
+                queue_status_json["summary"].get("GRIT_COMMAND_QUEUE_POLL_JITTER_PCT") != "0" or
+                queue_status_json["summary"].get("GRIT_COMMAND_QUEUE_POLL_BACKOFF") != "none" or
+                queue_status_json["summary"].get("GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC") != "300" or
+                queue_status_json["summary"].get("GRIT_COMMAND_QUEUE_MAX_POLLS") != "0" or
                 queue_status_json["summary"].get("command_queue_arbitrary_policy_requested") is not False or
                 queue_status_json["summary"].get("command_queue_arbitrary_execution_allowed") is not False or
                 queue_status_json["summary"].get("command_queue_safe_disabled_default") is not True or
@@ -5854,7 +5854,7 @@ def main():
         # Test: legacy socat_listen_port field accepted (compat)
         cfg2 = Path(tmp) / "server-config-legacy.json"
         cfg2.write_text(json.dumps({
-            "transport": "tls-shell",
+            "GRIT_RSHELL_TRANSPORT": "tls-shell",
             "listen_host": "127.0.0.1",
             "socat_listen_port": port2,
             "session_root": str(Path(tmp) / "sessions"),
@@ -5876,11 +5876,11 @@ def main():
         lifecycle_staged = Path(tmp) / "operator-session" / "lifecycle-staged.json"
         lifecycle_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "file_service_port": lifecycle_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": lifecycle_port,
             "session_root": str(Path(tmp) / "sessions-lifecycle"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
             "operator_session_dir": str(Path(tmp) / "operator-session"),
         }), encoding="utf-8")
         lifecycle_proc = subprocess.Popen(
@@ -6167,11 +6167,11 @@ def main():
         sigint_sessions = Path(tmp) / "sessions-foreground-sigint"
         sigint_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "file_service_port": sigint_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": sigint_port,
             "session_root": str(sigint_sessions),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
             "operator_session_dir": str(Path(tmp) / "operator-session"),
         }), encoding="utf-8")
         sigint_proc = subprocess.Popen(
@@ -6253,11 +6253,11 @@ def main():
         tui_owned_staged = Path(tmp) / "operator-session" / "tui-owned-staged.json"
         tui_owned_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "file_service_port": tui_owned_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": tui_owned_port,
             "session_root": str(Path(tmp) / "sessions-tui-owned"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
             "operator_session_dir": str(Path(tmp) / "operator-session"),
         }), encoding="utf-8")
         tui_master, tui_slave = pty.openpty()
@@ -6375,11 +6375,11 @@ def main():
         tui_sigterm_owned_staged = tui_sigterm_owned_operator_dir / "staged-files.json"
         tui_sigterm_owned_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "file_service_port": tui_sigterm_owned_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": tui_sigterm_owned_port,
             "session_root": str(Path(tmp) / "sessions-tui-sigterm-owned"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
             "operator_session_dir": str(tui_sigterm_owned_operator_dir),
         }), encoding="utf-8")
         sigterm_owned_master, sigterm_owned_slave = pty.openpty()
@@ -6476,11 +6476,11 @@ def main():
         tui_sigterm_staged = tui_sigterm_operator_dir / "staged-files.json"
         tui_sigterm_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "file_service_port": free_port(),
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": free_port(),
             "session_root": str(Path(tmp) / "sessions-tui-sigterm"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
             "operator_session_dir": str(tui_sigterm_operator_dir),
         }), encoding="utf-8")
         sigterm_master, sigterm_slave = pty.openpty()
@@ -6557,11 +6557,11 @@ def main():
         bind_fail_state = Path(tmp) / "operator-session" / "bind-fail-state.json"
         bind_fail_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "file_service_port": bind_fail_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": bind_fail_port,
             "session_root": str(Path(tmp) / "sessions-bind-fail"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
             "operator_session_dir": str(Path(tmp) / "operator-session"),
         }), encoding="utf-8")
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as blocker:
@@ -6602,8 +6602,8 @@ def main():
         command_queue_bind_cfg = Path(tmp) / "server-config-command-queue-bind-fail.json"
         command_queue_bind_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "command_queue_port": bind_fail_port,
-            "command_queue_tls": "no",
+            "GRIT_COMMAND_QUEUE_PORT": bind_fail_port,
+            "GRIT_COMMAND_QUEUE_TLS": "no",
             "session_root": str(Path(tmp) / "sessions-command-queue-bind-fail"),
             "operator_session_dir": str(Path(tmp) / "operator-session"),
         }), encoding="utf-8")
@@ -6803,7 +6803,7 @@ def main():
                     "status": "stopped",
                     "pid": "",
                     "listen_host": "127.0.0.1",
-                    "file_service_port": bind_fail_port,
+                    "GRIT_OPERATOR_FILE_SERVICE_PORT": bind_fail_port,
                     "updated_at": "unexpected-listener",
                 }
             },
@@ -6847,11 +6847,11 @@ def main():
         bind_mismatch_state = Path(tmp) / "operator-session" / "bind-mismatch-state.json"
         bind_mismatch_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.2",
-            "file_service_port": bind_mismatch_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": bind_mismatch_port,
             "session_root": str(Path(tmp) / "sessions-bind-mismatch"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
             "operator_session_dir": str(Path(tmp) / "operator-session"),
         }), encoding="utf-8")
         bind_mismatch_state.write_text(json.dumps({
@@ -6861,7 +6861,7 @@ def main():
                     "status": "stopped",
                     "pid": "",
                     "listen_host": "127.0.0.2",
-                    "file_service_port": bind_mismatch_port,
+                    "GRIT_OPERATOR_FILE_SERVICE_PORT": bind_mismatch_port,
                     "updated_at": "bind-mismatch",
                 }
             },
@@ -6978,11 +6978,11 @@ def main():
         sigint_staged = Path(tmp) / "operator-session" / "sigint-staged.json"
         sigint_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "file_service_port": sigint_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": sigint_port,
             "session_root": str(Path(tmp) / "sessions-sigint"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
             "operator_session_dir": str(Path(tmp) / "operator-session"),
         }), encoding="utf-8")
         sigint_proc = subprocess.Popen(
@@ -7061,11 +7061,11 @@ def main():
         sigterm_staged = Path(tmp) / "operator-session" / "sigterm-staged.json"
         sigterm_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "file_service_port": sigterm_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": sigterm_port,
             "session_root": str(Path(tmp) / "sessions-sigterm"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
             "operator_session_dir": str(Path(tmp) / "operator-session"),
         }), encoding="utf-8")
         sigterm_proc = subprocess.Popen(
@@ -7142,8 +7142,8 @@ def main():
         single_shell_operator_dir = Path(tmp) / "operator-session-single-shell"
         single_shell_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "shell_listen_port": single_shell_port,
-            "rshell_session_policy": "single",
+            "GRIT_RSHELL_SOCAT_PORT": single_shell_port,
+            "GRIT_RSHELL_SESSION_POLICY": "single",
             "session_root": str(Path(tmp) / "sessions-single-shell"),
             "operator_session_dir": str(single_shell_operator_dir),
         }), encoding="utf-8")
@@ -7259,8 +7259,8 @@ def main():
         reconnect_shell_staged = Path(tmp) / "operator-session" / "reconnect-shell-staged.json"
         reconnect_shell_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "shell_listen_port": reconnect_shell_port,
-            "rshell_session_policy": "reconnect",
+            "GRIT_RSHELL_SOCAT_PORT": reconnect_shell_port,
+            "GRIT_RSHELL_SESSION_POLICY": "reconnect",
             "session_root": str(Path(tmp) / "sessions-reconnect-shell"),
             "operator_session_dir": str(Path(tmp) / "operator-session-reconnect-shell"),
         }), encoding="utf-8")
@@ -7335,8 +7335,8 @@ def main():
         persistent_operator_dir = Path(tmp) / "operator-session-persistent-shell"
         persistent_shell_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "shell_listen_port": persistent_shell_port,
-            "rshell_session_policy": "persistent",
+            "GRIT_RSHELL_SOCAT_PORT": persistent_shell_port,
+            "GRIT_RSHELL_SESSION_POLICY": "persistent",
             "session_root": str(Path(tmp) / "sessions-persistent-shell"),
             "operator_session_dir": str(persistent_operator_dir),
         }), encoding="utf-8")
@@ -7431,7 +7431,7 @@ def main():
                     "status": "listening",
                     "pid": os.getpid(),
                     "listen_host": "127.0.0.1",
-                    "file_service_port": lifecycle_port,
+                    "GRIT_OPERATOR_FILE_SERVICE_PORT": lifecycle_port,
                     "updated_at": "unmanaged",
                 }
             },
@@ -7493,21 +7493,21 @@ def main():
         session_root = Path(tmp) / "sessions-upload"
         upload_operator_dir = Path(tmp) / "operator-session-upload"
         upload_cfg.write_text(json.dumps({
-            "file_service_enable": "yes",
+            "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "yes",
             "listen_host": "127.0.0.1",
-            "file_service_port": upload_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": upload_port,
             "session_root": str(session_root),
             "operator_session_dir": str(upload_operator_dir),
             "server_state": str(upload_operator_dir / "server-state.json"),
             "staged_files": str(upload_operator_dir / "staged-files.json"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "rshell_session_policy": "reconnect",
-            "rshell_retry_count": "2",
-            "rshell_retry_interval_sec": "3",
-            "rshell_retry_jitter_pct": "10",
-            "rshell_retry_backoff": "linear",
-            "rshell_retry_max_interval_sec": "8",
+            "GRIT_RSHELL_SESSION_POLICY": "reconnect",
+            "GRIT_RSHELL_RETRY_COUNT": "2",
+            "GRIT_RSHELL_RETRY_INTERVAL_SEC": "3",
+            "GRIT_RSHELL_RETRY_JITTER_PCT": "10",
+            "GRIT_RSHELL_RETRY_BACKOFF": "linear",
+            "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC": "8",
         }), encoding="utf-8")
         proc = subprocess.Popen(
             [
@@ -7855,7 +7855,7 @@ def main():
             "command_queue_file": str(action_operator_dir / "command-queue.json"),
             "targets_file": str(action_operator_dir / "targets.json"),
             "listen_host": "127.0.0.1",
-            "file_service_port": free_port(),
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": free_port(),
         }), encoding="utf-8")
         action_label = run(
             "scripts/grit-server",
@@ -8266,7 +8266,7 @@ def main():
             "operator_session_dir": str(legacy_operator_dir),
             "session_root": str(legacy_session_root),
             "listen_host": "127.0.0.1",
-            "file_service_port": upload_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": upload_port,
         }), encoding="utf-8")
         legacy_status = run(
             "scripts/grit-server",
@@ -8475,7 +8475,7 @@ def main():
                 upload_summary.get("target_command_session_policy_valid_counts", {}).get("True") != 1 or
                 upload_summary.get("target_command_session_policy_error_count") != 0 or
                 upload_summary.get("rshell_session_policy_record_count") != 1 or
-                upload_summary.get("rshell_session_policy") != "reconnect" or
+                upload_summary.get("GRIT_RSHELL_SESSION_POLICY") != "reconnect" or
                 upload_summary.get("rshell_session_policy_valid") is not True or
                 upload_summary.get("rshell_session_policy_retry_scope") != "pre-connect+post-disconnect" or
                 upload_summary.get("rshell_session_policy_reconnects_after_disconnect") is not True or
@@ -9488,9 +9488,9 @@ def main():
         capability_operator_dir = Path(tmp) / "operator-session-capability-target"
         capability_cfg = Path(tmp) / "server-config-capability-target.json"
         capability_cfg.write_text(json.dumps({
-            "file_service_enable": "yes",
+            "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "yes",
             "listen_host": "127.0.0.1",
-            "file_service_port": capability_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": capability_port,
             "session_root": str(Path(tmp) / "sessions-capability-target"),
             "operator_session_dir": str(capability_operator_dir),
             "server_state": str(capability_operator_dir / "server-state.json"),
@@ -10650,7 +10650,7 @@ def main():
                 "queued cq-" not in line_console_stdout or
                 "Command result:" not in line_console_stdout or
                 "result_status=none" not in line_console_stdout or
-                "Survey bootstrap:" not in line_console_stdout or
+                "Probe:" not in line_console_stdout or
                 "target_command=wget -O- " not in line_console_stdout or
                 "| /bin/sh" not in line_console_stdout or
                 "Target download command:" not in line_console_stdout or
@@ -10803,7 +10803,7 @@ def main():
             "staged_files": str(file_workflow_dir / "staged-files.json"),
             "command_queue_file": str(file_workflow_dir / "command-queue.json"),
             "targets_file": str(file_workflow_dir / "targets.json"),
-            "file_service_port": free_port(),
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": free_port(),
         }), encoding="utf-8")
         file_action_stage = run(
             "scripts/grit-server",
@@ -10910,12 +10910,12 @@ def main():
         fetch_cfg = Path(tmp) / "server-config-fetch.json"
         fetch_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "file_service_port": fetch_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": fetch_port,
             "session_root": str(Path(tmp) / "sessions-fetch"),
             "operator_session_dir": str(Path(tmp) / "operator-session-fetch"),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
         }), encoding="utf-8")
 
         tui = run(
@@ -12265,11 +12265,11 @@ def main():
         missing_fetch_root = Path(tmp) / "sessions-missing-fetch"
         missing_fetch_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
-            "file_service_port": missing_fetch_port,
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": missing_fetch_port,
             "session_root": str(missing_fetch_root),
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
-            "file_service_tls": "no",
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
         }), encoding="utf-8")
         missing_proc = subprocess.Popen(
             [
@@ -12398,11 +12398,11 @@ def main():
             fetch_cfg2 = Path(tmp) / "server-config-fetch2.json"
             fetch_cfg2.write_text(json.dumps({
                 "listen_host": "127.0.0.1",
-                "file_service_port": fetch_port2,
+                "GRIT_OPERATOR_FILE_SERVICE_PORT": fetch_port2,
                 "session_root": str(Path(tmp) / "sessions-fetch2"),
                 "tls_cert": str(cert_path),
                 "tls_key": str(key_path),
-                "file_service_tls": "no",
+                "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
             }), encoding="utf-8")
             fetched = Path(tmp) / "fetched.out"
             proc2 = subprocess.Popen(

