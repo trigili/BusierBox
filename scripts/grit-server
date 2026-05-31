@@ -22029,6 +22029,8 @@ def run_line_tui(cfg):
                     ("release stage [--start] SELECTOR", "stage a release artifact"),
                     ("serve-binary [--start] [PATH] [NAME]", "stage a griTTYkit binary for target fetch"),
                     ("unstage NAME", "remove a staged file"),
+                    ("files clear", "preview removal of all staged files"),
+                    ("files clear --confirm", "remove all staged files"),
                     ("view PATH, cat PATH", "view a local path in the configured pager"),
                     ("download [--queue] TARGET_PATH", "generate an upload-back command for the target"),
                     ("survey [--start] [--queue]", "show or queue the probe command"),
@@ -23899,7 +23901,15 @@ def run_line_tui(cfg):
             return []
 
         if cmd in {"files", "staged", "stagers", "loot", "downloads"}:
-            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), ["-v"])]
+            if at_arg(1):
+                return [f"{cmd} {item}" for item in prefixed(arg_pfx(1),
+                    ["-v", "upload", "fetch", "unstage", "clear"])]
+            subcmd = parts[1].lower() if len(parts) >= 2 else ""
+            if subcmd in {"unstage", "rm"}:
+                staged_names = sorted((load_staged(cfg).get("staged") or {}).keys())
+                return [f"{cmd} {subcmd} {n}" for n in prefixed(arg_pfx(2), staged_names)]
+            if subcmd == "clear" and at_arg(2):
+                return [f"{cmd} clear --confirm"]
 
         if cmd in {"usemodule", "useaction", "run", "execute", "exploit", "check"}:
             return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), action_names())]
@@ -26543,8 +26553,52 @@ def run_line_tui(cfg):
                     print(exc)
                 continue
             elif cmd in {"files", "staged", "stagers", "loot", "downloads"}:
-                verbose = len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}
-                print_line_files(verbose=verbose)
+                subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
+                if subcmd in {"upload", "stage", "serve-file"}:
+                    try:
+                        selector, request_name, start_svc = parse_line_file_args(console_args[2:])
+                        stage_line_file(selector, request_name, start_file_service=start_svc)
+                    except ValueError as exc:
+                        print(exc)
+                elif subcmd in {"fetch", "deploy"}:
+                    try:
+                        request_name, queue_fetch, start_svc = parse_line_fetch_args(console_args[2:])
+                        fetch_line_staged(request_name, queue=queue_fetch, start_file_service=start_svc)
+                    except ValueError as exc:
+                        print(exc)
+                elif subcmd in {"unstage", "rm", "remove"}:
+                    try:
+                        unstage_line_file(" ".join(console_args[2:]).strip())
+                    except ValueError as exc:
+                        print(exc)
+                elif subcmd in {"clear", "purge"}:
+                    flags = {a.lower() for a in console_args[2:]}
+                    staged = load_staged(cfg).get("staged", {})
+                    target_filter_id = configured_target_filter(cfg)
+                    if target_filter_id:
+                        staged = {n: r for n, r in staged.items()
+                                  if str(r.get("target_id") or "") == target_filter_id}
+                    if not staged:
+                        print("No staged files to clear.")
+                    else:
+                        for name in sorted(staged):
+                            print(f"  {name}")
+                        if "--confirm" not in flags:
+                            print(f"\n  {len(staged)} file(s) would be unstaged.  Run: files clear --confirm")
+                        else:
+                            removed = 0
+                            for name in list(staged):
+                                if unstage_file(cfg, name):
+                                    removed += 1
+                            print(f"\n  Cleared {removed} staged file(s).")
+                            append_event(cfg, "workbench", "workbench_files_cleared", details={
+                                "removed": removed,
+                                "target_filter": target_filter_id or "all",
+                            })
+                elif subcmd in {"-v", "--verbose"}:
+                    print_line_files(verbose=True)
+                else:
+                    print_line_files()
                 continue
             elif cmd in {"mailbox", "queue"}:
                 compact_next_prompt = False
