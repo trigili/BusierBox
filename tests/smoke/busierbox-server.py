@@ -10094,6 +10094,14 @@ def main():
                     "info\n"
                     "options\n"
                     "back\n"
+                    "show categories\n"
+                    "categories\n"
+                    "show service modules\n"
+                    "use 1\n"
+                    "back\n"
+                    "show daemon modules\n"
+                    "show target modules\n"
+                    "show workbench modules\n"
                     "show modules daemon\n"
                     "modules file-service\n"
                     "use 1\n"
@@ -10218,7 +10226,11 @@ def main():
                 "command: use service file-service" not in line_console_stdout or
                 "service:file-service:start-service" not in line_console_stdout or
                 "show targets|services|files" not in line_console_stdout or
+                "show categories                 show runnable module categories" not in line_console_stdout or
+                "show service|daemon modules     browse modules by operator category" not in line_console_stdout or
                 "show modules [FILTER]           browse modules by kind, id, workflow, or text" not in line_console_stdout or
+                "show categories" not in line_console_stdout or
+                "show service|daemon|target|workbench modules" not in line_console_stdout or
                 "show modules [FILTER]" not in line_console_stdout or
                 "info, options                   show selected context and module options" not in line_console_stdout or
                 "services, listeners [-v]        list listener services" not in line_console_stdout or
@@ -10258,6 +10270,12 @@ def main():
                 "route.name=console-route" not in line_console_stdout or
                 "route.inspect_command=scripts/busierbox-server --config" not in line_console_stdout or
                 "route.next=info, start, stop, run, back" not in line_console_stdout or
+                "Module categories:" not in line_console_stdout or
+                "commands: show service modules, show daemon modules, show target modules, show workbench modules" not in line_console_stdout or
+                "Module kind: service" not in line_console_stdout or
+                "Module kind: daemon" not in line_console_stdout or
+                "Module kind: target" not in line_console_stdout or
+                "Module kind: workbench" not in line_console_stdout or
                 "Module filter: daemon" not in line_console_stdout or
                 "Module filter: file-service" not in line_console_stdout or
                 "Module groups:" not in line_console_stdout or
@@ -10364,6 +10382,11 @@ def main():
                 not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "daemon" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "file-service" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_module_categories_listed" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "service" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "daemon" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "target" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "workbench" for event in line_console_events) or
                 not any(event.get("event") == "workbench_listeners_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_routes_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_route_selected" and (event.get("details") or {}).get("name") == "console-route" for event in line_console_events) or

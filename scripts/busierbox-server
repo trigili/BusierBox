@@ -21649,6 +21649,8 @@ def run_line_tui(cfg):
         print("  show targets|services|files     show major workbench resources")
         print("  show queue|mailbox|jobs         show queue, mailbox, or background jobs")
         print("  show sessions|activity|modules  show sessions, activity, or runnable modules")
+        print("  show categories                 show runnable module categories")
+        print("  show service|daemon modules     browse modules by operator category")
         print("  show modules [FILTER]           browse modules by kind, id, workflow, or text")
         print("  info, options                   show selected context and module options")
         print("  show options                    show target/module/build options")
@@ -21795,12 +21797,16 @@ def run_line_tui(cfg):
             ],
             "show": [
                 "show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options",
+                "show categories",
+                "show service|daemon|target|workbench modules",
                 "show modules [FILTER]",
                 "  Shows a resource collection without switching context.",
             ],
             "modules": [
                 "modules [FILTER]",
                 "show modules [FILTER]",
+                "show categories",
+                "show service|daemon|target|workbench modules",
                 "  Browses runnable modules. FILTER matches kind, category, workflow, id, label, or command text.",
                 "  Examples: modules daemon; show modules file-service; use 1",
             ],
@@ -22703,9 +22709,52 @@ def run_line_tui(cfg):
             return interact_line_session(str(session_id))
         raise ValueError(f"search result {text} is not directly selectable")
 
-    def print_line_actions(filter_text=""):
+    def print_line_module_categories():
+        actions = line_action_records()
+        grouped = {}
+        category_counts = {}
+        workflow_counts = {}
+        for rec in actions:
+            kind = str(rec.get("kind") or "other")
+            grouped.setdefault(kind, []).append(rec)
+            category = str(rec.get("category") or "-")
+            workflow = str(rec.get("workflow") or "-")
+            category_counts[category] = category_counts.get(category, 0) + 1
+            workflow_counts[workflow] = workflow_counts.get(workflow, 0) + 1
+        print("Module categories:")
+        if not actions:
+            print("  none")
+            cfg["_line_console_search_results"] = []
+            return
+        print("  kinds: " + " ".join(f"{kind}={len(grouped[kind])}" for kind in sorted(grouped)))
+        print("  categories: " + " ".join(f"{name}={category_counts[name]}" for name in sorted(category_counts)))
+        print("  workflows: " + " ".join(f"{name}={workflow_counts[name]}" for name in sorted(workflow_counts)))
+        print("  commands: show service modules, show daemon modules, show target modules, show workbench modules")
+        print("  next: show KIND modules, modules FILTER, use N")
+        cfg["_line_console_search_results"] = []
+        append_event(cfg, "workbench", "workbench_console_module_categories_listed", details={
+            "module_count": len(actions),
+            "kind_counts": {kind: len(items) for kind, items in grouped.items()},
+            "category_counts": category_counts,
+            "workflow_counts": workflow_counts,
+        })
+
+    def print_line_actions(filter_text="", kind_filter=""):
         actions = line_action_records()
         term = str(filter_text or "").strip().lower()
+        kind_text = str(kind_filter or "").strip().lower()
+        if kind_text:
+            aliases = {
+                "services": "service",
+                "listeners": "service",
+                "listener": "service",
+                "daemons": "daemon",
+                "agents": "target",
+                "targets": "target",
+                "jobs": "workbench",
+            }
+            kind_text = aliases.get(kind_text, kind_text)
+            actions = [rec for rec in actions if str(rec.get("kind") or "").lower() == kind_text]
         if term:
             actions = [
                 rec for rec in actions
@@ -22717,6 +22766,8 @@ def run_line_tui(cfg):
                 ).lower()
             ]
         print("Console action modules:")
+        if kind_text:
+            print(f"Module kind: {kind_text}")
         if term:
             print(f"Module filter: {filter_text}")
         if not actions:
@@ -22756,6 +22807,7 @@ def run_line_tui(cfg):
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_console_modules_listed", details={
             "filter": str(filter_text or ""),
+            "kind": kind_text,
             "match_count": len(actions),
             "shown_count": len(search_records),
             "group_counts": {kind: len(items) for kind, items in grouped.items()},
@@ -22956,7 +23008,9 @@ def run_line_tui(cfg):
         parts = shlex.split(str(resource or "").strip()) if str(resource or "").strip() else []
         key = (parts[0] if parts else "").lower()
         filter_text = " ".join(parts[1:]).strip()
-        if key in ("target", "targets", "agent", "agents", "host", "hosts"):
+        if len(parts) >= 2 and parts[1].lower() in ("module", "modules"):
+            print_line_actions(" ".join(parts[2:]).strip(), kind_filter=key)
+        elif key in ("target", "targets", "agent", "agents", "host", "hosts"):
             print_line_targets()
         elif key in ("service", "services", "listener", "listeners"):
             print_line_services()
@@ -22966,6 +23020,8 @@ def run_line_tui(cfg):
             print_line_jobs()
         elif key in ("daemon", "daemons"):
             print_line_daemon_actions()
+        elif key in ("category", "categories", "module-category", "module-categories"):
+            print_line_module_categories()
         elif key in ("action", "actions", "module", "modules"):
             print_line_actions(filter_text)
         elif key in ("session", "sessions"):
@@ -23237,6 +23293,9 @@ def run_line_tui(cfg):
                     show_line_resource(" ".join(console_args[1:]).strip() if len(console_args) >= 2 else "options")
                 except ValueError as exc:
                     print(exc)
+                continue
+            elif cmd in {"categories", "category", "module-categories"}:
+                print_line_module_categories()
                 continue
             elif cmd in {"modules", "module"}:
                 print_line_actions(" ".join(console_args[1:]).strip())
@@ -25641,6 +25700,8 @@ Discovery:
   workspace                     show fleet/listener/session overview
   search TERM                   search agents, listeners, modules, sessions, files, queue
   show agents|listeners|routes  list common operator resources
+  show categories               summarize runnable module kinds
+  show service|daemon modules   browse modules by operator category
   show modules [FILTER]         browse modules by kind, id, workflow, or text
   show stagers|loot|sessions    inspect files and sessions
   help COMMAND                  focused help inside the console
