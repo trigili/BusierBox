@@ -10177,6 +10177,9 @@ def main():
                     "background\n"
                     "daemon status --dry-run\n"
                     "show actions\n"
+                    "check operator-daemon-status\n"
+                    "run operator-daemon-status --dry-run\n"
+                    "back\n"
                     "usemodule operator-daemon-status\n"
                     "execute --dry-run\n"
                     "back\n"
@@ -10245,7 +10248,7 @@ def main():
                 ).encode("utf-8"),
             )
             line_console_chunks = []
-            deadline = time.time() + 10
+            deadline = time.time() + 14
             while line_console_proc.poll() is None and time.time() < deadline:
                 ready, _, _ = select.select([line_console_master], [], [], 0.1)
                 if ready:
@@ -10438,6 +10441,8 @@ def main():
                 "command: use job line-console-job" not in line_console_stdout or
                 "Console action modules:" not in line_console_stdout or
                 "operator-daemon-status" not in line_console_stdout or
+                "check operator-daemon-status" not in line_console_stdout or
+                "run operator-daemon-status --dry-run" not in line_console_stdout or
                 "usemodule operator-daemon-status" not in line_console_stdout or
                 "execute --dry-run" not in line_console_stdout or
                 "uselistener file-service" not in line_console_stdout or

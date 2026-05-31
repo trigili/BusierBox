@@ -21903,11 +21903,14 @@ def run_line_tui(cfg):
             ],
             "run": [
                 "run [--dry-run] [--confirm]",
+                "run MODULE [--dry-run] [--confirm]",
                 "execute [--dry-run] [--confirm]",
                 "exploit [--dry-run] [--confirm]",
+                "check [MODULE]",
                 "run -j",
                 "run --job",
                 "  Runs the selected action module, or starts the selected service module.",
+                "  MODULE may be supplied directly instead of using use module first.",
                 "  -j/--job starts a selected background-capable workbench action as a managed job.",
                 "  Use check to dry-run the selected action module.",
             ],
@@ -23416,6 +23419,33 @@ def run_line_tui(cfg):
                 return rec
         return {}
 
+    def split_line_run_args(values):
+        flags = []
+        selector_parts = []
+        for item in list(values or []):
+            if item in {"--dry-run", "--confirm", "confirm", "yes"}:
+                flags.append(item)
+            else:
+                selector_parts.append(item)
+        return " ".join(selector_parts).strip(), flags
+
+    def run_line_module_or_service(values=None, dry_run_default=False):
+        selector, flags = split_line_run_args(values or [])
+        if dry_run_default and "--dry-run" not in flags:
+            flags.append("--dry-run")
+        if selector:
+            if not dry_run_default and not selected_line_action() and selector in line_service_names():
+                start_line_service(selector)
+                return 0
+            select_line_action(selector)
+            return run_line_selected_action(flags)
+        if selected_line_action():
+            return run_line_selected_action(flags)
+        if dry_run_default:
+            raise ValueError("no selected action module; use check MODULE or use module ACTION first")
+        start_line_service("")
+        return 0
+
     def run_line_selected_action(args=None, dry_run_default=False):
         rec = selected_line_action()
         if not rec:
@@ -24279,16 +24309,14 @@ def run_line_tui(cfg):
                     if any(item in {"-j", "--job"} for item in console_args[1:]):
                         action_selector = " ".join(item for item in console_args[1:] if item not in {"-j", "--job"}).strip()
                         start_line_job(action_selector)
-                    elif selected_line_action():
-                        run_line_selected_action(console_args[1:])
                     else:
-                        start_line_service(" ".join(console_args[1:]).strip())
+                        run_line_module_or_service(console_args[1:])
                 except ValueError as exc:
                     print(exc)
                 continue
             elif cmd == "check":
                 try:
-                    run_line_selected_action(console_args[1:], dry_run_default=True)
+                    run_line_module_or_service(console_args[1:], dry_run_default=True)
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -26500,8 +26528,9 @@ Operations:
   listeners [-v]                list listener services and start/stop commands
   routes [-v], route print      list bridge routes and hop details
   queue COMMAND                 queue work for the selected/offline target
-  run [--dry-run] [--confirm]   run selected module
+  run [MODULE] [--dry-run]      run selected or named module
   execute, exploit              aliases for run
+  check [MODULE]                dry-run selected or named module
   run -j                        start selected background-capable action as a job
   jobs, jobs -i ID, job ID      list/select managed background jobs
   jobs -k ID, kill, cancel      cancel managed background jobs
