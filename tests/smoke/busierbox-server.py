@@ -10009,6 +10009,12 @@ def main():
                     "show services\n"
                     "daemon\n"
                     "daemon status --dry-run\n"
+                    "show actions\n"
+                    "use action operator-daemon-status\n"
+                    "info\n"
+                    "check\n"
+                    "run --dry-run\n"
+                    "back\n"
                     "use service file-service\n"
                     "info\n"
                     "back\n"
@@ -10059,11 +10065,18 @@ def main():
                 "services, targets, sessions     shortcuts for show commands" not in line_console_stdout or
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
+                "use action ACTION               select an action module context" not in line_console_stdout or
+                "check                           dry-run the selected action module" not in line_console_stdout or
                 "Console context:" not in line_console_stdout or
                 "Services:" not in line_console_stdout or
                 "Daemon workflow actions:" not in line_console_stdout or
+                "Console action modules:" not in line_console_stdout or
                 "operator-daemon-status" not in line_console_stdout or
+                "selected action daemon:operator-daemon-status" not in line_console_stdout or
+                "bbx[all]/action/operator-daemon-status>" not in line_console_stdout or
+                "action=daemon:operator-daemon-status" not in line_console_stdout or
                 "operator daemon workflow action: operator-daemon-status" not in line_console_stdout or
+                line_console_stdout.count("action_returncode=0") < 2 or
                 "daemon_workflow_returncode=0" not in line_console_stdout or
                 "selected service file-service" not in line_console_stdout or
                 "bbx[all]/service/file-service>" not in line_console_stdout or

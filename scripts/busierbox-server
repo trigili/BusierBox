@@ -21598,14 +21598,16 @@ def run_line_tui(cfg):
         print("  status, summary                 refresh workbench summary")
         print("  show targets|services|files     show major workbench resources")
         print("  show queue|mailbox|jobs         show queue, mailbox, or background jobs")
-        print("  show sessions|activity          show local sessions or target activity")
+        print("  show sessions|activity|actions  show sessions, activity, or runnable actions")
         print("  services, targets, sessions     shortcuts for show commands")
         print("  use target ID|LABEL|NUMBER      select a target context")
         print("  use service SERVICE             select a service module context")
+        print("  use action ACTION               select an action module context")
         print("  use target all, clear target    clear selected target context")
         print("  back                            clear selected module context")
         print("  start SERVICE, stop SERVICE     control a service directly")
-        print("  run                             start the selected service module")
+        print("  check                           dry-run the selected action module")
+        print("  run [--dry-run] [--confirm]     run selected service/action module")
         print("  interact SESSION                show local session inspection commands")
         print("  queue COMMAND                   queue work for selected/offline target")
         print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
@@ -21622,6 +21624,14 @@ def run_line_tui(cfg):
         print("Console context:")
         print(f"  prompt={line_tui_prompt().strip()}")
         print(f"  module={str(cfg.get('_line_console_module') or 'root')}")
+        action = selected_line_action()
+        if action:
+            print(
+                f"  action={action.get('kind', '')}:{action.get('id', '')} "
+                f"state={action.get('operator_action_state', '') or '-'} "
+                f"reason={action.get('operator_action_reason', '') or '-'}"
+            )
+            print(f"    command={action.get('headless_command', action.get('command', ''))}")
         target_filter = snap.get("target_filter") or {}
         if target_filter.get("active"):
             print(target_filter_summary_text(target_filter, prefix="  target:"))
@@ -21654,6 +21664,8 @@ def run_line_tui(cfg):
         return service
 
     def clear_line_module():
+        cfg.pop("_line_console_action_kind", None)
+        cfg.pop("_line_console_action_id", None)
         if cfg.pop("_line_console_module", None):
             print("module context cleared")
         else:
@@ -21803,6 +21815,130 @@ def run_line_tui(cfg):
         rc = run_operator_daemon_workflow_action(cfg, selector, dry_run=dry_run, confirmed=confirmed)
         print(f"daemon_workflow_returncode={rc}")
 
+    def line_action_records():
+        snap = workbench_snapshot(cfg)
+        records = []
+        for kind, collection in (
+            ("service", snap.get("service_workflow_actions") or []),
+            ("daemon", snap.get("operator_daemon_workflow_actions") or []),
+            ("target", snap.get("target_workflow_actions") or []),
+            ("workbench", snap.get("workbench_actions") or []),
+        ):
+            for rec in collection:
+                if not isinstance(rec, dict):
+                    continue
+                item = dict(rec)
+                item["kind"] = kind
+                item["id"] = str(item.get("id") or item.get("action_id") or "")
+                records.append(item)
+        return records
+
+    def print_line_actions():
+        actions = line_action_records()
+        print("Console action modules:")
+        if not actions:
+            print("  none")
+            return
+        for idx, rec in enumerate(actions[:30], 1):
+            command = str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or "")
+            if len(command) > 120:
+                command = command[:117] + "..."
+            print(
+                f"  {idx}: {rec.get('kind', '')}:{rec.get('id', '')} "
+                f"state={rec.get('operator_action_state', '') or '-'} "
+                f"reason={rec.get('operator_action_reason', '') or '-'} "
+                f"confirm={'yes' if rec.get('requires_confirmation') else 'no'}"
+            )
+            print(f"     command: {command}")
+        if len(actions) > 30:
+            print(f"  ... {len(actions) - 30} more action module(s)")
+
+    def select_line_action(selector):
+        text = str(selector or "").strip()
+        if not text:
+            raise ValueError("usage: use action ACTION")
+        actions = line_action_records()
+        selected = {}
+        if text.isdigit():
+            idx = int(text) - 1
+            if idx < 0 or idx >= len(actions):
+                raise ValueError(f"action number out of range: {text}")
+            selected = actions[idx]
+        else:
+            lower = text.lower()
+            for rec in actions:
+                rec_id = str(rec.get("id") or "")
+                action_id = str(rec.get("action_id") or "")
+                label = str(rec.get("label") or "")
+                qualified = f"{rec.get('kind', '')}:{rec_id}"
+                if text in (rec_id, action_id, qualified) or lower == label.lower():
+                    selected = rec
+                    break
+        if not selected:
+            raise ValueError(f"action not found: {text}")
+        action_id = str(selected.get("id") or "")
+        cfg["_line_console_action_kind"] = str(selected.get("kind") or "")
+        cfg["_line_console_action_id"] = action_id
+        cfg["_line_console_module"] = f"action/{action_id}"
+        print(f"selected action {selected.get('kind', '')}:{action_id}")
+        print(f"  command: {selected.get('headless_command', selected.get('run_command', selected.get('command', '')))}")
+        return selected
+
+    def selected_line_action():
+        kind = str(cfg.get("_line_console_action_kind") or "")
+        action_id = str(cfg.get("_line_console_action_id") or "")
+        if not kind or not action_id:
+            return {}
+        for rec in line_action_records():
+            if str(rec.get("kind") or "") == kind and str(rec.get("id") or "") == action_id:
+                return rec
+        return {}
+
+    def run_line_selected_action(args=None, dry_run_default=False):
+        rec = selected_line_action()
+        if not rec:
+            raise ValueError("no selected action module; use action ACTION first")
+        values = list(args or [])
+        dry_run = bool(dry_run_default)
+        confirmed = False
+        for item in values:
+            if item == "--dry-run":
+                dry_run = True
+            elif item in ("--confirm", "confirm", "yes"):
+                confirmed = True
+        kind = str(rec.get("kind") or "")
+        rec_id = str(rec.get("id") or "")
+        if kind == "service":
+            rc = run_service_workflow_action(cfg, rec_id, dry_run=dry_run, confirmed=confirmed)
+            print(f"action_returncode={rc}")
+            return rc
+        if kind == "daemon":
+            rc = run_operator_daemon_workflow_action(cfg, rec_id, dry_run=dry_run, confirmed=confirmed)
+            print(f"action_returncode={rc}")
+            return rc
+        if kind == "workbench":
+            rc = run_workbench_action(cfg, rec_id, dry_run=dry_run, confirmed=confirmed)
+            print(f"action_returncode={rc}")
+            return rc
+        if kind == "target":
+            if dry_run:
+                print(f"target workflow action: {rec_id}")
+                print("dry_run=yes")
+                print(f"headless_command={rec.get('headless_command', rec.get('command', ''))}")
+                append_event(cfg, "workbench", "target_workflow_action_dry_run", details={
+                    "id": rec_id,
+                    "action_id": rec.get("action_id", ""),
+                    "target_id": rec.get("target_id", ""),
+                    "target_label": rec.get("target_label", ""),
+                    "headless_command": rec.get("headless_command", rec.get("command", "")),
+                })
+                print("action_returncode=0")
+                return 0
+            rc = run_target_workflow_action(cfg, rec_id, input_func=line_input)
+            print(f"action_returncode={rc}")
+            return rc
+        raise ValueError(f"unsupported selected action kind: {kind}")
+
     def queue_line_command(command):
         text = str(command or "").strip()
         if not text:
@@ -21888,6 +22024,8 @@ def run_line_tui(cfg):
             print_line_jobs()
         elif key in ("daemon", "daemons"):
             print_line_daemon_actions()
+        elif key in ("action", "actions", "modules"):
+            print_line_actions()
         elif key in ("session", "sessions"):
             print_line_sessions()
         elif key in ("queue", "mailbox", "commands"):
@@ -22096,6 +22234,13 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
+            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "action":
+                selector = " ".join(console_args[2:]).strip()
+                try:
+                    select_line_action(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
             elif cmd == "clear" and len(console_args) >= 2 and console_args[1].lower() == "target":
                 try:
                     select_line_target("all", targets=[])
@@ -22119,7 +22264,16 @@ def run_line_tui(cfg):
                 continue
             elif cmd == "run":
                 try:
-                    start_line_service(" ".join(console_args[1:]).strip())
+                    if selected_line_action():
+                        run_line_selected_action(console_args[1:])
+                    else:
+                        start_line_service(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "check":
+                try:
+                    run_line_selected_action(console_args[1:], dry_run_default=True)
                 except ValueError as exc:
                     print(exc)
                 continue
