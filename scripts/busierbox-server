@@ -21641,6 +21641,7 @@ def run_line_tui(cfg):
         print("Console commands:")
         print("  help [COMMAND], ?               show console command help")
         print("  search TERM                     search targets, services, actions, sessions, files, queue")
+        print("  resource FILE                   run console commands from a script file")
         print("  info                            show selected target/module context")
         print("  workspace, overview             show operator dashboard summary")
         print("  status, summary                 refresh workbench summary")
@@ -21676,6 +21677,41 @@ def run_line_tui(cfg):
         print("  quit, exit                      quit")
         print("Numeric actions are still available for prompted workflows.")
 
+    def load_line_resource(path_text):
+        text = str(path_text or "").strip()
+        if not text:
+            raise ValueError("usage: resource FILE")
+        path = Path(text).expanduser()
+        if not path.is_file():
+            raise ValueError(f"resource file not found: {text}")
+        try:
+            raw_lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            raise ValueError(f"could not read resource file: {exc}") from exc
+        commands = []
+        skipped_nested = 0
+        for raw in raw_lines:
+            line = raw.strip()
+            if not line or line.startswith("#"):
+                continue
+            try:
+                args = shlex.split(line)
+            except ValueError as exc:
+                raise ValueError(f"resource parse error: {exc}") from exc
+            if args and args[0].lower() == "resource":
+                skipped_nested += 1
+                continue
+            commands.append(line)
+            if len(commands) > 200:
+                raise ValueError("resource file has more than 200 commands")
+        print(f"Resource loaded: {path} commands={len(commands)} skipped_nested={skipped_nested}")
+        append_event(cfg, "workbench", "workbench_console_resource_loaded", details={
+            "path": str(path),
+            "command_count": len(commands),
+            "skipped_nested_count": skipped_nested,
+        })
+        return commands
+
     def print_line_command_help(topic):
         key = str(topic or "").strip().lower()
         if not key:
@@ -21686,6 +21722,11 @@ def run_line_tui(cfg):
                 "search TERM",
                 "  Searches targets, services, action modules, sessions, staged files, and queued commands.",
                 "  Example: search file-service",
+            ],
+            "resource": [
+                "resource FILE",
+                "  Runs console commands from FILE in order.",
+                "  Blank lines and # comments are ignored; nested resource commands are skipped.",
             ],
             "use": [
                 "use N",
@@ -22559,6 +22600,7 @@ def run_line_tui(cfg):
 
     render_full = False
     compact_next_prompt = False
+    pending_console_lines = []
     while not SHUTDOWN.is_set():
         snap = None
         if compact_next_prompt:
@@ -22592,7 +22634,11 @@ def run_line_tui(cfg):
             print(line_tui_status_bar(snap))
             print("")
             print_line_tui_actions()
-        line = line_input(line_tui_prompt())
+        if pending_console_lines:
+            line = pending_console_lines.pop(0)
+            print(f"{line_tui_prompt()}{line}")
+        else:
+            line = line_input(line_tui_prompt())
         if line is None:
             break
         choice = line.strip()
@@ -22611,6 +22657,12 @@ def run_line_tui(cfg):
                 choice = "q"
             elif cmd in {"help", "?"}:
                 print_line_command_help(console_args[1] if len(console_args) >= 2 else "")
+                continue
+            elif cmd == "resource":
+                try:
+                    pending_console_lines.extend(load_line_resource(" ".join(console_args[1:]).strip()))
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif cmd == "search":
                 try:

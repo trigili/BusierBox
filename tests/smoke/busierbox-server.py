@@ -9952,6 +9952,15 @@ def main():
         line_console_staged = Path(tmp) / "operator-session" / "line-console-staged.json"
         line_console_build = Path(tmp) / "line-console-build.conf"
         line_console_build.write_text('BB_RUNTIME_ROOT="./.busierbox"\n', encoding="utf-8")
+        line_console_resource = Path(tmp) / "line-console.rc"
+        line_console_resource.write_text(
+            "# smoke resource script\n"
+            "workspace\n"
+            "show listeners\n"
+            "search name=file-service\n"
+            "resource ignored-nested.rc\n",
+            encoding="utf-8",
+        )
         line_console_session = session_root / "20260101T000000-file-service"
         line_console_session.mkdir(parents=True, exist_ok=True)
         (line_console_session / "session.log").write_text("console session log\n", encoding="utf-8")
@@ -10009,10 +10018,12 @@ def main():
                 (
                     "help\n"
                     "help search\n"
+                    "help resource\n"
                     "help aliases\n"
                     "help use\n"
                     "help sessions\n"
                     "help setg\n"
+                    f"resource {line_console_resource}\n"
                     "workspace\n"
                     "search name=file-service\n"
                     "show agents\n"
@@ -10103,11 +10114,15 @@ def main():
                 "bbx[all]>" not in line_console_stdout or
                 "Console commands:" not in line_console_stdout or
                 "Help: search" not in line_console_stdout or
+                "Help: resource" not in line_console_stdout or
                 "Help: aliases" not in line_console_stdout or
                 "Help: use" not in line_console_stdout or
                 "Help: sessions" not in line_console_stdout or
                 "Help: setg" not in line_console_stdout or
                 "Workspace overview:" not in line_console_stdout or
+                f"Resource loaded: {line_console_resource}" not in line_console_stdout or
+                "commands=3 skipped_nested=1" not in line_console_stdout or
+                "bbx[all]> workspace" not in line_console_stdout or
                 "commands: search TERM, use N, agents, listeners, routes, stagers, queue COMMAND" not in line_console_stdout or
                 "Search results for name=file-service:" not in line_console_stdout or
                 "service file-service actual=" not in line_console_stdout or
@@ -10208,6 +10223,7 @@ def main():
                 not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/bbx-global" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_unset" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "name=file-service" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
