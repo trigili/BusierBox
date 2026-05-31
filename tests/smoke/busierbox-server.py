@@ -152,10 +152,25 @@ def main():
         return 1
     concise_help = help_out.stdout + help_out.stderr
     if ("BusierBox operator control plane." not in concise_help or
+            "--help-console prints interactive console commands and examples." not in concise_help or
             "--help-all prints every compatibility/API flag." not in concise_help or
             "--run-target-workflow-action" in concise_help):
         print("busierbox-server concise help did not stay operator-focused", file=sys.stderr)
         print(concise_help, file=sys.stderr)
+        return 1
+    help_console_out = run("scripts/busierbox-server", "--help-console")
+    if help_console_out.returncode != 0:
+        print(help_console_out.stderr, file=sys.stderr)
+        return 1
+    console_help = help_console_out.stdout + help_console_out.stderr
+    if ("BusierBox operator console reference." not in console_help or
+            "use agent ID|LABEL|NUMBER" not in console_help or
+            "serve-binary [PATH] [NAME]" not in console_help or
+            "resource FILE" not in console_help or
+            "!!, !N, repeat N" not in console_help or
+            "--run-target-workflow-action" in console_help):
+        print("busierbox-server console help did not stay console-focused", file=sys.stderr)
+        print(console_help, file=sys.stderr)
         return 1
     help_all_out = run("scripts/busierbox-server", "--help-all")
     if help_all_out.returncode != 0:
@@ -182,6 +197,7 @@ def main():
         print("busierbox-server help missing survey bootstrap mode", file=sys.stderr)
         return 1
     for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--run-release-artifact-workflow-action", "--list-staged", "--status", "--stop", "--stop-service", "--view-path", "--json-status", "--api-status", "--event-limit",
+                 "--help-console",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
                  "--run-service-workflow-action", "--service-workflow-dry-run", "--confirm-service-workflow-action",

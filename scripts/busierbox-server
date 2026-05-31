@@ -25168,7 +25168,49 @@ Interactive console:
   daemon/service lifecycle, generated commands, and build config.
 
 Reference:
+  --help-console prints interactive console commands and examples.
   --help-all prints every compatibility/API flag.
+""")
+
+
+def print_console_help_reference():
+    print("""\
+usage: busierbox-server --tui
+
+BusierBox operator console reference.
+
+Discovery:
+  workspace                     show fleet/listener/session overview
+  search TERM                   search agents, listeners, modules, sessions, files, queue
+  show agents|listeners|routes  list common operator resources
+  show stagers|loot|sessions    inspect files and sessions
+  help COMMAND                  focused help inside the console
+
+Context:
+  use N                         select a numbered search result
+  use agent ID|LABEL|NUMBER     select a target device
+  use listener SERVICE          select a service module
+  use module ACTION             select an action module
+  back                          clear selected module context
+  clear target                  return to all targets
+
+Operations:
+  serve-binary [PATH] [NAME]    stage a BusierBox binary for target fetch
+  queue COMMAND                 queue work for the selected/offline target
+  run [--dry-run] [--confirm]   run selected module
+  run -j                        start selected background-capable action as a job
+  jobs, jobs -k ID              list or cancel managed background jobs
+  sessions -i SESSION           inspect a session
+  daemon ACTION [--dry-run]     preview or run daemon/systemd workflow
+
+Automation:
+  resource FILE                 run console commands from a file
+  history [LIMIT]               show recent console commands
+  !!, !N, repeat N              replay previous commands
+  set KEY VALUE                 set selected target/build option
+  setg KEY VALUE                set global build/workbench option
+
+Headless equivalents remain available through --help-all.
 """)
 
 
@@ -25227,6 +25269,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="transport to listen for (overrides config)")
     parser.add_argument("--file-service", action="store_true",
                         help="receive target-initiated file uploads and store them under local/sessions")
+    parser.add_argument("--help-console", action="store_true",
+                        help="print interactive operator console command reference")
     parser.add_argument("--tui", action="store_true",
                         help="open the operator-side service/file staging workbench")
     parser.add_argument("--no-tui", action="store_true",
@@ -25450,6 +25494,9 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="seconds to allow a scripted shell session; 0 disables the limit")
     parser.add_argument("--managed-by", help=argparse.SUPPRESS)
     parser.add_argument("--process-log", help=argparse.SUPPRESS)
+    if "--help-console" in raw_argv:
+        print_console_help_reference()
+        return 0
     if any(arg in ("-h", "--help") for arg in raw_argv):
         print_concise_help()
         return 0
