@@ -21666,6 +21666,7 @@ def run_line_tui(cfg):
         print("  routes [-v], route NAME         list/select bridge routes")
         print("  route add NAME LPORT HOST DPORT [HOP ...] create a bridge route")
         print("  route start NAME, route stop NAME control a bridge route directly")
+        print("  route delete NAME               remove a bridge route profile")
         print("  targets, agent NAME, sessions   list/select agents or show sessions")
         print("  agents, listeners, routes       operator aliases for targets/services/bridges")
         print("  stagers, loot                   operator aliases for staged files")
@@ -21927,12 +21928,14 @@ def run_line_tui(cfg):
                 "route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]",
                 "route start NAME",
                 "route stop NAME",
+                "route delete NAME",
+                "route rm NAME",
                 "start route NAME",
                 "stop route NAME",
                 "start NAME",
                 "stop NAME",
                 "use route NAME",
-                "  Lists, creates, selects, starts, or stops bridge routes.",
+                "  Lists, creates, selects, starts, stops, or deletes bridge routes.",
                 "  Selected routes support info, options, start, stop, and run.",
                 "  HOP accepts the same FROM=TO, FROM->TO, or FROM,TO format as --bridge-hop.",
             ],
@@ -22298,7 +22301,7 @@ def run_line_tui(cfg):
             print(f"  route.start_command={bridge_profile_headless_command('start', route_name)}")
             print(f"  route.stop_command={bridge_profile_headless_command('stop', route_name)}")
             print(f"  route.delete_command={bridge_profile_headless_command('delete', route_name)}")
-            print("  route.next=info, start, stop, run, back")
+            print("  route.next=info, start, stop, route delete NAME, run, back")
         elif module.startswith("session/"):
             session_id = module.split("/", 1)[1]
             rec = line_session_record(session_id)
@@ -22782,7 +22785,7 @@ def run_line_tui(cfg):
     def print_line_routes(verbose=False):
         records = bridge_profile_records(cfg)
         print("Routes:")
-        print("  commands: routes -v, route add NAME LPORT HOST DPORT, route NAME, route start NAME, route stop NAME, use route NAME, use N")
+        print("  commands: routes -v, route add NAME LPORT HOST DPORT, route NAME, route start NAME, route stop NAME, route delete NAME, use route NAME, use N")
         search_records = []
         if not records:
             print("  No bridge profiles.")
@@ -22861,7 +22864,7 @@ def run_line_tui(cfg):
         print(f"  inspect: {bridge_profile_headless_command('inspect', name)}")
         print(f"  start: {bridge_profile_headless_command('start', name)}")
         print(f"  stop: {bridge_profile_headless_command('stop', name)}")
-        print("  next: info, options, start, stop, run, back")
+        print("  next: info, options, start, stop, route delete NAME, run, back")
         append_event(cfg, "workbench", "workbench_route_selected", details={
             "name": name,
             "route_path": selected.get("route_path", ""),
@@ -22905,7 +22908,7 @@ def run_line_tui(cfg):
             f"multi_hop={'yes' if rec.get('multi_hop') else 'no'}"
         )
         print(f"headless_command: {headless}")
-        print(f"next: route {rec.get('name', '')}, use route {rec.get('name', '')}, route start {rec.get('name', '')}")
+        print(f"next: route {rec.get('name', '')}, use route {rec.get('name', '')}, route start {rec.get('name', '')}, route delete {rec.get('name', '')}")
         append_event(cfg, "workbench", "workbench_bridge_profile_saved", details={
             "name": rec.get("name", ""),
             "route_path": rec.get("route_path", ""),
@@ -22956,6 +22959,29 @@ def run_line_tui(cfg):
             "name": name,
             "headless_command": headless,
         })
+
+    def delete_line_route(route_name):
+        name = str(route_name or "").strip()
+        if not name:
+            module = str(cfg.get("_line_console_module") or "")
+            if module.startswith("route/"):
+                name = module.split("/", 1)[1]
+        if not name:
+            raise ValueError("usage: route delete ROUTE")
+        if not line_route_record(name):
+            raise ValueError(f"route not found: {name}")
+        headless = bridge_profile_headless_command("delete", name)
+        rec = delete_bridge_profile(cfg, name)
+        if str(cfg.get("_line_console_module") or "") == f"route/{name}":
+            cfg.pop("_line_console_module", None)
+        print(f"deleted route {name}: {rec.get('route_path', '')}")
+        print(f"headless_command: {headless}")
+        append_event(cfg, "workbench", "workbench_route_deleted", details={
+            "name": name,
+            "route_path": rec.get("route_path", ""),
+            "headless_command": headless,
+        })
+        return rec
 
     def line_job_record(selector):
         text = str(selector or "").strip()
@@ -23267,10 +23293,10 @@ def run_line_tui(cfg):
             selector_prefix = "" if trailing_space else " ".join(parts[1:])
             route_values = route_names()
             if cmd == "route":
-                if len(parts) >= 2 and parts[1].lower() in {"start", "stop"}:
+                if len(parts) >= 2 and parts[1].lower() in {"start", "stop", "delete", "rm", "remove"}:
                     selector_prefix = "" if trailing_space else " ".join(parts[2:])
                     return [f"route {parts[1].lower()} {item}" for item in prefixed(selector_prefix, route_values)]
-                route_values = ["add", "print", "start", "stop"] + route_values
+                route_values = ["add", "print", "start", "stop", "delete", "rm"] + route_values
             return [f"{cmd} {item}" for item in prefixed(selector_prefix, route_values)]
         if cmd in {"session", "usesession", "interact"}:
             selector_prefix = "" if trailing_space else " ".join(parts[1:])
@@ -24476,6 +24502,11 @@ def run_line_tui(cfg):
                 elif cmd == "route" and route_subcmd == "stop":
                     try:
                         stop_line_route(" ".join(console_args[2:]).strip())
+                    except ValueError as exc:
+                        print(exc)
+                elif cmd == "route" and route_subcmd in {"delete", "rm", "remove"}:
+                    try:
+                        delete_line_route(" ".join(console_args[2:]).strip())
                     except ValueError as exc:
                         print(exc)
                 elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
@@ -26908,6 +26939,7 @@ Operations:
                                 create a reusable bridge route profile
   route start NAME, route stop NAME
                                 control a reusable bridge route profile
+  route delete NAME              remove a reusable bridge route profile
   queue COMMAND                 queue work for the selected/offline target
   run [MODULE] [--dry-run]      run selected or named module
   execute, exploit              aliases for run
