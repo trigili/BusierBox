@@ -62,5 +62,4 @@ tests/qemu-system/rootfs/
 
 # Local 
 local/*
-!local/.gitkeep
 configs/grit.conf
