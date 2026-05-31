@@ -10069,6 +10069,7 @@ def main():
                     "help modules\n"
                     "help routes\n"
                     "help next\n"
+                    "help main\n"
                     "help setg\n"
                     "help jobs\n"
                     "help history\n"
@@ -10150,6 +10151,8 @@ def main():
                     "targets\n"
                     "use agent Console Router\n"
                     "next\n"
+                    "main\n"
+                    "use agent Console Router\n"
                     "search Console Router\n"
                     "use 1\n"
                     "show options\n"
@@ -10217,6 +10220,7 @@ def main():
                 "Help: modules" not in line_console_stdout or
                 "Help: routes" not in line_console_stdout or
                 "Help: next" not in line_console_stdout or
+                "Help: main" not in line_console_stdout or
                 "Help: setg" not in line_console_stdout or
                 "Help: jobs" not in line_console_stdout or
                 "Help: history" not in line_console_stdout or
@@ -10251,7 +10255,9 @@ def main():
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
                 "use agent|listener|route NAME   select target, listener, or route context" not in line_console_stdout or
                 "use module NAME                 select an action module context" not in line_console_stdout or
+                "main, home, root                clear target/module context" not in line_console_stdout or
                 "back, background                clear selected module context" not in line_console_stdout or
+                "Clears selected target and module context, then returns to the top-level workspace." not in line_console_stdout or
                 "Shows context-sensitive suggested commands for the selected target/module." not in line_console_stdout or
                 "sessions [-l|-v], session ID    list or inspect sessions" not in line_console_stdout or
                 "interact SESSION, sessions -i   show local session inspection commands" not in line_console_stdout or
@@ -10290,6 +10296,8 @@ def main():
                 "commands: options, check, run, run --dry-run, run --confirm, background" not in line_console_stdout or
                 "commands: queue COMMAND, show activity, show options, serve-binary PATH NAME, clear target" not in line_console_stdout or
                 "help: help use, help modules, help routes, help sessions" not in line_console_stdout or
+                "returned to main workspace" not in line_console_stdout or
+                "cleared_module=no cleared_target=yes" not in line_console_stdout or
                 "Module categories:" not in line_console_stdout or
                 "commands: show service modules, show daemon modules, show target modules, show workbench modules" not in line_console_stdout or
                 "Module kind: service" not in line_console_stdout or
@@ -10410,6 +10418,7 @@ def main():
                 not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "root" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "route/console-route" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "action/operator-daemon-status" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_main_selected" and (event.get("details") or {}).get("cleared_target") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_listeners_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_routes_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_route_selected" and (event.get("details") or {}).get("name") == "console-route" for event in line_console_events) or

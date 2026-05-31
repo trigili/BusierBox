@@ -21671,6 +21671,7 @@ def run_line_tui(cfg):
         print("  use service SERVICE             select a service module context")
         print("  use action ACTION               select an action module context")
         print("  use target all, clear target    clear selected target context")
+        print("  main, home, root                clear target/module context")
         print("  back, background                clear selected module context")
         print("  start SERVICE, stop SERVICE     control a service directly")
         print("  check                           dry-run the selected action module")
@@ -21795,6 +21796,13 @@ def run_line_tui(cfg):
                 "use service SERVICE",
                 "use action ACTION",
                 "  Selects a numbered search/list/module result, target, session, route, service module, or action module context.",
+            ],
+            "main": [
+                "main",
+                "home",
+                "root",
+                "back all",
+                "  Clears selected target and module context, then returns to the top-level workspace.",
             ],
             "show": [
                 "show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options",
@@ -22275,6 +22283,23 @@ def run_line_tui(cfg):
             print("module context cleared")
         else:
             print("module context already root")
+
+    def clear_line_context():
+        had_module = bool(str(cfg.get("_line_console_module") or ""))
+        had_target = bool(configured_target_filter(cfg))
+        cfg.pop("_line_console_action_kind", None)
+        cfg.pop("_line_console_action_id", None)
+        cfg.pop("_line_console_module", None)
+        cfg.pop("_target_id_filter", None)
+        cfg.pop("_target_label_filter", None)
+        set_workbench_target_filter(cfg, "all", targets=[])
+        print("returned to main workspace")
+        print(f"  cleared_module={'yes' if had_module else 'no'} cleared_target={'yes' if had_target else 'no'}")
+        print("  next: workspace, agents, listeners, routes, sessions, show categories")
+        append_event(cfg, "workbench", "workbench_console_main_selected", details={
+            "cleared_module": had_module,
+            "cleared_target": had_target,
+        })
 
     def print_line_targets():
         unfiltered_cfg = dict(cfg)
@@ -23290,6 +23315,9 @@ def run_line_tui(cfg):
             elif cmd in {"workspace", "overview", "dashboard"}:
                 print_line_workspace()
                 continue
+            elif cmd in {"main", "home", "root"}:
+                clear_line_context()
+                continue
             elif cmd == "info":
                 print_line_info()
                 continue
@@ -23489,6 +23517,9 @@ def run_line_tui(cfg):
                     select_line_target("all", targets=[])
                 except ValueError as exc:
                     print(exc)
+                continue
+            elif cmd == "back" and len(console_args) >= 2 and console_args[1].lower() in {"all", "main", "root"}:
+                clear_line_context()
                 continue
             elif cmd in {"back", "background", "bg", "unset"}:
                 clear_line_module()
@@ -25765,6 +25796,7 @@ Context:
   use module ACTION             select an action module
   use session SESSION           inspect a session
   next                          show suggested commands for current context
+  main, home, root              clear selected target/module context
   back, background              clear selected module context
   clear target                  return to all targets
 
