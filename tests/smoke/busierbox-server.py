@@ -10150,6 +10150,11 @@ def main():
                     "sessions -i 1\n"
                     "interact 1\n"
                     "use session 1\n"
+                    "info\n"
+                    "options\n"
+                    "next\n"
+                    "interact\n"
+                    "back\n"
                     "targets\n"
                     "use agent Console Router\n"
                     "next\n"
@@ -10176,7 +10181,7 @@ def main():
                 ).encode("utf-8"),
             )
             line_console_chunks = []
-            deadline = time.time() + 5
+            deadline = time.time() + 8
             while line_console_proc.poll() is None and time.time() < deadline:
                 ready, _, _ = select.select([line_console_master], [], [], 0.1)
                 if ready:
@@ -10189,7 +10194,7 @@ def main():
                     os.write(line_console_master, b"q\n")
                 except OSError:
                     pass
-                quit_deadline = time.time() + 2
+                quit_deadline = time.time() + 3
                 while line_console_proc.poll() is None and time.time() < quit_deadline:
                     ready, _, _ = select.select([line_console_master], [], [], 0.1)
                     if ready:
@@ -10213,6 +10218,18 @@ def main():
                 os.close(line_console_master)
             except OSError:
                 pass
+        line_console_session_markers = [
+            "selected session ",
+            "bbx[all]/session/",
+            "session.id=",
+            "session.service=",
+            "session.view_command=scripts/busierbox-server --config",
+            "commands: info, options, interact, sessions -v, background",
+        ]
+        line_console_missing_markers = [
+            marker for marker in line_console_session_markers
+            if marker not in line_console_stdout
+        ]
         if ("Traceback" in (line_console_stderr or "") or
                 "bbx[all]>" not in line_console_stdout or
                 "Console commands:" not in line_console_stdout or
@@ -10350,6 +10367,7 @@ def main():
                 "commands: sessions -l, sessions -v, sessions -i ID, interact ID, use session ID, use N" not in line_console_stdout or
                 line_console_session.name not in line_console_stdout or
                 "Session interaction:" not in line_console_stdout or
+                line_console_missing_markers or
                 "next: view " not in line_console_stdout or
                 "tail: tail -n 40" not in line_console_stdout or
                 "events: tail -n 40" not in line_console_stdout or
@@ -10383,6 +10401,8 @@ def main():
                 "Target mailbox records:" not in line_console_stdout or
                 "target filter cleared" not in line_console_stdout):
             print("line-oriented TUI console commands did not expose expected UX", file=sys.stderr)
+            if line_console_missing_markers:
+                print(f"missing line console markers: {line_console_missing_markers}", file=sys.stderr)
             print(line_console_stdout, file=sys.stderr)
             print(line_console_stderr or "", file=sys.stderr)
             return 1
@@ -10412,6 +10432,7 @@ def main():
         if (line_console_status_doc.get("server_state", {}).get("services", {}).get("workbench", {}).get("selected_target_id", "") != "" or
                 not any(event.get("event") == "workbench_target_selected" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
+                not any(event.get("event") == "workbench_session_selected" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(event.get("event") == "workbench_sessions_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
