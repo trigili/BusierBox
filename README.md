@@ -84,7 +84,7 @@ Console help topics:
   sessions    list, select, inspect, interact
   files       stage, fetch, download, release, serve-binary, view
   probe       shell probe (pre-deployment): run probe.sh, see results, gen config
-  survey      full BusierBox survey (post-deployment): config, presets
+  survey      full griTTYkit survey (post-deployment): config, presets
   queue       command queue, mailbox, results
   routes      bridge profiles, multi-hop tunnels
   daemon      systemd workflow actions

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Decode a BusierBox support token and emit a rebuild-oriented .conf."""
+"""Decode a griTTYkit support token and emit a rebuild-oriented .conf."""
 
 import argparse
 import base64
@@ -23,8 +23,8 @@ try:
 except Exception as exc:
     raise SystemExit(f"config-from-support-token: invalid support token: {exc}")
 
-if doc.get("kind") != "busierbox-support-token":
-    raise SystemExit("config-from-support-token: token kind is not busierbox-support-token")
+if doc.get("kind") != "grit-support-token":
+    raise SystemExit("config-from-support-token: token kind is not grit-support-token")
 
 proc = subprocess.run(
     [sys.executable, "scripts/config-from-manifest", "-"],

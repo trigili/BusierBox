@@ -46,7 +46,7 @@ TOOL_SYMBOLS = {
     "mmc-utils": ["BR2_PACKAGE_MMC_UTILS"],
     "e2fsprogs": ["BR2_PACKAGE_E2FSPROGS"],
     "parted": ["BR2_PACKAGE_PARTED"],
-    "doom": ["BR2_PACKAGE_BUSIERBOX_DOOM_ASCII"],
+    "doom": ["BR2_PACKAGE_GRIPTYKIT_DOOM_ASCII"],
 }
 
 PROVIDER_ONLY = {
@@ -121,20 +121,20 @@ def issue_matches(issue, arch, libc, static_policy, provider):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--config", default="configs/busierbox.conf")
+    parser.add_argument("--config", default="configs/grit.conf")
     parser.add_argument("--buildroot-dir", default="buildroot/buildroot-2026.02.2")
-    parser.add_argument("--external-dir", default="buildroot/external/busierbox")
+    parser.add_argument("--external-dir", default="buildroot/external/grit")
     parser.add_argument("--compat", default="payloads/tool-compat.json")
     parser.add_argument("--tools", default="")
     parser.add_argument("--strict", action="store_true", help="exit nonzero for untested/provider-required mappings too")
     args = parser.parse_args()
 
     cfg = load_config(args.config)
-    arch = cfg.get("BB_TARGET_ARCH", "native")
-    libc = cfg.get("BB_TARGET_LIBC", "host")
-    static_policy = cfg.get("BB_STATIC_POLICY", "static-preferred")
-    gdb_provider = cfg.get("BB_GDBSERVER_PROVIDER", "auto")
-    tools = args.tools.split() if args.tools else (cfg.get("BB_HEAVY_TOOLS", "").split() or sorted(set(TOOL_SYMBOLS) | set(PROVIDER_ONLY)))
+    arch = cfg.get("GRIT_TARGET_ARCH", "native")
+    libc = cfg.get("GRIT_TARGET_LIBC", "host")
+    static_policy = cfg.get("GRIT_STATIC_POLICY", "static-preferred")
+    gdb_provider = cfg.get("GRIT_GDBSERVER_PROVIDER", "auto")
+    tools = args.tools.split() if args.tools else (cfg.get("GRIT_HEAVY_TOOLS", "").split() or sorted(set(TOOL_SYMBOLS) | set(PROVIDER_ONLY)))
 
     br = pathlib.Path(args.buildroot_dir)
     if not br.exists():

@@ -156,7 +156,7 @@ def doom_wad_lines(manifest):
 
 
 if len(sys.argv) != 2:
-    die("usage: scripts/inspect-artifact dist/busierbox-<target>")
+    die("usage: scripts/inspect-artifact dist/grit-<target>")
 
 path = pathlib.Path(sys.argv[1])
 data = path.read_bytes()

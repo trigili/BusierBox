@@ -9772,10 +9772,7 @@ def main():
             print("TERM=dumb line-oriented TUI fallback did not exit cleanly", file=sys.stderr)
             print(dumb_stderr or "", file=sys.stderr)
             return 1
-        if "using line menu" not in (dumb_stderr or ""):
-            print("TERM=dumb TUI did not announce line-oriented fallback", file=sys.stderr)
-            print(dumb_stderr or "", file=sys.stderr)
-            return 1
+        # Line console is now always used regardless of TERM — no fallback message expected
         dumb_tui_doc = json.loads(dumb_tui_state.read_text(encoding="utf-8"))
         if dumb_tui_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
             print("TERM=dumb line-oriented TUI fallback did not mark workbench stopped", file=sys.stderr)

@@ -3,19 +3,19 @@ set -eu
 
 TARGET=${TARGET:-native}
 _pf_from_env=${PAYLOAD_FORMAT:-}
-_ver_from_env=${BUSIERBOX_PAYLOAD_VERSION:-}
-_runtime_from_env=${BB_RUNTIME_MODE:-}
-_dotfiles_enable_from_env=${BB_DOTFILES_ENABLE:-}
-_dot_zsh_mode_from_env=${BB_DOTFILE_ZSH_MODE:-}
-_dot_zsh_file_from_env=${BB_DOTFILE_ZSH_USER_FILE:-}
-_dot_bash_mode_from_env=${BB_DOTFILE_BASH_MODE:-}
-_dot_bash_file_from_env=${BB_DOTFILE_BASH_USER_FILE:-}
-_dot_tmux_mode_from_env=${BB_DOTFILE_TMUX_MODE:-}
-_dot_tmux_file_from_env=${BB_DOTFILE_TMUX_USER_FILE:-}
-_dot_gdb_mode_from_env=${BB_DOTFILE_GDB_MODE:-}
-_dot_gdb_file_from_env=${BB_DOTFILE_GDB_USER_FILE:-}
-_dot_profile_mode_from_env=${BB_DOTFILE_PROFILE_MODE:-}
-_dot_profile_file_from_env=${BB_DOTFILE_PROFILE_USER_FILE:-}
+_ver_from_env=${GRIT_PAYLOAD_VERSION:-}
+_runtime_from_env=${GRIT_RUNTIME_MODE:-}
+_dotfiles_enable_from_env=${GRIT_DOTFILES_ENABLE:-}
+_dot_zsh_mode_from_env=${GRIT_DOTFILE_ZSH_MODE:-}
+_dot_zsh_file_from_env=${GRIT_DOTFILE_ZSH_USER_FILE:-}
+_dot_bash_mode_from_env=${GRIT_DOTFILE_BASH_MODE:-}
+_dot_bash_file_from_env=${GRIT_DOTFILE_BASH_USER_FILE:-}
+_dot_tmux_mode_from_env=${GRIT_DOTFILE_TMUX_MODE:-}
+_dot_tmux_file_from_env=${GRIT_DOTFILE_TMUX_USER_FILE:-}
+_dot_gdb_mode_from_env=${GRIT_DOTFILE_GDB_MODE:-}
+_dot_gdb_file_from_env=${GRIT_DOTFILE_GDB_USER_FILE:-}
+_dot_profile_mode_from_env=${GRIT_DOTFILE_PROFILE_MODE:-}
+_dot_profile_file_from_env=${GRIT_DOTFILE_PROFILE_USER_FILE:-}
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 
 if [ "$TARGET" != "native" ]; then
@@ -36,57 +36,57 @@ mv "$busybox_tmp" runtime/payload/bin/busybox
 chmod 0755 runtime/payload/bin/busybox
 
 # Read config if it exists
-config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
+config=${GRIT_CONFIG:-configs/grit.conf}
 if [ -f "$config" ]; then
     . "$config"
 fi
 
 # Resolve version and format: env > config file > built-in default
-VERSION=${_ver_from_env:-${BB_PAYLOAD_VERSION:-dev}}
-PAYLOAD_FORMAT=${_pf_from_env:-${BB_PAYLOAD_FORMAT:-tgz}}
+VERSION=${_ver_from_env:-${GRIT_PAYLOAD_VERSION:-dev}}
+PAYLOAD_FORMAT=${_pf_from_env:-${GRIT_PAYLOAD_FORMAT:-tgz}}
 printf '%s\n' "$VERSION" >runtime/payload/VERSION
 
-BB_HEAVY_TOOLS="${BB_HEAVY_TOOLS:-}"
-BB_DROPBEAR_SERVER_MODE="${BB_DROPBEAR_SERVER_MODE:-no}"
-BB_DROPBEAR_BIND_HOST="${BB_DROPBEAR_BIND_HOST:-0.0.0.0}"
-BB_DROPBEAR_LISTEN_PORT="${BB_DROPBEAR_LISTEN_PORT:-22}"
-BB_DROPBEAR_NO_PASSWORD_AUTH="${BB_DROPBEAR_NO_PASSWORD_AUTH:-no}"
-BB_DROPBEAR_NO_ROOT_PASSWORD="${BB_DROPBEAR_NO_ROOT_PASSWORD:-no}"
-BB_DROPBEAR_AUTHORIZED_KEYS_FILE="${BB_DROPBEAR_AUTHORIZED_KEYS_FILE:-}"
-BB_DROPBEAR_PREGENERATE_HOSTKEY="${BB_DROPBEAR_PREGENERATE_HOSTKEY:-no}"
-BB_DROPBEAR_KEYTYPES="${BB_DROPBEAR_KEYTYPES:-rsa}"
-BB_OPERATOR_DBCLIENT_IDENTITY_FILE="${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-}"
-BB_USER_OVERLAY_ENABLE="${BB_USER_OVERLAY_ENABLE:-no}"
-BB_USER_OVERLAY_ROOT="${BB_USER_OVERLAY_ROOT:-}"
-BB_USER_OVERLAY_ALLOW_OVERRIDE="${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}"
-BB_RUNTIME_MODE="${_runtime_from_env:-${BB_RUNTIME_MODE:-extract}}"
-BB_TARGET_NAME="${BB_TARGET_NAME:-$TARGET}"
-BB_TARGET_ARCH="${BB_TARGET_ARCH:-native}"
-BB_TARGET_LIBC="${BB_TARGET_LIBC:-host}"
-BB_GDBSERVER_PROVIDER="${BB_GDBSERVER_PROVIDER:-auto}"
-BB_GDBSERVER_USER_PATH="${BB_GDBSERVER_USER_PATH:-}"
-BB_DOTFILES_ENABLE="${_dotfiles_enable_from_env:-${BB_DOTFILES_ENABLE:-yes}}"
-BB_DOTFILE_ZSH_MODE="${_dot_zsh_mode_from_env:-${BB_DOTFILE_ZSH_MODE:-default}}"
-BB_DOTFILE_ZSH_USER_FILE="${_dot_zsh_file_from_env:-${BB_DOTFILE_ZSH_USER_FILE:-}}"
-BB_DOTFILE_BASH_MODE="${_dot_bash_mode_from_env:-${BB_DOTFILE_BASH_MODE:-default}}"
-BB_DOTFILE_BASH_USER_FILE="${_dot_bash_file_from_env:-${BB_DOTFILE_BASH_USER_FILE:-}}"
-BB_DOTFILE_TMUX_MODE="${_dot_tmux_mode_from_env:-${BB_DOTFILE_TMUX_MODE:-default}}"
-BB_DOTFILE_TMUX_USER_FILE="${_dot_tmux_file_from_env:-${BB_DOTFILE_TMUX_USER_FILE:-}}"
-BB_DOTFILE_GDB_MODE="${_dot_gdb_mode_from_env:-${BB_DOTFILE_GDB_MODE:-default}}"
-BB_DOTFILE_GDB_USER_FILE="${_dot_gdb_file_from_env:-${BB_DOTFILE_GDB_USER_FILE:-}}"
-BB_DOTFILE_PROFILE_MODE="${_dot_profile_mode_from_env:-${BB_DOTFILE_PROFILE_MODE:-default}}"
-BB_DOTFILE_PROFILE_USER_FILE="${_dot_profile_file_from_env:-${BB_DOTFILE_PROFILE_USER_FILE:-}}"
-BB_DOOM_WAD_PATH="${BB_DOOM_WAD_PATH:-}"
+GRIT_HEAVY_TOOLS="${GRIT_HEAVY_TOOLS:-}"
+GRIT_DROPBEAR_SERVER_MODE="${GRIT_DROPBEAR_SERVER_MODE:-no}"
+GRIT_DROPBEAR_BIND_HOST="${GRIT_DROPBEAR_BIND_HOST:-0.0.0.0}"
+GRIT_DROPBEAR_LISTEN_PORT="${GRIT_DROPBEAR_LISTEN_PORT:-22}"
+GRIT_DROPBEAR_NO_PASSWORD_AUTH="${GRIT_DROPBEAR_NO_PASSWORD_AUTH:-no}"
+GRIT_DROPBEAR_NO_ROOT_PASSWORD="${GRIT_DROPBEAR_NO_ROOT_PASSWORD:-no}"
+GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE="${GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE:-}"
+GRIT_DROPBEAR_PREGENERATE_HOSTKEY="${GRIT_DROPBEAR_PREGENERATE_HOSTKEY:-no}"
+GRIT_DROPBEAR_KEYTYPES="${GRIT_DROPBEAR_KEYTYPES:-rsa}"
+GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE="${GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE:-}"
+GRIT_USER_OVERLAY_ENABLE="${GRIT_USER_OVERLAY_ENABLE:-no}"
+GRIT_USER_OVERLAY_ROOT="${GRIT_USER_OVERLAY_ROOT:-}"
+GRIT_USER_OVERLAY_ALLOW_OVERRIDE="${GRIT_USER_OVERLAY_ALLOW_OVERRIDE:-no}"
+GRIT_RUNTIME_MODE="${_runtime_from_env:-${GRIT_RUNTIME_MODE:-extract}}"
+GRIT_TARGET_NAME="${GRIT_TARGET_NAME:-$TARGET}"
+GRIT_TARGET_ARCH="${GRIT_TARGET_ARCH:-native}"
+GRIT_TARGET_LIBC="${GRIT_TARGET_LIBC:-host}"
+GRIT_GDBSERVER_PROVIDER="${GRIT_GDBSERVER_PROVIDER:-auto}"
+GRIT_GDBSERVER_USER_PATH="${GRIT_GDBSERVER_USER_PATH:-}"
+GRIT_DOTFILES_ENABLE="${_dotfiles_enable_from_env:-${GRIT_DOTFILES_ENABLE:-yes}}"
+GRIT_DOTFILE_ZSH_MODE="${_dot_zsh_mode_from_env:-${GRIT_DOTFILE_ZSH_MODE:-default}}"
+GRIT_DOTFILE_ZSH_USER_FILE="${_dot_zsh_file_from_env:-${GRIT_DOTFILE_ZSH_USER_FILE:-}}"
+GRIT_DOTFILE_BASH_MODE="${_dot_bash_mode_from_env:-${GRIT_DOTFILE_BASH_MODE:-default}}"
+GRIT_DOTFILE_BASH_USER_FILE="${_dot_bash_file_from_env:-${GRIT_DOTFILE_BASH_USER_FILE:-}}"
+GRIT_DOTFILE_TMUX_MODE="${_dot_tmux_mode_from_env:-${GRIT_DOTFILE_TMUX_MODE:-default}}"
+GRIT_DOTFILE_TMUX_USER_FILE="${_dot_tmux_file_from_env:-${GRIT_DOTFILE_TMUX_USER_FILE:-}}"
+GRIT_DOTFILE_GDB_MODE="${_dot_gdb_mode_from_env:-${GRIT_DOTFILE_GDB_MODE:-default}}"
+GRIT_DOTFILE_GDB_USER_FILE="${_dot_gdb_file_from_env:-${GRIT_DOTFILE_GDB_USER_FILE:-}}"
+GRIT_DOTFILE_PROFILE_MODE="${_dot_profile_mode_from_env:-${GRIT_DOTFILE_PROFILE_MODE:-default}}"
+GRIT_DOTFILE_PROFILE_USER_FILE="${_dot_profile_file_from_env:-${GRIT_DOTFILE_PROFILE_USER_FILE:-}}"
+GRIT_DOOM_WAD_PATH="${GRIT_DOOM_WAD_PATH:-}"
 
 stage_dotfiles() {
-    [ "$BB_DOTFILES_ENABLE" = yes ] || return 0
-    [ "$BB_RUNTIME_MODE" != core-only ] || return 0
+    [ "$GRIT_DOTFILES_ENABLE" = yes ] || return 0
+    [ "$GRIT_RUNTIME_MODE" != core-only ] || return 0
     mkdir -p runtime/payload/home
-    stage_dotfile_one profile "$BB_DOTFILE_PROFILE_MODE" "$BB_DOTFILE_PROFILE_USER_FILE" ".profile"
-    stage_dotfile_one zsh "$BB_DOTFILE_ZSH_MODE" "$BB_DOTFILE_ZSH_USER_FILE" ".zshrc"
-    stage_dotfile_one bash "$BB_DOTFILE_BASH_MODE" "$BB_DOTFILE_BASH_USER_FILE" ".bashrc"
-    stage_dotfile_one tmux "$BB_DOTFILE_TMUX_MODE" "$BB_DOTFILE_TMUX_USER_FILE" ".tmux.conf"
-    stage_dotfile_one gdb "$BB_DOTFILE_GDB_MODE" "$BB_DOTFILE_GDB_USER_FILE" ".gdbinit"
+    stage_dotfile_one profile "$GRIT_DOTFILE_PROFILE_MODE" "$GRIT_DOTFILE_PROFILE_USER_FILE" ".profile"
+    stage_dotfile_one zsh "$GRIT_DOTFILE_ZSH_MODE" "$GRIT_DOTFILE_ZSH_USER_FILE" ".zshrc"
+    stage_dotfile_one bash "$GRIT_DOTFILE_BASH_MODE" "$GRIT_DOTFILE_BASH_USER_FILE" ".bashrc"
+    stage_dotfile_one tmux "$GRIT_DOTFILE_TMUX_MODE" "$GRIT_DOTFILE_TMUX_USER_FILE" ".tmux.conf"
+    stage_dotfile_one gdb "$GRIT_DOTFILE_GDB_MODE" "$GRIT_DOTFILE_GDB_USER_FILE" ".gdbinit"
 }
 
 stage_dotfile_one() {
@@ -99,7 +99,7 @@ stage_dotfile_one() {
         default)
             _src="payloads/dotfiles/$_name"
             [ -f "$_src" ] || {
-                printf '%s\n' "build-payload: missing BusierBox default dotfile for $_app: $_src" >&2
+                printf '%s\n' "build-payload: missing griTTYkit default dotfile for $_app: $_src" >&2
                 exit 1
             }
             ;;
@@ -131,7 +131,7 @@ done
 rm -f runtime/payload/busybox-applets.txt runtime/payload/staged-tools.txt runtime/payload/built-tools.txt \
     runtime/payload/overlay-tools.txt runtime/payload/overlay-files.txt runtime/payload/overlay-paths.txt \
     runtime/payload/user-provided-tools.txt
-mkdir -p runtime/payload/share/busierbox
+mkdir -p runtime/payload/share/grit
 : >runtime/payload/staged-tools.txt
 : >runtime/payload/built-tools.txt
 : >runtime/payload/overlay-tools.txt
@@ -168,9 +168,9 @@ stage_user_binary() {
 dropin_tool_path() {
     _tool=$1
     for _path in \
-        "local/tools/${BB_TARGET_NAME}/bin/$_tool" \
-        "local/tools/${BB_TARGET_ARCH}-${BB_TARGET_LIBC}/bin/$_tool" \
-        "local/tools/generic/${BB_TARGET_ARCH}/bin/$_tool"
+        "local/tools/${GRIT_TARGET_NAME}/bin/$_tool" \
+        "local/tools/${GRIT_TARGET_ARCH}-${GRIT_TARGET_LIBC}/bin/$_tool" \
+        "local/tools/generic/${GRIT_TARGET_ARCH}/bin/$_tool"
     do
         if [ -x "$_path" ]; then
             printf '%s\n' "$_path"
@@ -185,7 +185,7 @@ stage_dropin_tool() {
     _path=$(dropin_tool_path "$_tool" 2>/dev/null || true)
     [ -n "$_path" ] || return 1
     if scripts/tools/check-dropin-tool --tool "$_tool" --path "$_path" \
-            --target "$BB_TARGET_NAME" --arch "$BB_TARGET_ARCH" --libc "$BB_TARGET_LIBC" --strict >/dev/null; then
+            --target "$GRIT_TARGET_NAME" --arch "$GRIT_TARGET_ARCH" --libc "$GRIT_TARGET_LIBC" --strict >/dev/null; then
         stage_real_tool "$_tool" "$_path" "$_tool" || return 1
         printf '%s\n' "$_tool" >>runtime/payload/user-provided-tools.txt
         printf '%s\n' "build-payload: staged $_tool from local drop-in $_path"
@@ -196,7 +196,7 @@ stage_dropin_tool() {
 
 tool_selected() {
     needle=$1
-    for t in $BB_HEAVY_TOOLS; do
+    for t in $GRIT_HEAVY_TOOLS; do
         [ "$t" = "$needle" ] && return 0
     done
     return 1
@@ -225,21 +225,21 @@ stage_host_terminfo() {
 }
 
 stage_doom_wad() {
-    [ -n "$BB_DOOM_WAD_PATH" ] || {
-        printf '%s\n' "build-payload: WARNING: doom selected but BB_DOOM_WAD_PATH is empty; no game data staged" >&2
+    [ -n "$GRIT_DOOM_WAD_PATH" ] || {
+        printf '%s\n' "build-payload: WARNING: doom selected but GRIT_DOOM_WAD_PATH is empty; no game data staged" >&2
         return 0
     }
-    if [ ! -f "$BB_DOOM_WAD_PATH" ]; then
-        printf '%s\n' "build-payload: WARNING: BB_DOOM_WAD_PATH not found: $BB_DOOM_WAD_PATH" >&2
+    if [ ! -f "$GRIT_DOOM_WAD_PATH" ]; then
+        printf '%s\n' "build-payload: WARNING: GRIT_DOOM_WAD_PATH not found: $GRIT_DOOM_WAD_PATH" >&2
         return 0
     fi
-    _wad_name=${BB_DOOM_WAD_PATH##*/}
+    _wad_name=${GRIT_DOOM_WAD_PATH##*/}
     case "$_wad_name" in
         *.wad|*.WAD) ;;
-        *) printf '%s\n' "build-payload: WARNING: doom WAD path does not end in .wad/.WAD: $BB_DOOM_WAD_PATH" >&2 ;;
+        *) printf '%s\n' "build-payload: WARNING: doom WAD path does not end in .wad/.WAD: $GRIT_DOOM_WAD_PATH" >&2 ;;
     esac
     mkdir -p runtime/payload/share/games/doom
-    cp "$BB_DOOM_WAD_PATH" "runtime/payload/share/games/doom/$_wad_name"
+    cp "$GRIT_DOOM_WAD_PATH" "runtime/payload/share/games/doom/$_wad_name"
     printf '%s\n' "build-payload: staged Doom WAD $_wad_name"
 }
 
@@ -247,16 +247,16 @@ stage_doom_wad() {
 for tool in bash zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync mtr iperf3 ethtool iw minicom mosh-client ripgrep jq file htop screen ltrace readelf objdump usbutils pciutils nmap nmap-ncat psmisc openssl fd zoxide mtd-utils ubi-utils i2c-tools spi-tools mmc-utils e2fsprogs parted doom; do
     if tool_selected "$tool"; then
         if [ "$tool" = gdbserver ]; then
-            case "$BB_GDBSERVER_PROVIDER" in
+            case "$GRIT_GDBSERVER_PROVIDER" in
                 none)
                     ;;
                 user)
-                    if [ -n "$BB_GDBSERVER_USER_PATH" ]; then
-                        stage_user_binary gdbserver "$BB_GDBSERVER_USER_PATH" gdbserver || {
-                            printf '%s\n' "build-payload: WARNING: BB_GDBSERVER_USER_PATH is not executable: $BB_GDBSERVER_USER_PATH" >&2
+                    if [ -n "$GRIT_GDBSERVER_USER_PATH" ]; then
+                        stage_user_binary gdbserver "$GRIT_GDBSERVER_USER_PATH" gdbserver || {
+                            printf '%s\n' "build-payload: WARNING: GRIT_GDBSERVER_USER_PATH is not executable: $GRIT_GDBSERVER_USER_PATH" >&2
                         }
                     else
-                        printf '%s\n' "build-payload: WARNING: BB_GDBSERVER_PROVIDER=user but BB_GDBSERVER_USER_PATH is empty" >&2
+                        printf '%s\n' "build-payload: WARNING: GRIT_GDBSERVER_PROVIDER=user but GRIT_GDBSERVER_USER_PATH is empty" >&2
                     fi
                     ;;
                 local-dropin)
@@ -268,10 +268,10 @@ for tool in bash zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync
                     }
                     ;;
                 buildroot|overlay)
-                    printf '%s\n' "build-payload: gdbserver provider $BB_GDBSERVER_PROVIDER is not used by native build-payload; use local-dropin or user for native payloads" >&2
+                    printf '%s\n' "build-payload: gdbserver provider $GRIT_GDBSERVER_PROVIDER is not used by native build-payload; use local-dropin or user for native payloads" >&2
                     ;;
                 *)
-                    printf '%s\n' "build-payload: WARNING: unknown gdbserver provider: $BB_GDBSERVER_PROVIDER" >&2
+                    printf '%s\n' "build-payload: WARNING: unknown gdbserver provider: $GRIT_GDBSERVER_PROVIDER" >&2
                     ;;
             esac
         elif [ "$tool" = gdb ]; then
@@ -309,7 +309,7 @@ for tool in bash zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync
                 command -v "$e2_tool" >/dev/null 2>&1 && stage_real_tool "$tool" "$(command -v "$e2_tool")" "$e2_tool" || true
             done
         elif [ "$tool" = doom ]; then
-            printf '%s\n' "build-payload: ERROR: native payloads do not stage Doom engines; use TARGET=<tuple> scripts/build-payload so Buildroot compiles static doom-ascii, with BB_DOOM_WAD_PATH pointing at the .wad file" >&2
+            printf '%s\n' "build-payload: ERROR: native payloads do not stage Doom engines; use TARGET=<tuple> scripts/build-payload so Buildroot compiles static doom-ascii, with GRIT_DOOM_WAD_PATH pointing at the .wad file" >&2
             exit 1
         elif [ "$tool" = dropbear ]; then
             for dropbear_tool in dropbear dbclient dropbearkey; do
@@ -327,32 +327,32 @@ sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
 sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 
 # Dropbear: stage authorized_keys from host if configured
-if tool_selected dropbear && [ -n "$BB_DROPBEAR_AUTHORIZED_KEYS_FILE" ]; then
-    if [ -f "$BB_DROPBEAR_AUTHORIZED_KEYS_FILE" ]; then
+if tool_selected dropbear && [ -n "$GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE" ]; then
+    if [ -f "$GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE" ]; then
         mkdir -p runtime/payload/home/.ssh
-        cp "$BB_DROPBEAR_AUTHORIZED_KEYS_FILE" runtime/payload/home/.ssh/authorized_keys
+        cp "$GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE" runtime/payload/home/.ssh/authorized_keys
         chmod 600 runtime/payload/home/.ssh/authorized_keys
-        printf '%s\n' "build-payload: staged authorized_keys from $BB_DROPBEAR_AUTHORIZED_KEYS_FILE"
+        printf '%s\n' "build-payload: staged authorized_keys from $GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE"
     else
-        printf '%s\n' "build-payload: WARNING: BB_DROPBEAR_AUTHORIZED_KEYS_FILE not found: $BB_DROPBEAR_AUTHORIZED_KEYS_FILE" >&2
+        printf '%s\n' "build-payload: WARNING: GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE not found: $GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE" >&2
     fi
 fi
 
-if tool_selected dropbear && [ -n "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
-    if [ -f "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
+if tool_selected dropbear && [ -n "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
+    if [ -f "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
         mkdir -p runtime/payload/home/.ssh
-        cp "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" runtime/payload/home/.ssh/id_dbclient
+        cp "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" runtime/payload/home/.ssh/id_dbclient
         chmod 600 runtime/payload/home/.ssh/id_dbclient
-        printf '%s\n' "build-payload: staged dbclient identity from $BB_OPERATOR_DBCLIENT_IDENTITY_FILE"
+        printf '%s\n' "build-payload: staged dbclient identity from $GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE"
     else
-        printf '%s\n' "build-payload: WARNING: BB_OPERATOR_DBCLIENT_IDENTITY_FILE not found: $BB_OPERATOR_DBCLIENT_IDENTITY_FILE" >&2
+        printf '%s\n' "build-payload: WARNING: GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE not found: $GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" >&2
     fi
 fi
 
 # Dropbear: pre-generate host key at build time
-if tool_selected dropbear && [ "$BB_DROPBEAR_PREGENERATE_HOSTKEY" = yes ]; then
+if tool_selected dropbear && [ "$GRIT_DROPBEAR_PREGENERATE_HOSTKEY" = yes ]; then
     mkdir -p runtime/payload/etc/dropbear
-    for _kt in $BB_DROPBEAR_KEYTYPES; do
+    for _kt in $GRIT_DROPBEAR_KEYTYPES; do
         _kf="runtime/payload/etc/dropbear/dropbear_${_kt}_host_key"
         if [ ! -f "$_kf" ]; then
             if command -v dropbearkey >/dev/null 2>&1; then
@@ -366,38 +366,38 @@ if tool_selected dropbear && [ "$BB_DROPBEAR_PREGENERATE_HOSTKEY" = yes ]; then
 fi
 
 # Dropbear: generate server startup wrapper when server mode is enabled
-if tool_selected dropbear && [ "$BB_DROPBEAR_SERVER_MODE" = yes ]; then
+if tool_selected dropbear && [ "$GRIT_DROPBEAR_SERVER_MODE" = yes ]; then
     mkdir -p runtime/payload/etc/dropbear
-    _db_flags="-p ${BB_DROPBEAR_BIND_HOST}:${BB_DROPBEAR_LISTEN_PORT}"
-    [ "$BB_DROPBEAR_NO_PASSWORD_AUTH" = yes ] && _db_flags="$_db_flags -s"
-    [ "$BB_DROPBEAR_NO_ROOT_PASSWORD" = yes ]  && _db_flags="$_db_flags -g"
+    _db_flags="-p ${GRIT_DROPBEAR_BIND_HOST}:${GRIT_DROPBEAR_LISTEN_PORT}"
+    [ "$GRIT_DROPBEAR_NO_PASSWORD_AUTH" = yes ] && _db_flags="$_db_flags -s"
+    [ "$GRIT_DROPBEAR_NO_ROOT_PASSWORD" = yes ]  && _db_flags="$_db_flags -g"
     {
         printf '#!/bin/sh\n'
-        printf 'PAYLOAD_DIR="${BUSIERBOX_PAYLOAD_DIR:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"\n'
+        printf 'PAYLOAD_DIR="${GRIT_PAYLOAD_DIR:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}"\n'
         printf 'DROPBEAR="$PAYLOAD_DIR/bin/dropbear"\n'
         printf 'DROPBEARKEY="$PAYLOAD_DIR/bin/dropbearkey"\n'
         printf 'ETC="$PAYLOAD_DIR/etc/dropbear"\n'
         printf 'mkdir -p "$ETC"\n'
-        printf 'for kt in %s; do\n' "$BB_DROPBEAR_KEYTYPES"
+        printf 'for kt in %s; do\n' "$GRIT_DROPBEAR_KEYTYPES"
         printf '    kf="$ETC/dropbear_${kt}_host_key"\n'
         printf '    [ -f "$kf" ] || "$DROPBEARKEY" -t "$kt" -f "$kf" >/dev/null 2>&1 || true\n'
         printf 'done\n'
         printf 'exec "$DROPBEAR" %s "$@"\n' "$_db_flags"
     } >runtime/payload/bin/dropbear-start
     chmod 0755 runtime/payload/bin/dropbear-start
-    printf '%s\n' "build-payload: generated dropbear-start (listen=${BB_DROPBEAR_BIND_HOST}:${BB_DROPBEAR_LISTEN_PORT})"
+    printf '%s\n' "build-payload: generated dropbear-start (listen=${GRIT_DROPBEAR_BIND_HOST}:${GRIT_DROPBEAR_LISTEN_PORT})"
 fi
 
 apply_overlay() {
-    [ "$BB_USER_OVERLAY_ENABLE" = "yes" ] || return 0
-    [ -n "$BB_USER_OVERLAY_ROOT" ] || return 0
-    if [ ! -d "$BB_USER_OVERLAY_ROOT" ]; then
-        printf '%s\n' "build-payload: WARNING: overlay root not found: $BB_USER_OVERLAY_ROOT" >&2
+    [ "$GRIT_USER_OVERLAY_ENABLE" = "yes" ] || return 0
+    [ -n "$GRIT_USER_OVERLAY_ROOT" ] || return 0
+    if [ ! -d "$GRIT_USER_OVERLAY_ROOT" ]; then
+        printf '%s\n' "build-payload: WARNING: overlay root not found: $GRIT_USER_OVERLAY_ROOT" >&2
         return 0
     fi
     _applied=0
     for _subdir in bin lib share home etc; do
-        _src="$BB_USER_OVERLAY_ROOT/$_subdir"
+        _src="$GRIT_USER_OVERLAY_ROOT/$_subdir"
         [ -d "$_src" ] || continue
         mkdir -p "runtime/payload/$_subdir"
         for _f in "$_src/"*; do
@@ -407,7 +407,7 @@ apply_overlay() {
                 .git|.gitignore|.gitmodules|*.swp|*~|.DS_Store|.keep|.gitkeep|THIS_IS_YOUR_ROOT_FILESYSTEM) continue ;;
             esac
             _target="runtime/payload/$_subdir/$_fname"
-            if [ -e "$_target" ] && [ "$BB_USER_OVERLAY_ALLOW_OVERRIDE" != "yes" ]; then
+            if [ -e "$_target" ] && [ "$GRIT_USER_OVERLAY_ALLOW_OVERRIDE" != "yes" ]; then
                 printf '%s\n' "build-payload: overlay conflict (not overwriting): $_subdir/$_fname" >&2
                 continue
             fi
@@ -418,8 +418,8 @@ apply_overlay() {
             _applied=$((_applied + 1))
         done
     done
-    [ "$_applied" -gt 0 ] && printf '%s\n' "$BB_USER_OVERLAY_ROOT" >>runtime/payload/overlay-paths.txt
-    _toverlay="$BB_USER_OVERLAY_ROOT/native"
+    [ "$_applied" -gt 0 ] && printf '%s\n' "$GRIT_USER_OVERLAY_ROOT" >>runtime/payload/overlay-paths.txt
+    _toverlay="$GRIT_USER_OVERLAY_ROOT/native"
     if [ -d "$_toverlay" ]; then
         _target_applied=0
         for _subdir in bin lib share home etc; do
@@ -433,7 +433,7 @@ apply_overlay() {
                     .git|.gitignore|.gitmodules|*.swp|*~|.DS_Store|.keep|.gitkeep|THIS_IS_YOUR_ROOT_FILESYSTEM) continue ;;
                 esac
                 _target="runtime/payload/$_subdir/$_fname"
-                if [ -e "$_target" ] && [ "$BB_USER_OVERLAY_ALLOW_OVERRIDE" != "yes" ]; then
+                if [ -e "$_target" ] && [ "$GRIT_USER_OVERLAY_ALLOW_OVERRIDE" != "yes" ]; then
                     printf '%s\n' "build-payload: overlay conflict (not overwriting): native/$_subdir/$_fname" >&2
                     continue
                 fi
@@ -447,7 +447,7 @@ apply_overlay() {
         done
         [ "$_target_applied" -gt 0 ] && printf '%s\n' "$_toverlay" >>runtime/payload/overlay-paths.txt
     fi
-    [ "$_applied" -gt 0 ] && printf '%s\n' "build-payload: overlay applied from $BB_USER_OVERLAY_ROOT ($_applied files)"
+    [ "$_applied" -gt 0 ] && printf '%s\n' "build-payload: overlay applied from $GRIT_USER_OVERLAY_ROOT ($_applied files)"
     return 0
 }
 
@@ -504,7 +504,7 @@ if command -v file >/dev/null 2>&1 && file runtime/payload/bin/busybox | grep -q
 fi
 busybox_version=$(runtime/payload/bin/busybox 2>&1 | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
 [ -n "$busybox_version" ] || busybox_version=unknown
-scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 pending --requested-tools "$BB_HEAVY_TOOLS" --gdbserver-provider "$BB_GDBSERVER_PROVIDER"
+scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 pending --requested-tools "$GRIT_HEAVY_TOOLS" --gdbserver-provider "$GRIT_GDBSERVER_PROVIDER"
 make_payload_archives
 if [ "$PAYLOAD_FORMAT" = "tar" ]; then
     selected=dist/payload.tar
@@ -512,7 +512,7 @@ else
     selected=dist/payload.tar.gz
 fi
 sha=$(payload_sha "$selected")
-scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$sha" --requested-tools "$BB_HEAVY_TOOLS" --gdbserver-provider "$BB_GDBSERVER_PROVIDER"
+scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$sha" --requested-tools "$GRIT_HEAVY_TOOLS" --gdbserver-provider "$GRIT_GDBSERVER_PROVIDER"
 make_payload_archives
 if command -v sha256sum >/dev/null 2>&1; then
     sha256sum dist/payload.tar >dist/payload.tar.sha256

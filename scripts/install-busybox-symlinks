@@ -6,7 +6,7 @@ set -eu
 payload_dir=${1:-runtime/payload}
 bin_dir="$payload_dir/bin"
 applets_file="$payload_dir/busybox-applets.txt"
-diag_dir="$payload_dir/share/busierbox"
+diag_dir="$payload_dir/share/grit"
 
 [ -f "$applets_file" ] || {
     printf '%s\n' "install-busybox-symlinks: no applet list at $applets_file; skipping" >&2

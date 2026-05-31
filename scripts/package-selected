@@ -2,7 +2,7 @@
 set -eu
 
 target=${TARGET:-}
-config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
+config=${GRIT_CONFIG:-configs/grit.conf}
 
 if [ -n "$target" ]; then
     scripts/package-target "$target"
@@ -11,9 +11,9 @@ else
     if [ -f "$config" ]; then
         # shellcheck disable=SC1091
         . "$config"
-        targets=${BB_TARGETS:-}
-        if [ "$targets" = "native" ] && [ "${BB_TARGET_PRESET:-native}" != "native" ]; then
-            targets=$BB_TARGET_PRESET
+        targets=${GRIT_TARGETS:-}
+        if [ "$targets" = "native" ] && [ "${GRIT_TARGET_PRESET:-native}" != "native" ]; then
+            targets=$GRIT_TARGET_PRESET
         fi
     fi
     if [ -z "$targets" ]; then

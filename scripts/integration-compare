@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare two BusierBox integration summary files."""
+"""Compare two griTTYkit integration summary files."""
 
 import argparse
 import json

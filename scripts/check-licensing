@@ -8,8 +8,8 @@ sources_lock=${2:-manifests/sources.lock.json}
     printf '%s\n' "check-licensing: missing LICENSE" >&2
     exit 1
 }
-[ -f LICENSE.busierbox ] || {
-    printf '%s\n' "check-licensing: missing LICENSE.busierbox" >&2
+[ -f LICENSE.grit ] || {
+    printf '%s\n' "check-licensing: missing LICENSE.grit" >&2
     exit 1
 }
 [ -f NOTICE ] || {
@@ -27,10 +27,10 @@ sources_lock=${2:-manifests/sources.lock.json}
 
 grep -q 'GNU GENERAL PUBLIC LICENSE' LICENSE
 grep -q 'Version 2, June 1991' LICENSE
-grep -q 'SPDX-License-Identifier: GPL-2.0-or-later' LICENSE.busierbox
-grep -q 'Unless a file states a different license' LICENSE.busierbox
+grep -q 'SPDX-License-Identifier: GPL-2.0-or-later' LICENSE.grit
+grep -q 'Unless a file states a different license' LICENSE.grit
 grep -q 'GPL-2.0-or-later' NOTICE
-grep -q 'LICENSE.busierbox' NOTICE
+grep -q 'LICENSE.grit' NOTICE
 grep -q 'GPL-2.0-or-later' README.md
 grep -q 'GPL compatibility summary' docs/licensing.md
 
@@ -80,7 +80,7 @@ for item in sources.get("sources") or []:
 
 if project.get("license") != "GPL-2.0-or-later":
     raise SystemExit("check-licensing: project license must be GPL-2.0-or-later")
-if project.get("license_grant_file") != "LICENSE.busierbox":
+if project.get("license_grant_file") != "LICENSE.grit":
     raise SystemExit("check-licensing: project license grant file mapping is wrong")
 if project.get("license_file") != "LICENSE" or project.get("notice_file") != "NOTICE":
     raise SystemExit("check-licensing: project license/notice file mapping is wrong")
@@ -127,7 +127,7 @@ for key, needle in (
 ):
     if needle not in str(whole_project.get(key, "")):
         raise SystemExit(f"check-licensing: whole-project assessment {key} missing {needle}")
-if artifact_distribution.get("busierbox_project_terms") != "GPL-2.0-or-later":
+if artifact_distribution.get("grit_project_terms") != "GPL-2.0-or-later":
     raise SystemExit("check-licensing: artifact distribution project terms must be GPL-2.0-or-later")
 if artifact_distribution.get("ok_for_current_default_stack") is not True:
     raise SystemExit("check-licensing: artifact distribution must mark the current default stack as compatible")
@@ -154,16 +154,16 @@ for needle in ("recorded release commit", "manifests/sources.lock.json", "Buildr
     if needle not in source_inputs:
         raise SystemExit(f"check-licensing: corresponding source reconstruction inputs missing {needle}")
 bundle_inputs = set(str(item) for item in corresponding_source.get("release_bundle_inputs") or [])
-for needle in ("LICENSE", "LICENSE.busierbox", "NOTICE", "LICENSES/", "manifests/license-policy.json", "manifests/sources.lock.json", "sources.lock.json"):
+for needle in ("LICENSE", "LICENSE.grit", "NOTICE", "LICENSES/", "manifests/license-policy.json", "manifests/sources.lock.json", "sources.lock.json"):
     if needle not in bundle_inputs:
         raise SystemExit(f"check-licensing: corresponding source release inputs missing {needle}")
 guidance = "\n".join(str(item) for item in policy.get("distribution_guidance") or [])
-for needle in ("LICENSE.busierbox", "LICENSES/", "manifests/sources.lock.json", "sources.lock.json"):
+for needle in ("LICENSE.grit", "LICENSES/", "manifests/sources.lock.json", "sources.lock.json"):
     if needle not in guidance:
         raise SystemExit(f"check-licensing: distribution guidance missing {needle}")
 
 expected = {
-    "BusierBox": "GPL-2.0-or-later",
+    "griTTYkit": "GPL-2.0-or-later",
     "BusyBox": "GPL-2.0",
     "Buildroot": "GPL-2.0-or-later with package exceptions",
     "doom-ascii": "GPL-2.0-or-later",
@@ -175,7 +175,7 @@ for name, license_id in expected.items():
         raise SystemExit(f"check-licensing: missing component policy for {name}")
     if item.get("license") != license_id:
         raise SystemExit(f"check-licensing: {name} license mismatch: {item.get('license')!r}")
-    if name != "BusierBox" and not item.get("compatibility"):
+    if name != "griTTYkit" and not item.get("compatibility"):
         raise SystemExit(f"check-licensing: {name} compatibility note missing")
 
 for name, item in components.items():
@@ -238,7 +238,7 @@ notice_files = {
 notice_needles = {
     "BusyBox": ("GPL-2.0", "third_party/busybox/LICENSE"),
     "Buildroot": ("GPL-2.0-or-later", "manifests/sources.lock.json"),
-    "doom-ascii": ("GPL-2.0-or-later", "BB_DOOM_WAD_PATH"),
+    "doom-ascii": ("GPL-2.0-or-later", "GRIT_DOOM_WAD_PATH"),
     "miniz": ("third_party/miniz/LICENSE", "MIT"),
 }
 for name, path in notice_files.items():

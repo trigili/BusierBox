@@ -100,7 +100,7 @@ if libdir.exists():
     libs = sorted(p.name for p in libdir.iterdir() if p.is_file() or p.is_symlink())
 
 exclusion_notes = {}
-notes_file = payload / "share" / "busierbox" / "exclusion-reasons.txt"
+notes_file = payload / "share" / "grit" / "exclusion-reasons.txt"
 if notes_file.exists():
     for line in notes_file.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -119,7 +119,7 @@ user_provided = read_list(payload / "user-provided-tools.txt")
 overlay_files = read_list(payload / "overlay-files.txt")
 overlay_paths = read_list(payload / "overlay-paths.txt")
 overlay_warnings = []
-warn_file = payload / "share" / "busierbox" / "overlay-warnings.txt"
+warn_file = payload / "share" / "grit" / "overlay-warnings.txt"
 if warn_file.exists():
     overlay_warnings = [l.strip() for l in warn_file.read_text(encoding="utf-8").splitlines() if l.strip()]
 doom_wads = read_doom_wads(payload)
@@ -134,13 +134,13 @@ if "gdbserver" in requested or "gdbserver" in staged or args.gdbserver_provider 
     )
 
 symlink_count = 0
-count_file = payload / "share" / "busierbox" / "applet-symlink-count.txt"
+count_file = payload / "share" / "grit" / "applet-symlink-count.txt"
 if count_file.exists():
     try:
         symlink_count = int(count_file.read_text(encoding="utf-8").strip())
     except ValueError:
         pass
-symlink_skips = read_list(payload / "share" / "busierbox" / "applet-symlink-skips.txt")
+symlink_skips = read_list(payload / "share" / "grit" / "applet-symlink-skips.txt")
 
 manifest = {
     "target": args.target,
@@ -175,7 +175,7 @@ manifest = {
 
 (payload / "manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
-diag = payload / "share" / "busierbox"
+diag = payload / "share" / "grit"
 diag.mkdir(parents=True, exist_ok=True)
 if missing:
     (diag / "missing-tools.txt").write_text("\n".join(missing) + "\n", encoding="utf-8")

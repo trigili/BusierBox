@@ -72,7 +72,7 @@ text wc CONFIG_WC word count
 text tr CONFIG_TR translate chars
 text less CONFIG_LESS pager
 system dmesg CONFIG_DMESG kernel ring buffer
-system sysctl CONFIG_BB_SYSCTL sysctl
+system sysctl CONFIG_GRIT_SYSCTL sysctl
 system date CONFIG_DATE date
 system hexdump CONFIG_HEXDUMP hex dump
 system xxd CONFIG_XXD xxd hex dump
@@ -168,7 +168,7 @@ text wc CONFIG_WC
 text tr CONFIG_TR
 text less CONFIG_LESS
 system dmesg CONFIG_DMESG
-system sysctl CONFIG_BB_SYSCTL
+system sysctl CONFIG_GRIT_SYSCTL
 system date CONFIG_DATE
 system hexdump CONFIG_HEXDUMP
 system xxd CONFIG_XXD

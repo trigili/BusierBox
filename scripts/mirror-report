@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Summarize a BusierBox source mirror manifest."""
+"""Summarize a griTTYkit source mirror manifest."""
 
 import argparse
 import json
@@ -28,7 +28,7 @@ def main():
         "strict_ready": bool(manifest.get("strict_ready")),
         "total_sources": len(files),
         "total_bytes": total_bytes,
-        "busierbox_pinned_sources": len(lock_rows),
+        "grit_pinned_sources": len(lock_rows),
         "buildroot_dl_sources": len(br_files),
         "missing_or_failed": len(failures),
         "matrix_jobs": len(jobs),
@@ -42,7 +42,7 @@ def main():
     print(f"matrix_jobs={report['matrix_jobs']}")
     print(f"total_sources={report['total_sources']}")
     print(f"total_bytes={report['total_bytes']}")
-    print(f"busierbox_pinned_sources={report['busierbox_pinned_sources']}")
+    print(f"grit_pinned_sources={report['grit_pinned_sources']}")
     print(f"buildroot_dl_sources={report['buildroot_dl_sources']}")
     print(f"missing_or_failed={report['missing_or_failed']}")
     for failure in failures:

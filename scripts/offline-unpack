@@ -2,7 +2,7 @@
 set -eu
 
 if [ "$#" -ne 1 ]; then
-    printf '%s\n' "usage: scripts/offline-unpack busierbox-sdk-YYYYMMDD.tar.zst|tar.gz" >&2
+    printf '%s\n' "usage: scripts/offline-unpack grit-sdk-YYYYMMDD.tar.zst|tar.gz" >&2
     exit 2
 fi
 

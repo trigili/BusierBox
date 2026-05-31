@@ -16,14 +16,14 @@ STRICT_HEAVY_TOOLS=${STRICT_HEAVY_TOOLS:-0}
 PATH="$(pwd)/scripts/shims:$PATH"
 export PATH
 
-if [ "${BUSIERBOX_OFFLINE:-0}" = 1 ] && [ -n "${BUSIERBOX_MIRROR_DIR:-}" ]; then
-    _mirror_tar="$BUSIERBOX_MIRROR_DIR/busierbox-sources/buildroot-$BUILDROOT_VERSION.tar.xz"
-    [ -f "$_mirror_tar" ] || _mirror_tar="$BUSIERBOX_MIRROR_DIR/sources/buildroot-$BUILDROOT_VERSION.tar.xz"
-    [ -f "$_mirror_tar" ] || _mirror_tar="$BUSIERBOX_MIRROR_DIR/buildroot-dl/buildroot-$BUILDROOT_VERSION.tar.xz"
+if [ "${GRIT_OFFLINE:-0}" = 1 ] && [ -n "${GRIT_MIRROR_DIR:-}" ]; then
+    _mirror_tar="$GRIT_MIRROR_DIR/grit-sources/buildroot-$BUILDROOT_VERSION.tar.xz"
+    [ -f "$_mirror_tar" ] || _mirror_tar="$GRIT_MIRROR_DIR/sources/buildroot-$BUILDROOT_VERSION.tar.xz"
+    [ -f "$_mirror_tar" ] || _mirror_tar="$GRIT_MIRROR_DIR/buildroot-dl/buildroot-$BUILDROOT_VERSION.tar.xz"
     if [ -f "$_mirror_tar" ]; then
         BUILDROOT_TARBALL=$_mirror_tar
     else
-        printf '%s\n' "buildroot-build-payload: offline mode: missing Buildroot tarball in BUSIERBOX_MIRROR_DIR=$BUSIERBOX_MIRROR_DIR" >&2
+        printf '%s\n' "buildroot-build-payload: offline mode: missing Buildroot tarball in GRIT_MIRROR_DIR=$GRIT_MIRROR_DIR" >&2
         exit 1
     fi
 fi
@@ -63,13 +63,13 @@ ensure_buildroot() {
 
 stage_dotfiles() {
     mkdir -p runtime/payload/home
-    [ "${BB_DOTFILES_ENABLE:-yes}" = yes ] || return 0
-    [ "${BB_RUNTIME_MODE:-extract}" != core-only ] || return 0
-    stage_dotfile_one profile "${BB_DOTFILE_PROFILE_MODE:-default}" "${BB_DOTFILE_PROFILE_USER_FILE:-}" ".profile"
-    stage_dotfile_one zsh "${BB_DOTFILE_ZSH_MODE:-default}" "${BB_DOTFILE_ZSH_USER_FILE:-}" ".zshrc"
-    stage_dotfile_one bash "${BB_DOTFILE_BASH_MODE:-default}" "${BB_DOTFILE_BASH_USER_FILE:-}" ".bashrc"
-    stage_dotfile_one tmux "${BB_DOTFILE_TMUX_MODE:-default}" "${BB_DOTFILE_TMUX_USER_FILE:-}" ".tmux.conf"
-    stage_dotfile_one gdb "${BB_DOTFILE_GDB_MODE:-default}" "${BB_DOTFILE_GDB_USER_FILE:-}" ".gdbinit"
+    [ "${GRIT_DOTFILES_ENABLE:-yes}" = yes ] || return 0
+    [ "${GRIT_RUNTIME_MODE:-extract}" != core-only ] || return 0
+    stage_dotfile_one profile "${GRIT_DOTFILE_PROFILE_MODE:-default}" "${GRIT_DOTFILE_PROFILE_USER_FILE:-}" ".profile"
+    stage_dotfile_one zsh "${GRIT_DOTFILE_ZSH_MODE:-default}" "${GRIT_DOTFILE_ZSH_USER_FILE:-}" ".zshrc"
+    stage_dotfile_one bash "${GRIT_DOTFILE_BASH_MODE:-default}" "${GRIT_DOTFILE_BASH_USER_FILE:-}" ".bashrc"
+    stage_dotfile_one tmux "${GRIT_DOTFILE_TMUX_MODE:-default}" "${GRIT_DOTFILE_TMUX_USER_FILE:-}" ".tmux.conf"
+    stage_dotfile_one gdb "${GRIT_DOTFILE_GDB_MODE:-default}" "${GRIT_DOTFILE_GDB_USER_FILE:-}" ".gdbinit"
 }
 
 stage_dotfile_one() {
@@ -81,7 +81,7 @@ stage_dotfile_one() {
         none|"") return 0 ;;
         default)
             _src="payloads/dotfiles/$_name"
-            [ -f "$_src" ] || die "missing BusierBox default dotfile for $_app: $_src"
+            [ -f "$_src" ] || die "missing griTTYkit default dotfile for $_app: $_src"
             ;;
         user)
             [ -n "$_user_file" ] && [ -f "$_user_file" ] || die "$_app dotfile mode is user but file is missing: ${_user_file:-not set}"
@@ -181,9 +181,9 @@ stage_first_found_as() {
 }
 
 stage_doom_wad() {
-    _wad_path=${BB_DOOM_WAD_PATH:-}
-    [ -n "$_wad_path" ] || die "doom selected but BB_DOOM_WAD_PATH is empty"
-    [ -f "$_wad_path" ] || die "BB_DOOM_WAD_PATH not found: $_wad_path"
+    _wad_path=${GRIT_DOOM_WAD_PATH:-}
+    [ -n "$_wad_path" ] || die "doom selected but GRIT_DOOM_WAD_PATH is empty"
+    [ -f "$_wad_path" ] || die "GRIT_DOOM_WAD_PATH not found: $_wad_path"
     _wad_name=${_wad_path##*/}
     case "$_wad_name" in
         *.wad|*.WAD) ;;
@@ -198,7 +198,7 @@ write_doom_launcher() {
     [ -x runtime/payload/bin/doom-ascii ] || return 1
     cat >runtime/payload/bin/doom <<'EOF'
 #!/bin/sh
-PAYLOAD_DIR=${BUSIERBOX_PAYLOAD_DIR:-}
+PAYLOAD_DIR=${GRIT_PAYLOAD_DIR:-}
 if [ -z "$PAYLOAD_DIR" ]; then
     PAYLOAD_DIR=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd) || exit 1
 fi
@@ -246,8 +246,8 @@ check_bin_arch_warn() {
     esac
     if ! printf '%s\n' "$_fout" | grep -qi "$_want"; then
         printf '%s\n' "buildroot-build-payload: WARNING: '$_name' may not match target arch for ${TARGET:-}: $_fout" >&2
-        mkdir -p runtime/payload/share/busierbox
-        printf '%s\n' "arch-mismatch:$_name" >>runtime/payload/share/busierbox/overlay-warnings.txt
+        mkdir -p runtime/payload/share/grit
+        printf '%s\n' "arch-mismatch:$_name" >>runtime/payload/share/grit/overlay-warnings.txt
     fi
 }
 
@@ -262,7 +262,7 @@ require_static_payload_tool() {
     case "$_fout" in
         *ELF*statically\ linked*|*ELF*static-pie\ linked*) return 0 ;;
         *ELF*)
-            die "$_name must be statically linked for the BusierBox doom payload; got: $_fout"
+            die "$_name must be statically linked for the griTTYkit doom payload; got: $_fout"
             ;;
     esac
 }
@@ -323,7 +323,7 @@ stage_dropin_tool() {
 apply_overlay_dir() {
     _src=$1
     _label=$2
-    _warn="runtime/payload/share/busierbox/overlay-warnings.txt"
+    _warn="runtime/payload/share/grit/overlay-warnings.txt"
     [ -d "$_src" ] || return 0
     for _subdir in bin lib share home etc; do
         _subdir_src="$_src/$_subdir"
@@ -337,11 +337,11 @@ apply_overlay_dir() {
             esac
             _target="runtime/payload/$_subdir/$_fname"
             if [ -e "$_target" ]; then
-                if [ "$BB_USER_OVERLAY_ALLOW_OVERRIDE" = "yes" ]; then
+                if [ "$GRIT_USER_OVERLAY_ALLOW_OVERRIDE" = "yes" ]; then
                     printf '%s\n' "buildroot-build-payload: overlay [$_label] overriding: $_subdir/$_fname" >&2
                 else
-                    printf '%s\n' "buildroot-build-payload: overlay [$_label] conflict (not overwriting): $_subdir/$_fname — set BB_USER_OVERLAY_ALLOW_OVERRIDE=yes to override" >&2
-                    mkdir -p runtime/payload/share/busierbox
+                    printf '%s\n' "buildroot-build-payload: overlay [$_label] conflict (not overwriting): $_subdir/$_fname — set GRIT_USER_OVERLAY_ALLOW_OVERRIDE=yes to override" >&2
+                    mkdir -p runtime/payload/share/grit
                     printf '%s\n' "conflict:$_label:$_subdir/$_fname" >>"$_warn"
                     continue
                 fi
@@ -365,27 +365,27 @@ apply_overlay_dir() {
 }
 
 apply_overlays() {
-    [ "$BB_USER_OVERLAY_ENABLE" = "yes" ] || return 0
-    [ -n "${BB_USER_OVERLAY_ROOT:-}" ] || return 0
-    if [ ! -d "$BB_USER_OVERLAY_ROOT" ]; then
-        printf '%s\n' "buildroot-build-payload: WARNING: overlay root not found: $BB_USER_OVERLAY_ROOT" >&2
+    [ "$GRIT_USER_OVERLAY_ENABLE" = "yes" ] || return 0
+    [ -n "${GRIT_USER_OVERLAY_ROOT:-}" ] || return 0
+    if [ ! -d "$GRIT_USER_OVERLAY_ROOT" ]; then
+        printf '%s\n' "buildroot-build-payload: WARNING: overlay root not found: $GRIT_USER_OVERLAY_ROOT" >&2
         return 0
     fi
     # The overlay root is the common directory; a <TARGET>/ subdir is applied on top.
-    apply_overlay_dir "$BB_USER_OVERLAY_ROOT" "common"
-    printf '%s\n' "$BB_USER_OVERLAY_ROOT" >>runtime/payload/overlay-paths.txt
-    _toverlay="$BB_USER_OVERLAY_ROOT/$TARGET"
+    apply_overlay_dir "$GRIT_USER_OVERLAY_ROOT" "common"
+    printf '%s\n' "$GRIT_USER_OVERLAY_ROOT" >>runtime/payload/overlay-paths.txt
+    _toverlay="$GRIT_USER_OVERLAY_ROOT/$TARGET"
     if [ -d "$_toverlay" ]; then
         apply_overlay_dir "$_toverlay" "$TARGET"
         printf '%s\n' "$_toverlay" >>runtime/payload/overlay-paths.txt
     fi
-    printf '%s\n' "buildroot-build-payload: overlay applied from $BB_USER_OVERLAY_ROOT"
+    printf '%s\n' "buildroot-build-payload: overlay applied from $GRIT_USER_OVERLAY_ROOT"
 }
 
 write_exclusion_reasons() {
     _pre=$1
     _failed=$2
-    _dir="runtime/payload/share/busierbox"
+    _dir="runtime/payload/share/grit"
     mkdir -p "$_dir"
     _file="$_dir/exclusion-reasons.txt"
     : >"$_file"
@@ -431,50 +431,50 @@ write_manifest() {
         busybox_version=unknown
     fi
     [ -n "$busybox_version" ] || busybox_version=unknown
-    scripts/write-payload-manifest --target "$TARGET" --arch "$arch" --libc "$libc" --kernel-floor "$kernel_floor" --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$payload_sha" --requested-tools "$requested_tools" --overlay-enable "${BB_USER_OVERLAY_ENABLE:-no}" --overlay-root "${BB_USER_OVERLAY_ROOT:-}" --gdbserver-provider "$GDBSERVER_PROVIDER"
+    scripts/write-payload-manifest --target "$TARGET" --arch "$arch" --libc "$libc" --kernel-floor "$kernel_floor" --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$payload_sha" --requested-tools "$requested_tools" --overlay-enable "${GRIT_USER_OVERLAY_ENABLE:-no}" --overlay-root "${GRIT_USER_OVERLAY_ROOT:-}" --gdbserver-provider "$GDBSERVER_PROVIDER"
 }
 
 [ -f "$profile" ] || die "unknown TARGET=$TARGET; missing $profile"
 [ -f "$defconfig" ] || die "missing Buildroot defconfig $defconfig"
 requested_tools=$(profile_value REQUESTED_TOOLS)
 _profile_operator_identity=$(profile_value OPERATOR_DBCLIENT_IDENTITY_FILE 2>/dev/null || true)
-BB_OPERATOR_DBCLIENT_IDENTITY_FILE=${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-$_profile_operator_identity}
+GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE=${GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE:-$_profile_operator_identity}
 _profile_operator_authkey=$(profile_value OPERATOR_AUTHORIZED_KEY_FILE 2>/dev/null || true)
-BB_OPERATOR_AUTHORIZED_KEY_FILE=${BB_OPERATOR_AUTHORIZED_KEY_FILE:-$_profile_operator_authkey}
-BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-$(profile_value DOTFILES_ENABLE 2>/dev/null || true)}
-BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-$(profile_value DOTFILE_ZSH_MODE 2>/dev/null || true)}
-BB_DOTFILE_ZSH_USER_FILE=${BB_DOTFILE_ZSH_USER_FILE:-$(profile_value DOTFILE_ZSH_USER_FILE 2>/dev/null || true)}
-BB_DOTFILE_BASH_MODE=${BB_DOTFILE_BASH_MODE:-$(profile_value DOTFILE_BASH_MODE 2>/dev/null || true)}
-BB_DOTFILE_BASH_USER_FILE=${BB_DOTFILE_BASH_USER_FILE:-$(profile_value DOTFILE_BASH_USER_FILE 2>/dev/null || true)}
-BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-$(profile_value DOTFILE_TMUX_MODE 2>/dev/null || true)}
-BB_DOTFILE_TMUX_USER_FILE=${BB_DOTFILE_TMUX_USER_FILE:-$(profile_value DOTFILE_TMUX_USER_FILE 2>/dev/null || true)}
-BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-$(profile_value DOTFILE_GDB_MODE 2>/dev/null || true)}
-BB_DOTFILE_GDB_USER_FILE=${BB_DOTFILE_GDB_USER_FILE:-$(profile_value DOTFILE_GDB_USER_FILE 2>/dev/null || true)}
-BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-$(profile_value DOTFILE_PROFILE_MODE 2>/dev/null || true)}
-BB_DOTFILE_PROFILE_USER_FILE=${BB_DOTFILE_PROFILE_USER_FILE:-$(profile_value DOTFILE_PROFILE_USER_FILE 2>/dev/null || true)}
-BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-yes}
-BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-default}
-BB_DOTFILE_BASH_MODE=${BB_DOTFILE_BASH_MODE:-default}
-BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-default}
-BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-default}
-BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-default}
-BB_BUSYBOX_GROUPS=$(profile_value BUSYBOX_GROUPS 2>/dev/null || true)
+GRIT_OPERATOR_AUTHORIZED_KEY_FILE=${GRIT_OPERATOR_AUTHORIZED_KEY_FILE:-$_profile_operator_authkey}
+GRIT_DOTFILES_ENABLE=${GRIT_DOTFILES_ENABLE:-$(profile_value DOTFILES_ENABLE 2>/dev/null || true)}
+GRIT_DOTFILE_ZSH_MODE=${GRIT_DOTFILE_ZSH_MODE:-$(profile_value DOTFILE_ZSH_MODE 2>/dev/null || true)}
+GRIT_DOTFILE_ZSH_USER_FILE=${GRIT_DOTFILE_ZSH_USER_FILE:-$(profile_value DOTFILE_ZSH_USER_FILE 2>/dev/null || true)}
+GRIT_DOTFILE_BASH_MODE=${GRIT_DOTFILE_BASH_MODE:-$(profile_value DOTFILE_BASH_MODE 2>/dev/null || true)}
+GRIT_DOTFILE_BASH_USER_FILE=${GRIT_DOTFILE_BASH_USER_FILE:-$(profile_value DOTFILE_BASH_USER_FILE 2>/dev/null || true)}
+GRIT_DOTFILE_TMUX_MODE=${GRIT_DOTFILE_TMUX_MODE:-$(profile_value DOTFILE_TMUX_MODE 2>/dev/null || true)}
+GRIT_DOTFILE_TMUX_USER_FILE=${GRIT_DOTFILE_TMUX_USER_FILE:-$(profile_value DOTFILE_TMUX_USER_FILE 2>/dev/null || true)}
+GRIT_DOTFILE_GDB_MODE=${GRIT_DOTFILE_GDB_MODE:-$(profile_value DOTFILE_GDB_MODE 2>/dev/null || true)}
+GRIT_DOTFILE_GDB_USER_FILE=${GRIT_DOTFILE_GDB_USER_FILE:-$(profile_value DOTFILE_GDB_USER_FILE 2>/dev/null || true)}
+GRIT_DOTFILE_PROFILE_MODE=${GRIT_DOTFILE_PROFILE_MODE:-$(profile_value DOTFILE_PROFILE_MODE 2>/dev/null || true)}
+GRIT_DOTFILE_PROFILE_USER_FILE=${GRIT_DOTFILE_PROFILE_USER_FILE:-$(profile_value DOTFILE_PROFILE_USER_FILE 2>/dev/null || true)}
+GRIT_DOTFILES_ENABLE=${GRIT_DOTFILES_ENABLE:-yes}
+GRIT_DOTFILE_ZSH_MODE=${GRIT_DOTFILE_ZSH_MODE:-default}
+GRIT_DOTFILE_BASH_MODE=${GRIT_DOTFILE_BASH_MODE:-default}
+GRIT_DOTFILE_TMUX_MODE=${GRIT_DOTFILE_TMUX_MODE:-default}
+GRIT_DOTFILE_GDB_MODE=${GRIT_DOTFILE_GDB_MODE:-default}
+GRIT_DOTFILE_PROFILE_MODE=${GRIT_DOTFILE_PROFILE_MODE:-default}
+GRIT_BUSYBOX_GROUPS=$(profile_value BUSYBOX_GROUPS 2>/dev/null || true)
 pre_excluded=$(profile_value EXCLUDED_TOOLS 2>/dev/null || true)
 GDBSERVER_PROVIDER=$(profile_value GDBSERVER_PROVIDER 2>/dev/null || true)
 GDBSERVER_USER_PATH=$(profile_value GDBSERVER_USER_PATH 2>/dev/null || true)
-BB_DOOM_WAD_PATH=${BB_DOOM_WAD_PATH:-$(profile_value DOOM_WAD_PATH 2>/dev/null || true)}
+GRIT_DOOM_WAD_PATH=${GRIT_DOOM_WAD_PATH:-$(profile_value DOOM_WAD_PATH 2>/dev/null || true)}
 TARGET_STATIC_POLICY=$(profile_value STATIC_POLICY 2>/dev/null || true)
-BB_USER_OVERLAY_ENABLE=$(profile_value USER_OVERLAY_ENABLE 2>/dev/null || true)
-BB_USER_OVERLAY_ROOT=$(profile_value USER_OVERLAY_ROOT 2>/dev/null || true)
-BB_USER_OVERLAY_ALLOW_OVERRIDE=$(profile_value USER_OVERLAY_ALLOW_OVERRIDE 2>/dev/null || true)
+GRIT_USER_OVERLAY_ENABLE=$(profile_value USER_OVERLAY_ENABLE 2>/dev/null || true)
+GRIT_USER_OVERLAY_ROOT=$(profile_value USER_OVERLAY_ROOT 2>/dev/null || true)
+GRIT_USER_OVERLAY_ALLOW_OVERRIDE=$(profile_value USER_OVERLAY_ALLOW_OVERRIDE 2>/dev/null || true)
 GDBSERVER_PROVIDER=${GDBSERVER_PROVIDER:-auto}
-BB_USER_OVERLAY_ENABLE=${BB_USER_OVERLAY_ENABLE:-no}
-BB_USER_OVERLAY_ALLOW_OVERRIDE=${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}
-BB_DOOM_WAD_PATH=${BB_DOOM_WAD_PATH:-}
+GRIT_USER_OVERLAY_ENABLE=${GRIT_USER_OVERLAY_ENABLE:-no}
+GRIT_USER_OVERLAY_ALLOW_OVERRIDE=${GRIT_USER_OVERLAY_ALLOW_OVERRIDE:-no}
+GRIT_DOOM_WAD_PATH=${GRIT_DOOM_WAD_PATH:-}
 
 if tool_requested doom; then
-    [ -n "$BB_DOOM_WAD_PATH" ] || die "doom selected but BB_DOOM_WAD_PATH is empty; provide a local legally usable .wad file"
-    [ -f "$BB_DOOM_WAD_PATH" ] || die "BB_DOOM_WAD_PATH not found: $BB_DOOM_WAD_PATH"
+    [ -n "$GRIT_DOOM_WAD_PATH" ] || die "doom selected but GRIT_DOOM_WAD_PATH is empty; provide a local legally usable .wad file"
+    [ -f "$GRIT_DOOM_WAD_PATH" ] || die "GRIT_DOOM_WAD_PATH not found: $GRIT_DOOM_WAD_PATH"
 fi
 
 ensure_buildroot
@@ -488,21 +488,21 @@ printf '%s\n' "configuring Buildroot payload for $TARGET..."
 cp "$defconfig" "$out_dir/.config"
 _br_dl_args=
 [ -n "${BUILDROOT_DL_DIR:-}" ] && _br_dl_args="BR2_DL_DIR=$BUILDROOT_DL_DIR"
-make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" $_br_dl_args olddefconfig
-if [ "${BUSIERBOX_BUILDROOT_CONFIG_ONLY:-0}" = "1" ]; then
+make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/grit" $_br_dl_args olddefconfig
+if [ "${GRIT_BUILDROOT_CONFIG_ONLY:-0}" = "1" ]; then
     printf '%s\n' "Buildroot configuration validated for $TARGET"
     exit 0
 fi
 
 if tool_requested socat && [ "${TARGET_STATIC_POLICY:-}" = dynamic ]; then
     printf '%s\n' "buildroot-build-payload: rebuilding socat for TLS/OpenSSL dynamic payload support"
-    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" $_br_dl_args socat-dirclean >/dev/null 2>&1 || true
+    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/grit" $_br_dl_args socat-dirclean >/dev/null 2>&1 || true
 fi
 
 printf '%s\n' "building Buildroot BusyBox payload for $TARGET..."
 build_failed_tools=
 _build_ok=0
-if make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" $_br_dl_args -j"$JOBS"; then
+if make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/grit" $_br_dl_args -j"$JOBS"; then
     _build_ok=1
 fi
 
@@ -562,8 +562,8 @@ if [ "$_build_ok" = "0" ]; then
     printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=n" >>"$_retry_cfg"
     cp "$_retry_cfg" "$out_dir/.config"
     rm -f "$_retry_cfg"
-    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" $_br_dl_args olddefconfig
-    if ! make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/busierbox" $_br_dl_args -j"$JOBS"; then
+    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/grit" $_br_dl_args olddefconfig
+    if ! make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/grit" $_br_dl_args -j"$JOBS"; then
         die "Buildroot build failed even without optional heavy tools for $TARGET; inspect $out_dir/build"
     fi
 fi
@@ -589,7 +589,7 @@ rm -f runtime/payload/staged-tools.txt runtime/payload/built-tools.txt \
 : >runtime/payload/staged-tools.txt
 : >runtime/payload/built-tools.txt
 : >runtime/payload/user-provided-tools.txt
-mkdir -p runtime/payload/share/busierbox
+mkdir -p runtime/payload/share/grit
 
 if tool_requested strace; then
     stage_first_found strace usr/bin/strace bin/strace || printf '%s\n' "buildroot-build-payload: requested strace but no built binary was found" >&2
@@ -643,24 +643,24 @@ fi
 if tool_requested dropbear; then
     stage_first_found dropbear usr/sbin/dropbear sbin/dropbear usr/bin/dbclient bin/dbclient usr/bin/dropbearkey bin/dropbearkey || printf '%s\n' "buildroot-build-payload: requested dropbear but no built binary was found" >&2
 fi
-if tool_requested dropbear && [ -n "${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-}" ]; then
-    if [ -f "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
+if tool_requested dropbear && [ -n "${GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE:-}" ]; then
+    if [ -f "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
         mkdir -p runtime/payload/home/.ssh
-        cp "$BB_OPERATOR_DBCLIENT_IDENTITY_FILE" runtime/payload/home/.ssh/id_dbclient
+        cp "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" runtime/payload/home/.ssh/id_dbclient
         chmod 600 runtime/payload/home/.ssh/id_dbclient
-        printf '%s\n' "buildroot-build-payload: staged dbclient identity from $BB_OPERATOR_DBCLIENT_IDENTITY_FILE"
+        printf '%s\n' "buildroot-build-payload: staged dbclient identity from $GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE"
     else
-        printf '%s\n' "buildroot-build-payload: WARNING: BB_OPERATOR_DBCLIENT_IDENTITY_FILE not found: $BB_OPERATOR_DBCLIENT_IDENTITY_FILE" >&2
+        printf '%s\n' "buildroot-build-payload: WARNING: GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE not found: $GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" >&2
     fi
 fi
-if tool_requested dropbear && [ -n "${BB_OPERATOR_AUTHORIZED_KEY_FILE:-}" ]; then
-    if [ -f "$BB_OPERATOR_AUTHORIZED_KEY_FILE" ]; then
+if tool_requested dropbear && [ -n "${GRIT_OPERATOR_AUTHORIZED_KEY_FILE:-}" ]; then
+    if [ -f "$GRIT_OPERATOR_AUTHORIZED_KEY_FILE" ]; then
         mkdir -p runtime/payload/home/.ssh
-        cp "$BB_OPERATOR_AUTHORIZED_KEY_FILE" runtime/payload/home/.ssh/authorized_keys
+        cp "$GRIT_OPERATOR_AUTHORIZED_KEY_FILE" runtime/payload/home/.ssh/authorized_keys
         chmod 600 runtime/payload/home/.ssh/authorized_keys
-        printf '%s\n' "buildroot-build-payload: staged operator authorized_keys from $BB_OPERATOR_AUTHORIZED_KEY_FILE"
+        printf '%s\n' "buildroot-build-payload: staged operator authorized_keys from $GRIT_OPERATOR_AUTHORIZED_KEY_FILE"
     else
-        printf '%s\n' "buildroot-build-payload: WARNING: BB_OPERATOR_AUTHORIZED_KEY_FILE not found: $BB_OPERATOR_AUTHORIZED_KEY_FILE" >&2
+        printf '%s\n' "buildroot-build-payload: WARNING: GRIT_OPERATOR_AUTHORIZED_KEY_FILE not found: $GRIT_OPERATOR_AUTHORIZED_KEY_FILE" >&2
     fi
 fi
 if tool_requested bash; then
@@ -772,10 +772,10 @@ if tool_requested doom; then
     stage_doom_wad
     if stage_first_found_as doom doom-ascii usr/bin/doom bin/doom usr/games/doom; then
         require_static_payload_tool runtime/payload/bin/doom-ascii "doom-ascii"
-        if [ -f "$out_dir/target/usr/share/busierbox/doom/.default.cfg" ]; then
+        if [ -f "$out_dir/target/usr/share/grit/doom/.default.cfg" ]; then
             mkdir -p runtime/payload/share/doom
-            cp "$out_dir/target/usr/share/busierbox/doom/.default.cfg" runtime/payload/share/doom/.default.cfg
-            cp "$out_dir/target/usr/share/busierbox/doom/.default.cfg" runtime/payload/bin/.default.cfg
+            cp "$out_dir/target/usr/share/grit/doom/.default.cfg" runtime/payload/share/doom/.default.cfg
+            cp "$out_dir/target/usr/share/grit/doom/.default.cfg" runtime/payload/bin/.default.cfg
         fi
         write_doom_launcher || printf '%s\n' "buildroot-build-payload: requested doom but launcher could not be written" >&2
     else
@@ -820,7 +820,7 @@ sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
 sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
 
 stage_dotfiles
-printf '%s\n' "${BUSIERBOX_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
+printf '%s\n' "${GRIT_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
 
 write_exclusion_reasons "${pre_excluded:-}" "${build_failed_tools:-}"
 static_status=$(copy_shared_libs_for_dynamic_payload_tools "$static_status")

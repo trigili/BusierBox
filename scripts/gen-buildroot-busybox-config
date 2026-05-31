@@ -2,14 +2,14 @@
 set -eu
 
 # Generates buildroot/generated-configs/<target>-busybox.config
-# based on BB_BUSYBOX_GROUPS plus applet overrides.
-# Usage: BB_BUSYBOX_GROUPS="..." TARGET=<name> scripts/gen-buildroot-busybox-config
+# based on GRIT_BUSYBOX_GROUPS plus applet overrides.
+# Usage: GRIT_BUSYBOX_GROUPS="..." TARGET=<name> scripts/gen-buildroot-busybox-config
 # Prints the path to the generated config file.
 
 TARGET=${TARGET:-native}
-GROUPS="${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}"
-APPLETS="${BB_BUSYBOX_APPLETS:-}"
-OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}"
+GROUPS="${GRIT_BUSYBOX_GROUPS:-shell fileops disk process network text system}"
+APPLETS="${GRIT_BUSYBOX_APPLETS:-}"
+OVERRIDES="${GRIT_BUSYBOX_APPLET_OVERRIDES:-}"
 BUILDROOT_VERSION="${BUILDROOT_VERSION:-2026.02.2}"
 BUILDROOT_DIR="${BUILDROOT_DIR:-buildroot/buildroot-$BUILDROOT_VERSION}"
 OUT_DIR="${OUT_DIR:-buildroot/generated-configs}"

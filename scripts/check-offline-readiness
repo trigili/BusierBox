@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check whether a BusierBox source mirror is ready for offline use."""
+"""Check whether a griTTYkit source mirror is ready for offline use."""
 
 import argparse
 import hashlib
@@ -8,7 +8,7 @@ import pathlib
 import subprocess
 import sys
 
-import busierbox_matrix as matrix
+import grit_matrix as matrix
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -32,7 +32,7 @@ def check_lock_sources(mirror, lock):
     for src in lock.get("sources", []):
         filename = pathlib.Path(src["filename"]).name
         candidates = [
-            mirror / "busierbox-sources" / filename,
+            mirror / "grit-sources" / filename,
             mirror / "sources" / filename,
             mirror / "buildroot-dl" / filename,
         ]

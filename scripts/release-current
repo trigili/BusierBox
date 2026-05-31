@@ -10,8 +10,8 @@ case "$target_arg" in
     -h|--help) usage; exit 0 ;;
 esac
 
-if [ -f configs/busierbox.conf ]; then
-    . ./configs/busierbox.conf
+if [ -f configs/grit.conf ]; then
+    . ./configs/grit.conf
 fi
 
 if [ "$target_arg" = --config ] || [ "$target_arg" = config ]; then
@@ -28,13 +28,13 @@ fi
 eval "$resolved"
 
 target=$TARGET_NAME
-version=${BB_PAYLOAD_VERSION:-dev}
-release_name=${BB_RELEASE_NAME:-$version-$target}
-release_dir=${BB_RELEASE_DIR:-dist/releases/$release_name}
+version=${GRIT_PAYLOAD_VERSION:-dev}
+release_name=${GRIT_RELEASE_NAME:-$version-$target}
+release_dir=${GRIT_RELEASE_DIR:-dist/releases/$release_name}
 
 TARGET="$target_arg" VERIFY=1 scripts/package-selected
 
-artifact="dist/busierbox-$target-full"
+artifact="dist/grit-$target-full"
 [ -f "$artifact" ] || {
     printf '%s\n' "release-current: artifact missing after package: $artifact" >&2
     exit 1

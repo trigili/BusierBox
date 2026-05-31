@@ -201,12 +201,12 @@ def run(cmd, cwd, log):
 
 
 if len(sys.argv) != 2:
-    die("usage: scripts/verify-artifact dist/busierbox-<target>")
+    die("usage: scripts/verify-artifact dist/grit-<target>")
 
 artifact = pathlib.Path(sys.argv[1]).resolve()
 meta, manifest, members, contents = read_payload(artifact)
 verify_static(meta, manifest, members, contents)
-target = manifest.get("target") or artifact.name.replace("busierbox-", "")
+target = manifest.get("target") or artifact.name.replace("grit-", "")
 artdir = pathlib.Path("tests/artifacts/verify-artifact") / target
 artdir.mkdir(parents=True, exist_ok=True)
 
@@ -231,33 +231,33 @@ if not backend:
     print(f"verify-artifact: skip execution for {target}; qemu-user not available for arch={arch}")
     raise SystemExit(0)
 
-with tempfile.TemporaryDirectory(prefix="busierbox-verify-") as td:
+with tempfile.TemporaryDirectory(prefix="grit-verify-") as td:
     td = pathlib.Path(td)
-    bb = td / "busierbox"
+    bb = td / "grit"
     shutil.copy2(artifact, bb)
     bb.chmod(0o755)
     cmd_prefix = [backend] if backend != "native" else []
     with (artdir / "verify.log").open("w", encoding="utf-8") as log:
         for args in (["list", "--plain"], ["config-info"], ["doctor"], ["extract"], ["extract"], ["sh", "-c", "echo verify-ok"]):
-            rc, out = run(cmd_prefix + ["./busierbox"] + args, td, log)
+            rc, out = run(cmd_prefix + ["./grit"] + args, td, log)
             if rc != 0:
                 die(f"{args[0]} failed; see {artdir / 'verify.log'}")
-        rc, out = run(cmd_prefix + ["./busierbox", "sh", "-c", 'p="$(pwd)/.busierbox/payload/bin"; case ":$PATH:" in *":$p:"*":$p:"*) exit 11;; esac; which ls >/dev/null'], td, log)
+        rc, out = run(cmd_prefix + ["./grit", "sh", "-c", 'p="$(pwd)/.grit/payload/bin"; case ":$PATH:" in *":$p:"*":$p:"*) exit 11;; esac; which ls >/dev/null'], td, log)
         if rc != 0:
             die(f"PATH duplicate prevention sanity failed; see {artdir / 'verify.log'}")
         if has_command(manifest, "zsh"):
-            rc, out = run(cmd_prefix + ["./busierbox", "zsh", "-fc", "command -v ls >/dev/null"], td, log)
+            rc, out = run(cmd_prefix + ["./grit", "zsh", "-fc", "command -v ls >/dev/null"], td, log)
             if rc != 0:
                 die(f"zsh startup sanity failed; see {artdir / 'verify.log'}")
         if has_command(manifest, "tmux"):
-            rc, out = run(cmd_prefix + ["./busierbox", "tmux", "-V"], td, log)
+            rc, out = run(cmd_prefix + ["./grit", "tmux", "-V"], td, log)
             if rc != 0:
                 die(f"tmux version probe failed; see {artdir / 'verify.log'}")
         if has_command(manifest, "nc"):
-            rc, out = run(cmd_prefix + ["./busierbox", "nc", "--help"], td, log)
+            rc, out = run(cmd_prefix + ["./grit", "nc", "--help"], td, log)
             if rc != 0:
                 die(f"nc help probe failed; see {artdir / 'verify.log'}")
-        rc, listing = run(cmd_prefix + ["./busierbox", "list", "--plain"], td, log)
+        rc, listing = run(cmd_prefix + ["./grit", "list", "--plain"], td, log)
         if rc != 0:
             die(f"list --plain failed; see {artdir / 'verify.log'}")
         commands = []
@@ -266,7 +266,7 @@ with tempfile.TemporaryDirectory(prefix="busierbox-verify-") as td:
             if len(parts) == 2 and parts[0] in {"busybox", "tool"}:
                 commands.append(parts[1])
         for name in commands:
-            rc, out = run(cmd_prefix + ["./busierbox", name, "--help"], td, log)
+            rc, out = run(cmd_prefix + ["./grit", name, "--help"], td, log)
             if "applet not found" in out or "payload tool not staged" in out:
                 die(f"advertised command {name} is missing; see {artdir / 'verify.log'}")
 print(f"verify ok: {target}")

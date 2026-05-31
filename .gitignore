@@ -64,5 +64,5 @@ tests/qemu-system/rootfs/
 local/*
 configs/grit.conf
 scripts/local/*
-.busierbox
-.busierbox-server
+.grit
+.griTTYkit-server

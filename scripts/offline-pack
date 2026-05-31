@@ -2,7 +2,7 @@
 set -eu
 
 date_stamp=$(date +%Y%m%d)
-base="busierbox-sdk-$date_stamp"
+base="grit-sdk-$date_stamp"
 out_dir=dist
 tmp_dir="$out_dir/$base"
 

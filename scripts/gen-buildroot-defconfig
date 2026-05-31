@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
+config=${GRIT_CONFIG:-configs/grit.conf}
 resolve_err=$(mktemp)
 trap 'rm -f "$resolve_err"' EXIT HUP INT TERM
 
@@ -24,7 +24,7 @@ case "${1:-}" in
         ;;
     --from-config)
         [ -n "${2:-}" ] && config=$2
-        resolved=$(BUSIERBOX_CONFIG="$config" scripts/resolve-target --config)
+        resolved=$(GRIT_CONFIG="$config" scripts/resolve-target --config)
         ;;
     "")
         resolved=$(scripts/resolve-target --config)
@@ -45,60 +45,60 @@ esac
 
 eval "$resolved"
 
-BB_RSHELL_TRANSPORT=${BB_RSHELL_TRANSPORT:-${BB_RSHELL_MODE:-ssh}}
-BB_BUILTIN_TLS_ENABLE=${BB_BUILTIN_TLS_ENABLE:-no}
-BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
-BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}
-BB_BUSYBOX_APPLETS=${BB_BUSYBOX_APPLETS:-}
-BB_BUSYBOX_APPLET_OVERRIDES=${BB_BUSYBOX_APPLET_OVERRIDES:-}
-BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-yes}
-BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-default}
-BB_DOTFILE_ZSH_USER_FILE=${BB_DOTFILE_ZSH_USER_FILE:-}
-BB_DOTFILE_BASH_MODE=${BB_DOTFILE_BASH_MODE:-default}
-BB_DOTFILE_BASH_USER_FILE=${BB_DOTFILE_BASH_USER_FILE:-}
-BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-default}
-BB_DOTFILE_TMUX_USER_FILE=${BB_DOTFILE_TMUX_USER_FILE:-}
-BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-default}
-BB_DOTFILE_GDB_USER_FILE=${BB_DOTFILE_GDB_USER_FILE:-}
-BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-default}
-BB_DOTFILE_PROFILE_USER_FILE=${BB_DOTFILE_PROFILE_USER_FILE:-}
-BB_DOOM_WAD_PATH=${BB_DOOM_WAD_PATH:-}
+GRIT_RSHELL_TRANSPORT=${GRIT_RSHELL_TRANSPORT:-${GRIT_RSHELL_MODE:-ssh}}
+GRIT_BUILTIN_TLS_ENABLE=${GRIT_BUILTIN_TLS_ENABLE:-no}
+GRIT_HEAVY_TOOLS=${GRIT_HEAVY_TOOLS:-}
+GRIT_BUSYBOX_GROUPS=${GRIT_BUSYBOX_GROUPS:-shell fileops disk process network text system}
+GRIT_BUSYBOX_APPLETS=${GRIT_BUSYBOX_APPLETS:-}
+GRIT_BUSYBOX_APPLET_OVERRIDES=${GRIT_BUSYBOX_APPLET_OVERRIDES:-}
+GRIT_DOTFILES_ENABLE=${GRIT_DOTFILES_ENABLE:-yes}
+GRIT_DOTFILE_ZSH_MODE=${GRIT_DOTFILE_ZSH_MODE:-default}
+GRIT_DOTFILE_ZSH_USER_FILE=${GRIT_DOTFILE_ZSH_USER_FILE:-}
+GRIT_DOTFILE_BASH_MODE=${GRIT_DOTFILE_BASH_MODE:-default}
+GRIT_DOTFILE_BASH_USER_FILE=${GRIT_DOTFILE_BASH_USER_FILE:-}
+GRIT_DOTFILE_TMUX_MODE=${GRIT_DOTFILE_TMUX_MODE:-default}
+GRIT_DOTFILE_TMUX_USER_FILE=${GRIT_DOTFILE_TMUX_USER_FILE:-}
+GRIT_DOTFILE_GDB_MODE=${GRIT_DOTFILE_GDB_MODE:-default}
+GRIT_DOTFILE_GDB_USER_FILE=${GRIT_DOTFILE_GDB_USER_FILE:-}
+GRIT_DOTFILE_PROFILE_MODE=${GRIT_DOTFILE_PROFILE_MODE:-default}
+GRIT_DOTFILE_PROFILE_USER_FILE=${GRIT_DOTFILE_PROFILE_USER_FILE:-}
+GRIT_DOOM_WAD_PATH=${GRIT_DOOM_WAD_PATH:-}
 if [ -f "$config" ]; then
     . "$config"
-    [ -n "${BB_STATIC_POLICY:-}" ] && TARGET_STATIC_POLICY=$BB_STATIC_POLICY
-    BB_RSHELL_TRANSPORT=${BB_RSHELL_TRANSPORT:-${BB_RSHELL_MODE:-ssh}}
-    # Derive BB_BUILTIN_TLS_ENABLE from transport, consistent with menuconfig
-    [ "$BB_RSHELL_TRANSPORT" = builtin ] && BB_BUILTIN_TLS_ENABLE=yes || BB_BUILTIN_TLS_ENABLE=no
-    BB_HEAVY_TOOLS=${BB_HEAVY_TOOLS:-}
-    BB_BUSYBOX_GROUPS=${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}
-    BB_BUSYBOX_APPLETS=${BB_BUSYBOX_APPLETS:-}
-    BB_BUSYBOX_APPLET_OVERRIDES=${BB_BUSYBOX_APPLET_OVERRIDES:-}
-    BB_DOTFILES_ENABLE=${BB_DOTFILES_ENABLE:-yes}
-    BB_DOTFILE_ZSH_MODE=${BB_DOTFILE_ZSH_MODE:-default}
-    BB_DOTFILE_ZSH_USER_FILE=${BB_DOTFILE_ZSH_USER_FILE:-}
-    BB_DOTFILE_BASH_MODE=${BB_DOTFILE_BASH_MODE:-default}
-    BB_DOTFILE_BASH_USER_FILE=${BB_DOTFILE_BASH_USER_FILE:-}
-    BB_DOTFILE_TMUX_MODE=${BB_DOTFILE_TMUX_MODE:-default}
-    BB_DOTFILE_TMUX_USER_FILE=${BB_DOTFILE_TMUX_USER_FILE:-}
-    BB_DOTFILE_GDB_MODE=${BB_DOTFILE_GDB_MODE:-default}
-    BB_DOTFILE_GDB_USER_FILE=${BB_DOTFILE_GDB_USER_FILE:-}
-    BB_DOTFILE_PROFILE_MODE=${BB_DOTFILE_PROFILE_MODE:-default}
-    BB_DOTFILE_PROFILE_USER_FILE=${BB_DOTFILE_PROFILE_USER_FILE:-}
-    BB_GDBSERVER_PROVIDER=${BB_GDBSERVER_PROVIDER:-auto}
-    BB_GDBSERVER_USER_PATH=${BB_GDBSERVER_USER_PATH:-}
-    BB_USER_OVERLAY_ENABLE=${BB_USER_OVERLAY_ENABLE:-no}
-    BB_USER_OVERLAY_ROOT=${BB_USER_OVERLAY_ROOT:-}
-    BB_USER_OVERLAY_ALLOW_OVERRIDE=${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}
-    BB_DOOM_WAD_PATH=${BB_DOOM_WAD_PATH:-}
+    [ -n "${GRIT_STATIC_POLICY:-}" ] && TARGET_STATIC_POLICY=$GRIT_STATIC_POLICY
+    GRIT_RSHELL_TRANSPORT=${GRIT_RSHELL_TRANSPORT:-${GRIT_RSHELL_MODE:-ssh}}
+    # Derive GRIT_BUILTIN_TLS_ENABLE from transport, consistent with menuconfig
+    [ "$GRIT_RSHELL_TRANSPORT" = builtin ] && GRIT_BUILTIN_TLS_ENABLE=yes || GRIT_BUILTIN_TLS_ENABLE=no
+    GRIT_HEAVY_TOOLS=${GRIT_HEAVY_TOOLS:-}
+    GRIT_BUSYBOX_GROUPS=${GRIT_BUSYBOX_GROUPS:-shell fileops disk process network text system}
+    GRIT_BUSYBOX_APPLETS=${GRIT_BUSYBOX_APPLETS:-}
+    GRIT_BUSYBOX_APPLET_OVERRIDES=${GRIT_BUSYBOX_APPLET_OVERRIDES:-}
+    GRIT_DOTFILES_ENABLE=${GRIT_DOTFILES_ENABLE:-yes}
+    GRIT_DOTFILE_ZSH_MODE=${GRIT_DOTFILE_ZSH_MODE:-default}
+    GRIT_DOTFILE_ZSH_USER_FILE=${GRIT_DOTFILE_ZSH_USER_FILE:-}
+    GRIT_DOTFILE_BASH_MODE=${GRIT_DOTFILE_BASH_MODE:-default}
+    GRIT_DOTFILE_BASH_USER_FILE=${GRIT_DOTFILE_BASH_USER_FILE:-}
+    GRIT_DOTFILE_TMUX_MODE=${GRIT_DOTFILE_TMUX_MODE:-default}
+    GRIT_DOTFILE_TMUX_USER_FILE=${GRIT_DOTFILE_TMUX_USER_FILE:-}
+    GRIT_DOTFILE_GDB_MODE=${GRIT_DOTFILE_GDB_MODE:-default}
+    GRIT_DOTFILE_GDB_USER_FILE=${GRIT_DOTFILE_GDB_USER_FILE:-}
+    GRIT_DOTFILE_PROFILE_MODE=${GRIT_DOTFILE_PROFILE_MODE:-default}
+    GRIT_DOTFILE_PROFILE_USER_FILE=${GRIT_DOTFILE_PROFILE_USER_FILE:-}
+    GRIT_GDBSERVER_PROVIDER=${GRIT_GDBSERVER_PROVIDER:-auto}
+    GRIT_GDBSERVER_USER_PATH=${GRIT_GDBSERVER_USER_PATH:-}
+    GRIT_USER_OVERLAY_ENABLE=${GRIT_USER_OVERLAY_ENABLE:-no}
+    GRIT_USER_OVERLAY_ROOT=${GRIT_USER_OVERLAY_ROOT:-}
+    GRIT_USER_OVERLAY_ALLOW_OVERRIDE=${GRIT_USER_OVERLAY_ALLOW_OVERRIDE:-no}
+    GRIT_DOOM_WAD_PATH=${GRIT_DOOM_WAD_PATH:-}
 fi
-BB_GDBSERVER_PROVIDER=${BB_GDBSERVER_PROVIDER:-auto}
-BB_GDBSERVER_USER_PATH=${BB_GDBSERVER_USER_PATH:-}
-BB_USER_OVERLAY_ENABLE=${BB_USER_OVERLAY_ENABLE:-no}
-BB_USER_OVERLAY_ROOT=${BB_USER_OVERLAY_ROOT:-}
-BB_USER_OVERLAY_ALLOW_OVERRIDE=${BB_USER_OVERLAY_ALLOW_OVERRIDE:-no}
-BB_DOOM_WAD_PATH=${BB_DOOM_WAD_PATH:-}
+GRIT_GDBSERVER_PROVIDER=${GRIT_GDBSERVER_PROVIDER:-auto}
+GRIT_GDBSERVER_USER_PATH=${GRIT_GDBSERVER_USER_PATH:-}
+GRIT_USER_OVERLAY_ENABLE=${GRIT_USER_OVERLAY_ENABLE:-no}
+GRIT_USER_OVERLAY_ROOT=${GRIT_USER_OVERLAY_ROOT:-}
+GRIT_USER_OVERLAY_ALLOW_OVERRIDE=${GRIT_USER_OVERLAY_ALLOW_OVERRIDE:-no}
+GRIT_DOOM_WAD_PATH=${GRIT_DOOM_WAD_PATH:-}
 
-STRICT_HEAVY_TOOLS=${BB_STRICT_HEAVY_TOOLS:-${STRICT_HEAVY_TOOLS:-0}}
+STRICT_HEAVY_TOOLS=${GRIT_STRICT_HEAVY_TOOLS:-${STRICT_HEAVY_TOOLS:-0}}
 
 # Sets EXCLUSION_REASON and returns 1 if tool has a known build failure for
 # the current tuple, returns 0 if expected to build fine.
@@ -177,9 +177,9 @@ fi
 # Tools handled by a non-Buildroot provider are not Buildroot-built and skip this check.
 pre_excluded=
 if [ "$STRICT_HEAVY_TOOLS" != "1" ]; then
-    for tool in $BB_HEAVY_TOOLS; do
+    for tool in $GRIT_HEAVY_TOOLS; do
         if [ "$tool" = "gdbserver" ]; then
-            case "$BB_GDBSERVER_PROVIDER" in
+            case "$GRIT_GDBSERVER_PROVIDER" in
                 user|local-dropin|overlay|none) continue ;;
             esac
         fi
@@ -192,10 +192,10 @@ if [ "$STRICT_HEAVY_TOOLS" != "1" ]; then
 fi
 
 needs_cxx=0
-for tool in $BB_HEAVY_TOOLS; do
+for tool in $GRIT_HEAVY_TOOLS; do
     is_pre_excluded "$tool" && continue
     if [ "$tool" = "gdbserver" ]; then
-        case "$BB_GDBSERVER_PROVIDER" in
+        case "$GRIT_GDBSERVER_PROVIDER" in
             user|local-dropin|overlay|none) continue ;;
         esac
     fi
@@ -204,7 +204,7 @@ for tool in $BB_HEAVY_TOOLS; do
     esac
 done
 
-hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
+hostname=$(printf '%s' "grit-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
 
 {
     printf '%s\n' "# Generated by scripts/gen-buildroot-defconfig."
@@ -256,19 +256,19 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "BR2_SYSTEM_BIN_SH_BUSYBOX=y"
     printf '%s\n' "BR2_ROOTFS_DEVICE_CREATION_STATIC=y"
     printf '%s\n' "BR2_TARGET_GENERIC_HOSTNAME=\"$hostname\""
-    printf '%s\n' "BR2_TARGET_GENERIC_ISSUE=\"BusierBox $TARGET_NAME payload\""
+    printf '%s\n' "BR2_TARGET_GENERIC_ISSUE=\"griTTYkit $TARGET_NAME payload\""
     printf '%s\n' "BR2_PACKAGE_BUSYBOX=y"
-    _bbcfg=$(BB_BUSYBOX_GROUPS="${BB_BUSYBOX_GROUPS:-}" BB_BUSYBOX_APPLETS="${BB_BUSYBOX_APPLETS:-}" BB_BUSYBOX_APPLET_OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}" TARGET="$TARGET_NAME" TARGET_LIBC="$TARGET_LIBC" BUILDROOT_VERSION="${BUILDROOT_VERSION:-2026.02.2}" OUT_DIR="$(pwd)/$defconfig_dir" scripts/gen-buildroot-busybox-config 2>/dev/null) || _bbcfg=
+    _bbcfg=$(GRIT_BUSYBOX_GROUPS="${GRIT_BUSYBOX_GROUPS:-}" GRIT_BUSYBOX_APPLETS="${GRIT_BUSYBOX_APPLETS:-}" GRIT_BUSYBOX_APPLET_OVERRIDES="${GRIT_BUSYBOX_APPLET_OVERRIDES:-}" TARGET="$TARGET_NAME" TARGET_LIBC="$TARGET_LIBC" BUILDROOT_VERSION="${BUILDROOT_VERSION:-2026.02.2}" OUT_DIR="$(pwd)/$defconfig_dir" scripts/gen-buildroot-busybox-config 2>/dev/null) || _bbcfg=
     if [ -n "$_bbcfg" ] && [ -f "$_bbcfg" ]; then
         printf '%s\n' "BR2_PACKAGE_BUSYBOX_CONFIG=\"$_bbcfg\""
     else
         printf '%s\n' "BR2_PACKAGE_BUSYBOX_CONFIG=\"package/busybox/busybox.config\""
     fi
-    for tool in $BB_HEAVY_TOOLS; do
+    for tool in $GRIT_HEAVY_TOOLS; do
         if [ "$tool" = "gdbserver" ]; then
-            case "$BB_GDBSERVER_PROVIDER" in
+            case "$GRIT_GDBSERVER_PROVIDER" in
                 user|local-dropin|overlay|none)
-                    printf '%s\n' "# gdbserver: provider=$BB_GDBSERVER_PROVIDER (not Buildroot), no BR2 symbol emitted"
+                    printf '%s\n' "# gdbserver: provider=$GRIT_GDBSERVER_PROVIDER (not Buildroot), no BR2 symbol emitted"
                     continue
                     ;;
             esac
@@ -299,7 +299,7 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
                 ;;
             socat)
                 printf '%s\n' "BR2_PACKAGE_SOCAT=y"
-                if [ "$BB_RSHELL_ENCRYPTION" = tls ] && [ "$TARGET_STATIC_POLICY" = dynamic ]; then
+                if [ "$GRIT_RSHELL_ENCRYPTION" = tls ] && [ "$TARGET_STATIC_POLICY" = dynamic ]; then
                     printf '%s\n' "BR2_PACKAGE_OPENSSL=y"
                     printf '%s\n' "BR2_PACKAGE_LIBOPENSSL=y"
                 fi
@@ -364,12 +364,12 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
                 printf '%s\n' "BR2_PACKAGE_E2FSPROGS_DEBUGFS=y"
                 ;;
             parted) printf '%s\n' "BR2_PACKAGE_PARTED=y" ;;
-            doom) printf '%s\n' "BR2_PACKAGE_BUSIERBOX_DOOM_ASCII=y" ;;
+            doom) printf '%s\n' "BR2_PACKAGE_GRIPTYKIT_DOOM_ASCII=y" ;;
             *) printf '%s\n' "# Unknown heavy tool requested: $tool" ;;
         esac
     done
     needs_terminfo=0
-    for tool in $BB_HEAVY_TOOLS; do
+    for tool in $GRIT_HEAVY_TOOLS; do
         is_pre_excluded "$tool" && continue
         case "$tool" in
             tmux|zsh) needs_terminfo=1 ;;
@@ -382,7 +382,7 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     fi
     # wolfSSL: required by builtin transport; built in the cross sysroot so
     # package-target can auto-detect staging/usr/include and staging/usr/lib.
-    if [ "$BB_BUILTIN_TLS_ENABLE" = yes ]; then
+    if [ "$GRIT_BUILTIN_TLS_ENABLE" = yes ]; then
         printf '%s\n' "BR2_PACKAGE_WOLFSSL=y"
         printf '%s\n' "BR2_PACKAGE_WOLFSSL_OPENSSLEXTRA=y"
     fi
@@ -400,35 +400,35 @@ hostname=$(printf '%s' "busierbox-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
     printf '%s\n' "KERNEL_FLOOR := $TARGET_KERNEL_FLOOR"
     printf '%s\n' "STATIC_POLICY := $TARGET_STATIC_POLICY"
     printf '%s\n' "PAYLOAD_TIER := $TARGET_PAYLOAD_TIER"
-    printf '%s\n' "REQUESTED_TOOLS := $BB_HEAVY_TOOLS"
+    printf '%s\n' "REQUESTED_TOOLS := $GRIT_HEAVY_TOOLS"
     printf '%s\n' "EXCLUDED_TOOLS := $pre_excluded"
     for tool in ${pre_excluded:-}; do
         EXCLUSION_REASON=
         check_tool_build_compat "$tool" || true
         printf '%s\n' "EXCLUDED_REASON_${tool} := ${EXCLUSION_REASON:-known build failure for this tuple}"
     done
-    printf '%s\n' "DOTFILES_ENABLE := ${BB_DOTFILES_ENABLE:-yes}"
-    printf '%s\n' "DOTFILE_ZSH_MODE := ${BB_DOTFILE_ZSH_MODE:-default}"
-    printf '%s\n' "DOTFILE_ZSH_USER_FILE := ${BB_DOTFILE_ZSH_USER_FILE:-}"
-    printf '%s\n' "DOTFILE_BASH_MODE := ${BB_DOTFILE_BASH_MODE:-default}"
-    printf '%s\n' "DOTFILE_BASH_USER_FILE := ${BB_DOTFILE_BASH_USER_FILE:-}"
-    printf '%s\n' "DOTFILE_TMUX_MODE := ${BB_DOTFILE_TMUX_MODE:-default}"
-    printf '%s\n' "DOTFILE_TMUX_USER_FILE := ${BB_DOTFILE_TMUX_USER_FILE:-}"
-    printf '%s\n' "DOTFILE_GDB_MODE := ${BB_DOTFILE_GDB_MODE:-default}"
-    printf '%s\n' "DOTFILE_GDB_USER_FILE := ${BB_DOTFILE_GDB_USER_FILE:-}"
-    printf '%s\n' "DOTFILE_PROFILE_MODE := ${BB_DOTFILE_PROFILE_MODE:-default}"
-    printf '%s\n' "DOTFILE_PROFILE_USER_FILE := ${BB_DOTFILE_PROFILE_USER_FILE:-}"
-    printf '%s\n' "OPERATOR_DBCLIENT_IDENTITY_FILE := ${BB_OPERATOR_DBCLIENT_IDENTITY_FILE:-}"
-    printf '%s\n' "OPERATOR_AUTHORIZED_KEY_FILE := ${BB_OPERATOR_AUTHORIZED_KEY_FILE:-}"
-    printf '%s\n' "BUSYBOX_GROUPS := $BB_BUSYBOX_GROUPS"
-    printf '%s\n' "BUSYBOX_APPLETS := $BB_BUSYBOX_APPLETS"
-    printf '%s\n' "BUSYBOX_APPLET_OVERRIDES := $BB_BUSYBOX_APPLET_OVERRIDES"
-    printf '%s\n' "GDBSERVER_PROVIDER := $BB_GDBSERVER_PROVIDER"
-    printf '%s\n' "GDBSERVER_USER_PATH := ${BB_GDBSERVER_USER_PATH:-}"
-    printf '%s\n' "DOOM_WAD_PATH := ${BB_DOOM_WAD_PATH:-}"
-    printf '%s\n' "USER_OVERLAY_ENABLE := $BB_USER_OVERLAY_ENABLE"
-    printf '%s\n' "USER_OVERLAY_ROOT := ${BB_USER_OVERLAY_ROOT:-}"
-    printf '%s\n' "USER_OVERLAY_ALLOW_OVERRIDE := $BB_USER_OVERLAY_ALLOW_OVERRIDE"
+    printf '%s\n' "DOTFILES_ENABLE := ${GRIT_DOTFILES_ENABLE:-yes}"
+    printf '%s\n' "DOTFILE_ZSH_MODE := ${GRIT_DOTFILE_ZSH_MODE:-default}"
+    printf '%s\n' "DOTFILE_ZSH_USER_FILE := ${GRIT_DOTFILE_ZSH_USER_FILE:-}"
+    printf '%s\n' "DOTFILE_BASH_MODE := ${GRIT_DOTFILE_BASH_MODE:-default}"
+    printf '%s\n' "DOTFILE_BASH_USER_FILE := ${GRIT_DOTFILE_BASH_USER_FILE:-}"
+    printf '%s\n' "DOTFILE_TMUX_MODE := ${GRIT_DOTFILE_TMUX_MODE:-default}"
+    printf '%s\n' "DOTFILE_TMUX_USER_FILE := ${GRIT_DOTFILE_TMUX_USER_FILE:-}"
+    printf '%s\n' "DOTFILE_GDB_MODE := ${GRIT_DOTFILE_GDB_MODE:-default}"
+    printf '%s\n' "DOTFILE_GDB_USER_FILE := ${GRIT_DOTFILE_GDB_USER_FILE:-}"
+    printf '%s\n' "DOTFILE_PROFILE_MODE := ${GRIT_DOTFILE_PROFILE_MODE:-default}"
+    printf '%s\n' "DOTFILE_PROFILE_USER_FILE := ${GRIT_DOTFILE_PROFILE_USER_FILE:-}"
+    printf '%s\n' "OPERATOR_DBCLIENT_IDENTITY_FILE := ${GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE:-}"
+    printf '%s\n' "OPERATOR_AUTHORIZED_KEY_FILE := ${GRIT_OPERATOR_AUTHORIZED_KEY_FILE:-}"
+    printf '%s\n' "BUSYBOX_GROUPS := $GRIT_BUSYBOX_GROUPS"
+    printf '%s\n' "BUSYBOX_APPLETS := $GRIT_BUSYBOX_APPLETS"
+    printf '%s\n' "BUSYBOX_APPLET_OVERRIDES := $GRIT_BUSYBOX_APPLET_OVERRIDES"
+    printf '%s\n' "GDBSERVER_PROVIDER := $GRIT_GDBSERVER_PROVIDER"
+    printf '%s\n' "GDBSERVER_USER_PATH := ${GRIT_GDBSERVER_USER_PATH:-}"
+    printf '%s\n' "DOOM_WAD_PATH := ${GRIT_DOOM_WAD_PATH:-}"
+    printf '%s\n' "USER_OVERLAY_ENABLE := $GRIT_USER_OVERLAY_ENABLE"
+    printf '%s\n' "USER_OVERLAY_ROOT := ${GRIT_USER_OVERLAY_ROOT:-}"
+    printf '%s\n' "USER_OVERLAY_ALLOW_OVERRIDE := $GRIT_USER_OVERLAY_ALLOW_OVERRIDE"
     printf '%s\n' "BUILDROOT_DEFCONFIG := $defconfig"
     printf '%s\n' "QEMU_USER := $TARGET_QEMU_USER"
 } >"$profile"

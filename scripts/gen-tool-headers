@@ -36,6 +36,6 @@ def write_header(path, items):
     tmp.replace(path)
 
 
-write_header(src / "bbx_busybox_applets.h", read_list(payload / "busybox-applets.txt"))
-write_header(src / "bbx_heavy_tools.h", read_list(payload / "staged-tools.txt"))
-print("generated src/bbx_busybox_applets.h and src/bbx_heavy_tools.h from staged payload metadata")
+write_header(src / "grit_busybox_applets.h", read_list(payload / "busybox-applets.txt"))
+write_header(src / "grit_heavy_tools.h", read_list(payload / "staged-tools.txt"))
+print("generated src/grit_busybox_applets.h and src/grit_heavy_tools.h from staged payload metadata")

@@ -2,9 +2,9 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-ROUTERS_DIR=${BUSIERBOX_ROUTER_FIRMWARE_DIR:-$ROOT/local/testing/Routers}
-OUT_DIR=${BUSIERBOX_REHOST_DIR:-$ROOT/local/testing/rehost}
-TIMEOUT=${BUSIERBOX_REHOST_TIMEOUT:-30}
+ROUTERS_DIR=${GRIT_ROUTER_FIRMWARE_DIR:-$ROOT/local/testing/Routers}
+OUT_DIR=${GRIT_REHOST_DIR:-$ROOT/local/testing/rehost}
+TIMEOUT=${GRIT_REHOST_TIMEOUT:-30}
 FORCE=0
 DO_EXTRACT=0
 DO_INIT=0

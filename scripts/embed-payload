@@ -1,10 +1,10 @@
 #!/bin/sh
 set -eu
 
-core=${1:-dist/busierbox.core}
+core=${1:-dist/grit.core}
 payload=${2:-}
-out=${3:-dist/busierbox}
-version=${BUSIERBOX_PAYLOAD_VERSION:-dev}
+out=${3:-dist/grit}
+version=${GRIT_PAYLOAD_VERSION:-dev}
 
 if [ -z "$payload" ]; then
     if [ -f dist/payload.tar.gz ]; then
@@ -33,7 +33,7 @@ import sys
 
 core, payload, out, version, fmt = sys.argv[1:]
 trailer_size = 512
-magic = "BBXPAYLOADv1"
+magic = "GRITPAYLOADv1"
 
 with open(core, "rb") as fh:
     core_bytes = fh.read()

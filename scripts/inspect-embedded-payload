@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-file=${1:-dist/busierbox}
+file=${1:-dist/grit}
 
 python3 - "$file" <<'PY'
 import sys

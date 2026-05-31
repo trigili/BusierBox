@@ -22,10 +22,10 @@
 #define GRIT_PAYLOAD_VERSION "dev"
 #endif
 
-#define BBX_TRAILER_SIZE 512
-#define BBX_MAGIC "BBXPAYLOADv1"
-#define BBX_PAYLOAD_ID_FILE ".grit-payload-id"
-#define BBX_PAYLOAD_MODE_FILE ".grit-extract-mode"
+#define GRIT_TRAILER_SIZE 512
+#define GRIT_PAYLOAD_MAGIC "GRITPAYLOADv1"
+#define GRIT_PAYLOAD_ID_FILE ".grit-payload-id"
+#define GRIT_PAYLOAD_MODE_FILE ".grit-extract-mode"
 
 static const char *busybox_tools[] = {
 #include "grit_busybox_applets.h"
@@ -104,7 +104,7 @@ static int parse_trailer_text(char *text, struct embedded_payload *ep)
     char *line, *save = NULL;
     memset(ep, 0, sizeof(*ep));
     line = strtok_r(text, "\n", &save);
-    if (!line || strcmp(line, BBX_MAGIC))
+    if (!line || strcmp(line, GRIT_PAYLOAD_MAGIC))
         return -1;
     while ((line = strtok_r(NULL, "\n", &save)) != NULL) {
         char *eq;
@@ -139,7 +139,7 @@ int bb_get_embedded_payload(struct embedded_payload *ep)
 {
     FILE *fp;
     long fsize;
-    char trailer[BBX_TRAILER_SIZE + 1];
+    char trailer[GRIT_TRAILER_SIZE + 1];
 
     memset(ep, 0, sizeof(*ep));
     if (find_self_path(ep->exe, sizeof(ep->exe)) != 0)
@@ -153,16 +153,16 @@ int bb_get_embedded_payload(struct embedded_payload *ep)
     }
     fsize = ftell(fp);
     fsize -= (long)bb_config_file_trailer_span(ep->exe);
-    if (fsize < BBX_TRAILER_SIZE) {
+    if (fsize < GRIT_TRAILER_SIZE) {
         fclose(fp);
         return -1;
     }
-    if (fseek(fp, fsize - BBX_TRAILER_SIZE, SEEK_SET) != 0 || fread(trailer, 1, BBX_TRAILER_SIZE, fp) != BBX_TRAILER_SIZE) {
+    if (fseek(fp, fsize - GRIT_TRAILER_SIZE, SEEK_SET) != 0 || fread(trailer, 1, GRIT_TRAILER_SIZE, fp) != GRIT_TRAILER_SIZE) {
         fclose(fp);
         return -1;
     }
     fclose(fp);
-    trailer[BBX_TRAILER_SIZE] = '\0';
+    trailer[GRIT_TRAILER_SIZE] = '\0';
     /* parse_trailer_text does memset(ep, 0) internally; preserve the exe path
      * we already resolved above so bb_verify_embedded_hash can open the binary. */
     {
@@ -172,7 +172,7 @@ int bb_get_embedded_payload(struct embedded_payload *ep)
             return -1;
         snprintf(ep->exe, sizeof(ep->exe), "%s", saved_exe);
     }
-    if (ep->offset + ep->size + BBX_TRAILER_SIZE > (unsigned long long)fsize)
+    if (ep->offset + ep->size + GRIT_TRAILER_SIZE > (unsigned long long)fsize)
         return -1;
     return 0;
 }
@@ -192,7 +192,7 @@ int bb_payload_valid(const char *payload)
 
 static void payload_mode_path(char *out, size_t outsz, const char *payload)
 {
-    snprintf(out, outsz, "%s/%s", payload, BBX_PAYLOAD_MODE_FILE);
+    snprintf(out, outsz, "%s/%s", payload, GRIT_PAYLOAD_MODE_FILE);
 }
 
 int bb_payload_is_full(const char *payload)
@@ -360,7 +360,7 @@ static void write_payload_id(const struct embedded_payload *ep, const char *payl
 {
     char id_path[PATH_MAX];
     FILE *fp;
-    snprintf(id_path, sizeof(id_path), "%s/%s", payload_dir, BBX_PAYLOAD_ID_FILE);
+    snprintf(id_path, sizeof(id_path), "%s/%s", payload_dir, GRIT_PAYLOAD_ID_FILE);
     fp = fopen(id_path, "w");
     if (!fp)
         return;
@@ -380,7 +380,7 @@ int bb_payload_id_matches(const struct embedded_payload *ep, const char *payload
 
     if (!ep->present)
         return 1;
-    snprintf(id_path, sizeof(id_path), "%s/%s", payload_dir, BBX_PAYLOAD_ID_FILE);
+    snprintf(id_path, sizeof(id_path), "%s/%s", payload_dir, GRIT_PAYLOAD_ID_FILE);
     fp = fopen(id_path, "r");
     if (!fp)
         return 0;

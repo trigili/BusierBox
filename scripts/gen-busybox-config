@@ -1,13 +1,13 @@
 #!/bin/sh
-# scripts/gen-busybox-config — generate a BusyBox .config from BB_BUSYBOX_GROUPS
-# Usage: BB_BUSYBOX_GROUPS="shell fileops network" scripts/gen-busybox-config
+# scripts/gen-busybox-config — generate a BusyBox .config from GRIT_BUSYBOX_GROUPS
+# Usage: GRIT_BUSYBOX_GROUPS="shell fileops network" scripts/gen-busybox-config
 # Writes third_party/busybox/.config and runs make olddefconfig.
 set -eu
 
 BUSYBOX_DIR="${BUSYBOX_DIR:-third_party/busybox}"
-GROUPS="${BB_BUSYBOX_GROUPS:-shell fileops disk process network text system}"
-APPLETS="${BB_BUSYBOX_APPLETS:-}"
-OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}"
+GROUPS="${GRIT_BUSYBOX_GROUPS:-shell fileops disk process network text system}"
+APPLETS="${GRIT_BUSYBOX_APPLETS:-}"
+OVERRIDES="${GRIT_BUSYBOX_APPLET_OVERRIDES:-}"
 
 if [ ! -d "$BUSYBOX_DIR" ]; then
     printf '%s\n' "gen-busybox-config: $BUSYBOX_DIR not found; run: git submodule update --init" >&2

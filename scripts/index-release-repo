@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Index one or more BusierBox release bundles from a source checkout."""
+"""Index one or more griTTYkit release bundles from a source checkout."""
 
 import argparse
 import hashlib
@@ -10,7 +10,7 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 REQUIRED_LICENSE_FILES = (
-    "LICENSE.busierbox",
+    "LICENSE.grit",
     "LICENSE",
     "NOTICE",
     "LICENSES/busybox.txt",

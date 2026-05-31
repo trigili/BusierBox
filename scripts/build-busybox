@@ -1,34 +1,34 @@
 #!/bin/sh
 set -eu
 
-BB_DIR=${BUSYBOX_DIR:-third_party/busybox}
+GRIT_DIR=${BUSYBOX_DIR:-third_party/busybox}
 OUT=${BUSYBOX_OUT:-runtime/payload/bin/busybox}
 JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)}
 PATH="$(pwd)/scripts/shims:$PATH"
 export PATH
 
-if [ ! -d "$BB_DIR" ] || [ ! -f "$BB_DIR/Makefile" ]; then
-    printf '%s\n' "busybox source missing at $BB_DIR" >&2
+if [ ! -d "$GRIT_DIR" ] || [ ! -f "$GRIT_DIR/Makefile" ]; then
+    printf '%s\n' "busybox source missing at $GRIT_DIR" >&2
     printf '%s\n' "run: git submodule update --init third_party/busybox" >&2
     exit 1
 fi
 
 mkdir -p runtime/payload/bin
 
-config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
+config=${GRIT_CONFIG:-configs/grit.conf}
 if [ -f "$config" ]; then
     . "$config"
 fi
 
-if [ -n "${BB_BUSYBOX_GROUPS:-}" ]; then
-    export BB_BUSYBOX_GROUPS
-    export BB_BUSYBOX_APPLETS="${BB_BUSYBOX_APPLETS:-}"
-    export BB_BUSYBOX_APPLET_OVERRIDES="${BB_BUSYBOX_APPLET_OVERRIDES:-}"
-    export BUSYBOX_DIR="$BB_DIR"
+if [ -n "${GRIT_BUSYBOX_GROUPS:-}" ]; then
+    export GRIT_BUSYBOX_GROUPS
+    export GRIT_BUSYBOX_APPLETS="${GRIT_BUSYBOX_APPLETS:-}"
+    export GRIT_BUSYBOX_APPLET_OVERRIDES="${GRIT_BUSYBOX_APPLET_OVERRIDES:-}"
+    export BUSYBOX_DIR="$GRIT_DIR"
     scripts/gen-busybox-config
-    make -C "$BB_DIR" clean >/dev/null
+    make -C "$GRIT_DIR" clean >/dev/null
 else
-    cfg="$(pwd)/$BB_DIR/.busierbox-miniconfig"
+    cfg="$(pwd)/$GRIT_DIR/.grit-miniconfig"
     cat >"$cfg" <<'EOF'
 CONFIG_BUSYBOX=y
 CONFIG_STATIC=y
@@ -86,24 +86,24 @@ CONFIG_WGET=y
 EOF
 
     printf '%s\n' "configuring minimal BusyBox payload..."
-    make -C "$BB_DIR" KCONFIG_ALLCONFIG="$cfg" allnoconfig >/dev/null
+    make -C "$GRIT_DIR" KCONFIG_ALLCONFIG="$cfg" allnoconfig >/dev/null
     enable() {
         sym=$1
-        if grep -q "^# $sym is not set" "$BB_DIR/.config"; then
-            sed -i "s/^# $sym is not set/$sym=y/" "$BB_DIR/.config"
-        elif grep -q "^$sym=" "$BB_DIR/.config"; then
-            sed -i "s/^$sym=.*/$sym=y/" "$BB_DIR/.config"
+        if grep -q "^# $sym is not set" "$GRIT_DIR/.config"; then
+            sed -i "s/^# $sym is not set/$sym=y/" "$GRIT_DIR/.config"
+        elif grep -q "^$sym=" "$GRIT_DIR/.config"; then
+            sed -i "s/^$sym=.*/$sym=y/" "$GRIT_DIR/.config"
         else
-            printf '%s=y\n' "$sym" >>"$BB_DIR/.config"
+            printf '%s=y\n' "$sym" >>"$GRIT_DIR/.config"
         fi
     }
     setstr() {
         sym=$1
         val=$2
-        if grep -q "^$sym=" "$BB_DIR/.config"; then
-            sed -i "s|^$sym=.*|$sym=\"$val\"|" "$BB_DIR/.config"
+        if grep -q "^$sym=" "$GRIT_DIR/.config"; then
+            sed -i "s|^$sym=.*|$sym=\"$val\"|" "$GRIT_DIR/.config"
         else
-            printf '%s="%s"\n' "$sym" "$val" >>"$BB_DIR/.config"
+            printf '%s="%s"\n' "$sym" "$val" >>"$GRIT_DIR/.config"
         fi
     }
     for sym in \
@@ -120,13 +120,13 @@ EOF
         enable "$sym"
     done
     setstr CONFIG_BUSYBOX_EXEC_PATH /proc/self/exe
-    yes "" | make -C "$BB_DIR" oldconfig >/dev/null
-    make -C "$BB_DIR" clean >/dev/null
+    yes "" | make -C "$GRIT_DIR" oldconfig >/dev/null
+    make -C "$GRIT_DIR" clean >/dev/null
 fi
 
 printf '%s\n' "building BusyBox..."
-if make -C "$BB_DIR" -j"$JOBS" busybox >/dev/null; then
-    cp "$BB_DIR/busybox" "$OUT"
+if make -C "$GRIT_DIR" -j"$JOBS" busybox >/dev/null; then
+    cp "$GRIT_DIR/busybox" "$OUT"
     chmod 0755 "$OUT"
     if command -v ldd >/dev/null 2>&1 && ldd "$OUT" >/dev/null 2>&1; then
         printf '%s\n' "warning: BusyBox appears dynamically linked; bundle required shared libraries in runtime/payload/lib" >&2

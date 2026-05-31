@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-presets=${BUSIERBOX_PRESETS:-targets/presets.json}
-local_preset_dirs=${BUSIERBOX_LOCAL_TARGET_PRESETS:-local/presets/targets:local/targets/presets}
-config=${BUSIERBOX_CONFIG:-configs/busierbox.conf}
+presets=${GRIT_PRESETS:-targets/presets.json}
+local_preset_dirs=${GRIT_LOCAL_TARGET_PRESETS:-local/presets/targets:local/targets/presets}
+config=${GRIT_CONFIG:-configs/grit.conf}
 mode=target
 target=
 
@@ -33,7 +33,7 @@ The flat --list output is kept stable for scripts. --list-tree prints the
 same presets grouped by display_path-style categories for humans.
 
 Local single-preset JSON files are also discovered from
-BUSIERBOX_LOCAL_TARGET_PRESETS, defaulting to:
+GRIT_LOCAL_TARGET_PRESETS, defaulting to:
   local/presets/targets:local/targets/presets
 EOF
         exit 0
@@ -60,7 +60,7 @@ if [ "$mode" = config ]; then
     if [ -f "$config" ]; then
         . "$config"
     fi
-    if [ "${BB_TARGET_PRESET:-}" = default ] || [ -z "${BB_TARGET_ARCH:-}" ]; then
+    if [ "${GRIT_TARGET_PRESET:-}" = default ] || [ -z "${GRIT_TARGET_ARCH:-}" ]; then
         python3 - <<'PY'
 import shlex
 
@@ -85,30 +85,30 @@ emit("TARGET_NOTES", "default is a blank target configuration; choose native or 
 PY
         exit 0
     fi
-    if [ -z "${BB_TARGET_ARCH:-}" ] && [ "${BB_ENABLE_CUSTOM_TARGET:-no}" = yes ]; then
-        BB_TARGET_ARCH=${BB_CUSTOM_ARCH:-native}
-        BB_TARGET_ENDIAN=${BB_CUSTOM_ENDIAN:-auto}
-        BB_TARGET_ABI=${BB_CUSTOM_ABI:-default}
-        BB_TARGET_LIBC=${BB_CUSTOM_LIBC:-host}
-        BB_KERNEL_FLOOR=${BB_CUSTOM_KERNEL_FLOOR:-host}
+    if [ -z "${GRIT_TARGET_ARCH:-}" ] && [ "${GRIT_ENABLE_CUSTOM_TARGET:-no}" = yes ]; then
+        GRIT_TARGET_ARCH=${GRIT_CUSTOM_ARCH:-native}
+        GRIT_TARGET_ENDIAN=${GRIT_CUSTOM_ENDIAN:-auto}
+        GRIT_TARGET_ABI=${GRIT_CUSTOM_ABI:-default}
+        GRIT_TARGET_LIBC=${GRIT_CUSTOM_LIBC:-host}
+        GRIT_KERNEL_FLOOR=${GRIT_CUSTOM_KERNEL_FLOOR:-host}
     fi
-    BB_TARGET_ARCH=${BB_TARGET_ARCH:-native}
-    BB_TARGET_ENDIAN=${BB_TARGET_ENDIAN:-auto}
-    BB_TARGET_CPU=${BB_TARGET_CPU:-generic}
-    BB_TARGET_ABI=${BB_TARGET_ABI:-default}
-    if [ "$BB_TARGET_ARCH" = native ]; then
-        BB_TARGET_LIBC=${BB_TARGET_LIBC:-host}
-        BB_KERNEL_FLOOR=${BB_KERNEL_FLOOR:-host}
+    GRIT_TARGET_ARCH=${GRIT_TARGET_ARCH:-native}
+    GRIT_TARGET_ENDIAN=${GRIT_TARGET_ENDIAN:-auto}
+    GRIT_TARGET_CPU=${GRIT_TARGET_CPU:-generic}
+    GRIT_TARGET_ABI=${GRIT_TARGET_ABI:-default}
+    if [ "$GRIT_TARGET_ARCH" = native ]; then
+        GRIT_TARGET_LIBC=${GRIT_TARGET_LIBC:-host}
+        GRIT_KERNEL_FLOOR=${GRIT_KERNEL_FLOOR:-host}
     else
-        BB_TARGET_LIBC=${BB_TARGET_LIBC:-}
-        BB_KERNEL_FLOOR=${BB_KERNEL_FLOOR:-}
+        GRIT_TARGET_LIBC=${GRIT_TARGET_LIBC:-}
+        GRIT_KERNEL_FLOOR=${GRIT_KERNEL_FLOOR:-}
     fi
-    BB_STATIC_POLICY=${BB_STATIC_POLICY:-static-preferred}
-    BB_PAYLOAD_TIER=${BB_PAYLOAD_TIER:-core}
-    BB_TARGET_NAME=${BB_TARGET_NAME:-}
-    BB_TARGET_QEMU_USER=${BB_TARGET_QEMU_USER:-}
+    GRIT_STATIC_POLICY=${GRIT_STATIC_POLICY:-static-preferred}
+    GRIT_PAYLOAD_TIER=${GRIT_PAYLOAD_TIER:-core}
+    GRIT_TARGET_NAME=${GRIT_TARGET_NAME:-}
+    GRIT_TARGET_QEMU_USER=${GRIT_TARGET_QEMU_USER:-}
 
-    python3 - "$BB_TARGET_ARCH" "$BB_TARGET_ENDIAN" "$BB_TARGET_CPU" "$BB_TARGET_ABI" "$BB_TARGET_LIBC" "$BB_KERNEL_FLOOR" "$BB_STATIC_POLICY" "$BB_PAYLOAD_TIER" "$BB_TARGET_NAME" "$BB_TARGET_QEMU_USER" <<'PY'
+    python3 - "$GRIT_TARGET_ARCH" "$GRIT_TARGET_ENDIAN" "$GRIT_TARGET_CPU" "$GRIT_TARGET_ABI" "$GRIT_TARGET_LIBC" "$GRIT_KERNEL_FLOOR" "$GRIT_STATIC_POLICY" "$GRIT_PAYLOAD_TIER" "$GRIT_TARGET_NAME" "$GRIT_TARGET_QEMU_USER" <<'PY'
 import shlex
 import sys
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Find artifacts across a local BusierBox release repository index."""
+"""Find artifacts across a local griTTYkit release repository index."""
 
 import argparse
 import json
@@ -810,8 +810,8 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--index", help="prebuilt index from scripts/index-release-repo")
     parser.add_argument("--release-root", action="append", default=[], help="release dir or directory containing releases; repeatable")
-    parser.add_argument("--survey-json", help="derive unset arch/libc/kernel/cpu/abi filters from busierbox survey --json output")
-    parser.add_argument("--reality-json", help="include busierbox reality-test --json evidence in recommendation output")
+    parser.add_argument("--survey-json", help="derive unset arch/libc/kernel/cpu/abi filters from grit survey --json output")
+    parser.add_argument("--reality-json", help="include grit reality-test --json evidence in recommendation output")
     parser.add_argument("--release")
     parser.add_argument("--tuple-path", help="canonical release tuple path, such as by-tuple/mipsel/musl/4.x/mips32r2-24kc")
     parser.add_argument("--device")
@@ -826,7 +826,7 @@ def main(argv=None):
     parser.add_argument("--sha256")
     parser.add_argument("--doom-wad", help="match artifacts that stage a Doom WAD with this basename")
     parser.add_argument("--doom-wad-sha256", help="match artifacts that stage a Doom WAD with this SHA-256")
-    parser.add_argument("--project-license", help="match artifacts from releases with this BusierBox project license")
+    parser.add_argument("--project-license", help="match artifacts from releases with this griTTYkit project license")
     parser.add_argument("--gplv2-compatible", choices=("yes", "no", "true", "false", "1", "0"),
                         help="match artifacts from releases with this combined GPLv2 compatibility state")
     parser.add_argument("--corresponding-source-required", choices=("yes", "no", "true", "false", "1", "0"),

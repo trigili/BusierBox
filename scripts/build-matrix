@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build or plan BusierBox target/payload matrices."""
+"""Build or plan griTTYkit target/payload matrices."""
 
 import argparse
 import datetime as dt
@@ -11,7 +11,7 @@ import shutil
 import subprocess
 import sys
 
-import busierbox_matrix as matrix
+import grit_matrix as matrix
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
@@ -26,14 +26,14 @@ def sha256_file(path):
 
 def command_for(job, config, args):
     env = {
-        "BUSIERBOX_CONFIG": str(config),
+        "GRIT_CONFIG": str(config),
         "PAYLOAD_FORMAT": job["format"],
     }
     if args.offline:
-        env["BUSIERBOX_OFFLINE"] = "1"
+        env["GRIT_OFFLINE"] = "1"
     if args.mirror_dir:
         mirror = pathlib.Path(args.mirror_dir)
-        env["BUSIERBOX_MIRROR_DIR"] = str(mirror)
+        env["GRIT_MIRROR_DIR"] = str(mirror)
         env["BUILDROOT_DL_DIR"] = str(mirror / "buildroot-dl")
     if args.buildroot_output_base:
         env["BUILDROOT_OUTPUT_BASE"] = args.buildroot_output_base
@@ -77,13 +77,13 @@ def run_job(job, run_dir, args):
         return record
 
     env = os.environ.copy()
-    env["BUSIERBOX_CONFIG"] = str(config)
+    env["GRIT_CONFIG"] = str(config)
     env["PAYLOAD_FORMAT"] = job["format"]
     if args.offline:
-        env["BUSIERBOX_OFFLINE"] = "1"
+        env["GRIT_OFFLINE"] = "1"
     if args.mirror_dir:
         mirror = pathlib.Path(args.mirror_dir)
-        env["BUSIERBOX_MIRROR_DIR"] = str(mirror)
+        env["GRIT_MIRROR_DIR"] = str(mirror)
         env["BUILDROOT_DL_DIR"] = str(mirror / "buildroot-dl")
     if args.buildroot_output_base:
         env["BUILDROOT_OUTPUT_BASE"] = args.buildroot_output_base
@@ -102,12 +102,12 @@ def run_job(job, run_dir, args):
         record["status"] = "fail"
         return record
 
-    source = ROOT / "dist" / f"busierbox-{resolved_target}-full"
+    source = ROOT / "dist" / f"grit-{resolved_target}-full"
     if not source.exists():
         record["status"] = "fail"
         record["reason"] = f"missing artifact {source}"
         return record
-    dest = artifact_dir / f"busierbox-{resolved_target}-{job['payload']}-{job['format']}-full"
+    dest = artifact_dir / f"grit-{resolved_target}-{job['payload']}-{job['format']}-full"
     shutil.copy2(source, dest)
     digest = sha256_file(dest)
     (dest.with_suffix(dest.suffix + ".sha256")).write_text(f"{digest}  {dest.name}\n", encoding="utf-8")
@@ -178,9 +178,9 @@ def main():
     run_dir.mkdir(parents=True, exist_ok=True)
     records = []
     if args.offline and not args.mirror_dir:
-        args.mirror_dir = os.environ.get("BUSIERBOX_MIRROR_DIR")
+        args.mirror_dir = os.environ.get("GRIT_MIRROR_DIR")
     if args.offline and not args.mirror_dir:
-        raise SystemExit("build-matrix: --offline requires --mirror-dir or BUSIERBOX_MIRROR_DIR")
+        raise SystemExit("build-matrix: --offline requires --mirror-dir or GRIT_MIRROR_DIR")
     if args.offline and not args.dry_run and not args.skip_offline_preflight:
         preflight = [str(ROOT / "scripts" / "check-offline-readiness"), "--mirror", args.mirror_dir]
         if args.strict_offline:

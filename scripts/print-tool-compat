@@ -1,8 +1,8 @@
 #!/bin/sh
 set -eu
 
-config=${1:-configs/busierbox.conf}
-compat=${BUSIERBOX_TOOL_COMPAT:-payloads/tool-compat.json}
+config=${1:-configs/grit.conf}
+compat=${GRIT_TOOL_COMPAT:-payloads/tool-compat.json}
 
 [ -f "$compat" ] || {
     printf '%s\n' "tool compatibility metadata missing: $compat" >&2
@@ -13,20 +13,20 @@ if [ -f "$config" ]; then
     . "$config"
 fi
 
-tools=${BB_HEAVY_TOOLS:-}
+tools=${GRIT_HEAVY_TOOLS:-}
 [ -n "$tools" ] || {
     printf '%s\n' "No heavy tools selected."
     exit 0
 }
 
-eval "$(BUSIERBOX_CONFIG="$config" scripts/resolve-target --config)"
+eval "$(GRIT_CONFIG="$config" scripts/resolve-target --config)"
 
 _static_policy=${TARGET_STATIC_POLICY:-static-preferred}
 
 # Read per-tool provider vars from config
 _gdbserver_provider=auto
 if [ -f "$config" ]; then
-    _gp=$(grep '^BB_GDBSERVER_PROVIDER=' "$config" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"')
+    _gp=$(grep '^GRIT_GDBSERVER_PROVIDER=' "$config" 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"')
     [ -n "$_gp" ] && _gdbserver_provider="$_gp"
 fi
 
