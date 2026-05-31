@@ -21963,6 +21963,7 @@ def run_line_tui(cfg):
                     ("show modules [FILTER]", "browse runnable action/service modules"),
                     ("show categories", "summarize runnable module kinds"),
                     ("refresh", "redraw full workbench (verbose)"),
+                    ("reload", "reload config file without restarting"),
                 ],
             },
             "targets": {
@@ -23652,7 +23653,7 @@ def run_line_tui(cfg):
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
             "download", "get", "probe", "survey", "probe", "daemon", "build", "release", "releases", "stage-release", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
-            "quit", "exit", "ips",
+            "quit", "exit", "ips", "reload",
         ]
         show_resources = [
             "agents", "targets", "listeners", "services", "routes", "sessions",
@@ -24760,10 +24761,12 @@ def run_line_tui(cfg):
     def _finish_config_run(result_obj, write_config_path, event_details):
         if write_config_path:
             print(f"\nConfig written: {write_config_path}")
-            print(f"Reload with:    scripts/grit-server --config {shquote(write_config_path)}")
+            print(f"  reload  — apply it now without restarting")
         else:
-            default_cfg = str(cfg.get("_config_path") or DEFAULT_CONFIG)
-            print(f"\n  To write: {event_details.get('cmd_name','config')} --write-config {shquote(default_cfg)}")
+            # Suggest the build config path (configs/grit.conf), not the server JSON config
+            build_cfg = str(build_config_path(cfg))
+            print(f"\n  To write: {event_details.get('cmd_name','config')} --write-config {shquote(build_cfg)}")
+            print(f"  (build config — separate from server config {str(cfg.get('_config_path') or DEFAULT_CONFIG)})")
         append_event(cfg, "workbench", "workbench_config_generated", details=event_details)
 
     def run_line_probe_config(args):
@@ -25990,6 +25993,25 @@ def run_line_tui(cfg):
                 continue
             elif cmd in {"status", "summary"}:
                 print(line_tui_status_bar(workbench_snapshot(cfg)))
+                continue
+            elif cmd == "reload":
+                config_path = str(cfg.get("_config_path") or DEFAULT_CONFIG)
+                try:
+                    new_cfg = load_config(config_path)
+                    # Preserve internal session/console state keys
+                    internal = {k: v for k, v in cfg.items() if k.startswith("_")}
+                    cfg.clear()
+                    cfg.update(new_cfg)
+                    cfg.update(internal)
+                    print(f"Config reloaded: {config_path}")
+                    changed = [k for k in new_cfg if not k.startswith("_") and new_cfg.get(k) != DEFAULTS.get(k)]
+                    print(f"  {len(changed)} setting(s) active from config file")
+                    append_event(cfg, "workbench", "workbench_config_reloaded", details={
+                        "config_path": config_path,
+                        "changed_count": len(changed),
+                    })
+                except Exception as exc:
+                    print(f"reload failed: {exc}")
                 continue
             elif cmd in {"ips", "local-ips", "list-local-ips"}:
                 _print_local_ips()
@@ -29385,7 +29407,19 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
 
     if args.tui:
         return run_tui(cfg)
-    if not raw_argv and not args.no_tui and sys.stdin.isatty() and sys.stdout.isatty():
+    # Open the console when no explicit service/transport action was requested.
+    # --config, --release-dir, --target-id etc. are context flags, not actions.
+    _explicit_action = bool(
+        args.transport or args.daemon or getattr(args, "file_service", False)
+        or getattr(args, "serve_file", None) or getattr(args, "serve_dir", None)
+        or getattr(args, "stage_release_artifact", None)
+        or getattr(args, "list_staged", False) or getattr(args, "unstage", None)
+        or getattr(args, "stop", False)
+        or getattr(args, "status", False) or getattr(args, "json_status", False)
+        or getattr(args, "api_status", False)
+        or getattr(args, "systemd_user_action", None)
+    )
+    if not _explicit_action and not args.no_tui and sys.stdin.isatty() and sys.stdout.isatty():
         return run_line_console(cfg)
 
     try:
