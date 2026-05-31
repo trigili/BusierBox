@@ -22299,7 +22299,6 @@ def run_line_tui(cfg):
                 print(f"    {line}")
         else:
             print("  target=all")
-        print(line_tui_status_bar(snap))
 
     def print_line_next():
         snap = workbench_snapshot(cfg)
@@ -22412,33 +22411,113 @@ def run_line_tui(cfg):
         print("")
         print("  search TERM  |  targets  sessions  files  listeners  routes  |  ? help")
 
+    # Per-service option keys with short descriptions shown in `options`
+    _SERVICE_OPTIONS = {
+        "ssh": [
+            ("GRIT_OPERATOR_REMOTE_FORWARD_PORT", "port the target opens for reverse forward"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP/hostname the target connects to"),
+            ("GRIT_OPERATOR_SERVER_SSH_PORT",      "operator SSH port"),
+            ("GRIT_OPERATOR_SERVER_USER",          "SSH user on the operator side"),
+            ("GRIT_OPERATOR_KNOWN_HOSTS_POLICY",   "how to handle host key verification"),
+        ],
+        "tls-shell": [
+            ("GRIT_RSHELL_SOCAT_PORT",             "port to listen on (and target connects to)"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP/hostname for target-side command"),
+            ("GRIT_RSHELL_ENCRYPTION",             "transport encryption: tls / none"),
+            ("GRIT_RSHELL_ALLOW_PLAINTEXT",        "allow unencrypted fallback"),
+            ("GRIT_RSHELL_TRANSPORT",              "active reverse-shell transport"),
+            ("GRIT_RSHELL_SHELL_PROVIDER",         "shell to launch on the target (auto/ash/bash/zsh)"),
+        ],
+        "plain-shell": [
+            ("GRIT_RSHELL_SOCAT_PORT",             "port to listen on"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP/hostname for target-side command"),
+            ("GRIT_RSHELL_TRANSPORT",              "active reverse-shell transport"),
+            ("GRIT_RSHELL_SHELL_PROVIDER",         "shell to launch on the target"),
+        ],
+        "file-service": [
+            ("GRIT_OPERATOR_FILE_SERVICE_PORT",    "file service listen port"),
+            ("GRIT_OPERATOR_FILE_SERVICE_TLS",     "TLS for file service connections"),
+            ("GRIT_OPERATOR_FILE_SERVICE_ENABLE",  "enable file service in zero-arg mode"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP used in staged fetch commands"),
+        ],
+        "command-queue": [
+            ("GRIT_COMMAND_QUEUE_PORT",            "command queue listen port"),
+            ("GRIT_COMMAND_QUEUE_TLS",             "TLS for command queue connections"),
+            ("GRIT_COMMAND_QUEUE_ENABLE",          "enable command queue in zero-arg mode"),
+            ("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN",   "require auth token from targets"),
+            ("GRIT_COMMAND_QUEUE_TOKEN",           "shared token (if token required)"),
+            ("GRIT_COMMAND_QUEUE_EXECUTION",       "command execution mode"),
+        ],
+        "bridge": [
+            ("GRIT_OPERATOR_TARGET_BIND_HOST",     "bind address for bridge listeners"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP for generated commands"),
+        ],
+        "survey-bootstrap": [
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP used in probe command"),
+        ],
+    }
+
     def print_line_options():
-        print("Console options:")
         module = str(cfg.get("_line_console_module") or "root")
-        print(f"  module={module}")
         target_id = configured_target_filter(cfg)
-        if target_id:
-            rec = (load_targets(cfg).get("targets") or {}).get(target_id) or {}
-            aliases = ",".join(str(item) for item in rec.get("aliases") or []) or "-"
-            print(f"  target.id={target_id}")
-            print(f"  target.label={rec.get('label', '') or '-'}")
-            print(f"  target.aliases={aliases}")
-            print(f"  target.notes={str(rec.get('notes') or '') or '-'}")
-        else:
-            print("  target.id=all")
+        all_fields = {r.get("key", ""): r for r in workbench_config_field_records(cfg)}
+
         if module.startswith("service/"):
             service = module.split("/", 1)[1]
             rec = line_service_record(service)
-            print(f"  service.name={service}")
+            status = f"{rec.get('actual','?')}"
+            if rec.get('configured') and rec.get('configured') != rec.get('actual'):
+                status += f" (want {rec.get('configured')})"
+            bind = ""
             if rec:
-                print(f"  service.actual={rec.get('actual', '') or '-'}")
-                print(f"  service.configured={rec.get('configured', '') or '-'}")
-                print(f"  service.port={rec.get('port', '') or '-'}")
-                print(f"  service.pid={rec.get('pid', '') or '-'}")
-                print(f"  service.managed={'yes' if rec.get('pid_managed') else 'no'}")
-            print(f"  service.start_command={service_start_headless_command(cfg, service)}")
-            print(f"  service.stop_command={service_stop_headless_command(cfg, service)}")
-            print("  service.next=info, start, stop, run, back")
+                host = rec.get("bind_address") or ""
+                port = rec.get("port") or ""
+                bind = f"  |  {host}:{port}" if host else (f"  |  :{port}" if port else "")
+                tls = "  |  TLS: yes" if rec.get("tls") else ""
+
+            print(f"{service}  ─  {status}{bind}{tls if rec else ''}")
+            print("")
+
+            relevant = _SERVICE_OPTIONS.get(service, [])
+            if relevant:
+                rows = []
+                for key, desc in relevant:
+                    field = all_fields.get(key) or {}
+                    value = field.get("value") or field.get("compiled") or "(not set)"
+                    opts = field.get("options") or []
+                    rows.append({"key": key, "value": value, "desc": desc, "opts": opts})
+
+                def _opts(r):
+                    if r["opts"]:
+                        return [("options", "  ".join(str(o) for o in r["opts"]))]
+                    return []
+
+                _console_table(
+                    "Relevant settings  (set KEY VALUE to change  |  build to see all)",
+                    rows,
+                    [
+                        ("Key",         "key"),
+                        ("Value",       "value"),
+                        ("Description", "desc"),
+                    ],
+                    detail_fn=_opts,
+                )
+            else:
+                print("  No specific options for this service.  Run: build")
+
+            # Target-side connection command
+            tcmds = [r for r in generated_target_command_records(cfg)
+                     if str(r.get("service") or "") == service]
+            if tcmds:
+                print("")
+                print("  Target command:")
+                for r in tcmds[:2]:
+                    cmd = str(r.get("command") or "")
+                    print(f"    {cmd}")
+
+            print("")
+            print("  start  run  set KEY VALUE  build  back")
+            return
         elif module.startswith("route/"):
             route_name = module.split("/", 1)[1]
             rec = line_route_record(route_name)
@@ -22518,13 +22597,7 @@ def run_line_tui(cfg):
             print("  action.id=none")
         fields = workbench_config_field_records(cfg)
         if fields:
-            print("  Build options:")
-            for rec in fields[:10]:
-                options = ",".join(str(item) for item in rec.get("options") or [])
-                suffix = f" options={options}" if options else ""
-                print(f"    {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))}{suffix}")
-            if len(fields) > 10:
-                print(f"    ... {len(fields) - 10} more build option(s)")
+            print(f"  Build options: {len(fields)} configured  (run: build to view/edit)")
 
     def print_line_build_config():
         fields = workbench_config_field_records(cfg)
