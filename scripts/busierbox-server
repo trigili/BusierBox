@@ -21691,6 +21691,7 @@ def run_line_tui(cfg):
         print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
         print("  upload [--start] LOCAL [NAME]   stage and optionally serve a local file")
         print("  files, staged                   list staged files and file workflow actions")
+        print("  unstage NAME                    remove a staged file request")
         print("  downloads                       list target-fetchable staged files")
         print("  serve-binary [--start] [PATH] [NAME] stage and optionally serve a BusierBox binary")
         print("  mailbox, queue                  show command queue and target mailbox state")
@@ -21974,6 +21975,15 @@ def run_line_tui(cfg):
                 "  Stages a local file so a target can fetch it from the file service.",
                 "  --start starts the file-service after staging.",
                 "  NAME defaults to the local basename. Use downloads or files to list staged files.",
+            ],
+            "files": [
+                "files",
+                "stagers",
+                "loot",
+                "downloads",
+                "unstage NAME",
+                "rmfile NAME",
+                "  Lists staged files and target fetch commands, or removes a staged request.",
             ],
             "serve-binary": [
                 "serve-binary [--start|--no-start] [PATH] [NAME]",
@@ -23094,7 +23104,7 @@ def run_line_tui(cfg):
             "useagent", "uselistener", "useroute", "usesession", "usemodule",
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
-            "daemon", "upload", "serve-binary", "downloads", "mailbox", "refresh",
+            "daemon", "upload", "serve-binary", "downloads", "unstage", "rmfile", "mailbox", "refresh",
             "quit", "exit",
         ]
         show_resources = [
@@ -23107,7 +23117,7 @@ def run_line_tui(cfg):
         help_topics = [
             "search", "complete", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
-            "routes", "set", "setg", "run", "jobs", "queue", "upload",
+            "routes", "set", "setg", "run", "jobs", "queue", "upload", "files",
             "daemon", "interact", "sessions",
         ]
 
@@ -23221,6 +23231,14 @@ def run_line_tui(cfg):
         if cmd in {"usemodule", "useaction", "run", "execute", "exploit", "check"}:
             selector_prefix = "" if trailing_space else " ".join(parts[1:])
             return [f"{cmd} {item}" for item in prefixed(selector_prefix, action_names())]
+        if cmd in {"unstage", "rmfile", "rm-file"}:
+            selector_prefix = "" if trailing_space else " ".join(parts[1:])
+            staged_names = [
+                str(name or "")
+                for name in sorted((workbench_snapshot(cfg).get("staged") or {}).keys())
+                if str(name or "")
+            ]
+            return [f"{cmd} {item}" for item in prefixed(selector_prefix, staged_names)]
         return prefixed(current, base_commands)
 
     def print_line_completions(prefix=""):
@@ -24002,6 +24020,27 @@ def run_line_tui(cfg):
         })
         return rec
 
+    def unstage_line_file(request_name):
+        name = str(request_name or "").strip()
+        if not name:
+            raise ValueError("usage: unstage NAME")
+        headless = (
+            "scripts/busierbox-server --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --unstage "
+            + shquote(name)
+            + " --list-staged"
+        )
+        existed = unstage_file(cfg, name)
+        print(f"unstaged {name}" if existed else f"not staged {name}")
+        print(f"headless_command: {headless}")
+        append_event(cfg, "workbench", "workbench_file_unstaged", details={
+            "headless_command": headless,
+            "request_name": name,
+            "existed": existed,
+        })
+        return existed
+
     def print_line_tui_actions():
         print("Actions:")
         print("  Services:")
@@ -24514,6 +24553,12 @@ def run_line_tui(cfg):
                 try:
                     selector, request_name, start_upload_service = parse_line_file_args(console_args[1:])
                     stage_line_file(selector, request_name, start_file_service=start_upload_service)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"unstage", "rmfile", "rm-file"}:
+                try:
+                    unstage_line_file(" ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -26683,6 +26728,7 @@ Operations:
                                 stage and optionally serve a BusierBox binary
   upload [--start] LOCAL [NAME] stage and optionally serve a local file
   downloads                     list target-fetchable staged files
+  unstage NAME                  remove a staged file request
   listeners [-v]                list listener services and start/stop commands
   routes [-v], route print      list bridge routes and hop details
   route add NAME LPORT HOST DPORT [HOP ...]

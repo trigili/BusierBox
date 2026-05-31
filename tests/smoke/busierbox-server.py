@@ -10119,6 +10119,7 @@ def main():
                     "complete use job\n"
                     "complete show m\n"
                     "complete use module operator-daemon\n"
+                    "help files\n"
                     f"resource {line_console_resource}\n"
                     "workspace\n"
                     "next\n"
@@ -10256,6 +10257,9 @@ def main():
                     "show stagers\n"
                     "stagers\n"
                     "files\n"
+                    "unstage console-upload\n"
+                    "rmfile missing-upload\n"
+                    "stagers\n"
                     "mailbox\n"
                     "clear target\n"
                     "q\n"
@@ -10329,6 +10333,7 @@ def main():
                 "Help: history" not in line_console_stdout or
                 "Help: makerc" not in line_console_stdout or
                 "Help: complete" not in line_console_stdout or
+                "Help: files" not in line_console_stdout or
                 "complete [PREFIX]               show command/resource completions" not in line_console_stdout or
                 "Completions for <root>:" not in line_console_stdout or
                 "Completions for use ag:" not in line_console_stdout or
@@ -10394,6 +10399,8 @@ def main():
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "upload [--start] LOCAL [NAME]   stage and optionally serve a local file" not in line_console_stdout or
+                "unstage NAME                    remove a staged file request" not in line_console_stdout or
+                "rmfile NAME" not in line_console_stdout or
                 "downloads                       list target-fetchable staged files" not in line_console_stdout or
                 "run -j, run --job               start selected background action as a managed job" not in line_console_stdout or
                 "use job ID, jobs -i ID          select or inspect a background job" not in line_console_stdout or
@@ -10540,6 +10547,9 @@ def main():
                 "request_name=console-upload" not in line_console_stdout or
                 "target_fetch_command=busierbox fetch console-upload" not in line_console_stdout or
                 "--serve-file " not in line_console_stdout or
+                "unstaged console-upload" not in line_console_stdout or
+                "not staged missing-upload" not in line_console_stdout or
+                "--unstage console-upload --list-staged" not in line_console_stdout or
                 "BusierBox binary staged for target fetch:" not in line_console_stdout or
                 "request_name=busierbox-console" not in line_console_stdout or
                 "target_fetch_command=busierbox fetch busierbox-console" not in line_console_stdout or
@@ -10632,6 +10642,11 @@ def main():
                     (event.get("details") or {}).get("request_name") == "console-upload" and
                     (event.get("details") or {}).get("target_id") == "line-console-target" and
                     (event.get("details") or {}).get("started_file_service") is True
+                    for event in line_console_events) or
+                not any(
+                    event.get("event") == "workbench_file_unstaged" and
+                    (event.get("details") or {}).get("request_name") == "console-upload" and
+                    (event.get("details") or {}).get("existed") is True
                     for event in line_console_events) or
                 not any(
                     event.get("event") == "workbench_binary_served" and
