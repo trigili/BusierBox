@@ -22436,49 +22436,58 @@ def run_line_tui(cfg):
         print("  search TERM  |  targets  sessions  files  listeners  routes  |  ? help")
 
     # Per-service option keys with short descriptions shown in `options`
+    # Each entry: (grit_env_name, cfg_key, description)
+    # cfg_key is the exact Python server config key to update, or "build" to
+    # route through the build config (configs/grit.conf).
     _SERVICE_OPTIONS = {
         "ssh": [
-            ("GRIT_OPERATOR_REMOTE_FORWARD_PORT", "port the target opens for reverse forward"),
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP/hostname the target connects to"),
-            ("GRIT_OPERATOR_SERVER_SSH_PORT",      "operator SSH port"),
-            ("GRIT_OPERATOR_SERVER_USER",          "SSH user on the operator side"),
-            ("GRIT_OPERATOR_KNOWN_HOSTS_POLICY",   "how to handle host key verification"),
+            ("GRIT_OPERATOR_REMOTE_FORWARD_PORT", "forward_port",               "port the target opens for reverse forward"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP/hostname the target connects to"),
+            ("GRIT_OPERATOR_SERVER_SSH_PORT",      "operator_server_ssh_port",   "operator SSH port"),
+            ("GRIT_OPERATOR_SERVER_USER",          "operator_server_user",       "SSH user on the operator side"),
+            ("GRIT_OPERATOR_KNOWN_HOSTS_POLICY",   "known_hosts_policy",         "how to handle host key verification"),
         ],
         "tls-shell": [
-            ("GRIT_RSHELL_SOCAT_PORT",             "port to listen on (and target connects to)"),
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP/hostname for target-side command"),
-            ("GRIT_RSHELL_ENCRYPTION",             "transport encryption: tls / none"),
-            ("GRIT_RSHELL_ALLOW_PLAINTEXT",        "allow unencrypted fallback"),
-            ("GRIT_RSHELL_TRANSPORT",              "active reverse-shell transport"),
-            ("GRIT_RSHELL_SHELL_PROVIDER",         "shell to launch on the target (auto/ash/bash/zsh)"),
+            ("GRIT_RSHELL_SOCAT_PORT",             "shell_listen_port",          "port to listen on (and target connects to)"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP/hostname for target-side command"),
+            ("GRIT_RSHELL_ENCRYPTION",             "encryption",                 "transport encryption: tls / none"),
+            ("GRIT_RSHELL_ALLOW_PLAINTEXT",        "allow_plaintext",            "allow unencrypted fallback"),
+            ("GRIT_RSHELL_TRANSPORT",              "build",                      "active reverse-shell transport"),
+            ("GRIT_RSHELL_SHELL_PROVIDER",         "rshell_shell_provider",      "shell to launch on the target (auto/ash/bash/zsh)"),
         ],
         "plain-shell": [
-            ("GRIT_RSHELL_SOCAT_PORT",             "port to listen on"),
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP/hostname for target-side command"),
-            ("GRIT_RSHELL_TRANSPORT",              "active reverse-shell transport"),
-            ("GRIT_RSHELL_SHELL_PROVIDER",         "shell to launch on the target"),
+            ("GRIT_RSHELL_SOCAT_PORT",             "shell_listen_port",          "port to listen on"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP/hostname for target-side command"),
+            ("GRIT_RSHELL_TRANSPORT",              "build",                      "active reverse-shell transport"),
+            ("GRIT_RSHELL_SHELL_PROVIDER",         "rshell_shell_provider",      "shell to launch on the target"),
         ],
         "file-service": [
-            ("GRIT_OPERATOR_FILE_SERVICE_PORT",    "file service listen port"),
-            ("GRIT_OPERATOR_FILE_SERVICE_TLS",     "TLS for file service connections"),
-            ("GRIT_OPERATOR_FILE_SERVICE_ENABLE",  "enable file service in zero-arg mode"),
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP used in staged fetch commands"),
+            ("GRIT_OPERATOR_FILE_SERVICE_PORT",    "file_service_port",          "file service listen port"),
+            ("GRIT_OPERATOR_FILE_SERVICE_TLS",     "file_service_tls",           "TLS for file service connections"),
+            ("GRIT_OPERATOR_FILE_SERVICE_ENABLE",  "file_service_enable",        "enable file service in zero-arg mode"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP used in staged fetch commands"),
         ],
         "command-queue": [
-            ("GRIT_COMMAND_QUEUE_PORT",            "command queue listen port"),
-            ("GRIT_COMMAND_QUEUE_TLS",             "TLS for command queue connections"),
-            ("GRIT_COMMAND_QUEUE_ENABLE",          "enable command queue in zero-arg mode"),
-            ("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN",   "require auth token from targets"),
-            ("GRIT_COMMAND_QUEUE_TOKEN",           "shared token (if token required)"),
-            ("GRIT_COMMAND_QUEUE_EXECUTION",       "command execution mode"),
+            ("GRIT_COMMAND_QUEUE_PORT",            "command_queue_port",         "command queue listen port"),
+            ("GRIT_COMMAND_QUEUE_TLS",             "command_queue_tls",          "TLS for command queue connections"),
+            ("GRIT_COMMAND_QUEUE_ENABLE",          "command_queue_enable",       "enable command queue in zero-arg mode"),
+            ("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN",   "command_queue_require_token","require auth token from targets"),
+            ("GRIT_COMMAND_QUEUE_TOKEN",           "command_queue_token",        "shared token (if token required)"),
+            ("GRIT_COMMAND_QUEUE_EXECUTION",       "command_queue_execution",    "command execution mode"),
         ],
         "bridge": [
-            ("GRIT_OPERATOR_TARGET_BIND_HOST",     "bind address for bridge listeners"),
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP for generated commands"),
+            ("GRIT_OPERATOR_TARGET_BIND_HOST",     "operator_target_bind_host",  "bind address for bridge listeners"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP for generated commands"),
         ],
         "probe": [
-            ("GRIT_OPERATOR_SERVER_HOST",          "operator IP used in probe command"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "operator_server_host",       "operator IP used in probe command"),
         ],
+    }
+    # Reverse lookup: grit env name → cfg_key (for use in set_line_option)
+    _GRIT_TO_CFG_KEY = {
+        grit: cfg_key
+        for entries in _SERVICE_OPTIONS.values()
+        for grit, cfg_key, _desc in entries
     }
 
     def print_line_options():
@@ -22505,18 +22514,23 @@ def run_line_tui(cfg):
             relevant = _SERVICE_OPTIONS.get(service, [])
             if relevant:
                 rows = []
-                for key, desc in relevant:
-                    field = all_fields.get(key) or {}
-                    value = field.get("value") or field.get("compiled") or "(not set)"
-                    opts = field.get("options") or []
-                    rows.append({"key": key, "value": value, "desc": desc, "opts": opts})
+                for grit_name, cfg_key, desc in relevant:
+                    if cfg_key == "build":
+                        field = all_fields.get(grit_name) or {}
+                        value = field.get("value") or field.get("compiled") or "(not set)"
+                        opts = field.get("options") or []
+                    else:
+                        raw = cfg.get(cfg_key)
+                        value = str(raw) if raw not in (None, "") else "(not set)"
+                        opts = []
+                    rows.append({"key": grit_name, "value": value, "desc": desc, "opts": opts})
 
                 def _opts(r):
                     if r["opts"]:
                         return [("options", "  ".join(str(o) for o in r["opts"]))]
                     return []
 
-                # Store key list so `set N value` can resolve row numbers
+                # Store GRIT_ names so `set N value` can resolve row numbers
                 cfg["_options_keys"] = [r["key"] for r in rows]
                 _console_table(
                     "Relevant settings  (set KEY VALUE or set N VALUE to change  |  build to see all)",
@@ -22793,19 +22807,23 @@ def run_line_tui(cfg):
             rec = set_workbench_build_config(cfg, f"{key}={text}")
             print(f"set {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
             return
-        # Server config keys: GRIT_FOO_BAR maps to cfg["foo_bar"].
-        # These live in local/server-config.json, not configs/grit.conf.
-        server_key = key[5:].lower() if key.upper().startswith("GRIT_") else key.lower()
-        if server_key in DEFAULTS:
-            old_val = cfg.get(server_key, "")
-            # Cast to the same type as the default
-            default_val = DEFAULTS.get(server_key)
+        # Explicit GRIT_ → server cfg key mapping.  No guessing.
+        cfg_key = _GRIT_TO_CFG_KEY.get(key)
+        if cfg_key == "build":
+            # This GRIT_ name belongs in the build config, not server config.
+            if key in build_keys:
+                rec = set_workbench_build_config(cfg, f"{key}={text}")
+                print(f"set {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
+            else:
+                print(f"{key} is a build config key — run: build set {key} {text}")
+            return
+        if cfg_key is not None:
+            default_val = DEFAULTS.get(cfg_key)
             try:
                 typed_val = type(default_val)(text) if default_val is not None else text
             except (ValueError, TypeError):
                 typed_val = text
-            cfg[server_key] = typed_val
-            # Persist to server config file
+            cfg[cfg_key] = typed_val
             config_path = Path(str(cfg.get("_config_path") or DEFAULT_CONFIG))
             try:
                 existing = {}
@@ -22816,7 +22834,7 @@ def run_line_tui(cfg):
                         pass
                 if not isinstance(existing, dict):
                     existing = {}
-                existing[server_key] = typed_val
+                existing[cfg_key] = typed_val
                 config_path.parent.mkdir(parents=True, exist_ok=True)
                 atomic_write_json(config_path, existing)
                 print(f"set {key}={shell_double_quote(str(typed_val))}  (saved to {config_path})")
