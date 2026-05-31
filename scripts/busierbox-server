@@ -21656,6 +21656,7 @@ def run_line_tui(cfg):
         print("  info, options                   show selected context and module options")
         print("  show options                    show target/module/build options")
         print("  set KEY VALUE                   set target metadata or guided build option")
+        print("  rename|note|alias VALUE         edit selected agent label, notes, or alias")
         print("  setg KEY VALUE, unsetg KEY      set or unset global build/workbench options")
         print("  unset KEY                       clear target label/notes or module context")
         print("  services, listeners [-v]        list listener services")
@@ -21855,6 +21856,7 @@ def run_line_tui(cfg):
                 "listeners           local services",
                 "routes              bridge profiles",
                 "stagers, loot       staged files and fetch commands",
+                "rename, note, alias edit selected agent metadata",
                 "useagent, uselistener, useroute, usesession, usemodule",
                 "execute, exploit    run the selected action/service module",
                 "use agent/listener/module and sessions -i mirror familiar console verbs",
@@ -21876,8 +21878,11 @@ def run_line_tui(cfg):
             ],
             "set": [
                 "set KEY VALUE",
+                "rename LABEL",
+                "note TEXT",
+                "alias NAME",
                 "  Sets selected-target metadata or guided build options.",
-                "  Examples: set target.notes Rack shelf A; set target.alias lab-router",
+                "  Examples: rename lab-router-1; note Rack shelf A; alias lab-router",
             ],
             "setg": [
                 "setg KEY VALUE",
@@ -22270,6 +22275,65 @@ def run_line_tui(cfg):
             + shquote(target_id)
             + " --target-label "
             + shquote(str((load_targets(cfg).get("targets") or {}).get(target_id, {}).get("label") or ""))
+        )
+        print(f"headless_command: {headless}")
+
+    def rename_line_target(label):
+        text = str(label or "").strip()
+        if not text:
+            raise ValueError("usage: rename LABEL")
+        target_id, rec = selected_target_record_for_update()
+        updated = set_target_label(
+            cfg,
+            target_id,
+            text,
+            aliases=rec.get("aliases") or [],
+            notes=rec.get("notes", ""),
+        )
+        cfg["_target_label_filter"] = str(updated.get("label") or "")
+        print(f"renamed target {target_id} label={updated.get('label', '') or '-'}")
+        print_target_metadata_headless_command(target_id)
+
+    def note_line_target(notes):
+        text = str(notes or "").strip()
+        target_id, rec = selected_target_record_for_update()
+        if not text:
+            print(f"target.notes={str(rec.get('notes') or '') or '-'}")
+            return
+        updated = set_target_label(
+            cfg,
+            target_id,
+            rec.get("label", ""),
+            aliases=rec.get("aliases") or [],
+            notes=text,
+        )
+        print(f"noted target {target_id} notes={str(updated.get('notes') or '') or '-'}")
+        print_target_metadata_headless_command(target_id)
+
+    def alias_line_target(alias):
+        text = str(alias or "").strip()
+        if not text:
+            raise ValueError("usage: alias NAME")
+        target_id, rec = selected_target_record_for_update()
+        updated = set_target_label(
+            cfg,
+            target_id,
+            rec.get("label", ""),
+            aliases=[text],
+            notes=rec.get("notes", ""),
+        )
+        print(f"aliased target {target_id} aliases={','.join(str(item) for item in updated.get('aliases') or []) or '-'}")
+        print_target_metadata_headless_command(target_id)
+
+    def print_target_metadata_headless_command(target_id):
+        rec = (load_targets(cfg).get("targets") or {}).get(target_id, {})
+        headless = (
+            "scripts/busierbox-server --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --set-target-label "
+            + shquote(target_id)
+            + " --target-label "
+            + shquote(str(rec.get("label") or ""))
         )
         print(f"headless_command: {headless}")
 
@@ -23567,6 +23631,24 @@ def run_line_tui(cfg):
                         opt_value = " ".join(console_args[2:]).strip()
                     set_line_option(opt_key, opt_value)
                 except (IndexError, ValueError) as exc:
+                    print(exc)
+                continue
+            elif cmd == "rename":
+                try:
+                    rename_line_target(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"note", "notes"}:
+                try:
+                    note_line_target(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "alias":
+                try:
+                    alias_line_target(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
                     print(exc)
                 continue
             elif cmd == "setg":
@@ -26012,6 +26094,7 @@ Context:
   useagent/usemodule NAME       Empire-style context selection aliases
   use session SESSION           select a session context
   next                          show suggested commands for current context
+  rename|note|alias VALUE       edit selected agent metadata
   main, home, root              clear selected target/module context
   back, background              clear selected module context
   clear target                  return to all targets

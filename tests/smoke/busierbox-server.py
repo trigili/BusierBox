@@ -10172,6 +10172,9 @@ def main():
                     "next\n"
                     "main\n"
                     "use agent Console Router\n"
+                    "rename Console Router\n"
+                    "note Console quick note\n"
+                    "alias console-alias\n"
                     "search Console Router\n"
                     "use 1\n"
                     "show options\n"
@@ -10291,6 +10294,7 @@ def main():
                 "use agent|listener|route NAME   select target, listener, or route context" not in line_console_stdout or
                 "use module NAME                 select an action module context" not in line_console_stdout or
                 "useagent/usemodule NAME         Empire-style context selection aliases" not in line_console_stdout or
+                "rename|note|alias VALUE         edit selected agent label, notes, or alias" not in line_console_stdout or
                 "main, home, root                clear target/module context" not in line_console_stdout or
                 "back, background                clear selected module context" not in line_console_stdout or
                 "Clears selected target and module context, then returns to the top-level workspace." not in line_console_stdout or
@@ -10363,6 +10367,12 @@ def main():
                 "useroute console-route" not in line_console_stdout or
                 "usesession 1" not in line_console_stdout or
                 "useagent Console Router" not in line_console_stdout or
+                "rename Console Router" not in line_console_stdout or
+                "renamed target line-console-target label=Console Router" not in line_console_stdout or
+                "note Console quick note" not in line_console_stdout or
+                "noted target line-console-target notes=Console quick note" not in line_console_stdout or
+                "alias console-alias" not in line_console_stdout or
+                "aliased target line-console-target aliases=console-alias" not in line_console_stdout or
                 "selected action daemon:operator-daemon-status" not in line_console_stdout or
                 "bbx[all]/action/operator-daemon-status>" not in line_console_stdout or
                 "action=daemon:operator-daemon-status" not in line_console_stdout or
