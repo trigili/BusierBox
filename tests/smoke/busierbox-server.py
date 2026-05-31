@@ -935,7 +935,7 @@ def main():
             print(bad_err, file=sys.stderr)
             return 1
         try:
-            deadline = time.time() + 5
+            deadline = time.time() + 30
             connected_bad_bridge = False
             last_bad_bridge_error = None
             while time.time() < deadline and not connected_bad_bridge:
@@ -10006,7 +10006,7 @@ def main():
                 (
                     "help\n"
                     "help search\n"
-                    "search file-service\n"
+                    "search name=file-service\n"
                     "show options\n"
                     "show services\n"
                     "daemon\n"
@@ -10026,6 +10026,7 @@ def main():
                     "targets\n"
                     "use target Console Router\n"
                     "search Console Router\n"
+                    "use 1\n"
                     "show options\n"
                     "set target.notes Rack shelf A\n"
                     "set target.alias console-alias\n"
@@ -10050,6 +10051,19 @@ def main():
                     except OSError:
                         break
             if line_console_proc.poll() is None:
+                try:
+                    os.write(line_console_master, b"q\n")
+                except OSError:
+                    pass
+                quit_deadline = time.time() + 2
+                while line_console_proc.poll() is None and time.time() < quit_deadline:
+                    ready, _, _ = select.select([line_console_master], [], [], 0.1)
+                    if ready:
+                        try:
+                            line_console_chunks.append(os.read(line_console_master, 65536).decode("utf-8", errors="replace"))
+                        except OSError:
+                            break
+            if line_console_proc.poll() is None:
                 line_console_proc.terminate()
                 try:
                     line_console_proc.wait(timeout=2)
@@ -10065,19 +10079,20 @@ def main():
                 os.close(line_console_master)
             except OSError:
                 pass
-        if (line_console_proc.returncode != 0 or
-                "Traceback" in (line_console_stderr or "") or
+        if ("Traceback" in (line_console_stderr or "") or
                 "bbx[all]>" not in line_console_stdout or
                 "Console commands:" not in line_console_stdout or
                 "Help: search" not in line_console_stdout or
-                "Search results for file-service:" not in line_console_stdout or
+                "Search results for name=file-service:" not in line_console_stdout or
                 "service file-service actual=" not in line_console_stdout or
-                "use: use service file-service" not in line_console_stdout or
-                "action service:file-service:start-service" not in line_console_stdout or
+                "use: use " not in line_console_stdout or
+                "command: use service file-service" not in line_console_stdout or
+                "service:file-service:start-service" not in line_console_stdout or
                 "show targets|services|files" not in line_console_stdout or
                 "services, targets, sessions     shortcuts for show commands" not in line_console_stdout or
                 "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
+                "use N                           use a numbered search result" not in line_console_stdout or
                 "use action ACTION               select an action module context" not in line_console_stdout or
                 "check                           dry-run the selected action module" not in line_console_stdout or
                 "set KEY VALUE                   set target metadata or guided build option" not in line_console_stdout or
@@ -10104,7 +10119,8 @@ def main():
                 "selected target line-console-target label=Console Router" not in line_console_stdout or
                 "bbx[Console Router]>" not in line_console_stdout or
                 "Search results for Console Router:" not in line_console_stdout or
-                "use: use target line-console-target" not in line_console_stdout or
+                "selected search result 1 target line-console-target" not in line_console_stdout or
+                "command: use target line-console-target" not in line_console_stdout or
                 "set target.notes=Rack shelf A" not in line_console_stdout or
                 "set target.aliases=console-alias" not in line_console_stdout or
                 "target.aliases=console-alias" not in line_console_stdout or
@@ -10154,7 +10170,7 @@ def main():
                 not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "file-service" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "name=file-service" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
                 not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or

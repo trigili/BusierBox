@@ -21604,6 +21604,7 @@ def run_line_tui(cfg):
         print("  set KEY VALUE                   set target metadata or guided build option")
         print("  unset KEY                       clear target label/notes or module context")
         print("  services, targets, sessions     shortcuts for show commands")
+        print("  use N                           use a numbered search result")
         print("  use target ID|LABEL|NUMBER      select a target context")
         print("  use service SERVICE             select a service module context")
         print("  use action ACTION               select an action module context")
@@ -21635,10 +21636,11 @@ def run_line_tui(cfg):
                 "  Example: search file-service",
             ],
             "use": [
+                "use N",
                 "use target ID|LABEL|NUMBER",
                 "use service SERVICE",
                 "use action ACTION",
-                "  Selects the current target, service module, or action module context.",
+                "  Selects a numbered search result, target, service module, or action module context.",
             ],
             "show": [
                 "show targets|services|files|queue|mailbox|jobs|sessions|activity|actions|options",
@@ -22042,25 +22044,62 @@ def run_line_tui(cfg):
         print(f"Search results for {query}:")
         if not matches:
             print("  none")
+        search_records = []
         for idx, (kind, label, rec, command) in enumerate(matches, 1):
             print(f"  {idx}: {kind} {label}")
+            use_hint = ""
             if command:
                 if len(command) > 140:
                     command = command[:137] + "..."
                 print(f"     command: {command}")
             if kind == "target":
-                print(f"     use: use target {shquote(str(rec.get('target_id', '')))}")
+                use_hint = f"use target {shquote(str(rec.get('target_id', '')))}"
             elif kind == "service":
-                print(f"     use: use service {shquote(str(rec.get('name', '')))}")
+                use_hint = f"use service {shquote(str(rec.get('name', '')))}"
             elif kind == "action":
-                print(f"     use: use action {shquote(str(rec.get('id', '')))}")
+                use_hint = f"use action {shquote(str(rec.get('id', '')))}"
             elif kind == "session":
                 session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
-                print(f"     interact: interact {shquote(str(session_id))}")
+                use_hint = f"interact {shquote(str(session_id))}"
+            if use_hint:
+                print(f"     use: use {idx}")
+                print(f"     command: {use_hint}")
+            search_records.append({
+                "kind": kind,
+                "label": label,
+                "rec": rec,
+                "command": command,
+                "use_hint": use_hint,
+            })
+        cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_console_searched", details={
             "query": str(query or ""),
             "match_count": len(matches),
         })
+
+    def use_line_search_result(selector):
+        text = str(selector or "").strip()
+        if not text.isdigit():
+            raise ValueError("usage: use N")
+        results = cfg.get("_line_console_search_results") or []
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(results):
+            raise ValueError(f"search result number out of range: {text}")
+        item = results[idx] if isinstance(results[idx], dict) else {}
+        kind = str(item.get("kind") or "")
+        rec = item.get("rec") if isinstance(item.get("rec"), dict) else {}
+        label = str(item.get("label") or "")
+        print(f"selected search result {text} {kind} {label}")
+        if kind == "target":
+            return select_line_target(str(rec.get("target_id") or ""))
+        if kind == "service":
+            return select_line_service(str(rec.get("name") or ""))
+        if kind == "action":
+            return select_line_action(str(rec.get("id") or ""))
+        if kind == "session":
+            session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
+            return interact_line_session(str(session_id))
+        raise ValueError(f"search result {text} is not directly selectable")
 
     def print_line_actions():
         actions = line_action_records()
@@ -22375,14 +22414,18 @@ def run_line_tui(cfg):
         print("  q quit")
 
     render_full = False
+    compact_next_prompt = False
     while not SHUTDOWN.is_set():
-        print("")
         snap = None
-        if render_full:
+        if compact_next_prompt:
+            compact_next_prompt = False
+        elif render_full:
+            print("")
             print_workbench(cfg, include_api_summary=False)
             render_full = False
             snap = workbench_snapshot(cfg)
         else:
+            print("")
             snap = workbench_snapshot(cfg)
             summary = snap.get("summary") or {}
             tail_status = event_tail_availability_text(snap)
@@ -22400,11 +22443,11 @@ def run_line_tui(cfg):
             target_filter = snap.get("target_filter") or {}
             if target_filter.get("active"):
                 print(target_filter_summary_text(target_filter, prefix="Target filter:"))
-        if snap is None:
-            snap = workbench_snapshot(cfg)
-        print(line_tui_status_bar(snap))
-        print("")
-        print_line_tui_actions()
+            if snap is None:
+                snap = workbench_snapshot(cfg)
+            print(line_tui_status_bar(snap))
+            print("")
+            print_line_tui_actions()
         line = line_input(line_tui_prompt())
         if line is None:
             break
@@ -22419,6 +22462,7 @@ def run_line_tui(cfg):
                 print(exc)
                 continue
             cmd = console_args[0].lower() if console_args else ""
+            compact_next_prompt = True
             if cmd in {"q", "quit", "exit"}:
                 choice = "q"
             elif cmd in {"help", "?"}:
@@ -22469,6 +22513,12 @@ def run_line_tui(cfg):
                 continue
             elif cmd == "sessions":
                 print_line_sessions()
+                continue
+            elif cmd == "use" and len(console_args) == 2 and console_args[1].isdigit():
+                try:
+                    use_line_search_result(console_args[1])
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "target":
                 selector = " ".join(console_args[2:]).strip()
@@ -22552,8 +22602,10 @@ def run_line_tui(cfg):
                     print(exc)
                 continue
             elif cmd in {"files", "staged"}:
+                compact_next_prompt = False
                 choice = "7"
             elif cmd in {"mailbox", "queue"}:
+                compact_next_prompt = False
                 choice = "20"
             elif cmd == "jobs":
                 print_line_jobs()
@@ -22571,6 +22623,7 @@ def run_line_tui(cfg):
                     print(exc)
                 continue
             elif cmd == "refresh":
+                compact_next_prompt = False
                 choice = "r"
             else:
                 print(f"unknown command: {cmd}; type help")
