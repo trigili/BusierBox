@@ -23184,6 +23184,92 @@ def run_line_tui(cfg):
             "headless_command": headless,
         })
 
+    def print_line_command_queue_view():
+        snap = workbench_snapshot(cfg)
+        command_queue_actions = snap.get("command_queue_workflow_actions") or []
+        list_action = (snap.get("command_queue_workflow_actions_by_id") or {}).get("command-queue:list-command-queue") or {}
+        headless = (
+            list_action.get("headless_command")
+            or list_action.get("command")
+            or (
+                "scripts/busierbox-server --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --list-command-queue"
+            )
+        )
+        print(f"headless_command: {headless}")
+        print_command_queue(cfg, json_output=False)
+        if command_queue_actions:
+            print("Command queue workflow actions:")
+            for rec in command_queue_actions:
+                print(
+                    f"  {rec.get('id', '')} "
+                    f"state={rec.get('operator_action_state', '') or '-'} "
+                    f"reason={rec.get('operator_action_reason', '') or '-'} "
+                    f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
+                    f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'} "
+                    f"pending_targets={rec.get('target_mailbox_pending_target_count', 0)} "
+                    f"pending_work={rec.get('target_mailbox_pending_work_count', 0)} "
+                    f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
+                    f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
+                )
+                print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
+        mailbox_records = snap.get("target_mailbox_records") or []
+        if mailbox_records:
+            print("Target mailbox records:")
+            for rec in mailbox_records[:8]:
+                print(
+                    f"  {rec.get('command_id', '')} "
+                    f"target={rec.get('target_id', '') or '-'} "
+                    f"state={rec.get('target_connectivity_state', '') or '-'} "
+                    f"status={rec.get('status', '') or '-'} "
+                    f"waiting_for={rec.get('waiting_for', '') or '-'} "
+                    f"reason={rec.get('pending_reason', '') or '-'} "
+                    f"expired={'yes' if rec.get('expired') else 'no'} "
+                    f"pending={'yes' if rec.get('pending_work') else 'no'} "
+                    f"result={rec.get('result_status', '') or '-'} "
+                    f"exit={rec.get('result_exit_code', '') if rec.get('result_exit_code') != '' else '-'}"
+                )
+                print(
+                    f"    last_seen={rec.get('target_last_seen', '') or '-'} "
+                    f"via={rec.get('target_last_seen_via', '') or '-'} "
+                    f"offline_for_sec={rec.get('target_offline_for_sec', '') if rec.get('target_offline_for_sec') != '' else '-'} "
+                    f"offline_age={rec.get('target_offline_age_bucket', '') or '-'} "
+                    f"next_expected_poll={rec.get('target_next_expected_poll', '') or '-'} "
+                    f"poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'} "
+                    f"poll_overdue_for_sec={rec.get('target_poll_overdue_for_sec', '') if rec.get('target_poll_overdue_for_sec') != '' else '-'}"
+                )
+                if rec.get("work_kind") or rec.get("bridge_profile") or rec.get("request_name"):
+                    print(
+                        f"    work_kind={rec.get('work_kind', '') or '-'} "
+                        f"workflow={rec.get('workflow', '') or '-'} "
+                        f"request_name={rec.get('request_name', '') or '-'} "
+                        f"route_kind={rec.get('route_kind', '') or '-'} "
+                        f"bridge_profile={rec.get('bridge_profile', '') or '-'} "
+                        f"bridge_requires_target_online={'yes' if rec.get('bridge_requires_target_online') else 'no'} "
+                        f"bridge_route={rec.get('bridge_route_path', '') or '-'}"
+                    )
+                print(
+                    f"    created={rec.get('created_at', '') or '-'} "
+                    f"delivered={rec.get('delivered_at', '') or '-'} "
+                    f"expires={rec.get('expires_at', '') or '-'} "
+                    f"result_at={rec.get('result_received_at', '') or '-'} "
+                    f"age_sec={rec.get('age_sec', '') if rec.get('age_sec') != '' else '-'} "
+                    f"pending_delivery_for_sec={rec.get('pending_delivery_for_sec', '') if rec.get('pending_delivery_for_sec') != '' else '-'} "
+                    f"delivered_without_result_for_sec={rec.get('delivered_without_result_for_sec', '') if rec.get('delivered_without_result_for_sec') != '' else '-'} "
+                    f"result_latency_sec={rec.get('result_latency_sec', '') if rec.get('result_latency_sec') != '' else '-'}"
+                )
+                if rec.get("result_received_at"):
+                    print(f"    result_source={rec.get('result_source_path', '') or '-'}")
+        else:
+            print("Target mailbox records: none")
+        append_event(cfg, "workbench", "workbench_command_queue_inspected", details={
+            "headless_command": headless,
+            "command_count": len((command_queue_summary(cfg).get("commands") or [])),
+            "target_mailbox_record_count": len(mailbox_records),
+            "command_queue_workflow_action_count": len(command_queue_actions),
+        })
+
     def show_line_resource(resource):
         parts = shlex.split(str(resource or "").strip()) if str(resource or "").strip() else []
         key = (parts[0] if parts else "").lower()
@@ -23209,7 +23295,7 @@ def run_line_tui(cfg):
         elif key in ("route", "routes"):
             print_line_routes(verbose=filter_text in ("-v", "--verbose", "verbose"))
         elif key in ("queue", "mailbox", "commands"):
-            print_command_queue(cfg, json_output=False)
+            print_line_command_queue_view()
         elif key in ("activity", "events"):
             snap = workbench_snapshot(cfg)
             print_target_activity_records(snap, target_id=configured_target_filter(cfg), limit=12)
@@ -24487,90 +24573,7 @@ def run_line_tui(cfg):
                     headless_command=headless,
                 )
         elif choice == "20":
-            snap = workbench_snapshot(cfg)
-            command_queue_actions = snap.get("command_queue_workflow_actions") or []
-            list_action = (snap.get("command_queue_workflow_actions_by_id") or {}).get("command-queue:list-command-queue") or {}
-            headless = (
-                list_action.get("headless_command")
-                or list_action.get("command")
-                or (
-                    "scripts/busierbox-server --config "
-                    + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                    + " --list-command-queue"
-                )
-            )
-            print(f"headless_command: {headless}")
-            print_command_queue(cfg, json_output=False)
-            if command_queue_actions:
-                print("Command queue workflow actions:")
-                for rec in command_queue_actions:
-                    print(
-                        f"  {rec.get('id', '')} "
-                        f"state={rec.get('operator_action_state', '') or '-'} "
-                        f"reason={rec.get('operator_action_reason', '') or '-'} "
-                        f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
-                        f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'} "
-                        f"pending_targets={rec.get('target_mailbox_pending_target_count', 0)} "
-                        f"pending_work={rec.get('target_mailbox_pending_work_count', 0)} "
-                        f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
-                        f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
-                    )
-                    print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
-            mailbox_records = snap.get("target_mailbox_records") or []
-            if mailbox_records:
-                print("Target mailbox records:")
-                for rec in mailbox_records[:8]:
-                    print(
-                        f"  {rec.get('command_id', '')} "
-                        f"target={rec.get('target_id', '') or '-'} "
-                        f"state={rec.get('target_connectivity_state', '') or '-'} "
-                        f"status={rec.get('status', '') or '-'} "
-                        f"waiting_for={rec.get('waiting_for', '') or '-'} "
-                        f"reason={rec.get('pending_reason', '') or '-'} "
-                        f"expired={'yes' if rec.get('expired') else 'no'} "
-                        f"pending={'yes' if rec.get('pending_work') else 'no'} "
-                        f"result={rec.get('result_status', '') or '-'} "
-                        f"exit={rec.get('result_exit_code', '') if rec.get('result_exit_code') != '' else '-'}"
-                    )
-                    print(
-                        f"    last_seen={rec.get('target_last_seen', '') or '-'} "
-                        f"via={rec.get('target_last_seen_via', '') or '-'} "
-                        f"offline_for_sec={rec.get('target_offline_for_sec', '') if rec.get('target_offline_for_sec') != '' else '-'} "
-                        f"offline_age={rec.get('target_offline_age_bucket', '') or '-'} "
-                        f"next_expected_poll={rec.get('target_next_expected_poll', '') or '-'} "
-                        f"poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'} "
-                        f"poll_overdue_for_sec={rec.get('target_poll_overdue_for_sec', '') if rec.get('target_poll_overdue_for_sec') != '' else '-'}"
-                    )
-                    if rec.get("work_kind") or rec.get("bridge_profile") or rec.get("request_name"):
-                        print(
-                            f"    work_kind={rec.get('work_kind', '') or '-'} "
-                            f"workflow={rec.get('workflow', '') or '-'} "
-                            f"request_name={rec.get('request_name', '') or '-'} "
-                            f"route_kind={rec.get('route_kind', '') or '-'} "
-                            f"bridge_profile={rec.get('bridge_profile', '') or '-'} "
-                            f"bridge_requires_target_online={'yes' if rec.get('bridge_requires_target_online') else 'no'} "
-                            f"bridge_route={rec.get('bridge_route_path', '') or '-'}"
-                        )
-                    print(
-                        f"    created={rec.get('created_at', '') or '-'} "
-                        f"delivered={rec.get('delivered_at', '') or '-'} "
-                        f"expires={rec.get('expires_at', '') or '-'} "
-                        f"result_at={rec.get('result_received_at', '') or '-'} "
-                        f"age_sec={rec.get('age_sec', '') if rec.get('age_sec') != '' else '-'} "
-                        f"pending_delivery_for_sec={rec.get('pending_delivery_for_sec', '') if rec.get('pending_delivery_for_sec') != '' else '-'} "
-                        f"delivered_without_result_for_sec={rec.get('delivered_without_result_for_sec', '') if rec.get('delivered_without_result_for_sec') != '' else '-'} "
-                        f"result_latency_sec={rec.get('result_latency_sec', '') if rec.get('result_latency_sec') != '' else '-'}"
-                    )
-                    if rec.get("result_received_at"):
-                        print(f"    result_source={rec.get('result_source_path', '') or '-'}")
-            else:
-                print("Target mailbox records: none")
-            append_event(cfg, "workbench", "workbench_command_queue_inspected", details={
-                "headless_command": headless,
-                "command_count": len((command_queue_summary(cfg).get("commands") or [])),
-                "target_mailbox_record_count": len(mailbox_records),
-                "command_queue_workflow_action_count": len(command_queue_actions),
-            })
+            print_line_command_queue_view()
         elif choice == "21":
             unfiltered_cfg = dict(cfg)
             unfiltered_cfg.pop("_target_id_filter", None)

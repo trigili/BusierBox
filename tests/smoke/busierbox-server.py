@@ -10181,6 +10181,7 @@ def main():
                     "unset target.notes\n"
                     "show activity\n"
                     "queue busierbox survey --json\n"
+                    "show mailbox\n"
                     f"upload {line_console_upload} console-upload\n"
                     "downloads\n"
                     f"serve-binary {line_console_binary} busierbox-console\n"
@@ -10407,6 +10408,7 @@ def main():
                 "unset target.notes for line-console-target" not in line_console_stdout or
                 "Target activity records:" not in line_console_stdout or
                 "queued cq-" not in line_console_stdout or
+                "show mailbox" not in line_console_stdout or
                 "busierbox survey --json" not in line_console_stdout or
                 "target=line-console-target label=Console Router" not in line_console_stdout or
                 "--target-id line-console-target --queue-command 'busierbox survey --json' --list-command-queue" not in line_console_stdout or
@@ -10485,6 +10487,7 @@ def main():
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
                 not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
+                len([event for event in line_console_events if event.get("event") == "workbench_command_queue_inspected"]) < 2 or
                 not any(
                     event.get("event") == "workbench_file_uploaded" and
                     (event.get("details") or {}).get("request_name") == "console-upload" and
