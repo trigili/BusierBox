@@ -165,6 +165,10 @@ def main():
     console_help = help_console_out.stdout + help_console_out.stderr
     if ("BusierBox operator console reference." not in console_help or
             "use agent ID|LABEL|NUMBER" not in console_help or
+            "agent ID|LABEL|NUMBER" not in console_help or
+            "use job ID|NUMBER" not in console_help or
+            "jobs, jobs -i ID, job ID" not in console_help or
+            "interact agent ID|LABEL" not in console_help or
             "serve-binary [PATH] [NAME]" not in console_help or
             "resource FILE" not in console_help or
             "!!, !N, repeat N" not in console_help or

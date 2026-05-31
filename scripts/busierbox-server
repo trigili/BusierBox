@@ -26304,7 +26304,7 @@ BusierBox operator console reference.
 
 Discovery:
   workspace                     show fleet/listener/session overview
-  search TERM                   search agents, listeners, modules, sessions, files, queue
+  search TERM                   search agents, listeners, modules, sessions, jobs, files, queue
   show agents|listeners|routes  list common operator resources
   show categories               summarize runnable module kinds
   show service|daemon modules   browse modules by operator category
@@ -26315,6 +26315,7 @@ Discovery:
 Context:
   use N                         select a numbered search/list/module result
   use agent ID|LABEL|NUMBER     select a target device
+  agent ID|LABEL|NUMBER         select a target device
   use listener SERVICE          select a service module
   listener SERVICE              inspect/select a listener service
   use route NAME|NUMBER         select a bridge route
@@ -26322,6 +26323,7 @@ Context:
   use module ACTION             select an action module
   useagent/usemodule NAME       Empire-style context selection aliases
   use session SESSION           select a session context
+  use job ID|NUMBER             select a background job context
   next                          show suggested commands for current context
   rename|note|alias VALUE       edit selected agent metadata
   main, home, root              clear selected target/module context
@@ -26338,10 +26340,12 @@ Operations:
   run [--dry-run] [--confirm]   run selected module
   execute, exploit              aliases for run
   run -j                        start selected background-capable action as a job
-  jobs, jobs -k ID              list or cancel managed background jobs
+  jobs, jobs -i ID, job ID      list/select managed background jobs
+  jobs -k ID, kill, cancel      cancel managed background jobs
   sessions [-l|-v]              list sessions
   sessions -i SESSION           inspect a session
-  interact                      inspect selected session context
+  interact                      inspect selected session or selected-agent work context
+  interact agent ID|LABEL       select and inspect an agent work context
   daemon ACTION [--dry-run]     preview or run daemon/systemd workflow
 
 Automation:
