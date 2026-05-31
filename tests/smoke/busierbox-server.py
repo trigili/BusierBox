@@ -9789,6 +9789,8 @@ def main():
 
         line_stage_source = Path(tmp) / "line-stage-source.bin"
         line_stage_source.write_text("line staged bytes\n", encoding="utf-8")
+        line_binary_source = Path(tmp) / "busierbox-line-binary"
+        line_binary_source.write_text("#!/bin/sh\necho busierbox line binary\n", encoding="utf-8")
         line_stage_state = Path(tmp) / "operator-session" / "line-stage-state.json"
         line_stage_staged = Path(tmp) / "operator-session" / "line-stage-staged.json"
         line_stage_master, line_stage_slave = pty.openpty()
@@ -9811,7 +9813,7 @@ def main():
             os.close(line_stage_slave)
             line_stage_slave = -1
             time.sleep(0.3)
-            os.write(line_stage_master, f"6\n{line_stage_source}\n/tmp/line-stage\n7\n8\n/tmp/line-stage\nq\n".encode("utf-8"))
+            os.write(line_stage_master, f"6\n{line_stage_source}\n/tmp/line-stage\n22\n{line_binary_source}\nbusierbox\nn\n7\n8\n/tmp/line-stage\n8\nbusierbox\nq\n".encode("utf-8"))
             line_stage_chunks = []
             deadline = time.time() + 5
             while line_stage_proc.poll() is None and time.time() < deadline:
@@ -9840,8 +9842,14 @@ def main():
         if (line_stage_proc.returncode != 0 or
                 "Traceback" in (line_stage_stderr or "") or
                 "headless_command: scripts/busierbox-server --config" not in line_stage_stdout or
+                "22 serve BusierBox binary" not in line_stage_stdout or
                 "--serve-file " not in line_stage_stdout or
                 "--as /tmp/line-stage --list-staged" not in line_stage_stdout or
+                "--as busierbox --list-staged" not in line_stage_stdout or
+                "BusierBox binary staged for target fetch:" not in line_stage_stdout or
+                "request_name=busierbox" not in line_stage_stdout or
+                "target_fetch_command=busierbox fetch busierbox" not in line_stage_stdout or
+                "target_run_hint=chmod +x ./busierbox && ./busierbox --help" not in line_stage_stdout or
                 "--config " + str(upload_cfg) + " --list-staged" not in line_stage_stdout or
                 "File service workflow actions:" not in line_stage_stdout or
                 "file-service:list-staged-files state=ready reason=run-now enter=yes" not in line_stage_stdout or
@@ -9903,10 +9911,21 @@ def main():
             event for event in line_stage_events
             if event.get("event") == "workbench_file_unstaged"
         ]
+        binary_events = [
+            event for event in line_stage_events
+            if event.get("event") == "workbench_binary_served"
+        ]
         if (not any(
                     (event.get("details") or {}).get("request_name") == "/tmp/line-stage" and
                     "--serve-file " in ((event.get("details") or {}).get("headless_command") or "")
                     for event in file_stage_events) or
+                not any(
+                    (event.get("details") or {}).get("request_name") == "busierbox" and
+                    (event.get("details") or {}).get("stage_kind") == "operator-binary" and
+                    (event.get("details") or {}).get("started_file_service") is False and
+                    "busierbox fetch busierbox" in ((event.get("details") or {}).get("fetch_command") or "") and
+                    "./busierbox --help" in ((event.get("details") or {}).get("target_run_hint") or "")
+                    for event in binary_events) or
                 not any(
                     (event.get("details") or {}).get("staged_count", 0) >= 1 and
                     (event.get("details") or {}).get("file_service_workflow_action_count", 0) == 6 and

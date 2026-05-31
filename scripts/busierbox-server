@@ -21601,6 +21601,7 @@ def run_line_tui(cfg):
         print("    8 unstage file")
         print("    9 open local path in pager")
         print("    10 stage release recommendation/device/tuple")
+        print("    22 serve BusierBox binary")
         print("    c show/copy generated commands")
         print("  Automation and config:")
         print("    11 show operator workflow actions")
@@ -21805,6 +21806,72 @@ def run_line_tui(cfg):
                     })
                 except ValueError as exc:
                     print(exc)
+        elif choice == "22":
+            rel = release_context(cfg)
+            if rel:
+                nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=6)
+                print("Release binary choices:")
+                for idx, item in enumerate(nav, 1):
+                    print(f"  {idx}: {item.get('label', '')}")
+            default_path = "dist/busierbox-native-full"
+            selector_line = line_input(f"binary path or release selector [{default_path}]> ")
+            selector = selector_line.strip() if selector_line is not None and selector_line.strip() else default_path
+            name_line = line_input("target request name [busierbox]> ")
+            request_name = name_line.strip() if name_line is not None and name_line.strip() else "busierbox"
+            try:
+                source_path = Path(selector).expanduser()
+                if source_path.is_file():
+                    headless = (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --serve-file "
+                        + shquote(str(source_path))
+                        + " --as "
+                        + shquote(request_name)
+                        + " --list-staged"
+                    )
+                    rec = stage_file(cfg, str(source_path), request_name, metadata={"stage_kind": "operator-binary"})
+                else:
+                    if not rel:
+                        raise ValueError(f"binary path does not exist and no release bundle is available: {selector}")
+                    headless = (
+                        "scripts/busierbox-server --config "
+                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                        + " --stage-release-artifact "
+                        + shquote(selector)
+                        + " --list-staged"
+                    )
+                    rec = stage_release_selection(cfg, selector)
+                    request_name = rec.get("request_name", request_name)
+                fetch_command = render_fetch_command(rec["request_name"], cfg)
+                run_hint = "chmod +x " + shquote("./" + Path(rec["request_name"]).name) + " && " + shquote("./" + Path(rec["request_name"]).name) + " --help"
+                print("BusierBox binary staged for target fetch:")
+                print(f"  request_name={rec.get('request_name', '')}")
+                print(f"  source_path={rec.get('source_path', '')}")
+                print(f"  sha256={rec.get('sha256', '')}")
+                print(f"  target_fetch_command={fetch_command}")
+                print(f"  target_run_hint={run_hint}")
+                print(f"headless_command: {headless}")
+                start_line = line_input("start file-service now? [y/N]> ")
+                started = start_line is not None and start_line.strip().lower() in ("y", "yes")
+                if started:
+                    start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
+                append_event(cfg, "workbench", "workbench_binary_served", details={
+                    "headless_command": headless,
+                    "request_name": rec.get("request_name", ""),
+                    "source_path": rec.get("source_path", ""),
+                    "sha256": rec.get("sha256", ""),
+                    "fetch_command": fetch_command,
+                    "target_run_hint": run_hint,
+                    "started_file_service": started,
+                    "stage_kind": rec.get("stage_kind", ""),
+                    "release_artifact_name": rec.get("release_artifact_name", ""),
+                    "release_path": rec.get("release_path", ""),
+                    "target_id": rec.get("target_id", ""),
+                    "target_label": rec.get("target_label", ""),
+                })
+            except ValueError as exc:
+                print(exc)
         elif choice == "11":
             headless = (
                 "scripts/busierbox-server --config "
@@ -22493,7 +22560,7 @@ def run_line_tui(cfg):
             except ValueError as exc:
                 print(exc)
         elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 18 target detail, 19 survey bootstrap, 20 command queue, 21 target activity, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
+            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 18 target detail, 19 survey bootstrap, 20 command queue, 21 target activity, 22 serve binary, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
