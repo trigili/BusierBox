@@ -21578,6 +21578,169 @@ def run_line_tui(cfg):
             f"events={summary.get('event_count', 0)}"
         )
 
+    def line_tui_prompt():
+        target_id = configured_target_filter(cfg)
+        if not target_id:
+            return "bbx[all]> "
+        ctx = target_context_fields(cfg, target_id)
+        label = str(ctx.get("target_label") or "").strip()
+        display = label or target_id
+        if len(display) > 36:
+            display = display[:33] + "..."
+        return f"bbx[{display}]> "
+
+    def print_line_console_help():
+        print("Console commands:")
+        print("  help, ?                         show console commands")
+        print("  status, summary                 refresh workbench summary")
+        print("  services                        show service listeners and headless start/stop commands")
+        print("  targets                         list target devices")
+        print("  use target ID|LABEL|NUMBER      select a target context")
+        print("  use target all, clear target    clear selected target context")
+        print("  files, staged                   list staged files and file workflow actions")
+        print("  serve-binary [PATH] [NAME]      stage a BusierBox binary for target fetch")
+        print("  mailbox, queue                  show command queue and target mailbox state")
+        print("  jobs                            show background jobs")
+        print("  refresh                         redraw full workbench")
+        print("  quit, exit                      quit")
+        print("Numeric actions are still available for prompted workflows.")
+
+    def print_line_targets():
+        unfiltered_cfg = dict(cfg)
+        unfiltered_cfg.pop("_target_id_filter", None)
+        unfiltered_cfg.pop("_target_label_filter", None)
+        snap = workbench_snapshot(unfiltered_cfg)
+        targets = snap.get("targets") or []
+        current = configured_target_filter(cfg)
+        if targets:
+            for idx, rec in enumerate(targets, 1):
+                marker = "*" if str(rec.get("target_id") or "") == current else " "
+                print(
+                    f"{idx}:{marker} {rec.get('target_id', '')} "
+                    f"label={rec.get('label', '') or '-'} "
+                    f"state={rec.get('connectivity_state', '') or '-'} "
+                    f"mailbox_pending={rec.get('mailbox_pending_work_count', 0)} "
+                    f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
+                    f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
+                )
+        else:
+            print("no known targets; use all/clear to remove any current filter")
+        return targets
+
+    def select_line_target(selector, targets=None):
+        targets = targets if targets is not None else print_line_targets()
+        rec = set_workbench_target_filter(cfg, selector, targets=targets)
+        if rec.get("selected"):
+            print(f"selected target {rec.get('target_id', '')} label={rec.get('target_label', '') or '-'}")
+        else:
+            print("target filter cleared")
+        print(f"headless_command: {rec.get('headless_command', '')}")
+        return rec
+
+    def print_line_services():
+        rows = service_status_rows(cfg)
+        if not rows:
+            print("No service records.")
+            return
+        print("Services:")
+        for rec in rows:
+            name = str(rec.get("name") or "")
+            print(
+                f"  {name} actual={rec.get('actual', '') or '-'} "
+                f"configured={rec.get('configured', '') or '-'} "
+                f"port={rec.get('port', '') or '-'} "
+                f"pid={rec.get('pid', '') or '-'} "
+                f"managed={'yes' if rec.get('pid_managed') else 'no'}"
+            )
+            print(f"    start: {service_start_headless_command(cfg, name)}")
+            print(f"    stop: {service_stop_headless_command(cfg, name)}")
+
+    def print_line_jobs():
+        snap = workbench_snapshot(cfg)
+        jobs = snap.get("workbench_jobs") or []
+        if not jobs:
+            print("No background jobs.")
+            return
+        print("Background jobs:")
+        for rec in jobs:
+            print(
+                f"  {rec.get('id', '')}: action={rec.get('action_id', '')} "
+                f"state={rec.get('effective_state', '')} "
+                f"managed={'yes' if rec.get('pid_managed') else 'no'} "
+                f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
+            )
+
+    def stage_line_binary(selector="", request_name="", prompt_for_missing=True, prompt_start=True):
+        rel = release_context(cfg)
+        if rel and prompt_for_missing:
+            nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=6)
+            print("Release binary choices:")
+            for idx, item in enumerate(nav, 1):
+                print(f"  {idx}: {item.get('label', '')}")
+        default_path = "dist/busierbox-native-full"
+        if not selector and prompt_for_missing:
+            selector_line = line_input(f"binary path or release selector [{default_path}]> ")
+            selector = selector_line.strip() if selector_line is not None and selector_line.strip() else default_path
+        selector = selector or default_path
+        if not request_name and prompt_for_missing:
+            name_line = line_input("target request name [busierbox]> ")
+            request_name = name_line.strip() if name_line is not None and name_line.strip() else "busierbox"
+        request_name = request_name or "busierbox"
+        source_path = Path(selector).expanduser()
+        if source_path.is_file():
+            headless = (
+                "scripts/busierbox-server --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --serve-file "
+                + shquote(str(source_path))
+                + " --as "
+                + shquote(request_name)
+                + " --list-staged"
+            )
+            rec = stage_file(cfg, str(source_path), request_name, metadata={"stage_kind": "operator-binary"})
+        else:
+            if not rel:
+                raise ValueError(f"binary path does not exist and no release bundle is available: {selector}")
+            headless = (
+                "scripts/busierbox-server --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --stage-release-artifact "
+                + shquote(selector)
+                + " --list-staged"
+            )
+            rec = stage_release_selection(cfg, selector)
+            request_name = rec.get("request_name", request_name)
+        fetch_command = render_fetch_command(rec["request_name"], cfg)
+        run_hint = "chmod +x " + shquote("./" + Path(rec["request_name"]).name) + " && " + shquote("./" + Path(rec["request_name"]).name) + " --help"
+        print("BusierBox binary staged for target fetch:")
+        print(f"  request_name={rec.get('request_name', '')}")
+        print(f"  source_path={rec.get('source_path', '')}")
+        print(f"  sha256={rec.get('sha256', '')}")
+        print(f"  target_fetch_command={fetch_command}")
+        print(f"  target_run_hint={run_hint}")
+        print(f"headless_command: {headless}")
+        started = False
+        if prompt_start:
+            start_line = line_input("start file-service now? [y/N]> ")
+            started = start_line is not None and start_line.strip().lower() in ("y", "yes")
+            if started:
+                start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
+        append_event(cfg, "workbench", "workbench_binary_served", details={
+            "headless_command": headless,
+            "request_name": rec.get("request_name", ""),
+            "source_path": rec.get("source_path", ""),
+            "sha256": rec.get("sha256", ""),
+            "fetch_command": fetch_command,
+            "target_run_hint": run_hint,
+            "started_file_service": started,
+            "stage_kind": rec.get("stage_kind", ""),
+            "release_artifact_name": rec.get("release_artifact_name", ""),
+            "release_path": rec.get("release_path", ""),
+            "target_id": rec.get("target_id", ""),
+            "target_label": rec.get("target_label", ""),
+        })
+        return rec
+
     def print_line_tui_actions():
         print("Actions:")
         print("  Services:")
@@ -21643,11 +21806,75 @@ def run_line_tui(cfg):
         print(line_tui_status_bar(snap))
         print("")
         print_line_tui_actions()
-        line = line_input("> ")
+        line = line_input(line_tui_prompt())
         if line is None:
             break
         choice = line.strip()
-        if choice == "q":
+        if not choice:
+            continue
+        console_args = []
+        if not (choice.isdigit() or choice in {"c", "d", "r", "v", "q"}):
+            try:
+                console_args = shlex.split(choice)
+            except ValueError as exc:
+                print(exc)
+                continue
+            cmd = console_args[0].lower() if console_args else ""
+            if cmd in {"q", "quit", "exit"}:
+                choice = "q"
+            elif cmd in {"help", "?"}:
+                print_line_console_help()
+                continue
+            elif cmd in {"status", "summary"}:
+                print(line_tui_status_bar(workbench_snapshot(cfg)))
+                continue
+            elif cmd == "services":
+                print_line_services()
+                continue
+            elif cmd == "targets":
+                print_line_targets()
+                continue
+            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "target":
+                selector = " ".join(console_args[2:]).strip()
+                if not selector:
+                    print("usage: use target ID|LABEL|NUMBER|all")
+                    continue
+                try:
+                    select_line_target(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "clear" and len(console_args) >= 2 and console_args[1].lower() == "target":
+                try:
+                    select_line_target("all", targets=[])
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"files", "staged"}:
+                choice = "7"
+            elif cmd in {"mailbox", "queue"}:
+                choice = "20"
+            elif cmd == "jobs":
+                print_line_jobs()
+                continue
+            elif cmd in {"serve-binary", "binary"}:
+                selector = console_args[1] if len(console_args) >= 2 else ""
+                request_name = ""
+                if len(console_args) >= 4 and console_args[2].lower() == "as":
+                    request_name = console_args[3]
+                elif len(console_args) >= 3:
+                    request_name = console_args[2]
+                try:
+                    stage_line_binary(selector, request_name, prompt_for_missing=not selector, prompt_start=not selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "refresh":
+                choice = "r"
+            else:
+                print(f"unknown command: {cmd}; type help")
+                continue
+        if choice in {"q", "quit", "exit"}:
             mark_service_stopped(cfg, "workbench", "quit")
             return 0
         if choice in {"1", "2", "3", "4"}:
@@ -21807,69 +22034,8 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
         elif choice == "22":
-            rel = release_context(cfg)
-            if rel:
-                nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=6)
-                print("Release binary choices:")
-                for idx, item in enumerate(nav, 1):
-                    print(f"  {idx}: {item.get('label', '')}")
-            default_path = "dist/busierbox-native-full"
-            selector_line = line_input(f"binary path or release selector [{default_path}]> ")
-            selector = selector_line.strip() if selector_line is not None and selector_line.strip() else default_path
-            name_line = line_input("target request name [busierbox]> ")
-            request_name = name_line.strip() if name_line is not None and name_line.strip() else "busierbox"
             try:
-                source_path = Path(selector).expanduser()
-                if source_path.is_file():
-                    headless = (
-                        "scripts/busierbox-server --config "
-                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                        + " --serve-file "
-                        + shquote(str(source_path))
-                        + " --as "
-                        + shquote(request_name)
-                        + " --list-staged"
-                    )
-                    rec = stage_file(cfg, str(source_path), request_name, metadata={"stage_kind": "operator-binary"})
-                else:
-                    if not rel:
-                        raise ValueError(f"binary path does not exist and no release bundle is available: {selector}")
-                    headless = (
-                        "scripts/busierbox-server --config "
-                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                        + " --stage-release-artifact "
-                        + shquote(selector)
-                        + " --list-staged"
-                    )
-                    rec = stage_release_selection(cfg, selector)
-                    request_name = rec.get("request_name", request_name)
-                fetch_command = render_fetch_command(rec["request_name"], cfg)
-                run_hint = "chmod +x " + shquote("./" + Path(rec["request_name"]).name) + " && " + shquote("./" + Path(rec["request_name"]).name) + " --help"
-                print("BusierBox binary staged for target fetch:")
-                print(f"  request_name={rec.get('request_name', '')}")
-                print(f"  source_path={rec.get('source_path', '')}")
-                print(f"  sha256={rec.get('sha256', '')}")
-                print(f"  target_fetch_command={fetch_command}")
-                print(f"  target_run_hint={run_hint}")
-                print(f"headless_command: {headless}")
-                start_line = line_input("start file-service now? [y/N]> ")
-                started = start_line is not None and start_line.strip().lower() in ("y", "yes")
-                if started:
-                    start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
-                append_event(cfg, "workbench", "workbench_binary_served", details={
-                    "headless_command": headless,
-                    "request_name": rec.get("request_name", ""),
-                    "source_path": rec.get("source_path", ""),
-                    "sha256": rec.get("sha256", ""),
-                    "fetch_command": fetch_command,
-                    "target_run_hint": run_hint,
-                    "started_file_service": started,
-                    "stage_kind": rec.get("stage_kind", ""),
-                    "release_artifact_name": rec.get("release_artifact_name", ""),
-                    "release_path": rec.get("release_path", ""),
-                    "target_id": rec.get("target_id", ""),
-                    "target_label": rec.get("target_label", ""),
-                })
+                stage_line_binary()
             except ValueError as exc:
                 print(exc)
         elif choice == "11":

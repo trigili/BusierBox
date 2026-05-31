@@ -9946,6 +9946,139 @@ def main():
             print(line_stage_staged.read_text(encoding="utf-8"), file=sys.stderr)
             return 1
 
+        line_console_binary = Path(tmp) / "busierbox-line-console"
+        line_console_binary.write_text("#!/bin/sh\necho busierbox console binary\n", encoding="utf-8")
+        line_console_state = Path(tmp) / "operator-session" / "line-console-state.json"
+        line_console_staged = Path(tmp) / "operator-session" / "line-console-staged.json"
+        line_console_target = run(
+            "scripts/busierbox-server",
+            "--config", str(upload_cfg),
+            "--state-file", str(line_console_state),
+            "--staged-file", str(line_console_staged),
+            "--set-target-label", "line-console-target",
+            "--target-label", "Console Router",
+        )
+        if line_console_target.returncode != 0:
+            print("line console target setup failed", file=sys.stderr)
+            print(line_console_target.stdout, file=sys.stderr)
+            print(line_console_target.stderr, file=sys.stderr)
+            return 1
+        line_console_master, line_console_slave = pty.openpty()
+        try:
+            line_console_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(upload_cfg),
+                    "--state-file", str(line_console_state),
+                    "--staged-file", str(line_console_staged),
+                    "--tui",
+                ],
+                cwd=ROOT,
+                stdin=line_console_slave,
+                stdout=line_console_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(line_console_slave)
+            line_console_slave = -1
+            time.sleep(0.3)
+            os.write(
+                line_console_master,
+                (
+                    "help\n"
+                    "services\n"
+                    "targets\n"
+                    "use target Console Router\n"
+                    f"serve-binary {line_console_binary} busierbox-console\n"
+                    "files\n"
+                    "mailbox\n"
+                    "clear target\n"
+                    "q\n"
+                ).encode("utf-8"),
+            )
+            line_console_chunks = []
+            deadline = time.time() + 5
+            while line_console_proc.poll() is None and time.time() < deadline:
+                ready, _, _ = select.select([line_console_master], [], [], 0.1)
+                if ready:
+                    try:
+                        line_console_chunks.append(os.read(line_console_master, 65536).decode("utf-8", errors="replace"))
+                    except OSError:
+                        break
+            if line_console_proc.poll() is None:
+                line_console_proc.terminate()
+                try:
+                    line_console_proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    line_console_proc.kill()
+                    line_console_proc.wait(timeout=2)
+            line_console_stdout = "".join(line_console_chunks)
+            line_console_stderr = line_console_proc.stderr.read()
+        finally:
+            if line_console_slave != -1:
+                os.close(line_console_slave)
+            try:
+                os.close(line_console_master)
+            except OSError:
+                pass
+        if (line_console_proc.returncode != 0 or
+                "Traceback" in (line_console_stderr or "") or
+                "bbx[all]>" not in line_console_stdout or
+                "Console commands:" not in line_console_stdout or
+                "services                        show service listeners" not in line_console_stdout or
+                "Services:" not in line_console_stdout or
+                "line-console-target label=Console Router" not in line_console_stdout or
+                "selected target line-console-target label=Console Router" not in line_console_stdout or
+                "bbx[Console Router]>" not in line_console_stdout or
+                "BusierBox binary staged for target fetch:" not in line_console_stdout or
+                "request_name=busierbox-console" not in line_console_stdout or
+                "target_fetch_command=busierbox fetch busierbox-console" not in line_console_stdout or
+                "target_run_hint=chmod +x ./busierbox-console && ./busierbox-console --help" not in line_console_stdout or
+                "--as busierbox-console --list-staged" not in line_console_stdout or
+                "File service workflow actions:" not in line_console_stdout or
+                "Target mailbox records:" not in line_console_stdout or
+                "target filter cleared" not in line_console_stdout):
+            print("line-oriented TUI console commands did not expose expected UX", file=sys.stderr)
+            print(line_console_stdout, file=sys.stderr)
+            print(line_console_stderr or "", file=sys.stderr)
+            return 1
+        line_console_status = subprocess.run(
+            [
+                str(server),
+                "--config", str(upload_cfg),
+                "--state-file", str(line_console_state),
+                "--staged-file", str(line_console_staged),
+                "--json-status",
+            ],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+        )
+        if line_console_status.returncode != 0:
+            print("line console status failed", file=sys.stderr)
+            print(line_console_status.stdout, file=sys.stderr)
+            print(line_console_status.stderr, file=sys.stderr)
+            return 1
+        line_console_status_doc = json.loads(line_console_status.stdout)
+        line_console_events = [
+            json.loads(line)
+            for line in Path(line_console_status_doc.get("event_log", "")).read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if (line_console_status_doc.get("server_state", {}).get("services", {}).get("workbench", {}).get("selected_target_id", "") != "" or
+                not any(event.get("event") == "workbench_target_selected" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
+                not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
+                not any(
+                    event.get("event") == "workbench_binary_served" and
+                    (event.get("details") or {}).get("request_name") == "busierbox-console" and
+                    (event.get("details") or {}).get("target_id") == "line-console-target" and
+                    (event.get("details") or {}).get("target_label") == "Console Router"
+                    for event in line_console_events)):
+            print("line-oriented TUI console commands did not record expected events", file=sys.stderr)
+            print(json.dumps(line_console_status_doc, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+
         file_workflow_dir = Path(tmp) / "operator-session-file-workflow-actions"
         file_workflow_cfg = Path(tmp) / "file-workflow-actions.json"
         file_workflow_source = Path(tmp) / "workflow-source.txt"
