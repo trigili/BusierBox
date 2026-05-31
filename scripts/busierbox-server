@@ -21643,6 +21643,7 @@ def run_line_tui(cfg):
         print("  complete [PREFIX]               show command/resource completions")
         print("  search TERM                     search targets, services, actions, sessions, jobs, files, queue")
         print("  resource FILE                   run console commands from a script file")
+        print("  makerc FILE                     save command history as a resource script")
         print("  history, !!, !N, repeat N       show or replay command history")
         print("  info                            show selected target/module context")
         print("  next                            show suggested commands for current context")
@@ -21732,6 +21733,34 @@ def run_line_tui(cfg):
         })
         return commands
 
+    def write_line_makerc(path_text):
+        text = str(path_text or "").strip()
+        if not text:
+            raise ValueError("usage: makerc FILE")
+        path = Path(text).expanduser()
+        commands = list(line_history)
+        if commands and commands[-1].strip().lower().startswith("makerc "):
+            commands = commands[:-1]
+        if not commands:
+            raise ValueError("command history is empty")
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(
+                "# BusierBox operator console resource script\n"
+                + "\n".join(commands)
+                + "\n",
+                encoding="utf-8",
+            )
+        except OSError as exc:
+            raise ValueError(f"could not write resource script: {exc}") from exc
+        print(f"Resource script saved: {path} commands={len(commands)}")
+        print(f"replay: resource {shquote(str(path))}")
+        append_event(cfg, "workbench", "workbench_console_makerc_saved", details={
+            "path": str(path),
+            "command_count": len(commands),
+        })
+        return path
+
     def record_line_history(command):
         text = str(command or "").strip()
         if not text:
@@ -21797,6 +21826,12 @@ def run_line_tui(cfg):
                 "resource FILE",
                 "  Runs console commands from FILE in order.",
                 "  Blank lines and # comments are ignored; nested resource commands are skipped.",
+            ],
+            "makerc": [
+                "makerc FILE",
+                "  Saves the current console command history as a replayable resource script.",
+                "  The makerc command itself is omitted from the saved script.",
+                "  Replay it with resource FILE.",
             ],
             "history": [
                 "history [LIMIT]",
@@ -22998,7 +23033,7 @@ def run_line_tui(cfg):
         text = str(prefix or "")
         stripped = text.strip()
         base_commands = [
-            "help", "complete", "search", "resource", "history", "workspace", "status",
+            "help", "complete", "search", "resource", "makerc", "history", "workspace", "status",
             "show", "info", "options", "next", "set", "setg", "unset", "unsetg",
             "agents", "agent", "targets", "target", "listeners", "listener",
             "routes", "route", "sessions", "session", "jobs", "job", "use",
@@ -23016,7 +23051,7 @@ def run_line_tui(cfg):
         ]
         use_kinds = ["agent", "target", "listener", "service", "route", "session", "job", "module", "action"]
         help_topics = [
-            "search", "complete", "resource", "history", "use", "main", "show",
+            "search", "complete", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
             "routes", "set", "setg", "run", "jobs", "queue", "upload",
             "daemon", "interact", "sessions",
@@ -24008,6 +24043,12 @@ def run_line_tui(cfg):
             elif cmd == "resource":
                 try:
                     pending_console_lines.extend(load_line_resource(" ".join(console_args[1:]).strip()))
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "makerc":
+                try:
+                    write_line_makerc(" ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -26579,6 +26620,7 @@ Operations:
 
 Automation:
   resource FILE                 run console commands from a file
+  makerc FILE                   save command history as a resource script
   history [LIMIT]               show recent console commands
   !!, !N, repeat N              replay previous commands
   set KEY VALUE                 set selected target/build option

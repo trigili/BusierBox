@@ -171,6 +171,7 @@ def main():
             "interact agent ID|LABEL" not in console_help or
             "serve-binary [--start] [PATH] [NAME]" not in console_help or
             "resource FILE" not in console_help or
+            "makerc FILE" not in console_help or
             "!!, !N, repeat N" not in console_help or
             "--run-target-workflow-action" in console_help):
         print("busierbox-server console help did not stay console-focused", file=sys.stderr)
@@ -9998,6 +9999,7 @@ def main():
         line_console_build = Path(tmp) / "line-console-build.conf"
         line_console_build.write_text('BB_RUNTIME_ROOT="./.busierbox"\n', encoding="utf-8")
         line_console_resource = Path(tmp) / "line-console.rc"
+        line_console_makerc = Path(tmp) / "line-console-saved.rc"
         line_console_resource.write_text(
             "# smoke resource script\n"
             "workspace\n"
@@ -10091,6 +10093,7 @@ def main():
                     "help\n"
                     "help search\n"
                     "help resource\n"
+                    "help makerc\n"
                     "help aliases\n"
                     "help use\n"
                     "help sessions\n"
@@ -10115,6 +10118,7 @@ def main():
                     "status\n"
                     "!!\n"
                     "history 8\n"
+                    f"makerc {line_console_makerc}\n"
                     "repeat 1\n"
                     "search name=file-service\n"
                     "show agents\n"
@@ -10314,6 +10318,7 @@ def main():
                 "Help: jobs" not in line_console_stdout or
                 "Help: run" not in line_console_stdout or
                 "Help: history" not in line_console_stdout or
+                "Help: makerc" not in line_console_stdout or
                 "Help: complete" not in line_console_stdout or
                 "complete [PREFIX]               show command/resource completions" not in line_console_stdout or
                 "Completions for <root>:" not in line_console_stdout or
@@ -10330,6 +10335,10 @@ def main():
                 "Workspace overview:" not in line_console_stdout or
                 f"Resource loaded: {line_console_resource}" not in line_console_stdout or
                 "commands=3 skipped_nested=1" not in line_console_stdout or
+                "makerc FILE                     save command history as a resource script" not in line_console_stdout or
+                "Saves the current console command history as a replayable resource script." not in line_console_stdout or
+                f"Resource script saved: {line_console_makerc}" not in line_console_stdout or
+                f"replay: resource {line_console_makerc}" not in line_console_stdout or
                 "bbx[all]> workspace" not in line_console_stdout or
                 "history, !!, !N, repeat N       show or replay command history" not in line_console_stdout or
                 "next                            show suggested commands for current context" not in line_console_stdout or
@@ -10529,6 +10538,13 @@ def main():
             print(line_console_stdout, file=sys.stderr)
             print(line_console_stderr or "", file=sys.stderr)
             return 1
+        line_console_makerc_text = line_console_makerc.read_text(encoding="utf-8") if line_console_makerc.exists() else ""
+        if (not line_console_makerc.is_file() or
+                f"resource {line_console_resource}" not in line_console_makerc_text or
+                "makerc " in line_console_makerc_text):
+            print("line-oriented TUI makerc did not save a replayable resource script", file=sys.stderr)
+            print(line_console_makerc_text or "missing", file=sys.stderr)
+            return 1
         line_console_status = subprocess.run(
             [
                 str(server),
@@ -10565,6 +10581,7 @@ def main():
                 not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/bbx-global" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_unset" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_makerc_saved" and (event.get("details") or {}).get("path") == str(line_console_makerc) and (event.get("details") or {}).get("command_count", 0) >= 20 for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_completions_shown" and (event.get("details") or {}).get("prefix") == "use job" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "daemon" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "file-service" for event in line_console_events) or
