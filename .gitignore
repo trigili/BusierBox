@@ -63,3 +63,6 @@ tests/qemu-system/rootfs/
 # Local 
 local/*
 configs/grit.conf
+scripts/local/*
+.busierbox
+.busierbox-server
