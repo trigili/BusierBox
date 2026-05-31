@@ -3,7 +3,7 @@
 set -eu
 
 menu=${1:-scripts/menuconfig}
-pkg=${2:-scripts/package-target}
+pkg=${2:-scripts/lib/package-target}
 tmp=${TMPDIR:-local/tmp}/grit-validation-matrix-$$
 mkdir -p "$tmp"
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM

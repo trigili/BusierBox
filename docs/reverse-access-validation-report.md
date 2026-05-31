@@ -11,7 +11,7 @@ Branch: `reverse-access-hardening`
   settings, shell provider selection, and clearer reverse-access summaries.
 - Improved builtin wolfSSL relay handling for handshake errors, EINTR,
   WANT_READ/WANT_WRITE, partial writes, EOF, hangups, child exit, and SIGPIPE.
-- Added a repeatable GL.iNet integration harness at `scripts/integration-glinet`.
+- Added a repeatable GL.iNet integration harness at `scripts/lib/integration-glinet`.
 - Added scripted shell support to `scripts/grit-server` for TLS/plain shell
   integration cases.
 - Added local regression coverage for validation-matrix cases and retired
@@ -50,9 +50,9 @@ Target preset: `glinet-mt7621-openwrt-musl`
 Commands run:
 
 ```sh
-scripts/integration-glinet --host root@192.168.8.1 --operator-host auto --all-safe --require-target
-scripts/integration-glinet --host root@192.168.8.1 --operator-host auto --case ssh-operator --require-target
-scripts/integration-glinet --host root@192.168.8.1 --operator-host auto --case socat-rescue --require-target --build-timeout 3600
+scripts/lib/integration-glinet --host root@192.168.8.1 --operator-host auto --all-safe --require-target
+scripts/lib/integration-glinet --host root@192.168.8.1 --operator-host auto --case ssh-operator --require-target
+scripts/lib/integration-glinet --host root@192.168.8.1 --operator-host auto --case socat-rescue --require-target --build-timeout 3600
 ```
 
 Passing local evidence:
@@ -80,7 +80,7 @@ Generated rootfs archives, Penguin projects, and run logs stayed under
 Command run:
 
 ```sh
-scripts/rehost-router-examples --all --force --timeout 30
+scripts/lib/rehost-router-examples --all --force --timeout 30
 ```
 
 Observed local Penguin runs:

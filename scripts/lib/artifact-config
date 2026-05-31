@@ -82,11 +82,11 @@ def die(msg, code=1):
 def usage():
     print(
         """usage:
-  scripts/artifact-config show ARTIFACT
-  scripts/artifact-config export ARTIFACT
-  scripts/artifact-config set [--obfuscation none|xor] [--key HEX] ARTIFACT KEY=VALUE...
-  scripts/artifact-config import [--obfuscation none|xor] [--key HEX] ARTIFACT FILE|-
-  scripts/artifact-config clear ARTIFACT
+  scripts/lib/artifact-config show ARTIFACT
+  scripts/lib/artifact-config export ARTIFACT
+  scripts/lib/artifact-config set [--obfuscation none|xor] [--key HEX] ARTIFACT KEY=VALUE...
+  scripts/lib/artifact-config import [--obfuscation none|xor] [--key HEX] ARTIFACT FILE|-
+  scripts/lib/artifact-config clear ARTIFACT
 
 Only selected runtime/operator keys are accepted. Target tuple, payload tools,
 dotfiles, overlays, and compiled feature keys are intentionally rejected.

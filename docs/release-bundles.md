@@ -102,7 +102,7 @@ scripts/configure-all \
   --shell-port 22203
 ```
 
-The helper scripts wrap the bundled `scripts/artifact-config`. They can show,
+The helper scripts wrap the bundled `scripts/lib/artifact-config`. They can show,
 clear, import, export, and set allowlisted trailer keys. After a trailer edit,
 they write `SHA256SUMS.configured` and update `SHA256SUMS` to match the current
 configured bundle.
@@ -123,11 +123,11 @@ bundle with:
 ```sh
 scripts/verify-checksums --original
 scripts/verify-checksums --configured
-scripts/release-self-test
-scripts/release-self-test --json
+scripts/lib/release-self-test
+scripts/lib/release-self-test --json
 ```
 
-`scripts/release-self-test --json` emits machine-readable diagnostics after the
+`scripts/lib/release-self-test --json` emits machine-readable diagnostics after the
 same validation passes. The JSON includes release and index artifact counts,
 tuple/device counts, helper checks, checksum verification, manifest sidecar
 counts, artifact-config round-trip counts, compatibility and payload-preset
@@ -145,17 +145,17 @@ plus `api`, `api_resources`, and `api_collections.diagnostic_records`, so
 release dashboards can discover and render individual checks without scraping
 flat summary keys or the human `release-self-test ok` line.
 
-Use `scripts/release-find` to choose an artifact without reading every
+Use `scripts/lib/release-find` to choose an artifact without reading every
 manifest:
 
 ```sh
-scripts/release-find --device glinet-mt1300
-scripts/release-find --arch mipsel --libc musl --kernel 4.x
-scripts/release-find --tool tcpdump
-scripts/release-find --payload-preset survey-core
-scripts/release-find --doom-wad doom.wad
-scripts/release-find --survey-json survey.json
-scripts/release-find --survey-json survey.json --reality-json reality.json --json
+scripts/lib/release-find --device glinet-mt1300
+scripts/lib/release-find --arch mipsel --libc musl --kernel 4.x
+scripts/lib/release-find --tool tcpdump
+scripts/lib/release-find --payload-preset survey-core
+scripts/lib/release-find --doom-wad doom.wad
+scripts/lib/release-find --survey-json survey.json
+scripts/lib/release-find --survey-json survey.json --reality-json reality.json --json
 ```
 
 `release-find` reports a compatibility label and reasons for the selected
@@ -179,12 +179,12 @@ metadata for every artifact.
 From a source checkout, the top-level helpers can target a bundle explicitly:
 
 ```sh
-scripts/release-self-test --release-dir dist/releases/lab-router-pack
-scripts/release-find --release-dir dist/releases/lab-router-pack --payload-preset survey-core
-scripts/release-index --release-dir dist/releases/lab-router-pack --write
+scripts/lib/release-self-test --release-dir dist/releases/lab-router-pack
+scripts/lib/release-find --release-dir dist/releases/lab-router-pack --payload-preset survey-core
+scripts/lib/release-index --release-dir dist/releases/lab-router-pack --write
 ```
 
-Use `scripts/release-index --write` after manual metadata edits to refresh
+Use `scripts/lib/release-index --write` after manual metadata edits to refresh
 `release-index.json`.
 
 For a directory containing multiple release bundles, build a local/offline
@@ -192,14 +192,14 @@ repository index:
 
 ```sh
 scripts/index-release-repo dist/releases --write local/release-repo-index.json
-scripts/find-artifact --index local/release-repo-index.json --device glinet-mt1300
-scripts/find-artifact --index local/release-repo-index.json --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc
-scripts/find-artifact --index local/release-repo-index.json --tool tcpdump --payload-preset survey-core
-scripts/find-artifact --index local/release-repo-index.json --feature reverse-ssh --json
-scripts/find-artifact --index local/release-repo-index.json --survey-json local/bringup-runs/latest/survey.json --payload-preset survey-core
-scripts/find-artifact --index local/release-repo-index.json --doom-wad doom.wad
-scripts/find-artifact --index local/release-repo-index.json --device glinet-mt1300 --max-compatibility likely
-scripts/find-artifact --index local/release-repo-index.json --device glinet-mt1300 --recommendation-json
+scripts/lib/find-artifact --index local/release-repo-index.json --device glinet-mt1300
+scripts/lib/find-artifact --index local/release-repo-index.json --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc
+scripts/lib/find-artifact --index local/release-repo-index.json --tool tcpdump --payload-preset survey-core
+scripts/lib/find-artifact --index local/release-repo-index.json --feature reverse-ssh --json
+scripts/lib/find-artifact --index local/release-repo-index.json --survey-json local/bringup-runs/latest/survey.json --payload-preset survey-core
+scripts/lib/find-artifact --index local/release-repo-index.json --doom-wad doom.wad
+scripts/lib/find-artifact --index local/release-repo-index.json --device glinet-mt1300 --max-compatibility likely
+scripts/lib/find-artifact --index local/release-repo-index.json --device glinet-mt1300 --recommendation-json
 ```
 
 The repository index reuses each bundle's `release-index.json`, records the
@@ -219,7 +219,7 @@ artifact paths, duplicate flags, and lookup maps named
 `dedupe_records_by_sha256`, `dedupe_records_by_count`,
 `dedupe_records_by_duplicate`, `dedupe_records_by_release`,
 `dedupe_records_by_tuple_path`, `dedupe_records_by_payload_preset`, and
-`dedupe_records_by_compatibility`. `scripts/find-artifact
+`dedupe_records_by_compatibility`. `scripts/lib/find-artifact
 --recommendation-json` mirrors the selected artifact's hash alternatives under
 `dedupe_alternatives` with indexes named `dedupe_alternatives_by_release`,
 `dedupe_alternatives_by_tuple_path`, `dedupe_alternatives_by_payload_preset`,
@@ -235,7 +235,7 @@ separate indexes. Provider audit maps `artifacts_by_provider_tool` and
 `gdbserver` or `gdbserver:found` so offline pickers can surface local drop-in
 status without opening each payload manifest. Doom audit maps
 `artifacts_by_doom_wad_filename` and `artifacts_by_doom_wad_sha256` index
-artifacts by staged WAD basename/hash, and `scripts/find-artifact` exposes the
+artifacts by staged WAD basename/hash, and `scripts/lib/find-artifact` exposes the
 same lookup through `--doom-wad` and `--doom-wad-sha256`. You can search by canonical tuple path directly with
 `--tuple-path` when a survey or release manifest has already resolved the
 target compatibility tuple. Command-queue safety maps
@@ -254,7 +254,7 @@ and lookup maps without hard-coding the index schema. If a release directory con
 `release-self-test.json` or a supported self-test diagnostics path, the index
 records it in `release_self_tests`, groups it by release name and status, and
 copies the compact status/path onto each artifact from that release so
-`scripts/find-artifact` can report whether the selected bundle passed its own
+`scripts/lib/find-artifact` can report whether the selected bundle passed its own
 self-test, including command-queue token-required, token-configured,
 execution-supported, and operator-supplied-command execution counts. The index
 also publishes normalized
@@ -282,7 +282,7 @@ each bundle and attached to artifact rows as `release_license`,
 audit GPL compatibility, corresponding-source posture, package audit
 requirements, notice coverage, and upstream evidence references without opening
 every release directory.
-`scripts/find-artifact` can also filter by that metadata with
+`scripts/lib/find-artifact` can also filter by that metadata with
 `--project-license`, `--gplv2-compatible yes|no`,
 `--corresponding-source-required yes|no`, `--corresponding-source-status`,
 `--package-license-audit-required yes|no`, `--license-component`, and
@@ -331,7 +331,7 @@ heuristic, unsafe, or incompatible without parsing JSON.
 
 The repository index also includes a `recommendations` object for offline
 clients that want one best current artifact without shelling out to
-`scripts/find-artifact`. It records the same selection policy and precomputes
+`scripts/lib/find-artifact`. It records the same selection policy and precomputes
 recommendations by device alias, tuple path, tool, payload preset, feature, and
 common tuple/device/tool/feature plus preset combinations. The same selections are
 also flattened into `recommendation_records` with stable ids such as
@@ -358,7 +358,7 @@ bin/grit-native-default-full manifest --json
 Choose a GL.iNet exemplar artifact:
 
 ```sh
-scripts/release-find --device glinet-mt1300
+scripts/lib/release-find --device glinet-mt1300
 devices/glinet-mt1300/artifacts/README.txt
 ```
 
@@ -1154,7 +1154,7 @@ selected pane item has more specific details. Status JSON and both workbench vie
 also expose `workbench_actions` records for operator-side configuration and
 build workflows such as `scripts/menuconfig`, `make package`,
 `scripts/grit-bringup --recommend-only --json`,
-`scripts/artifact-config set ARTIFACT KEY=VALUE`, and release self-tests. These
+`scripts/lib/artifact-config set ARTIFACT KEY=VALUE`, and release self-tests. These
 records are show-command descriptors by default, include confirmation,
 background-job, and target-execution flags, and are indexed through
 `workbench_actions_by_id`, `workbench_actions_by_category`,

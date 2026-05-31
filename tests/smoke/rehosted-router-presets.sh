@@ -15,13 +15,13 @@ netgear-wndr3700-v1-uclibc
 '
 
 for preset in $presets; do
-    resolved=$(scripts/resolve-target "$preset")
+    resolved=$(scripts/lib/resolve-target "$preset")
     eval "$resolved"
     [ "${TARGET_STATUS:-}" = supported ] || {
         printf '%s\n' "preset $preset did not resolve as supported" >&2
         exit 1
     }
-    scripts/gen-buildroot-defconfig "$preset" >/dev/null
+    scripts/lib/gen-buildroot-defconfig "$preset" >/dev/null
     [ -f "${TARGET_PROFILE_FILE:-}" ] || {
         printf '%s\n' "missing generated profile for $preset" >&2
         exit 1
@@ -32,8 +32,8 @@ for preset in $presets; do
     }
 done
 
-scripts/rehost-router-examples --help >/dev/null
-scripts/rehost-router-examples --list >"$tmp/list"
+scripts/lib/rehost-router-examples --help >/dev/null
+scripts/lib/rehost-router-examples --list >"$tmp/list"
 grep -q 'archer-a7-us-v5-211022' "$tmp/list"
 grep -q 'archer-ax1800-usw-v56-250814' "$tmp/list"
 grep -q 'asus-rt-n16-30043807378' "$tmp/list"

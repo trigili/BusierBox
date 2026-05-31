@@ -17,7 +17,7 @@ runtime_root="$tmp_abs/runtime-root"
 CPPFLAGS="${CPPFLAGS:-} -DGRIT_NO_OPEN_MEMSTREAM=1" \
 OUT="$out" \
 GRIT_RUNTIME_ROOT="$runtime_root" \
-scripts/build-native >/dev/null
+scripts/lib/build-native >/dev/null
 
 python3 - "$out" "$tmp_abs/nowrite" <<'PY'
 import base64

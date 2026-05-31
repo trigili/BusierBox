@@ -60,4 +60,4 @@ do
     fi
 done
 
-scripts/verify-sources "$manifest"
+scripts/lib/verify-sources "$manifest"

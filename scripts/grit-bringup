@@ -44,7 +44,7 @@ Options:
   --json                      print summary JSON to stdout
   --payload-preset NAME       preset for initial survey artifact; default survey-core
   --target-preset NAME        target preset to build; default native
-  --run-integration CASE      run one scripts/integration-glinet case after build
+  --run-integration CASE      run one scripts/lib/integration-glinet case after build
   --dry-run                   create local plan/summary only; no build, SSH, or SCP
   --keep-remote               leave remote temp directory for debugging
   --help, -h                  show this help
@@ -56,7 +56,7 @@ Examples:
   scripts/grit-bringup --recommend-only --survey-json survey.json --write-target-preset lab-router
   scripts/grit-bringup --recommend-only --survey-json survey.json --release-dir dist/releases/smoke --json
 
-Use scripts/integration-glinet for repeatable validation runs. Bringup is a
+Use scripts/lib/integration-glinet for repeatable validation runs. Bringup is a
 guided onboarding flow; integration-glinet is the regression harness.
 EOF
 }
@@ -645,13 +645,13 @@ bringup_flow_steps = [
                 reality_path, "./grit reality-test --json", optional=True),
     step_record(4, "generate_recommended_config", "generate recommended config",
                 "planned" if dry_run else ("complete" if recommended_config_path and os.path.exists(recommended_config_path) else "pending"),
-                recommended_config_path, "scripts/config-from-survey --format shell --write-config"),
+                recommended_config_path, "scripts/lib/config-from-survey --format shell --write-config"),
     step_record(5, "generate_target_preset", "generate local target preset",
                 "complete" if target_preset_path_env and os.path.exists(target_preset_path_env) else ("planned" if dry_run and target_preset_path_env else "skipped"),
-                target_preset_path_env, "scripts/preset-from-survey --write-local", optional=True),
+                target_preset_path_env, "scripts/lib/preset-from-survey --write-local", optional=True),
     step_record(6, "choose_release_artifact", "choose compatible release artifact",
                 "complete" if selected_artifact_path else ("planned" if dry_run and env("RELEASE_DIR") else "skipped"),
-                release_find_path, env("RELEASE_SELECTION_COMMAND") or "scripts/find-artifact or release-find",
+                release_find_path, env("RELEASE_SELECTION_COMMAND") or "scripts/lib/find-artifact or release-find",
                 optional=True, details={"release_dir": env("RELEASE_DIR"), "compatibility_label": env("COMPATIBILITY_LABEL")}),
     step_record(7, "configure_trailer", "configure trailer with operator host/ports",
                 "complete" if trailer_cmd else ("planned" if dry_run and env("OPERATOR_HOST") else "skipped"),
@@ -667,7 +667,7 @@ bringup_flow_steps = [
     step_record(10, "run_integration_safe_checks", "optionally run integration-safe checks",
                 "complete" if integration_case and status_value == "pass" else ("planned" if dry_run and integration_case else "skipped"),
                 os.path.join(env("RUN_DIR"), "integration.log") if integration_case else "",
-                f"scripts/integration-glinet --case {integration_case}" if integration_case else "",
+                f"scripts/lib/integration-glinet --case {integration_case}" if integration_case else "",
                 optional=True),
 ]
 bringup_flow_steps_by_key = {item["key"]: item for item in bringup_flow_steps}
@@ -1254,8 +1254,8 @@ PY
 choose_release_artifact() {
     [ -n "$release_dir" ] || return 0
     release_self_test_json="$run_dir/release-self-test.json"
-    if [ -x "$release_dir/scripts/release-self-test" ]; then
-        if ! "$release_dir/scripts/release-self-test" --json >"$release_self_test_json" 2>"$run_dir/release-self-test.err"; then
+    if [ -x "$release_dir/scripts/lib/release-self-test" ]; then
+        if ! "$release_dir/scripts/lib/release-self-test" --json >"$release_self_test_json" 2>"$run_dir/release-self-test.err"; then
             write_summary fail "release self-test failed"
             printf '%s\n' "bringup: release self-test failed; see $run_dir/release-self-test.err" >&2
             exit 1
@@ -1276,9 +1276,9 @@ choose_release_artifact() {
     if [ -n "$max_compatibility" ]; then
         max_args=yes
     fi
-    if [ -x "$release_dir/scripts/release-find" ]; then
+    if [ -x "$release_dir/scripts/lib/release-find" ]; then
         release_selection_source=bundle-helper
-        set -- scripts/release-find --release-dir "$release_dir" --survey-json "$survey"
+        set -- scripts/lib/release-find --release-dir "$release_dir" --survey-json "$survey"
         if [ -f "$reality" ]; then
             set -- "$@" --reality-json "$reality"
         fi
@@ -1288,7 +1288,7 @@ choose_release_artifact() {
         set -- "$@" --json
     else
         release_selection_source=release-repository
-        set -- scripts/find-artifact --release-root "$release_dir" --survey-json "$survey" --payload-preset "$payload_preset" --recommendation-json
+        set -- scripts/lib/find-artifact --release-root "$release_dir" --survey-json "$survey" --payload-preset "$payload_preset" --recommendation-json
         if [ -f "$reality" ]; then
             set -- "$@" --reality-json "$reality"
         fi
@@ -1312,7 +1312,7 @@ generate_trailer_command() {
     [ -n "$artifact_for_trailer" ] || return 0
     host_for_trailer=$operator_host
     [ "$host_for_trailer" = auto ] && host_for_trailer=OPERATOR_IP
-    trailer_command="scripts/artifact-config set $(shell_quote "$artifact_for_trailer") GRIT_OPERATOR_SERVER_HOST=$(shell_quote "$host_for_trailer") GRIT_OPERATOR_FILE_SERVICE_ENABLE=yes GRIT_OPERATOR_FILE_SERVICE_PORT=22204"
+    trailer_command="scripts/lib/artifact-config set $(shell_quote "$artifact_for_trailer") GRIT_OPERATOR_SERVER_HOST=$(shell_quote "$host_for_trailer") GRIT_OPERATOR_FILE_SERVICE_ENABLE=yes GRIT_OPERATOR_FILE_SERVICE_PORT=22204"
 }
 
 stage_artifact_for_fetch() {
@@ -1424,19 +1424,19 @@ fi
 if [ -f "$survey" ]; then
     if [ "$target_preset" = native ]; then
         if [ -f "$reality" ]; then
-            scripts/config-from-survey --reality-json "$reality" --format shell --write-config "$recommended" "$survey"
-            scripts/config-from-survey --reality-json "$reality" --format json "$survey" >"$run_dir/recommendation.json"
+            scripts/lib/config-from-survey --reality-json "$reality" --format shell --write-config "$recommended" "$survey"
+            scripts/lib/config-from-survey --reality-json "$reality" --format json "$survey" >"$run_dir/recommendation.json"
         else
-            scripts/config-from-survey --format shell --write-config "$recommended" "$survey"
-            scripts/config-from-survey --format json "$survey" >"$run_dir/recommendation.json"
+            scripts/lib/config-from-survey --format shell --write-config "$recommended" "$survey"
+            scripts/lib/config-from-survey --format json "$survey" >"$run_dir/recommendation.json"
         fi
     else
         if [ -f "$reality" ]; then
-            scripts/config-from-survey --reality-json "$reality" --target-preset "$target_preset" --format shell --write-config "$recommended" "$survey"
-            scripts/config-from-survey --reality-json "$reality" --target-preset "$target_preset" --format json "$survey" >"$run_dir/recommendation.json"
+            scripts/lib/config-from-survey --reality-json "$reality" --target-preset "$target_preset" --format shell --write-config "$recommended" "$survey"
+            scripts/lib/config-from-survey --reality-json "$reality" --target-preset "$target_preset" --format json "$survey" >"$run_dir/recommendation.json"
         else
-            scripts/config-from-survey --target-preset "$target_preset" --format shell --write-config "$recommended" "$survey"
-            scripts/config-from-survey --target-preset "$target_preset" --format json "$survey" >"$run_dir/recommendation.json"
+            scripts/lib/config-from-survey --target-preset "$target_preset" --format shell --write-config "$recommended" "$survey"
+            scripts/lib/config-from-survey --target-preset "$target_preset" --format json "$survey" >"$run_dir/recommendation.json"
         fi
     fi
 else
@@ -1446,7 +1446,7 @@ else
 fi
 
 if [ -n "$write_target_preset" ]; then
-    scripts/preset-from-survey --survey "$survey" --name "$write_target_preset" --write-local --overwrite >"$run_dir/target-preset.log" 2>&1 || {
+    scripts/lib/preset-from-survey --survey "$survey" --name "$write_target_preset" --write-local --overwrite >"$run_dir/target-preset.log" 2>&1 || {
         write_summary fail "target preset generation failed"
         printf '%s\n' "bringup: target preset generation failed; see $run_dir/target-preset.log" >&2
         exit 1
@@ -1487,7 +1487,7 @@ generate_trailer_command
 stage_artifact_for_fetch
 
 if [ -n "$run_integration" ]; then
-    scripts/integration-glinet --host "$host" --target-preset "$target_preset" --case "$run_integration" >>"$run_dir/integration.log" 2>&1 || {
+    scripts/lib/integration-glinet --host "$host" --target-preset "$target_preset" --case "$run_integration" >>"$run_dir/integration.log" 2>&1 || {
         write_summary fail "integration failed"
         exit 1
     }

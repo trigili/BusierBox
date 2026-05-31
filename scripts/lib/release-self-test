@@ -3,9 +3,9 @@ set -eu
 
 usage() {
     cat <<'EOF'
-usage: scripts/release-self-test [--release-dir DIR] [--json] [--help]
+usage: scripts/lib/release-self-test [--release-dir DIR] [--json] [--help]
 
-Run a release bundle's scripts/release-self-test helper from the source checkout.
+Run a release bundle's scripts/lib/release-self-test helper from the source checkout.
 When --release-dir is omitted, the newest dist/releases/* directory is used.
 Additional arguments such as --json are forwarded to the bundle helper.
 EOF
@@ -51,7 +51,7 @@ if [ -z "$release_dir" ]; then
     }
 fi
 
-helper=$release_dir/scripts/release-self-test
+helper=$release_dir/scripts/lib/release-self-test
 [ -x "$helper" ] || {
     printf '%s\n' "release-self-test: missing executable helper $helper" >&2
     exit 1

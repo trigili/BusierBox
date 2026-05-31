@@ -3,9 +3,9 @@ set -eu
 
 usage() {
     cat <<'EOF'
-usage: scripts/release-find [--release-dir DIR] FIND_ARGS...
+usage: scripts/lib/release-index [--release-dir DIR] [--write] [--help]
 
-Run a release bundle's scripts/release-find helper from the source checkout.
+Run a release bundle's scripts/lib/release-index helper from the source checkout.
 When --release-dir is omitted, the newest dist/releases/* directory is used.
 EOF
 }
@@ -22,7 +22,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --release-dir)
             [ $# -ge 2 ] || {
-                printf '%s\n' "release-find: --release-dir requires DIR" >&2
+                printf '%s\n' "release-index: --release-dir requires DIR" >&2
                 exit 2
             }
             release_dir=$2
@@ -45,14 +45,14 @@ done
 
 if [ -z "$release_dir" ]; then
     release_dir=$(latest_release_dir) || {
-        printf '%s\n' "release-find: no release dir found; pass --release-dir DIR" >&2
+        printf '%s\n' "release-index: no release dir found; pass --release-dir DIR" >&2
         exit 2
     }
 fi
 
-helper=$release_dir/scripts/release-find
+helper=$release_dir/scripts/lib/release-index
 [ -x "$helper" ] || {
-    printf '%s\n' "release-find: missing executable helper $helper" >&2
+    printf '%s\n' "release-index: missing executable helper $helper" >&2
     exit 1
 }
 

@@ -5,7 +5,7 @@ target=${TARGET:-}
 config=${GRIT_CONFIG:-configs/grit.conf}
 
 if [ -n "$target" ]; then
-    scripts/package-target "$target"
+    scripts/lib/package-target "$target"
 else
     targets=
     if [ -f "$config" ]; then
@@ -17,14 +17,14 @@ else
         fi
     fi
     if [ -z "$targets" ]; then
-        scripts/package-target --config
+        scripts/lib/package-target --config
     else
         for t in $targets; do
             [ "$t" != default ] || {
                 printf '%s\n' "package-selected: default is a blank target configuration; choose native or a concrete target before building." >&2
                 exit 1
             }
-            scripts/package-target "$t"
+            scripts/lib/package-target "$t"
         done
     fi
 fi

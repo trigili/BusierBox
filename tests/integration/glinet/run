@@ -9,7 +9,7 @@ if [ "${SKIP_BUILD:-0}" != "1" ]; then
 fi
 
 if [ -z "$artifact" ]; then
-    resolved=$(scripts/resolve-target "$target" | sed -n 's/^TARGET_NAME=//p')
+    resolved=$(scripts/lib/resolve-target "$target" | sed -n 's/^TARGET_NAME=//p')
     artifact="dist/grit-${resolved:-$target}-full"
 fi
 

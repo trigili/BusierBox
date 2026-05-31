@@ -476,15 +476,15 @@ def write_release_helpers(script_dir):
         kv=
         while [ $# -gt 0 ]; do
             case "$1" in
-                --show) exec "$root/scripts/artifact-config" show "$artifact" ;;
+                --show) exec "$root/scripts/lib/artifact-config" show "$artifact" ;;
                 --clear)
-                    "$root/scripts/artifact-config" clear "$artifact"
+                    "$root/scripts/lib/artifact-config" clear "$artifact"
                     "$root/scripts/verify-checksums" --write-configured >/dev/null
                     exit 0
                     ;;
                 --export)
                     [ $# -ge 2 ] || usage
-                    "$root/scripts/artifact-config" export "$artifact" >"$2"
+                    "$root/scripts/lib/artifact-config" export "$artifact" >"$2"
                     exit 0
                     ;;
                 --import)
@@ -514,11 +514,11 @@ def write_release_helpers(script_dir):
             shift
         done
         if [ "${import_file:-}" ]; then
-            "$root/scripts/artifact-config" import --obfuscation "$obfuscation" "$artifact" "$import_file"
+            "$root/scripts/lib/artifact-config" import --obfuscation "$obfuscation" "$artifact" "$import_file"
         else
             [ -n "$kv" ] || usage
             # shellcheck disable=SC2086
-            "$root/scripts/artifact-config" set --obfuscation "$obfuscation" "$artifact" $kv
+            "$root/scripts/lib/artifact-config" set --obfuscation "$obfuscation" "$artifact" $kv
         fi
         "$root/scripts/verify-checksums" --write-configured >/dev/null
         ''',
@@ -622,7 +622,7 @@ def write_release_helpers(script_dir):
                 "reverse_access": {key: unique(value) for key, value in sorted(transports.items())},
                 "trailer_support": {
                     "helpers": [
-                        "scripts/artifact-config",
+                        "scripts/lib/artifact-config",
                         "scripts/grit-server",
                         "scripts/configure-artifact",
                         "scripts/configure-all",
@@ -637,7 +637,7 @@ def write_release_helpers(script_dir):
             }
 
         if len(sys.argv) > 1 and sys.argv[1] in {"--help", "-h"}:
-            print("usage: scripts/release-index [--write]")
+            print("usage: scripts/lib/release-index [--write]")
             raise SystemExit(0)
         index = build_index()
         if len(sys.argv) > 1 and sys.argv[1] == "--write":
@@ -1069,7 +1069,7 @@ def write_release_helpers(script_dir):
         json_output = False
 
         def usage():
-            print("usage: scripts/release-self-test [--json] [--help]")
+            print("usage: scripts/lib/release-self-test [--json] [--help]")
             print("")
             print("Validate this release bundle and optionally emit JSON diagnostics.")
 
@@ -1504,12 +1504,12 @@ def write_release_quickstart(path, name):
             1. Verify the bundle before touching artifacts:
 
                scripts/verify-checksums --original
-               scripts/release-self-test
+               scripts/lib/release-self-test
 
             2. Choose an artifact:
 
-               scripts/release-find --device glinet-mt1300
-               scripts/release-find --payload-preset survey-core
+               scripts/lib/release-find --device glinet-mt1300
+               scripts/lib/release-find --payload-preset survey-core
 
                Device aliases live under devices/<alias>/ and canonical tuples live
                under by-tuple/<arch>/<libc>/<kernel-floor>/<cpu-or-abi>/.
@@ -1586,8 +1586,8 @@ def write_release_readme(path, name):
 
             ```sh
             scripts/verify-checksums --original
-            scripts/release-self-test
-            scripts/release-find --device glinet-mt1300
+            scripts/lib/release-self-test
+            scripts/lib/release-find --device glinet-mt1300
             scripts/configure-artifact bin/grit-...-full --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/configure-all --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/verify-checksums --configured
@@ -2002,7 +2002,7 @@ def manifest_text_for_tuple(tuple_info, records, include_missing=False):
         lines.extend([
             "",
             "Tuple quickstart:",
-            f"- choose_artifact: scripts/release-find --payload-preset {records[0].get('payload_preset', '')}",
+            f"- choose_artifact: scripts/lib/release-find --payload-preset {records[0].get('payload_preset', '')}",
             f"- configure_trailer: scripts/configure-artifact {example} --operator-host 192.168.8.241 --transport builtin --shell-port 22203",
             "- verify_checksums: scripts/verify-checksums --configured",
             f"- first_contact: ./{example_name} survey --json",
@@ -2164,7 +2164,7 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
         "trailer_support": "artifact-config bundled",
     }
     if dry_run:
-        rec["command"] = f"GRIT_CONFIG={config} PAYLOAD_FORMAT={job['format']} scripts/package-target {job['target']}"
+        rec["command"] = f"GRIT_CONFIG={config} PAYLOAD_FORMAT={job['format']} scripts/lib/package-target {job['target']}"
         return rec
 
     log = release_dir / "logs" / f"{stem}.log"

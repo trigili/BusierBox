@@ -20,10 +20,10 @@ case "${1:-}" in
     --help|-h)
         cat <<'EOF'
 usage:
-  scripts/resolve-target --config
-  scripts/resolve-target --list
-  scripts/resolve-target --list-tree
-  scripts/resolve-target PRESET_OR_TARGET
+  scripts/lib/resolve-target --config
+  scripts/lib/resolve-target --list
+  scripts/lib/resolve-target --list-tree
+  scripts/lib/resolve-target PRESET_OR_TARGET
 
 Prints shell assignments describing the active tuple target. Presets are
 templates; the emitted TARGET_NAME is generated from tuple fields unless an

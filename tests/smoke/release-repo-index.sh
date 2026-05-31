@@ -414,7 +414,7 @@ PY
 
 scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
 test -f "$tmp/repo-index.json"
-scripts/find-artifact --index "$tmp/repo-index.json" --device glinet-mt1300 --tool tcpdump >"$tmp/find-device.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --device glinet-mt1300 --tool tcpdump >"$tmp/find-device.out"
 grep -q '^release_name=one$' "$tmp/find-device.out"
 grep -q '^payload_preset=survey-core$' "$tmp/find-device.out"
 grep -q '^compatibility=exact$' "$tmp/find-device.out"
@@ -435,29 +435,29 @@ grep -q '^release_self_test_command_queue_operator_supplied_command_execution_co
 grep -q '^dedupe_count=2$' "$tmp/find-device.out"
 grep -q '^provider_status_tcpdump=found$' "$tmp/find-device.out"
 grep -q '^doom_wad=doom.wad size=9 sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef$' "$tmp/find-device.out"
-scripts/find-artifact --index "$tmp/repo-index.json" --doom-wad doom.wad >"$tmp/find-doom-wad.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --doom-wad doom.wad >"$tmp/find-doom-wad.out"
 grep -q '^release_name=one$' "$tmp/find-doom-wad.out"
-scripts/find-artifact --index "$tmp/repo-index.json" --doom-wad-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef >"$tmp/find-doom-sha.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --doom-wad-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef >"$tmp/find-doom-sha.out"
 grep -q '^payload_preset=survey-core$' "$tmp/find-doom-sha.out"
-scripts/find-artifact --index "$tmp/repo-index.json" --project-license GPL-2.0-or-later --gplv2-compatible yes --corresponding-source-required yes --corresponding-source-status required_for_distribution --package-license-audit-required yes --license-component BusyBox --component-license BusyBox:GPL-2.0 --payload-preset survey-core >"$tmp/find-license.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --project-license GPL-2.0-or-later --gplv2-compatible yes --corresponding-source-required yes --corresponding-source-status required_for_distribution --package-license-audit-required yes --license-component BusyBox --component-license BusyBox:GPL-2.0 --payload-preset survey-core >"$tmp/find-license.out"
 grep -q '^release_name=one$' "$tmp/find-license.out"
 grep -q '^project_license=GPL-2.0-or-later$' "$tmp/find-license.out"
-scripts/find-artifact --index "$tmp/repo-index.json" --corresponding-source-required no >/dev/null 2>"$tmp/find-corresponding-source-not-required.err" && {
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --corresponding-source-required no >/dev/null 2>"$tmp/find-corresponding-source-not-required.err" && {
     printf '%s\n' "release-repo-index smoke: corresponding-source required filter unexpectedly matched no" >&2
     exit 1
 }
 grep -q 'find-artifact: no matching artifact' "$tmp/find-corresponding-source-not-required.err"
-scripts/find-artifact --index "$tmp/repo-index.json" --package-license-audit-required no >/dev/null 2>"$tmp/find-package-audit-not-required.err" && {
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --package-license-audit-required no >/dev/null 2>"$tmp/find-package-audit-not-required.err" && {
     printf '%s\n' "release-repo-index smoke: package license audit filter unexpectedly matched no" >&2
     exit 1
 }
 grep -q 'find-artifact: no matching artifact' "$tmp/find-package-audit-not-required.err"
-scripts/find-artifact --index "$tmp/repo-index.json" --gplv2-compatible no >/dev/null 2>"$tmp/find-license-incompatible.err" && {
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --gplv2-compatible no >/dev/null 2>"$tmp/find-license-incompatible.err" && {
     printf '%s\n' "release-repo-index smoke: incompatible GPL filter unexpectedly matched" >&2
     exit 1
 }
 grep -q 'find-artifact: no matching artifact' "$tmp/find-license-incompatible.err"
-scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --release one >"$tmp/find-tuple.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --release one >"$tmp/find-tuple.out"
 grep -q '^release_name=one$' "$tmp/find-tuple.out"
 grep -q '^tuple_path=by-tuple/mipsel/musl/4.x/mips32r2-24kc$' "$tmp/find-tuple.out"
 cat >"$tmp/glinet-survey.json" <<'JSON'
@@ -470,17 +470,17 @@ cat >"$tmp/glinet-survey.json" <<'JSON'
   }
 }
 JSON
-scripts/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --payload-preset survey-core >"$tmp/find-survey.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --payload-preset survey-core >"$tmp/find-survey.out"
 grep -q '^release_name=one$' "$tmp/find-survey.out"
 grep -q '^arch=mipsel$' "$tmp/find-survey.out"
 grep -q '^libc=musl$' "$tmp/find-survey.out"
 grep -q '^kernel_floor=4.x$' "$tmp/find-survey.out"
-scripts/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --payload-preset survey-core --arch x86_64 >/dev/null 2>"$tmp/find-survey-override.err" && {
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --payload-preset survey-core --arch x86_64 >/dev/null 2>"$tmp/find-survey-override.err" && {
     printf '%s\n' "release-repo-index smoke: explicit arch did not override survey filter" >&2
     exit 1
 }
 grep -q 'find-artifact: no matching artifact' "$tmp/find-survey-override.err"
-scripts/find-artifact --index "$tmp/repo-index.json" --payload-preset ssh-operator --feature reverse-ssh --json >"$tmp/find-json.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --payload-preset ssh-operator --feature reverse-ssh --json >"$tmp/find-json.out"
 python3 - "$tmp/find-json.out" <<'PY'
 import json
 import sys
@@ -495,7 +495,7 @@ assert row["release_self_test"]["command_queue_operator_supplied_command_executi
 assert row["release_self_test"]["command_queue_token_required_count"] == 1
 assert row["release_self_test"]["command_queue_token_configured_count"] == 0
 PY
-scripts/find-artifact --index "$tmp/repo-index.json" --project-license GPL-2.0-or-later --gplv2-compatible true --corresponding-source-required true --corresponding-source-status required_for_distribution --package-license-audit-required true --license-component BusyBox --component-license BusyBox:GPL-2.0 --payload-preset ssh-operator --recommendation-json >"$tmp/recommend-license-json.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --project-license GPL-2.0-or-later --gplv2-compatible true --corresponding-source-required true --corresponding-source-status required_for_distribution --package-license-audit-required true --license-component BusyBox --component-license BusyBox:GPL-2.0 --payload-preset ssh-operator --recommendation-json >"$tmp/recommend-license-json.out"
 python3 - "$tmp/recommend-license-json.out" <<'PY'
 import json
 import sys
@@ -520,7 +520,7 @@ assert doc["matches_by_package_license_audit_required"]["true"][0]["release_name
 assert doc["matches_by_license_component"]["BusyBox"][0]["release_name"] == "two"
 assert doc["matches_by_component_license"]["BusyBox:GPL-2.0"][0]["release_name"] == "two"
 PY
-scripts/find-artifact --index "$tmp/repo-index.json" --device lab-router --recommendation-json >"$tmp/recommend-json.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --device lab-router --recommendation-json >"$tmp/recommend-json.out"
 python3 - "$tmp/recommend-json.out" <<'PY'
 import json
 import sys
@@ -648,7 +648,7 @@ assert doc["dedupe_count"] == 2
 assert {item["release_name"] for item in doc["dedupe_alternatives"]} == {"one", "two"}
 assert "newest release_mtime" in doc["selection_policy"]
 PY
-scripts/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --payload-preset survey-core --recommendation-json >"$tmp/recommend-survey-json.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --payload-preset survey-core --recommendation-json >"$tmp/recommend-survey-json.out"
 python3 - "$tmp/recommend-survey-json.out" "$tmp/glinet-survey.json" <<'PY'
 import json
 import sys
@@ -695,7 +695,7 @@ cat >"$tmp/reality-bad-runtime.json" <<'EOF'
   }
 }
 EOF
-scripts/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --reality-json "$tmp/reality-bad-runtime.json" --payload-preset survey-core --recommendation-json >"$tmp/recommend-reality-json.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --reality-json "$tmp/reality-bad-runtime.json" --payload-preset survey-core --recommendation-json >"$tmp/recommend-reality-json.out"
 python3 - "$tmp/recommend-reality-json.out" "$tmp/reality-bad-runtime.json" <<'PY'
 import json
 import sys
@@ -730,12 +730,12 @@ assert doc["matches_by_effective_compatibility"]["unsafe"][0]["compatibility"]["
 assert "matches_by_effective_compatibility" in doc["api_collections"]["matches"]["indexes"]
 assert "effective compatibility" in " ".join(doc["selection_policy"])
 PY
-if scripts/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --reality-json "$tmp/reality-bad-runtime.json" --payload-preset survey-core --max-compatibility likely --recommendation-json >"$tmp/recommend-reality-threshold.out" 2>"$tmp/recommend-reality-threshold.err"; then
+if scripts/lib/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glinet-survey.json" --reality-json "$tmp/reality-bad-runtime.json" --payload-preset survey-core --max-compatibility likely --recommendation-json >"$tmp/recommend-reality-threshold.out" 2>"$tmp/recommend-reality-threshold.err"; then
     printf '%s\n' "release-repo-index: reality-adjusted max compatibility accepted unsafe artifact" >&2
     exit 1
 fi
 grep -q 'find-artifact: no matching artifact' "$tmp/recommend-reality-threshold.err"
-scripts/find-artifact --index "$tmp/repo-index.json" --device lab-router --max-compatibility likely --recommendation-json >"$tmp/recommend-safe-json.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --device lab-router --max-compatibility likely --recommendation-json >"$tmp/recommend-safe-json.out"
 python3 - "$tmp/recommend-safe-json.out" <<'PY'
 import json
 import sys
@@ -746,7 +746,7 @@ assert doc["match_count"] == 1
 assert doc["selected"]["release_name"] == "two"
 assert doc["selected"]["compatibility"]["label"] == "exact"
 PY
-scripts/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --all --recommendation-json >"$tmp/recommend-tuple-json.out"
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc --all --recommendation-json >"$tmp/recommend-tuple-json.out"
 python3 - "$tmp/recommend-tuple-json.out" <<'PY'
 import json
 import sys

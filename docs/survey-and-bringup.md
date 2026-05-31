@@ -68,7 +68,7 @@ make package TARGET=glinet-mt7621-openwrt-musl
 scripts/grit-bringup --host root@192.168.8.1 --operator-host auto
 ```
 
-The bring-up script creates `local/bringup-runs/<timestamp>-<pid>/`, builds a survey artifact, transfers it under `/tmp/grit-bringup-<timestamp>-<pid>/`, captures `survey --json` and `config-info`, runs `scripts/config-from-survey`, and writes `recommended.conf` plus `summary.json`.
+The bring-up script creates `local/bringup-runs/<timestamp>-<pid>/`, builds a survey artifact, transfers it under `/tmp/grit-bringup-<timestamp>-<pid>/`, captures `survey --json` and `config-info`, runs `scripts/lib/config-from-survey`, and writes `recommended.conf` plus `summary.json`.
 
 See [bringup.md](bringup.md) for the full command reference and safety model.
 
@@ -81,16 +81,16 @@ GRIT_SURVEY_PROBE_DIR=/tmp/grit-probe /bin/sh ./grit-survey.sh
 grit survey --write-shell-script /tmp/grit-survey.sh
 grit reality-test --json
 grit reality-test push
-scripts/config-from-survey --format shell survey.json
-scripts/config-from-survey --format json survey.json
-scripts/config-from-survey --format json --reality-json reality.json survey.json
-scripts/config-from-survey --write-config local/recommended.conf survey.json
-scripts/preset-from-survey --survey survey.json --name glinet-mt1300-lab
-scripts/preset-from-survey --survey survey.json --name glinet-mt1300-lab --write-local
-scripts/release-find --release-dir dist/releases/lab --survey-json survey.json --reality-json reality.json
+scripts/lib/config-from-survey --format shell survey.json
+scripts/lib/config-from-survey --format json survey.json
+scripts/lib/config-from-survey --format json --reality-json reality.json survey.json
+scripts/lib/config-from-survey --write-config local/recommended.conf survey.json
+scripts/lib/preset-from-survey --survey survey.json --name glinet-mt1300-lab
+scripts/lib/preset-from-survey --survey survey.json --name glinet-mt1300-lab --write-local
+scripts/lib/release-find --release-dir dist/releases/lab --survey-json survey.json --reality-json reality.json
 ```
 
-`scripts/config-from-survey` is conservative. It emits comments for uncertainty, avoids external writes unless `--allow-external-writes` is set, and keeps `GRIT_ZERO_ARG_MODE="help"` unless `--allow-network-autorun` is explicitly requested.
+`scripts/lib/config-from-survey` is conservative. It emits comments for uncertainty, avoids external writes unless `--allow-external-writes` is set, and keeps `GRIT_ZERO_ARG_MODE="help"` unless `--allow-network-autorun` is explicitly requested.
 Shell output includes `# compatibility=...` and `# compatibility_reason: ...`
 comments. JSON output includes a `compatibility` object with `schema`, `label`,
 and `reasons` so bringup tooling can show the same risk language used by
@@ -109,7 +109,7 @@ Release bundle `release-find` can combine passive survey facts with
 `reality-test` results and report `exact`, `likely`, `heuristic`, `unsafe`, or
 `incompatible` compatibility reasons before you choose a larger payload.
 
-`scripts/preset-from-survey` writes reusable target compatibility presets under
+`scripts/lib/preset-from-survey` writes reusable target compatibility presets under
 `local/presets/targets/`. Those generated presets intentionally contain only
 target tuple metadata such as arch, endian, libc, kernel floor, CPU/ABI, static
 policy hints, survey provenance, confidence, target-tuple compatibility notes,
@@ -118,7 +118,7 @@ preset, reverse-shell transport, operator host/ports, zero-arg behavior,
 dotfiles, and overlays remain in normal payload/runtime configs. The preset
 compatibility label describes only the inferred target tuple; release artifact
 and payload/runtime compatibility are still scored by `config-from-survey` and
-`release-find`. `scripts/resolve-target` discovers these local presets
+`release-find`. `scripts/lib/resolve-target` discovers these local presets
 automatically, so a generated name can be used with `TARGET=<name>` after review.
 
 For target-side debugging, prefer the provider-based gdbserver workflow in

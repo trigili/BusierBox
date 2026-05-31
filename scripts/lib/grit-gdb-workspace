@@ -3,7 +3,7 @@ set -eu
 
 usage() {
     cat >&2 <<'EOF'
-usage: scripts/grit-gdb-workspace [options]
+usage: scripts/lib/grit-gdb-workspace [options]
 
 Options:
   --survey PATH

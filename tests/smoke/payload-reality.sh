@@ -14,7 +14,7 @@ GRIT_HEAVY_TOOLS="definitely-not-a-tool"
 GRIT_DROPBEAR_SERVER_MODE="no"
 EOF
 
-GRIT_CONFIG="$tmp" scripts/build-payload >/dev/null
+GRIT_CONFIG="$tmp" scripts/lib/build-payload >/dev/null
 
 python3 - <<'PY'
 import json

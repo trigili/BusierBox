@@ -3,7 +3,7 @@ set -eu
 
 usage() {
     cat >&2 <<'EOF'
-usage: scripts/config-from-survey [options] survey.json
+usage: scripts/lib/config-from-survey [options] survey.json
 
 Options:
   --format shell|json

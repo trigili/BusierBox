@@ -19,7 +19,7 @@ grep -q 'manifests/sources.lock.json' LICENSES/buildroot.txt
 test -f LICENSES/doom-ascii.txt
 grep -q 'GRIT_DOOM_WAD_PATH' LICENSES/doom-ascii.txt
 test -f manifests/license-policy.json
-scripts/check-licensing
+scripts/lib/check-licensing
 make check-licensing
 
 tmp=${TMPDIR:-/tmp}/grit-licensing.$$
@@ -45,7 +45,7 @@ data = {
 with open(sys.argv[1], "w", encoding="utf-8") as fh:
     json.dump(data, fh)
 PY
-if scripts/check-licensing manifests/license-policy.json "$tmp/sources.lock.json" >"$tmp/missing-license.out" 2>&1; then
+if scripts/lib/check-licensing manifests/license-policy.json "$tmp/sources.lock.json" >"$tmp/missing-license.out" 2>&1; then
     printf '%s\n' "licensing smoke: source without license metadata was accepted" >&2
     exit 1
 fi
@@ -68,7 +68,7 @@ data.setdefault("sources", []).append({
 with open(sys.argv[2], "w", encoding="utf-8") as fh:
     json.dump(data, fh)
 PY
-if scripts/check-licensing manifests/license-policy.json "$tmp/unreviewed-sources.lock.json" >"$tmp/unreviewed-source.out" 2>&1; then
+if scripts/lib/check-licensing manifests/license-policy.json "$tmp/unreviewed-sources.lock.json" >"$tmp/unreviewed-source.out" 2>&1; then
     printf '%s\n' "licensing smoke: source without compatibility policy was accepted" >&2
     exit 1
 fi

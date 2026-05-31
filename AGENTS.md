@@ -2,7 +2,7 @@
 
 - Keep scripts POSIX-sh-compatible where practical. Use small helper programs only when the job is impractical or unsafe in shell, such as strict JSON parsing.
 - Do not add network dependencies without updating `manifests/sources.lock.json` with pinned `version`, `url`, `sha256`, and `filename`.
-- Preserve offline reproducibility. Anything required to rebuild should be fetchable into `dl/`, verifiable by hash, and packable by `scripts/offline-pack`.
+- Preserve offline reproducibility. Anything required to rebuild should be fetchable into `dl/`, verifiable by hash, and packable by `scripts/lib/offline-pack`.
 - Avoid vendoring large third-party source trees in this repository.
 - Add smoke checks or tests for new supervisor commands, dispatch behavior, and build scripts.
 - Keep the core applets useful without assuming `/tmp` is writable.

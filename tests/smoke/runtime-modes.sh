@@ -25,8 +25,8 @@ build_mode_artifact() {
         GRIT_RUNTIME_ALLOW_FALLBACK_ROOT="$allow_fallback" \
         GRIT_RUNTIME_FALLBACK_ROOT="$fallback_root" \
         GRIT_ZERO_ARG_MODE=help \
-        scripts/build-native >/dev/null
-    scripts/embed-payload "$core" "$payload" "$out" >/dev/null
+        scripts/lib/build-native >/dev/null
+    scripts/lib/embed-payload "$core" "$payload" "$out" >/dev/null
 }
 
 build_mode_artifact core-only "$tmp/grit-core-only"
@@ -227,7 +227,7 @@ if OUT="$tmp/aggressive-fallback-invalid.core" ARTIFACT_TIER=full ADVERTISE_PAYL
     GRIT_NORESIDUE_LEVEL=aggressive \
     GRIT_RUNTIME_ALLOW_FALLBACK_ROOT=yes \
     GRIT_ZERO_ARG_MODE=help \
-    scripts/build-native >"$tmp/aggressive-fallback-invalid.out" 2>"$tmp/aggressive-fallback-invalid.err"; then
+    scripts/lib/build-native >"$tmp/aggressive-fallback-invalid.out" 2>"$tmp/aggressive-fallback-invalid.err"; then
     printf '%s\n' "runtime-modes: build-native accepted aggressive no-residue fallback root" >&2
     exit 1
 fi

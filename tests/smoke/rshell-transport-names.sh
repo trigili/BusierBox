@@ -4,7 +4,7 @@
 set -eu
 
 menu=${1:-scripts/menuconfig}
-build=${2:-scripts/build-native}
+build=${2:-scripts/lib/build-native}
 
 [ -f "$menu" ] || {
     printf '%s\n' "rshell-transport-names: missing $menu" >&2

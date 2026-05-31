@@ -8,7 +8,7 @@ cfg=${1:?busybox .config required}
     exit 1
 }
 
-scripts/busybox-applet-map | awk -v cfg="$cfg" '
+scripts/lib/busybox-applet-map | awk -v cfg="$cfg" '
     BEGIN {
         while ((getline line < cfg) > 0) {
             if (line ~ /^CONFIG_[A-Za-z0-9_]+=y$/) {

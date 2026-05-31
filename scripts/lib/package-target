@@ -2,7 +2,7 @@
 set -eu
 
 usage() {
-    printf '%s\n' "usage: scripts/package-target TARGET|--config" >&2
+    printf '%s\n' "usage: scripts/lib/package-target TARGET|--config" >&2
 }
 
 target=${1:-}
@@ -477,11 +477,11 @@ validate_build_config() {
 validate_build_config
 
 if [ "$target" = --config ] || [ "$target" = config ]; then
-    resolved=$(scripts/resolve-target --config 2>&1) || die "$resolved"
+    resolved=$(scripts/lib/resolve-target --config 2>&1) || die "$resolved"
 else
-    if ! resolved=$(scripts/resolve-target "$target" 2>&1); then
+    if ! resolved=$(scripts/lib/resolve-target "$target" 2>&1); then
         resolve_error=$resolved
-        if active=$(scripts/resolve-target --config 2>/dev/null); then
+        if active=$(scripts/lib/resolve-target --config 2>/dev/null); then
             eval "$active"
             if [ "${TARGET_NAME:-}" = "$target" ]; then
                 resolved=$active
@@ -512,7 +512,7 @@ suffix=$(payload_suffix)
 payload="dist/payload-$target.$suffix"
 
 if [ "$target" = native ]; then
-    scripts/build-busybox
+    scripts/lib/build-busybox
     TARGET="$target" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" \
         GRIT_TARGET_NAME="$TARGET_NAME" \
         GRIT_TARGET_ARCH="$TARGET_ARCH" \
@@ -537,7 +537,7 @@ if [ "$target" = native ]; then
         GRIT_USER_OVERLAY_ENABLE="$GRIT_USER_OVERLAY_ENABLE" \
         GRIT_USER_OVERLAY_ROOT="$GRIT_USER_OVERLAY_ROOT" \
         GRIT_USER_OVERLAY_ALLOW_OVERRIDE="$GRIT_USER_OVERLAY_ALLOW_OVERRIDE" \
-        scripts/build-payload
+        scripts/lib/build-payload
     copy_payload_artifacts
     OUT="$full_core" ARTIFACT_TIER=full ADVERTISE_PAYLOAD_TOOLS=1 \
         GRIT_TARGET_PRESET="$manifest_target_preset" \
@@ -615,12 +615,12 @@ if [ "$target" = native ]; then
         GRIT_USER_OVERLAY_ALLOW_OVERRIDE="$GRIT_USER_OVERLAY_ALLOW_OVERRIDE" \
         GRIT_GDBSERVER_PROVIDER="$GRIT_GDBSERVER_PROVIDER" \
         GRIT_GDBSERVER_USER_PATH="$GRIT_GDBSERVER_USER_PATH" \
-        scripts/build-native
+        scripts/lib/build-native
 else
     if [ "$TARGET_SOURCE" = config ]; then
-        gen_output=$(scripts/gen-buildroot-defconfig --from-config "$config")
+        gen_output=$(scripts/lib/gen-buildroot-defconfig --from-config "$config")
     else
-        gen_output=$(scripts/gen-buildroot-defconfig "$requested_target")
+        gen_output=$(scripts/lib/gen-buildroot-defconfig "$requested_target")
     fi
     printf '%s\n' "$gen_output"
     eval "$(printf '%s\n' "$gen_output" | sed -n 's/^\(BUILDROOT_DEFCONFIG\|PAYLOAD_PROFILE\)=/GEN_\1=/p')"
@@ -650,7 +650,7 @@ else
         GRIT_USER_OVERLAY_ENABLE="$GRIT_USER_OVERLAY_ENABLE" \
         GRIT_USER_OVERLAY_ROOT="$GRIT_USER_OVERLAY_ROOT" \
         GRIT_USER_OVERLAY_ALLOW_OVERRIDE="$GRIT_USER_OVERLAY_ALLOW_OVERRIDE" \
-        scripts/buildroot-build-payload
+        scripts/lib/buildroot-build-payload
     copy_payload_artifacts
     cross_cc=$(find_cross_cc || true)
     if [ -z "$cross_cc" ]; then
@@ -772,12 +772,12 @@ else
         GRIT_USER_OVERLAY_ALLOW_OVERRIDE="${GRIT_USER_OVERLAY_ALLOW_OVERRIDE:-no}" \
         GRIT_GDBSERVER_PROVIDER="$GRIT_GDBSERVER_PROVIDER" \
         GRIT_GDBSERVER_USER_PATH="$GRIT_GDBSERVER_USER_PATH" \
-        scripts/build-native
+        scripts/lib/build-native
 fi
 
-scripts/check-payload-tar "dist/payload-$target.tar"
+scripts/lib/check-payload-tar "dist/payload-$target.tar"
 if [ "$GRIT_BUILD_FULL" = yes ]; then
-    scripts/embed-payload "$full_core" "$payload" "$artifact"
+    scripts/lib/embed-payload "$full_core" "$payload" "$artifact"
     rm -f "$full_core"
     sha256_write "$artifact" "$artifact.sha256"
     cp "$artifact" "$compat_artifact"
@@ -822,7 +822,7 @@ if [ "$GRIT_BUILD_INTERNAL_CORE" = yes ]; then
             GRIT_COMMAND_QUEUE_POLL_BACKOFF="$GRIT_COMMAND_QUEUE_POLL_BACKOFF" \
             GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC="$GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC" \
             GRIT_COMMAND_QUEUE_MAX_POLLS="$GRIT_COMMAND_QUEUE_MAX_POLLS" \
-            scripts/build-native
+            scripts/lib/build-native
     else
         CC="$cross_cc" OUT="$core" ARTIFACT_TIER=core ADVERTISE_PAYLOAD_TOOLS=0 \
             GRIT_TARGET_PRESET="$manifest_target_preset" \
@@ -858,12 +858,12 @@ if [ "$GRIT_BUILD_INTERNAL_CORE" = yes ]; then
             GRIT_COMMAND_QUEUE_POLL_BACKOFF="$GRIT_COMMAND_QUEUE_POLL_BACKOFF" \
             GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC="$GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC" \
             GRIT_COMMAND_QUEUE_MAX_POLLS="$GRIT_COMMAND_QUEUE_MAX_POLLS" \
-            scripts/build-native
+            scripts/lib/build-native
     fi
 fi
 
 if [ "$VERIFY" = 1 ] && [ "$GRIT_BUILD_FULL" = yes ]; then
-    scripts/verify-artifact "$artifact"
+    scripts/lib/verify-artifact "$artifact"
 fi
 
 if [ "$target" = native ] && [ "$GRIT_BUILD_FULL" = yes ]; then

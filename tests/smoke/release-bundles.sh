@@ -162,14 +162,14 @@ test -L "$work/release/devices/native/artifacts"
 test -f "$work/release/devices/native/target.json"
 test -f "$work/release/devices/native/README.txt"
 test -f "$work/release/devices/native/notes.md"
-test -x "$work/release/scripts/artifact-config"
+test -x "$work/release/scripts/lib/artifact-config"
 test -x "$work/release/scripts/grit-server"
 test -x "$work/release/scripts/configure-artifact"
 test -x "$work/release/scripts/configure-all"
 test -x "$work/release/scripts/verify-checksums"
-test -x "$work/release/scripts/release-index"
-test -x "$work/release/scripts/release-find"
-test -x "$work/release/scripts/release-self-test"
+test -x "$work/release/scripts/lib/release-index"
+test -x "$work/release/scripts/lib/release-find"
+test -x "$work/release/scripts/lib/release-self-test"
 "$work/release/scripts/configure-artifact" --help >"$work/configure-help.out" 2>&1 || test "$?" -eq 2
 grep -q -- '--run-mode auto|foreground|background' "$work/configure-help.out"
 grep -q -- '--session-policy single|reconnect|persistent' "$work/configure-help.out"
@@ -480,14 +480,14 @@ if "missing_tools=" in text:
     raise SystemExit("tuple MANIFEST.txt should not include missing tools by default")
 PY
 
-"$work/release/scripts/release-index" >/dev/null
-scripts/release-index --release-dir "$work/release" >/dev/null
-"$work/release/scripts/release-find" --arch native --libc host --kernel host --payload-preset default >"$work/release-find.out"
-scripts/release-find --release-dir "$work/release" --arch native --libc host --kernel host --payload-preset default >"$work/release-find.wrapper.out"
+"$work/release/scripts/lib/release-index" >/dev/null
+scripts/lib/release-index --release-dir "$work/release" >/dev/null
+"$work/release/scripts/lib/release-find" --arch native --libc host --kernel host --payload-preset default >"$work/release-find.out"
+scripts/lib/release-find --release-dir "$work/release" --arch native --libc host --kernel host --payload-preset default >"$work/release-find.wrapper.out"
 cmp "$work/release-find.out" "$work/release-find.wrapper.out"
 grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/grit-native-default-full$' "$work/release-find.out"
 grep -q '^compatibility=exact$' "$work/release-find.out"
-"$work/release/scripts/release-find" --device native --json >"$work/release-find.json"
+"$work/release/scripts/lib/release-find" --device native --json >"$work/release-find.json"
 python3 -m json.tool "$work/release-find.json" >/dev/null
 python3 - "$work/release-find.json" <<'PY'
 import json
@@ -533,10 +533,10 @@ with open(path, "w", encoding="utf-8") as fh:
     json.dump(index, fh, indent=2, sort_keys=True)
     fh.write("\n")
 PY
-"$work/release/scripts/release-find" --doom-wad doom.wad >"$work/release-find-doom.out"
+"$work/release/scripts/lib/release-find" --doom-wad doom.wad >"$work/release-find-doom.out"
 grep -q '^recommended_artifact=by-tuple/native/host/host/host/bin/grit-native-default-full$' "$work/release-find-doom.out"
 grep -q '^doom_wad=doom.wad size=9 sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef$' "$work/release-find-doom.out"
-"$work/release/scripts/release-find" --doom-wad-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef --json >"$work/release-find-doom-sha.json"
+"$work/release/scripts/lib/release-find" --doom-wad-sha256 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef --json >"$work/release-find-doom-sha.json"
 python3 - "$work/release-find-doom-sha.json" <<'PY'
 import json
 import sys
@@ -567,7 +567,7 @@ cat >"$work/survey-mipsel.json" <<'JSON'
   ]
 }
 JSON
-"$work/release/scripts/release-find" --survey-json "$work/survey-mipsel.json" --json >"$work/release-find-survey.json"
+"$work/release/scripts/lib/release-find" --survey-json "$work/survey-mipsel.json" --json >"$work/release-find-survey.json"
 python3 - "$work/release-find-survey.json" <<'PY'
 import json
 import sys
@@ -595,7 +595,7 @@ cat >"$work/reality-advisory.json" <<'JSON'
   ]
 }
 JSON
-"$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-advisory.json" --json >"$work/release-find-reality-advisory.json"
+"$work/release/scripts/lib/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-advisory.json" --json >"$work/release-find-reality-advisory.json"
 python3 - "$work/release-find-reality-advisory.json" <<'PY'
 import json
 import sys
@@ -628,7 +628,7 @@ cat >"$work/reality-procfs-read.json" <<'JSON'
   ]
 }
 JSON
-"$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-procfs-read.json" --json >"$work/release-find-reality-procfs.json"
+"$work/release/scripts/lib/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-procfs-read.json" --json >"$work/release-find-reality-procfs.json"
 python3 - "$work/release-find-reality-procfs.json" <<'PY'
 import json
 import sys
@@ -653,20 +653,20 @@ cat >"$work/reality-unsafe.json" <<'JSON'
   ]
 }
 JSON
-"$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-unsafe.json" >"$work/release-find-reality.out"
+"$work/release/scripts/lib/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-unsafe.json" >"$work/release-find-reality.out"
 grep -q '^compatibility=unsafe$' "$work/release-find-reality.out"
 grep -q '^compatibility_reason=runtime root execution failed in reality-test$' "$work/release-find-reality.out"
 grep -q '^candidate_count=1$' "$work/release-find-reality.out"
 grep -q '^eligible_count=1$' "$work/release-find-reality.out"
 grep -q '^selection_policy=.*prefer lower-risk compatibility labels' "$work/release-find-reality.out"
-if "$work/release/scripts/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-unsafe.json" --max-compatibility likely >"$work/release-find-threshold.out" 2>"$work/release-find-threshold.err"; then
+if "$work/release/scripts/lib/release-find" --arch native --libc host --kernel host --reality-json "$work/reality-unsafe.json" --max-compatibility likely >"$work/release-find-threshold.out" 2>"$work/release-find-threshold.err"; then
     printf '%s\n' "release-bundles: max compatibility threshold accepted unsafe artifact" >&2
     exit 1
 fi
 grep -q 'no matching artifact within compatibility threshold' "$work/release-find-threshold.err"
-"$work/release/scripts/release-self-test" >/dev/null
-scripts/release-self-test --release-dir "$work/release" >/dev/null
-"$work/release/scripts/release-self-test" --json >"$work/release-self-test.json"
+"$work/release/scripts/lib/release-self-test" >/dev/null
+scripts/lib/release-self-test --release-dir "$work/release" >/dev/null
+"$work/release/scripts/lib/release-self-test" --json >"$work/release-self-test.json"
 python3 -m json.tool "$work/release-self-test.json" >/dev/null
 python3 - "$work/release-self-test.json" <<'PY'
 import json
@@ -779,7 +779,7 @@ if (api_resources_by_name.get("diagnostic_records", {}).get("records_key") != "d
         api_resources_by_primary_key.get("name", [{}])[0].get("summary_key") != "diagnostic_record_count"):
     raise SystemExit(f"release self-test api resource indexes missing: {doc!r}")
 PY
-scripts/release-self-test --release-dir "$work/release" --json >"$work/release-self-test-wrapper.json"
+scripts/lib/release-self-test --release-dir "$work/release" --json >"$work/release-self-test-wrapper.json"
 python3 - "$work/release-self-test-wrapper.json" <<'PY'
 import json
 import sys
@@ -1104,7 +1104,7 @@ PY
     --noresidue-level aggressive \
     --shell-port 22203 >/dev/null
 
-"$work/release/scripts/artifact-config" show "$work/release/bin/grit-native-default-full" >"$work/show.out"
+"$work/release/scripts/lib/artifact-config" show "$work/release/bin/grit-native-default-full" >"$work/show.out"
 grep -q '^trailer_present=yes$' "$work/show.out"
 grep -q '^GRIT_OPERATOR_SERVER_HOST=192.0.2.55$' "$work/show.out"
 grep -q '^GRIT_NORESIDUE_LEVEL=aggressive$' "$work/show.out"
@@ -1124,7 +1124,7 @@ test -f "$work/release/SHA256SUMS.configured"
 )
 
 "$work/release/scripts/configure-all" --clear >/dev/null
-"$work/release/scripts/artifact-config" show "$work/release/bin/grit-native-default-full" >"$work/clear.out"
+"$work/release/scripts/lib/artifact-config" show "$work/release/bin/grit-native-default-full" >"$work/clear.out"
 grep -q '^trailer_present=no$' "$work/clear.out"
 
 "$work/release/scripts/configure-artifact" \
@@ -1132,7 +1132,7 @@ grep -q '^trailer_present=no$' "$work/clear.out"
     --import "$work/export.env" \
     --obfuscation xor >"$work/import-xor.out"
 grep -q 'not encryption' "$work/import-xor.out"
-"$work/release/scripts/artifact-config" show "$work/release/bin/grit-native-default-full" >"$work/xor-show.out"
+"$work/release/scripts/lib/artifact-config" show "$work/release/bin/grit-native-default-full" >"$work/xor-show.out"
 grep -q '^trailer_present=yes$' "$work/xor-show.out"
 grep -q '^encoding=xor$' "$work/xor-show.out"
 grep -q '^GRIT_OPERATOR_SERVER_HOST=192.0.2.55$' "$work/xor-show.out"

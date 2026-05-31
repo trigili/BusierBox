@@ -5,8 +5,8 @@
 # see them because it uses its own sysroot.
 set -eu
 
-pkg=${1:-scripts/package-target}
-build=${2:-scripts/build-native}
+pkg=${1:-scripts/lib/package-target}
+build=${2:-scripts/lib/build-native}
 
 [ -f "$pkg" ] || {
     printf '%s\n' "wolfssl-cross-preflight: missing $pkg" >&2
@@ -54,7 +54,7 @@ chmod 0755 "$fake_cc"
 out=$(PATH="$tmp:$PATH" CC="$fake_cc" \
     GRIT_RSHELL_TRANSPORT=builtin GRIT_BUILTIN_TLS_ENABLE=yes \
     OUT="$tmp/probe-out" \
-    scripts/build-native 2>&1) && {
+    scripts/lib/build-native 2>&1) && {
     printf '%s\n' "wolfssl-cross-preflight: build-native should have failed" >&2
     exit 1
 }
@@ -91,7 +91,7 @@ out3=$(CC="$fake_cc_check" \
     WOLFSSL_CFLAGS="-I$tmp/cross/wolfssl/include" \
     WOLFSSL_LIBS="-L$tmp/cross/wolfssl/lib -lwolfssl" \
     OUT="$tmp/s3.out" \
-    scripts/build-native 2>&1) && true
+    scripts/lib/build-native 2>&1) && true
 # The wolfSSL detection step should succeed (probe passes with the -I flag)
 if printf '%s\n' "$out3" | grep -q 'wolfSSL compile probe failed'; then
     printf '%s\n' "wolfssl-cross-preflight: WOLFSSL_CFLAGS override did not reach probe" >&2

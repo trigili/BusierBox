@@ -6,14 +6,14 @@ mkdir -p "$tmp_root"
 tmp=$(mktemp -d "$tmp_root/build-matrix.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
-scripts/build-matrix --list-targets >"$tmp/targets"
+scripts/lib/build-matrix --list-targets >"$tmp/targets"
 grep -qx native "$tmp/targets"
 
-scripts/build-matrix --list-payloads >"$tmp/payloads"
+scripts/lib/build-matrix --list-payloads >"$tmp/payloads"
 grep -qx default "$tmp/payloads"
 grep -qx survey-core "$tmp/payloads"
 
-scripts/build-matrix \
+scripts/lib/build-matrix \
     --targets native \
     --payload-presets survey-core,default \
     --formats tgz \
@@ -60,7 +60,7 @@ cat >"$tmp/matrix.json" <<'EOF'
   }
 }
 EOF
-scripts/build-matrix --matrix "$tmp/matrix.json" --dry-run --run-dir "$tmp/matrix-run" >/dev/null
+scripts/lib/build-matrix --matrix "$tmp/matrix.json" --dry-run --run-dir "$tmp/matrix-run" >/dev/null
 python3 - "$tmp/matrix-run/summary.json" <<'PY'
 import json
 import sys
@@ -73,7 +73,7 @@ if payloads != ["ssh-operator", "survey-core"]:
 PY
 grep -q '^GRIT_ZERO_ARG_MODE=help$' "$tmp/matrix-run/configs/native-ssh-operator-tgz.conf"
 
-scripts/build-matrix \
+scripts/lib/build-matrix \
     --matrix release/matrices/iot-lab.json \
     --dry-run \
     --run-dir "$tmp/iot-run" >"$tmp/iot-run.out"
@@ -100,7 +100,7 @@ if len(actual) != len(expected):
     raise SystemExit(f"unexpected iot-lab job count: {len(actual)} != {len(expected)}")
 PY
 
-scripts/build-matrix \
+scripts/lib/build-matrix \
     --matrix "$tmp/matrix.json" \
     --offline \
     --mirror-dir "$tmp/source-mirror" \

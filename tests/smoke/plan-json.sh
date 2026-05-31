@@ -13,7 +13,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cp "$artifact" "$work/grit"
 chmod 0755 "$work/grit"
-scripts/artifact-config set "$work/grit" \
+scripts/lib/artifact-config set "$work/grit" \
     GRIT_RUNTIME_ROOT="$work/runtime" \
     GRIT_RUNTIME_MODE=no-residue \
     GRIT_NORESIDUE_LEVEL=aggressive \

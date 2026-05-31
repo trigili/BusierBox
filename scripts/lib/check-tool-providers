@@ -3,7 +3,7 @@
 Query provider compatibility for a tool/tuple combination.
 
 Usage:
-  scripts/check-tool-providers --tool TOOL [--provider PROVIDER]
+  scripts/lib/check-tool-providers --tool TOOL [--provider PROVIDER]
       --arch ARCH --libc LIBC --static-policy POLICY
 
 Output (key=value lines):

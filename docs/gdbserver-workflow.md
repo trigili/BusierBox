@@ -53,7 +53,7 @@ installed `metadata.json` so the selected provider can be audited without
 parsing the text view.
 
 Release and payload manifests may carry the same provider status under
-`tool_provider_status.gdbserver`. `scripts/grit-gdb-workspace` preserves
+`tool_provider_status.gdbserver`. `scripts/lib/grit-gdb-workspace` preserves
 that status in `target.json` and summarizes it in the generated workspace
 README so the operator can see whether the artifact was built with a validated
 local drop-in or another provider state before starting a debug session.
@@ -65,7 +65,7 @@ Set `GRIT_GDBSERVER_PROVIDER="local-dropin"` or leave it as `auto`.
 Generate a local GDB workspace from survey, manifest, or config data:
 
 ```sh
-scripts/grit-gdb-workspace \
+scripts/lib/grit-gdb-workspace \
   --survey local/bringup-runs/example/survey.json \
   --manifest local/bringup-runs/example/manifest.json \
   --host 127.0.0.1 --port 31337 --binary ./target-program

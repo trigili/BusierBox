@@ -6,9 +6,9 @@ mkdir -p "$tmp_root"
 tmp=$(mktemp -d "$tmp_root/offline-tools.XXXXXX")
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
-chmod +x scripts/mirror-sources scripts/check-offline-readiness scripts/mirror-report
+chmod +x scripts/lib/mirror-sources scripts/lib/check-offline-readiness scripts/lib/mirror-report
 
-scripts/mirror-sources --out "$tmp/mirror" --dry-run >"$tmp/mirror-plan.json"
+scripts/lib/mirror-sources --out "$tmp/mirror" --dry-run >"$tmp/mirror-plan.json"
 python3 -m json.tool "$tmp/mirror-plan.json" >/dev/null
 grep -q '"limitations"' "$tmp/mirror-plan.json"
 python3 - "$tmp/mirror-plan.json" <<'PY'
@@ -29,7 +29,7 @@ cat >"$tmp/matrix.json" <<'EOF'
   "formats": ["tgz"]
 }
 EOF
-scripts/mirror-sources \
+scripts/lib/mirror-sources \
     --matrix "$tmp/matrix.json" \
     --targets all \
     --payload-presets all \
@@ -64,10 +64,10 @@ EOF
 mkdir -p "$tmp/ready/sources" "$tmp/ready/buildroot-dl"
 cp "$tmp/sample.tar" "$tmp/ready/sources/sample.tar"
 cp "$tmp/sample.tar" "$tmp/ready/buildroot-dl/sample.tar"
-scripts/check-offline-readiness --mirror "$tmp/ready" --manifest "$tmp/sources.lock.json" >"$tmp/readiness.out"
+scripts/lib/check-offline-readiness --mirror "$tmp/ready" --manifest "$tmp/sources.lock.json" >"$tmp/readiness.out"
 grep -q 'offline-readiness ok' "$tmp/readiness.out"
 
-scripts/check-offline-readiness \
+scripts/lib/check-offline-readiness \
     --mirror "$tmp/ready" \
     --manifest "$tmp/sources.lock.json" \
     --matrix "$tmp/matrix.json" >"$tmp/readiness-matrix.out"
@@ -80,7 +80,7 @@ cat >"$tmp/payload-presets-matrix.json" <<'EOF'
   "formats": ["tgz"]
 }
 EOF
-scripts/mirror-sources \
+scripts/lib/mirror-sources \
     --matrix "$tmp/payload-presets-matrix.json" \
     --source-only \
     --out "$tmp/payload-presets-mirror" \
@@ -98,14 +98,14 @@ payloads = {job.get("payload") for job in jobs}
 if {"survey-core", "ssh-operator"} - payloads:
     raise SystemExit(f"payload_presets matrix did not expand: {payloads!r}")
 PY
-scripts/check-offline-readiness \
+scripts/lib/check-offline-readiness \
     --mirror "$tmp/ready" \
     --manifest "$tmp/sources.lock.json" \
     --targets native \
     --payload-presets survey-core,ssh-operator >"$tmp/readiness-payload-presets.out"
 grep -q 'offline-readiness ok' "$tmp/readiness-payload-presets.out"
 
-if scripts/check-offline-readiness \
+if scripts/lib/check-offline-readiness \
     --mirror "$tmp/ready" \
     --manifest "$tmp/sources.lock.json" \
     --matrix "$tmp/matrix.json" \
@@ -133,19 +133,19 @@ cat >"$tmp/report/mirror-manifest.json" <<EOF
   "failures": []
 }
 EOF
-scripts/mirror-report "$tmp/report" >"$tmp/report.out"
+scripts/lib/mirror-report "$tmp/report" >"$tmp/report.out"
 grep -q '^strict_ready=yes$' "$tmp/report.out"
 grep -q '^matrix_jobs=1$' "$tmp/report.out"
 grep -q '^missing_or_failed=0$' "$tmp/report.out"
 
-if scripts/check-offline-readiness --mirror "$tmp/missing" --manifest "$tmp/sources.lock.json" >"$tmp/missing.out" 2>"$tmp/missing.err"; then
+if scripts/lib/check-offline-readiness --mirror "$tmp/missing" --manifest "$tmp/sources.lock.json" >"$tmp/missing.out" 2>"$tmp/missing.err"; then
     printf '%s\n' "offline-tools: missing mirror unexpectedly passed" >&2
     exit 1
 fi
 grep -q 'missing-lockfile-source: sample.tar' "$tmp/missing.err"
 
 GRIT_OFFLINE=1 GRIT_MIRROR_DIR="$tmp/missing" \
-    scripts/buildroot-build-payload --prepare-only >"$tmp/buildroot-offline.out" 2>"$tmp/buildroot-offline.err" && {
+    scripts/lib/buildroot-build-payload --prepare-only >"$tmp/buildroot-offline.out" 2>"$tmp/buildroot-offline.err" && {
         printf '%s\n' "offline-tools: buildroot offline preflight unexpectedly passed" >&2
         exit 1
     }

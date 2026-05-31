@@ -104,19 +104,19 @@ Reverse shell policy:
 
 Reality test and compatibility:
 - `src/applet_reality_test.c`
-- `scripts/config-from-survey`
-- `scripts/find-artifact`
+- `scripts/lib/config-from-survey`
+- `scripts/lib/find-artifact`
 - `tests/smoke/reality-test.sh`
 - `tests/smoke/config-from-survey.sh`
 - `tests/smoke/release-repo-index.sh`
 
 gdbserver provider workflow:
 - `docs/gdbserver-workflow.md`
-- `scripts/check-buildroot-tool-mappings`
-- `scripts/gen-buildroot-defconfig`
+- `scripts/lib/check-buildroot-tool-mappings`
+- `scripts/lib/gen-buildroot-defconfig`
 - `scripts/tools/check-dropin-tool`
 - `scripts/tools/install-dropin-gdbserver`
-- `scripts/grit-gdb-workspace`
+- `scripts/lib/grit-gdb-workspace`
 - `tests/smoke/gdbserver-workflow.sh`
 
 No-residue cleanup:
@@ -154,8 +154,8 @@ Multi-target status:
 Release and offline artifact browsing:
 - `scripts/make-release`
 - `scripts/index-release-repo`
-- `scripts/find-artifact`
-- `scripts/release-self-test`
+- `scripts/lib/find-artifact`
+- `scripts/lib/release-self-test`
 - `scripts/grit-server --status`
 - `tests/smoke/release-bundles.sh`
 - `tests/smoke/release-repo-index.sh`
@@ -167,10 +167,10 @@ Licensing:
 - `NOTICE`
 - `docs/licensing.md`
 - `manifests/license-policy.json`
-- `scripts/check-licensing`
-- `scripts/release-self-test --json`
+- `scripts/lib/check-licensing`
+- `scripts/lib/release-self-test --json`
 - `scripts/index-release-repo`
-- `scripts/find-artifact`
+- `scripts/lib/find-artifact`
 - `scripts/grit-server --status`
 - `tests/smoke/licensing.sh`
 - `tests/smoke/release-bundles.sh`
@@ -182,10 +182,10 @@ Licensing:
 Fresh completion-audit commands run on 2026-05-29:
 
 ```sh
-python3 -m py_compile scripts/grit-server tests/smoke/grit-server.py scripts/make-release scripts/index-release-repo scripts/find-artifact scripts/preset-from-survey
-sh -n scripts/config-from-survey scripts/grit-bringup tests/smoke/integration-glinet-harness.sh tests/smoke/release-bundles.sh tests/smoke/release-repo-index.sh tests/smoke/licensing.sh
+python3 -m py_compile scripts/grit-server tests/smoke/grit-server.py scripts/make-release scripts/index-release-repo scripts/lib/find-artifact scripts/lib/preset-from-survey
+sh -n scripts/lib/config-from-survey scripts/grit-bringup tests/smoke/integration-glinet-harness.sh tests/smoke/release-bundles.sh tests/smoke/release-repo-index.sh tests/smoke/licensing.sh
 python3 -m json.tool manifests/license-policy.json
-scripts/check-licensing
+scripts/lib/check-licensing
 make check-licensing
 git diff --check
 tests/smoke/licensing.sh
@@ -266,14 +266,14 @@ Result:
 - Generated Buildroot defconfigs pre-exclude affected static MIPS GDB/BFD builds
   and omit Buildroot `gdbserver` symbols when a local/user/overlay provider is
   selected instead.
-- `scripts/grit-gdb-workspace` preserves selected target architecture,
+- `scripts/lib/grit-gdb-workspace` preserves selected target architecture,
   endian, remote address, and provider status in generated `connect.gdb` and
   workspace metadata.
 
 Recent release corresponding-source verification also included:
 
 ```sh
-python3 -m py_compile scripts/make-release scripts/index-release-repo scripts/find-artifact
+python3 -m py_compile scripts/make-release scripts/index-release-repo scripts/lib/find-artifact
 sh -n tests/smoke/release-bundles.sh
 sh -n tests/smoke/release-repo-index.sh
 git diff --check
@@ -283,14 +283,14 @@ tests/smoke/release-repo-index.sh
 
 Result:
 
-- `scripts/release-self-test --json` now includes `api`, `api_resources`,
+- `scripts/lib/release-self-test --json` now includes `api`, `api_resources`,
   resource lookup maps, and `api_collections.diagnostic_records`, matching the
   API discovery shape used by other operator-facing JSON surfaces.
-- `scripts/release-self-test --json` now validates and reports
+- `scripts/lib/release-self-test --json` now validates and reports
   `corresponding_source_required`, `corresponding_source_status`,
   corresponding-source input counts, and package license audit requirements in
   both flat diagnostics and the normalized `license_inventory` record.
-- `scripts/find-artifact` can filter release artifacts by corresponding-source
+- `scripts/lib/find-artifact` can filter release artifacts by corresponding-source
   requirement/status and package-audit requirement, and recommendation JSON
   exposes matching lookup maps for future operator/UI clients.
 
@@ -298,10 +298,10 @@ Recent GPL/license evidence verification also included:
 
 ```sh
 python3 -m json.tool manifests/license-policy.json
-scripts/check-licensing
+scripts/lib/check-licensing
 make check-licensing
 tests/smoke/licensing.sh
-python3 -m py_compile scripts/find-artifact scripts/index-release-repo scripts/grit-server tests/smoke/grit-server.py
+python3 -m py_compile scripts/lib/find-artifact scripts/index-release-repo scripts/grit-server tests/smoke/grit-server.py
 tests/smoke/release-repo-index.sh
 python3 tests/smoke/grit-server.py
 python3 -m py_compile scripts/make-release
@@ -314,17 +314,17 @@ Result:
 - `manifests/license-policy.json` records checked evidence sources for BusyBox,
   Buildroot, doom-ascii, and miniz, including URLs, license identifiers, and a
   verification date.
-- `scripts/check-licensing`, `make check-licensing`, and
+- `scripts/lib/check-licensing`, `make check-licensing`, and
   `tests/smoke/licensing.sh` validate that the repository declares
   `GPL-2.0-or-later`, preserves the current GPLv2-compatible stack assessment,
   and keeps the expected evidence references.
 - `scripts/grit-server --status`, `--json-status`, and API status expose
   release license evidence counts, verification date, evidence-source lookup
   maps, and evidence-source/license lookup maps.
-- `scripts/index-release-repo` and `scripts/find-artifact --recommendation-json`
+- `scripts/index-release-repo` and `scripts/lib/find-artifact --recommendation-json`
   surface evidence-source indexes and summary counts for offline release
   browsers.
-- `scripts/release-self-test --json` includes license evidence fields in both
+- `scripts/lib/release-self-test --json` includes license evidence fields in both
   flat diagnostics and the normalized `license_inventory` diagnostic record.
 
 Recent no-residue verification also included:
@@ -383,8 +383,8 @@ make smoke-test
 make test-qemu-user
 make test-qemu-system
 scripts/make-release --name smoke-goal --targets native --payload-presets survey-core,default
-scripts/release-self-test --release-dir dist/releases/smoke-goal-20260529-051526
-scripts/release-self-test --release-dir dist/releases/smoke-goal-20260529-051526 --json
+scripts/lib/release-self-test --release-dir dist/releases/smoke-goal-20260529-051526
+scripts/lib/release-self-test --release-dir dist/releases/smoke-goal-20260529-051526 --json
 ```
 
 Earlier result:
@@ -397,7 +397,7 @@ Earlier result:
 - `scripts/make-release --name smoke-goal --targets native --payload-presets
   survey-core,default` built a native release at
   `dist/releases/smoke-goal-20260529-051526`.
-- `scripts/release-self-test --release-dir
+- `scripts/lib/release-self-test --release-dir
   dist/releases/smoke-goal-20260529-051526` passed, and the `--json` output
   parsed with `python3 -m json.tool`.
 
@@ -459,8 +459,8 @@ Reality and compatibility:
 
 ```sh
 ./grit reality-test --json
-scripts/config-from-survey --survey-json survey.json --reality-json reality.json --json
-scripts/find-artifact --index release-index.json --survey-json survey.json --reality-json reality.json --recommendation-json
+scripts/lib/config-from-survey --survey-json survey.json --reality-json reality.json --json
+scripts/lib/find-artifact --index release-index.json --survey-json survey.json --reality-json reality.json --recommendation-json
 ```
 
 Expected evidence includes capability pass/fail/skipped counts, constraints

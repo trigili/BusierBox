@@ -41,7 +41,7 @@ def check_lock_sources(mirror, lock):
                 "type": "missing-lockfile-source",
                 "filename": filename,
                 "source": src.get("name"),
-                "hint": f"run scripts/mirror-sources --out {mirror} --verify",
+                "hint": f"run scripts/lib/mirror-sources --out {mirror} --verify",
             })
             continue
         for path in candidates:
@@ -96,7 +96,7 @@ def check_strict(mirror, manifest, args):
             errors.append({
                 "type": "mirror-fetch-failure",
                 "failure": failure,
-                "hint": "rerun scripts/mirror-sources online with --include-buildroot-packages --verify",
+                "hint": "rerun scripts/lib/mirror-sources online with --include-buildroot-packages --verify",
             })
     missing_jobs = sorted(wanted_jobs(args) - manifest_jobs(manifest))
     for target, payload, fmt in missing_jobs:
@@ -105,7 +105,7 @@ def check_strict(mirror, manifest, args):
             "target": target,
             "payload": payload,
             "format": fmt,
-            "hint": "rerun scripts/mirror-sources with the same matrix/target/payload arguments",
+            "hint": "rerun scripts/lib/mirror-sources with the same matrix/target/payload arguments",
         })
     for plan in manifest.get("source_plans") or []:
         status = plan.get("status")
@@ -172,7 +172,7 @@ def main():
         errors.append({
             "type": "missing-mirror-manifest",
             "path": str(manifest_path),
-            "hint": "run scripts/mirror-sources online first",
+            "hint": "run scripts/lib/mirror-sources online first",
         })
     if args.strict:
         errors.extend(check_strict(mirror, mirror_manifest, args))

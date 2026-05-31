@@ -201,7 +201,7 @@ def run(cmd, cwd, log):
 
 
 if len(sys.argv) != 2:
-    die("usage: scripts/verify-artifact dist/grit-<target>")
+    die("usage: scripts/lib/verify-artifact dist/grit-<target>")
 
 artifact = pathlib.Path(sys.argv[1]).resolve()
 meta, manifest, members, contents = read_payload(artifact)

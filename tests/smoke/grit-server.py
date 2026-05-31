@@ -5044,7 +5044,7 @@ def main():
                 actions_by_id.get("systemd-user-status", {}).get("requires_confirmation") is not False or
                 actions_by_id.get("systemd-user-status", {}).get("command", "").endswith("--systemd-user-action status") is not True or
                 actions_by_id.get("systemd-user-status", {}).get("operator_action_state") != "ready" or
-                actions_by_id.get("configure-trailer", {}).get("script") != "scripts/artifact-config" or
+                actions_by_id.get("configure-trailer", {}).get("script") != "scripts/lib/artifact-config" or
                 actions_by_id.get("configure-trailer", {}).get("operator_action_state") != "needs-input" or
                 not actions_by_category.get("configuration") or
                 len(actions_by_category.get("daemon", [])) < 9 or

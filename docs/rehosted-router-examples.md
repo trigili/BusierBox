@@ -9,14 +9,14 @@ under `local/`, for example through `local/testing/Routers`.
 List the expected local firmware inputs:
 
 ```sh
-scripts/rehost-router-examples --list
+scripts/lib/rehost-router-examples --list
 ```
 
 Extract root filesystems, create Penguin projects, and run short automatic
 rehosting checks:
 
 ```sh
-scripts/rehost-router-examples --all --force --timeout 30
+scripts/lib/rehost-router-examples --all --force --timeout 30
 ```
 
 Generated files stay under `local/testing/rehost/`:
@@ -42,7 +42,7 @@ Preset list layout:
 - Specific router targets live under `specific-targets/...` display paths, for example `specific-targets/legacy-routers/asus-rt-n16-uclibc`.
 - Generic architecture tuples live under `generic-archs/...`, for example `generic-archs/arm/armv7-linux-3.x-musl`.
 
-Use `scripts/resolve-target --list-tree` for a grouped view without changing the stable tabular `--list` output used by scripts.
+Use `scripts/lib/resolve-target --list-tree` for a grouped view without changing the stable tabular `--list` output used by scripts.
 - `dlink-dir-615-revc-uclibc`: big-endian MIPS uClibc, conservative `2.6` tuple because the rootfs contains multiple legacy module dirs
 - `dlink-dir-300-a1-uclibc`: big-endian MIPS uClibc, binwalk reported Linux `2.4.25`
 - `linksys-wrt54g-v5-ddwrt-uclibc`: little-endian MIPS uClibc, DD-WRT micro module dir `2.4.37`
@@ -51,13 +51,13 @@ Use `scripts/resolve-target --list-tree` for a grouped view without changing the
 Build examples:
 
 ```sh
-scripts/package-target tplink-archer-a7-v5-openwrt-uclibc
-scripts/package-target tplink-archer-ax1800-v56-openwrt-musl
-scripts/package-target asus-rt-n16-uclibc
-scripts/package-target dlink-dir-615-revc-uclibc
-scripts/package-target dlink-dir-300-a1-uclibc
-scripts/package-target linksys-wrt54g-v5-ddwrt-uclibc
-scripts/package-target netgear-wndr3700-v1-uclibc
+scripts/lib/package-target tplink-archer-a7-v5-openwrt-uclibc
+scripts/lib/package-target tplink-archer-ax1800-v56-openwrt-musl
+scripts/lib/package-target asus-rt-n16-uclibc
+scripts/lib/package-target dlink-dir-615-revc-uclibc
+scripts/lib/package-target dlink-dir-300-a1-uclibc
+scripts/lib/package-target linksys-wrt54g-v5-ddwrt-uclibc
+scripts/lib/package-target netgear-wndr3700-v1-uclibc
 ```
 
 ## Rehosting Evidence

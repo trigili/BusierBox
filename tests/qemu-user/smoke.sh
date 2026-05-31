@@ -68,7 +68,7 @@ run_optional ps ps
 
 if command -v python3 >/dev/null 2>&1; then
     python3 "$repo_root/tests/smoke/validate-survey-json.py" "$artifact_dir/survey.json" >"$artifact_dir/survey-validation.txt"
-    "$repo_root/scripts/config-from-survey" "$artifact_dir/survey.json" >"$artifact_dir/recommended-config.txt"
+    "$repo_root/scripts/lib/config-from-survey" "$artifact_dir/survey.json" >"$artifact_dir/recommended-config.txt"
 else
     printf '%s\n' "skip: python3 unavailable for JSON/config validation" >"$artifact_dir/survey-validation.txt"
 fi

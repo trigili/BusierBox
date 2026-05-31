@@ -38,7 +38,7 @@ def command_for(job, config, args):
     if args.buildroot_output_base:
         env["BUILDROOT_OUTPUT_BASE"] = args.buildroot_output_base
     prefix = " ".join(f"{key}={matrix.shell_quote(value)}" for key, value in sorted(env.items()))
-    return f"{prefix} scripts/package-target {matrix.shell_quote(job['target'])}"
+    return f"{prefix} scripts/lib/package-target {matrix.shell_quote(job['target'])}"
 
 
 def run_job(job, run_dir, args):

@@ -19,7 +19,7 @@ _dot_profile_file_from_env=${GRIT_DOTFILE_PROFILE_USER_FILE:-}
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
 
 if [ "$TARGET" != "native" ]; then
-    TARGET="$TARGET" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" scripts/buildroot-build-payload
+    TARGET="$TARGET" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" scripts/lib/buildroot-build-payload
     exit $?
 fi
 
@@ -309,7 +309,7 @@ for tool in bash zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync
                 command -v "$e2_tool" >/dev/null 2>&1 && stage_real_tool "$tool" "$(command -v "$e2_tool")" "$e2_tool" || true
             done
         elif [ "$tool" = doom ]; then
-            printf '%s\n' "build-payload: ERROR: native payloads do not stage Doom engines; use TARGET=<tuple> scripts/build-payload so Buildroot compiles static doom-ascii, with GRIT_DOOM_WAD_PATH pointing at the .wad file" >&2
+            printf '%s\n' "build-payload: ERROR: native payloads do not stage Doom engines; use TARGET=<tuple> scripts/lib/build-payload so Buildroot compiles static doom-ascii, with GRIT_DOOM_WAD_PATH pointing at the .wad file" >&2
             exit 1
         elif [ "$tool" = dropbear ]; then
             for dropbear_tool in dropbear dbclient dropbearkey; do
@@ -452,7 +452,7 @@ apply_overlay() {
 }
 
 apply_overlay
-scripts/install-busybox-symlinks runtime/payload
+scripts/lib/install-busybox-symlinks runtime/payload
 stage_host_terminfo
 tool_selected doom && stage_doom_wad
 
@@ -489,7 +489,7 @@ make_payload_archives() {
         printf '%s\n' "build-payload: tar does not support --format=ustar; refusing to create payload for the built-in extractor" >&2
         exit 1
     fi
-    scripts/check-payload-tar dist/payload.tar
+    scripts/lib/check-payload-tar dist/payload.tar
     if command -v gzip >/dev/null 2>&1; then
         gzip -n -c dist/payload.tar >dist/payload.tar.gz
     else
@@ -504,7 +504,7 @@ if command -v file >/dev/null 2>&1 && file runtime/payload/bin/busybox | grep -q
 fi
 busybox_version=$(runtime/payload/bin/busybox 2>&1 | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
 [ -n "$busybox_version" ] || busybox_version=unknown
-scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 pending --requested-tools "$GRIT_HEAVY_TOOLS" --gdbserver-provider "$GRIT_GDBSERVER_PROVIDER"
+scripts/lib/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 pending --requested-tools "$GRIT_HEAVY_TOOLS" --gdbserver-provider "$GRIT_GDBSERVER_PROVIDER"
 make_payload_archives
 if [ "$PAYLOAD_FORMAT" = "tar" ]; then
     selected=dist/payload.tar
@@ -512,7 +512,7 @@ else
     selected=dist/payload.tar.gz
 fi
 sha=$(payload_sha "$selected")
-scripts/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$sha" --requested-tools "$GRIT_HEAVY_TOOLS" --gdbserver-provider "$GRIT_GDBSERVER_PROVIDER"
+scripts/lib/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$sha" --requested-tools "$GRIT_HEAVY_TOOLS" --gdbserver-provider "$GRIT_GDBSERVER_PROVIDER"
 make_payload_archives
 if command -v sha256sum >/dev/null 2>&1; then
     sha256sum dist/payload.tar >dist/payload.tar.sha256

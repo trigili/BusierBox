@@ -13,7 +13,7 @@ DO_LIST=0
 
 usage() {
     cat <<'EOF'
-usage: scripts/rehost-router-examples [--list] [--extract] [--init] [--run] [--all] [--force] [--timeout SEC]
+usage: scripts/lib/rehost-router-examples [--list] [--extract] [--init] [--run] [--all] [--force] [--timeout SEC]
 
 Build local fw2tar/Penguin artifacts for known router firmware examples.
 Firmware inputs and generated rootfs/projects/results stay under local/.

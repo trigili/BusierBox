@@ -5,11 +5,11 @@ lets selected runtime/operator settings change after packaging without
 recompiling the griTTYkit core or rebuilding the payload.
 
 ```sh
-scripts/artifact-config show dist/grit-native-full
-scripts/artifact-config set dist/grit-native-full GRIT_OPERATOR_SERVER_HOST=203.0.113.10 GRIT_ZERO_ARG_MODE=rshell
-scripts/artifact-config export dist/grit-native-full > overrides.env
-scripts/artifact-config import dist/grit-native-full overrides.env
-scripts/artifact-config clear dist/grit-native-full
+scripts/lib/artifact-config show dist/grit-native-full
+scripts/lib/artifact-config set dist/grit-native-full GRIT_OPERATOR_SERVER_HOST=203.0.113.10 GRIT_ZERO_ARG_MODE=rshell
+scripts/lib/artifact-config export dist/grit-native-full > overrides.env
+scripts/lib/artifact-config import dist/grit-native-full overrides.env
+scripts/lib/artifact-config clear dist/grit-native-full
 ```
 
 Effective config precedence is compiled defaults, then valid trailer overrides,
@@ -56,6 +56,6 @@ ASCII-safe hex so trailer inspection never depends on raw binary payload bytes.
 XOR obfuscation is only casual string hiding. It is not encryption, does not
 protect secrets, and must not be used for private keys, passwords, or
 credentials.
-`scripts/artifact-config` and the runtime reject obvious secret-like trailer
+`scripts/lib/artifact-config` and the runtime reject obvious secret-like trailer
 values such as private-key PEM headers and `PASSWORD=`, `TOKEN=`, or
 `PRIVATE_KEY=` assignments; keep credentials outside override trailers.

@@ -19,7 +19,7 @@ tools=${GRIT_HEAVY_TOOLS:-}
     exit 0
 }
 
-eval "$(GRIT_CONFIG="$config" scripts/resolve-target --config)"
+eval "$(GRIT_CONFIG="$config" scripts/lib/resolve-target --config)"
 
 _static_policy=${TARGET_STATIC_POLICY:-static-preferred}
 

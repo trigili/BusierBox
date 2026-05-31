@@ -3,7 +3,7 @@ set -eu
 
 # Generates buildroot/generated-configs/<target>-busybox.config
 # based on GRIT_BUSYBOX_GROUPS plus applet overrides.
-# Usage: GRIT_BUSYBOX_GROUPS="..." TARGET=<name> scripts/gen-buildroot-busybox-config
+# Usage: GRIT_BUSYBOX_GROUPS="..." TARGET=<name> scripts/lib/gen-buildroot-busybox-config
 # Prints the path to the generated config file.
 
 TARGET=${TARGET:-native}
@@ -98,7 +98,7 @@ case "$TARGET_LIBC:$TARGET" in
         ;;
 esac
 
-scripts/busybox-applet-map | awk -v groups="$GROUPS" -v applets="$APPLETS" -v overrides="$OVERRIDES" '
+scripts/lib/busybox-applet-map | awk -v groups="$GROUPS" -v applets="$APPLETS" -v overrides="$OVERRIDES" '
     BEGIN {
         split(groups, g)
         for (i in g) enabled_group[g[i]] = 1

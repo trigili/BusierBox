@@ -9,7 +9,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 survey=tests/fixtures/survey/glinet-mt7621.json
 preset_name=glinet-mt1300-lab
 
-scripts/preset-from-survey --survey "$survey" --name "$preset_name" --json >"$work/preset.json"
+scripts/lib/preset-from-survey --survey "$survey" --name "$preset_name" --json >"$work/preset.json"
 python3 -m json.tool "$work/preset.json" >/dev/null
 python3 - "$work/preset.json" <<'PY'
 import json
@@ -63,30 +63,30 @@ if not data.get("notes"):
     raise SystemExit("missing review notes")
 PY
 
-scripts/preset-from-survey \
+scripts/lib/preset-from-survey \
     --survey "$survey" \
     --name "$preset_name" \
     --write-local \
     --output-dir "$work/presets" >"$work/write.out"
 grep -q "wrote $work/presets/$preset_name.json" "$work/write.out"
 
-if scripts/preset-from-survey --survey "$survey" --name "$preset_name" --write-local --output-dir "$work/presets" >"$work/dup.out" 2>"$work/dup.err"; then
+if scripts/lib/preset-from-survey --survey "$survey" --name "$preset_name" --write-local --output-dir "$work/presets" >"$work/dup.out" 2>"$work/dup.err"; then
     printf '%s\n' "preset-from-survey: duplicate write unexpectedly succeeded" >&2
     exit 1
 fi
 grep -q 'preset name already exists' "$work/dup.err"
 
-GRIT_LOCAL_TARGET_PRESETS="$work/presets" scripts/resolve-target "$preset_name" >"$work/resolved"
+GRIT_LOCAL_TARGET_PRESETS="$work/presets" scripts/lib/resolve-target "$preset_name" >"$work/resolved"
 grep -q '^TARGET_ARCH=mipsel$' "$work/resolved"
 grep -q '^TARGET_ENDIAN=little$' "$work/resolved"
 grep -q '^TARGET_LIBC=musl$' "$work/resolved"
 grep -q '^TARGET_KERNEL_FLOOR=4.x$' "$work/resolved"
 grep -q '^TARGET_CPU=mips32r2-24kc$' "$work/resolved"
 
-GRIT_LOCAL_TARGET_PRESETS="$work/presets" scripts/resolve-target --list >"$work/list"
+GRIT_LOCAL_TARGET_PRESETS="$work/presets" scripts/lib/resolve-target --list >"$work/list"
 grep -q "^$preset_name	" "$work/list"
 
-scripts/preset-from-survey \
+scripts/lib/preset-from-survey \
     --survey tests/fixtures/survey/bigendian-mips-uclibc-2.6.json \
     --name mipseb-uclibc-lab \
     --json >"$work/mipseb.json"
@@ -112,7 +112,7 @@ assert evidence["endianness"] == "big"
 assert evidence["recommendations"]["target_cpu_guess"] == "mips32"
 PY
 
-scripts/preset-from-survey \
+scripts/lib/preset-from-survey \
     --survey tests/fixtures/survey/non-openwrt-armv7-glibc.json \
     --name debian-armv7-lab \
     --json >"$work/non-openwrt.json"

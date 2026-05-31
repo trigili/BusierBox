@@ -6,7 +6,7 @@
 #   4. transport=none bypasses wolfSSL probe entirely
 set -eu
 
-build=${1:-scripts/build-native}
+build=${1:-scripts/lib/build-native}
 [ -f "$build" ] || {
     printf '%s\n' "build-native-wolfssl: missing $build" >&2
     exit 1
@@ -31,7 +31,7 @@ chmod 0755 "$fake_cc_pass"
 out=$(CC="$fake_cc_fail" \
     GRIT_RSHELL_TRANSPORT=builtin GRIT_BUILTIN_TLS_ENABLE=yes \
     OUT="$tmp/s1.out" \
-    scripts/build-native 2>&1) && {
+    scripts/lib/build-native 2>&1) && {
     printf '%s\n' "build-native-wolfssl: scenario 1 should have failed but succeeded" >&2
     exit 1
 }
@@ -49,7 +49,7 @@ out2=$(CC="$fake_cc_pass" \
     WOLFSSL_CFLAGS="-I$tmp/fake-include" \
     WOLFSSL_LIBS="-L$tmp/fake-lib -lwolfssl" \
     OUT="$tmp/s2.out" \
-    scripts/build-native 2>&1) && true
+    scripts/lib/build-native 2>&1) && true
 # The probe should pass (fake-cc-pass exits 0), but the actual link will
 # fail because fake-cc-pass doesn't produce a real binary. We only care
 # that the wolfSSL detection step chose "env WOLFSSL_CFLAGS/WOLFSSL_LIBS"
@@ -62,7 +62,7 @@ printf '%s\n' "$out2" | grep -qi 'env WOLFSSL_CFLAGS\|WOLFSSL_CFLAGS/WOLFSSL_LIB
 out3=$(CC="$fake_cc_fail" \
     GRIT_RSHELL_TRANSPORT=none GRIT_BUILTIN_TLS_ENABLE=no \
     OUT="$tmp/s3.out" \
-    scripts/build-native 2>&1) && true
+    scripts/lib/build-native 2>&1) && true
 # Should NOT mention wolfSSL probe failure
 if printf '%s\n' "$out3" | grep -q 'wolfSSL compile probe failed'; then
     printf '%s\n' "build-native-wolfssl: scenario 3 ran wolfSSL probe when transport=none" >&2
@@ -76,7 +76,7 @@ fi
 out4=$(CC="$fake_cc_fail" \
     GRIT_RSHELL_TRANSPORT=ssh GRIT_BUILTIN_TLS_ENABLE=no \
     OUT="$tmp/s4.out" \
-    scripts/build-native 2>&1) && true
+    scripts/lib/build-native 2>&1) && true
 if printf '%s\n' "$out4" | grep -q 'wolfSSL compile probe failed'; then
     printf '%s\n' "build-native-wolfssl: scenario 4 ran wolfSSL probe for ssh transport" >&2
     exit 1

@@ -894,7 +894,7 @@ grep -q 'GRIT_COMMAND_QUEUE_POLL_BACKOFF' scripts/menuconfig
 grep -q 'GRIT_COMMAND_QUEUE_POLL_JITTER_PCT' scripts/menuconfig
 grep -q 'GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC' scripts/menuconfig
 grep -q 'GRIT_COMMAND_QUEUE_POLL_BACKOFF="none"' configs/grit.conf.example
-grep -q 'invalid command queue allowed commands policy' scripts/package-target
-grep -q 'invalid command queue poll backoff' scripts/package-target
+grep -q 'invalid command queue allowed commands policy' scripts/lib/package-target
+grep -q 'invalid command queue poll backoff' scripts/lib/package-target
 
 printf '%s\n' "command-queue ok"

@@ -1,6 +1,6 @@
 # GL.iNet Integration Harness
 
-`scripts/integration-glinet` builds griTTYkit artifacts, copies them to a
+`scripts/lib/integration-glinet` builds griTTYkit artifacts, copies them to a
 GL.iNet exemplar, runs selected cases, captures logs, and writes a JSON summary.
 Use `scripts/grit-bringup` first when onboarding an unknown target; use
 this integration harness when validating known cases repeatedly.
@@ -22,24 +22,24 @@ cleanly unless `--require-target` is passed.
 List available cases:
 
 ```sh
-scripts/integration-glinet --case list
+scripts/lib/integration-glinet --case list
 ```
 
 Run the default safe survey case:
 
 ```sh
-scripts/integration-glinet --host root@192.168.8.1 --operator-host auto
+scripts/lib/integration-glinet --host root@192.168.8.1 --operator-host auto
 ```
 
 Run all safe cases:
 
 ```sh
-scripts/integration-glinet --host root@192.168.8.1 --operator-host auto --all-safe
+scripts/lib/integration-glinet --host root@192.168.8.1 --operator-host auto --all-safe
 ```
 
 The safe set includes a `trailer-runtime-override` case. That case copies the
 built artifact, applies allowlisted post-build runtime overrides with
-`scripts/artifact-config`, and verifies on the target that `runtime-config`,
+`scripts/lib/artifact-config`, and verifies on the target that `runtime-config`,
 `config-info`, and `rshell status --json` report the trailer-derived effective
 configuration.
 
@@ -58,13 +58,13 @@ more strongly, but still does not claim stealth.
 Run one reverse shell case:
 
 ```sh
-scripts/integration-glinet --host root@192.168.8.1 --operator-host 192.168.8.241 --case builtin-core-shell
+scripts/lib/integration-glinet --host root@192.168.8.1 --operator-host 192.168.8.241 --case builtin-core-shell
 ```
 
 Reuse an existing artifact instead of rebuilding:
 
 ```sh
-scripts/integration-glinet --artifact dist/grit-mipsel-linux-4.x-musl-full --case survey-core
+scripts/lib/integration-glinet --artifact dist/grit-mipsel-linux-4.x-musl-full --case survey-core
 ```
 
 ## Cases
@@ -160,14 +160,14 @@ remote teardown.
 Render the latest run:
 
 ```sh
-scripts/integration-report latest
-scripts/integration-report local/integration-runs/<timestamp>/summary.json --json
+scripts/lib/integration-report latest
+scripts/lib/integration-report local/integration-runs/<timestamp>/summary.json --json
 ```
 
 Compare two runs:
 
 ```sh
-scripts/integration-compare \
+scripts/lib/integration-compare \
   local/integration-runs/<old>/summary.json \
   local/integration-runs/<new>/summary.json
 ```
@@ -204,7 +204,7 @@ also exposes change counts, lookup maps by case/classification/status, and
 `api_collections`/`api_resources` metadata for regression dashboards.
 
 When a release bundle is produced as part of an integration run, run the
-generated `scripts/release-self-test` inside that bundle before copying
+generated `scripts/lib/release-self-test` inside that bundle before copying
 artifacts to the target. That keeps release-helper, checksum, tuple-layout, and
 manifest problems visible before target execution starts.
 

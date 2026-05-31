@@ -4008,8 +4008,8 @@ def workbench_action_records(cfg):
             "id": "resolve-target",
             "category": "configuration",
             "label": "Resolve target/device preset metadata",
-            "script": "scripts/resolve-target",
-            "command": "scripts/resolve-target --config " + shquote(config_path),
+            "script": "scripts/lib/resolve-target",
+            "command": "scripts/lib/resolve-target --config " + shquote(config_path),
             "config_path": config_path,
             "writes_config": False,
             "runs_build": False,
@@ -4056,8 +4056,8 @@ def workbench_action_records(cfg):
             "id": "configure-trailer",
             "category": "trailer",
             "label": "Configure runtime trailer overrides",
-            "script": "scripts/artifact-config",
-            "command": "scripts/artifact-config set ARTIFACT KEY=VALUE",
+            "script": "scripts/lib/artifact-config",
+            "command": "scripts/lib/artifact-config set ARTIFACT KEY=VALUE",
             "config_path": config_path,
             "writes_config": True,
             "runs_build": False,
@@ -4088,8 +4088,8 @@ def workbench_action_records(cfg):
             "id": "release-self-test",
             "category": "release",
             "label": "Validate release bundle",
-            "script": "scripts/release-self-test",
-            "command": "scripts/release-self-test --release-dir " + shquote(release_dir) + " --json",
+            "script": "scripts/lib/release-self-test",
+            "command": "scripts/lib/release-self-test --release-dir " + shquote(release_dir) + " --json",
             "config_path": config_path,
             "writes_config": False,
             "runs_build": False,
@@ -10983,8 +10983,8 @@ def release_artifact_workflow_action_records(cfg, release):
             "release_path": "",
             "payload_preset": "",
             "compatibility_label": "",
-            "command": "scripts/release-self-test --release-dir " + shquote(release_dir) + " --json",
-            "headless_command": "scripts/release-self-test --release-dir " + shquote(release_dir) + " --json",
+            "command": "scripts/lib/release-self-test --release-dir " + shquote(release_dir) + " --json",
+            "headless_command": "scripts/lib/release-self-test --release-dir " + shquote(release_dir) + " --json",
             "run_command": base + " --run-release-artifact-workflow-action release:self-test-release",
             "requires_input": False,
             "requires_confirmation": False,
@@ -20518,7 +20518,7 @@ def run_release_artifact_workflow_action(cfg, selector, dry_run=False):
         return print_status(cfg, json_output=False)
     if action_id == "self-test-release":
         release_dir = str(rec.get("release_dir") or cfg.get("release_dir") or ".")
-        cmd = ["scripts/release-self-test", "--release-dir", release_dir, "--json"]
+        cmd = ["scripts/lib/release-self-test", "--release-dir", release_dir, "--json"]
         result = subprocess.run(cmd, text=True)
         append_event(cfg, "workbench", "release_artifact_workflow_action_completed", details={
             "id": rec_id,
@@ -23592,7 +23592,7 @@ def run_line_tui(cfg):
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
             "download", "get", "probe", "survey", "survey-bootstrap", "daemon", "build", "release", "releases", "stage-release", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
-            "quit", "exit",
+            "quit", "exit", "ips",
         ]
         show_resources = [
             "agents", "targets", "listeners", "services", "routes", "sessions",
@@ -24504,7 +24504,7 @@ def run_line_tui(cfg):
         scripts_dir = Path(__file__).parent
         script = scripts_dir / "config-from-survey"
         if not script.is_file():
-            script = Path("scripts/config-from-survey")
+            script = Path("scripts/lib/config-from-survey")
         if not script.is_file():
             raise ValueError("config-from-survey script not found")
         cmd = [str(script), "--format", "shell"] + extra_args
@@ -24907,7 +24907,7 @@ def run_line_tui(cfg):
         scripts_dir = Path(__file__).parent
         script = scripts_dir / "preset-from-survey"
         if not script.is_file():
-            script = Path("scripts/preset-from-survey")
+            script = Path("scripts/lib/preset-from-survey")
         if not script.is_file():
             raise ValueError("preset-from-survey script not found")
         cmd = [str(script), "--survey", survey_path, "--name", preset_name, "--json"]
@@ -25820,6 +25820,28 @@ def run_line_tui(cfg):
         _readline.set_completer_delims("\t\n")
         _readline.parse_and_bind("tab: complete")
 
+    def _print_local_ips():
+        import socket
+        snap = workbench_snapshot(cfg)
+        candidates = snap.get("local_ips") or []
+        print("Local IPs:")
+        if candidates:
+            for ip in candidates:
+                print(f"  {ip}")
+        else:
+            # fallback: enumerate directly
+            try:
+                addrs = set()
+                for info in socket.getaddrinfo(socket.gethostname(), None):
+                    addr = info[4][0]
+                    if not addr.startswith("127.") and addr != "::1":
+                        addrs.add(addr)
+                for addr in sorted(addrs):
+                    print(f"  {addr}")
+            except Exception:
+                print("  (could not determine local IPs)")
+        print("  use: set GRIT_OPERATOR_SERVER_HOST <IP>  to configure")
+
     render_full = False
     compact_next_prompt = False
     pending_console_lines = []
@@ -25908,6 +25930,9 @@ def run_line_tui(cfg):
                 continue
             elif cmd in {"status", "summary"}:
                 print(line_tui_status_bar(workbench_snapshot(cfg)))
+                continue
+            elif cmd in {"ips", "local-ips", "list-local-ips"}:
+                _print_local_ips()
                 continue
             elif cmd in {"workspace", "overview", "dashboard"}:
                 print_line_workspace()

@@ -105,7 +105,7 @@ tmp="${OUT}.$$.tmp"
 
 mkdir -p src dist
 
-scripts/gen-tool-headers
+scripts/lib/gen-tool-headers
 
 quote_c() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 

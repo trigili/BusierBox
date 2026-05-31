@@ -27,7 +27,7 @@ if doc.get("kind") != "grit-support-token":
     raise SystemExit("config-from-support-token: token kind is not grit-support-token")
 
 proc = subprocess.run(
-    [sys.executable, "scripts/config-from-manifest", "-"],
+    [sys.executable, "scripts/lib/config-from-manifest", "-"],
     input=json.dumps(doc),
     text=True,
     check=False,

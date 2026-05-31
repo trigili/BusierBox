@@ -410,7 +410,7 @@ make_payload_archives() {
         printf '%s\n' "buildroot-build-payload: tar does not support --format=ustar; refusing to create payload for the built-in extractor" >&2
         exit 1
     fi
-    scripts/check-payload-tar dist/payload.tar
+    scripts/lib/check-payload-tar dist/payload.tar
     if command -v gzip >/dev/null 2>&1; then
         gzip -n -c dist/payload.tar >dist/payload.tar.gz
     else
@@ -431,7 +431,7 @@ write_manifest() {
         busybox_version=unknown
     fi
     [ -n "$busybox_version" ] || busybox_version=unknown
-    scripts/write-payload-manifest --target "$TARGET" --arch "$arch" --libc "$libc" --kernel-floor "$kernel_floor" --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$payload_sha" --requested-tools "$requested_tools" --overlay-enable "${GRIT_USER_OVERLAY_ENABLE:-no}" --overlay-root "${GRIT_USER_OVERLAY_ROOT:-}" --gdbserver-provider "$GDBSERVER_PROVIDER"
+    scripts/lib/write-payload-manifest --target "$TARGET" --arch "$arch" --libc "$libc" --kernel-floor "$kernel_floor" --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$payload_sha" --requested-tools "$requested_tools" --overlay-enable "${GRIT_USER_OVERLAY_ENABLE:-no}" --overlay-root "${GRIT_USER_OVERLAY_ROOT:-}" --gdbserver-provider "$GDBSERVER_PROVIDER"
 }
 
 [ -f "$profile" ] || die "unknown TARGET=$TARGET; missing $profile"
@@ -579,9 +579,9 @@ chmod 0755 runtime/payload/bin/busybox
 static_status=$(copy_shared_libs_if_dynamic runtime/payload/bin/busybox)
 _bb_build_cfg=$(find "$out_dir/build" -maxdepth 2 -path '*/busybox-*/.config' -type f | sort | sed -n '1p')
 if [ -n "$_bb_build_cfg" ]; then
-    scripts/busybox-applets-from-config "$_bb_build_cfg" >runtime/payload/busybox-applets.txt
+    scripts/lib/busybox-applets-from-config "$_bb_build_cfg" >runtime/payload/busybox-applets.txt
 else
-    scripts/discover-buildroot-applets "$out_dir/target" runtime/payload/busybox-applets.txt
+    scripts/lib/discover-buildroot-applets "$out_dir/target" runtime/payload/busybox-applets.txt
 fi
 rm -f runtime/payload/staged-tools.txt runtime/payload/built-tools.txt \
     runtime/payload/user-provided-tools.txt runtime/payload/overlay-tools.txt \
@@ -808,7 +808,7 @@ sort -u runtime/payload/overlay-files.txt -o runtime/payload/overlay-files.txt
 sort -u runtime/payload/overlay-paths.txt -o runtime/payload/overlay-paths.txt
 sort -u runtime/payload/user-provided-tools.txt -o runtime/payload/user-provided-tools.txt
 
-scripts/install-busybox-symlinks runtime/payload
+scripts/lib/install-busybox-symlinks runtime/payload
 
 for _bb_tool in xxd gdb radare2 rizin gcore tshark doom; do
     if tool_requested "$_bb_tool" && [ -e "runtime/payload/bin/$_bb_tool" ]; then

@@ -17,7 +17,7 @@ payload/build components such as BusyBox, Buildroot, doom-ascii, and miniz; see
 [docs/licensing.md](docs/licensing.md) for the project license declaration,
 compatibility notes, and source license inventory.
 `manifests/license-policy.json` is the machine-readable compatibility policy,
-and `scripts/check-licensing` verifies that the policy, pinned source metadata,
+and `scripts/lib/check-licensing` verifies that the policy, pinned source metadata,
 and bundled notices stay aligned.
 
 ---
@@ -393,8 +393,8 @@ without `-full` is also written.
 ### Inspection and verification
 
 ```sh
-scripts/inspect-artifact dist/grit-native-full
-scripts/verify-artifact dist/grit-native-full
+scripts/lib/inspect-artifact dist/grit-native-full
+scripts/lib/verify-artifact dist/grit-native-full
 make verify-artifact TARGET=native
 VERIFY=1 make package TARGET=native
 ```

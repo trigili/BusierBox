@@ -5,7 +5,7 @@ fully characterized yet. It is meant to answer: can a conservative griTTYkit
 artifact run, what did the target survey report, and what config should be tried
 next?
 
-It is different from `scripts/integration-glinet`: bringup is exploratory and
+It is different from `scripts/lib/integration-glinet`: bringup is exploratory and
 creates a recommendation, while integration is the repeatable validation
 harness for known cases.
 
@@ -17,13 +17,13 @@ harness for known cases.
 - Runs `./grit survey --json` and `./grit config-info`.
 - Runs `./grit reality-test --json` when the survey artifact includes the
   applet.
-- Runs `scripts/config-from-survey`.
+- Runs `scripts/lib/config-from-survey`.
 - Writes `survey.json`, `recommendation.json`, `recommended.conf`, logs, and
   `summary.json`.
 - Can write a local generated target preset from the survey.
 - Can ask a release bundle to select a compatible artifact and report the
   compatibility label/reasons.
-- Runs a release bundle's `scripts/release-self-test --json` before release
+- Runs a release bundle's `scripts/lib/release-self-test --json` before release
   artifact selection when the helper exists, then records the diagnostics in
   the bringup summary.
 - Can print the exact trailer override, operator, target, and staged fetch
@@ -89,7 +89,7 @@ scripts/grit-bringup \
 ```
 
 When `--release-dir` points at a release repository instead of one bundle,
-bringup uses `scripts/find-artifact --survey-json` to derive unset tuple
+bringup uses `scripts/lib/find-artifact --survey-json` to derive unset tuple
 filters from the captured survey. When reality-test output is available, it is
 also passed through as `--reality-json` so `release-find.json` keeps the active
 runtime constraints alongside the selection record. The explicit fetch/staging
@@ -199,10 +199,10 @@ also preserves `release_self_test_summary` when a release selection is used,
 including command-queue token, execution-supported, and
 operator-supplied-command execution counters from the selected release bundle.
 `release_selection_source` records whether artifact selection used a bundle
-`scripts/release-find` helper or the local release repository fallback, and
+`scripts/lib/release-find` helper or the local release repository fallback, and
 `release_selection_command` records the exact selector command for audit and UI
 debugging. When the repository fallback returns `effective_compatibility` from
-`scripts/find-artifact`, bringup uses that reality-adjusted label for the
+`scripts/lib/find-artifact`, bringup uses that reality-adjusted label for the
 selected artifact, staged fetch record, and compatibility summary while leaving
 the selector's release-index baseline available in `release_find_json` and in
 command-record indexes by effective label, baseline label, and compatibility
@@ -226,9 +226,9 @@ default remote command execution.
 
 The initial survey artifact uses the selected payload preset, defaults to
 `survey-core`, forces `GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES="no"`, and keeps
-`GRIT_ZERO_ARG_MODE="help"`. `scripts/config-from-survey` remains conservative:
+`GRIT_ZERO_ARG_MODE="help"`. `scripts/lib/config-from-survey` remains conservative:
 it does not enable external writes or network autorun unless explicitly asked.
-`--configure-trailer` prints an `scripts/artifact-config set ...` command; it
+`--configure-trailer` prints an `scripts/lib/artifact-config set ...` command; it
 does not run target-side code. `--stage-recommended-artifact` updates the
 operator staged-files index so the target can explicitly run `grit fetch`;
 it does not start the file-service listener by itself.

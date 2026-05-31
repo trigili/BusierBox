@@ -12,13 +12,13 @@ Install normal build prerequisites, then inspect the selected matrix:
 
 ```sh
 git submodule update --init third_party/busybox
-scripts/build-matrix --matrix configs/matrix/all-supported.json --dry-run
+scripts/lib/build-matrix --matrix configs/matrix/all-supported.json --dry-run
 ```
 
 Populate a source mirror for the same matrix:
 
 ```sh
-scripts/mirror-sources \
+scripts/lib/mirror-sources \
   --matrix configs/matrix/all-supported.json \
   --out local/source-mirror/all-supported \
   --include-buildroot-packages \
@@ -29,7 +29,7 @@ scripts/mirror-sources \
 run that check separately:
 
 ```sh
-scripts/check-offline-readiness \
+scripts/lib/check-offline-readiness \
   --mirror local/source-mirror/all-supported \
   --matrix configs/matrix/all-supported.json \
   --strict
@@ -70,7 +70,7 @@ verify it before building:
 ```sh
 mkdir -p /mnt/source-mirror
 tar -xzf all-supported-source-mirror.tar.gz -C /mnt/source-mirror
-scripts/check-offline-readiness \
+scripts/lib/check-offline-readiness \
   --mirror /mnt/source-mirror/all-supported \
   --matrix configs/matrix/all-supported.json \
   --strict
@@ -79,7 +79,7 @@ scripts/check-offline-readiness \
 Build with offline flags:
 
 ```sh
-GRIT_OFFLINE=1 scripts/build-matrix \
+GRIT_OFFLINE=1 scripts/lib/build-matrix \
   --matrix configs/matrix/all-supported.json \
   --offline \
   --mirror-dir /mnt/source-mirror/all-supported
@@ -93,8 +93,8 @@ GRIT_MIRROR_DIR=/mnt/source-mirror/all-supported
 BUILDROOT_DL_DIR=/mnt/source-mirror/all-supported/buildroot-dl
 ```
 
-For non-dry-run offline builds, `scripts/build-matrix` runs
-`scripts/check-offline-readiness` before starting jobs. Add `--strict-offline`
+For non-dry-run offline builds, `scripts/lib/build-matrix` runs
+`scripts/lib/check-offline-readiness` before starting jobs. Add `--strict-offline`
 to require a complete mirror manifest with matching matrix coverage. Use
 `--skip-offline-preflight` only when deliberately debugging a partially prepared
 mirror.
@@ -104,7 +104,7 @@ mirror.
 Summarize a prepared mirror with:
 
 ```sh
-scripts/mirror-report local/source-mirror/all-supported
+scripts/lib/mirror-report local/source-mirror/all-supported
 ```
 
 The report includes strict readiness, selected job count, mirrored file count,
@@ -113,14 +113,14 @@ output.
 
 ## Troubleshooting
 
-- Missing lockfile source: run `scripts/check-offline-readiness --mirror <dir>`
+- Missing lockfile source: run `scripts/lib/check-offline-readiness --mirror <dir>`
   and copy the reported filename into `grit-sources/`, `sources/`, or
   `buildroot-dl/`.
 - Hash mismatch: replace the file with the exact locked version; do not update
   the lockfile inside the enclave.
-- Missing Buildroot package source: rerun `scripts/mirror-sources` online with
+- Missing Buildroot package source: rerun `scripts/lib/mirror-sources` online with
   `--include-buildroot-packages --verify` for the same matrix.
-- Buildroot output needs inspection: rerun `scripts/mirror-sources` with
+- Buildroot output needs inspection: rerun `scripts/lib/mirror-sources` with
   `--keep-build-dirs`. By default successful temporary Buildroot output
   directories are removed after the package sources are fetched.
 - Host dependency absent: install host compilers and build prerequisites inside
@@ -132,4 +132,4 @@ Buildroot package files are mirrored by executing Buildroot's `source` target fo
 the generated defconfigs. Packages with dynamic source lists are caught by strict
 readiness when the recorded manifest is incomplete or the mirrored files are
 missing. User-provided overlay binaries are external inputs and are not
-downloaded by `scripts/mirror-sources`.
+downloaded by `scripts/lib/mirror-sources`.

@@ -2,7 +2,7 @@
 set -eu
 
 usage() {
-    printf '%s\n' "usage: scripts/release-current [TARGET|--config]" >&2
+    printf '%s\n' "usage: scripts/lib/release-current [TARGET|--config]" >&2
 }
 
 target_arg=${1:---config}
@@ -15,12 +15,12 @@ if [ -f configs/grit.conf ]; then
 fi
 
 if [ "$target_arg" = --config ] || [ "$target_arg" = config ]; then
-    resolved=$(scripts/resolve-target --config 2>&1) || {
+    resolved=$(scripts/lib/resolve-target --config 2>&1) || {
         printf '%s\n' "release-current: $resolved" >&2
         exit 1
     }
 else
-    resolved=$(scripts/resolve-target "$target_arg" 2>&1) || {
+    resolved=$(scripts/lib/resolve-target "$target_arg" 2>&1) || {
         printf '%s\n' "release-current: $resolved" >&2
         exit 1
     }
@@ -32,7 +32,7 @@ version=${GRIT_PAYLOAD_VERSION:-dev}
 release_name=${GRIT_RELEASE_NAME:-$version-$target}
 release_dir=${GRIT_RELEASE_DIR:-dist/releases/$release_name}
 
-TARGET="$target_arg" VERIFY=1 scripts/package-selected
+TARGET="$target_arg" VERIFY=1 scripts/lib/package-selected
 
 artifact="dist/grit-$target-full"
 [ -f "$artifact" ] || {
@@ -57,7 +57,7 @@ if [ -f "dist/payload-$target.tar.gz.sha256" ]; then
     cp "dist/payload-$target.tar.gz.sha256" "$release_dir/"
 fi
 
-scripts/inspect-artifact "$artifact" >"$release_dir/manifests/$target-full.inspect.txt"
+scripts/lib/inspect-artifact "$artifact" >"$release_dir/manifests/$target-full.inspect.txt"
 
 (
     cd "$release_dir"

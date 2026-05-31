@@ -14,80 +14,80 @@ SRC := src/grit.c src/payload_runtime.c src/applet_extract.c src/applet_list.c s
 all: build
 
 build: busybox
-	@CONFIG="$(CONFIG)" CC="$(CC)" CFLAGS="$(CFLAGS)" CPPFLAGS="$(CPPFLAGS)" LDFLAGS="$(LDFLAGS)" OUT="$(OUT)" scripts/build-native
+	@CONFIG="$(CONFIG)" CC="$(CC)" CFLAGS="$(CFLAGS)" CPPFLAGS="$(CPPFLAGS)" LDFLAGS="$(LDFLAGS)" OUT="$(OUT)" scripts/lib/build-native
 
 busybox:
-	@scripts/build-busybox
+	@scripts/lib/build-busybox
 
 buildroot: fetch-sources
-	@scripts/buildroot-build-payload --prepare-only
-	@printf '%s\n' "Buildroot source is available via dl/ and extracted on demand by scripts/buildroot-build-payload"
+	@scripts/lib/buildroot-build-payload --prepare-only
+	@printf '%s\n' "Buildroot source is available via dl/ and extracted on demand by scripts/lib/buildroot-build-payload"
 
 payload:
 	@if [ "$(if $(TARGET),$(TARGET),native)" = "native" ]; then $(MAKE) busybox; fi
-	@TARGET="$(if $(TARGET),$(TARGET),native)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/build-payload
+	@TARGET="$(if $(TARGET),$(TARGET),native)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/lib/build-payload
 
 package:
-	@TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" VERIFY="$(VERIFY)" scripts/package-selected
+	@TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" VERIFY="$(VERIFY)" scripts/lib/package-selected
 
 package-full:
-	@GRIT_BUILD_FULL=yes GRIT_BUILD_STAGER=no GRIT_BUILD_INTERNAL_CORE=no TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" VERIFY="$(VERIFY)" scripts/package-selected
+	@GRIT_BUILD_FULL=yes GRIT_BUILD_STAGER=no GRIT_BUILD_INTERNAL_CORE=no TARGET="$(TARGET)" PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" STRICT="$(STRICT)" VERIFY="$(VERIFY)" scripts/lib/package-selected
 
 package-all: package
 
 package-all-presets:
-	@scripts/resolve-target --list | while IFS='	' read -r preset status desc; do \
+	@scripts/lib/resolve-target --list | while IFS='	' read -r preset status desc; do \
 	  if [ "$$status" = supported ]; then \
 	    printf '%s\n' "package preset $$preset"; \
-	    PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/package-target "$$preset"; \
+	    PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/lib/package-target "$$preset"; \
 	  else \
 	    printf '%s\n' "skip preset $$preset ($$status): $$desc"; \
 	  fi; \
 	done
 
 package-native:
-	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/package-target native
+	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" scripts/lib/package-target native
 
 release:
-	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" GRIT_RELEASE_NAME="$(GRIT_RELEASE_NAME)" scripts/release-current "$(if $(TARGET),$(TARGET),--config)"
+	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" GRIT_RELEASE_NAME="$(GRIT_RELEASE_NAME)" scripts/lib/release-current "$(if $(TARGET),$(TARGET),--config)"
 
 verify-artifact:
 	@if [ -n "$(TARGET)" ]; then artifact="dist/grit-$(TARGET)-full"; else artifact="dist/grit-native-full"; fi; \
-	  scripts/verify-artifact "$$artifact"
+	  scripts/lib/verify-artifact "$$artifact"
 
 check-buildroot-tool-mappings:
-	@scripts/check-buildroot-tool-mappings
+	@scripts/lib/check-buildroot-tool-mappings
 
 check-licensing:
-	@scripts/check-licensing
+	@scripts/lib/check-licensing
 
 target-summary:
-	@scripts/resolve-target --config
+	@scripts/lib/resolve-target --config
 
 menuconfig:
 	@scripts/menuconfig ${CFG:+--config "$(CFG)"}
 
 fetch-sources:
-	@scripts/fetch-sources
+	@scripts/lib/fetch-sources
 
 verify-sources:
-	@scripts/verify-sources
+	@scripts/lib/verify-sources
 
 offline-pack:
-	@scripts/offline-pack
+	@scripts/lib/offline-pack
 
 offline-unpack:
-	@printf '%s\n' "Usage: scripts/offline-unpack dist/grit-sdk-YYYYMMDD.tar.gz"
+	@printf '%s\n' "Usage: scripts/lib/offline-unpack dist/grit-sdk-YYYYMMDD.tar.gz"
 
 detect-host:
-	@scripts/detect-host
+	@scripts/lib/detect-host
 
 smoke: smoke-test
 
 smoke-test:
 	@GRIT_CONFIG=presets/payload/default.conf GRIT_BUSYBOX_GROUPS="shell fileops disk process network text system" $(MAKE) package-native
-	@scripts/inspect-artifact dist/grit-native-full >/dev/null
-	@scripts/verify-artifact dist/grit-native-full
+	@scripts/lib/inspect-artifact dist/grit-native-full >/dev/null
+	@scripts/lib/verify-artifact dist/grit-native-full
 	@tests/smoke/artifact-tiers.sh
 	@tests/smoke/native-help.sh dist/grit-native-full
 	@tests/smoke/target-resolution.sh
@@ -152,7 +152,7 @@ smoke-test:
 	@./dist/grit-native-full dd --help >/dev/null 2>&1
 	@./dist/grit-native-full nc --help >/dev/null 2>&1
 	@./dist/grit-native-full config-info >/dev/null
-	@if command -v python3 >/dev/null 2>&1; then tmp=$$(mktemp -d); ./dist/grit-native-full survey --json > $$tmp/survey.json; python3 tests/smoke/validate-survey-json.py $$tmp/survey.json >/dev/null; scripts/config-from-survey $$tmp/survey.json >/dev/null; rm -rf $$tmp; else printf '%s\n' "skip: python3 survey config validation unavailable"; fi
+	@if command -v python3 >/dev/null 2>&1; then tmp=$$(mktemp -d); ./dist/grit-native-full survey --json > $$tmp/survey.json; python3 tests/smoke/validate-survey-json.py $$tmp/survey.json >/dev/null; scripts/lib/config-from-survey $$tmp/survey.json >/dev/null; rm -rf $$tmp; else printf '%s\n' "skip: python3 survey config validation unavailable"; fi
 	@printf '%s\n' "smoke: testing out-of-cwd embedded extraction (catches exe-wipe bugs)..."
 	@_grit_tmp=$$(mktemp -d) && \
 	  cp dist/grit-native-full "$$_grit_tmp/grit" && \

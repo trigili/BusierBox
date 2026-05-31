@@ -1,5 +1,5 @@
 # griTTYkit Buildroot external tree.
-# Payload packaging is handled by scripts/buildroot-build-payload.
+# Payload packaging is handled by scripts/lib/buildroot-build-payload.
 
 include $(sort $(wildcard $(BR2_EXTERNAL_GRIPTYKIT_PATH)/package/*/*.mk))
 

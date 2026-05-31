@@ -68,7 +68,7 @@ tools dispatch through `payload/bin/<tool>` after full extraction.
 Integration runs capture manifest output next to the case logs so each validation run can be tied back to the artifact and preset that produced it.
 
 Post-build runtime override trailers are edited with
-`scripts/artifact-config`. They can change selected runtime/operator settings
+`scripts/lib/artifact-config`. They can change selected runtime/operator settings
 without rebuilding and appear under `trailer_override`, `compiled_config`,
 `effective_config`, `config_records`, and the `config_records_by_*` lookup maps
 in `manifest --json`. See
@@ -95,7 +95,7 @@ starter:
 
 ```sh
 grit config-export --json > artifact-config.json
-scripts/config-from-manifest artifact-config.json > recovered.conf
+scripts/lib/config-from-manifest artifact-config.json > recovered.conf
 ```
 
 The recovered config includes target, payload preset, selected heavy tools,
@@ -109,7 +109,7 @@ the artifact manifest embedded:
 
 ```sh
 grit doctor --support-token > support.token
-scripts/config-from-support-token "$(cat support.token)" > recovered.conf
+scripts/lib/config-from-support-token "$(cat support.token)" > recovered.conf
 ```
 
 The token may include configured operator hostnames and ports. It does not embed

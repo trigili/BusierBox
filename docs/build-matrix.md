@@ -1,6 +1,6 @@
 # Build Matrix
 
-`scripts/build-matrix` batches griTTYkit builds across target presets, payload
+`scripts/lib/build-matrix` batches griTTYkit builds across target presets, payload
 presets, and payload archive formats. It writes each run under
 `local/matrix-runs/<timestamp>/` by default and records a machine-readable
 `summary.json`.
@@ -8,14 +8,14 @@ presets, and payload archive formats. It writes each run under
 List available dimensions:
 
 ```sh
-scripts/build-matrix --list-targets
-scripts/build-matrix --list-payloads
+scripts/lib/build-matrix --list-targets
+scripts/lib/build-matrix --list-payloads
 ```
 
 Preview a matrix without building:
 
 ```sh
-scripts/build-matrix \
+scripts/lib/build-matrix \
   --targets glinet-mt7621-openwrt-musl,aarch64-linux-4.x-musl \
   --payload-presets survey-core,builtin-core-shell,full-debug \
   --formats tgz \
@@ -25,7 +25,7 @@ scripts/build-matrix \
 Run a small native matrix:
 
 ```sh
-scripts/build-matrix --targets native --payload-presets survey-core,default --formats tgz
+scripts/lib/build-matrix --targets native --payload-presets survey-core,default --formats tgz
 ```
 
 The script generates per-job configs under:
@@ -66,7 +66,7 @@ the first failure.
 Run it with:
 
 ```sh
-scripts/build-matrix --matrix configs/matrix/example.json --dry-run
+scripts/lib/build-matrix --matrix configs/matrix/example.json --dry-run
 ```
 
 Variant keys that are not `target`, `targets`, `payload`, `payloads`,
@@ -83,12 +83,12 @@ serialized to avoid shared Buildroot output collisions. For offline/enclave
 workflows, the matrix script also accepts:
 
 ```sh
-scripts/build-matrix --offline --mirror-dir local/source-mirror --dry-run
+scripts/lib/build-matrix --offline --mirror-dir local/source-mirror --dry-run
 ```
 
 That exports `GRIT_OFFLINE=1`, `GRIT_MIRROR_DIR`, and
 `BUILDROOT_DL_DIR=<mirror>/buildroot-dl` to each build command. Non-dry-run
-offline builds run `scripts/check-offline-readiness` before starting jobs. Use
+offline builds run `scripts/lib/check-offline-readiness` before starting jobs. Use
 `--strict-offline` to require a complete mirror manifest for the selected matrix,
 or `--skip-offline-preflight` when intentionally debugging an incomplete mirror.
 Full mirror population and readiness checks are described in

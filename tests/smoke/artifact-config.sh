@@ -19,7 +19,7 @@ cp "$artifact" "$work/grit"
 chmod 0755 "$work/grit"
 base_size=$(wc -c <"$work/grit" | tr -d ' ')
 
-scripts/artifact-config show "$work/grit" >"$work/show.none"
+scripts/lib/artifact-config show "$work/grit" >"$work/show.none"
 grep -q '^trailer_present=no$' "$work/show.none"
 "$work/grit" config-info >"$work/config.none"
 grep -q '^trailer_override_present=no$' "$work/config.none"
@@ -115,7 +115,7 @@ assert runtime_mode_record["compiled"] == runtime_mode_record["effective"]
 assert by_category["command_queue"]
 PY
 
-scripts/artifact-config set "$work/grit" \
+scripts/lib/artifact-config set "$work/grit" \
     GRIT_RSHELL_TRANSPORT=ssh \
     GRIT_RSHELL_SESSION_POLICY=reconnect \
     GRIT_RSHELL_RETRY_COUNT=3 \
@@ -128,7 +128,7 @@ scripts/artifact-config set "$work/grit" \
     GRIT_NORESIDUE_LEVEL=aggressive \
     GRIT_ZERO_ARG_LOG_MODE=status >"$work/set.out"
 test "$(wc -c <"$work/grit" | tr -d ' ')" -eq $((base_size + 4096))
-scripts/artifact-config show "$work/grit" >"$work/show.set"
+scripts/lib/artifact-config show "$work/grit" >"$work/show.set"
 grep -q '^trailer_present=yes$' "$work/show.set"
 grep -q '^trailer_valid=yes$' "$work/show.set"
 grep -q '^GRIT_OPERATOR_SERVER_HOST=198.51.100.7$' "$work/show.set"
@@ -264,8 +264,8 @@ assert m["trailer_override"]["encoding"] == "plain"
 assert m["compiled_config"]["GRIT_OPERATOR_SERVER_HOST"] != "198.51.100.7"
 assert m["effective_config"]["GRIT_OPERATOR_SERVER_HOST"] == "198.51.100.7"
 PY
-scripts/inspect-artifact "$work/grit" | grep -q '^config_trailer_present=yes$'
-scripts/verify-artifact "$work/grit" >/dev/null
+scripts/lib/inspect-artifact "$work/grit" | grep -q '^config_trailer_present=yes$'
+scripts/lib/verify-artifact "$work/grit" >/dev/null
 
 cp "$work/grit" "$work/grit-bad"
 python3 - "$work/grit-bad" <<'PY'
@@ -281,7 +281,7 @@ pos += len(needle)
 b[pos] = ord("0") if b[pos] != ord("0") else ord("1")
 p.write_bytes(b)
 PY
-if scripts/artifact-config show "$work/grit-bad" >"$work/show.bad" 2>&1; then
+if scripts/lib/artifact-config show "$work/grit-bad" >"$work/show.bad" 2>&1; then
     printf '%s\n' "artifact-config smoke: invalid checksum trailer unexpectedly passed" >&2
     exit 1
 fi
@@ -311,7 +311,7 @@ start = len(b) - 4096
 b[start:start + len(b"BBXCONFIGv1")] = b"BADCONFIGv1"
 p.write_bytes(b)
 PY
-scripts/artifact-config show "$work/grit-bad-magic" >"$work/show.bad-magic"
+scripts/lib/artifact-config show "$work/grit-bad-magic" >"$work/show.bad-magic"
 grep -q '^trailer_present=no$' "$work/show.bad-magic"
 "$work/grit-bad-magic" runtime-config --json >"$work/runtime.bad-magic.json"
 python3 - "$work/runtime.bad-magic.json" <<'PY'
@@ -335,7 +335,7 @@ if pos < 0:
 b[pos:pos + len(needle)] = b"version=2\n"
 p.write_bytes(b)
 PY
-if scripts/artifact-config show "$work/grit-bad-version" >"$work/show.bad-version" 2>&1; then
+if scripts/lib/artifact-config show "$work/grit-bad-version" >"$work/show.bad-version" 2>&1; then
     printf '%s\n' "artifact-config smoke: unsupported version trailer unexpectedly passed" >&2
     exit 1
 fi
@@ -374,7 +374,7 @@ if len(trailer) > TRAILER_SIZE:
 data = p.read_bytes()
 p.write_bytes(data[:-TRAILER_SIZE] + trailer + b"\0" * (TRAILER_SIZE - len(trailer)))
 PY
-if scripts/artifact-config show "$work/grit-bad-bounds" >"$work/show.bad-bounds" 2>&1; then
+if scripts/lib/artifact-config show "$work/grit-bad-bounds" >"$work/show.bad-bounds" 2>&1; then
     printf '%s\n' "artifact-config smoke: invalid bounds trailer unexpectedly passed" >&2
     exit 1
 fi
@@ -418,7 +418,7 @@ if len(trailer) > TRAILER_SIZE:
 data = p.read_bytes()
 p.write_bytes(data[:-TRAILER_SIZE] + trailer + b"\0" * (TRAILER_SIZE - len(trailer)))
 PY
-if scripts/artifact-config show "$work/grit-bad-offset" >"$work/show.bad-offset" 2>&1; then
+if scripts/lib/artifact-config show "$work/grit-bad-offset" >"$work/show.bad-offset" 2>&1; then
     printf '%s\n' "artifact-config smoke: invalid payload offset trailer unexpectedly passed" >&2
     exit 1
 fi
@@ -446,7 +446,7 @@ if pos < 0:
 b[pos:pos + len(needle)] = b"encoding=rot13\n"
 p.write_bytes(b)
 PY
-if scripts/artifact-config show "$work/grit-bad-encoding" >"$work/show.bad-encoding" 2>&1; then
+if scripts/lib/artifact-config show "$work/grit-bad-encoding" >"$work/show.bad-encoding" 2>&1; then
     printf '%s\n' "artifact-config smoke: unsupported encoding trailer unexpectedly passed" >&2
     exit 1
 fi
@@ -475,7 +475,7 @@ if pos < 0:
 b[pos:pos + len(needle)] = b"payload_format=b64\n"
 p.write_bytes(b)
 PY
-if scripts/artifact-config show "$work/grit-bad-payload-format" >"$work/show.bad-payload-format" 2>&1; then
+if scripts/lib/artifact-config show "$work/grit-bad-payload-format" >"$work/show.bad-payload-format" 2>&1; then
     printf '%s\n' "artifact-config smoke: unsupported payload format trailer unexpectedly passed" >&2
     exit 1
 fi
@@ -491,7 +491,7 @@ assert r["trailer_override"]["status"] == "unsupported payload format"
 PY
 
 cp "$artifact" "$work/grit-bad-hex-payload"
-GRIT_TRAILER_OBFUSCATION=xor scripts/artifact-config set "$work/grit-bad-hex-payload" GRIT_OPERATOR_SERVER_HOST=192.0.2.46 >/dev/null
+GRIT_TRAILER_OBFUSCATION=xor scripts/lib/artifact-config set "$work/grit-bad-hex-payload" GRIT_OPERATOR_SERVER_HOST=192.0.2.46 >/dev/null
 python3 - "$work/grit-bad-hex-payload" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1])
@@ -505,7 +505,7 @@ payload_pos = pos + len(needle)
 b[payload_pos:payload_pos + 2] = b"zz"
 p.write_bytes(b)
 PY
-if scripts/artifact-config show "$work/grit-bad-hex-payload" >"$work/show.bad-hex-payload" 2>&1; then
+if scripts/lib/artifact-config show "$work/grit-bad-hex-payload" >"$work/show.bad-hex-payload" 2>&1; then
     printf '%s\n' "artifact-config smoke: invalid hex payload trailer unexpectedly passed" >&2
     exit 1
 fi
@@ -522,7 +522,7 @@ assert r["trailer_override"]["status"] == "invalid hex payload"
 PY
 
 cp "$artifact" "$work/grit-bad-xor-key"
-GRIT_TRAILER_OBFUSCATION=xor scripts/artifact-config set "$work/grit-bad-xor-key" GRIT_OPERATOR_SERVER_HOST=192.0.2.45 >/dev/null
+GRIT_TRAILER_OBFUSCATION=xor scripts/lib/artifact-config set "$work/grit-bad-xor-key" GRIT_OPERATOR_SERVER_HOST=192.0.2.45 >/dev/null
 python3 - "$work/grit-bad-xor-key" <<'PY'
 import pathlib, sys
 p = pathlib.Path(sys.argv[1])
@@ -536,7 +536,7 @@ pos += len(needle)
 b[pos:pos + 2] = b"zz"
 p.write_bytes(b)
 PY
-if scripts/artifact-config show "$work/grit-bad-xor-key" >"$work/show.bad-xor-key" 2>&1; then
+if scripts/lib/artifact-config show "$work/grit-bad-xor-key" >"$work/show.bad-xor-key" 2>&1; then
     printf '%s\n' "artifact-config smoke: invalid xor key trailer unexpectedly passed" >&2
     exit 1
 fi
@@ -579,7 +579,7 @@ if len(trailer) > TRAILER_SIZE:
     raise SystemExit("trailer too large")
 p.write_bytes(p.read_bytes() + trailer + b"\0" * (TRAILER_SIZE - len(trailer)))
 PY
-scripts/artifact-config show "$work/grit-unknown-runtime" >"$work/show.unknown-runtime"
+scripts/lib/artifact-config show "$work/grit-unknown-runtime" >"$work/show.unknown-runtime"
 grep -q '^trailer_valid=yes$' "$work/show.unknown-runtime"
 grep -q '^GRIT_OPERATOR_SERVER_HOST=192.0.2.88$' "$work/show.unknown-runtime"
 if grep -q '^GRIT_TARGET_ARCH=' "$work/show.unknown-runtime"; then
@@ -598,25 +598,25 @@ assert r["effective_config"]["GRIT_OPERATOR_SERVER_HOST"] == "192.0.2.88"
 assert "GRIT_TARGET_ARCH" not in r["effective_config"]
 PY
 
-if scripts/artifact-config set "$work/grit" GRIT_TARGET_ARCH=mipsel >"$work/unknown.out" 2>&1; then
+if scripts/lib/artifact-config set "$work/grit" GRIT_TARGET_ARCH=mipsel >"$work/unknown.out" 2>&1; then
     printf '%s\n' "artifact-config smoke: forbidden target key was accepted" >&2
     exit 1
 fi
 grep -q 'not trailer-overridable' "$work/unknown.out"
 
-if scripts/artifact-config set "$work/grit" GRIT_NORESIDUE_LEVEL=maximum >"$work/bad-noresidue.out" 2>&1; then
+if scripts/lib/artifact-config set "$work/grit" GRIT_NORESIDUE_LEVEL=maximum >"$work/bad-noresidue.out" 2>&1; then
     printf '%s\n' "artifact-config smoke: invalid no-residue level was accepted" >&2
     exit 1
 fi
 grep -q 'invalid value for GRIT_NORESIDUE_LEVEL' "$work/bad-noresidue.out"
 
-if scripts/artifact-config set "$work/grit" GRIT_RUNTIME_MODE=temporary >"$work/bad-runtime-mode.out" 2>&1; then
+if scripts/lib/artifact-config set "$work/grit" GRIT_RUNTIME_MODE=temporary >"$work/bad-runtime-mode.out" 2>&1; then
     printf '%s\n' "artifact-config smoke: invalid runtime mode was accepted" >&2
     exit 1
 fi
 grep -q 'invalid value for GRIT_RUNTIME_MODE' "$work/bad-runtime-mode.out"
 
-if scripts/artifact-config set "$work/grit" 'GRIT_ZERO_ARG_CUSTOM_COMMAND=TOKEN=abc123' >"$work/secret.out" 2>&1; then
+if scripts/lib/artifact-config set "$work/grit" 'GRIT_ZERO_ARG_CUSTOM_COMMAND=TOKEN=abc123' >"$work/secret.out" 2>&1; then
     printf '%s\n' "artifact-config smoke: secret-like trailer value was accepted" >&2
     exit 1
 fi
@@ -658,22 +658,22 @@ assert r["trailer_override"]["status"] == "secret-like trailer value"
 assert r["effective_config"]["GRIT_ZERO_ARG_CUSTOM_COMMAND"] == ""
 PY
 
-scripts/artifact-config set "$work/grit" GRIT_OPERATOR_SERVER_HOST=203.0.113.8 >/dev/null
+scripts/lib/artifact-config set "$work/grit" GRIT_OPERATOR_SERVER_HOST=203.0.113.8 >/dev/null
 test "$(wc -c <"$work/grit" | tr -d ' ')" -eq $((base_size + 4096))
-scripts/artifact-config export "$work/grit" >"$work/export.env"
+scripts/lib/artifact-config export "$work/grit" >"$work/export.env"
 grep -q '^GRIT_OPERATOR_SERVER_HOST=203.0.113.8$' "$work/export.env"
 printf '%s\n' 'GRIT_ZERO_ARG_MODE=survey' >"$work/import.env"
-scripts/artifact-config import "$work/grit" "$work/import.env" >/dev/null
-scripts/artifact-config export "$work/grit" >"$work/export2.env"
+scripts/lib/artifact-config import "$work/grit" "$work/import.env" >/dev/null
+scripts/lib/artifact-config export "$work/grit" >"$work/export2.env"
 grep -q '^GRIT_ZERO_ARG_MODE=survey$' "$work/export2.env"
 
-scripts/artifact-config clear "$work/grit" >/dev/null
+scripts/lib/artifact-config clear "$work/grit" >/dev/null
 test "$(wc -c <"$work/grit" | tr -d ' ')" -eq "$base_size"
-scripts/artifact-config show "$work/grit" >"$work/show.clear"
+scripts/lib/artifact-config show "$work/grit" >"$work/show.clear"
 grep -q '^trailer_present=no$' "$work/show.clear"
 
 cp "$artifact" "$work/grit-xor"
-GRIT_TRAILER_OBFUSCATION=xor scripts/artifact-config set "$work/grit-xor" GRIT_OPERATOR_SERVER_HOST=192.0.2.44 >"$work/xor.out"
+GRIT_TRAILER_OBFUSCATION=xor scripts/lib/artifact-config set "$work/grit-xor" GRIT_OPERATOR_SERVER_HOST=192.0.2.44 >"$work/xor.out"
 grep -q 'not encryption' "$work/xor.out"
 "$work/grit-xor" config-info | grep -q '^effective_rshell_operator_host=192.0.2.44$'
 "$work/grit-xor" runtime-config --json >"$work/runtime.xor.json"

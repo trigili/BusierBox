@@ -4,7 +4,7 @@ set -eu
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
 
-scripts/config-from-survey --format shell tests/fixtures/survey/glinet-mt7621.json >"$tmp/glinet.conf"
+scripts/lib/config-from-survey --format shell tests/fixtures/survey/glinet-mt7621.json >"$tmp/glinet.conf"
 grep -q '^# compatibility=exact$' "$tmp/glinet.conf"
 grep -q '^# compatibility_reason: arch inferred mipsel$' "$tmp/glinet.conf"
 grep -q '^GRIT_TARGET_PRESET=glinet-mt7621-openwrt-musl$' "$tmp/glinet.conf"
@@ -14,7 +14,7 @@ grep -q '^GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES=no$' "$tmp/glinet.conf"
 grep -q '^GRIT_NORESIDUE_LEVEL=best-effort$' "$tmp/glinet.conf"
 grep -q '^GRIT_ZERO_ARG_MODE=help$' "$tmp/glinet.conf"
 
-scripts/config-from-survey --format json tests/fixtures/survey/generic-openwrt-mipsel.json >"$tmp/openwrt.json"
+scripts/lib/config-from-survey --format json tests/fixtures/survey/generic-openwrt-mipsel.json >"$tmp/openwrt.json"
 python3 -m json.tool "$tmp/openwrt.json" >/dev/null
 grep -q '"GRIT_TARGET_ARCH": "mipsel"' "$tmp/openwrt.json"
 grep -q '"GRIT_TARGET_LIBC": "musl"' "$tmp/openwrt.json"
@@ -30,7 +30,7 @@ assert any(reason.startswith("arch inferred ") for reason in compat["reasons"])
 assert any(reason.startswith("libc inferred ") for reason in compat["reasons"])
 PY
 
-scripts/config-from-survey --format shell tests/fixtures/survey/ancient-mipsel-uclibc-2.4.json >"$tmp/ancient.conf"
+scripts/lib/config-from-survey --format shell tests/fixtures/survey/ancient-mipsel-uclibc-2.4.json >"$tmp/ancient.conf"
 grep -q '^GRIT_TARGET_PRESET='"'"''"'"'$' "$tmp/ancient.conf"
 grep -q '^GRIT_TARGET_ARCH=mipsel$' "$tmp/ancient.conf"
 grep -q '^GRIT_TARGET_ENDIAN=little$' "$tmp/ancient.conf"
@@ -39,7 +39,7 @@ grep -q '^GRIT_KERNEL_FLOOR=2.4$' "$tmp/ancient.conf"
 grep -q '^# compatibility=heuristic$' "$tmp/ancient.conf"
 grep -q '^# compatibility_reason: no target preset selected$' "$tmp/ancient.conf"
 
-scripts/config-from-survey --format json tests/fixtures/survey/bigendian-mips-uclibc-2.6.json >"$tmp/mipseb.json"
+scripts/lib/config-from-survey --format json tests/fixtures/survey/bigendian-mips-uclibc-2.6.json >"$tmp/mipseb.json"
 python3 - "$tmp/mipseb.json" <<'PY'
 import json
 import sys
@@ -59,7 +59,7 @@ assert "kernel floor 2.6" in compat["reasons"]
 assert "no target preset selected" in compat["reasons"]
 PY
 
-scripts/config-from-survey --format json tests/fixtures/survey/non-openwrt-armv7-glibc.json >"$tmp/non-openwrt.json"
+scripts/lib/config-from-survey --format json tests/fixtures/survey/non-openwrt-armv7-glibc.json >"$tmp/non-openwrt.json"
 python3 - "$tmp/non-openwrt.json" <<'PY'
 import json
 import sys
@@ -113,11 +113,11 @@ cat >"$tmp/reality-bad-runtime.json" <<'EOF'
   }
 }
 EOF
-scripts/config-from-survey --format shell --reality-json "$tmp/reality-bad-runtime.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality.conf"
+scripts/lib/config-from-survey --format shell --reality-json "$tmp/reality-bad-runtime.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality.conf"
 grep -q '^GRIT_RUNTIME_MODE=core-only$' "$tmp/reality.conf"
 grep -q '^# WARNING: reality-test could not execute from the runtime root; prefer core-only$' "$tmp/reality.conf"
 grep -q '^# WARNING: reality-test detected /tmp noexec; avoid extracting there$' "$tmp/reality.conf"
-scripts/config-from-survey --format json --reality-json "$tmp/reality-bad-runtime.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality.json"
+scripts/lib/config-from-survey --format json --reality-json "$tmp/reality-bad-runtime.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality.json"
 python3 -m json.tool "$tmp/reality.json" >/dev/null
 python3 - "$tmp/reality.json" <<'PY'
 import json
@@ -164,7 +164,7 @@ cat >"$tmp/reality-advisory.json" <<'EOF'
   }
 }
 EOF
-scripts/config-from-survey --format json --reality-json "$tmp/reality-advisory.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality-advisory.out"
+scripts/lib/config-from-survey --format json --reality-json "$tmp/reality-advisory.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality-advisory.out"
 python3 - "$tmp/reality-advisory.out" <<'PY'
 import json
 import sys
@@ -203,7 +203,7 @@ cat >"$tmp/reality-indexed.json" <<'EOF'
   }
 }
 EOF
-scripts/config-from-survey --format json --reality-json "$tmp/reality-indexed.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality-indexed.out"
+scripts/lib/config-from-survey --format json --reality-json "$tmp/reality-indexed.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality-indexed.out"
 python3 - "$tmp/reality-indexed.out" <<'PY'
 import json
 import sys
@@ -231,7 +231,7 @@ cat >"$tmp/reality-summary-only.json" <<'EOF'
   }
 }
 EOF
-scripts/config-from-survey --format json --reality-json "$tmp/reality-summary-only.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality-summary-only.out"
+scripts/lib/config-from-survey --format json --reality-json "$tmp/reality-summary-only.json" tests/fixtures/survey/glinet-mt7621.json >"$tmp/reality-summary-only.out"
 python3 - "$tmp/reality-summary-only.out" <<'PY'
 import json
 import sys
@@ -246,12 +246,12 @@ assert "procfs partial/broken: survey evidence may be incomplete" in doc["compat
 assert facts["operator_skipped"] == 3
 PY
 
-scripts/config-from-survey --write-config "$tmp/low.conf" tests/fixtures/survey/unknown-low-disk.json
+scripts/lib/config-from-survey --write-config "$tmp/low.conf" tests/fixtures/survey/unknown-low-disk.json
 grep -q '^GRIT_RUNTIME_MODE=core-only$' "$tmp/low.conf"
 grep -q '^GRIT_RUNTIME_ROOT=/tmp/.grit$' "$tmp/low.conf"
 grep -q '^# WARNING:' "$tmp/low.conf"
 
-scripts/config-from-survey --format shell tests/fixtures/survey/native-rich-recommendations.json >"$tmp/native.conf"
+scripts/lib/config-from-survey --format shell tests/fixtures/survey/native-rich-recommendations.json >"$tmp/native.conf"
 grep -q '^GRIT_TARGET_PRESET='"'"''"'"'$' "$tmp/native.conf"
 grep -q '^GRIT_PAYLOAD_PRESET=builtin-core-shell$' "$tmp/native.conf"
 grep -q '^GRIT_RUNTIME_MODE=extract$' "$tmp/native.conf"
@@ -259,7 +259,7 @@ grep -q '^GRIT_RSHELL_TRANSPORT=none$' "$tmp/native.conf"
 grep -q '^# WARNING: sample warning from native survey$' "$tmp/native.conf"
 ! grep -q '^GRIT_TARGET_PRESET=auto$' "$tmp/native.conf"
 
-scripts/config-from-survey --format shell --prefer-rshell ssh --allow-network-autorun tests/fixtures/survey/glinet-mt7621.json >"$tmp/ssh.conf"
+scripts/lib/config-from-survey --format shell --prefer-rshell ssh --allow-network-autorun tests/fixtures/survey/glinet-mt7621.json >"$tmp/ssh.conf"
 grep -q '^GRIT_PAYLOAD_PRESET=ssh-operator$' "$tmp/ssh.conf"
 grep -q '^GRIT_ZERO_ARG_MODE=rshell$' "$tmp/ssh.conf"
 grep -q '^GRIT_RSHELL_TRANSPORT=ssh$' "$tmp/ssh.conf"

@@ -26,8 +26,8 @@ Implemented provider hooks:
 
 - `payloads/tool-compat.json` carries provider/classification metadata for the wishlist tools.
 - `tests/smoke/heavy-tool-triage.sh` rejects tool metadata entries that omit provider, classification, approximate size, static constraint, kernel floor, architecture, or libc fields.
-- `scripts/check-buildroot-tool-mappings` validates Buildroot symbols for supported target-payload tools and reports tools that require a target-compatible drop-in/user/overlay binary without failing non-strict checks.
-- `scripts/gen-buildroot-defconfig` emits Buildroot package symbols for supported wishlist payloads.
+- `scripts/lib/check-buildroot-tool-mappings` validates Buildroot symbols for supported target-payload tools and reports tools that require a target-compatible drop-in/user/overlay binary without failing non-strict checks.
+- `scripts/lib/gen-buildroot-defconfig` emits Buildroot package symbols for supported wishlist payloads.
 - `scripts/menuconfig` exposes a clearly labeled dangerous storage/flash diagnostics category; none of those tools are selected by default presets.
 - `doom` uses the griTTYkit Buildroot `doom-ascii` package for static target builds. Set `GRIT_DOOM_WAD_PATH` to a local legally usable `.wad`; griTTYkit records that path in the generated target profile and stages the file, but never fetches game data. Payload manifests record only the staged WAD basename, size, and sha256, not the local source path. Target packaging verifies that the staged `doom-ascii` ELF is static. griTTYkit does not accept a user-provided Doom engine path for target payloads.
 

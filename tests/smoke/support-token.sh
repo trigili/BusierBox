@@ -37,7 +37,7 @@ payload = manifest.get("payload", {})
 if "gdbserver_provider" not in payload:
     raise SystemExit("config-export manifest missing payload.gdbserver_provider")
 PY
-scripts/config-from-manifest "$tmp/config-export.json" >"$tmp/from-export.conf"
+scripts/lib/config-from-manifest "$tmp/config-export.json" >"$tmp/from-export.conf"
 grep -q '^GRIT_PAYLOAD_PRESET=' "$tmp/from-export.conf"
 grep -q '^GRIT_GDBSERVER_PROVIDER=' "$tmp/from-export.conf"
 grep -q '^GRIT_HEAVY_TOOLS=' "$tmp/from-export.conf"
@@ -73,7 +73,7 @@ if doc.get("kind") != "grit-support-token":
 if "manifest" not in doc:
     raise SystemExit("support token missing manifest")
 PY
-scripts/config-from-support-token "$(cat "$tmp/support-token.b64")" >"$tmp/from-token.conf"
+scripts/lib/config-from-support-token "$(cat "$tmp/support-token.b64")" >"$tmp/from-token.conf"
 grep -q '^GRIT_PAYLOAD_PRESET=' "$tmp/from-token.conf"
 grep -q '^GRIT_GDBSERVER_PROVIDER=' "$tmp/from-token.conf"
 grep -q '^GRIT_HEAVY_TOOLS=' "$tmp/from-token.conf"

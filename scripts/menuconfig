@@ -598,7 +598,7 @@ EOF
 
 target_summary_text() {
     write_current_config "$temp_cfg"
-    GRIT_CONFIG="$temp_cfg" scripts/resolve-target --config >"$temp_resolved" 2>"$temp_out" || {
+    GRIT_CONFIG="$temp_cfg" scripts/lib/resolve-target --config >"$temp_resolved" 2>"$temp_out" || {
         printf '%s\n' "Unable to resolve target:"
         cat "$temp_out"
         return 0
@@ -1075,7 +1075,7 @@ save_config() {
     handle_dirty_payload_preset_on_save || return 1
     validate_config || return 1
     write_current_config "$temp_cfg"
-    compat_warnings=$(scripts/print-tool-compat "$temp_cfg" 2>/dev/null || true)
+    compat_warnings=$(scripts/lib/print-tool-compat "$temp_cfg" 2>/dev/null || true)
     case "$compat_warnings" in
         ""|"No heavy tools selected."|"No compatibility warnings for selected heavy tools.") ;;
         *)
@@ -1209,7 +1209,7 @@ show_page_help() {
             ;;
         artifact-overrides)
             _title="Artifact runtime overrides help"
-            _text="Post-build runtime override trailers let selected runtime/operator settings be changed on an existing artifact with scripts/artifact-config, without rebuilding the payload or changing target tuple, compiled features, heavy tools, dotfiles, or overlay contents.\n\nXOR mode is only casual string hiding. It is not encryption and must not be used for private keys or credentials."
+            _text="Post-build runtime override trailers let selected runtime/operator settings be changed on an existing artifact with scripts/lib/artifact-config, without rebuilding the payload or changing target tuple, compiled features, heavy tools, dotfiles, or overlay contents.\n\nXOR mode is only casual string hiding. It is not encryption and must not be used for private keys or credentials."
             ;;
         rshell)
             _title="Reverse access help"
@@ -1251,7 +1251,7 @@ show_page_help() {
 configure_artifact_runtime_overrides() {
     while :; do
         dialog --title "Artifact runtime overrides" \
-            --menu "Post-build override trailers are edited with scripts/artifact-config after packaging." 21 86 7 \
+            --menu "Post-build override trailers are edited with scripts/lib/artifact-config after packaging." 21 86 7 \
             "1" "Enable post-build trailer workflow: $GRIT_TRAILER_OVERRIDES_ENABLE" \
             "2" "Allowed categories: $GRIT_TRAILER_OVERRIDE_CATEGORIES" \
             "3" "Obfuscation mode: $GRIT_TRAILER_OBFUSCATION" \
@@ -1280,13 +1280,13 @@ configure_artifact_runtime_overrides() {
                 ;;
             4)
                 dialog --title "XOR key" \
-                    --inputbox "Optional hex XOR key for scripts/artifact-config --key. Leave blank to let artifact-config generate a random key. This is not encryption." \
+                    --inputbox "Optional hex XOR key for scripts/lib/artifact-config --key. Leave blank to let artifact-config generate a random key. This is not encryption." \
                     10 84 "$GRIT_TRAILER_XOR_KEY" 2>"$temp_out" || true
                 GRIT_TRAILER_XOR_KEY=$(cat "$temp_out")
                 ;;
             5)
                 dialog --title "Post-build command hints" \
-                    --msgbox "Show overrides:\n  scripts/artifact-config show dist/grit-<target>-full\n\nSet values:\n  scripts/artifact-config set dist/grit-<target>-full GRIT_OPERATOR_SERVER_HOST=host GRIT_ZERO_ARG_MODE=rshell\n\nClear overrides:\n  scripts/artifact-config clear dist/grit-<target>-full\n\nXOR is not encryption and should not be used for credentials or private keys." \
+                    --msgbox "Show overrides:\n  scripts/lib/artifact-config show dist/grit-<target>-full\n\nSet values:\n  scripts/lib/artifact-config set dist/grit-<target>-full GRIT_OPERATOR_SERVER_HOST=host GRIT_ZERO_ARG_MODE=rshell\n\nClear overrides:\n  scripts/lib/artifact-config clear dist/grit-<target>-full\n\nXOR is not encryption and should not be used for credentials or private keys." \
                     18 86
                 ;;
             H) show_page_help artifact-overrides ;;
@@ -1573,7 +1573,7 @@ configure_busybox_group_applets() {
     _group_enabled=no
     has_item "$GRIT_BUSYBOX_GROUPS" "$_group" && _group_enabled=yes
 
-    scripts/busybox-applet-map | awk -v group="$_group" -v group_enabled="$_group_enabled" -v overrides="$GRIT_BUSYBOX_APPLET_OVERRIDES" '
+    scripts/lib/busybox-applet-map | awk -v group="$_group" -v group_enabled="$_group_enabled" -v overrides="$GRIT_BUSYBOX_APPLET_OVERRIDES" '
         function quote(s,    q) {
             q = sprintf("%c", 39)
             gsub(q, q "\\" q q, s)
@@ -1610,7 +1610,7 @@ configure_busybox_group_applets() {
         case "$_old" in
             +*|-*)
                 _name=${_old#?}
-                if scripts/busybox-applet-map | awk -v group="$_group" -v applet="$_name" '$1 == group && $2 == applet { found = 1 } END { exit found ? 0 : 1 }'; then
+                if scripts/lib/busybox-applet-map | awk -v group="$_group" -v applet="$_name" '$1 == group && $2 == applet { found = 1 } END { exit found ? 0 : 1 }'; then
                     continue
                 fi
                 ;;
@@ -1627,7 +1627,7 @@ configure_busybox_group_applets() {
             _new_overrides="${_new_overrides:+$_new_overrides }+$_applet"
         fi
     done <<EOF
-$(scripts/busybox-applet-map | awk -v group="$_group" '$1 == group { print $2 }')
+$(scripts/lib/busybox-applet-map | awk -v group="$_group" '$1 == group { print $2 }')
 EOF
     GRIT_BUSYBOX_APPLET_OVERRIDES="$_new_overrides"
     return 0
@@ -1640,7 +1640,7 @@ configure_busybox_applet_search() {
     _query=$(cat "$temp_out")
     [ -n "$_query" ] || return 0
 
-    scripts/busybox-applet-map | awk -v query="$_query" -v groups="$GRIT_BUSYBOX_GROUPS" -v overrides="$GRIT_BUSYBOX_APPLET_OVERRIDES" '
+    scripts/lib/busybox-applet-map | awk -v query="$_query" -v groups="$GRIT_BUSYBOX_GROUPS" -v overrides="$GRIT_BUSYBOX_APPLET_OVERRIDES" '
         function quote(s,    q) {
             q = sprintf("%c", 39)
             gsub(q, q "\\" q q, s)
@@ -1699,7 +1699,7 @@ configure_busybox_applet_search() {
     done
     while IFS= read -r _applet; do
         [ -n "$_applet" ] || continue
-        _group=$(scripts/busybox-applet-map | awk -v applet="$_applet" '$2 == applet { print $1; exit }')
+        _group=$(scripts/lib/busybox-applet-map | awk -v applet="$_applet" '$2 == applet { print $1; exit }')
         _default=no
         has_item "$GRIT_BUSYBOX_GROUPS" "$_group" && _default=yes
         _chosen=no
@@ -1871,7 +1871,7 @@ check_gdbserver_compat_interactive() {
     _provider=${GRIT_GDBSERVER_PROVIDER:-auto}
     [ -n "$_arch" ] && [ -n "$_libc" ] || return 0
 
-    _result=$(scripts/check-tool-providers \
+    _result=$(scripts/lib/check-tool-providers \
         --arch "$_arch" --libc "$_libc" --static-policy "$_policy" \
         --tool gdbserver --provider "$_provider" 2>/dev/null) || return 0
 
@@ -3153,7 +3153,7 @@ configure_dotfile_app() {
 
 show_tool_warnings() {
     write_current_config "$temp_cfg"
-    warnings=$(scripts/print-tool-compat "$temp_cfg" 2>/dev/null || true)
+    warnings=$(scripts/lib/print-tool-compat "$temp_cfg" 2>/dev/null || true)
     dialog --title "Payload / Tool compatibility" --msgbox "$warnings" 20 86
 }
 

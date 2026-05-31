@@ -4,7 +4,7 @@ The test harness is layered so developers can get useful signal without propriet
 
 ## Layers
 
-`make smoke-test` builds `dist/grit-native-full`, runs `scripts/verify-artifact`, runs the native host binary, and validates the Tier 0 applet contract. It also checks artifact tier behavior, target tuple resolution, generated mipsel musl Buildroot config creation, payload manifest reality for missing tools, placeholder regression, menuconfig serialization, reverse-access server CLI behavior, `survey --json` parsing, `scripts/config-from-survey`, and copy-only self-extraction outside the repository.
+`make smoke-test` builds `dist/grit-native-full`, runs `scripts/lib/verify-artifact`, runs the native host binary, and validates the Tier 0 applet contract. It also checks artifact tier behavior, target tuple resolution, generated mipsel musl Buildroot config creation, payload manifest reality for missing tools, placeholder regression, menuconfig serialization, reverse-access server CLI behavior, `survey --json` parsing, `scripts/lib/config-from-survey`, and copy-only self-extraction outside the repository.
 
 `make test-qemu-user` runs target binaries under qemu-user when both the target binary and qemu interpreter exist. Missing cross binaries or interpreters are reported as `SKIP`, not as hard failures. This layer validates ELF compatibility, basic syscall compatibility, and applet behavior.
 The runner writes `tests/artifacts/qemu-user/summary.txt` and
@@ -53,7 +53,7 @@ Every backend runs the same Tier 0 smoke contract:
 - `writable_dirs`
 - `recommendations`
 
-`scripts/config-from-survey` then converts the JSON into compatibility-oriented build settings such as target arch, endian, kernel floor, payload mode viability, extract directory, and whether Tier 1 tools like tmux/strace/gdbserver look appropriate. Survey fixtures include modern OpenWrt, low-storage unknown targets, ancient MIPS/uClibc 2.4, and big-endian MIPS/uClibc 2.6 cases so compatibility scoring stays conservative across old router classes.
+`scripts/lib/config-from-survey` then converts the JSON into compatibility-oriented build settings such as target arch, endian, kernel floor, payload mode viability, extract directory, and whether Tier 1 tools like tmux/strace/gdbserver look appropriate. Survey fixtures include modern OpenWrt, low-storage unknown targets, ancient MIPS/uClibc 2.4, and big-endian MIPS/uClibc 2.6 cases so compatibility scoring stays conservative across old router classes.
 
 ## Target Matrix
 
@@ -68,7 +68,7 @@ Representative qemu-user targets live in `tests/matrix/targets.example.json`:
 - x86: `i386-linux-2.6-musl`
 - host/native: `native`
 
-Each entry names the expected self-extracting griTTYkit binary under `dist/` and the qemu-user interpreter. Add new generated targets by adding or editing a preset in `targets/presets.json` when useful, ensuring `scripts/gen-buildroot-defconfig` supports the tuple, producing `dist/grit-<target>-full`, running `scripts/check-buildroot-tool-mappings`, `scripts/inspect-artifact`, and `scripts/verify-artifact`, and adding a matrix entry with `name`, `arch`, `binary`, and `qemu_user`.
+Each entry names the expected self-extracting griTTYkit binary under `dist/` and the qemu-user interpreter. Add new generated targets by adding or editing a preset in `targets/presets.json` when useful, ensuring `scripts/lib/gen-buildroot-defconfig` supports the tuple, producing `dist/grit-<target>-full`, running `scripts/lib/check-buildroot-tool-mappings`, `scripts/lib/inspect-artifact`, and `scripts/lib/verify-artifact`, and adding a matrix entry with `name`, `arch`, `binary`, and `qemu_user`.
 
 ## QEMU User
 
@@ -129,10 +129,10 @@ Do not commit generated kernels, rootfs images, firmware, or proprietary dumps. 
 
 ## Survey Data
 
-Survey JSON is treated as compatibility data. It feeds `scripts/config-from-survey`, which prints recommended build settings:
+Survey JSON is treated as compatibility data. It feeds `scripts/lib/config-from-survey`, which prints recommended build settings:
 
 ```sh
-scripts/config-from-survey tests/artifacts/qemu-user/native/survey.json
+scripts/lib/config-from-survey tests/artifacts/qemu-user/native/survey.json
 ```
 
 This keeps target observations separate from build policy and makes later SDK selection reproducible.

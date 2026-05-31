@@ -2,7 +2,7 @@
 # Verify wolfSSL detection logic in build-native: env vars → pkg-config → -lwolfssl fallback.
 set -eu
 
-build=${1:-scripts/build-native}
+build=${1:-scripts/lib/build-native}
 
 [ -f "$build" ] || {
     printf '%s\n' "wolfssl-detection: missing $build" >&2
@@ -28,7 +28,7 @@ grep -q 'pkg-config.*wolfssl\|wolfssl/ssl.h' "$build"
 grep -q 'WOLFSSL_CFLAGS\|WOLFSSL_LIBS' "$build"
 
 # package-target must pass WOLFSSL_CFLAGS / WOLFSSL_LIBS through to build-native
-pkg=${2:-scripts/package-target}
+pkg=${2:-scripts/lib/package-target}
 [ -f "$pkg" ] || {
     printf '%s\n' "wolfssl-detection: missing $pkg" >&2
     exit 1
