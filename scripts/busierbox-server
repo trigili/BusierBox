@@ -21665,6 +21665,7 @@ def run_line_tui(cfg):
         print("  start SERVICE, stop SERVICE     control a service directly")
         print("  check                           dry-run the selected action module")
         print("  run [--dry-run] [--confirm]     run selected service/action module")
+        print("  run -j, run --job               start selected background action as a managed job")
         print("  interact SESSION                show local session inspection commands")
         print("  sessions -i SESSION             inspect a session")
         print("  queue COMMAND                   queue work for selected/offline target")
@@ -21672,7 +21673,7 @@ def run_line_tui(cfg):
         print("  files, staged                   list staged files and file workflow actions")
         print("  serve-binary [PATH] [NAME]      stage a BusierBox binary for target fetch")
         print("  mailbox, queue                  show command queue and target mailbox state")
-        print("  jobs                            show background jobs")
+        print("  jobs, jobs -k ID                show or cancel background jobs")
         print("  refresh                         redraw full workbench")
         print("  quit, exit                      quit")
         print("Numeric actions are still available for prompted workflows.")
@@ -21767,8 +21768,16 @@ def run_line_tui(cfg):
             ],
             "run": [
                 "run [--dry-run] [--confirm]",
+                "run -j",
+                "run --job",
                 "  Runs the selected action module, or starts the selected service module.",
+                "  -j/--job starts a selected background-capable workbench action as a managed job.",
                 "  Use check to dry-run the selected action module.",
+            ],
+            "jobs": [
+                "jobs",
+                "jobs -k ID",
+                "  Lists managed background jobs or cancels one by id.",
             ],
             "queue": [
                 "queue COMMAND",
@@ -22108,6 +22117,46 @@ def run_line_tui(cfg):
                 f"managed={'yes' if rec.get('pid_managed') else 'no'} "
                 f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
             )
+
+    def select_line_job(selector):
+        text = str(selector or "").strip()
+        if not text:
+            raise ValueError("usage: jobs -k ID")
+        jobs = workbench_snapshot(cfg).get("workbench_jobs") or []
+        if text.isdigit():
+            idx = int(text) - 1
+            if 0 <= idx < len(jobs):
+                return jobs[idx]
+        for rec in jobs:
+            if str(rec.get("id") or "") == text:
+                return rec
+        raise ValueError(f"unknown workbench job: {text}")
+
+    def cancel_line_job(selector):
+        rec = select_line_job(selector)
+        job_id = str(rec.get("id") or selector)
+        headless = cancel_workbench_job_headless_command(cfg, job_id)
+        cancelled = cancel_workbench_job(cfg, job_id, headless_command=headless)
+        print(f"cancel requested for {cancelled.get('id', job_id)}")
+        print(f"headless_command: {headless}")
+
+    def start_line_job(action_selector=""):
+        selector = str(action_selector or "").strip()
+        action = {}
+        if selector:
+            action = select_line_action(selector)
+        else:
+            action = selected_line_action()
+        if not action or str(action.get("kind") or "") != "workbench":
+            raise ValueError("no selected background-capable workbench action; use module ACTION first")
+        if action.get("background_supported") is not True:
+            raise ValueError(f"workbench action is not background-capable: {action.get('id', '')}")
+        action_id = str(action.get("id") or "")
+        headless = start_workbench_job_headless_command(cfg, action_id)
+        rec = start_workbench_job(cfg, action_id, headless_command=headless)
+        print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
+        print(f"headless_command: {headless}")
+        print(f"command: {rec.get('command', '')}")
 
     def print_line_daemon_actions():
         snap = workbench_snapshot(cfg)
@@ -22825,7 +22874,10 @@ def run_line_tui(cfg):
                 continue
             elif cmd == "run":
                 try:
-                    if selected_line_action():
+                    if any(item in {"-j", "--job"} for item in console_args[1:]):
+                        action_selector = " ".join(item for item in console_args[1:] if item not in {"-j", "--job"}).strip()
+                        start_line_job(action_selector)
+                    elif selected_line_action():
                         run_line_selected_action(console_args[1:])
                     else:
                         start_line_service(" ".join(console_args[1:]).strip())
@@ -22863,7 +22915,13 @@ def run_line_tui(cfg):
                 compact_next_prompt = False
                 choice = "20"
             elif cmd == "jobs":
-                print_line_jobs()
+                try:
+                    if len(console_args) >= 3 and console_args[1] in {"-k", "--kill", "--cancel"}:
+                        cancel_line_job(" ".join(console_args[2:]).strip())
+                    else:
+                        print_line_jobs()
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif cmd in {"serve-binary", "binary"}:
                 selector = console_args[1] if len(console_args) >= 2 else ""
