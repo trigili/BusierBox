@@ -21991,8 +21991,10 @@ def run_line_tui(cfg):
                     ("start ssh|tls-shell|plain-shell|file-service", "start a listener"),
                     ("stop SERVICE", "stop a running listener"),
                     ("run", "start the selected listener service"),
-                    ("options", "show selected listener options"),
-                    ("info", "show selected listener context and headless commands"),
+                    ("options", "show selected listener options and relevant settings"),
+                    ("info", "show selected listener context"),
+                    ("copy start", "copy the start command to clipboard"),
+                    ("copy stop", "copy the stop command to clipboard"),
                 ],
             },
             "sessions": {
@@ -22914,19 +22916,13 @@ def run_line_tui(cfg):
                 raise ValueError(f"service not found: {text}")
             service = matches[0]
         cfg["_line_console_module"] = f"service/{service}"
-        print(f"selected service {service}")
+        # Store headless commands so `copy start` / `copy stop` can retrieve them
+        cfg["_service_start_command"] = service_start_headless_command(cfg, service)
+        cfg["_service_stop_command"] = service_stop_headless_command(cfg, service)
         rec = line_service_record(service)
-        if rec:
-            print(
-                f"  actual={rec.get('actual', '') or '-'} "
-                f"configured={rec.get('configured', '') or '-'} "
-                f"port={rec.get('port', '') or '-'} "
-                f"pid={rec.get('pid', '') or '-'} "
-                f"managed={'yes' if rec.get('pid_managed') else 'no'}"
-            )
-        print(f"  start: {service_start_headless_command(cfg, service)}")
-        print(f"  stop: {service_stop_headless_command(cfg, service)}")
-        print("  next: info, options, start, stop, run, back")
+        status = f"actual={rec.get('actual','?')} port={rec.get('port','?')} pid={rec.get('pid','-') or '-'}" if rec else ""
+        print(f"selected service {service}  {status}")
+        print("  options  info  start  stop  run  copy start  back")
         return service
 
     def clear_line_module():
@@ -23154,7 +23150,7 @@ def run_line_tui(cfg):
                 return start_line_route(service)
             raise ValueError(f"service or route not found: {service}")
         headless = service_start_headless_command(cfg, service)
-        print(f"headless_command: {headless}")
+        cfg["_service_start_command"] = headless
         start_service_process(cfg, service, headless_command=headless)
 
     def stop_line_service(service):
@@ -23174,7 +23170,7 @@ def run_line_tui(cfg):
                 return stop_line_route(service)
             raise ValueError(f"service or route not found: {service}")
         headless = service_stop_headless_command(cfg, service)
-        print(f"headless_command: {headless}")
+        cfg["_service_stop_command"] = headless
         stop_recorded_service(cfg, service, headless_command=headless)
 
     def line_route_record(name):
@@ -26003,10 +25999,29 @@ def run_line_tui(cfg):
                     print(exc)
                 continue
             elif cmd == "copy":
-                try:
-                    copy_line_generated_command(" ".join(console_args[1:]).strip())
-                except ValueError as exc:
-                    print(exc)
+                subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
+                if subcmd in {"start", "stop"}:
+                    key = f"_service_{subcmd}_command"
+                    command = str(cfg.get(key) or "")
+                    if not command:
+                        # derive on demand from current service context
+                        module = str(cfg.get("_line_console_module") or "")
+                        if module.startswith("service/"):
+                            svc = module.split("/", 1)[1]
+                            command = (service_start_headless_command(cfg, svc)
+                                       if subcmd == "start"
+                                       else service_stop_headless_command(cfg, svc))
+                    if not command:
+                        print(f"no {subcmd} command available — select a service first")
+                    else:
+                        rec = copy_text_for_operator(cfg, command, label=f"{subcmd} command")
+                        print(f"copied {subcmd} command  clipboard={'yes' if rec.get('clipboard') else 'no'}")
+                        print(f"  {command}")
+                else:
+                    try:
+                        copy_line_generated_command(" ".join(console_args[1:]).strip())
+                    except ValueError as exc:
+                        print(exc)
                 continue
             elif cmd in {"categories", "category", "module-categories"}:
                 print_line_module_categories()
