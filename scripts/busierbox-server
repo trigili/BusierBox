@@ -21694,6 +21694,7 @@ def run_line_tui(cfg):
         print("  survey [--start|--queue]        show, serve, or queue survey bootstrap")
         print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
         print("  upload [--start] LOCAL [NAME]   stage and optionally serve a local file")
+        print("  fetch [--queue] [--start] NAME  show or queue target fetch of staged file")
         print("  files, staged                   list staged files and file workflow actions")
         print("  unstage NAME                    remove a staged file request")
         print("  view PATH, cat PATH             view a local session/artifact path")
@@ -22004,6 +22005,14 @@ def run_line_tui(cfg):
                 "  --start starts the file-service after staging.",
                 "  NAME defaults to the local basename. Use downloads or files to list staged files.",
             ],
+            "fetch": [
+                "fetch [--queue] [--start] NAME",
+                "deploy [--queue] [--start] NAME",
+                "queue-fetch [--start] NAME",
+                "  Shows the target-side command for fetching an operator-staged file.",
+                "  --queue stores that command in the selected agent mailbox for later phone-home delivery.",
+                "  --start starts the file-service before printing or queueing the command.",
+            ],
             "files": [
                 "files",
                 "stagers",
@@ -22207,7 +22216,7 @@ def run_line_tui(cfg):
         elif target_id:
             target_filter = snap.get("target_filter") or {}
             print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
-            print("  commands: interact, queue COMMAND, survey --queue, download --queue TARGET_PATH, upload --start LOCAL NAME, show activity, serve-binary --start PATH NAME, clear target")
+            print("  commands: interact, queue COMMAND, survey --queue, download --queue TARGET_PATH, upload --start LOCAL NAME, fetch --queue NAME, show activity, serve-binary --start PATH NAME, clear target")
         else:
             print("  selected agent=all")
             print("  commands: workspace, agents, listeners, routes, sessions, show categories, search TERM")
@@ -22665,7 +22674,7 @@ def run_line_tui(cfg):
         state = target.get("connectivity_state") or target_filter.get("connectivity_state") or "-"
         print(f"Agent interaction: {target_id} label={label} state={state}")
         print(target_filter_summary_text(target_filter, prefix="  status:"))
-        print("  commands: queue COMMAND, survey --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], serve-binary --start PATH [NAME], sessions, show activity, clear target")
+        print("  commands: queue COMMAND, survey --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target")
         print(
             "  headless_status: scripts/busierbox-server --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
@@ -23180,7 +23189,7 @@ def run_line_tui(cfg):
             "useagent", "uselistener", "useroute", "usesession", "usemodule",
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
-            "download", "get", "survey", "survey-bootstrap", "daemon", "upload", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
+            "download", "get", "survey", "survey-bootstrap", "daemon", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
             "quit", "exit",
         ]
         show_resources = [
@@ -23193,7 +23202,7 @@ def run_line_tui(cfg):
         help_topics = [
             "search", "complete", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
-            "routes", "set", "setg", "run", "jobs", "queue", "download", "survey", "upload", "files", "view",
+            "routes", "set", "setg", "run", "jobs", "queue", "download", "survey", "upload", "fetch", "files", "view",
             "daemon", "interact", "sessions",
         ]
 
@@ -23316,7 +23325,7 @@ def run_line_tui(cfg):
         if cmd in {"usemodule", "useaction", "run", "execute", "exploit", "check"}:
             selector_prefix = "" if trailing_space else " ".join(parts[1:])
             return [f"{cmd} {item}" for item in prefixed(selector_prefix, action_names())]
-        if cmd in {"unstage", "rmfile", "rm-file"}:
+        if cmd in {"fetch", "deploy", "queue-fetch", "unstage", "rmfile", "rm-file"}:
             selector_prefix = "" if trailing_space else " ".join(parts[1:])
             staged_names = [
                 str(name or "")
@@ -24256,6 +24265,107 @@ def run_line_tui(cfg):
         })
         return rec
 
+    def parse_line_fetch_args(args, queue_default=False):
+        queue = bool(queue_default)
+        start_file_service = False
+        values = []
+        for item in args:
+            lower = item.lower()
+            if lower in {"--queue", "-q"}:
+                queue = True
+            elif lower in {"--start", "--start-service"}:
+                start_file_service = True
+            else:
+                values.append(item)
+        if len(values) > 1:
+            raise ValueError("usage: fetch [--queue] [--start] NAME")
+        return (values[0] if values else ""), queue, start_file_service
+
+    def staged_line_record(request_name):
+        name = str(request_name or "").strip()
+        if not name:
+            return "", {}
+        staged = load_staged(cfg).get("staged") or {}
+        if name in staged and isinstance(staged.get(name), dict):
+            return name, staged[name]
+        if name.isdigit():
+            names = sorted(str(item or "") for item in staged.keys() if str(item or ""))
+            idx = int(name) - 1
+            if 0 <= idx < len(names):
+                selected = names[idx]
+                rec = staged.get(selected) or {}
+                return selected, rec if isinstance(rec, dict) else {}
+        return name, {}
+
+    def fetch_line_staged(request_name, queue=False, start_file_service=False):
+        name, rec = staged_line_record(request_name)
+        if not name:
+            raise ValueError("usage: fetch [--queue] [--start] NAME")
+        if not rec:
+            raise ValueError(f"staged request not found: {name}")
+        target_id = configured_target_filter(cfg)
+        if queue and not target_id:
+            raise ValueError("select an agent before fetch --queue; use agent NAME or use target ID")
+        staged_target = str(rec.get("target_id") or "")
+        if queue and staged_target and staged_target != target_id:
+            raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
+        scoped = scoped_target_cfg(cfg, target_id, target_label=str(selected_target_context(cfg).get("target_label") or "")) if target_id else cfg
+        fetch_command = render_fetch_command(name, scoped)
+        if target_id:
+            headless = (
+                "scripts/busierbox-server --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --target-id "
+                + shquote(target_id)
+                + " --run-target-workflow-action queue-staged-fetch --target-workflow-request-name "
+                + shquote(name)
+            )
+        else:
+            headless = (
+                "scripts/busierbox-server --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --run-staged-file-workflow-action "
+                + shquote(f"{name}:show-fetch-command")
+            )
+        started = False
+        if start_file_service:
+            start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
+            started = True
+        print("Staged fetch command:")
+        print(f"  request_name={name}")
+        print(f"  source_path={rec.get('source_path', '')}")
+        if target_id:
+            label = str(selected_target_context(cfg).get("target_label") or "")
+            print(f"  target={target_id} label={label}")
+        print(f"  target_fetch_command={fetch_command}")
+        print(f"  file_service_started={'yes' if started else 'no'}")
+        queued = {}
+        if queue:
+            queued = queue_command(scoped, fetch_command, metadata={
+                "work_kind": "staged-fetch",
+                "workflow": "file-service",
+                "request_name": name,
+                "route_kind": str(rec.get("route_kind") or "direct"),
+                "bridge_profile": str(rec.get("bridge_profile") or ""),
+                "bridge_route_path": str(rec.get("bridge_route_path") or ""),
+            })
+            print(f"queued {queued['id']}: {queued['command']}")
+            print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        print(f"headless_command: {headless}")
+        append_event(cfg, "workbench", "workbench_staged_fetch_command_shown", details={
+            "headless_command": headless,
+            "request_name": name,
+            "source_path": str(rec.get("source_path") or ""),
+            "target_id": target_id,
+            "target_label": str(selected_target_context(cfg).get("target_label") or ""),
+            "target_command": fetch_command,
+            "target_command_sha256": hashlib.sha256(fetch_command.encode("utf-8")).hexdigest() if fetch_command else "",
+            "queued": bool(queue),
+            "command_id": queued.get("id", "") if queued else "",
+            "started_file_service": started,
+        })
+        return fetch_command
+
     def unstage_line_file(request_name):
         name = str(request_name or "").strip()
         if not name:
@@ -24835,6 +24945,13 @@ def run_line_tui(cfg):
                 try:
                     selector, request_name, start_upload_service = parse_line_file_args(console_args[1:])
                     stage_line_file(selector, request_name, start_file_service=start_upload_service)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"fetch", "deploy", "queue-fetch"}:
+                try:
+                    request_name, queue_fetch, start_fetch_service = parse_line_fetch_args(console_args[1:], queue_default=cmd == "queue-fetch")
+                    fetch_line_staged(request_name, queue=queue_fetch, start_file_service=start_fetch_service)
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -27015,6 +27132,8 @@ Operations:
   serve-binary [--start] [PATH] [NAME]
                                 stage and optionally serve a BusierBox binary
   upload [--start] LOCAL [NAME] stage and optionally serve a local file
+  fetch [--queue] [--start] NAME
+                                show or queue target fetch of a staged file
   download [--queue] TARGET_PATH
                                 show or queue a target-to-operator upload command
   survey [--start|--queue]       show, serve, or queue survey bootstrap

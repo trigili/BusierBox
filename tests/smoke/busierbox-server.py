@@ -170,6 +170,7 @@ def main():
             "jobs, jobs -i ID, job ID" not in console_help or
             "interact agent ID|LABEL" not in console_help or
             "serve-binary [--start] [PATH] [NAME]" not in console_help or
+            "fetch [--queue] [--start] NAME" not in console_help or
             "resource FILE" not in console_help or
             "makerc FILE" not in console_help or
             "!!, !N, repeat N" not in console_help or
@@ -10149,6 +10150,7 @@ def main():
                     "help view\n"
                     "help download\n"
                     "help survey\n"
+                    "help fetch\n"
                     "complete\n"
                     "complete use ag\n"
                     "complete agent Con\n"
@@ -10297,6 +10299,7 @@ def main():
                     "download --queue /etc/config/network\n"
                     "show mailbox\n"
                     f"upload --start {line_console_upload} console-upload\n"
+                    "fetch --queue console-upload\n"
                     "stop file-service\n"
                     "downloads\n"
                     f"serve-binary --start {line_console_binary} busierbox-console\n"
@@ -10383,6 +10386,7 @@ def main():
                 "Help: view" not in line_console_stdout or
                 "Help: download" not in line_console_stdout or
                 "Help: survey" not in line_console_stdout or
+                "Help: fetch" not in line_console_stdout or
                 "Help: files" not in line_console_stdout or
                 "complete [PREFIX]               show command/resource completions" not in line_console_stdout or
                 "Completions for <root>:" not in line_console_stdout or
@@ -10468,6 +10472,9 @@ def main():
                 "Shows the target-side command for the architecture-agnostic survey bootstrap script." not in line_console_stdout or
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "upload [--start] LOCAL [NAME]   stage and optionally serve a local file" not in line_console_stdout or
+                "fetch [--queue] [--start] NAME  show or queue target fetch of staged file" not in line_console_stdout or
+                "fetch [--queue] [--start] NAME" not in line_console_stdout or
+                "Shows the target-side command for fetching an operator-staged file." not in line_console_stdout or
                 "unstage NAME                    remove a staged file request" not in line_console_stdout or
                 "view PATH, cat PATH             view a local session/artifact path" not in line_console_stdout or
                 "rmfile NAME" not in line_console_stdout or
@@ -10512,7 +10519,7 @@ def main():
                 "selected route=console-route" not in line_console_stdout or
                 "selected module=daemon:operator-daemon-status" not in line_console_stdout or
                 "commands: options, check, run, run --dry-run, run --confirm, background" not in line_console_stdout or
-                "commands: interact, queue COMMAND, survey --queue, download --queue TARGET_PATH, upload --start LOCAL NAME, show activity, serve-binary --start PATH NAME, clear target" not in line_console_stdout or
+                "commands: interact, queue COMMAND, survey --queue, download --queue TARGET_PATH, upload --start LOCAL NAME, fetch --queue NAME, show activity, serve-binary --start PATH NAME, clear target" not in line_console_stdout or
                 "help: help use, help modules, help routes, help sessions" not in line_console_stdout or
                 "returned to main workspace" not in line_console_stdout or
                 "cleared_module=no cleared_target=yes" not in line_console_stdout or
@@ -10558,7 +10565,7 @@ def main():
                 "useagent Console Router" not in line_console_stdout or
                 "agent Console Router" not in line_console_stdout or
                 "Agent interaction: line-console-target label=Console Router state=online" not in line_console_stdout or
-                "commands: queue COMMAND, survey --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], serve-binary --start PATH [NAME], sessions, show activity, clear target" not in line_console_stdout or
+                "commands: queue COMMAND, survey --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target" not in line_console_stdout or
                 "headless_status: scripts/busierbox-server --config" not in line_console_stdout or
                 "pending work: none" not in line_console_stdout or
                 "rename Console Router" not in line_console_stdout or
@@ -10626,6 +10633,7 @@ def main():
                 "File staged for target fetch:" not in line_console_stdout or
                 "request_name=console-upload" not in line_console_stdout or
                 "target_fetch_command=busierbox fetch console-upload" not in line_console_stdout or
+                "Staged fetch command:" not in line_console_stdout or
                 "--serve-file " not in line_console_stdout or
                 "unstaged console-upload" not in line_console_stdout or
                 "not staged missing-upload" not in line_console_stdout or
@@ -10722,6 +10730,7 @@ def main():
                 not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_survey_bootstrap_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_target_download_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("target_upload_path") == "/etc/config/network" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
+                not any(event.get("event") == "workbench_staged_fetch_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("request_name") == "console-upload" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
                 len([event for event in line_console_events if event.get("event") == "workbench_command_queue_inspected"]) < 2 or
                 not any(
                     event.get("event") == "workbench_file_uploaded" and
