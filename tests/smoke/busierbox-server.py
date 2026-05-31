@@ -9969,6 +9969,28 @@ def main():
         line_console_state = Path(tmp) / "operator-session" / "line-console-state.json"
         line_console_staged = Path(tmp) / "operator-session" / "line-console-staged.json"
         line_console_routes = Path(tmp) / "operator-session" / "line-console-bridge-profiles.json"
+        line_console_jobs = Path(tmp) / "operator-session-upload" / "workbench-jobs.json"
+        line_console_job_log = Path(tmp) / "operator-session-upload" / "jobs" / "line-console-job.log"
+        line_console_job_log.parent.mkdir(parents=True, exist_ok=True)
+        line_console_job_log.write_text("line console job log\nline console job tail\n", encoding="utf-8")
+        line_console_jobs.write_text(json.dumps({
+            "schema": 1,
+            "jobs": [
+                {
+                    "id": "line-console-job",
+                    "action_id": "package-artifact",
+                    "category": "release",
+                    "script": "printf line-console-job",
+                    "command": "printf line-console-job",
+                    "state": "running",
+                    "pid": "",
+                    "log_path": str(line_console_job_log),
+                    "started_at": "2026-01-01T00:00:00Z",
+                    "background_supported": True,
+                    "long_running": True,
+                },
+            ],
+        }, indent=2), encoding="utf-8")
         line_console_build = Path(tmp) / "line-console-build.conf"
         line_console_build.write_text('BB_RUNTIME_ROOT="./.busierbox"\n', encoding="utf-8")
         line_console_resource = Path(tmp) / "line-console.rc"
@@ -10131,6 +10153,17 @@ def main():
                     "routes\n"
                     "daemon\n"
                     "jobs -k missing-job\n"
+                    "jobs\n"
+                    "jobs -v\n"
+                    "jobs -i 1\n"
+                    "info\n"
+                    "options\n"
+                    "next\n"
+                    "back\n"
+                    "search line-console-job\n"
+                    "use 1\n"
+                    "job line-console-job\n"
+                    "background\n"
                     "daemon status --dry-run\n"
                     "show actions\n"
                     "usemodule operator-daemon-status\n"
@@ -10197,7 +10230,7 @@ def main():
                 ).encode("utf-8"),
             )
             line_console_chunks = []
-            deadline = time.time() + 8
+            deadline = time.time() + 10
             while line_console_proc.poll() is None and time.time() < deadline:
                 ready, _, _ = select.select([line_console_master], [], [], 0.1)
                 if ready:
@@ -10309,9 +10342,12 @@ def main():
                 "upload LOCAL [NAME]             stage a local file for target fetch" not in line_console_stdout or
                 "downloads                       list target-fetchable staged files" not in line_console_stdout or
                 "run -j, run --job               start selected background action as a managed job" not in line_console_stdout or
+                "use job ID, jobs -i ID          select or inspect a background job" not in line_console_stdout or
                 "execute, exploit                aliases for run" not in line_console_stdout or
                 "execute [--dry-run] [--confirm]" not in line_console_stdout or
-                "jobs, jobs -k ID                show or cancel background jobs" not in line_console_stdout or
+                "jobs, job ID, jobs -k ID        show, select, or cancel background jobs" not in line_console_stdout or
+                "jobs -i ID" not in line_console_stdout or
+                "use job ID" not in line_console_stdout or
                 "use N                           use a numbered search/list/module result" not in line_console_stdout or
                 "use action ACTION               select an action module context" not in line_console_stdout or
                 "check                           dry-run the selected action module" not in line_console_stdout or
@@ -10359,6 +10395,19 @@ def main():
                 "next: info, options, check, run, back" not in line_console_stdout or
                 "Daemon workflow actions:" not in line_console_stdout or
                 "unknown workbench job: missing-job" not in line_console_stdout or
+                "Background jobs:" not in line_console_stdout or
+                "commands: jobs, jobs -i ID, use job ID, use N, jobs -k ID" not in line_console_stdout or
+                "line-console-job action=package-artifact state=running" not in line_console_stdout or
+                "inspect: jobs -i line-console-job" not in line_console_stdout or
+                "selected job line-console-job" not in line_console_stdout or
+                "bbx[all]/job/line-console-job>" not in line_console_stdout or
+                "job.id=line-console-job" not in line_console_stdout or
+                "job.action=package-artifact" not in line_console_stdout or
+                "job.cancel_supported=no" not in line_console_stdout or
+                "job.log_path=" not in line_console_stdout or
+                "commands: info, options, jobs, jobs -i ID, background" not in line_console_stdout or
+                "Search results for line-console-job:" not in line_console_stdout or
+                "command: use job line-console-job" not in line_console_stdout or
                 "Console action modules:" not in line_console_stdout or
                 "operator-daemon-status" not in line_console_stdout or
                 "usemodule operator-daemon-status" not in line_console_stdout or
@@ -10469,6 +10518,8 @@ def main():
                 not any(event.get("event") == "workbench_session_selected" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
                 not any(event.get("event") == "workbench_sessions_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
+                not any(event.get("event") == "workbench_job_selected" and (event.get("details") or {}).get("job_id") == "line-console-job" for event in line_console_events) or
+                not any(event.get("event") == "workbench_jobs_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/bbx-global" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_unset" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" for event in line_console_events) or
@@ -10494,6 +10545,7 @@ def main():
                 not any(event.get("event") == "workbench_routes_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_route_selected" and (event.get("details") or {}).get("name") == "console-route" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "name=file-service" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "line-console-job" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
                 not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or

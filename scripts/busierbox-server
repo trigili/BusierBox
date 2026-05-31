@@ -21640,7 +21640,7 @@ def run_line_tui(cfg):
     def print_line_console_help():
         print("Console commands:")
         print("  help [COMMAND], ?               show console command help")
-        print("  search TERM                     search targets, services, actions, sessions, files, queue")
+        print("  search TERM                     search targets, services, actions, sessions, jobs, files, queue")
         print("  resource FILE                   run console commands from a script file")
         print("  history, !!, !N, repeat N       show or replay command history")
         print("  info                            show selected target/module context")
@@ -21680,6 +21680,7 @@ def run_line_tui(cfg):
         print("  run [--dry-run] [--confirm]     run selected service/action module")
         print("  execute, exploit                aliases for run")
         print("  run -j, run --job               start selected background action as a managed job")
+        print("  use job ID, jobs -i ID          select or inspect a background job")
         print("  sessions [-l|-v], session ID    list or inspect sessions")
         print("  use session ID                  select a session context")
         print("  interact SESSION, sessions -i   show local session inspection commands")
@@ -21690,7 +21691,7 @@ def run_line_tui(cfg):
         print("  downloads                       list target-fetchable staged files")
         print("  serve-binary [PATH] [NAME]      stage a BusierBox binary for target fetch")
         print("  mailbox, queue                  show command queue and target mailbox state")
-        print("  jobs, jobs -k ID                show or cancel background jobs")
+        print("  jobs, job ID, jobs -k ID        show, select, or cancel background jobs")
         print("  refresh                         redraw full workbench")
         print("  quit, exit                      quit")
         print("Numeric actions are still available for prompted workflows.")
@@ -21782,7 +21783,7 @@ def run_line_tui(cfg):
         help_text = {
             "search": [
                 "search TERM",
-                "  Searches targets, services, action modules, sessions, staged files, and queued commands.",
+                "  Searches targets, services, action modules, sessions, jobs, staged files, and queued commands.",
                 "  Example: search file-service",
             ],
             "resource": [
@@ -21803,6 +21804,7 @@ def run_line_tui(cfg):
                 "use listener SERVICE",
                 "use route NAME|NUMBER",
                 "use session SESSION",
+                "use job ID|NUMBER",
                 "use module ACTION",
                 "useagent ID|LABEL|NUMBER",
                 "uselistener SERVICE",
@@ -21812,7 +21814,7 @@ def run_line_tui(cfg):
                 "use target ID|LABEL|NUMBER",
                 "use service SERVICE",
                 "use action ACTION",
-                "  Selects a numbered search/list/module result, target, session, route, service module, or action module context.",
+                "  Selects a numbered search/list/module result, target, session, job, route, service module, or action module context.",
             ],
             "main": [
                 "main",
@@ -21902,8 +21904,12 @@ def run_line_tui(cfg):
             ],
             "jobs": [
                 "jobs",
+                "jobs -i ID",
                 "jobs -k ID",
-                "  Lists managed background jobs or cancels one by id.",
+                "job ID",
+                "use job ID",
+                "  Lists, selects, inspects, or cancels managed background jobs.",
+                "  Selected jobs support info, options, next, and back.",
             ],
             "queue": [
                 "queue COMMAND",
@@ -22027,6 +22033,27 @@ def run_line_tui(cfg):
                     print(f"    event_log={rec.get('event_log', '')}")
                 print(f"    view={view_path_headless_command(cfg, path)}")
             print("    next: options, interact, sessions -v, back")
+        elif module.startswith("job/"):
+            job_id = module.split("/", 1)[1]
+            rec = line_job_record(job_id)
+            print(f"  job={job_id}")
+            if rec:
+                print(
+                    f"    action={rec.get('action_id', '') or '-'} "
+                    f"state={rec.get('effective_state', '') or rec.get('state', '') or '-'} "
+                    f"pid={rec.get('pid', '') or '-'} "
+                    f"managed={'yes' if rec.get('pid_managed') else 'no'} "
+                    f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
+                )
+                print(f"    command={rec.get('command', '') or '-'}")
+                if rec.get("log_path"):
+                    print(f"    log={rec.get('log_path', '')}")
+                if rec.get("last_output_tail"):
+                    print("    last_output:")
+                    for line in rec.get("last_output_tail") or []:
+                        print(f"      {line}")
+                print(f"    cancel={cancel_workbench_job_headless_command(cfg, job_id)}")
+            print("    next: options, jobs, jobs -i ID, back")
         else:
             print("  action=none")
         target_filter = snap.get("target_filter") or {}
@@ -22065,6 +22092,13 @@ def run_line_tui(cfg):
             session_id = module.split("/", 1)[1]
             print(f"  selected session={session_id}")
             print("  commands: info, options, interact, sessions -v, background")
+        elif module.startswith("job/"):
+            job_id = module.split("/", 1)[1]
+            rec = line_job_record(job_id)
+            print(f"  selected job={job_id}")
+            if rec:
+                print(f"  action={rec.get('action_id', '') or '-'} state={rec.get('effective_state', '') or rec.get('state', '') or '-'}")
+            print("  commands: info, options, jobs, jobs -i ID, background")
         elif target_id:
             target_filter = snap.get("target_filter") or {}
             print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
@@ -22191,6 +22225,23 @@ def run_line_tui(cfg):
                     print(f"  session.event_log={rec.get('event_log', '')}")
                 print(f"  session.view_command={view_path_headless_command(cfg, path)}")
             print("  session.next=info, interact, sessions -v, back")
+        elif module.startswith("job/"):
+            job_id = module.split("/", 1)[1]
+            rec = line_job_record(job_id)
+            print(f"  job.id={job_id}")
+            if rec:
+                print(f"  job.action={rec.get('action_id', '') or '-'}")
+                print(f"  job.state={rec.get('state', '') or '-'}")
+                print(f"  job.effective_state={rec.get('effective_state', '') or '-'}")
+                print(f"  job.pid={rec.get('pid', '') or '-'}")
+                print(f"  job.pid_managed={'yes' if rec.get('pid_managed') else 'no'}")
+                print(f"  job.cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}")
+                print(f"  job.log_path={rec.get('log_path', '') or '-'}")
+                print(f"  job.log_exists={'yes' if rec.get('log_exists') else 'no'}")
+                print(f"  job.elapsed_sec={rec.get('elapsed_sec', '') if rec.get('elapsed_sec') != '' else '-'}")
+                print(f"  job.exit_status={rec.get('exit_status', '') if rec.get('exit_status') != '' else '-'}")
+                print(f"  job.cancel_command={cancel_workbench_job_headless_command(cfg, job_id)}")
+            print("  job.next=info, jobs, jobs -i ID, back")
         action = selected_line_action()
         if action:
             command = action.get("headless_command", action.get("run_command", action.get("command", "")))
@@ -22676,25 +22727,10 @@ def run_line_tui(cfg):
         print(f"headless_command: {headless}")
         stop_recorded_service(cfg, "bridge", headless_command=headless)
 
-    def print_line_jobs():
-        snap = workbench_snapshot(cfg)
-        jobs = snap.get("workbench_jobs") or []
-        if not jobs:
-            print("No background jobs.")
-            return
-        print("Background jobs:")
-        for rec in jobs:
-            print(
-                f"  {rec.get('id', '')}: action={rec.get('action_id', '')} "
-                f"state={rec.get('effective_state', '')} "
-                f"managed={'yes' if rec.get('pid_managed') else 'no'} "
-                f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
-            )
-
-    def select_line_job(selector):
+    def line_job_record(selector):
         text = str(selector or "").strip()
         if not text:
-            raise ValueError("usage: jobs -k ID")
+            return {}
         jobs = workbench_snapshot(cfg).get("workbench_jobs") or []
         if text.isdigit():
             idx = int(text) - 1
@@ -22703,11 +22739,80 @@ def run_line_tui(cfg):
         for rec in jobs:
             if str(rec.get("id") or "") == text:
                 return rec
+        return {}
+
+    def print_line_jobs(verbose=False):
+        snap = workbench_snapshot(cfg)
+        jobs = snap.get("workbench_jobs") or []
+        if not jobs:
+            print("No background jobs.")
+            cfg["_line_console_search_results"] = []
+            return
+        print("Background jobs:")
+        print("  commands: jobs, jobs -i ID, use job ID, use N, jobs -k ID")
+        search_records = []
+        for idx, rec in enumerate(jobs, 1):
+            print(
+                f"  {idx}: {rec.get('id', '')} action={rec.get('action_id', '')} "
+                f"state={rec.get('effective_state', '')} "
+                f"managed={'yes' if rec.get('pid_managed') else 'no'} "
+                f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
+            )
+            if verbose:
+                print(f"     log={rec.get('log_path', '') or '-'}")
+                print(f"     inspect: jobs -i {shquote(str(rec.get('id', '')))}")
+                print(f"     use: use job {shquote(str(rec.get('id', '')))}")
+            search_records.append({
+                "kind": "job",
+                "label": f"{rec.get('id', '')} action={rec.get('action_id', '')} state={rec.get('effective_state', '')}",
+                "rec": rec,
+                "command": cancel_workbench_job_headless_command(cfg, str(rec.get("id") or "")),
+                "use_hint": f"use job {shquote(str(rec.get('id', '')))}",
+            })
+        cfg["_line_console_search_results"] = search_records
+        append_event(cfg, "workbench", "workbench_jobs_listed", details={
+            "job_count": len(jobs),
+            "verbose": bool(verbose),
+        })
+
+    def select_line_job(selector):
+        text = str(selector or "").strip()
+        if not text:
+            raise ValueError("usage: use job ID")
+        rec = line_job_record(text)
+        if rec:
+            job_id = str(rec.get("id") or "")
+            cfg["_line_console_module"] = f"job/{job_id}"
+            cfg.pop("_line_console_action_kind", None)
+            cfg.pop("_line_console_action_id", None)
+            print(f"selected job {job_id}")
+            print(
+                f"  action={rec.get('action_id', '') or '-'} "
+                f"state={rec.get('effective_state', '') or rec.get('state', '') or '-'} "
+                f"managed={'yes' if rec.get('pid_managed') else 'no'} "
+                f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
+            )
+            if rec.get("log_path"):
+                print(f"  log={rec.get('log_path', '')}")
+            print("  next: info, options, jobs, jobs -i ID, back")
+            append_event(cfg, "workbench", "workbench_job_selected", details={
+                "job_id": job_id,
+                "action_id": rec.get("action_id", ""),
+                "effective_state": rec.get("effective_state", ""),
+            })
+            return rec
         raise ValueError(f"unknown workbench job: {text}")
 
     def cancel_line_job(selector):
-        rec = select_line_job(selector)
-        job_id = str(rec.get("id") or selector)
+        text = str(selector or "").strip()
+        if not text:
+            module = str(cfg.get("_line_console_module") or "")
+            if module.startswith("job/"):
+                text = module.split("/", 1)[1]
+        rec = line_job_record(text)
+        if not rec:
+            raise ValueError(f"unknown workbench job: {text}")
+        job_id = str(rec.get("id") or text)
         headless = cancel_workbench_job_headless_command(cfg, job_id)
         cancelled = cancel_workbench_job(cfg, job_id, headless_command=headless)
         print(f"cancel requested for {cancelled.get('id', job_id)}")
@@ -22846,6 +22951,13 @@ def run_line_tui(cfg):
         for rec in snap.get("sessions") or []:
             session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
             add("session", f"{session_id} service={rec.get('service', '') or '-'} state={rec.get('state', '') or '-'}", rec)
+        for rec in snap.get("workbench_jobs") or []:
+            add(
+                "job",
+                f"{rec.get('id', '')} action={rec.get('action_id', '') or '-'} state={rec.get('effective_state', '') or rec.get('state', '') or '-'}",
+                rec,
+                cancel_workbench_job_headless_command(cfg, str(rec.get("id") or "")),
+            )
         for name, rec in sorted((snap.get("staged") or {}).items()):
             item = dict(rec) if isinstance(rec, dict) else {}
             item["request_name"] = name
@@ -22875,6 +22987,8 @@ def run_line_tui(cfg):
             elif kind == "session":
                 session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
                 use_hint = f"use session {shquote(str(session_id))}"
+            elif kind == "job":
+                use_hint = f"use job {shquote(str(rec.get('id', '')))}"
             if use_hint:
                 print(f"     use: use {idx}")
                 print(f"     command: {use_hint}")
@@ -22915,6 +23029,8 @@ def run_line_tui(cfg):
         if kind == "session":
             session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
             return select_line_session(str(session_id))
+        if kind == "job":
+            return select_line_job(str(rec.get("id") or ""))
         raise ValueError(f"search result {text} is not directly selectable")
 
     def print_line_module_categories():
@@ -23809,6 +23925,16 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
+            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "job":
+                selector = " ".join(console_args[2:]).strip()
+                if not selector:
+                    print("usage: use job ID|NUMBER")
+                    continue
+                try:
+                    select_line_job(selector)
+                except ValueError as exc:
+                    print(exc)
+                continue
             elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "action":
                 selector = " ".join(console_args[2:]).strip()
                 try:
@@ -23928,6 +24054,12 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
+            elif cmd in {"kill", "cancel"}:
+                try:
+                    cancel_line_job(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
+                continue
             elif cmd == "queue" and len(console_args) >= 2:
                 try:
                     queue_line_command(" ".join(console_args[1:]).strip())
@@ -23962,8 +24094,18 @@ def run_line_tui(cfg):
                 try:
                     if len(console_args) >= 3 and console_args[1] in {"-k", "--kill", "--cancel"}:
                         cancel_line_job(" ".join(console_args[2:]).strip())
+                    elif len(console_args) >= 3 and console_args[1] in {"-i", "--info", "info"}:
+                        select_line_job(" ".join(console_args[2:]).strip())
+                    elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
+                        print_line_jobs(verbose=True)
                     else:
                         print_line_jobs()
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "job":
+                try:
+                    select_line_job(" ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue
