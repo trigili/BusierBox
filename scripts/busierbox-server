@@ -21657,6 +21657,7 @@ def run_line_tui(cfg):
         print("  show modules [FILTER]           browse modules by kind, id, workflow, or text")
         print("  info, options                   show selected context and module options")
         print("  show options                    show target/module/build options")
+        print("  build, build set KEY VALUE      show or update binary build config")
         print("  set KEY VALUE                   set target metadata or guided build option")
         print("  rename|note|alias VALUE         edit selected agent label, notes, or alias")
         print("  setg KEY VALUE, unsetg KEY      set or unset global build/workbench options")
@@ -21895,6 +21896,14 @@ def run_line_tui(cfg):
                 "options",
                 "show options",
                 "  Shows selected target/module/build options and suggested next commands.",
+            ],
+            "build": [
+                "build",
+                "build list",
+                "build set KEY VALUE",
+                "build unset KEY",
+                "  Shows or updates guided BusierBox binary build configuration.",
+                "  Equivalent headless commands use --build-config and --set-build-config.",
             ],
             "next": [
                 "next",
@@ -22404,6 +22413,74 @@ def run_line_tui(cfg):
                 print(f"    {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))}{suffix}")
             if len(fields) > 10:
                 print(f"    ... {len(fields) - 10} more build option(s)")
+
+    def print_line_build_config():
+        fields = workbench_config_field_records(cfg)
+        print("Build config:")
+        print(f"  config_path={build_config_path(cfg)}")
+        print("  commands: build set KEY VALUE, build unset KEY, serve-binary --start PATH NAME, release stage SELECTOR")
+        search_records = []
+        for idx, rec in enumerate(fields, 1):
+            options = ",".join(str(item) for item in rec.get("options") or [])
+            suffix = f" options={options}" if options else ""
+            print(
+                f"  {idx}: {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} "
+                f"category={rec.get('category', '')}{suffix}"
+            )
+            print(f"     {rec.get('label', '')}")
+            print(f"     command: {rec.get('set_command', '')}")
+            search_records.append({
+                "kind": "build-config",
+                "label": str(rec.get("key") or ""),
+                "rec": rec,
+                "command": str(rec.get("set_command") or ""),
+                "use_hint": f"build set {rec.get('key', '')} VALUE",
+            })
+        cfg["_line_console_search_results"] = search_records
+        append_event(cfg, "workbench", "workbench_build_config_listed", details={
+            "config_path": str(build_config_path(cfg)),
+            "field_count": len(fields),
+        })
+
+    def set_line_build_config(args):
+        if not args:
+            raise ValueError("usage: build set KEY VALUE")
+        if "=" in args[0]:
+            key, value = args[0].split("=", 1)
+            if len(args) > 1:
+                value = value + " " + " ".join(args[1:])
+        else:
+            key = args[0]
+            value = " ".join(args[1:]).strip()
+        if not key or value == "":
+            raise ValueError("usage: build set KEY VALUE")
+        rec = set_workbench_build_config(cfg, f"{key}={value}")
+        print(f"set build.{rec.get('key', key)}={shell_double_quote(rec.get('value', value))}")
+        print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
+        print(f"headless_command: {rec.get('set_command', '')}")
+        return rec
+
+    def unset_line_build_config(args):
+        key = " ".join(args).strip()
+        if not key:
+            raise ValueError("usage: build unset KEY")
+        rec = unset_workbench_build_config(cfg, key)
+        print(f"unset build.{rec.get('key', key)}")
+        print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
+        return rec
+
+    def run_line_build_command(args):
+        subcmd = str(args[0] if args else "").lower()
+        if not subcmd or subcmd in {"list", "show", "options"}:
+            print_line_build_config()
+            return
+        if subcmd == "set":
+            set_line_build_config(args[1:])
+            return
+        if subcmd in {"unset", "clear"}:
+            unset_line_build_config(args[1:])
+            return
+        raise ValueError("usage: build [list|set KEY VALUE|unset KEY]")
 
     def selected_target_record_for_update():
         target_id = configured_target_filter(cfg)
@@ -23208,7 +23285,7 @@ def run_line_tui(cfg):
             "useagent", "uselistener", "useroute", "usesession", "usemodule",
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
-            "download", "get", "survey", "survey-bootstrap", "daemon", "release", "releases", "stage-release", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
+            "download", "get", "survey", "survey-bootstrap", "daemon", "build", "release", "releases", "stage-release", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
             "quit", "exit",
         ]
         show_resources = [
@@ -23221,7 +23298,7 @@ def run_line_tui(cfg):
         help_topics = [
             "search", "complete", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
-            "routes", "set", "setg", "run", "jobs", "queue", "download", "survey", "release", "upload", "fetch", "files", "view",
+            "routes", "set", "setg", "run", "jobs", "queue", "download", "survey", "build", "release", "upload", "fetch", "files", "view",
             "daemon", "interact", "sessions",
         ]
 
@@ -23296,6 +23373,9 @@ def run_line_tui(cfg):
                 if command_id:
                     ids.append(command_id)
             return ids
+
+        def build_config_keys():
+            return [str(rec.get("key") or "") for rec in workbench_config_field_records(cfg) if str(rec.get("key") or "")]
 
         def prefixed(prefix_text, values):
             seen = set()
@@ -23386,6 +23466,13 @@ def run_line_tui(cfg):
             if subcmd in {"result", "show"}:
                 selector_prefix = "" if trailing_space else " ".join(parts[2:])
                 return [f"queue {subcmd} {item}" for item in prefixed(selector_prefix, command_queue_ids())]
+        if cmd == "build":
+            if len(parts) <= 2 and not trailing_space:
+                return [f"build {item}" for item in prefixed(current, ["list", "show", "set", "unset"])]
+            subcmd = parts[1].lower() if len(parts) >= 2 else ""
+            if subcmd in {"set", "unset"}:
+                selector_prefix = "" if trailing_space else " ".join(parts[2:])
+                return [f"build {subcmd} {item}" for item in prefixed(selector_prefix, build_config_keys())]
         if cmd in {"release", "releases"}:
             if len(parts) <= 2 and not trailing_space:
                 return [f"{cmd} {item}" for item in prefixed(current, ["list", "show", "stage", "recommendations", "artifacts"])]
@@ -24845,6 +24932,12 @@ def run_line_tui(cfg):
                 continue
             elif cmd in {"options", "opts"}:
                 print_line_options()
+                continue
+            elif cmd == "build":
+                try:
+                    run_line_build_command(console_args[1:])
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif cmd == "set":
                 try:
@@ -27479,6 +27572,7 @@ Automation:
   makerc FILE                   save command history as a resource script
   history [LIMIT]               show recent console commands
   !!, !N, repeat N              replay previous commands
+  build, build set KEY VALUE    show or update binary build config
   set KEY VALUE                 set selected target/build option
   setg KEY VALUE                set global build/workbench option
 

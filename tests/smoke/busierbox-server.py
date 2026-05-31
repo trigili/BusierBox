@@ -173,6 +173,7 @@ def main():
             "release, release stage SELECTOR" not in console_help or
             "fetch [--queue] [--start] NAME" not in console_help or
             "queue list|result|clear" not in console_help or
+            "build, build set KEY VALUE" not in console_help or
             "resource FILE" not in console_help or
             "makerc FILE" not in console_help or
             "!!, !N, repeat N" not in console_help or
@@ -10154,6 +10155,7 @@ def main():
                     "help survey\n"
                     "help fetch\n"
                     "help queue\n"
+                    "help build\n"
                     "complete\n"
                     "complete use ag\n"
                     "complete agent Con\n"
@@ -10213,6 +10215,9 @@ def main():
                     "options\n"
                     "background\n"
                     "show options\n"
+                    "build\n"
+                    "build set BB_RUNTIME_ROOT /tmp/bbx-build\n"
+                    "build unset BB_RUNTIME_ROOT\n"
                     "setg BB_RUNTIME_ROOT /tmp/bbx-global\n"
                     "show options\n"
                     "unsetg BB_RUNTIME_ROOT\n"
@@ -10395,6 +10400,7 @@ def main():
                 "Help: survey" not in line_console_stdout or
                 "Help: fetch" not in line_console_stdout or
                 "Help: queue" not in line_console_stdout or
+                "Help: build" not in line_console_stdout or
                 "Help: files" not in line_console_stdout or
                 "complete [PREFIX]               show command/resource completions" not in line_console_stdout or
                 "Completions for <root>:" not in line_console_stdout or
@@ -10500,6 +10506,11 @@ def main():
                 "use N                           use a numbered search/list/module result" not in line_console_stdout or
                 "use action ACTION               select an action module context" not in line_console_stdout or
                 "check                           dry-run the selected action module" not in line_console_stdout or
+                "build, build set KEY VALUE      show or update binary build config" not in line_console_stdout or
+                "Build config:" not in line_console_stdout or
+                "commands: build set KEY VALUE, build unset KEY" not in line_console_stdout or
+                "set build.BB_RUNTIME_ROOT=\"/tmp/bbx-build\"" not in line_console_stdout or
+                "unset build.BB_RUNTIME_ROOT" not in line_console_stdout or
                 "set KEY VALUE                   set target metadata or guided build option" not in line_console_stdout or
                 "setg KEY VALUE, unsetg KEY      set or unset global build/workbench options" not in line_console_stdout or
                 "setg BB_RUNTIME_ROOT=\"/tmp/bbx-global\"" not in line_console_stdout or
@@ -10710,7 +10721,9 @@ def main():
                 not any(event.get("event") == "workbench_jobs_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/bbx-global" for event in line_console_events) or
+                not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/bbx-build" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_unset" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" for event in line_console_events) or
+                not any(event.get("event") == "workbench_build_config_listed" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_makerc_saved" and (event.get("details") or {}).get("path") == str(line_console_makerc) and (event.get("details") or {}).get("command_count", 0) >= 20 for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_completions_shown" and (event.get("details") or {}).get("prefix") == "use job" for event in line_console_events) or
