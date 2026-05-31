@@ -21593,7 +21593,8 @@ def run_line_tui(cfg):
 
     def print_line_console_help():
         print("Console commands:")
-        print("  help, ?                         show console commands")
+        print("  help [COMMAND], ?               show console command help")
+        print("  search TERM                     search targets, services, actions, sessions, files, queue")
         print("  info                            show selected target/module context")
         print("  status, summary                 refresh workbench summary")
         print("  show targets|services|files     show major workbench resources")
@@ -21621,6 +21622,60 @@ def run_line_tui(cfg):
         print("  refresh                         redraw full workbench")
         print("  quit, exit                      quit")
         print("Numeric actions are still available for prompted workflows.")
+
+    def print_line_command_help(topic):
+        key = str(topic or "").strip().lower()
+        if not key:
+            print_line_console_help()
+            return
+        help_text = {
+            "search": [
+                "search TERM",
+                "  Searches targets, services, action modules, sessions, staged files, and queued commands.",
+                "  Example: search file-service",
+            ],
+            "use": [
+                "use target ID|LABEL|NUMBER",
+                "use service SERVICE",
+                "use action ACTION",
+                "  Selects the current target, service module, or action module context.",
+            ],
+            "show": [
+                "show targets|services|files|queue|mailbox|jobs|sessions|activity|actions|options",
+                "  Shows a resource collection without switching context.",
+            ],
+            "set": [
+                "set KEY VALUE",
+                "  Sets selected-target metadata or guided build options.",
+                "  Examples: set target.notes Rack shelf A; set target.alias lab-router",
+            ],
+            "run": [
+                "run [--dry-run] [--confirm]",
+                "  Runs the selected action module, or starts the selected service module.",
+                "  Use check to dry-run the selected action module.",
+            ],
+            "queue": [
+                "queue COMMAND",
+                "  Queues a command record for the selected target context.",
+                "  Delivery still depends on the existing command-queue policy and target polling.",
+            ],
+            "daemon": [
+                "daemon",
+                "daemon ACTION [--dry-run] [--confirm]",
+                "  Lists or runs existing daemon/systemd workflow actions.",
+            ],
+            "interact": [
+                "interact SESSION",
+                "  Shows local session inspection commands and log paths.",
+            ],
+        }
+        lines = help_text.get(key)
+        if not lines:
+            print(f"no focused help for {topic}; use help")
+            return
+        print(f"Help: {key}")
+        for line in lines:
+            print(f"  {line}" if line else "")
 
     def print_line_info():
         snap = workbench_snapshot(cfg)
@@ -21938,6 +21993,74 @@ def run_line_tui(cfg):
                 item["id"] = str(item.get("id") or item.get("action_id") or "")
                 records.append(item)
         return records
+
+    def searchable_text(rec):
+        parts = []
+        if isinstance(rec, dict):
+            for key, value in sorted(rec.items()):
+                if isinstance(value, (str, int, float, bool)):
+                    parts.append(f"{key}={value}")
+                elif isinstance(value, list):
+                    parts.append(f"{key}=" + ",".join(str(item) for item in value[:8]))
+        return " ".join(parts).lower()
+
+    def search_line_resources(query):
+        term = str(query or "").strip().lower()
+        if not term:
+            raise ValueError("usage: search TERM")
+        snap = workbench_snapshot(cfg)
+        matches = []
+
+        def add(kind, label, rec, command=""):
+            if len(matches) >= 30:
+                return
+            haystack = f"{kind} {label} {command} {searchable_text(rec)}".lower()
+            if term in haystack:
+                matches.append((kind, label, rec, command))
+
+        for rec in snap.get("targets") or []:
+            add("target", f"{rec.get('target_id', '')} label={rec.get('label', '') or '-'} state={rec.get('connectivity_state', '') or '-'}", rec)
+        for rec in service_status_rows(cfg):
+            add("service", f"{rec.get('name', '')} actual={rec.get('actual', '') or '-'} port={rec.get('port', '') or '-'}", rec)
+        for rec in line_action_records():
+            add(
+                "action",
+                f"{rec.get('kind', '')}:{rec.get('id', '')} state={rec.get('operator_action_state', '') or '-'}",
+                rec,
+                str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or ""),
+            )
+        for rec in snap.get("sessions") or []:
+            session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
+            add("session", f"{session_id} service={rec.get('service', '') or '-'} state={rec.get('state', '') or '-'}", rec)
+        for name, rec in sorted((snap.get("staged") or {}).items()):
+            item = dict(rec) if isinstance(rec, dict) else {}
+            item["request_name"] = name
+            add("file", f"{name} kind={item.get('stage_kind', 'file')} source={item.get('source_path', '')}", item)
+        for rec in (snap.get("command_queue") or {}).get("commands") or []:
+            add("queue", f"{rec.get('id', '')} status={rec.get('status', '') or '-'} command={rec.get('command', '')}", rec)
+
+        print(f"Search results for {query}:")
+        if not matches:
+            print("  none")
+        for idx, (kind, label, rec, command) in enumerate(matches, 1):
+            print(f"  {idx}: {kind} {label}")
+            if command:
+                if len(command) > 140:
+                    command = command[:137] + "..."
+                print(f"     command: {command}")
+            if kind == "target":
+                print(f"     use: use target {shquote(str(rec.get('target_id', '')))}")
+            elif kind == "service":
+                print(f"     use: use service {shquote(str(rec.get('name', '')))}")
+            elif kind == "action":
+                print(f"     use: use action {shquote(str(rec.get('id', '')))}")
+            elif kind == "session":
+                session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
+                print(f"     interact: interact {shquote(str(session_id))}")
+        append_event(cfg, "workbench", "workbench_console_searched", details={
+            "query": str(query or ""),
+            "match_count": len(matches),
+        })
 
     def print_line_actions():
         actions = line_action_records()
@@ -22299,7 +22422,13 @@ def run_line_tui(cfg):
             if cmd in {"q", "quit", "exit"}:
                 choice = "q"
             elif cmd in {"help", "?"}:
-                print_line_console_help()
+                print_line_command_help(console_args[1] if len(console_args) >= 2 else "")
+                continue
+            elif cmd == "search":
+                try:
+                    search_line_resources(" ".join(console_args[1:]).strip())
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif cmd in {"status", "summary"}:
                 print(line_tui_status_bar(workbench_snapshot(cfg)))
