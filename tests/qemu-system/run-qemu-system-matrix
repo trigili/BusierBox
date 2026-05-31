@@ -86,7 +86,7 @@ do
             printf '%s\n' 'mount -t sysfs sysfs /sys 2>/dev/null || true'
             printf '%s\n' 'mkdir -p /mnt/grit-test /tmp'
             printf '%s\n' 'mount -t 9p -o trans=virtio,version=9p2000.L grit_payload /mnt/grit-test'
-            printf '%s\n' 'BUSIERBOX=/mnt/grit-test/grit ARTIFACT_DIR=/mnt/grit-test/artifacts sh /mnt/grit-test/grit-smoke.sh'
+            printf '%s\n' 'GRIT=/mnt/grit-test/grit ARTIFACT_DIR=/mnt/grit-test/artifacts sh /mnt/grit-test/grit-smoke.sh'
             printf '%s\n' 'sync'
             printf '%s\n' 'poweroff -f 2>/dev/null || halt -f 2>/dev/null || exit'
             sleep 3

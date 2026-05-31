@@ -18,7 +18,7 @@ if ! mount -t 9p -o trans=virtio,version=9p2000.L grit_payload "$mountpoint" 2>/
 fi
 
 mkdir -p "$mountpoint/artifacts"
-BUSIERBOX="$mountpoint/grit" ARTIFACT_DIR="$mountpoint/artifacts" sh "$mountpoint/grit-smoke.sh"
+GRIT="$mountpoint/grit" ARTIFACT_DIR="$mountpoint/artifacts" sh "$mountpoint/grit-smoke.sh"
 rc=$?
 sync
 echo "GRIT_SMOKE_RC=$rc"
