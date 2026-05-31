@@ -28369,7 +28369,8 @@ def run_curses_tui(cfg):
     return curses.wrapper(draw)
 
 
-def run_tui(cfg):
+def run_line_console(cfg):
+    """Default interactive mode: readline line console."""
     update_server_state(cfg, "workbench", "open", {"state_file": str(state_file_path(cfg)), "workbench_mode": "starting"})
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         update_server_state(cfg, "workbench", "open", {
@@ -28390,6 +28391,50 @@ def run_tui(cfg):
         request_shutdown("keyboard_interrupt")
         print("grit-server: interrupted, shutting down workbench", file=sys.stderr)
         return 130
+    finally:
+        stop_workbench_started_services(cfg)
+        mark_service_stopped(cfg, "workbench", SHUTDOWN_REASON or "quit")
+        append_event(cfg, "workbench", "shutdown", details={"reason": SHUTDOWN_REASON or "quit"})
+
+
+def run_tui(cfg):
+    """--tui flag: curses full-screen UI, falls back to line console on dumb terminals."""
+    update_server_state(cfg, "workbench", "open", {"state_file": str(state_file_path(cfg)), "workbench_mode": "starting"})
+    if not sys.stdin.isatty() or not sys.stdout.isatty():
+        update_server_state(cfg, "workbench", "open", {
+            "state_file": str(state_file_path(cfg)),
+            "workbench_mode": "noninteractive",
+        })
+        append_event(cfg, "workbench", "workbench_opened", details={"mode": "noninteractive"})
+        print_workbench(cfg)
+        return 0
+    try:
+        if os.environ.get("TERM", "").strip().lower() in ("", "dumb"):
+            print("terminal does not support curses, using line console", file=sys.stderr)
+            update_server_state(cfg, "workbench", "open", {
+                "state_file": str(state_file_path(cfg)),
+                "workbench_mode": "line",
+            })
+            append_event(cfg, "workbench", "workbench_opened", details={"mode": "line"})
+            return run_line_tui(cfg)
+        update_server_state(cfg, "workbench", "open", {
+            "state_file": str(state_file_path(cfg)),
+            "workbench_mode": "curses",
+        })
+        append_event(cfg, "workbench", "workbench_opened", details={"mode": "curses"})
+        return run_curses_tui(cfg)
+    except KeyboardInterrupt:
+        request_shutdown("keyboard_interrupt")
+        print("grit-server: interrupted, shutting down workbench", file=sys.stderr)
+        return 130
+    except Exception as exc:
+        print(f"curses workbench unavailable, using line console: {exc}", file=sys.stderr)
+        update_server_state(cfg, "workbench", "open", {
+            "state_file": str(state_file_path(cfg)),
+            "workbench_mode": "line",
+        })
+        append_event(cfg, "workbench", "workbench_opened", details={"mode": "line", "fallback_reason": str(exc)})
+        return run_line_tui(cfg)
     finally:
         stop_workbench_started_services(cfg)
         mark_service_stopped(cfg, "workbench", SHUTDOWN_REASON or "quit")
@@ -28445,7 +28490,7 @@ Common operator workflows:
   --transport survey-bootstrap
 
 Interactive console:
-  --tui opens the operator console for targets, mailbox work, files, bridges,
+  --tui opens the full-screen curses workbench for targets, mailbox work, files, bridges,
   daemon/service lifecycle, generated commands, and build config.
 
 Reference:
@@ -29165,8 +29210,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         print(f"grit-server: {exc}", file=sys.stderr)
         return 2
 
-    if args.tui or (not raw_argv and not args.no_tui and sys.stdin.isatty() and sys.stdout.isatty()):
+    if args.tui:
         return run_tui(cfg)
+    if not raw_argv and not args.no_tui and sys.stdin.isatty() and sys.stdout.isatty():
+        return run_line_console(cfg)
 
     try:
         if action == "ssh":
