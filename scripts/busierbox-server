@@ -21691,6 +21691,7 @@ def run_line_tui(cfg):
         print("  interact SESSION, sessions -i   show local session inspection commands")
         print("  queue COMMAND                   queue work for selected/offline target")
         print("  download [--queue] TARGET_PATH  show or queue target-to-operator upload")
+        print("  survey [--start|--queue]        show, serve, or queue survey bootstrap")
         print("  daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow")
         print("  upload [--start] LOCAL [NAME]   stage and optionally serve a local file")
         print("  files, staged                   list staged files and file workflow actions")
@@ -21987,6 +21988,13 @@ def run_line_tui(cfg):
                 "  --queue stores that command in the selected agent mailbox for later phone-home delivery.",
                 "  --start starts the file-service before printing or queueing the command.",
             ],
+            "survey": [
+                "survey [--start] [--queue]",
+                "survey-bootstrap [--start] [--queue]",
+                "  Shows the target-side command for the architecture-agnostic survey bootstrap script.",
+                "  --start starts the survey-bootstrap listener.",
+                "  --queue stores the bootstrap command in the selected agent mailbox for later phone-home delivery.",
+            ],
             "upload": [
                 "upload [--start] LOCAL [NAME]",
                 "stage [--start] LOCAL [NAME]",
@@ -22199,7 +22207,7 @@ def run_line_tui(cfg):
         elif target_id:
             target_filter = snap.get("target_filter") or {}
             print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
-            print("  commands: interact, queue COMMAND, download --queue TARGET_PATH, upload --start LOCAL NAME, show activity, serve-binary --start PATH NAME, clear target")
+            print("  commands: interact, queue COMMAND, survey --queue, download --queue TARGET_PATH, upload --start LOCAL NAME, show activity, serve-binary --start PATH NAME, clear target")
         else:
             print("  selected agent=all")
             print("  commands: workspace, agents, listeners, routes, sessions, show categories, search TERM")
@@ -22657,7 +22665,7 @@ def run_line_tui(cfg):
         state = target.get("connectivity_state") or target_filter.get("connectivity_state") or "-"
         print(f"Agent interaction: {target_id} label={label} state={state}")
         print(target_filter_summary_text(target_filter, prefix="  status:"))
-        print("  commands: queue COMMAND, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], serve-binary --start PATH [NAME], sessions, show activity, clear target")
+        print("  commands: queue COMMAND, survey --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], serve-binary --start PATH [NAME], sessions, show activity, clear target")
         print(
             "  headless_status: scripts/busierbox-server --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
@@ -23172,7 +23180,7 @@ def run_line_tui(cfg):
             "useagent", "uselistener", "useroute", "usesession", "usemodule",
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
-            "download", "get", "daemon", "upload", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
+            "download", "get", "survey", "survey-bootstrap", "daemon", "upload", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
             "quit", "exit",
         ]
         show_resources = [
@@ -23185,7 +23193,7 @@ def run_line_tui(cfg):
         help_topics = [
             "search", "complete", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
-            "routes", "set", "setg", "run", "jobs", "queue", "download", "upload", "files", "view",
+            "routes", "set", "setg", "run", "jobs", "queue", "download", "survey", "upload", "files", "view",
             "daemon", "interact", "sessions",
         ]
 
@@ -23779,6 +23787,78 @@ def run_line_tui(cfg):
             "queued": bool(queue),
             "command_id": queued.get("id", "") if queued else "",
             "started_file_service": started,
+        })
+        return command
+
+    def parse_line_survey_args(args):
+        queue = False
+        start_service = False
+        for item in args:
+            lower = item.lower()
+            if lower in {"--queue", "-q"}:
+                queue = True
+            elif lower in {"--start", "--start-service", "start"}:
+                start_service = True
+            elif lower in {"show", "command"}:
+                continue
+            else:
+                raise ValueError("usage: survey [--start] [--queue]")
+        return queue, start_service
+
+    def survey_line_bootstrap(queue=False, start_service=False):
+        command = render_survey_bootstrap_command(cfg)
+        snap = workbench_snapshot(cfg)
+        actions = snap.get("survey_bootstrap_workflow_actions_by_id") or {}
+        show_action = actions.get("survey-bootstrap:show-target-command") or {}
+        start_action = actions.get("survey-bootstrap:start-survey-bootstrap") or {}
+        headless = (
+            show_action.get("run_command")
+            or show_action.get("headless_command")
+            or (
+                "scripts/busierbox-server --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --run-survey-bootstrap-workflow-action survey-bootstrap:show-target-command"
+            )
+        )
+        started = False
+        if start_service:
+            start_service_process(
+                cfg,
+                "survey-bootstrap",
+                headless_command=start_action.get("run_command") or start_action.get("headless_command") or service_start_headless_command(cfg, "survey-bootstrap"),
+            )
+            started = True
+        print("Survey bootstrap:")
+        print(f"  target_command={command}")
+        print(f"  script_name={cfg.get('survey_bootstrap_name', 'survey.sh')}")
+        print(f"  port={cfg.get('survey_bootstrap_port', 22207)}")
+        print(f"  listener_started={'yes' if started else 'no'}")
+        queued = {}
+        target_id = configured_target_filter(cfg)
+        if queue:
+            if not target_id:
+                raise ValueError("select an agent before survey --queue; use agent NAME or use target ID")
+            queued = queue_command(cfg, command, metadata={
+                "work_kind": "survey-bootstrap",
+                "workflow": "survey-bootstrap",
+                "request_name": str(cfg.get("survey_bootstrap_name") or "survey.sh"),
+                "route_kind": "bridge" if cfg.get("bridge_profile") else "direct",
+                "bridge_profile": str(cfg.get("bridge_profile") or ""),
+            })
+            print(f"queued {queued['id']}: {queued['command']}")
+            print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        print(f"headless_command: {headless}")
+        append_event(cfg, "workbench", "workbench_survey_bootstrap_command_shown", details={
+            "headless_command": headless,
+            "target_command": command,
+            "target_command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest() if command else "",
+            "target_id": target_id,
+            "target_label": str(selected_target_context(cfg).get("target_label") or ""),
+            "queued": bool(queue),
+            "command_id": queued.get("id", "") if queued else "",
+            "started_service": started,
+            "survey_bootstrap_name": str(cfg.get("survey_bootstrap_name") or "survey.sh"),
+            "survey_bootstrap_port": cfg.get("survey_bootstrap_port", 22207),
         })
         return command
 
@@ -24735,6 +24815,13 @@ def run_line_tui(cfg):
                 try:
                     target_path, queue_download, start_download_service = parse_line_download_args(console_args[1:])
                     download_line_target(target_path, queue=queue_download, start_file_service=start_download_service)
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"survey", "survey-bootstrap"}:
+                try:
+                    queue_survey, start_survey = parse_line_survey_args(console_args[1:])
+                    survey_line_bootstrap(queue=queue_survey, start_service=start_survey)
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -26930,6 +27017,7 @@ Operations:
   upload [--start] LOCAL [NAME] stage and optionally serve a local file
   download [--queue] TARGET_PATH
                                 show or queue a target-to-operator upload command
+  survey [--start|--queue]       show, serve, or queue survey bootstrap
   downloads                     list target-fetchable staged files
   unstage NAME                  remove a staged file request
   view PATH, cat PATH           view a local session/artifact path
