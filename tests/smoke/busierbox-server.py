@@ -10079,9 +10079,16 @@ def main():
                     "repeat 1\n"
                     "search name=file-service\n"
                     "show agents\n"
+                    "use 1\n"
+                    "clear target\n"
                     "show listeners\n"
+                    "use 1\n"
+                    "back\n"
                     "show routes\n"
                     "routes -v\n"
+                    "use 1\n"
+                    "info\n"
+                    "back\n"
                     "route print\n"
                     "route console-route\n"
                     "info\n"
@@ -10231,7 +10238,7 @@ def main():
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "run -j, run --job               start selected background action as a managed job" not in line_console_stdout or
                 "jobs, jobs -k ID                show or cancel background jobs" not in line_console_stdout or
-                "use N                           use a numbered search/module result" not in line_console_stdout or
+                "use N                           use a numbered search/list/module result" not in line_console_stdout or
                 "use action ACTION               select an action module context" not in line_console_stdout or
                 "check                           dry-run the selected action module" not in line_console_stdout or
                 "set KEY VALUE                   set target metadata or guided build option" not in line_console_stdout or
@@ -10242,9 +10249,10 @@ def main():
                 "Console options:" not in line_console_stdout or
                 "Services:" not in line_console_stdout or
                 "Routes:" not in line_console_stdout or
-                "commands: routes -v, route NAME, use route NAME, start, stop" not in line_console_stdout or
+                "commands: routes -v, route NAME, use route NAME, use N, start, stop" not in line_console_stdout or
                 "console-route" not in line_console_stdout or
                 "selected route console-route" not in line_console_stdout or
+                "selected search result 1 route console-route" not in line_console_stdout or
                 "bbx[all]/route/console-route>" not in line_console_stdout or
                 "route_path=operator:" not in line_console_stdout or
                 "route.name=console-route" not in line_console_stdout or
@@ -10277,7 +10285,7 @@ def main():
                 "daemon_workflow_returncode=0" not in line_console_stdout or
                 "selected service file-service" not in line_console_stdout or
                 "bbx[all]/service/file-service>" not in line_console_stdout or
-                "commands: listeners -v, listener NAME, use listener NAME, start NAME, stop NAME" not in line_console_stdout or
+                "commands: listeners -v, listener NAME, use listener NAME, use N, start NAME, stop NAME" not in line_console_stdout or
                 "inspect: listener file-service" not in line_console_stdout or
                 "service.name=file-service" not in line_console_stdout or
                 "service.start_command=" not in line_console_stdout or
@@ -10287,7 +10295,7 @@ def main():
                 "module context cleared" not in line_console_stdout or
                 "no selected background-capable workbench action; use module ACTION first" not in line_console_stdout or
                 "Sessions:" not in line_console_stdout or
-                "commands: sessions -l, sessions -v, sessions -i ID, interact ID, use session ID" not in line_console_stdout or
+                "commands: sessions -l, sessions -v, sessions -i ID, interact ID, use session ID, use N" not in line_console_stdout or
                 line_console_session.name not in line_console_stdout or
                 "Session interaction:" not in line_console_stdout or
                 "next: view " not in line_console_stdout or
