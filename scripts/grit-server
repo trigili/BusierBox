@@ -22920,9 +22920,16 @@ def run_line_tui(cfg):
         cfg["_service_start_command"] = service_start_headless_command(cfg, service)
         cfg["_service_stop_command"] = service_stop_headless_command(cfg, service)
         rec = line_service_record(service)
-        status = f"actual={rec.get('actual','?')} port={rec.get('port','?')} pid={rec.get('pid','-') or '-'}" if rec else ""
-        print(f"selected service {service}  {status}")
-        print("  options  info  start  stop  run  copy start  back")
+        if rec:
+            actual = rec.get("actual") or "?"
+            port = rec.get("port") or "-"
+            tls = "TLS: yes" if rec.get("tls") else "TLS: no"
+            pid = rec.get("pid")
+            pid_str = f"  |  pid {pid}" if pid else ""
+            print(f"  {service}  —  {actual}  |  :{port}  |  {tls}{pid_str}")
+        else:
+            print(f"  {service}  —  (no status)")
+        print("  options  info  start  stop  copy start  back")
         return service
 
     def clear_line_module():
@@ -23013,10 +23020,13 @@ def run_line_tui(cfg):
         targets = targets if targets is not None else print_line_targets()
         rec = set_workbench_target_filter(cfg, selector, targets=targets)
         if rec.get("selected"):
-            print(f"selected target {rec.get('target_id', '')} label={rec.get('target_label', '') or '-'}")
+            tid = rec.get("target_id", "")
+            label = rec.get("target_label") or ""
+            display = f"{label}  ({tid})" if label and label != tid else tid
+            print(f"  {display}")
+            print("  options  next  sessions  queue  mailbox  clear target  back")
         else:
-            print("target filter cleared")
-        print(f"headless_command: {rec.get('headless_command', '')}")
+            print("  target filter cleared  —  showing all targets")
         return rec
 
     def interact_line_target(selector=""):
@@ -23322,17 +23332,12 @@ def run_line_tui(cfg):
         cfg.pop("_line_console_action_kind", None)
         cfg.pop("_line_console_action_id", None)
         print(f"selected route {name}")
-        print(f"  route_path={selected.get('route_path', '')}")
-        print(
-            f"  listen={selected.get('listen_host', '')}:{selected.get('listen_port', '')} "
-            f"dest={selected.get('dest_host', '')}:{selected.get('dest_port', '')} "
-            f"state={selected.get('current_state', '') or '-'} "
-            f"active={'yes' if selected.get('active') else 'no'}"
-        )
-        print(f"  inspect: {bridge_profile_headless_command('inspect', name)}")
-        print(f"  start: {bridge_profile_headless_command('start', name)}")
-        print(f"  stop: {bridge_profile_headless_command('stop', name)}")
-        print("  next: info, options, start, stop, route delete NAME, run, back")
+        state = selected.get("current_state") or "stopped"
+        listen = f"{selected.get('listen_host','') or '0.0.0.0'}:{selected.get('listen_port','?')}"
+        dest = f"{selected.get('dest_host','?')}:{selected.get('dest_port','?')}"
+        active = "active" if selected.get("active") else "inactive"
+        print(f"  {name}  —  {state} ({active})  |  {listen} → {dest}")
+        print("  options  info  start  stop  back")
         append_event(cfg, "workbench", "workbench_route_selected", details={
             "name": name,
             "route_path": selected.get("route_path", ""),
@@ -23516,16 +23521,11 @@ def run_line_tui(cfg):
             cfg["_line_console_module"] = f"job/{job_id}"
             cfg.pop("_line_console_action_kind", None)
             cfg.pop("_line_console_action_id", None)
-            print(f"selected job {job_id}")
-            print(
-                f"  action={rec.get('action_id', '') or '-'} "
-                f"state={rec.get('effective_state', '') or rec.get('state', '') or '-'} "
-                f"managed={'yes' if rec.get('pid_managed') else 'no'} "
-                f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
-            )
-            if rec.get("log_path"):
-                print(f"  log={rec.get('log_path', '')}")
-            print("  next: info, options, jobs, jobs -i ID, back")
+            state = rec.get("effective_state") or rec.get("state") or "?"
+            action = rec.get("action_id") or "-"
+            cancel = "  |  cancellable" if rec.get("cancel_supported") else ""
+            print(f"  {job_id}  —  {state}  |  {action}{cancel}")
+            print("  info  options  jobs  back")
             append_event(cfg, "workbench", "workbench_job_selected", details={
                 "job_id": job_id,
                 "action_id": rec.get("action_id", ""),
@@ -24096,7 +24096,8 @@ def run_line_tui(cfg):
         kind = str(item.get("kind") or "")
         rec = item.get("rec") if isinstance(item.get("rec"), dict) else {}
         label = str(item.get("label") or "")
-        print(f"selected search result {text} {kind} {label}")
+        # Suppress generic "selected search result" line — the specific
+        # select_line_* function prints a cleaner confirmation.
         if kind == "target":
             return select_line_target(str(rec.get("target_id") or ""))
         if kind == "service":
@@ -24245,15 +24246,17 @@ def run_line_tui(cfg):
         cfg["_line_console_action_kind"] = str(selected.get("kind") or "")
         cfg["_line_console_action_id"] = action_id
         cfg["_line_console_module"] = f"action/{action_id}"
-        print(f"selected action {selected.get('kind', '')}:{action_id}")
-        print(f"  command: {selected.get('headless_command', selected.get('run_command', selected.get('command', '')))}")
-        print(
-            f"  state={selected.get('operator_action_state', '') or '-'} "
-            f"reason={selected.get('operator_action_reason', '') or '-'} "
-            f"confirm={'yes' if selected.get('requires_confirmation') else 'no'} "
-            f"background={'yes' if selected.get('background_supported') else 'no'}"
-        )
-        print("  next: info, options, check, run, back")
+        kind = selected.get("kind") or ""
+        state = selected.get("operator_action_state") or "-"
+        label = selected.get("label") or action_id
+        flags = []
+        if selected.get("requires_confirmation"):
+            flags.append("confirm required")
+        if selected.get("background_supported"):
+            flags.append("background ok")
+        flag_str = f"  |  {', '.join(flags)}" if flags else ""
+        print(f"  {kind}:{action_id}  —  {state}  |  {label}{flag_str}")
+        print("  options  check  run  run --dry-run  back")
         return selected
 
     def selected_line_action():
@@ -25023,15 +25026,12 @@ def run_line_tui(cfg):
         cfg["_line_console_module"] = f"session/{session_id}"
         cfg.pop("_line_console_action_kind", None)
         cfg.pop("_line_console_action_id", None)
-        print(f"selected session {session_id}")
-        print(
-            f"  service={selected.get('service', '') or '-'} "
-            f"state={selected.get('state', '') or '-'} "
-            f"exit={selected.get('exit_reason', '') or '-'}"
-        )
-        print(f"  path={path}")
-        print(f"  view: {view_path_headless_command(cfg, path)}")
-        print("  next: info, options, interact, sessions -v, back")
+        service = selected.get("service") or "-"
+        state = selected.get("state") or "?"
+        exit_r = selected.get("exit_reason") or ""
+        state_str = f"{state}/{exit_r}" if exit_r and exit_r != state else state
+        print(f"  {session_id}  —  {service}  |  {state_str}")
+        print("  info  interact  view  sessions -v  back")
         append_event(cfg, "workbench", "workbench_session_selected", details={
             "session_id": session_id,
             "session_path": path,
