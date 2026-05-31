@@ -10024,8 +10024,13 @@ def main():
                     "help sessions\n"
                     "help setg\n"
                     "help jobs\n"
+                    "help history\n"
                     f"resource {line_console_resource}\n"
                     "workspace\n"
+                    "status\n"
+                    "!!\n"
+                    "history 8\n"
+                    "repeat 1\n"
                     "search name=file-service\n"
                     "show agents\n"
                     "show listeners\n"
@@ -10123,10 +10128,15 @@ def main():
                 "Help: sessions" not in line_console_stdout or
                 "Help: setg" not in line_console_stdout or
                 "Help: jobs" not in line_console_stdout or
+                "Help: history" not in line_console_stdout or
                 "Workspace overview:" not in line_console_stdout or
                 f"Resource loaded: {line_console_resource}" not in line_console_stdout or
                 "commands=3 skipped_nested=1" not in line_console_stdout or
                 "bbx[all]> workspace" not in line_console_stdout or
+                "history, !!, !N, repeat N       show or replay command history" not in line_console_stdout or
+                "Command history:" not in line_console_stdout or
+                "replay: status" not in line_console_stdout or
+                "replay: help" not in line_console_stdout or
                 "commands: search TERM, use N, agents, listeners, routes, stagers, queue COMMAND" not in line_console_stdout or
                 "Search results for name=file-service:" not in line_console_stdout or
                 "service file-service actual=" not in line_console_stdout or

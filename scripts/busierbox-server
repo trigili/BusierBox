@@ -21642,6 +21642,7 @@ def run_line_tui(cfg):
         print("  help [COMMAND], ?               show console command help")
         print("  search TERM                     search targets, services, actions, sessions, files, queue")
         print("  resource FILE                   run console commands from a script file")
+        print("  history, !!, !N, repeat N       show or replay command history")
         print("  info                            show selected target/module context")
         print("  workspace, overview             show operator dashboard summary")
         print("  status, summary                 refresh workbench summary")
@@ -21713,6 +21714,44 @@ def run_line_tui(cfg):
         })
         return commands
 
+    def record_line_history(command):
+        text = str(command or "").strip()
+        if not text:
+            return
+        line_history.append(text)
+        if len(line_history) > 100:
+            del line_history[:-100]
+
+    def line_history_command(selector):
+        text = str(selector or "").strip()
+        if text == "!!":
+            if not line_history:
+                raise ValueError("history is empty")
+            return line_history[-1]
+        if text.startswith("!"):
+            text = text[1:]
+        if not text.isdigit():
+            raise ValueError("usage: !N or repeat N")
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(line_history):
+            raise ValueError(f"history number out of range: {text}")
+        return line_history[idx]
+
+    def print_line_history(limit_text=""):
+        limit = 20
+        text = str(limit_text or "").strip()
+        if text:
+            if not text.isdigit() or int(text) <= 0:
+                raise ValueError("usage: history [LIMIT]")
+            limit = int(text)
+        print("Command history:")
+        if not line_history:
+            print("  none")
+            return
+        start = max(0, len(line_history) - limit)
+        for idx, command in enumerate(line_history[start:], start + 1):
+            print(f"  {idx}: {command}")
+
     def print_line_command_help(topic):
         key = str(topic or "").strip().lower()
         if not key:
@@ -21728,6 +21767,13 @@ def run_line_tui(cfg):
                 "resource FILE",
                 "  Runs console commands from FILE in order.",
                 "  Blank lines and # comments are ignored; nested resource commands are skipped.",
+            ],
+            "history": [
+                "history [LIMIT]",
+                "!!",
+                "!N",
+                "repeat N",
+                "  Shows recent console commands or replays a previous command by history number.",
             ],
             "use": [
                 "use N",
@@ -22650,6 +22696,7 @@ def run_line_tui(cfg):
     render_full = False
     compact_next_prompt = False
     pending_console_lines = []
+    line_history = []
     while not SHUTDOWN.is_set():
         snap = None
         if compact_next_prompt:
@@ -22693,6 +22740,20 @@ def run_line_tui(cfg):
         choice = line.strip()
         if not choice:
             continue
+        try:
+            if choice == "!!" or (choice.startswith("!") and choice[1:].isdigit()):
+                choice = line_history_command(choice)
+                print(f"replay: {choice}")
+            elif choice.lower().startswith("repeat "):
+                repeat_args = shlex.split(choice)
+                if len(repeat_args) != 2:
+                    raise ValueError("usage: repeat N")
+                choice = line_history_command(repeat_args[1])
+                print(f"replay: {choice}")
+        except ValueError as exc:
+            print(exc)
+            continue
+        record_line_history(choice)
         console_args = []
         if not (choice.isdigit() or choice in {"c", "d", "r", "v", "q"}):
             try:
@@ -22706,6 +22767,12 @@ def run_line_tui(cfg):
                 choice = "q"
             elif cmd in {"help", "?"}:
                 print_line_command_help(console_args[1] if len(console_args) >= 2 else "")
+                continue
+            elif cmd == "history":
+                try:
+                    print_line_history(console_args[1] if len(console_args) >= 2 else "")
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif cmd == "resource":
                 try:
