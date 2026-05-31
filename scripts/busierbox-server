@@ -21644,6 +21644,7 @@ def run_line_tui(cfg):
         print("  resource FILE                   run console commands from a script file")
         print("  history, !!, !N, repeat N       show or replay command history")
         print("  info                            show selected target/module context")
+        print("  next                            show suggested commands for current context")
         print("  workspace, overview             show operator dashboard summary")
         print("  status, summary                 refresh workbench summary")
         print("  show targets|services|files     show major workbench resources")
@@ -21670,7 +21671,7 @@ def run_line_tui(cfg):
         print("  use service SERVICE             select a service module context")
         print("  use action ACTION               select an action module context")
         print("  use target all, clear target    clear selected target context")
-        print("  back                            clear selected module context")
+        print("  back, background                clear selected module context")
         print("  start SERVICE, stop SERVICE     control a service directly")
         print("  check                           dry-run the selected action module")
         print("  run [--dry-run] [--confirm]     run selected service/action module")
@@ -21814,6 +21815,11 @@ def run_line_tui(cfg):
                 "options",
                 "show options",
                 "  Shows selected target/module/build options and suggested next commands.",
+            ],
+            "next": [
+                "next",
+                "  Shows context-sensitive suggested commands for the selected target/module.",
+                "  Use it after use agent, use listener, use route, use module, or search/use N.",
             ],
             "workspace": [
                 "workspace",
@@ -21969,6 +21975,46 @@ def run_line_tui(cfg):
         else:
             print("  target=all")
         print(line_tui_status_bar(snap))
+
+    def print_line_next():
+        snap = workbench_snapshot(cfg)
+        module = str(cfg.get("_line_console_module") or "").strip()
+        target_id = configured_target_filter(cfg)
+        print("Next actions:")
+        print(f"  context={line_tui_prompt().strip()}")
+        if module.startswith("action/"):
+            action = selected_line_action()
+            if action:
+                print(f"  selected module={action.get('kind', '')}:{action.get('id', '')}")
+                print("  commands: options, check, run, run --dry-run, run --confirm, background")
+                if action.get("background_supported"):
+                    print("  background_job: run -j")
+            else:
+                print("  selected module is stale; commands: show modules, search TERM, back")
+        elif module.startswith("service/"):
+            service = module.split("/", 1)[1]
+            print(f"  selected listener={service}")
+            print("  commands: options, start, stop, run, listeners -v, background")
+        elif module.startswith("route/"):
+            route_name = module.split("/", 1)[1]
+            print(f"  selected route={route_name}")
+            print("  commands: options, start, stop, run, routes -v, background")
+        elif target_id:
+            target_filter = snap.get("target_filter") or {}
+            print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
+            print("  commands: queue COMMAND, show activity, show options, serve-binary PATH NAME, clear target")
+        else:
+            print("  selected agent=all")
+            print("  commands: workspace, agents, listeners, routes, sessions, show categories, search TERM")
+        sessions = snap.get("sessions") or []
+        if sessions:
+            print("  sessions: sessions -l, sessions -v, sessions -i ID, use session ID")
+        print("  help: help use, help modules, help routes, help sessions")
+        append_event(cfg, "workbench", "workbench_console_next_shown", details={
+            "module": module or "root",
+            "target_id": target_id,
+            "session_count": len(sessions),
+        })
 
     def print_line_workspace():
         snap = workbench_snapshot(cfg)
@@ -23247,6 +23293,9 @@ def run_line_tui(cfg):
             elif cmd == "info":
                 print_line_info()
                 continue
+            elif cmd == "next":
+                print_line_next()
+                continue
             elif cmd in {"options", "opts"}:
                 print_line_options()
                 continue
@@ -23441,7 +23490,7 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"back", "unset"}:
+            elif cmd in {"back", "background", "bg", "unset"}:
                 clear_line_module()
                 continue
             elif cmd == "start":
@@ -25715,7 +25764,8 @@ Context:
   route NAME                    inspect/select a bridge route
   use module ACTION             select an action module
   use session SESSION           inspect a session
-  back                          clear selected module context
+  next                          show suggested commands for current context
+  back, background              clear selected module context
   clear target                  return to all targets
 
 Operations:

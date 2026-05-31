@@ -10068,11 +10068,13 @@ def main():
                     "help sessions\n"
                     "help modules\n"
                     "help routes\n"
+                    "help next\n"
                     "help setg\n"
                     "help jobs\n"
                     "help history\n"
                     f"resource {line_console_resource}\n"
                     "workspace\n"
+                    "next\n"
                     "status\n"
                     "!!\n"
                     "history 8\n"
@@ -10088,6 +10090,7 @@ def main():
                     "routes -v\n"
                     "use 1\n"
                     "info\n"
+                    "next\n"
                     "back\n"
                     "route print\n"
                     "route console-route\n"
@@ -10098,6 +10101,7 @@ def main():
                     "categories\n"
                     "show service modules\n"
                     "use 1\n"
+                    "next\n"
                     "back\n"
                     "show daemon modules\n"
                     "show target modules\n"
@@ -10106,8 +10110,9 @@ def main():
                     "modules file-service\n"
                     "use 1\n"
                     "info\n"
+                    "next\n"
                     "options\n"
-                    "back\n"
+                    "background\n"
                     "show options\n"
                     "setg BB_RUNTIME_ROOT /tmp/bbx-global\n"
                     "show options\n"
@@ -10126,12 +10131,14 @@ def main():
                     "show actions\n"
                     "use module operator-daemon-status\n"
                     "info\n"
+                    "next\n"
                     "check\n"
                     "run --dry-run\n"
                     "back\n"
                     "run -j\n"
                     "use listener file-service\n"
                     "info\n"
+                    "next\n"
                     "back\n"
                     "services\n"
                     "sessions\n"
@@ -10142,6 +10149,7 @@ def main():
                     "use session 1\n"
                     "targets\n"
                     "use agent Console Router\n"
+                    "next\n"
                     "search Console Router\n"
                     "use 1\n"
                     "show options\n"
@@ -10208,6 +10216,7 @@ def main():
                 "Help: sessions" not in line_console_stdout or
                 "Help: modules" not in line_console_stdout or
                 "Help: routes" not in line_console_stdout or
+                "Help: next" not in line_console_stdout or
                 "Help: setg" not in line_console_stdout or
                 "Help: jobs" not in line_console_stdout or
                 "Help: history" not in line_console_stdout or
@@ -10216,6 +10225,7 @@ def main():
                 "commands=3 skipped_nested=1" not in line_console_stdout or
                 "bbx[all]> workspace" not in line_console_stdout or
                 "history, !!, !N, repeat N       show or replay command history" not in line_console_stdout or
+                "next                            show suggested commands for current context" not in line_console_stdout or
                 "Command history:" not in line_console_stdout or
                 "replay: status" not in line_console_stdout or
                 "replay: help" not in line_console_stdout or
@@ -10241,6 +10251,8 @@ def main():
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
                 "use agent|listener|route NAME   select target, listener, or route context" not in line_console_stdout or
                 "use module NAME                 select an action module context" not in line_console_stdout or
+                "back, background                clear selected module context" not in line_console_stdout or
+                "Shows context-sensitive suggested commands for the selected target/module." not in line_console_stdout or
                 "sessions [-l|-v], session ID    list or inspect sessions" not in line_console_stdout or
                 "interact SESSION, sessions -i   show local session inspection commands" not in line_console_stdout or
                 "use agent/listener/module and sessions -i mirror familiar console verbs" not in line_console_stdout or
@@ -10270,6 +10282,14 @@ def main():
                 "route.name=console-route" not in line_console_stdout or
                 "route.inspect_command=scripts/busierbox-server --config" not in line_console_stdout or
                 "route.next=info, start, stop, run, back" not in line_console_stdout or
+                "Next actions:" not in line_console_stdout or
+                "selected agent=all" not in line_console_stdout or
+                "selected listener=file-service" not in line_console_stdout or
+                "selected route=console-route" not in line_console_stdout or
+                "selected module=daemon:operator-daemon-status" not in line_console_stdout or
+                "commands: options, check, run, run --dry-run, run --confirm, background" not in line_console_stdout or
+                "commands: queue COMMAND, show activity, show options, serve-binary PATH NAME, clear target" not in line_console_stdout or
+                "help: help use, help modules, help routes, help sessions" not in line_console_stdout or
                 "Module categories:" not in line_console_stdout or
                 "commands: show service modules, show daemon modules, show target modules, show workbench modules" not in line_console_stdout or
                 "Module kind: service" not in line_console_stdout or
@@ -10387,6 +10407,9 @@ def main():
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "daemon" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "target" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "workbench" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "root" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "route/console-route" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "action/operator-daemon-status" for event in line_console_events) or
                 not any(event.get("event") == "workbench_listeners_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_routes_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
                 not any(event.get("event") == "workbench_route_selected" and (event.get("details") or {}).get("name") == "console-route" for event in line_console_events) or
