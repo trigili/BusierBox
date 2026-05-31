@@ -10038,6 +10038,7 @@ def main():
                     "help aliases\n"
                     "help use\n"
                     "help sessions\n"
+                    "help modules\n"
                     "help setg\n"
                     "help jobs\n"
                     "help history\n"
@@ -10051,6 +10052,11 @@ def main():
                     "show agents\n"
                     "show listeners\n"
                     "show routes\n"
+                    "show modules daemon\n"
+                    "modules file-service\n"
+                    "use 1\n"
+                    "info\n"
+                    "back\n"
                     "show options\n"
                     "setg BB_RUNTIME_ROOT /tmp/bbx-global\n"
                     "show options\n"
@@ -10142,6 +10148,7 @@ def main():
                 "Help: aliases" not in line_console_stdout or
                 "Help: use" not in line_console_stdout or
                 "Help: sessions" not in line_console_stdout or
+                "Help: modules" not in line_console_stdout or
                 "Help: setg" not in line_console_stdout or
                 "Help: jobs" not in line_console_stdout or
                 "Help: history" not in line_console_stdout or
@@ -10160,6 +10167,8 @@ def main():
                 "command: use service file-service" not in line_console_stdout or
                 "service:file-service:start-service" not in line_console_stdout or
                 "show targets|services|files" not in line_console_stdout or
+                "show modules [FILTER]           browse modules by kind, id, workflow, or text" not in line_console_stdout or
+                "show modules [FILTER]" not in line_console_stdout or
                 "services, targets, sessions     shortcuts for show commands" not in line_console_stdout or
                 "agents, listeners, routes       operator aliases for targets/services/bridges" not in line_console_stdout or
                 "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
@@ -10170,7 +10179,7 @@ def main():
                 "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
                 "run -j, run --job               start selected background action as a managed job" not in line_console_stdout or
                 "jobs, jobs -k ID                show or cancel background jobs" not in line_console_stdout or
-                "use N                           use a numbered search result" not in line_console_stdout or
+                "use N                           use a numbered search/module result" not in line_console_stdout or
                 "use action ACTION               select an action module context" not in line_console_stdout or
                 "check                           dry-run the selected action module" not in line_console_stdout or
                 "set KEY VALUE                   set target metadata or guided build option" not in line_console_stdout or
@@ -10182,6 +10191,11 @@ def main():
                 "Services:" not in line_console_stdout or
                 "Routes:" not in line_console_stdout or
                 "No bridge profiles." not in line_console_stdout or
+                "Module filter: daemon" not in line_console_stdout or
+                "Module filter: file-service" not in line_console_stdout or
+                "Module groups:" not in line_console_stdout or
+                "module: use module file-service" not in line_console_stdout or
+                "selected search result 1 action service:file-service" not in line_console_stdout or
                 "Daemon workflow actions:" not in line_console_stdout or
                 "unknown workbench job: missing-job" not in line_console_stdout or
                 "Console action modules:" not in line_console_stdout or
@@ -10258,6 +10272,8 @@ def main():
                 not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/bbx-global" for event in line_console_events) or
                 not any(event.get("event") == "workbench_config_unset" and (event.get("details") or {}).get("key") == "BB_RUNTIME_ROOT" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "daemon" for event in line_console_events) or
+                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "file-service" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "name=file-service" for event in line_console_events) or
                 not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
                 not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
