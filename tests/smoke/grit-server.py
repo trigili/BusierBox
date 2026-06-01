@@ -11576,6 +11576,166 @@ def main(argv=None):
             print("line-oriented TUI did not record release staging event", file=sys.stderr)
             print(json.dumps(line_release_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        probe_release_dir = Path(tmp) / "probe-release"
+        probe_release_operator = Path(tmp) / "operator-session-probe-release"
+        probe_release_state = probe_release_operator / "state.json"
+        probe_release_staged = probe_release_operator / "staged.json"
+        probe_release_cfg = Path(tmp) / "probe-release-config.json"
+        probe_release_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(probe_release_operator),
+            "server_state": str(probe_release_state),
+            "staged_files": str(probe_release_staged),
+            "release_dir": str(probe_release_dir),
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": free_port(),
+        }), encoding="utf-8")
+        (probe_release_dir / "scripts").mkdir(parents=True)
+        (probe_release_dir / "bin").mkdir(parents=True)
+        mipsel_default = probe_release_dir / "by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-mipsel-default"
+        mipsel_ssh = probe_release_dir / "by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-mipsel-ssh"
+        x86_default = probe_release_dir / "by-tuple/x86_64/musl/4.x/generic/bin/grit-x86-default"
+        for path, text in (
+                (mipsel_default, "mipsel default\n"),
+                (mipsel_ssh, "mipsel ssh\n"),
+                (x86_default, "x86 default\n")):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+            path.chmod(0o755)
+        probe_release_json = {
+            "schema": 1,
+            "release_name": "probe-release-smoke",
+            "layout": {
+                "devices": {},
+                "tuples": {
+                    "by-tuple/mipsel/musl/4.x/mips32r2-24kc": {
+                        "tuple": {"arch": "mipsel", "libc": "musl", "kernel_floor": "4.x", "cpu": "mips32r2-24kc"},
+                        "artifacts": [
+                            "by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-mipsel-default",
+                            "by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-mipsel-ssh",
+                        ],
+                    },
+                    "by-tuple/x86_64/musl/4.x/generic": {
+                        "tuple": {"arch": "x86_64", "libc": "musl", "kernel_floor": "4.x", "cpu": "generic"},
+                        "artifacts": ["by-tuple/x86_64/musl/4.x/generic/bin/grit-x86-default"],
+                    },
+                },
+            },
+        }
+        probe_release_index = {
+            "schema": 1,
+            "release_name": "probe-release-smoke",
+            "devices": {},
+            "tuples": probe_release_json["layout"]["tuples"],
+            "artifacts": [
+                {
+                    "artifact": "bin/grit-x86-default",
+                    "tuple_artifact": "by-tuple/x86_64/musl/4.x/generic/bin/grit-x86-default",
+                    "tuple_path": "by-tuple/x86_64/musl/4.x/generic",
+                    "payload_preset": "default",
+                    "sha256": "x86",
+                    "compatibility": {"label": "exact", "reasons": ["x86 fixture"]},
+                },
+                {
+                    "artifact": "bin/grit-mipsel-default",
+                    "tuple_artifact": "by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-mipsel-default",
+                    "tuple_path": "by-tuple/mipsel/musl/4.x/mips32r2-24kc",
+                    "payload_preset": "default",
+                    "sha256": "mipsel-default",
+                    "compatibility": {"label": "exact", "reasons": ["mipsel fixture"]},
+                },
+                {
+                    "artifact": "bin/grit-mipsel-ssh",
+                    "tuple_artifact": "by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-mipsel-ssh",
+                    "tuple_path": "by-tuple/mipsel/musl/4.x/mips32r2-24kc",
+                    "payload_preset": "ssh-operator",
+                    "sha256": "mipsel-ssh",
+                    "compatibility": {"label": "exact", "reasons": ["mipsel fixture"]},
+                },
+            ],
+        }
+        (probe_release_dir / "release.json").write_text(json.dumps(probe_release_json, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        (probe_release_dir / "release-index.json").write_text(json.dumps(probe_release_index, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        probe_release_operator.mkdir(parents=True, exist_ok=True)
+        (probe_release_operator / "probe-results.json").write_text(json.dumps({
+            "schema": 1,
+            "results": [
+                {
+                    "received_at": "2026-01-01T00:00:00Z",
+                    "uname_m": "mips",
+                    "uname_r": "4.14.221",
+                    "word_bits": "32",
+                    "endian": "little",
+                    "status": "received",
+                }
+            ],
+        }, indent=2) + "\n", encoding="utf-8")
+        probe_master, probe_slave = pty.openpty()
+        try:
+            probe_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(probe_release_cfg),
+                    "--state-file", str(probe_release_state),
+                    "--staged-file", str(probe_release_staged),
+                    "--tui",
+                ],
+                cwd=probe_release_dir,
+                stdin=probe_slave,
+                stdout=probe_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(probe_slave)
+            probe_slave = -1
+            time.sleep(0.3)
+            os.write(probe_master, b"probe serve\n1\nq\n")
+            probe_output = b""
+            deadline = time.time() + 8
+            while probe_proc.poll() is None and time.time() < deadline:
+                readable, _, _ = select.select([probe_master], [], [], 0.1)
+                if readable:
+                    try:
+                        probe_output += os.read(probe_master, 65536)
+                    except OSError:
+                        break
+            if probe_proc.poll() is None:
+                probe_proc.terminate()
+                try:
+                    probe_proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    probe_proc.kill()
+                    probe_proc.wait(timeout=2)
+            probe_stderr = probe_proc.stderr.read()
+        finally:
+            if probe_slave != -1:
+                os.close(probe_slave)
+            try:
+                os.close(probe_master)
+            except OSError:
+                pass
+        probe_text = probe_output.decode("utf-8", errors="replace")
+        if (probe_proc.returncode != 0 or
+                "Traceback" in (probe_stderr or "") or
+                "Probe arch: mipsel" not in probe_text or
+                "floor: 4.x" not in probe_text or
+                "Available for mipsel  (2 found)" not in probe_text or
+                "by-tuple/mipsel/musl/4.x/mips32r2-24kc" not in probe_text or
+                "by-tuple/x86_64/musl/4.x/generic" in probe_text or
+                "Release artifact staged:" not in probe_text or
+                "grit-mipsel-default" not in probe_text):
+            print("probe serve did not choose the matching release tuple", file=sys.stderr)
+            print(probe_text, file=sys.stderr)
+            print(probe_stderr or "", file=sys.stderr)
+            return 1
+        probe_staged = json.loads(probe_release_staged.read_text(encoding="utf-8"))
+        staged_probe = (probe_staged.get("staged") or {}).get("grit-mipsel-default") or {}
+        if (staged_probe.get("tuple_path") != "by-tuple/mipsel/musl/4.x/mips32r2-24kc" or
+                staged_probe.get("payload_preset") != "default" or
+                "x86" in json.dumps(probe_staged)):
+            print("probe serve staged the wrong release artifact", file=sys.stderr)
+            print(json.dumps(probe_staged, indent=2, sort_keys=True), file=sys.stderr)
+            return 1
         target_release_state = Path(tmp) / "operator-session" / "target-release-state.json"
         target_release_staged = Path(tmp) / "operator-session" / "target-release-staged.json"
         target_release_targets = Path(tmp) / "operator-session" / "target-release-targets.json"

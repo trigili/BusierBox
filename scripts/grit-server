@@ -10203,11 +10203,62 @@ def release_recommendation_records(recommendations):
                 "id": f"{scope}:{key}",
                 "artifact": artifact.get("release_path") or artifact.get("path") or artifact.get("name") or "",
                 "artifact_name": artifact.get("name") or "",
+                "tuple_path": artifact.get("tuple_path") or "",
                 "payload_preset": artifact.get("payload_preset") or "",
                 "compatibility": artifact.get("compatibility") or {},
                 "sha256": artifact.get("sha256") or "",
             })
     return records
+
+
+def kernel_floor_from_release(release):
+    release = str(release or "").strip().lower()
+    if not release:
+        return ""
+    major = release.split(".", 1)[0]
+    if major.isdigit():
+        return f"{major}.x"
+    return release
+
+
+def normalized_probe_arch(arch, endian=""):
+    arch = str(arch or "").strip().lower()
+    endian = str(endian or "").strip().lower()
+    if arch in {"x86-64", "amd64"}:
+        return "x86_64"
+    if arch in {"arm64"}:
+        return "aarch64"
+    if arch.startswith("armv7") or arch in {"armhf", "armv7l"}:
+        return "armv7"
+    if arch in {"mips"} and endian == "little":
+        return "mipsel"
+    if arch in {"mipsel"} and endian == "big":
+        return "mips"
+    return arch
+
+
+def release_tuple_for_record(release, record):
+    tuple_path = str(record.get("tuple_path") or "")
+    if not tuple_path and str(record.get("scope") or "") in {"by_tuple_path", "by_tuple_payload_preset"}:
+        tuple_path = str(record.get("key") or "").split(":", 1)[0]
+    if not tuple_path:
+        artifact = str(record.get("artifact") or "")
+        artifact_rec = (release.get("artifacts_by_release_path") or {}).get(artifact) or {}
+        tuple_path = str(artifact_rec.get("tuple_path") or "")
+    return (release.get("tuples_by_path") or {}).get(tuple_path) or {}
+
+
+def release_record_matches_probe(release, record, probe_arch, probe_kernel_floor):
+    tuple_rec = release_tuple_for_record(release, record)
+    tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
+    tuple_arch = normalized_probe_arch(tuple_info.get("arch") or "")
+    tuple_kernel = str(tuple_info.get("kernel_floor") or "").strip().lower()
+    if probe_arch and tuple_arch and probe_arch != tuple_arch:
+        return False
+    if probe_kernel_floor and tuple_kernel and tuple_kernel not in {"host", "current"}:
+        if tuple_kernel != probe_kernel_floor:
+            return False
+    return True
 
 
 RELEASE_LICENSE_NOTICE_FILES = (
@@ -24967,51 +25018,71 @@ def run_line_tui(cfg):
             raise ValueError("no probe results — run: probe --start")
         uname_m, endian = _probe_effective_arch(rec)
         kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
-        print(f"Probe arch: {uname_m}  kernel: {kernel}  endian: {endian}")
+        probe_arch = normalized_probe_arch(uname_m, endian)
+        probe_kernel_floor = kernel_floor_from_release(kernel)
+        print(f"Probe arch: {probe_arch or uname_m}  kernel: {kernel}  floor: {probe_kernel_floor or '-'}  endian: {endian}")
         print("")
         rel = release_context(cfg)
         if not rel:
             print("No release configured.")
             print(f"  Build a release or point --release-dir at one, then run: probe serve")
             return
-        # Look for recommendations matching the probe arch
         recs = rel.get("recommendation_records") or []
-        arch_matches = [
+        tuple_matches = [
             r for r in recs
-            if uname_m and (
-                uname_m in str(r.get("artifact") or r.get("artifact_name") or "").lower()
-                or uname_m in str((r.get("compatibility") or {}).get("label") or "").lower()
-                or uname_m in str(r.get("key") or "").lower()
-            )
+            if release_record_matches_probe(rel, r, probe_arch, probe_kernel_floor)
         ]
-        if not arch_matches:
-            arch_matches = recs  # fall back to showing all
-        if arch_matches:
+        if not tuple_matches:
+            tuple_matches = [
+                r for r in recs
+                if probe_arch and probe_arch in str(r.get("artifact") or r.get("artifact_name") or r.get("key") or "").lower()
+            ]
+        if not tuple_matches:
+            tuple_matches = recs
+        deduped_matches = []
+        seen_matches = set()
+        for item in tuple_matches:
+            key = (
+                str(item.get("artifact") or ""),
+                str(item.get("tuple_path") or ""),
+                str(item.get("payload_preset") or ""),
+            )
+            if key in seen_matches:
+                continue
+            seen_matches.add(key)
+            deduped_matches.append(item)
+        tuple_matches = deduped_matches
+        if tuple_matches:
             _console_table(
-                f"Available for {uname_m}  ({len(arch_matches)} found)",
-                arch_matches[:9],
+                f"Available for {probe_arch or uname_m}  ({len(tuple_matches)} found)",
+                tuple_matches[:9],
                 [
                     ("Preset",    lambda r: r.get("payload_preset") or "-"),
+                    ("Tuple",     lambda r: r.get("tuple_path") or "-"),
                     ("Artifact",  lambda r: r.get("artifact_name") or r.get("artifact") or "-"),
                     ("Compat",    lambda r: (r.get("compatibility") or {}).get("label") or "-"),
                 ],
             )
             print("")
             # If multiple presets available for this arch, let the operator pick
-            if len(arch_matches) == 1:
-                chosen = arch_matches[0]
+            if len(tuple_matches) == 1:
+                chosen = tuple_matches[0]
             else:
                 _PRESET_DESCRIPTIONS = {
+                    "builtin-core-shell": "small built-in shell/core; no extracted payload required",
                     "survey-core": "minimal — probe, survey, config-info; smallest footprint",
                     "default":     "BusyBox + common debug tools; balanced size",
+                    "payload-bash": "default-style payload with bash when available",
+                    "socat-rescue": "no-residue socat-oriented rescue payload",
                     "ssh-operator": "full suite — dropbear, tmux, gdbserver, strace, curl, zsh",
                     "full-debug":  "maximum toolset including RE tools",
                 }
                 print("  Which payload preset?")
-                for i, r in enumerate(arch_matches[:9], 1):
+                for i, r in enumerate(tuple_matches[:9], 1):
                     preset = r.get("payload_preset") or "-"
                     desc = _PRESET_DESCRIPTIONS.get(preset, "")
-                    print(f"    {i}  {preset:<16}  {desc}")
+                    tuple_path = r.get("tuple_path") or "-"
+                    print(f"    {i}  {preset:<20}  {tuple_path:<42}  {desc}")
                 print("")
                 choice_line = line_input("  Select preset (number or name, blank to cancel)> ")
                 choice = (choice_line or "").strip()
@@ -25021,10 +25092,10 @@ def run_line_tui(cfg):
                 chosen = None
                 if choice.isdigit():
                     idx = int(choice) - 1
-                    if 0 <= idx < len(arch_matches):
-                        chosen = arch_matches[idx]
+                    if 0 <= idx < len(tuple_matches):
+                        chosen = tuple_matches[idx]
                 else:
-                    for r in arch_matches:
+                    for r in tuple_matches:
                         if (r.get("payload_preset") or "").lower() == choice.lower():
                             chosen = r
                             break
@@ -25040,9 +25111,10 @@ def run_line_tui(cfg):
         else:
             print(f"  No artifacts found. Run: release  to see what's available.")
         append_event(cfg, "workbench", "workbench_probe_serve_run", details={
-            "probe_arch": uname_m,
+            "probe_arch": probe_arch or uname_m,
             "probe_kernel": kernel,
-            "match_count": len(arch_matches),
+            "probe_kernel_floor": probe_kernel_floor,
+            "match_count": len(tuple_matches),
             "start_file_service": start_file_service,
         })
 
