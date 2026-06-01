@@ -1809,7 +1809,7 @@ def main(argv=None):
         if ("Generated target commands:" not in bridged_survey_text_status.stdout or
                 "routes: bridge=" not in bridged_survey_text_status.stdout or
                 "Probe workflow action summary:" not in bridged_survey_text_status.stdout or
-                "survey routes: bridge=4" not in bridged_survey_text_status.stdout or
+                "probe routes: bridge=4" not in bridged_survey_text_status.stdout or
                 "bridge profiles: survey-route=" not in bridged_survey_text_status.stdout or
                 f"route=bridge bridge_profile=survey-route path=operator:{survey_route_port} -> rack-host:19001" not in bridged_survey_text_status.stdout or
                 f"command={expected_survey_command}" not in bridged_survey_text_status.stdout):

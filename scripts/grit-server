@@ -4879,7 +4879,7 @@ def operator_console_workflow_records(
             "workflow": "survey",
             "group": "work",
             "label": "Survey",
-            "description": "Serve direct or bridged probe commands and queue survey requests.",
+            "description": "Serve direct or bridged probe commands and queue probe requests.",
             "primary_collection": "probe_workflow_actions",
             "source_collections": ["probe_workflow_actions", "target_command_records"],
             "action_collections": ["probe_workflow_actions", "target_workflow_actions"],
@@ -19040,9 +19040,9 @@ def print_workbench_action_summary(doc):
         f"fleet_offline={format_counts(summary.get('probe_workflow_action_fleet_offline_target_count_counts') or {})} "
         f"fleet_poll_overdue={format_counts(summary.get('probe_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
     )
-    print(f"  survey routes: {format_counts(summary.get('probe_workflow_action_route_kind_counts') or {})}")
-    print(f"  survey bridges: {format_counts(summary.get('probe_workflow_action_bridge_profile_counts') or {})}")
-    print(f"  survey action states: {format_counts(summary.get('probe_workflow_action_operator_action_state_counts') or {})}")
+    print(f"  probe routes: {format_counts(summary.get('probe_workflow_action_route_kind_counts') or {})}")
+    print(f"  probe bridges: {format_counts(summary.get('probe_workflow_action_bridge_profile_counts') or {})}")
+    print(f"  probe action states: {format_counts(summary.get('probe_workflow_action_operator_action_state_counts') or {})}")
     print(
         "Command queue workflow action summary: "
         f"total={summary.get('command_queue_workflow_action_count', 0)} "
