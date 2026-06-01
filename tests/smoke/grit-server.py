@@ -495,6 +495,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "stop file-service\n"
                 "downloads\n"
                 f"serve-binary --start {line_console_binary} grit-console\n"
+                "configure grit-console --operator-host 192.0.2.44 --transport builtin --zero-arg-mode rshell --command-queue-enable yes --command-queue-poll-interval 60\n"
                 "stop file-service\n"
                 "show stagers\n"
                 "stagers\n"
@@ -589,6 +590,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "File staged for target fetch:",
         "Staged fetch command:",
         "griTTYkit binary staged for target fetch:",
+        "Artifact trailer configured:",
+        "keys=GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC",
         "target_fetch_command=grit fetch grit-console",
         "target_run_hint=chmod +x ./grit-console && ./grit-console --help",
         "unstaged console-upload",
@@ -710,9 +713,36 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 (event.get("details") or {}).get("target_id") == "line-console-target" and
                 (event.get("details") or {}).get("target_label") == "Console Router" and
                 (event.get("details") or {}).get("started_file_service") is True
+                for event in line_console_events) or
+            not any(
+                event.get("event") == "workbench_artifact_trailer_configured" and
+                (event.get("details") or {}).get("request_name") == "grit-console" and
+                "GRIT_OPERATOR_SERVER_HOST" in ((event.get("details") or {}).get("keys") or []) and
+                "GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC" in ((event.get("details") or {}).get("keys") or [])
                 for event in line_console_events)):
         print("line-oriented TUI console commands did not record expected events", file=sys.stderr)
         print(json.dumps(line_console_status_doc, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
+
+    line_console_staged_doc = json.loads(line_console_staged.read_text(encoding="utf-8"))
+    configured_binary = (line_console_staged_doc.get("staged") or {}).get("grit-console") or {}
+    configured_path = Path(configured_binary.get("source_path") or "")
+    configured_from = configured_binary.get("configured_from_source_path") or ""
+    if (configured_binary.get("configured") is not True or
+            "configured-artifacts" not in str(configured_path) or
+            configured_from != str(line_console_binary) or
+            not configured_path.is_file()):
+        print("line-oriented TUI did not keep a configured staged binary copy", file=sys.stderr)
+        print(json.dumps(configured_binary, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
+    configured_show = run("scripts/lib/artifact-config", "show", str(configured_path))
+    if (configured_show.returncode != 0 or
+            "GRIT_OPERATOR_SERVER_HOST=192.0.2.44" not in configured_show.stdout or
+            "GRIT_RSHELL_TRANSPORT=builtin" not in configured_show.stdout or
+            "GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC=60" not in configured_show.stdout):
+        print("configured staged binary trailer is missing expected overrides", file=sys.stderr)
+        print(configured_show.stdout, file=sys.stderr)
+        print(configured_show.stderr, file=sys.stderr)
         return 1
 
     return 0
@@ -770,6 +800,8 @@ def main(argv=None):
             "interact agent ID|LABEL" not in console_help or
             "commands, copy N" not in console_help or
             "serve-binary [--start] [PATH] [NAME]" not in console_help or
+            "configure NAME|PATH KEY=VALUE" not in console_help or
+            "configure NAME --operator-host HOST --transport builtin" not in console_help or
             "release, release stage SELECTOR" not in console_help or
             "fetch [--queue] [--start] NAME" not in console_help or
             "queue list|result|clear" not in console_help or

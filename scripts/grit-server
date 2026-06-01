@@ -22014,6 +22014,7 @@ def run_line_tui(cfg):
             "file": "files", "staged": "files", "stagers": "files", "loot": "files",
             "upload": "files", "fetch": "files", "download": "files",
             "release": "files", "serve-binary": "files", "binary": "files",
+            "configure": "files", "trailer": "files",
             "view": "files", "cat": "files", "unstage": "files",
             "route": "routes", "bridge": "routes", "bridges": "routes",
             "job": "jobs", "run": "jobs",
@@ -22108,6 +22109,8 @@ def run_line_tui(cfg):
                     ("release", "list detected release artifact recommendations"),
                     ("release stage [--start] SELECTOR", "stage a release artifact"),
                     ("serve-binary [--start] [PATH] [NAME]", "stage a griTTYkit binary for target fetch"),
+                    ("configure NAME|PATH KEY=VALUE...", "apply trailer overrides to a staged binary or artifact"),
+                    ("configure NAME --operator-host HOST --transport builtin", "guided trailer override flags"),
                     ("unstage NAME", "remove a staged file"),
                     ("files clear", "preview removal of all staged files"),
                     ("files clear --confirm", "remove all staged files"),
@@ -22119,6 +22122,7 @@ def run_line_tui(cfg):
                     "upload ./grit grit  →  fetch grit",
                     "release stage by_device:gl-mt3000",
                     "serve-binary --start",
+                    "configure grit --operator-host 192.168.8.241 --zero-arg-mode rshell",
                 ],
             },
             "queue": {
@@ -23815,7 +23819,7 @@ def run_line_tui(cfg):
             "useagent", "uselistener", "useroute", "usesession", "usemodule",
             "main", "home", "root", "back", "background", "start", "stop",
             "check", "run", "execute", "exploit", "interact", "queue",
-            "download", "get", "probe", "survey", "probe", "daemon", "build", "release", "releases", "stage-release", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
+            "download", "get", "probe", "survey", "daemon", "build", "release", "releases", "stage-release", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "configure", "trailer", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
             "quit", "exit", "ips", "reload",
         ]
         show_resources = [
@@ -24100,6 +24104,26 @@ def run_line_tui(cfg):
                 if str(name or "")
             ]
             return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), staged_names)]
+
+        if cmd in {"configure", "trailer"}:
+            staged_names = [
+                str(name or "")
+                for name in sorted((workbench_snapshot(cfg).get("staged") or {}).keys())
+                if str(name or "")
+            ]
+            if at_arg(1):
+                return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), staged_names)]
+            return [f"{cmd} {parts[1]} {item}" for item in prefixed(arg_pfx(2), [
+                "--show", "--clear", "--operator-host", "--operator-user", "--ssh-port",
+                "--shell-port", "--remote-forward-port", "--target-bind-host",
+                "--transport", "--encryption", "--run-mode", "--session-policy",
+                "--shell-provider", "--zero-arg-mode", "--zero-arg-log-mode",
+                "--runtime-mode", "--noresidue-level", "--retry-count",
+                "--retry-interval", "--retry-backoff", "--retry-max-interval",
+                "--command-queue-enable", "--command-queue-port",
+                "--command-queue-execution", "--command-queue-poll-interval",
+                "--command-queue-max-polls",
+            ])] if len(parts) >= 2 else []
 
         if cmd in {"view", "cat", "less"}:
             path_values = []
@@ -25874,6 +25898,205 @@ def run_line_tui(cfg):
         })
         return rec
 
+    def artifact_config_script():
+        script_dir = Path(__file__).resolve().parent
+        candidates = [script_dir / "lib" / "artifact-config"]
+        for item in candidates:
+            if item.is_file():
+                return item
+        raise ValueError("artifact-config helper not found")
+
+    def staged_record_for_configure(selector):
+        text = str(selector or "").strip()
+        if not text:
+            return "", {}
+        staged = load_staged(cfg).get("staged") or {}
+        if text in staged and isinstance(staged.get(text), dict):
+            return text, staged[text]
+        if text.isdigit():
+            names = sorted(str(item or "") for item in staged.keys() if str(item or ""))
+            idx = int(text) - 1
+            if 0 <= idx < len(names):
+                name = names[idx]
+                rec = staged.get(name) or {}
+                return name, rec if isinstance(rec, dict) else {}
+        return "", {}
+
+    def configured_artifact_path_for_request(request_name, source_path):
+        out_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "configured-artifacts"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        safe_name = reject_traversal_request_name(request_name)
+        suffix = Path(str(source_path or safe_name)).suffix
+        target = out_dir / safe_name
+        if suffix and not target.name.endswith(suffix):
+            target = out_dir / f"{safe_name}{suffix}"
+        return target
+
+    def prepare_staged_artifact_for_configure(request_name, rec):
+        source = Path(str(rec.get("source_path") or "")).expanduser()
+        if not source.is_file():
+            raise ValueError(f"staged source is missing: {source}")
+        configured_source = str(rec.get("configured_source_path") or "")
+        if configured_source and Path(configured_source).is_file():
+            return Path(configured_source)
+        dest = configured_artifact_path_for_request(request_name, source)
+        if source.resolve() != dest.resolve():
+            shutil.copy2(source, dest)
+        dest.chmod(source.stat().st_mode & 0o777)
+        data = load_staged(cfg)
+        staged = data.setdefault("staged", {})
+        updated = dict(staged.get(request_name) or rec)
+        updated.update({
+            "source_path": str(dest),
+            "configured_source_path": str(dest),
+            "configured_from_source_path": str(source),
+            "configured_at": utc_now(),
+            "size": dest.stat().st_size,
+            "sha256": file_sha256(dest),
+            "mtime": int(dest.stat().st_mtime),
+        })
+        staged[request_name] = updated
+        atomic_write_json(staged_file_path(cfg), data)
+        return dest
+
+    def parse_line_configure_args(args):
+        if not args:
+            raise ValueError("usage: configure NAME|PATH [--show|--clear|KEY=VALUE|options...]")
+        selector = str(args[0])
+        rest = list(args[1:])
+        if not rest:
+            raise ValueError("usage: configure NAME|PATH [--show|--clear|KEY=VALUE|options...]")
+        option_keys = {
+            "--operator-host": "GRIT_OPERATOR_SERVER_HOST",
+            "--operator-user": "GRIT_OPERATOR_SERVER_USER",
+            "--ssh-port": "GRIT_OPERATOR_SERVER_SSH_PORT",
+            "--shell-port": "GRIT_RSHELL_SOCAT_PORT",
+            "--remote-forward-port": "GRIT_OPERATOR_REMOTE_FORWARD_PORT",
+            "--target-bind-host": "GRIT_OPERATOR_TARGET_BIND_HOST",
+            "--transport": "GRIT_RSHELL_TRANSPORT",
+            "--encryption": "GRIT_RSHELL_ENCRYPTION",
+            "--run-mode": "GRIT_RSHELL_RUN_MODE",
+            "--session-policy": "GRIT_RSHELL_SESSION_POLICY",
+            "--shell-provider": "GRIT_RSHELL_SHELL_PROVIDER",
+            "--zero-arg-mode": "GRIT_ZERO_ARG_MODE",
+            "--zero-arg-log-mode": "GRIT_ZERO_ARG_LOG_MODE",
+            "--zero-arg-command": "GRIT_ZERO_ARG_CUSTOM_COMMAND",
+            "--runtime-mode": "GRIT_RUNTIME_MODE",
+            "--noresidue-level": "GRIT_NORESIDUE_LEVEL",
+            "--retry-count": "GRIT_RSHELL_RETRY_COUNT",
+            "--retry-interval": "GRIT_RSHELL_RETRY_INTERVAL_SEC",
+            "--retry-jitter": "GRIT_RSHELL_RETRY_JITTER_PCT",
+            "--retry-backoff": "GRIT_RSHELL_RETRY_BACKOFF",
+            "--retry-max-interval": "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC",
+            "--command-queue-enable": "GRIT_COMMAND_QUEUE_ENABLE",
+            "--command-queue-port": "GRIT_COMMAND_QUEUE_PORT",
+            "--command-queue-execution": "GRIT_COMMAND_QUEUE_EXECUTION",
+            "--command-queue-poll-interval": "GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC",
+            "--command-queue-poll-jitter": "GRIT_COMMAND_QUEUE_POLL_JITTER_PCT",
+            "--command-queue-poll-backoff": "GRIT_COMMAND_QUEUE_POLL_BACKOFF",
+            "--command-queue-poll-max-interval": "GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC",
+            "--command-queue-max-polls": "GRIT_COMMAND_QUEUE_MAX_POLLS",
+        }
+        action = "set"
+        obfuscation = "none"
+        kv = []
+        i = 0
+        while i < len(rest):
+            item = str(rest[i])
+            if item in {"--show", "show"}:
+                action = "show"
+                i += 1
+            elif item in {"--clear", "clear"}:
+                action = "clear"
+                i += 1
+            elif item == "--obfuscation":
+                if i + 1 >= len(rest):
+                    raise ValueError("configure --obfuscation requires none|xor")
+                obfuscation = str(rest[i + 1])
+                i += 2
+            elif item.startswith("--obfuscation="):
+                obfuscation = item.split("=", 1)[1]
+                i += 1
+            elif item in option_keys:
+                if i + 1 >= len(rest):
+                    raise ValueError(f"configure {item} requires a value")
+                kv.append(f"{option_keys[item]}={rest[i + 1]}")
+                i += 2
+            elif item.startswith("--") and "=" in item:
+                opt, value = item.split("=", 1)
+                if opt not in option_keys:
+                    raise ValueError(f"unknown configure option: {opt}")
+                kv.append(f"{option_keys[opt]}={value}")
+                i += 1
+            elif "=" in item:
+                kv.append(item)
+                i += 1
+            else:
+                raise ValueError(f"unknown configure argument: {item}")
+        if action == "set" and not kv:
+            raise ValueError("configure needs at least one KEY=VALUE or option")
+        return selector, action, obfuscation, kv
+
+    def configure_line_artifact(args):
+        selector, action, obfuscation, kv = parse_line_configure_args(args)
+        request_name, staged_rec = staged_record_for_configure(selector)
+        if request_name:
+            artifact = prepare_staged_artifact_for_configure(request_name, staged_rec)
+        else:
+            artifact = Path(selector).expanduser()
+            if not artifact.is_file():
+                raise ValueError(f"artifact or staged request not found: {selector}")
+        helper = artifact_config_script()
+        cmd = [str(helper), action, str(artifact)]
+        if action == "set":
+            cmd = [str(helper), "set", "--obfuscation", obfuscation, str(artifact)] + kv
+        result = subprocess.run(cmd, cwd=Path(__file__).resolve().parent.parent, text=True, capture_output=True)
+        if result.stdout:
+            print(result.stdout, end="")
+        if result.stderr:
+            print(result.stderr, end="")
+        if result.returncode != 0:
+            raise ValueError(f"artifact-config exited {result.returncode}")
+        if request_name:
+            data = load_staged(cfg)
+            staged = data.setdefault("staged", {})
+            rec = dict(staged.get(request_name) or staged_rec)
+            rec.update({
+                "source_path": str(artifact),
+                "configured_source_path": str(artifact),
+                "configured": action != "clear",
+                "configured_at": utc_now(),
+                "configured_keys": sorted([item.split("=", 1)[0] for item in kv]) if action == "set" else rec.get("configured_keys", []),
+                "size": artifact.stat().st_size,
+                "sha256": file_sha256(artifact),
+                "mtime": int(artifact.stat().st_mtime),
+            })
+            if action == "clear":
+                rec["configured_keys"] = []
+            staged[request_name] = rec
+            atomic_write_json(staged_file_path(cfg), data)
+        fetch_command = render_fetch_command(request_name, cfg) if request_name else ""
+        print("Artifact trailer configured:" if action == "set" else f"Artifact trailer {action}:")
+        print(f"  artifact={artifact}")
+        if request_name:
+            print(f"  request_name={request_name}")
+            print(f"  target_fetch_command={fetch_command}")
+        if kv:
+            print("  keys=" + ", ".join(item.split("=", 1)[0] for item in kv))
+        headless = " ".join(shquote(part) for part in cmd)
+        print(f"headless_command: {headless}")
+        append_event(cfg, "workbench", "workbench_artifact_trailer_configured", details={
+            "selector": selector,
+            "request_name": request_name,
+            "artifact": str(artifact),
+            "action": action,
+            "keys": [item.split("=", 1)[0] for item in kv],
+            "sha256": file_sha256(artifact) if artifact.is_file() else "",
+            "fetch_command": fetch_command,
+            "headless_command": headless,
+        })
+        return artifact
+
     def parse_line_file_args(args):
         start_file_service = False
         values = []
@@ -26852,6 +27075,12 @@ def run_line_tui(cfg):
                         prompt_start=(not selector and not no_start_binary_service),
                         start_file_service=start_binary_service,
                     )
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd in {"configure", "trailer"}:
+                try:
+                    configure_line_artifact(console_args[1:])
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -29032,6 +29261,10 @@ Context:
 Operations:
   serve-binary [--start] [PATH] [NAME]
                                 stage and optionally serve a griTTYkit binary
+  configure NAME|PATH KEY=VALUE...
+                                apply runtime trailer overrides to a binary
+  configure NAME --operator-host HOST --transport builtin
+                                guided trailer override flags for staged payloads
   upload [--start] LOCAL [NAME] stage and optionally serve a local file
   release, release stage SELECTOR
                                 list or stage release artifacts
