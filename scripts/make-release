@@ -1231,6 +1231,17 @@ def write_release_helpers(script_dir):
             }
 
         release = load_json(root / "release.json")
+        release_failures = [
+            rec for rec in (release.get("failures") or [])
+            if isinstance(rec, dict)
+        ]
+        if release_failures:
+            labels = [
+                f"{rec.get('target', rec.get('resolved_target', '?'))}/{rec.get('payload_preset', rec.get('payload', '?'))}: {rec.get('reason', 'failed')}"
+                for rec in release_failures[:8]
+            ]
+            more = f" (+{len(release_failures) - len(labels)} more)" if len(release_failures) > len(labels) else ""
+            fail("release contains failed artifact builds: " + "; ".join(labels) + more)
         required_license_files = (
             "LICENSE.grit",
             "LICENSE",
@@ -1284,6 +1295,10 @@ def write_release_helpers(script_dir):
         if not (root / "release-index.json").exists():
             run([str(root / "scripts" / "release-index"), "--write"])
         index = load_json(root / "release-index.json")
+        matrix_info = release.get("matrix") if isinstance(release.get("matrix"), dict) else {}
+        matrix_targets = sorted(set(str(item) for item in (matrix_info.get("targets") or []) if str(item)))
+        matrix_payload_presets = sorted(set(str(item) for item in (matrix_info.get("payload_presets") or []) if str(item)))
+        matrix_formats = sorted(set(str(item) for item in (matrix_info.get("formats") or []) if str(item)))
         diagnostics = {
             "schema": 1,
             "status": "pass",
@@ -1293,9 +1308,16 @@ def write_release_helpers(script_dir):
             "helper_count": len(helpers),
             "helpers": list(helpers),
             "release_artifact_count": len(release.get("artifacts", []) or []),
-            "release_failure_count": len(release.get("failures", []) or []),
+            "release_failure_count": len(release_failures),
             "release_tuple_count": len((release.get("layout", {}).get("tuples") or {})),
             "release_device_count": len((release.get("layout", {}).get("devices") or {})),
+            "matrix_path": str(matrix_info.get("path") or ""),
+            "matrix_target_count": len(matrix_targets),
+            "matrix_payload_preset_count": len(matrix_payload_presets),
+            "matrix_format_count": len(matrix_formats),
+            "matrix_targets": matrix_targets,
+            "matrix_payload_presets": matrix_payload_presets,
+            "matrix_formats": matrix_formats,
             "project_license": project_policy.get("license", ""),
             "combined_gplv2_compatible": compatibility_policy.get("combined_gplv2_compatible") is True,
             "corresponding_source_required": corresponding_source_policy.get("status") == "required_for_distribution",
@@ -1420,6 +1442,21 @@ def write_release_helpers(script_dir):
             diagnostic_record("checksum_original", "checksums", "pass", 1, {"verified": True}),
             diagnostic_record("helpers_executable", "helpers", "pass", diagnostics["helper_count"], {"helpers": diagnostics["helpers"]}),
             diagnostic_record("release_artifacts", "release", "pass", diagnostics["checked_artifact_count"], {"release_artifact_count": diagnostics["release_artifact_count"]}),
+            diagnostic_record(
+                "release_matrix",
+                "release",
+                "pass",
+                diagnostics["release_artifact_count"],
+                {
+                    "matrix_path": diagnostics["matrix_path"],
+                    "target_count": diagnostics["matrix_target_count"],
+                    "payload_preset_count": diagnostics["matrix_payload_preset_count"],
+                    "format_count": diagnostics["matrix_format_count"],
+                    "targets": diagnostics["matrix_targets"],
+                    "payload_presets": diagnostics["matrix_payload_presets"],
+                    "formats": diagnostics["matrix_formats"],
+                },
+            ),
             diagnostic_record("tuple_manifests", "layout", "pass", diagnostics["tuple_manifest_count"]),
             diagnostic_record("device_aliases", "layout", "pass", diagnostics["device_alias_count"]),
             diagnostic_record("manifest_sidecars", "manifests", "pass", diagnostics["manifest_sidecar_count"]),

@@ -805,6 +805,12 @@ for rel in ("docs/licensing.md", "sources.lock.json", "manifests/sources.lock.js
         raise SystemExit(f"release self-test license notice files missing {rel}: {doc!r}")
 if doc.get("checked_artifact_count") != 1 or doc.get("native_manifest_checked_count") != 1:
     raise SystemExit(f"release self-test artifact checks missing: {doc!r}")
+if doc.get("release_failure_count") != 0:
+    raise SystemExit(f"release self-test accepted recorded failures: {doc!r}")
+if doc.get("matrix_target_count") != 1 or doc.get("matrix_payload_preset_count") != 1 or doc.get("matrix_format_count") != 1:
+    raise SystemExit(f"release self-test matrix counts missing: {doc!r}")
+if doc.get("matrix_targets") != ["native"] or doc.get("matrix_payload_presets") != ["default"] or doc.get("matrix_formats") != ["tgz"]:
+    raise SystemExit(f"release self-test matrix details missing: {doc!r}")
 if doc.get("tuple_manifest_count") != 1 or doc.get("device_alias_count") != 1:
     raise SystemExit(f"release self-test layout diagnostics missing: {doc!r}")
 if doc.get("artifact_config_roundtrip_count") != 1:
@@ -836,6 +842,9 @@ if doc.get("diagnostic_record_count") != len(records) or len(records) < 10:
     raise SystemExit(f"release self-test diagnostic records missing: {doc!r}")
 if by_name.get("command_queue_safety", {}).get("status") != "pass":
     raise SystemExit(f"release self-test command queue diagnostic missing: {by_name!r}")
+matrix_diag = by_name.get("release_matrix") or {}
+if matrix_diag.get("status") != "pass" or matrix_diag.get("details", {}).get("target_count") != 1:
+    raise SystemExit(f"release self-test release_matrix diagnostic missing: {by_name!r}")
 license_diag = by_name.get("license_inventory") or {}
 if license_diag.get("status") != "pass" or license_diag.get("details", {}).get("project_license") != "GPL-2.0-or-later":
     raise SystemExit(f"release self-test license diagnostic missing: {by_name!r}")
@@ -912,6 +921,11 @@ for key in ("payload_preset", "format", "config", "artifact", "trailer_support")
     if not failure.get(key):
         raise SystemExit(f"failure missing {key}")
 PY
+if "$work/failure-release/scripts/lib/release-self-test" >"$work/failure-self-test.out" 2>"$work/failure-self-test.err"; then
+    printf '%s\n' "release-bundles: release-self-test accepted a release with failed artifacts" >&2
+    exit 1
+fi
+grep -q 'release contains failed artifact builds' "$work/failure-self-test.err"
 
 scripts/make-release \
     --name copy-layout \
