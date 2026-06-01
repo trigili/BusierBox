@@ -22241,18 +22241,14 @@ def run_line_tui(cfg):
         elif module.startswith("service/"):
             service = module.split("/", 1)[1]
             rec = line_service_record(service)
-            print(f"  service={service}")
-            if rec:
-                print(
-                    f"    actual={rec.get('actual', '') or '-'} "
-                    f"configured={rec.get('configured', '') or '-'} "
-                    f"port={rec.get('port', '') or '-'} "
-                    f"pid={rec.get('pid', '') or '-'} "
-                    f"managed={'yes' if rec.get('pid_managed') else 'no'}"
-                )
-            print(f"    start={service_start_headless_command(cfg, service)}")
-            print(f"    stop={service_stop_headless_command(cfg, service)}")
-            print("    options / start / stop / back")
+            actual = rec.get("actual") or "-" if rec else "-"
+            port = rec.get("port") or "-" if rec else "-"
+            pid = rec.get("pid") or "-" if rec else "-"
+            print(f"  {service}  —  {actual}  |  :{port}  |  pid {pid}")
+            if service == "probe":
+                _print_probe_delivery()
+            else:
+                print("    options / start / stop / back")
         elif module.startswith("route/"):
             route_name = module.split("/", 1)[1]
             rec = line_route_record(route_name)
@@ -23283,6 +23279,24 @@ def run_line_tui(cfg):
             "verbose": bool(verbose),
         })
 
+    def _print_probe_delivery():
+        """Print all the ways to get probe.sh running on a target."""
+        wget_cmd = render_probe_command(cfg)
+        # Build curl variant from the same URL
+        script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
+        route = probe_route_context(cfg)
+        url = f"http://{route.get('host', 'OPERATOR_IP')}:{route.get('port', 22207)}/{script_name}"
+        curl_cmd = f"curl -fsSL {shquote(url)} | /bin/sh"
+
+        print("")
+        print("  Delivery options (pick what the target has):")
+        print(f"    wget:  {wget_cmd}")
+        print(f"    curl:  {curl_cmd}")
+        print(f"    ssh:   ssh root@target '{wget_cmd}'")
+        print(f"    copy:  scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'")
+        print("")
+        print("  probe results  — after running any of the above")
+
     def start_line_service(service):
         service = str(service or "").strip()
         if not service:
@@ -23302,6 +23316,13 @@ def run_line_tui(cfg):
         headless = service_start_headless_command(cfg, service)
         cfg["_service_start_command"] = headless
         start_service_process(cfg, service, headless_command=headless)
+        if service == "probe":
+            # Brief poll for the listener to be ready, then show delivery commands
+            for _ in range(10):
+                time.sleep(0.1)
+                if str((line_service_record("probe") or {}).get("actual") or "") == "listening":
+                    break
+            _print_probe_delivery()
 
     def stop_line_service(service):
         service = str(service or "").strip()
@@ -24724,9 +24745,7 @@ def run_line_tui(cfg):
             print(f"    Run:  probe --start")
             print("")
 
-        print("Probe:")
-        print(f"  port={port}  script={script_name}  listening={'yes' if (already_listening or started) else 'NO'}")
-        print(f"  {command}")
+        print(f"Probe  —  port {port}  |  script {script_name}  |  {'listening' if (already_listening or started) else 'NOT listening'}")
 
         queued = {}
         target_id = configured_target_filter(cfg)
@@ -24743,8 +24762,7 @@ def run_line_tui(cfg):
             print(f"  queued {queued['id']} for target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
 
         if already_listening or started:
-            print("")
-            print("  Run the command above on the target, then: probe results")
+            _print_probe_delivery()
 
         append_event(cfg, "workbench", "workbench_probe_command_shown", details={
             "target_command": command,
