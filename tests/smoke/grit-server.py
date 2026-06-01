@@ -1076,7 +1076,7 @@ def main():
             print(survey_post.decode("utf-8", errors="replace"), file=sys.stderr)
             return 1
         out, err = survey_proc.communicate(timeout=5)
-        if survey_proc.returncode != 0 or "Listening on http://127.0.0.1" not in out:
+        if survey_proc.returncode != 0 or "Listening on http://" not in out:
             print("probe listener did not exit cleanly", file=sys.stderr)
             print(out, file=sys.stderr)
             print(err, file=sys.stderr)

@@ -24726,6 +24726,32 @@ def run_line_tui(cfg):
         return parse_line_probe_args(args)
 
     def probe_line_start(queue=False, start_service=False):
+        # If operator host isn't pinned and we have an interactive terminal,
+        # let the user pick from local IPs rather than auto-selecting blindly.
+        if not str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip() and sys.stdin.isatty():
+            candidates = local_ips()
+            if len(candidates) > 1:
+                print("Multiple local IPs — which should the target use to POST results back?")
+                print("")
+                for i, ip in enumerate(candidates, 1):
+                    print(f"  {i}  {ip}")
+                print(f"  o  Other (enter manually)")
+                print("")
+                choice_line = line_input(f"  Select (1-{len(candidates)}, o, or enter for {candidates[0]})> ")
+                choice = (choice_line or "").strip()
+                if not choice:
+                    cfg["GRIT_OPERATOR_SERVER_HOST"] = candidates[0]
+                elif choice.lower() == "o":
+                    other = (line_input("  IP address> ") or "").strip()
+                    if other:
+                        cfg["GRIT_OPERATOR_SERVER_HOST"] = other
+                elif choice.isdigit() and 1 <= int(choice) <= len(candidates):
+                    cfg["GRIT_OPERATOR_SERVER_HOST"] = candidates[int(choice) - 1]
+                print(f"  Using: {cfg.get('GRIT_OPERATOR_SERVER_HOST', candidates[0])}")
+                print("")
+            elif len(candidates) == 1:
+                cfg["GRIT_OPERATOR_SERVER_HOST"] = candidates[0]
+
         command = render_probe_command(cfg)
         snap = workbench_snapshot(cfg)
         actions = snap.get("probe_workflow_actions_by_id") or {}
