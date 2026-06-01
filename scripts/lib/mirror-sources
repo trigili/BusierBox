@@ -359,6 +359,22 @@ def write_manifest(out, lock_path, args, lock_rows, source_plans, failures, dry_
         "matrix": matrix.matrix_identity(args),
         "jobs": jobs,
         "source_lock": str(lock_path),
+        "source_release": {
+            "source_only": bool(args.source_only),
+            "contains_compiled_binaries": False,
+            "intended_use": "Use this mirror inside an isolated network to rebuild the selected matrix; release-full binaries are not included.",
+            "rebuild_environment": {
+                "GRIT_MIRROR_DIR": str(out),
+                "BUILDROOT_DL_DIR": str(out / "buildroot-dl"),
+                "GRIT_OFFLINE": "1",
+            },
+            "rebuild_commands": [
+                "export GRIT_MIRROR_DIR=$PWD",
+                "export BUILDROOT_DL_DIR=$PWD/buildroot-dl",
+                "export GRIT_OFFLINE=1",
+                "make release-full",
+            ],
+        },
         "source_coverage": {
             "all_supported_tools": bool(args.all_supported_tools),
             "tools": list(ALL_SUPPORTED_TOOLS) if args.all_supported_tools else [],
@@ -392,6 +408,28 @@ def write_manifest(out, lock_path, args, lock_rows, source_plans, failures, dry_
         print(json.dumps(manifest, indent=2, sort_keys=True))
     else:
         (out / "mirror-manifest.json").write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        (out / "README-source-release.txt").write_text(
+            "\n".join([
+                "griTTYkit source release mirror",
+                "================================",
+                "",
+                "This archive is source-only. It intentionally does not include compiled release-full binaries.",
+                "",
+                "Use it inside an isolated network as the source mirror for rebuilding the selected matrix:",
+                "",
+                "  export GRIT_MIRROR_DIR=$PWD",
+                "  export BUILDROOT_DL_DIR=$PWD/buildroot-dl",
+                "  export GRIT_OFFLINE=1",
+                "  make release-full",
+                "",
+                "The authoritative machine-readable inventory is mirror-manifest.json.",
+                "When source_coverage.all_supported_tools is true, generated Buildroot defconfigs",
+                "request every Buildroot-mapped griTTYkit utility so menuconfig-supported utility",
+                "choices are mirrored beyond the release payload presets.",
+                "",
+            ]),
+            encoding="utf-8",
+        )
         shutil.copy2(lock_path, out / "sources.lock.json")
         print(f"mirror={out}")
         print(f"manifest={out / 'mirror-manifest.json'}")

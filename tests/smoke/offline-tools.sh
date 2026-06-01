@@ -64,6 +64,16 @@ EOF
 mkdir -p "$tmp/ready/sources" "$tmp/ready/buildroot-dl"
 cp "$tmp/sample.tar" "$tmp/ready/sources/sample.tar"
 cp "$tmp/sample.tar" "$tmp/ready/buildroot-dl/sample.tar"
+mkdir -p "$tmp/readme-mirror/grit-sources"
+cp "$tmp/sample.tar" "$tmp/readme-mirror/grit-sources/sample.tar"
+scripts/lib/mirror-sources \
+    --manifest "$tmp/sources.lock.json" \
+    --out "$tmp/readme-mirror" >"$tmp/readme-mirror.out"
+test -f "$tmp/readme-mirror/README-source-release.txt"
+grep -q 'source-only' "$tmp/readme-mirror/README-source-release.txt"
+grep -q 'make release-full' "$tmp/readme-mirror/README-source-release.txt"
+python3 -m json.tool "$tmp/readme-mirror/mirror-manifest.json" >/dev/null
+grep -q '"contains_compiled_binaries": false' "$tmp/readme-mirror/mirror-manifest.json"
 scripts/lib/check-offline-readiness --mirror "$tmp/ready" --manifest "$tmp/sources.lock.json" >"$tmp/readiness.out"
 grep -q 'offline-readiness ok' "$tmp/readiness.out"
 
@@ -92,6 +102,13 @@ import sys
 
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 coverage = data.get("source_coverage") or {}
+source_release = data.get("source_release") or {}
+if source_release.get("source_only") is not True:
+    raise SystemExit("source mirror did not record source-only release mode")
+if source_release.get("contains_compiled_binaries") is not False:
+    raise SystemExit("source mirror did not declare compiled binaries absent")
+if "make release-full" not in (source_release.get("rebuild_commands") or []):
+    raise SystemExit("source mirror rebuild instructions missing make release-full")
 if coverage.get("all_supported_tools") is not True:
     raise SystemExit("source mirror did not record all-supported-tools coverage")
 for tool in ("doom", "nmap", "jq", "mtd-utils"):
@@ -109,6 +126,8 @@ PY
 make source-mirror DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-mirror" >"$tmp/make-source-mirror.out"
 grep -q '"source_coverage"' "$tmp/make-source-mirror.out"
 grep -q '"all_supported_tools": true' "$tmp/make-source-mirror.out"
+grep -q '"source_release"' "$tmp/make-source-mirror.out"
+grep -q '"contains_compiled_binaries": false' "$tmp/make-source-mirror.out"
 python3 - "$tmp/make-source-mirror.out" <<'PY'
 import json
 import re
