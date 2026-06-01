@@ -13672,11 +13672,20 @@ printf '%s\\n' "word_bits=$bb_word_bits"
 printf '%s\\n' "endian=$bb_endian"
 if command -v wget >/dev/null 2>&1; then
     wget -qO- --post-data "$bb_payload" "{url}" >/dev/null 2>&1 && exit 0
+    wget -qO /dev/null --post-data "$bb_payload" "{url}" 2>/dev/null && exit 0
 fi
 if command -v curl >/dev/null 2>&1; then
     curl -fsS -X POST -d "$bb_payload" "{url}" >/dev/null 2>&1 && exit 0
 fi
-printf '%s\\n' "survey upload failed: wget or curl not available" >&2
+if command -v nc >/dev/null 2>&1; then
+    bb_host=$(printf '%s' "{url}" | sed 's|http://||;s|/.*||;s|:.*||')
+    bb_port=$(printf '%s' "{url}" | sed 's|http://[^:]*:||;s|/.*||')
+    bb_path=$(printf '%s' "{url}" | sed 's|http://[^/]*/|/|')
+    bb_len=$(printf '%s' "$bb_payload" | wc -c | tr -d ' ')
+    printf 'POST %s HTTP/1.0\\r\\nHost: %s:%s\\r\\nContent-Type: application/x-www-form-urlencoded\\r\\nContent-Length: %s\\r\\nConnection: close\\r\\n\\r\\n%s' \\
+        "$bb_path" "$bb_host" "$bb_port" "$bb_len" "$bb_payload" | nc "$bb_host" "$bb_port" >/dev/null 2>&1 && exit 0
+fi
+printf '%s\\n' "probe upload failed: no usable wget, curl, or nc" >&2
 exit 1
 """
 
