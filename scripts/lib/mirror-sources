@@ -18,6 +18,47 @@ import grit_matrix as matrix
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BUILDROOT_VERSION_DEFAULT = "2026.02.2"
+ALL_SUPPORTED_TOOLS = (
+    "bash",
+    "curl",
+    "doom",
+    "dropbear",
+    "e2fsprogs",
+    "ethtool",
+    "fd",
+    "file",
+    "gdbserver",
+    "htop",
+    "i2c-tools",
+    "iperf3",
+    "iw",
+    "jq",
+    "ltrace",
+    "minicom",
+    "mmc-utils",
+    "mosh-client",
+    "mtd-utils",
+    "nmap",
+    "nmap-ncat",
+    "objdump",
+    "openssl",
+    "parted",
+    "pciutils",
+    "psmisc",
+    "readelf",
+    "ripgrep",
+    "rsync",
+    "screen",
+    "socat",
+    "spi-tools",
+    "strace",
+    "tcpdump",
+    "tmux",
+    "ubi-utils",
+    "usbutils",
+    "zoxide",
+    "zsh",
+)
 
 
 def load_lock(path):
@@ -191,6 +232,16 @@ def prepare_job_config(job, plans_dir):
     return cfg
 
 
+def append_source_coverage_config(cfg, args):
+    if not args.all_supported_tools:
+        return
+    with open(cfg, "a", encoding="utf-8") as fh:
+        fh.write("\n# source-mirror coverage augmentation\n")
+        fh.write("GRIT_HEAVY_TOOLS=" + matrix.shell_quote(" ".join(ALL_SUPPORTED_TOOLS)) + "\n")
+        fh.write("GRIT_BUSYBOX_GROUPS=" + matrix.shell_quote("shell fileops disk process network text system") + "\n")
+        fh.write("GRIT_GDBSERVER_PROVIDER=buildroot\n")
+
+
 def generate_buildroot_plan(job, cfg, out, buildroot_dir, args, dry_run):
     slug = job_slug(job)
     logs = out / "logs"
@@ -308,6 +359,16 @@ def write_manifest(out, lock_path, args, lock_rows, source_plans, failures, dry_
         "matrix": matrix.matrix_identity(args),
         "jobs": jobs,
         "source_lock": str(lock_path),
+        "source_coverage": {
+            "all_supported_tools": bool(args.all_supported_tools),
+            "tools": list(ALL_SUPPORTED_TOOLS) if args.all_supported_tools else [],
+            "note": (
+                "When all_supported_tools is true, generated source-fetch defconfigs request every "
+                "Buildroot-mapped griTTYkit utility so the mirror covers menuconfig choices beyond "
+                "the release payload presets. Tuple compatibility pre-exclusions are still recorded "
+                "by generated profiles."
+            ),
+        },
         "mirror_layout": {
             "grit-sources": "grit-sources",
             "compat_sources": "sources",
@@ -355,6 +416,8 @@ def main():
     parser.add_argument("--keep-build-dirs", action="store_true")
     parser.add_argument("--clean-build-dirs", action="store_true")
     parser.add_argument("--source-only", action="store_true")
+    parser.add_argument("--all-supported-tools", action="store_true",
+                        help="for source-only mirrors, request every Buildroot-mapped griTTYkit utility in generated defconfigs")
     parser.add_argument("--continue-on-error", action="store_true")
     parser.add_argument("--fail-fast", action="store_true")
     args = parser.parse_args()
@@ -386,6 +449,7 @@ def main():
                     raise SystemExit(1)
         for job in jobs:
             cfg = prepare_job_config(job, out / "plans")
+            append_source_coverage_config(cfg, args)
             rec = generate_buildroot_plan(job, cfg, out, buildroot_dir, args, args.dry_run)
             source_plans.append(rec)
             if rec.get("status") == "failed":

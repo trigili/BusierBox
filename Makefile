@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/grit.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_reality_test.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/applet_rshell.c src/applet_upload.c src/applet_command_queue.c src/command_queue_policy.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/trailer_config.c src/runtime_config.c src/sha256.c
 
-.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release release-full verify-artifact check-buildroot-tool-mappings check-licensing target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test smoke-grit-server smoke-grit-server-preflight smoke-grit-server-line-console test-qemu-user test-qemu-system test-qemu-flaky-network test-glinet test-all
+.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release release-full source-mirror source-release verify-artifact check-buildroot-tool-mappings check-licensing target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test smoke-grit-server smoke-grit-server-preflight smoke-grit-server-line-console test-qemu-user test-qemu-system test-qemu-flaky-network test-glinet test-all
 
 all: build
 
@@ -64,6 +64,30 @@ release-full:
 	  $(if $(DRY_RUN),--dry-run,) \
 	  $(if $(FAIL_FAST),--fail-fast,) \
 	  $(if $(OUT_DIR),--out-dir "$(OUT_DIR)",)
+
+SOURCE_MIRROR_DIR ?= dist/source-mirror/full
+SOURCE_RELEASE_NAME ?= source-full-$(shell cat VERSION 2>/dev/null | tr -d '[:space:]')-$(shell git rev-parse --short HEAD 2>/dev/null || printf dev)
+SOURCE_RELEASE_DIR ?= dist/releases
+source-mirror:
+	@scripts/lib/mirror-sources \
+	  --matrix tests/matrix/release-full.json \
+	  --source-only \
+	  --include-buildroot-packages \
+	  --all-supported-tools \
+	  --out "$(SOURCE_MIRROR_DIR)" \
+	  $(if $(DRY_RUN),--dry-run,) \
+	  $(if $(FAIL_FAST),--fail-fast,) \
+	  $(if $(STRICT),--strict,) \
+	  $(if $(VERIFY),--verify,)
+
+source-release: source-mirror
+	@if [ -n "$(DRY_RUN)" ]; then \
+	  printf '%s\n' "would create $(SOURCE_RELEASE_DIR)/$(SOURCE_RELEASE_NAME).tar.gz from $(SOURCE_MIRROR_DIR)"; \
+	else \
+	  mkdir -p "$(SOURCE_RELEASE_DIR)"; \
+	  tar -C "$$(dirname "$(SOURCE_MIRROR_DIR)")" -czf "$(SOURCE_RELEASE_DIR)/$(SOURCE_RELEASE_NAME).tar.gz" "$$(basename "$(SOURCE_MIRROR_DIR)")"; \
+	  printf '%s\n' "$(SOURCE_RELEASE_DIR)/$(SOURCE_RELEASE_NAME).tar.gz"; \
+	fi
 
 verify-artifact:
 	@if [ -n "$(TARGET)" ]; then artifact="dist/grit-$(TARGET)-full"; else artifact="dist/grit-native-full"; fi; \

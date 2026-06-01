@@ -83,6 +83,7 @@ EOF
 scripts/lib/mirror-sources \
     --matrix "$tmp/payload-presets-matrix.json" \
     --source-only \
+    --all-supported-tools \
     --out "$tmp/payload-presets-mirror" \
     --dry-run >"$tmp/payload-presets-mirror-plan.json"
 python3 - "$tmp/payload-presets-mirror-plan.json" <<'PY'
@@ -90,6 +91,12 @@ import json
 import sys
 
 data = json.load(open(sys.argv[1], encoding="utf-8"))
+coverage = data.get("source_coverage") or {}
+if coverage.get("all_supported_tools") is not True:
+    raise SystemExit("source mirror did not record all-supported-tools coverage")
+for tool in ("doom", "nmap", "jq", "mtd-utils"):
+    if tool not in (coverage.get("tools") or []):
+        raise SystemExit(f"source coverage missing {tool}")
 jobs = [
     item.get("job", {})
     for item in data.get("source_plans", [])
@@ -98,6 +105,13 @@ payloads = {job.get("payload") for job in jobs}
 if {"survey-core", "ssh-operator"} - payloads:
     raise SystemExit(f"payload_presets matrix did not expand: {payloads!r}")
 PY
+
+make source-mirror DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-mirror" >"$tmp/make-source-mirror.out"
+grep -q '"source_coverage"' "$tmp/make-source-mirror.out"
+grep -q '"all_supported_tools": true' "$tmp/make-source-mirror.out"
+make source-release DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-release" SOURCE_RELEASE_DIR="$tmp/releases" SOURCE_RELEASE_NAME=smoke-source >"$tmp/make-source-release.out"
+grep -q 'would create' "$tmp/make-source-release.out"
+
 scripts/lib/check-offline-readiness \
     --mirror "$tmp/ready" \
     --manifest "$tmp/sources.lock.json" \
