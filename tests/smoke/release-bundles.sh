@@ -289,6 +289,41 @@ test -f "$work/release/docs/manifest.md"
 test -f "$work/release/docs/recovery.md"
 test -f "$work/release/docs/survey-and-bringup.md"
 test -f "$work/release.tar.gz"
+cp -a "$work/release" "$work/editor-temp-release"
+mkdir -p "$work/editor-temp-release/docs"
+: >"$work/editor-temp-release/.RELEASE-QUICKSTART.txt.swp"
+: >"$work/editor-temp-release/docs/.README-release.md.swo"
+: >"$work/editor-temp-release/docs/README-release.md~"
+: >"$work/editor-temp-release/docs/.DS_Store"
+python3 - "$work/editor-temp-release" <<'PY'
+import importlib.machinery
+import tarfile
+import sys
+from pathlib import Path
+
+release_dir = Path(sys.argv[1])
+mod = importlib.machinery.SourceFileLoader("make_release", "scripts/make-release").load_module()
+checksum = mod.checksum_manifest(release_dir, "SHA256SUMS.editor-temp-test").read_text(encoding="utf-8")
+for forbidden in (
+        ".RELEASE-QUICKSTART.txt.swp",
+        "docs/.README-release.md.swo",
+        "docs/README-release.md~",
+        "docs/.DS_Store"):
+    if forbidden in checksum:
+        raise SystemExit(f"editor temp file included in checksum manifest: {forbidden}")
+tar_path = mod.make_tarball(release_dir)
+with tarfile.open(tar_path, "r:gz") as tf:
+    names = set(tf.getnames())
+root = release_dir.name
+for forbidden in (
+        ".RELEASE-QUICKSTART.txt.swp",
+        "docs/.README-release.md.swo",
+        "docs/README-release.md~",
+        "docs/.DS_Store"):
+    name = f"{root}/{forbidden}"
+    if name in names:
+        raise SystemExit(f"editor temp file included in release tarball: {name}")
+PY
 grep -q 'scripts/grit-server --transport tls-shell' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'GPL-2.0-or-later' "$work/release/LICENSE.grit"
 grep -q 'GPL-2.0-or-later' "$work/release/NOTICE"

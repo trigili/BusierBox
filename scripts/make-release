@@ -1864,16 +1864,44 @@ def checksum_manifest(release_dir, name):
             continue
         if rel.endswith(".tar.gz"):
             continue
+        if release_editor_temp_file(rel):
+            continue
         lines.append(f"{sha256_file(path)}  {rel}\n")
     out = release_dir / name
     out.write_text("".join(lines), encoding="utf-8")
     return out
 
 
+def release_editor_temp_file(rel):
+    name = pathlib.PurePosixPath(rel).name
+    if name in {".DS_Store"}:
+        return True
+    if name.endswith(("~", ".swp", ".swo", ".swn")):
+        return True
+    if name.startswith(".#"):
+        return True
+    if name.startswith("#") and name.endswith("#"):
+        return True
+    return False
+
+
 def make_tarball(release_dir):
     tar_path = release_dir.with_suffix(".tar.gz")
+    root_name = release_dir.name
+
+    def tar_filter(member):
+        rel = member.name
+        if rel == root_name:
+            return member
+        prefix = root_name + "/"
+        if rel.startswith(prefix):
+            rel = rel[len(prefix):]
+        if release_editor_temp_file(rel):
+            return None
+        return member
+
     with tarfile.open(tar_path, "w:gz") as tf:
-        tf.add(release_dir, arcname=release_dir.name)
+        tf.add(release_dir, arcname=release_dir.name, filter=tar_filter)
     return tar_path
 
 
