@@ -124,6 +124,16 @@ if {"survey-core", "ssh-operator"} - payloads:
 PY
 
 make source-mirror DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-mirror" >"$tmp/make-source-mirror.out"
+python3 - <<'PY'
+from pathlib import Path
+
+text = Path("Makefile").read_text(encoding="utf-8")
+start = text.index("source-mirror:")
+end = text.index("source-release:", start)
+target = text[start:end]
+if "--strict" not in target:
+    raise SystemExit("make source-mirror must pass --strict so incomplete source mirrors fail")
+PY
 grep -q '"source_coverage"' "$tmp/make-source-mirror.out"
 grep -q '"all_supported_tools": true' "$tmp/make-source-mirror.out"
 grep -q '"source_release"' "$tmp/make-source-mirror.out"

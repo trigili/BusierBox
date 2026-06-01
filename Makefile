@@ -76,9 +76,9 @@ source-mirror:
 	  --include-buildroot-packages \
 	  --all-supported-tools \
 	  --out "$(SOURCE_MIRROR_DIR)" \
+	  --strict \
 	  $(if $(DRY_RUN),--dry-run,) \
 	  $(if $(FAIL_FAST),--fail-fast,) \
-	  $(if $(STRICT),--strict,) \
 	  $(if $(VERIFY),--verify,)
 
 source-release: source-mirror
