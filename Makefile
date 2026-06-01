@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/grit.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_reality_test.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/applet_rshell.c src/applet_upload.c src/applet_command_queue.c src/command_queue_policy.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/trailer_config.c src/runtime_config.c src/sha256.c
 
-.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release release-full source-mirror source-release verify-artifact check-buildroot-tool-mappings check-licensing target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test smoke-grit-server smoke-grit-server-preflight smoke-grit-server-line-console test-qemu-user test-qemu-system test-qemu-flaky-network test-glinet test-all
+.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release release-full source-mirror source-release verify-artifact check-buildroot-tool-mappings check-licensing target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test smoke-grit-server smoke-grit-server-sections smoke-grit-server-preflight smoke-grit-server-line-console test-qemu-user test-qemu-system test-qemu-flaky-network test-glinet test-all
 
 all: build
 
@@ -124,6 +124,9 @@ smoke: smoke-test
 
 smoke-grit-server:
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/grit-server.py $(if $(GRIT_SERVER_SMOKE_SECTION),--section "$(GRIT_SERVER_SMOKE_SECTION)",); else printf '%s\n' "skip: python3 server smoke unavailable"; fi
+
+smoke-grit-server-sections:
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/grit-server.py --list-sections; else printf '%s\n' "skip: python3 server smoke unavailable"; fi
 
 smoke-grit-server-preflight:
 	@$(MAKE) smoke-grit-server GRIT_SERVER_SMOKE_SECTION=preflight

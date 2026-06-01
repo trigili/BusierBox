@@ -132,7 +132,7 @@ state, and first/last-hop flags. Indexes such as `bridge_hops_by_profile`,
 filter chain segments without reparsing embedded profile data.
 
 When `--bridge-profile` is selected for other operator workflows, generated
-target commands are route-aware. File fetch/upload commands and survey bootstrap
+target commands are route-aware. File fetch/upload commands and probe bootstrap
 commands use the profile's target-visible first hop, while their status records
 carry `route_kind`, `bridge_profile`, `bridge_route_path`, and `target_route`
 metadata so a TUI can show whether the operator is using a direct or bridged

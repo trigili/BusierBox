@@ -7,12 +7,12 @@ virtual network boundaries:
 
 - queued target mailbox work survives while targets are offline
 - queued target mailbox work survives operator-daemon stop/start boundaries
-- queued survey bootstrap and staged-file fetch work can be prepared before any
+- queued probe bootstrap and staged-file fetch work can be prepared before any
   target reconnect, including the staged-file workflow runner path used by the
   TUI and headless API
 - the line-mode TUI can inspect the same queued offline workflow mailbox state
   and target detail that headless status exposes
-- queued survey bootstrap and staged-file fetch work drains when the workflow
+- queued probe bootstrap and staged-file fetch work drains when the workflow
   target later reconnects for a short window
 - anonymous polls do not drain target-scoped mailboxes
 - anonymous polls are recorded as phone-home attempts with an explicit pending
@@ -36,7 +36,7 @@ virtual network boundaries:
 - target result upload updates `last_seen`, mailbox, and latest-result state
 - targets age back to offline after the short reconnect window while pending
   target-scoped mailbox work remains visible
-- survey bootstrap script/result flows refresh target survey state
+- probe bootstrap script/result flows refresh target survey state
 - interrupted file uploads are recorded as truncated target file activity
 - interrupted file uploads are exposed through upload status indexes, target
   latest-file-transfer indexes, retained forensic payload metadata, event

@@ -164,7 +164,7 @@ contracts_by_phase = {item["phase"]: item for item in contracts["contracts"]}
 assert len(contracts_by_phase) == summary["phase_count"]
 assert contracts_by_phase["offline-workflow-drain"]["timing"]["short_window_seconds"] == 90
 assert "target-workflow" in contracts_by_phase["offline-workflow-drain"]["target_scope"]
-assert any("queued survey bootstrap" in item for item in contracts_by_phase["offline-workflow-drain"]["assertions"])
+assert any("queued probe bootstrap" in item for item in contracts_by_phase["offline-workflow-drain"]["assertions"])
 drain_checks = contracts_by_phase["offline-workflow-drain"]["evidence_checks"]
 assert any(item["artifact"] == "offline-workflow-drain.json" and item["path"] == "target.latest_phone_home_status" and item["expect"] == "delivered" for item in drain_checks)
 assert any(item["artifact"] == "offline-workflow-drain-tui.json" and item["path"] == "target.mailbox_delivered_command_count" and item["expect"] == 2 for item in drain_checks)
@@ -180,7 +180,7 @@ assert topology["environment_paths"]["rootfs"]
 assert topology["environment_paths"]["grit"]
 assert topology["kernel_init_command_line"]
 assert topology["service_ports"]["command_queue"] == 22205
-assert topology["operator_node"]["host_forward_ports"]["survey_bootstrap"] == 22207
+assert topology["operator_node"]["host_forward_ports"]["probe"] == 22207
 assert topology["host_network_setup"]["bridge"] == "grit-qemu-br0"
 assert topology["host_network_setup"]["target_taps"]["target-alpha"] == "grit-alpha-tap0"
 assert topology["host_network_setup"]["link_control_commands"]["target-alpha-link-down"]
@@ -261,7 +261,7 @@ assert "bridge-interruption" in runbooks["phases_with_both_operator_and_target_c
 assert any("--queue-command 'grit survey --json'" in item for item in phases_by_name["offline-queue"]["operator_commands"])
 assert any("--line-tui" in item for item in phases_by_name["offline-queue"]["operator_commands"])
 assert any("systemd-user-dry-run" in item for item in phases_by_name["systemd-user-service"]["operator_commands"])
-assert any("--survey-bootstrap" in item for item in phases_by_name["survey-window"]["operator_commands"])
+assert any("--transport probe" in item for item in phases_by_name["survey-window"]["operator_commands"])
 assert any("--file-service" in item for item in phases_by_name["partial-transfer"]["operator_commands"])
 assert any("--save-bridge-profile flaky-bad-bridge" in item for item in phases_by_name["bridge-interruption"]["operator_commands"])
 assert any("command-queue once --target-id target-workflow" in item for item in phases_by_name["offline-workflow-drain"]["target_commands"])

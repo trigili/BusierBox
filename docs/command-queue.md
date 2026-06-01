@@ -467,7 +467,7 @@ poll, and confirm delivery when the target reconnects.
 For target-centered operator UX, status JSON also includes
 `target_workflow_actions`. These records are generated per target and expose the
 same workflows a TUI should offer: inspect scoped status, open a scoped
-workbench, queue mailbox work, queue a survey bootstrap command, serve survey
+workbench, queue mailbox work, queue a probe bootstrap command, serve probe
 bootstrap, stage a file for target fetch, stage a release artifact for target
 fetch when a release bundle is available, queue a staged fetch command, show a
 target upload command, start the file service, start any bridge profile tied to
@@ -521,7 +521,7 @@ automation, use the stable action id:
 scripts/grit-server --run-target-workflow-action target-alpha:queue-command \
   --target-workflow-command 'grit survey --json'
 
-scripts/grit-server --run-target-workflow-action target-alpha:queue-survey-bootstrap
+scripts/grit-server --run-target-workflow-action target-alpha:queue-probe
 
 scripts/grit-server --run-target-workflow-action target-alpha:stage-file-fetch \
   --target-workflow-local-file ./dist/grit-target-full \
@@ -577,7 +577,7 @@ The adjacent `Target Actions` pane lists the per-target workflow actions exposed
 by status JSON, including whether each action queues offline work, requires
 input, can run from curses Enter, or needs a later phone-home. Pressing Enter
 runs no-input actions whose `operator_action_state` is ready or
-queueable-offline, such as queueing survey bootstrap work or starting
+queueable-offline, such as queueing probe bootstrap work or starting
 target-scoped services; actions that need operator input keep pointing at
 line-mode action `15` and the shown headless command.
 It also includes a persistent `Mailbox` pane for target-scoped queued work. The

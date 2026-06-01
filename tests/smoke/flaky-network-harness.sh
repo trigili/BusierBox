@@ -77,7 +77,7 @@ assert any((rec.get("details") or {}).get("action_id") == "queue-probe" for rec 
 assert any((rec.get("details") or {}).get("action_id") == "queue-staged-fetch" for rec in workflow["staged_file_workflow_action_events"])
 assert any((rec.get("details") or {}).get("queues_offline_work") is True for rec in workflow["staged_file_workflow_action_events"])
 workflow_commands = "\n".join(rec.get("command") or "" for rec in workflow["target_mailbox_records"])
-assert "wget -O-" in workflow_commands and "survey.sh" in workflow_commands
+assert "wget -O-" in workflow_commands and "probe.sh" in workflow_commands
 assert "grit fetch workflow-payload.txt" in workflow_commands
 assert workflow_tui["kind"] == "offline-workflow-tui-artifact"
 assert workflow_tui["returncode"] == 0
@@ -106,7 +106,7 @@ assert workflow_drain["target"]["latest_command_queue_poll_interval_sec"] == "36
 assert len(set(workflow_drain["delivered_command_ids"])) == 2
 assert workflow_drain["http_statuses"] == ["HTTP/1.1 200 OK", "HTTP/1.1 200 OK"]
 drained_commands = "\n".join(rec.get("command") or "" for rec in workflow_drain["target_mailbox_records"])
-assert "wget -O-" in drained_commands and "survey.sh" in drained_commands
+assert "wget -O-" in drained_commands and "probe.sh" in drained_commands
 assert "grit fetch workflow-payload.txt" in drained_commands
 assert all(rec["status"] == "delivered" for rec in workflow_drain["target_mailbox_records"])
 assert workflow_drain["summary"]["target_phone_home_status_counts"]["delivered"] >= 2
@@ -193,7 +193,7 @@ assert "command to queue>" in tui_queue["stdout"]
 assert "queued " in tui_queue["stdout"]
 assert "staged tui-payload.txt" in tui_queue["stdout"]
 assert "grit survey --json" in tui_queue["stdout"]
-assert "survey.sh" in tui_queue["stdout"]
+assert "probe.sh" in tui_queue["stdout"]
 assert "grit fetch tui-payload.txt" in tui_queue["stdout"]
 assert "bridge_profile=tui-bridge" in tui_queue["stdout"]
 assert "grit rshell start" in tui_queue["stdout"]
@@ -206,15 +206,15 @@ assert all(rec["pending_work"] is True for rec in tui_queue["target_mailbox_reco
 assert all(rec["waiting_for"] == "target-poll" for rec in tui_queue["target_mailbox_records"])
 tui_queued_commands = "\n".join(rec.get("command") or "" for rec in tui_queue["target_mailbox_records"])
 assert "grit survey --json" in tui_queued_commands
-assert "survey.sh" in tui_queued_commands
+assert "probe.sh" in tui_queued_commands
 assert "grit fetch tui-payload.txt" in tui_queued_commands
 assert "grit rshell start" in tui_queued_commands
-survey_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if "survey.sh" in rec["command"])
+survey_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if "probe.sh" in rec["command"])
 fetch_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if "grit fetch tui-payload.txt" in rec["command"])
 bridge_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if rec["command"] == "grit rshell start")
 assert survey_mailbox["work_kind"] == "probe"
 assert survey_mailbox["workflow"] == "probe"
-assert survey_mailbox["request_name"] == "survey.sh"
+assert survey_mailbox["request_name"] == "probe.sh"
 assert fetch_mailbox["work_kind"] == "staged-fetch"
 assert fetch_mailbox["workflow"] == "file-service"
 assert fetch_mailbox["request_name"] == "tui-payload.txt"
@@ -226,7 +226,7 @@ assert bridge_mailbox["route_kind"] == "bridge"
 assert tui_queue["after"]["target_mailbox_work_kind_counts"]["probe"] == 1
 assert tui_queue["after"]["target_mailbox_work_kind_counts"]["staged-fetch"] == 1
 assert tui_queue["after"]["target_mailbox_work_kind_counts"]["bridge-start"] == 1
-assert tui_queue["after"]["target_mailbox_request_name_counts"]["survey.sh"] == 1
+assert tui_queue["after"]["target_mailbox_request_name_counts"]["probe.sh"] == 1
 assert tui_queue["after"]["target_mailbox_request_name_counts"]["tui-payload.txt"] == 1
 assert tui_queue["after"]["target_mailbox_bridge_profile_counts"]["tui-bridge"] == 1
 assert any((rec.get("details") or {}).get("action_id") == "queue-command" for rec in tui_queue["target_workflow_events"])
@@ -243,7 +243,7 @@ assert len(tui_queue_drain["target_mailbox_records"]) == 4
 assert all(rec["status"] == "delivered" for rec in tui_queue_drain["target_mailbox_records"])
 assert all(rec["pending_work"] is False for rec in tui_queue_drain["target_mailbox_records"])
 drained_bridge_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if rec["command"] == "grit rshell start")
-drained_survey_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if "survey.sh" in rec["command"])
+drained_survey_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if "probe.sh" in rec["command"])
 drained_fetch_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if "grit fetch tui-payload.txt" in rec["command"])
 assert drained_bridge_mailbox["work_kind"] == "bridge-start"
 assert drained_bridge_mailbox["bridge_profile"] == "tui-bridge"
@@ -251,7 +251,7 @@ assert drained_survey_mailbox["work_kind"] == "probe"
 assert drained_fetch_mailbox["work_kind"] == "staged-fetch"
 delivered_phone_home = [rec for rec in tui_queue_drain["phone_home_records"] if rec["status"] == "delivered"]
 phone_home_by_work_kind = {rec.get("work_kind"): rec for rec in delivered_phone_home if rec.get("work_kind")}
-assert phone_home_by_work_kind["probe"]["request_name"] == "survey.sh"
+assert phone_home_by_work_kind["probe"]["request_name"] == "probe.sh"
 assert phone_home_by_work_kind["staged-fetch"]["request_name"] == "tui-payload.txt"
 assert phone_home_by_work_kind["bridge-start"]["bridge_profile"] == "tui-bridge"
 assert phone_home_by_work_kind["bridge-start"]["route_kind"] == "bridge"
@@ -331,7 +331,7 @@ assert "targets_by_connectivity_state" in return_offline["api_indexes"]["targets
 assert "target_mailbox_records_by_target_connectivity_state" in return_offline["api_indexes"]["target_mailbox_records"]
 assert topology["kind"] == "flaky-network-topology-artifact"
 assert topology["operator"]["services"]["command_queue"]["port"]
-assert topology["operator"]["services"]["survey_bootstrap"]["port"]
+assert topology["operator"]["services"]["probe"]["port"]
 assert topology["operator"]["services"]["file_service"]["port"]
 assert topology["operator"]["services"]["bridge"]["port"]
 topology_targets = {rec["target_id"]: rec for rec in topology["targets"]}

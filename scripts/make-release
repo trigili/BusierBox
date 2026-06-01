@@ -1626,7 +1626,7 @@ def write_release_quickstart(path, name):
             6. Operator services and target transfers:
 
                scripts/grit-server --tui
-               scripts/grit-server --transport probe --survey-bootstrap-port 22207
+               scripts/grit-server --transport probe --probe-port 22207
                scripts/grit-server --transport tls-shell --shell-port 22203
                scripts/grit-server --transport ssh --ssh-port 22202
                scripts/grit-server --file-service --file-port 22204

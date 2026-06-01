@@ -389,7 +389,7 @@ def malformed_result_request(target_id, label):
 
 def survey_get_request(target_id, label):
     return (
-        "GET /survey.sh HTTP/1.1\r\n"
+        "GET /probe.sh HTTP/1.1\r\n"
         "Host: 127.0.0.1\r\n"
         f"X-grit-target-id: {target_id}\r\n"
         f"X-grit-target-label: {label}\r\n"
@@ -398,7 +398,7 @@ def survey_get_request(target_id, label):
 
 
 def survey_post_request(target_id, label):
-    body = b"schema=1&script=survey.sh&uname_s=Linux&uname_m=mipsel&uname_r=5.10&word_bits=32&endian=little"
+    body = b"schema=1&script=probe.sh&uname_s=Linux&uname_m=mipsel&uname_r=5.10&word_bits=32&endian=little"
     return (
         "POST /probe/result HTTP/1.1\r\n"
         "Host: 127.0.0.1\r\n"
@@ -1007,8 +1007,8 @@ def write_topology_artifact(artifact_dir, cfg, ports, phases):
                     "tls": str(cfg_doc.get("GRIT_COMMAND_QUEUE_TLS", "")),
                     "queue_file": str(cfg_doc.get("command_queue_file", "")),
                 },
-                "survey_bootstrap": {
-                    "port": ports.get("survey_bootstrap"),
+                "probe": {
+                    "port": ports.get("probe"),
                     "script_name": str(cfg_doc.get("GRIT_PROBE_NAME", "")),
                 },
                 "file_service": {
@@ -1121,7 +1121,7 @@ def run_offline_workflow_queue_scenario(artifact_dir):
         "GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS": "grit-only",
         "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "no",
         "GRIT_PROBE_PORT": str(survey_port),
-        "GRIT_PROBE_NAME": "survey.sh",
+        "GRIT_PROBE_NAME": "probe.sh",
         "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "yes",
         "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
         "GRIT_OPERATOR_FILE_SERVICE_PORT": str(file_port),
@@ -1172,7 +1172,7 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition("--run-staged-file-workflow-action workflow-payload.txt:queue-staged-fetch" in staged_queue_result.stdout, "staged-file workflow runner did not expose run command", staged_queue_result.stdout)
     assert_condition(staged_file_action.get("run_command", "").find("--run-staged-file-workflow-action workflow-payload.txt:queue-staged-fetch") >= 0, "staged-file workflow action missing stable run command", staged_file_action)
     assert_condition(staged_file_action.get("target_id") == "target-workflow", "staged-file workflow action lost target context", staged_file_action)
-    assert_condition("wget -O-" in mailbox_commands and "survey.sh" in mailbox_commands, "queued survey bootstrap command missing", mailbox_commands)
+    assert_condition("wget -O-" in mailbox_commands and "probe.sh" in mailbox_commands, "queued probe bootstrap command missing", mailbox_commands)
     assert_condition("grit fetch workflow-payload.txt" in mailbox_commands, "queued staged fetch command missing", mailbox_commands)
     write_offline_workflow_artifact(artifact_dir, doc)
     tui_result = run_line_tui(cfg, "20\n18\ntarget-workflow\nq\n")
@@ -1221,7 +1221,7 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition(drain_target.get("latest_successful_phone_home_status") == "delivered", "offline workflow drain successful phone-home status mismatch", drain_target)
     assert_condition(str(drain_target.get("latest_command_queue_poll_interval_sec") or "") == "3600", "offline workflow drain poll interval mismatch", drain_target)
     assert_condition(all(rec.get("status") == "delivered" for rec in drain_records), "offline workflow drain records not delivered", drain_records)
-    assert_condition("wget -O-" in drain_commands and "survey.sh" in drain_commands, "drained survey bootstrap command missing", drain_commands)
+    assert_condition("wget -O-" in drain_commands and "probe.sh" in drain_commands, "drained probe bootstrap command missing", drain_commands)
     assert_condition("grit fetch workflow-payload.txt" in drain_commands, "drained staged fetch command missing", drain_commands)
     assert_condition(drain_doc["summary"]["target_phone_home_status_counts"].get("delivered", 0) >= 2, "offline workflow drain phone-home deliveries missing")
     drain_phone_home = [
@@ -1542,7 +1542,7 @@ def run_tui_offline_queue_scenario(artifact_dir):
         "GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS": "grit-only",
         "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "no",
         "GRIT_PROBE_PORT": str(survey_port),
-        "GRIT_PROBE_NAME": "survey.sh",
+        "GRIT_PROBE_NAME": "probe.sh",
         "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "yes",
         "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
         "GRIT_OPERATOR_FILE_SERVICE_PORT": str(file_port),
@@ -1594,7 +1594,7 @@ def run_tui_offline_queue_scenario(artifact_dir):
     assert_condition("command to queue>" in tui_text, "TUI offline queue action did not prompt for command", tui_text)
     assert_condition("staged tui-payload.txt" in tui_text, "TUI offline file stage action did not stage file", tui_text)
     assert_condition("queued " in tui_text and "grit survey --json" in tui_text, "TUI offline queue action did not queue command", tui_text)
-    assert_condition("survey.sh" in tui_text, "TUI offline survey queue action did not queue survey command", tui_text)
+    assert_condition("probe.sh" in tui_text, "TUI offline survey queue action did not queue survey command", tui_text)
     assert_condition("grit fetch tui-payload.txt" in tui_text, "TUI offline staged-fetch action did not queue fetch command", tui_text)
     assert_condition("bridge_profile=tui-bridge" in tui_text and "grit rshell start" in tui_text, "TUI offline bridge action did not queue bridge work", tui_text)
 
@@ -1607,16 +1607,16 @@ def run_tui_offline_queue_scenario(artifact_dir):
     command_ids_to_drain = [rec.get("command_id") or rec.get("id") or "" for rec in records]
     assert_condition(all(command_ids_to_drain), "TUI offline queue command ids missing", records)
     queued_commands = "\n".join(rec.get("command") or "" for rec in records)
-    survey_mailbox = next((rec for rec in records if "survey.sh" in str(rec.get("command") or "")), {})
+    survey_mailbox = next((rec for rec in records if "probe.sh" in str(rec.get("command") or "")), {})
     fetch_mailbox = next((rec for rec in records if "grit fetch tui-payload.txt" in str(rec.get("command") or "")), {})
     bridge_mailbox = next((rec for rec in records if rec.get("command") == "grit rshell start"), {})
     assert_condition("grit survey --json" in queued_commands, "TUI offline queue command missing", queued_commands)
-    assert_condition("survey.sh" in queued_commands, "TUI offline queued survey command missing", queued_commands)
+    assert_condition("probe.sh" in queued_commands, "TUI offline queued survey command missing", queued_commands)
     assert_condition("grit fetch tui-payload.txt" in queued_commands, "TUI offline queued fetch command missing", queued_commands)
     assert_condition("grit rshell start" in queued_commands, "TUI offline queued bridge command missing", queued_commands)
     assert_condition(survey_mailbox.get("work_kind") == "probe", "TUI offline probe mailbox work kind missing", survey_mailbox)
     assert_condition(survey_mailbox.get("workflow") == "probe", "TUI offline probe mailbox workflow missing", survey_mailbox)
-    assert_condition(survey_mailbox.get("request_name") == "survey.sh", "TUI offline survey mailbox request name missing", survey_mailbox)
+    assert_condition(survey_mailbox.get("request_name") == "probe.sh", "TUI offline survey mailbox request name missing", survey_mailbox)
     assert_condition(fetch_mailbox.get("work_kind") == "staged-fetch", "TUI offline fetch mailbox work kind missing", fetch_mailbox)
     assert_condition(fetch_mailbox.get("workflow") == "file-service", "TUI offline fetch mailbox workflow missing", fetch_mailbox)
     assert_condition(fetch_mailbox.get("request_name") == "tui-payload.txt", "TUI offline fetch mailbox request name missing", fetch_mailbox)
@@ -1629,7 +1629,7 @@ def run_tui_offline_queue_scenario(artifact_dir):
     assert_condition(after_doc["summary"]["target_mailbox_work_kind_counts"].get("probe") == 1, "TUI offline probe mailbox work-kind summary missing")
     assert_condition(after_doc["summary"]["target_mailbox_work_kind_counts"].get("staged-fetch") == 1, "TUI offline staged-fetch mailbox work-kind summary missing")
     assert_condition(after_doc["summary"]["target_mailbox_work_kind_counts"].get("bridge-start") == 1, "TUI offline bridge mailbox work-kind summary missing")
-    assert_condition(after_doc["summary"]["target_mailbox_request_name_counts"].get("survey.sh") == 1, "TUI offline survey mailbox request-name summary missing")
+    assert_condition(after_doc["summary"]["target_mailbox_request_name_counts"].get("probe.sh") == 1, "TUI offline survey mailbox request-name summary missing")
     assert_condition(after_doc["summary"]["target_mailbox_request_name_counts"].get("tui-payload.txt") == 1, "TUI offline staged-fetch mailbox request-name summary missing")
     assert_condition(
         ((after_doc.get("target_mailbox_records_by_bridge_profile") or {}).get("tui-bridge") or [{}])[0].get("command_id") == bridge_mailbox.get("command_id"),
@@ -1695,7 +1695,7 @@ def run_tui_offline_queue_scenario(artifact_dir):
         if rec.get("target_id") == "target-tui"
     ]
     target = drain_doc["targets_by_id"]["target-tui"]
-    drained_survey = next((rec for rec in drained_records if "survey.sh" in str(rec.get("command") or "")), {})
+    drained_survey = next((rec for rec in drained_records if "probe.sh" in str(rec.get("command") or "")), {})
     drained_fetch = next((rec for rec in drained_records if "grit fetch tui-payload.txt" in str(rec.get("command") or "")), {})
     drained_bridge = next((rec for rec in drained_records if rec.get("command") == "grit rshell start"), {})
     assert_condition(len(drained_records) == 4, "TUI offline queue drain records missing", drained_records)
@@ -1719,7 +1719,7 @@ def run_tui_offline_queue_scenario(artifact_dir):
     assert_condition(phone_home_by_work_kind.get("probe"), "TUI offline probe delivery phone-home work metadata missing", delivered_phone_home)
     assert_condition(phone_home_by_work_kind.get("staged-fetch"), "TUI offline fetch delivery phone-home work metadata missing", delivered_phone_home)
     assert_condition(phone_home_by_work_kind.get("bridge-start"), "TUI offline bridge delivery phone-home work metadata missing", delivered_phone_home)
-    assert_condition(phone_home_by_work_kind["probe"].get("request_name") == "survey.sh", "TUI offline probe delivery request name missing", phone_home_by_work_kind["probe"])
+    assert_condition(phone_home_by_work_kind["probe"].get("request_name") == "probe.sh", "TUI offline probe delivery request name missing", phone_home_by_work_kind["probe"])
     assert_condition(phone_home_by_work_kind["staged-fetch"].get("request_name") == "tui-payload.txt", "TUI offline fetch delivery request name missing", phone_home_by_work_kind["staged-fetch"])
     assert_condition(phone_home_by_work_kind["bridge-start"].get("bridge_profile") == "tui-bridge", "TUI offline bridge delivery phone-home profile missing", phone_home_by_work_kind["bridge-start"])
     assert_condition(phone_home_by_work_kind["bridge-start"].get("route_kind") == "bridge", "TUI offline bridge delivery route kind missing", phone_home_by_work_kind["bridge-start"])
@@ -1764,7 +1764,7 @@ def run_harness(artifact_dir):
         "GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS": "grit-only",
         "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "no",
         "GRIT_PROBE_PORT": str(survey_port),
-        "GRIT_PROBE_NAME": "survey.sh",
+        "GRIT_PROBE_NAME": "probe.sh",
         "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "yes",
         "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
         "GRIT_OPERATOR_FILE_SERVICE_PORT": str(file_port),
@@ -2080,7 +2080,7 @@ def run_harness(artifact_dir):
     phases.append({"name": "return-offline", "status": "pass", "artifact": "return-offline-status.json"})
     write_topology_artifact(artifact_dir, cfg, {
         "command_queue": queue_port,
-        "survey_bootstrap": survey_port,
+        "probe": survey_port,
         "file_service": file_port,
         "bridge": bridge_port,
     }, phases)

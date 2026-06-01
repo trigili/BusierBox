@@ -15,7 +15,7 @@ scripts/grit-server --daemon \
 
 Without explicit services, daemon mode uses config opt-ins such as
 `file_service_enable=yes`, `command_queue_enable=yes`,
-`bridge_enable=yes`, `survey_bootstrap_enable=yes`, and `rshell_enable=yes`.
+`bridge_enable=yes`, `probe_enable=yes`, and `rshell_enable=yes`.
 
 The daemon writes normal service state into the configured server state file.
 It also records an `operator-daemon` state entry with child PIDs, selected

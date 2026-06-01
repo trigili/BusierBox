@@ -17,7 +17,12 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SECTIONS = ("full", "preflight", "line-console")
+SECTION_DESCRIPTIONS = {
+    "full": "complete end-to-end grit-server integration smoke",
+    "preflight": "fast static/API checks for help text, status fields, and safety guards",
+    "line-console": "isolated line-oriented TUI command workflow smoke",
+}
+SECTIONS = tuple(SECTION_DESCRIPTIONS)
 
 
 def run(*args):
@@ -732,7 +737,7 @@ def main(argv=None):
     args = parse_args(sys.argv[1:] if argv is None else argv)
     if args.list_sections:
         for section in SECTIONS:
-            print(section)
+            print(f"{section}\t{SECTION_DESCRIPTIONS[section]}")
         return 0
 
     server = ROOT / "scripts" / "grit-server"

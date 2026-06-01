@@ -291,6 +291,7 @@ python3 -m json.tool "$work/release/manifests/license-policy.json" >/dev/null
 grep -q '"combined_gplv2_compatible": true' "$work/release/manifests/license-policy.json"
 grep -q 'scripts/grit-server --file-service --file-port 22204' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'scripts/grit-server --tui' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'scripts/grit-server --transport probe --probe-port 22207' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'probe --start' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'probe config --write-config configs/grit.conf' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'release stage SELECTOR' "$work/release/RELEASE-QUICKSTART.txt"
@@ -302,6 +303,10 @@ grep -q 'stage release artifacts' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'queue commands for targets that' "$work/release/RELEASE-QUICKSTART.txt"
 if grep -q 'not an artifact sender' "$work/release/RELEASE-QUICKSTART.txt"; then
     printf '%s\n' "release-bundles: quickstart still says grit-server cannot send artifacts" >&2
+    exit 1
+fi
+if grep -q -- '--survey-bootstrap-port' "$work/release/RELEASE-QUICKSTART.txt"; then
+    printf '%s\n' "release-bundles: quickstart advertised stale probe port flag" >&2
     exit 1
 fi
 grep -q 'scripts/grit-server' "$work/release/release-index.json"
