@@ -55,6 +55,10 @@ require_text README.md 'payload/bin/busybox'
 require_text README.md 'payload/bin/<tool>'
 require_text README.md 'positive inventory by default'
 require_text README.md 'release self-test'
+if grep -q 'by_device:gl-mt1300' README.md docs/release-bundles.md; then
+    printf '%s\n' "stale-ux-text: release docs still use stale gl-mt1300 selector" >&2
+    exit 1
+fi
 require_text docs/manifest.md 'positive inventory by default'
 require_text docs/manifest.md 'payload/bin/busybox'
 require_text docs/manifest.md 'payload/bin/<tool>'

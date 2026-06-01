@@ -309,7 +309,7 @@ scripts/grit-server --status
 scripts/grit-server --json-status
 scripts/grit-server --transport ssh
 scripts/grit-server --serve-file ./grit --as grit
-scripts/grit-server --stage-release-artifact by_device:gl-mt1300
+scripts/grit-server --stage-release-artifact by_device:glinet-mt1300
 scripts/grit-server --list-staged
 scripts/grit-server --target-id my-router --queue-command 'grit survey --json'
 ```
