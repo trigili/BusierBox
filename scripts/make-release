@@ -15,6 +15,7 @@ import sys
 import tarfile
 import textwrap
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "lib"))
 import grit_matrix as matrix
 
 
@@ -105,7 +106,10 @@ def payloads_for_reverse_access_profiles(profiles):
 
 
 def selected_jobs(args, data):
-    targets = csv_items(args.targets) or data.get("targets") or ["native"]
+    _raw_targets = data.get("targets")
+    targets = (csv_items(args.targets)
+               or (csv_items(_raw_targets) if isinstance(_raw_targets, str) else _raw_targets)
+               or ["native"])
     profiles = selected_reverse_access_profiles(args, data)
     profile_payloads = payloads_for_reverse_access_profiles(profiles)
     configured_payloads = csv_items(args.payload_presets) or data.get("payload_presets") or data.get("payloads")

@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "name": "full",
+  "description": "Complete release: all supported targets × all payload presets. Intended for airgapped deployment — probe identifies the device arch and grit-server serves the right binary.",
+  "targets": ["all"],
+  "payload_presets": ["survey-core", "default", "ssh-operator"],
+  "formats": ["tgz"]
+}

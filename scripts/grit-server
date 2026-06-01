@@ -24959,30 +24959,55 @@ def run_line_tui(cfg):
             arch_matches = recs  # fall back to showing all
         if arch_matches:
             _console_table(
-                f"Release matches for {uname_m}  ({len(arch_matches)} found)",
-                arch_matches[:6],
+                f"Available for {uname_m}  ({len(arch_matches)} found)",
+                arch_matches[:9],
                 [
-                    ("Selector",  lambda r: str(r.get("id") or r.get("artifact") or "-")),
-                    ("Artifact",  lambda r: r.get("artifact_name") or r.get("artifact") or "-"),
                     ("Preset",    lambda r: r.get("payload_preset") or "-"),
+                    ("Artifact",  lambda r: r.get("artifact_name") or r.get("artifact") or "-"),
                     ("Compat",    lambda r: (r.get("compatibility") or {}).get("label") or "-"),
                 ],
             )
             print("")
+            # If multiple presets available for this arch, let the operator pick
             if len(arch_matches) == 1:
-                selector = str(arch_matches[0].get("id") or arch_matches[0].get("artifact") or "")
-                print(f"  Staging: {selector}")
-                try:
-                    staged = stage_line_release(selector, start_file_service=start_file_service)
-                except Exception as exc:
-                    raise ValueError(f"staging failed: {exc}") from exc
+                chosen = arch_matches[0]
             else:
-                print(f"  Multiple matches — pick one:")
-                for r in arch_matches[:6]:
-                    sel = str(r.get("id") or r.get("artifact") or "")
-                    print(f"    release stage {shquote(sel)}")
-                if start_file_service:
-                    print("  (start file-service manually after staging: start file-service)")
+                _PRESET_DESCRIPTIONS = {
+                    "survey-core": "minimal — probe, survey, config-info; smallest footprint",
+                    "default":     "BusyBox + common debug tools; balanced size",
+                    "ssh-operator": "full suite — dropbear, tmux, gdbserver, strace, curl, zsh",
+                    "full-debug":  "maximum toolset including RE tools",
+                }
+                print("  Which payload preset?")
+                for i, r in enumerate(arch_matches[:9], 1):
+                    preset = r.get("payload_preset") or "-"
+                    desc = _PRESET_DESCRIPTIONS.get(preset, "")
+                    print(f"    {i}  {preset:<16}  {desc}")
+                print("")
+                choice_line = line_input("  Select preset (number or name, blank to cancel)> ")
+                choice = (choice_line or "").strip()
+                if not choice:
+                    print("  Cancelled.")
+                    return
+                chosen = None
+                if choice.isdigit():
+                    idx = int(choice) - 1
+                    if 0 <= idx < len(arch_matches):
+                        chosen = arch_matches[idx]
+                else:
+                    for r in arch_matches:
+                        if (r.get("payload_preset") or "").lower() == choice.lower():
+                            chosen = r
+                            break
+                if not chosen:
+                    raise ValueError(f"no match for '{choice}' — enter a number or preset name")
+            selector = str(chosen.get("id") or chosen.get("artifact") or "")
+            preset = chosen.get("payload_preset") or "?"
+            print(f"  Staging {preset}: {selector}")
+            try:
+                stage_line_release(selector, start_file_service=start_file_service)
+            except Exception as exc:
+                raise ValueError(f"staging failed: {exc}") from exc
         else:
             print(f"  No artifacts found. Run: release  to see what's available.")
         append_event(cfg, "workbench", "workbench_probe_serve_run", details={

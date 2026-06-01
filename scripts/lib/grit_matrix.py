@@ -9,7 +9,7 @@ import shlex
 import subprocess
 
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 PAYLOAD_PRESETS = ROOT / "presets" / "payload"
 
 
@@ -25,7 +25,7 @@ def shell_quote(value):
 
 def list_targets():
     proc = subprocess.run(
-        [str(ROOT / "scripts" / "resolve-target"), "--list"],
+        [str(ROOT / "scripts" / "lib" / "resolve-target"), "--list"],
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -136,7 +136,7 @@ def resolve_target(requested_target, config=None):
     if config is not None:
         env["GRIT_CONFIG"] = str(config)
     proc = subprocess.run(
-        [str(ROOT / "scripts" / "resolve-target"), requested_target],
+        [str(ROOT / "scripts" / "lib" / "resolve-target"), requested_target],
         cwd=ROOT,
         env=env,
         text=True,

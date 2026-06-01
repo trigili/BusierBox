@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/grit.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_reality_test.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/applet_rshell.c src/applet_upload.c src/applet_command_queue.c src/command_queue_policy.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/trailer_config.c src/runtime_config.c src/sha256.c
 
-.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release verify-artifact check-buildroot-tool-mappings check-licensing target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-qemu-flaky-network test-glinet test-all
+.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release release-full verify-artifact check-buildroot-tool-mappings check-licensing target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-qemu-flaky-network test-glinet test-all
 
 all: build
 
@@ -50,6 +50,20 @@ package-native:
 
 release:
 	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" GRIT_RELEASE_NAME="$(GRIT_RELEASE_NAME)" scripts/lib/release-current "$(if $(TARGET),$(TARGET),--config)"
+
+# Full release: all supported targets × survey-core / default / ssh-operator.
+# Output: dist/releases/full-VERSION-COMMIT/
+# Usage:  make release-full            (build everything)
+#         make release-full GRIT_RELEASE_NAME=my-label
+#         make release-full DRY_RUN=1  (preview jobs without building)
+GRIT_RELEASE_NAME ?= full-$(shell cat VERSION 2>/dev/null | tr -d '[:space:]')-$(shell git rev-parse --short HEAD 2>/dev/null || printf dev)
+release-full:
+	@scripts/make-release \
+	  --name "$(GRIT_RELEASE_NAME)" \
+	  --matrix tests/matrix/release-full.json \
+	  $(if $(DRY_RUN),--dry-run,) \
+	  $(if $(FAIL_FAST),--fail-fast,) \
+	  $(if $(OUT_DIR),--out-dir "$(OUT_DIR)",)
 
 verify-artifact:
 	@if [ -n "$(TARGET)" ]; then artifact="dist/grit-$(TARGET)-full"; else artifact="dist/grit-native-full"; fi; \
