@@ -9,7 +9,7 @@ LDFLAGS ?=
 
 SRC := src/grit.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src/applet_manifest.c src/applet_doctor.c src/applet_reality_test.c src/applet_config_info.c src/applet_clean.c src/applet_plan.c src/applet_recovery.c src/applet_survey.c src/applet_envfix.c src/applet_fetch.c src/applet_rshell.c src/applet_upload.c src/applet_command_queue.c src/command_queue_policy.c src/ledger.c src/runtime_paths.c src/runtime_probe.c src/json_helpers.c src/payload_extract.c src/payload_dispatch.c src/trailer_config.c src/runtime_config.c src/sha256.c
 
-.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release release-full verify-artifact check-buildroot-tool-mappings check-licensing target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test test-qemu-user test-qemu-system test-qemu-flaky-network test-glinet test-all
+.PHONY: all build buildroot busybox payload package package-full package-all package-all-presets package-native release release-full verify-artifact check-buildroot-tool-mappings check-licensing target-summary clean menuconfig fetch-sources verify-sources offline-pack offline-unpack detect-host smoke smoke-test smoke-grit-server smoke-grit-server-preflight smoke-grit-server-line-console test-qemu-user test-qemu-system test-qemu-flaky-network test-glinet test-all
 
 all: build
 
@@ -98,6 +98,15 @@ detect-host:
 
 smoke: smoke-test
 
+smoke-grit-server:
+	@if command -v python3 >/dev/null 2>&1; then tests/smoke/grit-server.py $(if $(GRIT_SERVER_SMOKE_SECTION),--section "$(GRIT_SERVER_SMOKE_SECTION)",); else printf '%s\n' "skip: python3 server smoke unavailable"; fi
+
+smoke-grit-server-preflight:
+	@$(MAKE) smoke-grit-server GRIT_SERVER_SMOKE_SECTION=preflight
+
+smoke-grit-server-line-console:
+	@$(MAKE) smoke-grit-server GRIT_SERVER_SMOKE_SECTION=line-console
+
 smoke-test:
 	@GRIT_CONFIG=presets/payload/default.conf GRIT_BUSYBOX_GROUPS="shell fileops disk process network text system" $(MAKE) package-native
 	@scripts/lib/inspect-artifact dist/grit-native-full >/dev/null
@@ -116,6 +125,9 @@ smoke-test:
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/preset-from-survey.sh; else printf '%s\n' "skip: python3 preset-from-survey smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/survey-shell.sh dist/grit-native-full; else printf '%s\n' "skip: python3 shell survey smoke unavailable"; fi
 	@tests/smoke/payload-presets.sh
+	@tests/smoke/wolfssl-detection.sh
+	@tests/smoke/wolfssl-cross-preflight.sh
+	@tests/smoke/build-native-wolfssl.sh
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/artifact-config.sh dist/grit-native-full; else printf '%s\n' "skip: python3 artifact-config smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/heavy-tool-triage.sh; else printf '%s\n' "skip: python3 heavy-tool-triage smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/gdbserver-workflow.sh; else printf '%s\n' "skip: python3 gdbserver workflow smoke unavailable"; fi
@@ -140,7 +152,7 @@ smoke-test:
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/clean-json.sh dist/grit-native-full; else printf '%s\n' "skip: python3 clean json smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/recovery.sh dist/grit-native-full; else printf '%s\n' "skip: python3 recovery smoke unavailable"; fi
 	@tests/smoke/rshell-lifecycle.sh
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/grit-server.py; else printf '%s\n' "skip: python3 server smoke unavailable"; fi
+	@$(MAKE) smoke-grit-server
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/flaky-network-harness.sh; else printf '%s\n' "skip: python3 flaky network harness smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then python3 tests/smoke/operator-upload.py dist/grit-native-full; else printf '%s\n' "skip: python3 operator upload smoke unavailable"; fi
 	@if command -v python3 >/dev/null 2>&1; then tests/smoke/command-queue.sh dist/grit-native-full; else printf '%s\n' "skip: python3 command queue smoke unavailable"; fi

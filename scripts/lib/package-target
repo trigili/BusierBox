@@ -673,7 +673,7 @@ else
         _staging="$BUILDROOT_OUTPUT_BASE/$target/staging"
         if [ -f "$_staging/usr/include/wolfssl/ssl.h" ]; then
             WOLFSSL_CFLAGS="-I$_staging/usr/include"
-            WOLFSSL_LIBS="-L$_staging/usr/lib -lwolfssl"
+            WOLFSSL_LIBS="-L$_staging/usr/lib -lwolfssl -lm"
             printf '%s\n' "package-target: wolfSSL auto-detected in buildroot staging ($target)"
         fi
     fi
@@ -684,9 +684,9 @@ else
         _wssl_cflags="${WOLFSSL_CFLAGS:-}"
         _wssl_libs="${WOLFSSL_LIBS:--lwolfssl}"
         _wssl_probe_dir=$(mktemp -d)
-        printf '#include <wolfssl/ssl.h>\nint main(void){wolfSSL_Init();wolfSSL_Cleanup();return 0;}\n' \
+        printf '#include <wolfssl/options.h>\n#include <wolfssl/ssl.h>\nint main(void){wolfSSL_Init();wolfSSL_Cleanup();return 0;}\n' \
             >"$_wssl_probe_dir/probe.c"
-        if ! "$cross_cc" ${_wssl_cflags:+$_wssl_cflags} \
+        if ! "$cross_cc" ${_wssl_cflags:+$_wssl_cflags} -static \
                 "$_wssl_probe_dir/probe.c" -o "$_wssl_probe_dir/probe" \
                 ${_wssl_libs:+$_wssl_libs} 2>/dev/null; then
             rm -rf "$_wssl_probe_dir"

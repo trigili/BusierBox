@@ -164,8 +164,15 @@ if [ "$GRIT_BUILTIN_TLS_ENABLE" = yes ]; then
     fi
 
     _probe_dir=$(mktemp -d)
-    printf '#include <wolfssl/ssl.h>\nint main(void){wolfSSL_Init();wolfSSL_Cleanup();return 0;}\n' >"$_probe_dir/probe.c"
-    _probe_err=$("$CC" $wolfssl_cflags "$_probe_dir/probe.c" -o "$_probe_dir/probe" $wolfssl_libs 2>&1) && _wolfssl_ok=1 || true
+    printf '#include <wolfssl/options.h>\n#include <wolfssl/ssl.h>\nint main(void){wolfSSL_Init();wolfSSL_Cleanup();return 0;}\n' >"$_probe_dir/probe.c"
+    _probe_err=$("$CC" $wolfssl_cflags -static "$_probe_dir/probe.c" -o "$_probe_dir/probe" $wolfssl_libs 2>&1) && _wolfssl_ok=1 || true
+    if [ "$_wolfssl_ok" != 1 ]; then
+        _probe_err_dynamic=$("$CC" $wolfssl_cflags "$_probe_dir/probe.c" -o "$_probe_dir/probe" $wolfssl_libs 2>&1) && _wolfssl_ok=1 || true
+        if [ "$_wolfssl_ok" != 1 ] && [ -n "$_probe_err_dynamic" ]; then
+            _probe_err="static probe: $_probe_err
+dynamic probe: $_probe_err_dynamic"
+        fi
+    fi
     rm -rf "$_probe_dir"
 
     if [ "$_wolfssl_ok" = 1 ]; then
