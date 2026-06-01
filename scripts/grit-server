@@ -13756,9 +13756,10 @@ def handle_probe_http(cfg, conn, method, target, headers, body, addr, script_tex
 def serve_probe(cfg, timeout, max_sessions=0):
     service = "probe"
     port = int(cfg.get("GRIT_PROBE_PORT", 22207))
-    host = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or cfg.get("listen_host") or "127.0.0.1")
-    if host in ("0.0.0.0", "::"):
-        host = "127.0.0.1"
+    host = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
+    if not host or host in ("0.0.0.0", "::", "127.0.0.1"):
+        candidates = local_ips()
+        host = candidates[0] if candidates else "OPERATOR_IP"
     script_name = str(cfg.get("GRIT_PROBE_NAME", "survey.sh")).lstrip("/") or "survey.sh"
     route = probe_route_context(cfg, host=host, port=port)
     route_host = str(route.get("host") or host)

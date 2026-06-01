@@ -1459,7 +1459,7 @@ def copy_bundle_support(release_dir, include_sources_manifest=True):
     license_notices = ROOT / "LICENSES"
     if license_notices.exists():
         shutil.copytree(license_notices, release_dir / "LICENSES", dirs_exist_ok=True)
-    shutil.copy2(ROOT / "scripts" / "artifact-config", script_dir / "artifact-config")
+    shutil.copy2(ROOT / "scripts" / "lib" / "artifact-config", script_dir / "artifact-config")
     (script_dir / "artifact-config").chmod(0o755)
     shutil.copy2(ROOT / "scripts" / "grit-server", script_dir / "grit-server")
     (script_dir / "grit-server").chmod(0o755)
@@ -2178,7 +2178,7 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
     if args.skip_build:
         rc = 0
     else:
-        rc = run_capture([str(ROOT / "scripts" / "package-target"), job["target"]], log, env=env)
+        rc = run_capture([str(ROOT / "scripts" / "lib" / "package-target"), job["target"]], log, env=env)
     rec["log"] = f"logs/{log.name}"
     if rc != 0:
         rec["build_status"] = "failed"
@@ -2200,7 +2200,7 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
     payload_manifest_path = release_dir / "manifests" / f"{stem}.payload-manifest.json"
     config_info = release_dir / "manifests" / f"{stem}.config-info.txt"
     inspect_txt = release_dir / "manifests" / f"{stem}.inspect.txt"
-    run_capture([str(ROOT / "scripts" / "inspect-artifact"), str(dest)], inspect_txt)
+    run_capture([str(ROOT / "scripts" / "lib" / "inspect-artifact"), str(dest)], inspect_txt)
     payload_manifest = embedded_payload_manifest(dest)
     if payload_manifest:
         payload_manifest_path.write_text(json.dumps(payload_manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8")
