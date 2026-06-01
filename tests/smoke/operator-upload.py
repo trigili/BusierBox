@@ -43,9 +43,9 @@ def main():
                 {
                     "listen_host": "127.0.0.1",
                     "session_root": str(session_root),
-                    "file_service_enable": "yes",
-                    "file_service_port": port,
-                    "file_service_tls": "no",
+                    "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "yes",
+                    "GRIT_OPERATOR_FILE_SERVICE_PORT": port,
+                    "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
                 }
             ),
             encoding="utf-8",

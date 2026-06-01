@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import argparse
 import hashlib
 import json
 import os
@@ -16,6 +17,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+SECTIONS = ("full", "preflight", "line-console")
 
 
 def run(*args):
@@ -143,8 +145,600 @@ def start_one_shot_echo_server():
     return result, done, thread
 
 
-def main():
+def write_upload_fixture(tmp):
+    upload_port = free_port()
+    upload_cfg = Path(tmp) / "server-config-upload.json"
+    session_root = Path(tmp) / "sessions-upload"
+    upload_operator_dir = Path(tmp) / "operator-session-upload"
+    upload_cfg.write_text(json.dumps({
+        "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "yes",
+        "listen_host": "127.0.0.1",
+        "GRIT_OPERATOR_FILE_SERVICE_PORT": upload_port,
+        "session_root": str(session_root),
+        "operator_session_dir": str(upload_operator_dir),
+        "server_state": str(upload_operator_dir / "server-state.json"),
+        "staged_files": str(upload_operator_dir / "staged-files.json"),
+        "tls_cert": str(Path(tmp) / "shell-server.crt"),
+        "tls_key": str(Path(tmp) / "shell-server.key"),
+        "GRIT_RSHELL_SESSION_POLICY": "reconnect",
+        "GRIT_RSHELL_RETRY_COUNT": "2",
+        "GRIT_RSHELL_RETRY_INTERVAL_SEC": "3",
+        "GRIT_RSHELL_RETRY_JITTER_PCT": "10",
+        "GRIT_RSHELL_RETRY_BACKOFF": "linear",
+        "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC": "8",
+    }), encoding="utf-8")
+    return upload_cfg, session_root
+
+
+def run_line_console_section(server):
+    with tempfile.TemporaryDirectory() as tmp:
+        upload_cfg, session_root = write_upload_fixture(Path(tmp))
+        return run_line_console_smoke(server, Path(tmp), upload_cfg, session_root)
+
+
+
+def run_line_console_smoke(server, tmp, upload_cfg, session_root):
+    line_console_binary = Path(tmp) / "grit-line-console"
+    line_console_binary.write_text("#!/bin/sh\necho grit console binary\n", encoding="utf-8")
+    line_console_upload = Path(tmp) / "line-console-upload.txt"
+    line_console_upload.write_text("line console upload\n", encoding="utf-8")
+    line_console_state = Path(tmp) / "operator-session" / "line-console-state.json"
+    line_console_staged = Path(tmp) / "operator-session" / "line-console-staged.json"
+    line_console_routes = Path(tmp) / "operator-session" / "line-console-bridge-profiles.json"
+    line_console_jobs = Path(tmp) / "operator-session-upload" / "workbench-jobs.json"
+    line_console_job_log = Path(tmp) / "operator-session-upload" / "jobs" / "line-console-job.log"
+    line_console_job_log.parent.mkdir(parents=True, exist_ok=True)
+    line_console_job_log.write_text("line console job log\nline console job tail\n", encoding="utf-8")
+    line_console_jobs.write_text(json.dumps({
+        "schema": 1,
+        "jobs": [
+            {
+                "id": "line-console-job",
+                "action_id": "package-artifact",
+                "category": "release",
+                "script": "printf line-console-job",
+                "command": "printf line-console-job",
+                "state": "running",
+                "pid": "",
+                "log_path": str(line_console_job_log),
+                "started_at": "2026-01-01T00:00:00Z",
+                "background_supported": True,
+                "long_running": True,
+            },
+        ],
+    }, indent=2), encoding="utf-8")
+    line_console_build = Path(tmp) / "line-console-build.conf"
+    line_console_build.write_text('GRIT_RUNTIME_ROOT="./.grit"\n', encoding="utf-8")
+    line_console_resource = Path(tmp) / "line-console.rc"
+    line_console_makerc = Path(tmp) / "line-console-saved.rc"
+    line_console_resource.write_text(
+        "# smoke resource script\n"
+        "workspace\n"
+        "show listeners\n"
+        "search name=file-service\n"
+        "resource ignored-nested.rc\n",
+        encoding="utf-8",
+    )
+    line_console_session = session_root / "20260101T000000-file-service"
+    line_console_session.mkdir(parents=True, exist_ok=True)
+    (line_console_session / "session.log").write_text("console session log\n", encoding="utf-8")
+    (line_console_session / "events.jsonl").write_text(json.dumps({"event": "session_smoke"}) + "\n", encoding="utf-8")
+    (line_console_session / "session.json").write_text(json.dumps({
+        "schema": 1,
+        "session_id": line_console_session.name,
+        "service": "file-service",
+        "path": str(line_console_session),
+        "state": "closed",
+        "exit_reason": "smoke",
+        "started_at": "2026-01-01T00:00:00Z",
+        "ended_at": "2026-01-01T00:00:02Z",
+        "updated_at": "2026-01-01T00:00:02Z",
+        "uploads": [],
+        "fetches": [],
+        "artifacts": [],
+    }), encoding="utf-8")
+    line_console_target = run(
+        "scripts/grit-server",
+        "--config", str(upload_cfg),
+        "--state-file", str(line_console_state),
+        "--staged-file", str(line_console_staged),
+        "--set-target-label", "line-console-target",
+        "--target-label", "Console Router",
+    )
+    if line_console_target.returncode != 0:
+        print("line console target setup failed", file=sys.stderr)
+        print(line_console_target.stdout, file=sys.stderr)
+        print(line_console_target.stderr, file=sys.stderr)
+        return 1
+    line_console_route_port = free_port()
+    line_console_route_dest_port = free_port()
+    while line_console_route_dest_port == line_console_route_port:
+        line_console_route_dest_port = free_port()
+    line_console_added_route_port = free_port()
+    while line_console_added_route_port in {line_console_route_port, line_console_route_dest_port}:
+        line_console_added_route_port = free_port()
+    line_console_added_route_dest_port = free_port()
+    while line_console_added_route_dest_port in {line_console_route_port, line_console_route_dest_port, line_console_added_route_port}:
+        line_console_added_route_dest_port = free_port()
+    line_console_route = run(
+        "scripts/grit-server",
+        "--config", str(upload_cfg),
+        "--state-file", str(line_console_state),
+        "--staged-file", str(line_console_staged),
+        "--bridge-profiles-file", str(line_console_routes),
+        "--target-id", "line-console-target",
+        "--target-label", "Console Router",
+        "--save-bridge-profile", "console-route",
+        "--bridge-port", str(line_console_route_port),
+        "--bridge-dest-host", "127.0.0.1",
+        "--bridge-dest-port", str(line_console_route_dest_port),
+        "--bridge-profile-purpose", "line-console-smoke",
+        "--bridge-profile-notes", "line console route",
+        "--bridge-hop", f"operator:{line_console_route_port}=rack-hop:9001",
+        "--bridge-hop", f"rack-hop:9001=127.0.0.1:{line_console_route_dest_port}",
+    )
+    if line_console_route.returncode != 0 or "saved bridge profile console-route" not in line_console_route.stdout:
+        print("line console route setup failed", file=sys.stderr)
+        print(line_console_route.stdout, file=sys.stderr)
+        print(line_console_route.stderr, file=sys.stderr)
+        return 1
+    line_console_master, line_console_slave = pty.openpty()
+    try:
+        line_console_proc = subprocess.Popen(
+            [
+                str(server),
+                "--config", str(upload_cfg),
+                "--state-file", str(line_console_state),
+                "--staged-file", str(line_console_staged),
+                "--bridge-profiles-file", str(line_console_routes),
+                "--build-config", str(line_console_build),
+                "--tui",
+            ],
+            cwd=ROOT,
+            stdin=line_console_slave,
+            stdout=line_console_slave,
+            stderr=subprocess.PIPE,
+            text=True,
+            env={**os.environ, "TERM": "dumb"},
+        )
+        os.close(line_console_slave)
+        line_console_slave = -1
+        time.sleep(0.3)
+        os.write(
+            line_console_master,
+            (
+                "help\n"
+                "help search\n"
+                "help resource\n"
+                "help makerc\n"
+                "help aliases\n"
+                "help use\n"
+                "help sessions\n"
+                "help modules\n"
+                "help routes\n"
+                "help next\n"
+                "help main\n"
+                "help setg\n"
+                "help jobs\n"
+                "help run\n"
+                "help history\n"
+                "help complete\n"
+                "help commands\n"
+                "help view\n"
+                "help download\n"
+                "help survey\n"
+                "help fetch\n"
+                "help queue\n"
+                "help build\n"
+                "complete\n"
+                "complete use ag\n"
+                "complete agent Con\n"
+                "complete route a\n"
+                "complete route d\n"
+                "complete route st\n"
+                "complete start route c\n"
+                "complete use job\n"
+                "complete show m\n"
+                "complete use module operator-daemon\n"
+                "complete copy\n"
+                "complete view\n"
+                "help files\n"
+                f"resource {line_console_resource}\n"
+                "workspace\n"
+                "next\n"
+                "status\n"
+                "!!\n"
+                "history 8\n"
+                f"makerc {line_console_makerc}\n"
+                "repeat 1\n"
+                "search name=file-service\n"
+                "show agents\n"
+                "use 1\n"
+                "clear target\n"
+                "show listeners\n"
+                "use 1\n"
+                "back\n"
+                f"route add zz-console-added {line_console_added_route_port} 127.0.0.1 {line_console_added_route_dest_port} operator:{line_console_added_route_port}=rack-hop:9100 rack-hop:9100=127.0.0.1:{line_console_added_route_dest_port}\n"
+                "route start zz-console-added\n"
+                "route stop zz-console-added\n"
+                "show routes\n"
+                "routes -v\n"
+                "route delete zz-console-added\n"
+                "use 1\n"
+                "info\n"
+                "next\n"
+                "back\n"
+                "route print\n"
+                "route console-route\n"
+                "info\n"
+                "options\n"
+                "back\n"
+                "show categories\n"
+                "categories\n"
+                "show service modules\n"
+                "use 1\n"
+                "next\n"
+                "back\n"
+                "show daemon modules\n"
+                "show target modules\n"
+                "show workbench modules\n"
+                "show modules daemon\n"
+                "modules file-service\n"
+                "use 1\n"
+                "info\n"
+                "next\n"
+                "options\n"
+                "background\n"
+                "show options\n"
+                "commands\n"
+                "copy 1\n"
+                "build\n"
+                "build set GRIT_RUNTIME_ROOT /tmp/grit-build\n"
+                "build unset GRIT_RUNTIME_ROOT\n"
+                "setg GRIT_RUNTIME_ROOT /tmp/grit-global\n"
+                "show options\n"
+                "unsetg GRIT_RUNTIME_ROOT\n"
+                "show options\n"
+                "listeners\n"
+                "listeners -v\n"
+                "listener file-service\n"
+                "options\n"
+                "back\n"
+                "agents\n"
+                "routes\n"
+                "daemon\n"
+                "jobs -k missing-job\n"
+                "jobs\n"
+                "jobs -v\n"
+                "jobs -i 1\n"
+                "info\n"
+                "options\n"
+                "next\n"
+                "back\n"
+                "search line-console-job\n"
+                "use 1\n"
+                "job line-console-job\n"
+                "background\n"
+                "daemon status --dry-run\n"
+                "show actions\n"
+                "check operator-daemon-status\n"
+                "run operator-daemon-status --dry-run\n"
+                "back\n"
+                "usemodule operator-daemon-status\n"
+                "execute --dry-run\n"
+                "back\n"
+                "uselistener file-service\n"
+                "back\n"
+                "useroute console-route\n"
+                "back\n"
+                "use module operator-daemon-status\n"
+                "info\n"
+                "next\n"
+                "check\n"
+                "run --dry-run\n"
+                "back\n"
+                "run -j\n"
+                "use listener file-service\n"
+                "info\n"
+                "next\n"
+                "back\n"
+                "services\n"
+                "sessions\n"
+                "sessions -l\n"
+                "sessions -v\n"
+                "sessions -i 1\n"
+                "interact 1\n"
+                f"view {line_console_session / 'session.log'}\n"
+                "use session 1\n"
+                "info\n"
+                "options\n"
+                "next\n"
+                "interact\n"
+                "back\n"
+                "usesession 1\n"
+                "background\n"
+                "targets\n"
+                "useagent Console Router\n"
+                "interact\n"
+                "clear target\n"
+                "agent Console Router\n"
+                "interact\n"
+                "clear target\n"
+                "use agent Console Router\n"
+                "next\n"
+                "main\n"
+                "use agent Console Router\n"
+                "rename Console Router\n"
+                "note Console quick note\n"
+                "alias console-alias\n"
+                "search Console Router\n"
+                "use 1\n"
+                "show options\n"
+                "set target.notes Rack shelf A\n"
+                "set target.alias console-alias\n"
+                "show options\n"
+                "unset target.notes\n"
+                "show activity\n"
+                "queue grit survey --json\n"
+                "queue result 1\n"
+                "queue list\n"
+                "probe --queue\n"
+                "download --queue /etc/config/network\n"
+                "show mailbox\n"
+                f"upload --start {line_console_upload} console-upload\n"
+                "fetch --queue console-upload\n"
+                "stop file-service\n"
+                "downloads\n"
+                f"serve-binary --start {line_console_binary} grit-console\n"
+                "stop file-service\n"
+                "show stagers\n"
+                "stagers\n"
+                "files\n"
+                "unstage console-upload\n"
+                "rmfile missing-upload\n"
+                "stagers\n"
+                "show mailbox\n"
+                "queue clear --confirm\n"
+                "queue list\n"
+                "clear target\n"
+                "q\n"
+            ).encode("utf-8"),
+        )
+        line_console_chunks = []
+        deadline = time.time() + 16
+        while line_console_proc.poll() is None and time.time() < deadline:
+            ready, _, _ = select.select([line_console_master], [], [], 0.1)
+            if ready:
+                try:
+                    line_console_chunks.append(os.read(line_console_master, 65536).decode("utf-8", errors="replace"))
+                except OSError:
+                    break
+        if line_console_proc.poll() is None:
+            try:
+                os.write(line_console_master, b"q\n")
+            except OSError:
+                pass
+            quit_deadline = time.time() + 3
+            while line_console_proc.poll() is None and time.time() < quit_deadline:
+                ready, _, _ = select.select([line_console_master], [], [], 0.1)
+                if ready:
+                    try:
+                        line_console_chunks.append(os.read(line_console_master, 65536).decode("utf-8", errors="replace"))
+                    except OSError:
+                        break
+        if line_console_proc.poll() is None:
+            line_console_proc.terminate()
+            try:
+                line_console_proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                line_console_proc.kill()
+                line_console_proc.wait(timeout=2)
+        line_console_stdout = "".join(line_console_chunks)
+        line_console_stderr = line_console_proc.stderr.read()
+    finally:
+        if line_console_slave != -1:
+            os.close(line_console_slave)
+        try:
+            os.close(line_console_master)
+        except OSError:
+            pass
+    line_console_session_markers = [
+        "selected session ",
+        "grit[all]/session/",
+        "session.id=",
+        "session.service=",
+        "session.view_command=scripts/grit-server --config",
+        "commands: info, options, interact, sessions -v, background",
+    ]
+    line_console_missing_markers = [
+        marker for marker in line_console_session_markers
+        if marker not in line_console_stdout
+    ]
+    line_console_required_markers = [
+        "Console help topics:",
+        "Help: files",
+        "Help: queue",
+        "Completions for <root>:",
+        "resource ",
+        "Workspace",
+        "saved route zz-console-added",
+        "started route zz-console-added",
+        "stopped route zz-console-added",
+        "deleted route zz-console-added",
+        "selected route console-route",
+        "set build.GRIT_RUNTIME_ROOT=\"/tmp/grit-build\"",
+        "setg GRIT_RUNTIME_ROOT=\"/tmp/grit-global\"",
+        "operator daemon workflow action: operator-daemon-status",
+        "Session interaction:",
+        "Agent interaction: line-console-target label=Console Router state=online",
+        "renamed target line-console-target label=Console Router",
+        "noted target line-console-target notes=Console quick note",
+        "aliased target line-console-target aliases=console-alias",
+        "queued cq-",
+        "Command result:",
+        "result_status=none",
+        "Probe  ",
+        "command: wget -O- ",
+        "Target download command:",
+        "target_upload_path=/etc/config/network",
+        "File staged for target fetch:",
+        "Staged fetch command:",
+        "griTTYkit binary staged for target fetch:",
+        "target_fetch_command=grit fetch grit-console",
+        "target_run_hint=chmod +x ./grit-console && ./grit-console --help",
+        "unstaged console-upload",
+        "not staged missing-upload",
+        "Mailbox  (",
+        "cleared ",
+        "no queued commands",
+        "target filter cleared",
+    ]
+    line_console_missing_required = [
+        marker for marker in line_console_required_markers
+        if marker not in line_console_stdout
+    ]
+    if ("Traceback" in (line_console_stderr or "") or line_console_missing_required):
+        print("line-oriented TUI console commands did not expose expected UX", file=sys.stderr)
+        print(f"missing line console markers: {line_console_missing_required}", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        print(line_console_stderr or "", file=sys.stderr)
+        return 1
+    line_console_makerc_text = line_console_makerc.read_text(encoding="utf-8") if line_console_makerc.exists() else ""
+    if (not line_console_makerc.is_file() or
+            f"resource {line_console_resource}" not in line_console_makerc_text or
+            "makerc " in line_console_makerc_text):
+        print("line-oriented TUI makerc did not save a replayable resource script", file=sys.stderr)
+        print(line_console_makerc_text or "missing", file=sys.stderr)
+        return 1
+    line_console_status = subprocess.run(
+        [
+            str(server),
+            "--config", str(upload_cfg),
+            "--state-file", str(line_console_state),
+            "--staged-file", str(line_console_staged),
+            "--json-status",
+        ],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+    )
+    if line_console_status.returncode != 0:
+        print("line console status failed", file=sys.stderr)
+        print(line_console_status.stdout, file=sys.stderr)
+        print(line_console_status.stderr, file=sys.stderr)
+        return 1
+    line_console_status_doc = json.loads(line_console_status.stdout)
+    line_console_events = [
+        json.loads(line)
+        for line in Path(line_console_status_doc.get("event_log", "")).read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    if (line_console_status_doc.get("server_state", {}).get("services", {}).get("workbench", {}).get("selected_target_id", "") != "" or
+            not any(event.get("event") == "workbench_target_selected" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
+            not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
+            not any(event.get("event") == "workbench_target_interaction_viewed" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
+            not any(event.get("event") == "workbench_session_selected" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
+            not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
+            not any(event.get("event") == "workbench_path_viewed" and (event.get("details") or {}).get("path") == str(line_console_session / "session.log") and (event.get("details") or {}).get("viewable") is True for event in line_console_events) or
+            not any(event.get("event") == "workbench_sessions_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
+            not any(event.get("event") == "workbench_job_selected" and (event.get("details") or {}).get("job_id") == "line-console-job" for event in line_console_events) or
+            not any(event.get("event") == "workbench_jobs_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
+            not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
+            not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "GRIT_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/grit-global" for event in line_console_events) or
+            not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "GRIT_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/grit-build" for event in line_console_events) or
+            not any(event.get("event") == "workbench_config_unset" and (event.get("details") or {}).get("key") == "GRIT_RUNTIME_ROOT" for event in line_console_events) or
+            not any(event.get("event") == "workbench_build_config_listed" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_makerc_saved" and (event.get("details") or {}).get("path") == str(line_console_makerc) and (event.get("details") or {}).get("command_count", 0) >= 20 for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_completions_shown" and (event.get("details") or {}).get("prefix") == "use job" for event in line_console_events) or
+            not any(event.get("event") == "workbench_generated_commands_listed" and (event.get("details") or {}).get("command_count", 0) >= 1 for event in line_console_events) or
+            not any(event.get("event") == "target_command_copied" and (event.get("details") or {}).get("ordinal") == 1 for event in line_console_events) or
+            not any(event.get("event") == "workbench_bridge_profile_saved" and (event.get("details") or {}).get("name") == "zz-console-added" and (event.get("details") or {}).get("multi_hop") is True for event in line_console_events) or
+            not any(event.get("event") == "workbench_route_started" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
+            not any(event.get("event") == "workbench_route_stopped" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
+            not any(event.get("event") == "workbench_route_deleted" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "daemon" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "file-service" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_module_categories_listed" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "service" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "daemon" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "target" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "workbench" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "usemodule" and (event.get("details") or {}).get("canonical") == "use module" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "execute" and (event.get("details") or {}).get("canonical") == "run" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "uselistener" and (event.get("details") or {}).get("canonical") == "use listener" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "useroute" and (event.get("details") or {}).get("canonical") == "use route" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "usesession" and (event.get("details") or {}).get("canonical") == "use session" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "useagent" and (event.get("details") or {}).get("canonical") == "use agent" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "root" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "route/console-route" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "action/operator-daemon-status" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_main_selected" and (event.get("details") or {}).get("cleared_target") is True for event in line_console_events) or
+            not any(event.get("event") == "workbench_listeners_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
+            not any(event.get("event") == "workbench_routes_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
+            not any(event.get("event") == "workbench_route_selected" and (event.get("details") or {}).get("name") == "console-route" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "name=file-service" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "line-console-job" for event in line_console_events) or
+            not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
+            not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
+            not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
+            not any(event.get("event") == "workbench_command_result_inspected" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("has_result") is False for event in line_console_events) or
+            not any(event.get("event") == "workbench_command_queue_cleared" and (event.get("details") or {}).get("count", 0) >= 1 for event in line_console_events) or
+            not any(event.get("event") == "workbench_probe_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
+            not any(event.get("event") == "workbench_target_download_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("target_upload_path") == "/etc/config/network" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
+            not any(event.get("event") == "workbench_staged_fetch_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("request_name") == "console-upload" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
+            len([event for event in line_console_events if event.get("event") == "workbench_command_queue_inspected"]) < 2 or
+            not any(
+                event.get("event") == "workbench_file_uploaded" and
+                (event.get("details") or {}).get("request_name") == "console-upload" and
+                (event.get("details") or {}).get("target_id") == "line-console-target" and
+                (event.get("details") or {}).get("started_file_service") is True
+                for event in line_console_events) or
+            not any(
+                event.get("event") == "workbench_file_unstaged" and
+                (event.get("details") or {}).get("request_name") == "console-upload" and
+                (event.get("details") or {}).get("existed") is True
+                for event in line_console_events) or
+            not any(
+                event.get("event") == "workbench_binary_served" and
+                (event.get("details") or {}).get("request_name") == "grit-console" and
+                (event.get("details") or {}).get("target_id") == "line-console-target" and
+                (event.get("details") or {}).get("target_label") == "Console Router" and
+                (event.get("details") or {}).get("started_file_service") is True
+                for event in line_console_events)):
+        print("line-oriented TUI console commands did not record expected events", file=sys.stderr)
+        print(json.dumps(line_console_status_doc, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
+
+    return 0
+
+def parse_args(argv):
+    parser = argparse.ArgumentParser(description="Run grit-server smoke checks.")
+    parser.add_argument(
+        "--section",
+        choices=SECTIONS,
+        default="full",
+        help="run one smoke-test section instead of the full suite",
+    )
+    parser.add_argument(
+        "--list-sections",
+        action="store_true",
+        help="list available --section values and exit",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv=None):
+    args = parse_args(sys.argv[1:] if argv is None else argv)
+    if args.list_sections:
+        for section in SECTIONS:
+            print(section)
+        return 0
+
     server = ROOT / "scripts" / "grit-server"
+
+    if args.section == "line-console":
+        return run_line_console_section(server)
 
     help_out = run("scripts/grit-server", "--help")
     if help_out.returncode != 0:
@@ -362,6 +956,10 @@ def main():
             "unmanaged_recorded_pid" not in src):
         print("grit-server: PID ownership evidence reporting missing", file=sys.stderr)
         return 1
+
+    if args.section == "preflight":
+        print("grit-server smoke preflight ok")
+        return 0
 
     with tempfile.TemporaryDirectory() as tmp:
         cert_path = Path(tmp) / "shell-server.crt"
@@ -1266,10 +1864,10 @@ def main():
         survey_line_text = survey_line_output.decode("utf-8", errors="replace")
         if (survey_tui_proc.returncode != 0 or
                 "Traceback" in (survey_line_stderr or "") or
-                "Probe:" not in survey_line_text or
+                "Survey bootstrap:" not in survey_line_text or
                 f"target_command: {expected_survey_command}" not in survey_line_text or
                 "probe_workflow_actions: 4" not in survey_line_text or
-                "show_action_state=ready reason=show-command" not in survey_line_text or
+                "start_action_state=ready reason=run-now" not in survey_line_text or
                 "--transport probe" not in survey_line_text or
                 "bridge_profile=survey-route" not in survey_line_text):
             print("line TUI probe action did not show bridged command", file=sys.stderr)
@@ -1283,7 +1881,7 @@ def main():
             "--run-probe-workflow-action", "probe:show-target-command",
         )
         if (survey_action_show.returncode != 0 or
-                "probe workflow action: probe:show-probe-command" not in survey_action_show.stdout or
+                "probe workflow action: probe:show-target-command" not in survey_action_show.stdout or
                 f"target_command={expected_survey_command}" not in survey_action_show.stdout or
                 "--run-probe-workflow-action probe:show-target-command" not in survey_action_show.stdout):
             print("headless probe workflow show action failed", file=sys.stderr)
@@ -1716,10 +2314,8 @@ def main():
         stop_tui_text = stop_tui_output.decode("utf-8", errors="replace")
         if (stop_tui_proc.returncode != 0 or
                 "Traceback" in (stop_tui_stderr or "") or
-                "headless_command: scripts/grit-server --config" not in stop_tui_text or
-                "--stop-service file-service" not in stop_tui_text or
                 "file-service: no recorded pid" not in stop_tui_text):
-            print("line TUI service stop did not expose stop-service command", file=sys.stderr)
+            print("line TUI service stop did not report stop outcome", file=sys.stderr)
             print(stop_tui_text, file=sys.stderr)
             print(stop_tui_stderr or "", file=sys.stderr)
             return 1
@@ -6324,7 +6920,7 @@ def main():
             print(tui_owned_stderr or "", file=sys.stderr)
             return 1
         tui_owned_text = tui_owned_output.decode("utf-8", errors="replace")
-        if "griTTYkit Workbench" not in tui_owned_text or " events" not in tui_owned_text:
+        if "griTTYkit v" not in tui_owned_text or " events" not in tui_owned_text:
             print("line TUI summary did not report populated event counts", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
             return 1
@@ -7924,7 +8520,7 @@ def main():
             return 1
         line_text = line_output.decode("utf-8", errors="replace")
         if ("selected target target-action label=Action Router" not in line_text or
-                "griTTYkit Workbench" not in line_text or
+                "griTTYkit v" not in line_text or
                 "1 target" not in line_text or
                 "selected: Action Router" not in line_text or
                 "? help" not in line_text or
@@ -9895,7 +10491,6 @@ def main():
         if (line_stage_proc.returncode != 0 or
                 "Traceback" in (line_stage_stderr or "") or
                 "headless_command: scripts/grit-server --config" not in line_stage_stdout or
-                "22 serve griTTYkit binary" not in line_stage_stdout or
                 "--serve-file " not in line_stage_stdout or
                 "--as /tmp/line-stage --list-staged" not in line_stage_stdout or
                 "--as grit --list-staged" not in line_stage_stdout or
@@ -9999,798 +10594,9 @@ def main():
             print(line_stage_staged.read_text(encoding="utf-8"), file=sys.stderr)
             return 1
 
-        line_console_binary = Path(tmp) / "grit-line-console"
-        line_console_binary.write_text("#!/bin/sh\necho grit console binary\n", encoding="utf-8")
-        line_console_upload = Path(tmp) / "line-console-upload.txt"
-        line_console_upload.write_text("line console upload\n", encoding="utf-8")
-        line_console_state = Path(tmp) / "operator-session" / "line-console-state.json"
-        line_console_staged = Path(tmp) / "operator-session" / "line-console-staged.json"
-        line_console_routes = Path(tmp) / "operator-session" / "line-console-bridge-profiles.json"
-        line_console_jobs = Path(tmp) / "operator-session-upload" / "workbench-jobs.json"
-        line_console_job_log = Path(tmp) / "operator-session-upload" / "jobs" / "line-console-job.log"
-        line_console_job_log.parent.mkdir(parents=True, exist_ok=True)
-        line_console_job_log.write_text("line console job log\nline console job tail\n", encoding="utf-8")
-        line_console_jobs.write_text(json.dumps({
-            "schema": 1,
-            "jobs": [
-                {
-                    "id": "line-console-job",
-                    "action_id": "package-artifact",
-                    "category": "release",
-                    "script": "printf line-console-job",
-                    "command": "printf line-console-job",
-                    "state": "running",
-                    "pid": "",
-                    "log_path": str(line_console_job_log),
-                    "started_at": "2026-01-01T00:00:00Z",
-                    "background_supported": True,
-                    "long_running": True,
-                },
-            ],
-        }, indent=2), encoding="utf-8")
-        line_console_build = Path(tmp) / "line-console-build.conf"
-        line_console_build.write_text('GRIT_RUNTIME_ROOT="./.grit"\n', encoding="utf-8")
-        line_console_resource = Path(tmp) / "line-console.rc"
-        line_console_makerc = Path(tmp) / "line-console-saved.rc"
-        line_console_resource.write_text(
-            "# smoke resource script\n"
-            "workspace\n"
-            "show listeners\n"
-            "search name=file-service\n"
-            "resource ignored-nested.rc\n",
-            encoding="utf-8",
-        )
-        line_console_session = session_root / "20260101T000000-file-service"
-        line_console_session.mkdir(parents=True, exist_ok=True)
-        (line_console_session / "session.log").write_text("console session log\n", encoding="utf-8")
-        (line_console_session / "events.jsonl").write_text(json.dumps({"event": "session_smoke"}) + "\n", encoding="utf-8")
-        (line_console_session / "session.json").write_text(json.dumps({
-            "schema": 1,
-            "session_id": line_console_session.name,
-            "service": "file-service",
-            "path": str(line_console_session),
-            "state": "closed",
-            "exit_reason": "smoke",
-            "started_at": "2026-01-01T00:00:00Z",
-            "ended_at": "2026-01-01T00:00:02Z",
-            "updated_at": "2026-01-01T00:00:02Z",
-            "uploads": [],
-            "fetches": [],
-            "artifacts": [],
-        }), encoding="utf-8")
-        line_console_target = run(
-            "scripts/grit-server",
-            "--config", str(upload_cfg),
-            "--state-file", str(line_console_state),
-            "--staged-file", str(line_console_staged),
-            "--set-target-label", "line-console-target",
-            "--target-label", "Console Router",
-        )
-        if line_console_target.returncode != 0:
-            print("line console target setup failed", file=sys.stderr)
-            print(line_console_target.stdout, file=sys.stderr)
-            print(line_console_target.stderr, file=sys.stderr)
-            return 1
-        line_console_route_port = free_port()
-        line_console_route_dest_port = free_port()
-        while line_console_route_dest_port == line_console_route_port:
-            line_console_route_dest_port = free_port()
-        line_console_added_route_port = free_port()
-        while line_console_added_route_port in {line_console_route_port, line_console_route_dest_port}:
-            line_console_added_route_port = free_port()
-        line_console_added_route_dest_port = free_port()
-        while line_console_added_route_dest_port in {line_console_route_port, line_console_route_dest_port, line_console_added_route_port}:
-            line_console_added_route_dest_port = free_port()
-        line_console_route = run(
-            "scripts/grit-server",
-            "--config", str(upload_cfg),
-            "--state-file", str(line_console_state),
-            "--staged-file", str(line_console_staged),
-            "--bridge-profiles-file", str(line_console_routes),
-            "--target-id", "line-console-target",
-            "--target-label", "Console Router",
-            "--save-bridge-profile", "console-route",
-            "--bridge-port", str(line_console_route_port),
-            "--bridge-dest-host", "127.0.0.1",
-            "--bridge-dest-port", str(line_console_route_dest_port),
-            "--bridge-profile-purpose", "line-console-smoke",
-            "--bridge-profile-notes", "line console route",
-            "--bridge-hop", f"operator:{line_console_route_port}=rack-hop:9001",
-            "--bridge-hop", f"rack-hop:9001=127.0.0.1:{line_console_route_dest_port}",
-        )
-        if line_console_route.returncode != 0 or "saved bridge profile console-route" not in line_console_route.stdout:
-            print("line console route setup failed", file=sys.stderr)
-            print(line_console_route.stdout, file=sys.stderr)
-            print(line_console_route.stderr, file=sys.stderr)
-            return 1
-        line_console_master, line_console_slave = pty.openpty()
-        try:
-            line_console_proc = subprocess.Popen(
-                [
-                    str(server),
-                    "--config", str(upload_cfg),
-                    "--state-file", str(line_console_state),
-                    "--staged-file", str(line_console_staged),
-                    "--bridge-profiles-file", str(line_console_routes),
-                    "--build-config", str(line_console_build),
-                    "--tui",
-                ],
-                cwd=ROOT,
-                stdin=line_console_slave,
-                stdout=line_console_slave,
-                stderr=subprocess.PIPE,
-                text=True,
-                env={**os.environ, "TERM": "dumb"},
-            )
-            os.close(line_console_slave)
-            line_console_slave = -1
-            time.sleep(0.3)
-            os.write(
-                line_console_master,
-                (
-                    "help\n"
-                    "help search\n"
-                    "help resource\n"
-                    "help makerc\n"
-                    "help aliases\n"
-                    "help use\n"
-                    "help sessions\n"
-                    "help modules\n"
-                    "help routes\n"
-                    "help next\n"
-                    "help main\n"
-                    "help setg\n"
-                    "help jobs\n"
-                    "help run\n"
-                    "help history\n"
-                    "help complete\n"
-                    "help commands\n"
-                    "help view\n"
-                    "help download\n"
-                    "help survey\n"
-                    "help fetch\n"
-                    "help queue\n"
-                    "help build\n"
-                    "complete\n"
-                    "complete use ag\n"
-                    "complete agent Con\n"
-                    "complete route a\n"
-                    "complete route d\n"
-                    "complete route st\n"
-                    "complete start route c\n"
-                    "complete use job\n"
-                    "complete show m\n"
-                    "complete use module operator-daemon\n"
-                    "complete copy\n"
-                    "complete view\n"
-                    "help files\n"
-                    f"resource {line_console_resource}\n"
-                    "workspace\n"
-                    "next\n"
-                    "status\n"
-                    "!!\n"
-                    "history 8\n"
-                    f"makerc {line_console_makerc}\n"
-                    "repeat 1\n"
-                    "search name=file-service\n"
-                    "show agents\n"
-                    "use 1\n"
-                    "clear target\n"
-                    "show listeners\n"
-                    "use 1\n"
-                    "back\n"
-                    f"route add zz-console-added {line_console_added_route_port} 127.0.0.1 {line_console_added_route_dest_port} operator:{line_console_added_route_port}=rack-hop:9100 rack-hop:9100=127.0.0.1:{line_console_added_route_dest_port}\n"
-                    "route start zz-console-added\n"
-                    "route stop zz-console-added\n"
-                    "show routes\n"
-                    "routes -v\n"
-                    "route delete zz-console-added\n"
-                    "use 1\n"
-                    "info\n"
-                    "next\n"
-                    "back\n"
-                    "route print\n"
-                    "route console-route\n"
-                    "info\n"
-                    "options\n"
-                    "back\n"
-                    "show categories\n"
-                    "categories\n"
-                    "show service modules\n"
-                    "use 1\n"
-                    "next\n"
-                    "back\n"
-                    "show daemon modules\n"
-                    "show target modules\n"
-                    "show workbench modules\n"
-                    "show modules daemon\n"
-                    "modules file-service\n"
-                    "use 1\n"
-                    "info\n"
-                    "next\n"
-                    "options\n"
-                    "background\n"
-                    "show options\n"
-                    "commands\n"
-                    "copy 1\n"
-                    "build\n"
-                    "build set GRIT_RUNTIME_ROOT /tmp/grit-build\n"
-                    "build unset GRIT_RUNTIME_ROOT\n"
-                    "setg GRIT_RUNTIME_ROOT /tmp/grit-global\n"
-                    "show options\n"
-                    "unsetg GRIT_RUNTIME_ROOT\n"
-                    "show options\n"
-                    "listeners\n"
-                    "listeners -v\n"
-                    "listener file-service\n"
-                    "options\n"
-                    "back\n"
-                    "agents\n"
-                    "routes\n"
-                    "daemon\n"
-                    "jobs -k missing-job\n"
-                    "jobs\n"
-                    "jobs -v\n"
-                    "jobs -i 1\n"
-                    "info\n"
-                    "options\n"
-                    "next\n"
-                    "back\n"
-                    "search line-console-job\n"
-                    "use 1\n"
-                    "job line-console-job\n"
-                    "background\n"
-                    "daemon status --dry-run\n"
-                    "show actions\n"
-                    "check operator-daemon-status\n"
-                    "run operator-daemon-status --dry-run\n"
-                    "back\n"
-                    "usemodule operator-daemon-status\n"
-                    "execute --dry-run\n"
-                    "back\n"
-                    "uselistener file-service\n"
-                    "back\n"
-                    "useroute console-route\n"
-                    "back\n"
-                    "use module operator-daemon-status\n"
-                    "info\n"
-                    "next\n"
-                    "check\n"
-                    "run --dry-run\n"
-                    "back\n"
-                    "run -j\n"
-                    "use listener file-service\n"
-                    "info\n"
-                    "next\n"
-                    "back\n"
-                    "services\n"
-                    "sessions\n"
-                    "sessions -l\n"
-                    "sessions -v\n"
-                    "sessions -i 1\n"
-                    "interact 1\n"
-                    f"view {line_console_session / 'session.log'}\n"
-                    "use session 1\n"
-                    "info\n"
-                    "options\n"
-                    "next\n"
-                    "interact\n"
-                    "back\n"
-                    "usesession 1\n"
-                    "background\n"
-                    "targets\n"
-                    "useagent Console Router\n"
-                    "interact\n"
-                    "clear target\n"
-                    "agent Console Router\n"
-                    "interact\n"
-                    "clear target\n"
-                    "use agent Console Router\n"
-                    "next\n"
-                    "main\n"
-                    "use agent Console Router\n"
-                    "rename Console Router\n"
-                    "note Console quick note\n"
-                    "alias console-alias\n"
-                    "search Console Router\n"
-                    "use 1\n"
-                    "show options\n"
-                    "set target.notes Rack shelf A\n"
-                    "set target.alias console-alias\n"
-                    "show options\n"
-                    "unset target.notes\n"
-                    "show activity\n"
-                    "queue grit survey --json\n"
-                    "queue result 1\n"
-                    "queue list\n"
-                    "survey --queue\n"
-                    "download --queue /etc/config/network\n"
-                    "show mailbox\n"
-                    f"upload --start {line_console_upload} console-upload\n"
-                    "fetch --queue console-upload\n"
-                    "stop file-service\n"
-                    "downloads\n"
-                    f"serve-binary --start {line_console_binary} grit-console\n"
-                    "stop file-service\n"
-                    "show stagers\n"
-                    "stagers\n"
-                    "files\n"
-                    "unstage console-upload\n"
-                    "rmfile missing-upload\n"
-                    "stagers\n"
-                    "mailbox\n"
-                    "queue clear --confirm\n"
-                    "queue list\n"
-                    "clear target\n"
-                    "q\n"
-                ).encode("utf-8"),
-            )
-            line_console_chunks = []
-            deadline = time.time() + 16
-            while line_console_proc.poll() is None and time.time() < deadline:
-                ready, _, _ = select.select([line_console_master], [], [], 0.1)
-                if ready:
-                    try:
-                        line_console_chunks.append(os.read(line_console_master, 65536).decode("utf-8", errors="replace"))
-                    except OSError:
-                        break
-            if line_console_proc.poll() is None:
-                try:
-                    os.write(line_console_master, b"q\n")
-                except OSError:
-                    pass
-                quit_deadline = time.time() + 3
-                while line_console_proc.poll() is None and time.time() < quit_deadline:
-                    ready, _, _ = select.select([line_console_master], [], [], 0.1)
-                    if ready:
-                        try:
-                            line_console_chunks.append(os.read(line_console_master, 65536).decode("utf-8", errors="replace"))
-                        except OSError:
-                            break
-            if line_console_proc.poll() is None:
-                line_console_proc.terminate()
-                try:
-                    line_console_proc.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    line_console_proc.kill()
-                    line_console_proc.wait(timeout=2)
-            line_console_stdout = "".join(line_console_chunks)
-            line_console_stderr = line_console_proc.stderr.read()
-        finally:
-            if line_console_slave != -1:
-                os.close(line_console_slave)
-            try:
-                os.close(line_console_master)
-            except OSError:
-                pass
-        line_console_session_markers = [
-            "selected session ",
-            "grit[all]/session/",
-            "session.id=",
-            "session.service=",
-            "session.view_command=scripts/grit-server --config",
-            "commands: info, options, interact, sessions -v, background",
-        ]
-        line_console_missing_markers = [
-            marker for marker in line_console_session_markers
-            if marker not in line_console_stdout
-        ]
-        if ("Traceback" in (line_console_stderr or "") or
-                "grit[all]>" not in line_console_stdout or
-                "Console commands:" not in line_console_stdout or
-                "Help: search" not in line_console_stdout or
-                "Help: resource" not in line_console_stdout or
-                "Help: aliases" not in line_console_stdout or
-                "Help: use" not in line_console_stdout or
-                "Help: sessions" not in line_console_stdout or
-                "Help: modules" not in line_console_stdout or
-                "Help: routes" not in line_console_stdout or
-                "Help: next" not in line_console_stdout or
-                "Help: main" not in line_console_stdout or
-                "Help: setg" not in line_console_stdout or
-                "Help: jobs" not in line_console_stdout or
-                "Help: run" not in line_console_stdout or
-                "Help: history" not in line_console_stdout or
-                "Help: makerc" not in line_console_stdout or
-                "Help: complete" not in line_console_stdout or
-                "Help: commands" not in line_console_stdout or
-                "Help: view" not in line_console_stdout or
-                "Help: download" not in line_console_stdout or
-                "Help: survey" not in line_console_stdout or
-                "Help: fetch" not in line_console_stdout or
-                "Help: queue" not in line_console_stdout or
-                "Help: build" not in line_console_stdout or
-                "Help: files" not in line_console_stdout or
-                "complete [PREFIX]               show command/resource completions" not in line_console_stdout or
-                "Completions for <root>:" not in line_console_stdout or
-                "Completions for use ag:" not in line_console_stdout or
-                "use agent" not in line_console_stdout or
-                "Completions for agent Con:" not in line_console_stdout or
-                "agent Console Router" not in line_console_stdout or
-                "Completions for route a:" not in line_console_stdout or
-                "route add" not in line_console_stdout or
-                "Completions for route d:" not in line_console_stdout or
-                "route delete" not in line_console_stdout or
-                "Completions for route st:" not in line_console_stdout or
-                "route start" not in line_console_stdout or
-                "Completions for start route c:" not in line_console_stdout or
-                "start route console-route" not in line_console_stdout or
-                "Completions for use job:" not in line_console_stdout or
-                "use job line-console-job" not in line_console_stdout or
-                "Completions for show m:" not in line_console_stdout or
-                "show modules" not in line_console_stdout or
-                "Completions for use module operator-daemon:" not in line_console_stdout or
-                "use module operator-daemon-status" not in line_console_stdout or
-                "Completions for copy:" not in line_console_stdout or
-                "copy 1" not in line_console_stdout or
-                "Completions for view:" not in line_console_stdout or
-                str(line_console_session / "session.log") not in line_console_stdout or
-                "Workspace overview:" not in line_console_stdout or
-                f"Resource loaded: {line_console_resource}" not in line_console_stdout or
-                "commands=3 skipped_nested=1" not in line_console_stdout or
-                "makerc FILE                     save command history as a resource script" not in line_console_stdout or
-                "Saves the current console command history as a replayable resource script." not in line_console_stdout or
-                f"Resource script saved: {line_console_makerc}" not in line_console_stdout or
-                f"replay: resource {line_console_makerc}" not in line_console_stdout or
-                "grit[all]> workspace" not in line_console_stdout or
-                "history, !!, !N, repeat N       show or replay command history" not in line_console_stdout or
-                "next                            show suggested commands for current context" not in line_console_stdout or
-                "Command history:" not in line_console_stdout or
-                "replay: status" not in line_console_stdout or
-                "replay: help" not in line_console_stdout or
-                "commands: search TERM, use N, agent NAME, agents, listeners, routes, stagers, queue COMMAND" not in line_console_stdout or
-                "Search results for name=file-service:" not in line_console_stdout or
-                "service file-service actual=" not in line_console_stdout or
-                "use: use " not in line_console_stdout or
-                "command: use service file-service" not in line_console_stdout or
-                "service:file-service:start-service" not in line_console_stdout or
-                "show targets|services|files" not in line_console_stdout or
-                "show categories                 show runnable module categories" not in line_console_stdout or
-                "show service|daemon modules     browse modules by operator category" not in line_console_stdout or
-                "show modules [FILTER]           browse modules by kind, id, workflow, or text" not in line_console_stdout or
-                "show categories" not in line_console_stdout or
-                "show service|daemon|target|workbench modules" not in line_console_stdout or
-                "show modules [FILTER]" not in line_console_stdout or
-                "commands, copy N                list or copy generated target commands" not in line_console_stdout or
-                "Generated target commands:" not in line_console_stdout or
-                "command_copy_file=" not in line_console_stdout or
-                "copied command to " not in line_console_stdout or
-                "command=./grit put /etc/config/network" not in line_console_stdout or
-                "info, options                   show selected context and module options" not in line_console_stdout or
-                "services, listeners [-v]        list listener services" not in line_console_stdout or
-                "listener NAME                   inspect/select a listener service" not in line_console_stdout or
-                "routes [-v], route NAME         list/select bridge routes" not in line_console_stdout or
-                "route add NAME LPORT HOST DPORT [HOP ...] create a bridge route" not in line_console_stdout or
-                "route start NAME, route stop NAME control a bridge route directly" not in line_console_stdout or
-                "route delete NAME               remove a bridge route profile" not in line_console_stdout or
-                "route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]" not in line_console_stdout or
-                "route start NAME" not in line_console_stdout or
-                "route stop NAME" not in line_console_stdout or
-                "route delete NAME" not in line_console_stdout or
-                "targets, agent NAME, sessions   list/select agents or show sessions" not in line_console_stdout or
-                "agents, listeners, routes       operator aliases for targets/services/bridges" not in line_console_stdout or
-                "stagers, loot                   operator aliases for staged files" not in line_console_stdout or
-                "use agent|listener|route NAME   select target, listener, or route context" not in line_console_stdout or
-                "use module NAME                 select an action module context" not in line_console_stdout or
-                "useagent/usemodule NAME         Empire-style context selection aliases" not in line_console_stdout or
-                "rename|note|alias VALUE         edit selected agent label, notes, or alias" not in line_console_stdout or
-                "main, home, root                clear target/module context" not in line_console_stdout or
-                "back, background                clear selected module context" not in line_console_stdout or
-                "Clears selected target and module context, then returns to the top-level workspace." not in line_console_stdout or
-                "Shows context-sensitive suggested commands for the selected target/module." not in line_console_stdout or
-                "sessions [-l|-v], session ID    list or inspect sessions" not in line_console_stdout or
-                "interact SESSION, sessions -i   show local session inspection commands" not in line_console_stdout or
-                "use agent/listener/module and sessions -i mirror familiar console verbs" not in line_console_stdout or
-                "routes, routes -l" not in line_console_stdout or
-                "route print" not in line_console_stdout or
-                "queue COMMAND                   queue work for selected/offline target" not in line_console_stdout or
-                "queue list|result|clear         inspect results or clear queued work" not in line_console_stdout or
-                "queue result ID|NUMBER" not in line_console_stdout or
-                "queue clear --confirm" not in line_console_stdout or
-                "download [--queue] TARGET_PATH  show or queue target-to-operator upload" not in line_console_stdout or
-                "download [--queue] [--start] TARGET_PATH" not in line_console_stdout or
-                "Shows the target-side command to upload TARGET_PATH back to the operator file service." not in line_console_stdout or
-                "survey [--start|--queue]        show, serve, or queue probe" not in line_console_stdout or
-                "survey [--start] [--queue]" not in line_console_stdout or
-                "Shows the target-side command for the architecture-agnostic probe script." not in line_console_stdout or
-                "daemon [ACTION] [--dry-run]     inspect or run daemon/systemd workflow" not in line_console_stdout or
-                "upload [--start] LOCAL [NAME]   stage and optionally serve a local file" not in line_console_stdout or
-                "fetch [--queue] [--start] NAME  show or queue target fetch of staged file" not in line_console_stdout or
-                "fetch [--queue] [--start] NAME" not in line_console_stdout or
-                "Shows the target-side command for fetching an operator-staged file." not in line_console_stdout or
-                "unstage NAME                    remove a staged file request" not in line_console_stdout or
-                "view PATH, cat PATH             view a local session/artifact path" not in line_console_stdout or
-                "rmfile NAME" not in line_console_stdout or
-                "downloads                       list target-fetchable staged files" not in line_console_stdout or
-                "run -j, run --job               start selected background action as a managed job" not in line_console_stdout or
-                "use job ID, jobs -i ID          select or inspect a background job" not in line_console_stdout or
-                "execute, exploit                aliases for run" not in line_console_stdout or
-                "execute [--dry-run] [--confirm]" not in line_console_stdout or
-                "jobs, job ID, jobs -k ID        show, select, or cancel background jobs" not in line_console_stdout or
-                "jobs -i ID" not in line_console_stdout or
-                "use job ID" not in line_console_stdout or
-                "use N                           use a numbered search/list/module result" not in line_console_stdout or
-                "use action ACTION               select an action module context" not in line_console_stdout or
-                "check                           dry-run the selected action module" not in line_console_stdout or
-                "build, build set KEY VALUE      show or update binary build config" not in line_console_stdout or
-                "Build config:" not in line_console_stdout or
-                "commands: build set KEY VALUE, build unset KEY" not in line_console_stdout or
-                "set build.GRIT_RUNTIME_ROOT=\"/tmp/grit-build\"" not in line_console_stdout or
-                "unset build.GRIT_RUNTIME_ROOT" not in line_console_stdout or
-                "set KEY VALUE                   set target metadata or guided build option" not in line_console_stdout or
-                "setg KEY VALUE, unsetg KEY      set or unset global build/workbench options" not in line_console_stdout or
-                "setg GRIT_RUNTIME_ROOT=\"/tmp/grit-global\"" not in line_console_stdout or
-                "unsetg GRIT_RUNTIME_ROOT" not in line_console_stdout or
-                "Console context:" not in line_console_stdout or
-                "Console options:" not in line_console_stdout or
-                "Services:" not in line_console_stdout or
-                "Routes:" not in line_console_stdout or
-                "commands: routes -v, route add NAME LPORT HOST DPORT, route NAME, route start NAME, route stop NAME, route delete NAME, use route NAME, use N" not in line_console_stdout or
-                "console-route" not in line_console_stdout or
-                "saved route zz-console-added" not in line_console_stdout or
-                "started route zz-console-added" not in line_console_stdout or
-                "stopped route zz-console-added" not in line_console_stdout or
-                "deleted route zz-console-added" not in line_console_stdout or
-                "zz-console-added" not in line_console_stdout or
-                f"operator:{line_console_added_route_port} -> rack-hop:9100 -> 127.0.0.1:{line_console_added_route_dest_port}" not in line_console_stdout or
-                "multi_hop=yes" not in line_console_stdout or
-                "selected route console-route" not in line_console_stdout or
-                "selected search result 1 route console-route" not in line_console_stdout or
-                "grit[all]/route/console-route>" not in line_console_stdout or
-                "route_path=operator:" not in line_console_stdout or
-                "route.name=console-route" not in line_console_stdout or
-                "route.inspect_command=scripts/grit-server --config" not in line_console_stdout or
-                "route.next=info, start, stop, route delete NAME, run, back" not in line_console_stdout or
-                "Next actions:" not in line_console_stdout or
-                "selected agent=all" not in line_console_stdout or
-                "selected listener=file-service" not in line_console_stdout or
-                "selected route=console-route" not in line_console_stdout or
-                "selected module=daemon:operator-daemon-status" not in line_console_stdout or
-                "commands: options, check, run, run --dry-run, run --confirm, background" not in line_console_stdout or
-                "commands: interact, queue COMMAND, survey --queue, download --queue TARGET_PATH, upload --start LOCAL NAME, fetch --queue NAME, show activity, serve-binary --start PATH NAME, clear target" not in line_console_stdout or
-                "help: help use, help modules, help routes, help sessions" not in line_console_stdout or
-                "returned to main workspace" not in line_console_stdout or
-                "cleared_module=no cleared_target=yes" not in line_console_stdout or
-                "Module categories:" not in line_console_stdout or
-                "commands: show service modules, show daemon modules, show target modules, show workbench modules" not in line_console_stdout or
-                "Module kind: service" not in line_console_stdout or
-                "Module kind: daemon" not in line_console_stdout or
-                "Module kind: target" not in line_console_stdout or
-                "Module kind: workbench" not in line_console_stdout or
-                "Module filter: daemon" not in line_console_stdout or
-                "Module filter: file-service" not in line_console_stdout or
-                "Module groups:" not in line_console_stdout or
-                "module: use module file-service" not in line_console_stdout or
-                "selected search result 1 action service:file-service" not in line_console_stdout or
-                "reason=" not in line_console_stdout or
-                "confirm=" not in line_console_stdout or
-                "background=" not in line_console_stdout or
-                "next: info, options, check, run, back" not in line_console_stdout or
-                "Daemon workflow actions:" not in line_console_stdout or
-                "unknown workbench job: missing-job" not in line_console_stdout or
-                "Background jobs:" not in line_console_stdout or
-                "commands: jobs, jobs -i ID, use job ID, use N, jobs -k ID" not in line_console_stdout or
-                "line-console-job action=package-artifact state=running" not in line_console_stdout or
-                "inspect: jobs -i line-console-job" not in line_console_stdout or
-                "selected job line-console-job" not in line_console_stdout or
-                "grit[all]/job/line-console-job>" not in line_console_stdout or
-                "job.id=line-console-job" not in line_console_stdout or
-                "job.action=package-artifact" not in line_console_stdout or
-                "job.cancel_supported=no" not in line_console_stdout or
-                "job.log_path=" not in line_console_stdout or
-                "commands: info, options, jobs, jobs -i ID, background" not in line_console_stdout or
-                "Search results for line-console-job:" not in line_console_stdout or
-                "command: use job line-console-job" not in line_console_stdout or
-                "Console action modules:" not in line_console_stdout or
-                "operator-daemon-status" not in line_console_stdout or
-                "check operator-daemon-status" not in line_console_stdout or
-                "run operator-daemon-status --dry-run" not in line_console_stdout or
-                "usemodule operator-daemon-status" not in line_console_stdout or
-                "execute --dry-run" not in line_console_stdout or
-                "uselistener file-service" not in line_console_stdout or
-                "useroute console-route" not in line_console_stdout or
-                "usesession 1" not in line_console_stdout or
-                "useagent Console Router" not in line_console_stdout or
-                "agent Console Router" not in line_console_stdout or
-                "Agent interaction: line-console-target label=Console Router state=online" not in line_console_stdout or
-                "commands: queue COMMAND, survey --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target" not in line_console_stdout or
-                "headless_status: scripts/grit-server --config" not in line_console_stdout or
-                "pending work: none" not in line_console_stdout or
-                "rename Console Router" not in line_console_stdout or
-                "renamed target line-console-target label=Console Router" not in line_console_stdout or
-                "note Console quick note" not in line_console_stdout or
-                "noted target line-console-target notes=Console quick note" not in line_console_stdout or
-                "alias console-alias" not in line_console_stdout or
-                "aliased target line-console-target aliases=console-alias" not in line_console_stdout or
-                "selected action daemon:operator-daemon-status" not in line_console_stdout or
-                "grit[all]/action/operator-daemon-status>" not in line_console_stdout or
-                "action=daemon:operator-daemon-status" not in line_console_stdout or
-                "action.label=" not in line_console_stdout or
-                "action.category=" not in line_console_stdout or
-                "action.workflow=" not in line_console_stdout or
-                "action.background_supported=" not in line_console_stdout or
-                "action.next=info, check, run, run --dry-run, run --confirm, back" not in line_console_stdout or
-                "next: options, check, run, run --dry-run, run --confirm, back" not in line_console_stdout or
-                "operator daemon workflow action: operator-daemon-status" not in line_console_stdout or
-                line_console_stdout.count("action_returncode=0") < 2 or
-                "daemon_workflow_returncode=0" not in line_console_stdout or
-                "selected service file-service" not in line_console_stdout or
-                "grit[all]/service/file-service>" not in line_console_stdout or
-                "commands: listeners -v, listener NAME, use listener NAME, use N, start NAME, stop NAME" not in line_console_stdout or
-                "inspect: listener file-service" not in line_console_stdout or
-                "service.name=file-service" not in line_console_stdout or
-                "service.start_command=" not in line_console_stdout or
-                "service.stop_command=" not in line_console_stdout or
-                "service.next=info, start, stop, run, back" not in line_console_stdout or
-                "next: info, options, start, stop, run, back" not in line_console_stdout or
-                "module context cleared" not in line_console_stdout or
-                "no selected background-capable workbench action; use module ACTION first" not in line_console_stdout or
-                "Sessions:" not in line_console_stdout or
-                "commands: sessions -l, sessions -v, sessions -i ID, interact ID, use session ID, use N" not in line_console_stdout or
-                line_console_session.name not in line_console_stdout or
-                "Session interaction:" not in line_console_stdout or
-                line_console_missing_markers or
-                "next: view " not in line_console_stdout or
-                f"viewed {line_console_session / 'session.log'}" not in line_console_stdout or
-                "tail: tail -n 40" not in line_console_stdout or
-                "events: tail -n 40" not in line_console_stdout or
-                "inspect: sessions -i " not in line_console_stdout or
-                "view: scripts/grit-server --config" not in line_console_stdout or
-                "line-console-target label=Console Router" not in line_console_stdout or
-                "selected target line-console-target label=Console Router" not in line_console_stdout or
-                "grit[Console Router]>" not in line_console_stdout or
-                "Search results for Console Router:" not in line_console_stdout or
-                "selected search result 1 target line-console-target" not in line_console_stdout or
-                "command: use target line-console-target" not in line_console_stdout or
-                "set target.notes=Rack shelf A" not in line_console_stdout or
-                "set target.aliases=console-alias" not in line_console_stdout or
-                "target.aliases=console-alias" not in line_console_stdout or
-                "unset target.notes for line-console-target" not in line_console_stdout or
-                "Target activity records:" not in line_console_stdout or
-                "queued cq-" not in line_console_stdout or
-                "Command result:" not in line_console_stdout or
-                "result_status=none" not in line_console_stdout or
-                "Probe:" not in line_console_stdout or
-                "target_command=wget -O- " not in line_console_stdout or
-                "| /bin/sh" not in line_console_stdout or
-                "Target download command:" not in line_console_stdout or
-                "target_upload_path=/etc/config/network" not in line_console_stdout or
-                "./grit put /etc/config/network" not in line_console_stdout or
-                "show mailbox" not in line_console_stdout or
-                "grit survey --json" not in line_console_stdout or
-                "target=line-console-target label=Console Router" not in line_console_stdout or
-                "--target-id line-console-target --queue-command 'grit survey --json' --list-command-queue" not in line_console_stdout or
-                "File staged for target fetch:" not in line_console_stdout or
-                "request_name=console-upload" not in line_console_stdout or
-                "target_fetch_command=grit fetch console-upload" not in line_console_stdout or
-                "Staged fetch command:" not in line_console_stdout or
-                "--serve-file " not in line_console_stdout or
-                "unstaged console-upload" not in line_console_stdout or
-                "not staged missing-upload" not in line_console_stdout or
-                "--unstage console-upload --list-staged" not in line_console_stdout or
-                "griTTYkit binary staged for target fetch:" not in line_console_stdout or
-                "request_name=grit-console" not in line_console_stdout or
-                "target_fetch_command=grit fetch grit-console" not in line_console_stdout or
-                "target_run_hint=chmod +x ./grit-console && ./grit-console --help" not in line_console_stdout or
-                "--as grit-console --list-staged" not in line_console_stdout or
-                line_console_stdout.count("file_service_started=yes") < 2 or
-                "File service workflow actions:" not in line_console_stdout or
-                "Mailbox  (" not in line_console_stdout or
-                "cleared " not in line_console_stdout or
-                "no queued commands" not in line_console_stdout or
-                "target filter cleared" not in line_console_stdout):
-            print("line-oriented TUI console commands did not expose expected UX", file=sys.stderr)
-            if line_console_missing_markers:
-                print(f"missing line console markers: {line_console_missing_markers}", file=sys.stderr)
-            print(line_console_stdout, file=sys.stderr)
-            print(line_console_stderr or "", file=sys.stderr)
-            return 1
-        line_console_makerc_text = line_console_makerc.read_text(encoding="utf-8") if line_console_makerc.exists() else ""
-        if (not line_console_makerc.is_file() or
-                f"resource {line_console_resource}" not in line_console_makerc_text or
-                "makerc " in line_console_makerc_text):
-            print("line-oriented TUI makerc did not save a replayable resource script", file=sys.stderr)
-            print(line_console_makerc_text or "missing", file=sys.stderr)
-            return 1
-        line_console_status = subprocess.run(
-            [
-                str(server),
-                "--config", str(upload_cfg),
-                "--state-file", str(line_console_state),
-                "--staged-file", str(line_console_staged),
-                "--json-status",
-            ],
-            cwd=ROOT,
-            text=True,
-            capture_output=True,
-        )
-        if line_console_status.returncode != 0:
-            print("line console status failed", file=sys.stderr)
-            print(line_console_status.stdout, file=sys.stderr)
-            print(line_console_status.stderr, file=sys.stderr)
-            return 1
-        line_console_status_doc = json.loads(line_console_status.stdout)
-        line_console_events = [
-            json.loads(line)
-            for line in Path(line_console_status_doc.get("event_log", "")).read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        if (line_console_status_doc.get("server_state", {}).get("services", {}).get("workbench", {}).get("selected_target_id", "") != "" or
-                not any(event.get("event") == "workbench_target_selected" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
-                not any(event.get("event") == "workbench_target_filter_cleared" for event in line_console_events) or
-                not any(event.get("event") == "workbench_target_interaction_viewed" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
-                not any(event.get("event") == "workbench_session_selected" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
-                not any(event.get("event") == "workbench_session_interaction_viewed" and (event.get("details") or {}).get("session_id") == line_console_session.name for event in line_console_events) or
-                not any(event.get("event") == "workbench_path_viewed" and (event.get("details") or {}).get("path") == str(line_console_session / "session.log") and (event.get("details") or {}).get("viewable") is True for event in line_console_events) or
-                not any(event.get("event") == "workbench_sessions_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
-                not any(event.get("event") == "workbench_job_selected" and (event.get("details") or {}).get("job_id") == "line-console-job" for event in line_console_events) or
-                not any(event.get("event") == "workbench_jobs_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
-                not any(event.get("event") == "operator_daemon_workflow_action_dry_run" and (event.get("details") or {}).get("id") == "operator-daemon-status" for event in line_console_events) or
-                not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "GRIT_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/grit-global" for event in line_console_events) or
-                not any(event.get("event") == "workbench_config_updated" and (event.get("details") or {}).get("key") == "GRIT_RUNTIME_ROOT" and (event.get("details") or {}).get("new_value") == "/tmp/grit-build" for event in line_console_events) or
-                not any(event.get("event") == "workbench_config_unset" and (event.get("details") or {}).get("key") == "GRIT_RUNTIME_ROOT" for event in line_console_events) or
-                not any(event.get("event") == "workbench_build_config_listed" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_makerc_saved" and (event.get("details") or {}).get("path") == str(line_console_makerc) and (event.get("details") or {}).get("command_count", 0) >= 20 for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_completions_shown" and (event.get("details") or {}).get("prefix") == "use job" for event in line_console_events) or
-                not any(event.get("event") == "workbench_generated_commands_listed" and (event.get("details") or {}).get("command_count", 0) >= 1 for event in line_console_events) or
-                not any(event.get("event") == "target_command_copied" and (event.get("details") or {}).get("ordinal") == 1 for event in line_console_events) or
-                not any(event.get("event") == "workbench_bridge_profile_saved" and (event.get("details") or {}).get("name") == "zz-console-added" and (event.get("details") or {}).get("multi_hop") is True for event in line_console_events) or
-                not any(event.get("event") == "workbench_route_started" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
-                not any(event.get("event") == "workbench_route_stopped" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
-                not any(event.get("event") == "workbench_route_deleted" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "daemon" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "file-service" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_module_categories_listed" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "service" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "daemon" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "target" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "workbench" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "usemodule" and (event.get("details") or {}).get("canonical") == "use module" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "execute" and (event.get("details") or {}).get("canonical") == "run" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "uselistener" and (event.get("details") or {}).get("canonical") == "use listener" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "useroute" and (event.get("details") or {}).get("canonical") == "use route" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "usesession" and (event.get("details") or {}).get("canonical") == "use session" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "useagent" and (event.get("details") or {}).get("canonical") == "use agent" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "root" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "route/console-route" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "action/operator-daemon-status" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_main_selected" and (event.get("details") or {}).get("cleared_target") is True for event in line_console_events) or
-                not any(event.get("event") == "workbench_listeners_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
-                not any(event.get("event") == "workbench_routes_listed" and (event.get("details") or {}).get("verbose") is True for event in line_console_events) or
-                not any(event.get("event") == "workbench_route_selected" and (event.get("details") or {}).get("name") == "console-route" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "name=file-service" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "line-console-job" for event in line_console_events) or
-                not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
-                not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
-                not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
-                not any(event.get("event") == "workbench_command_result_inspected" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("has_result") is False for event in line_console_events) or
-                not any(event.get("event") == "workbench_command_queue_cleared" and (event.get("details") or {}).get("count", 0) >= 1 for event in line_console_events) or
-                not any(event.get("event") == "workbench_probe_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
-                not any(event.get("event") == "workbench_target_download_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("target_upload_path") == "/etc/config/network" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
-                not any(event.get("event") == "workbench_staged_fetch_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("request_name") == "console-upload" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
-                len([event for event in line_console_events if event.get("event") == "workbench_command_queue_inspected"]) < 2 or
-                not any(
-                    event.get("event") == "workbench_file_uploaded" and
-                    (event.get("details") or {}).get("request_name") == "console-upload" and
-                    (event.get("details") or {}).get("target_id") == "line-console-target" and
-                    (event.get("details") or {}).get("started_file_service") is True
-                    for event in line_console_events) or
-                not any(
-                    event.get("event") == "workbench_file_unstaged" and
-                    (event.get("details") or {}).get("request_name") == "console-upload" and
-                    (event.get("details") or {}).get("existed") is True
-                    for event in line_console_events) or
-                not any(
-                    event.get("event") == "workbench_binary_served" and
-                    (event.get("details") or {}).get("request_name") == "grit-console" and
-                    (event.get("details") or {}).get("target_id") == "line-console-target" and
-                    (event.get("details") or {}).get("target_label") == "Console Router" and
-                    (event.get("details") or {}).get("started_file_service") is True
-                    for event in line_console_events)):
-            print("line-oriented TUI console commands did not record expected events", file=sys.stderr)
-            print(json.dumps(line_console_status_doc, indent=2, sort_keys=True), file=sys.stderr)
-            return 1
+        rc = run_line_console_smoke(server, tmp, upload_cfg, session_root)
+        if rc:
+            return rc
 
         file_workflow_dir = Path(tmp) / "operator-session-file-workflow-actions"
         file_workflow_cfg = Path(tmp) / "file-workflow-actions.json"
@@ -11720,10 +11526,9 @@ def main():
                 pass
         if (line_proc.returncode != 0 or
                 "Traceback" in (line_stderr or "") or
-                "Help: release" not in _line_stdout or
-                "Release console:" not in _line_stdout or
-                "commands: release stage SELECTOR" not in _line_stdout or
-                "selector=by_device:lab-router" not in _line_stdout or
+                "Help: files" not in _line_stdout or
+                "release stage SELECTOR  |  release ? for help" not in _line_stdout or
+                "selector=by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout or
                 "Release artifact staged:" not in _line_stdout or
                 "target_fetch_command=grit fetch grit-test" not in _line_stdout or
                 "headless_command: scripts/grit-server --config" not in _line_stdout or

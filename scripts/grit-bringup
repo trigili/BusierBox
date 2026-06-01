@@ -1278,7 +1278,7 @@ choose_release_artifact() {
     fi
     if [ -x "$release_dir/scripts/lib/release-find" ]; then
         release_selection_source=bundle-helper
-        set -- scripts/lib/release-find --release-dir "$release_dir" --survey-json "$survey"
+        set -- "$release_dir/scripts/lib/release-find" --release-dir "$release_dir" --survey-json "$survey"
         if [ -f "$reality" ]; then
             set -- "$@" --reality-json "$reality"
         fi

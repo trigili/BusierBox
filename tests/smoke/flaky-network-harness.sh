@@ -73,7 +73,7 @@ assert workflow["kind"] == "offline-workflow-mailbox-artifact"
 assert workflow["target"]["target_id"] == "target-workflow"
 assert workflow["target"]["mailbox_pending_work_count"] == 2
 assert workflow["summary"]["target_mailbox_waiting_for_counts"]["target-poll"] == 2
-assert any((rec.get("details") or {}).get("action_id") == "queue-survey-bootstrap" for rec in workflow["target_workflow_action_events"])
+assert any((rec.get("details") or {}).get("action_id") == "queue-probe" for rec in workflow["target_workflow_action_events"])
 assert any((rec.get("details") or {}).get("action_id") == "queue-staged-fetch" for rec in workflow["staged_file_workflow_action_events"])
 assert any((rec.get("details") or {}).get("queues_offline_work") is True for rec in workflow["staged_file_workflow_action_events"])
 workflow_commands = "\n".join(rec.get("command") or "" for rec in workflow["target_mailbox_records"])
@@ -83,12 +83,12 @@ assert workflow_tui["kind"] == "offline-workflow-tui-artifact"
 assert workflow_tui["returncode"] == 0
 assert workflow_tui["summary"]["target_mailbox_pending_work_count"] == 2
 assert workflow_tui["summary"]["target_mailbox_waiting_for_counts"]["target-poll"] == 2
-assert "Target mailbox records:" in workflow_tui["stdout"]
-assert "target=target-workflow" in workflow_tui["stdout"]
+assert "Mailbox  (2 records)" in workflow_tui["stdout"]
+assert "target-workflow" in workflow_tui["stdout"]
 assert "waiting_for=target-poll" in workflow_tui["stdout"]
-assert "pending=yes" in workflow_tui["stdout"]
+assert "pending=2" in workflow_tui["stdout"]
 assert "Target detail: target-workflow label=Workflow Target" in workflow_tui["stdout"]
-assert "queue-survey-bootstrap" in workflow_tui["stdout"]
+assert "queue-probe" in workflow_tui["stdout"]
 assert "queue-staged-fetch" in workflow_tui["stdout"]
 assert any(rec["event"] == "workbench_command_queue_inspected" for rec in workflow_tui["workbench_events"])
 assert any(rec["event"] == "workbench_target_inspected" for rec in workflow_tui["workbench_events"])
@@ -123,10 +123,10 @@ assert workflow_drain_tui["target"]["mailbox_delivered_command_count"] == 2
 assert workflow_drain_tui["target"]["last_seen_via"] == "command-queue:command_queue_poll"
 assert workflow_drain_tui["target"]["latest_phone_home_status"] == "delivered"
 assert all(rec["status"] == "delivered" for rec in workflow_drain_tui["target_mailbox_records"])
-assert "Target mailbox records:" in workflow_drain_tui["stdout"]
-assert "target=target-workflow" in workflow_drain_tui["stdout"]
+assert "Mailbox  (2 records)" in workflow_drain_tui["stdout"]
+assert "target-workflow" in workflow_drain_tui["stdout"]
 assert "status=delivered" in workflow_drain_tui["stdout"]
-assert "pending=no" in workflow_drain_tui["stdout"]
+assert "pending=0" in workflow_drain_tui["stdout"]
 assert "via=command-queue:command_queue_poll" in workflow_drain_tui["stdout"]
 assert "next_expected_poll=" in workflow_drain_tui["stdout"]
 assert "poll_overdue=no" in workflow_drain_tui["stdout"]
@@ -185,7 +185,7 @@ assert all((rec["details"] or {}).get("headless_command") for rec in systemd["ev
 assert tui_queue["kind"] == "tui-offline-queue-artifact"
 assert tui_queue["returncode"] == 0
 assert "target workflow action: target-tui:queue-command" in tui_queue["stdout"]
-assert "target workflow action: target-tui:queue-survey-bootstrap" in tui_queue["stdout"]
+assert "target workflow action: target-tui:queue-probe" in tui_queue["stdout"]
 assert "target workflow action: target-tui:stage-file-fetch" in tui_queue["stdout"]
 assert "target workflow action: target-tui:queue-staged-fetch" in tui_queue["stdout"]
 assert "target workflow action: target-tui:queue-bridge-start:tui-bridge" in tui_queue["stdout"]
@@ -212,8 +212,8 @@ assert "grit rshell start" in tui_queued_commands
 survey_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if "survey.sh" in rec["command"])
 fetch_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if "grit fetch tui-payload.txt" in rec["command"])
 bridge_mailbox = next(rec for rec in tui_queue["target_mailbox_records"] if rec["command"] == "grit rshell start")
-assert survey_mailbox["work_kind"] == "survey-bootstrap"
-assert survey_mailbox["workflow"] == "survey-bootstrap"
+assert survey_mailbox["work_kind"] == "probe"
+assert survey_mailbox["workflow"] == "probe"
 assert survey_mailbox["request_name"] == "survey.sh"
 assert fetch_mailbox["work_kind"] == "staged-fetch"
 assert fetch_mailbox["workflow"] == "file-service"
@@ -223,14 +223,14 @@ assert bridge_mailbox["workflow"] == "bridge"
 assert bridge_mailbox["bridge_profile"] == "tui-bridge"
 assert bridge_mailbox["bridge_route_path"]
 assert bridge_mailbox["route_kind"] == "bridge"
-assert tui_queue["after"]["target_mailbox_work_kind_counts"]["survey-bootstrap"] == 1
+assert tui_queue["after"]["target_mailbox_work_kind_counts"]["probe"] == 1
 assert tui_queue["after"]["target_mailbox_work_kind_counts"]["staged-fetch"] == 1
 assert tui_queue["after"]["target_mailbox_work_kind_counts"]["bridge-start"] == 1
 assert tui_queue["after"]["target_mailbox_request_name_counts"]["survey.sh"] == 1
 assert tui_queue["after"]["target_mailbox_request_name_counts"]["tui-payload.txt"] == 1
 assert tui_queue["after"]["target_mailbox_bridge_profile_counts"]["tui-bridge"] == 1
 assert any((rec.get("details") or {}).get("action_id") == "queue-command" for rec in tui_queue["target_workflow_events"])
-assert any((rec.get("details") or {}).get("action_id") == "queue-survey-bootstrap" for rec in tui_queue["target_workflow_events"])
+assert any((rec.get("details") or {}).get("action_id") == "queue-probe" for rec in tui_queue["target_workflow_events"])
 assert any((rec.get("details") or {}).get("action_id") == "stage-file-fetch" for rec in tui_queue["target_workflow_events"])
 assert any((rec.get("details") or {}).get("action_id") == "queue-staged-fetch" for rec in tui_queue["target_workflow_events"])
 assert any((rec.get("details") or {}).get("action_id") == "queue-bridge-start:tui-bridge" and (rec.get("details") or {}).get("bridge_profile") == "tui-bridge" for rec in tui_queue["target_workflow_events"])
@@ -247,15 +247,15 @@ drained_survey_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_rec
 drained_fetch_mailbox = next(rec for rec in tui_queue_drain["target_mailbox_records"] if "grit fetch tui-payload.txt" in rec["command"])
 assert drained_bridge_mailbox["work_kind"] == "bridge-start"
 assert drained_bridge_mailbox["bridge_profile"] == "tui-bridge"
-assert drained_survey_mailbox["work_kind"] == "survey-bootstrap"
+assert drained_survey_mailbox["work_kind"] == "probe"
 assert drained_fetch_mailbox["work_kind"] == "staged-fetch"
 delivered_phone_home = [rec for rec in tui_queue_drain["phone_home_records"] if rec["status"] == "delivered"]
 phone_home_by_work_kind = {rec.get("work_kind"): rec for rec in delivered_phone_home if rec.get("work_kind")}
-assert phone_home_by_work_kind["survey-bootstrap"]["request_name"] == "survey.sh"
+assert phone_home_by_work_kind["probe"]["request_name"] == "survey.sh"
 assert phone_home_by_work_kind["staged-fetch"]["request_name"] == "tui-payload.txt"
 assert phone_home_by_work_kind["bridge-start"]["bridge_profile"] == "tui-bridge"
 assert phone_home_by_work_kind["bridge-start"]["route_kind"] == "bridge"
-assert tui_queue_drain["summary"]["target_phone_home_work_kind_counts"]["survey-bootstrap"] == 1
+assert tui_queue_drain["summary"]["target_phone_home_work_kind_counts"]["probe"] == 1
 assert tui_queue_drain["summary"]["target_phone_home_work_kind_counts"]["staged-fetch"] == 1
 assert tui_queue_drain["summary"]["target_phone_home_work_kind_counts"]["bridge-start"] == 1
 assert tui_queue_drain["summary"]["target_phone_home_bridge_profile_counts"]["tui-bridge"] == 1

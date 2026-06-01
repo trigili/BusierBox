@@ -1493,17 +1493,17 @@ def records_by_composite(records, keys):
 
 def target_identity_from_headers(headers):
     headers = headers or {}
-    target_id = str(headers.get("x-grit-target-id") or headers.get("x-grit-target") or "").strip()
+    target_id = str(headers.get("x-grit-target-id") or headers.get("x-grittykit-target-id") or headers.get("x-grit-target") or "").strip()
     if not target_id:
         return {}
     aliases = [
         item.strip()
-        for item in str(headers.get("x-grit-target-alias") or "").split(",")
+        for item in str(headers.get("x-grit-target-alias") or headers.get("x-grittykit-target-alias") or "").split(",")
         if item.strip()
     ]
     return {
         "target_id": target_id,
-        "target_label": str(headers.get("x-grit-target-label") or "").strip(),
+        "target_label": str(headers.get("x-grit-target-label") or headers.get("x-grittykit-target-label") or "").strip(),
         "target_aliases": aliases,
         "target_identity_source": "http-header",
         "target_identity_confidence": "explicit",
@@ -12458,8 +12458,8 @@ def read_http_upload(conn, files_dir, addr):
             "source_path": target,
             "remote_addr": f"{addr[0]}:{addr[1]}",
         }, headers), 400
-    source_path = headers.get("x-grit-source-path") or urllib.parse.urlparse(target).path
-    upload_kind = headers.get("x-grit-upload-kind") or "file"
+    source_path = headers.get("x-grit-source-path") or headers.get("x-grittykit-source-path") or urllib.parse.urlparse(target).path
+    upload_kind = headers.get("x-grit-upload-kind") or headers.get("x-grittykit-upload-kind") or "file"
     out_name = safe_upload_name(source_path)
     out_path = files_dir / out_name
     if out_path.exists():
@@ -12836,7 +12836,7 @@ def command_queue_token_valid(cfg, headers):
     if str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")) != "yes":
         return True
     expected = str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", ""))
-    supplied = str((headers or {}).get("x-grit-command-queue-token", ""))
+    supplied = str((headers or {}).get("x-grit-command-queue-token") or (headers or {}).get("x-grittykit-command-queue-token") or "")
     return bool(expected) and supplied == expected
 
 
@@ -12860,12 +12860,12 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
     remote = f"{addr[0]}:{addr[1]}"
     target_identity = target_identity_from_headers(headers)
     poll_context = {
-        "poll_mode": str(headers.get("x-grit-command-queue-mode") or ""),
-        "poll_interval_sec": str(headers.get("x-grit-command-queue-poll-interval-sec") or ""),
-        "poll_jitter_pct": str(headers.get("x-grit-command-queue-poll-jitter-pct") or ""),
-        "poll_backoff": str(headers.get("x-grit-command-queue-poll-backoff") or ""),
-        "poll_max_interval_sec": str(headers.get("x-grit-command-queue-poll-max-interval-sec") or ""),
-        "max_polls": str(headers.get("x-grit-command-queue-max-polls") or ""),
+        "poll_mode": str(headers.get("x-grit-command-queue-mode") or headers.get("x-grittykit-command-queue-mode") or ""),
+        "poll_interval_sec": str(headers.get("x-grit-command-queue-poll-interval-sec") or headers.get("x-grittykit-command-queue-poll-interval-sec") or ""),
+        "poll_jitter_pct": str(headers.get("x-grit-command-queue-poll-jitter-pct") or headers.get("x-grittykit-command-queue-poll-jitter-pct") or ""),
+        "poll_backoff": str(headers.get("x-grit-command-queue-poll-backoff") or headers.get("x-grittykit-command-queue-poll-backoff") or ""),
+        "poll_max_interval_sec": str(headers.get("x-grit-command-queue-poll-max-interval-sec") or headers.get("x-grittykit-command-queue-poll-max-interval-sec") or ""),
+        "max_polls": str(headers.get("x-grit-command-queue-max-polls") or headers.get("x-grittykit-command-queue-max-polls") or ""),
     }
     if method not in {"GET", "HEAD"}:
         payload = {"schema": 1, "status": "rejected", "reason": "command queue poll accepts only GET or HEAD"}
@@ -22062,7 +22062,7 @@ def run_line_tui(cfg):
                     ("files clear --confirm", "remove all staged files"),
                     ("view PATH, cat PATH", "view a local path in the configured pager"),
                     ("download [--queue] TARGET_PATH", "generate an upload-back command for the target"),
-                    ("survey [--start] [--queue]", "show or queue the probe command"),
+                    ("probe [--start] [--queue]", "show or queue the probe command"),
                 ],
                 "examples": [
                     "upload ./grit grit  →  fetch grit",
@@ -22367,7 +22367,7 @@ def run_line_tui(cfg):
         elif target_id:
             target_filter = snap.get("target_filter") or {}
             print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
-            print("  commands: interact, queue COMMAND, survey --queue, download --queue TARGET_PATH, upload --start LOCAL NAME, fetch --queue NAME, show activity, serve-binary --start PATH NAME, clear target")
+            print("  commands: interact, queue COMMAND, probe --queue, download --queue TARGET_PATH, upload --start LOCAL NAME, fetch --queue NAME, show activity, serve-binary --start PATH NAME, clear target")
         else:
             print("  selected agent=all")
             print("  commands: workspace, agents, listeners, routes, sessions, show categories, search TERM")
@@ -23130,7 +23130,7 @@ def run_line_tui(cfg):
         state = target.get("connectivity_state") or target_filter.get("connectivity_state") or "-"
         print(f"Agent interaction: {target_id} label={label} state={state}")
         print(target_filter_summary_text(target_filter, prefix="  status:"))
-        print("  commands: queue COMMAND, survey --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target")
+        print("  commands: queue COMMAND, probe --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target")
         print(
             "  headless_status: scripts/grit-server --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
@@ -23326,6 +23326,7 @@ def run_line_tui(cfg):
         headless = service_start_headless_command(cfg, service)
         cfg["_service_start_command"] = headless
         start_service_process(cfg, service, headless_command=headless)
+        print(f"headless_command: {headless}")
         if service == "probe":
             # Brief poll for the listener to be ready, then show delivery commands
             for _ in range(10):
@@ -23353,6 +23354,7 @@ def run_line_tui(cfg):
         headless = service_stop_headless_command(cfg, service)
         cfg["_service_stop_command"] = headless
         stop_recorded_service(cfg, service, headless_command=headless)
+        print(f"headless_command: {headless}")
 
     def line_route_record(name):
         text = str(name or "").strip()

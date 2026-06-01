@@ -4,7 +4,42 @@ set -eu
 tmp_root=${TMPDIR:-local/tmp}
 mkdir -p "$tmp_root"
 work=$(mktemp -d "$tmp_root/release-bundles.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+failure_artifact_saved=
+failure_sha_saved=
+failure_artifact=
+failure_sha=
+
+restore_hidden_failure_artifact() {
+    if [ -n "$failure_artifact_saved" ] && [ -e "$failure_artifact_saved" ]; then
+        mv "$failure_artifact_saved" "$failure_artifact"
+        failure_artifact_saved=
+    fi
+    if [ -n "$failure_sha_saved" ] && [ -e "$failure_sha_saved" ]; then
+        mv "$failure_sha_saved" "$failure_sha"
+        failure_sha_saved=
+    fi
+}
+
+hide_failure_artifact() {
+    failure_target=${failure_target:-armv7-linux-3.x-musl}
+    failure_artifact="dist/grit-$failure_target-eabihf-full"
+    failure_sha="$failure_artifact.sha256"
+    if [ -e "$failure_artifact" ] && [ -z "$failure_artifact_saved" ]; then
+        failure_artifact_saved="$work/$(basename "$failure_artifact").saved"
+        mv "$failure_artifact" "$failure_artifact_saved"
+    fi
+    if [ -e "$failure_sha" ] && [ -z "$failure_sha_saved" ]; then
+        failure_sha_saved="$work/$(basename "$failure_sha").saved"
+        mv "$failure_sha" "$failure_sha_saved"
+    fi
+}
+
+cleanup() {
+    restore_hidden_failure_artifact
+    rm -rf "$work"
+}
+
+trap cleanup EXIT HUP INT TERM
 
 export GRIT_RSHELL_SESSION_POLICY=single
 
@@ -37,12 +72,51 @@ aliases = mod.target_aliases({"target": "glinet-mt7621-openwrt-musl"}, resolved)
 for alias in ("glinet-mt7621-openwrt-musl", "mipsel-linux-4.x-musl", "glinet-mt7621", "glinet-mt1300"):
     if alias not in aliases:
         raise SystemExit(f"missing device alias {alias}")
+built = {
+    "by-tuple/armv7/musl/4.x/generic": {
+        "tuple": {
+            "arch": "armv7",
+            "libc": "musl",
+            "kernel_floor": "4.x",
+            "discriminator": "generic",
+        }
+    }
+}
+device_tuple = mod.tuple_metadata({
+    "TARGET_ARCH": "armv7",
+    "TARGET_LIBC": "musl",
+    "TARGET_KERNEL_FLOOR": "4.x",
+    "TARGET_CPU": "cortex-a7",
+    "TARGET_ABI": "eabi",
+})
+if mod.preferred_tuple_path_for_alias(device_tuple, built) != "by-tuple/armv7/musl/4.x/generic":
+    raise SystemExit("device tuple did not fall back to generic tuple")
 PY
 scripts/make-release --name reverse-smoke --targets native --payload-presets survey-core --reverse-access-profiles builtin,ssh,socat --dry-run >"$work/reverse-dry-run.out"
 grep -q 'would build target=native payload=survey-core format=tgz' "$work/reverse-dry-run.out"
 grep -q 'would build target=native payload=builtin-core-shell format=tgz' "$work/reverse-dry-run.out"
 grep -q 'would build target=native payload=ssh-operator format=tgz' "$work/reverse-dry-run.out"
 grep -q 'would build target=native payload=socat-rescue format=tgz' "$work/reverse-dry-run.out"
+scripts/make-release --name full-smoke --matrix tests/matrix/release-full.json --dry-run >"$work/full-dry-run.out"
+python3 - "$work/full-dry-run.out" <<'PY'
+import sys
+
+lines = [line for line in open(sys.argv[1], encoding="utf-8") if line.startswith("would build ")]
+if len(lines) != 112:
+    raise SystemExit(f"release-full should be 16 generic targets x 7 presets, got {len(lines)}")
+for forbidden in ("glinet-", "tplink-", "asus-", "dlink-", "linksys-", "netgear-"):
+    if any(f"target={forbidden}" in line for line in lines):
+        raise SystemExit(f"release-full built device-specific target: {forbidden}")
+for expected in (
+    "target=mips-linux-2.4-uclibc",
+    "target=mipsel-linux-3.x-musl",
+    "target=aarch64-linux-3.x-musl",
+    "payload=full-debug",
+    "payload=socat-rescue",
+):
+    if not any(expected in line for line in lines):
+        raise SystemExit(f"release-full missing {expected}")
+PY
 if scripts/make-release --name bad-reverse --targets native --reverse-access-profiles no-such-profile --dry-run >"$work/bad-reverse.out" 2>"$work/bad-reverse.err"; then
     printf '%s\n' "expected bad reverse profile to fail" >&2
     exit 1
@@ -789,12 +863,15 @@ if doc.get("status") != "pass" or doc.get("checked_artifact_count") != 1:
     raise SystemExit("release-self-test wrapper did not forward --json diagnostics")
 PY
 
+failure_target=armv7-linux-3.x-musl
+hide_failure_artifact
 scripts/make-release \
     --name failure-smoke \
-    --targets native,armv7-linux-3.x-musl \
+    --targets "native,$failure_target" \
     --payload-presets default \
     --skip-build \
     --out-dir "$work/failure-release" >"$work/failure-release.out"
+restore_hidden_failure_artifact
 test -x "$work/failure-release/bin/grit-native-default-full"
 python3 - "$work/failure-release/release.json" <<'PY'
 import json
@@ -895,9 +972,10 @@ if not manifest.get("artifacts", [{}])[0].get("busybox_applets"):
 PY
 fi
 
+hide_failure_artifact
 if scripts/make-release \
     --name strict-failure \
-    --targets native,armv7-linux-3.x-musl \
+    --targets "native,$failure_target" \
     --payload-presets default \
     --skip-build \
     --strict \
@@ -913,10 +991,12 @@ data = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 if len(data.get("failures", [])) != 1:
     raise SystemExit("strict release did not record failure")
 PY
+restore_hidden_failure_artifact
 
+hide_failure_artifact
 scripts/make-release \
     --name fail-fast \
-    --targets armv7-linux-3.x-musl,native \
+    --targets "$failure_target,native" \
     --payload-presets default \
     --skip-build \
     --fail-fast \
@@ -934,6 +1014,7 @@ if artifacts[0].get("target") != "armv7-linux-3.x-musl":
 if artifacts[0].get("build_status") != "failed":
     raise SystemExit("fail-fast first artifact did not fail")
 PY
+restore_hidden_failure_artifact
 
 scripts/make-release \
     --name iot-metadata \

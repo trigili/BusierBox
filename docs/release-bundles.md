@@ -191,7 +191,7 @@ For a directory containing multiple release bundles, build a local/offline
 repository index:
 
 ```sh
-scripts/index-release-repo dist/releases --write local/release-repo-index.json
+scripts/lib/index-release-repo dist/releases --write local/release-repo-index.json
 scripts/lib/find-artifact --index local/release-repo-index.json --device glinet-mt1300
 scripts/lib/find-artifact --index local/release-repo-index.json --tuple-path by-tuple/mipsel/musl/4.x/mips32r2-24kc
 scripts/lib/find-artifact --index local/release-repo-index.json --tool tcpdump --payload-preset survey-core

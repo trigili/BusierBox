@@ -16,7 +16,7 @@ import urllib.request
 import grit_matrix as matrix
 
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 BUILDROOT_VERSION_DEFAULT = "2026.02.2"
 
 
@@ -218,7 +218,7 @@ def generate_buildroot_plan(job, cfg, out, buildroot_dir, args, dry_run):
         record["error"] = str(exc)
         return record
 
-    gen_cmd = [str(ROOT / "scripts" / "gen-buildroot-defconfig"), job["target"]]
+    gen_cmd = [str(ROOT / "scripts" / "lib" / "gen-buildroot-defconfig"), job["target"]]
     if dry_run:
         record["commands"] = [
             f"GRIT_CONFIG={cfg} {' '.join(gen_cmd)}",
@@ -396,7 +396,7 @@ def main():
     strict_ready = not failures
     manifest = write_manifest(out, lock_path, args, lock_rows, source_plans, failures, args.dry_run, strict_ready)
     if args.verify and not args.dry_run:
-        cmd = [str(ROOT / "scripts" / "check-offline-readiness"), "--mirror", str(out), "--manifest", str(lock_path), "--strict"]
+        cmd = [str(ROOT / "scripts" / "lib" / "check-offline-readiness"), "--mirror", str(out), "--manifest", str(lock_path), "--strict"]
         if args.matrix:
             cmd.extend(["--matrix", args.matrix])
         elif args.targets or args.payloads or args.payload_presets:

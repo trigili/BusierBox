@@ -190,7 +190,7 @@ make_release "$tmp/releases/one" one survey-core tcpdump "$same_sha" glinet-mt13
 make_release "$tmp/releases/two" two ssh-operator strace "$same_sha" lab-router
 make_release "$tmp/releases/three" three full-debug gdbserver fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210 lab-router unsafe
 
-scripts/index-release-repo "$tmp/releases" >"$tmp/index.json"
+scripts/lib/index-release-repo "$tmp/releases" >"$tmp/index.json"
 python3 -m json.tool "$tmp/index.json" >/dev/null
 python3 - "$tmp/index.json" <<'PY'
 import json
@@ -412,7 +412,7 @@ assert resources_by_primary_key["sha256"][0]["name"] == "dedupe"
 assert resources_by_name["dedupe"]["indexes"]
 PY
 
-scripts/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
+scripts/lib/index-release-repo "$tmp/releases" --write "$tmp/repo-index.json" >/dev/null
 test -f "$tmp/repo-index.json"
 scripts/lib/find-artifact --index "$tmp/repo-index.json" --device glinet-mt1300 --tool tcpdump >"$tmp/find-device.out"
 grep -q '^release_name=one$' "$tmp/find-device.out"

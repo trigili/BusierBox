@@ -46,7 +46,7 @@ TOOL_SYMBOLS = {
     "mmc-utils": ["BR2_PACKAGE_MMC_UTILS"],
     "e2fsprogs": ["BR2_PACKAGE_E2FSPROGS"],
     "parted": ["BR2_PACKAGE_PARTED"],
-    "doom": ["BR2_PACKAGE_GRIPTYKIT_DOOM_ASCII"],
+    "doom": ["BR2_PACKAGE_GRIT_DOOM_ASCII"],
 }
 
 PROVIDER_ONLY = {

@@ -209,8 +209,8 @@ cfg="$tmp/server-config.json"
 cat >"$cfg" <<EOF
 {
   "listen_host": "127.0.0.1",
-  "file_service_port": $port,
-  "file_service_tls": "no",
+  "GRIT_OPERATOR_FILE_SERVICE_PORT": $port,
+  "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
   "operator_session_dir": "$operator_dir",
   "session_root": "$sessions_dir"
 }

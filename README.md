@@ -10,6 +10,12 @@ manages survey, environment repair, payload extraction, and dispatch. BusyBox
 provides standard Unix utilities such as `sh`, `cp`, `dd`, `mount`, `ps`,
 `nc`, and `tar`.
 
+Bringup is a guided onboarding flow for turning an unknown target survey into a
+recommended config, optional target preset, and staged release artifact. See
+[docs/bringup.md](docs/bringup.md) for the operator workflow and
+[docs/payload-presets.md](docs/payload-presets.md) for the payload profiles used
+by releases and menuconfig.
+
 griTTYkit's own code and project-maintained scripts are licensed under
 GPL-2.0-or-later. Release artifacts can include separately licensed upstream
 payload/build components such as BusyBox, Buildroot, doom-ascii, and miniz; see

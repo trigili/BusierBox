@@ -11,7 +11,7 @@ import sys
 import grit_matrix as matrix
 
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def sha256_file(path):
@@ -125,7 +125,7 @@ def check_strict(mirror, manifest, args):
 
 
 def build_matrix_dry_run(args, mirror):
-    cmd = [str(ROOT / "scripts" / "build-matrix"), "--offline", "--mirror-dir", str(mirror), "--dry-run"]
+    cmd = [str(ROOT / "scripts" / "lib" / "build-matrix"), "--offline", "--mirror-dir", str(mirror), "--dry-run"]
     if args.matrix:
         cmd.extend(["--matrix", args.matrix])
     else:

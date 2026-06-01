@@ -318,7 +318,7 @@ int main(int argc, char **argv)
     bb_set_argv0(argv[0]);
 
     invoked = base_name(argv[0]);
-    if (strcmp(invoked, "grit") != 0 && strncmp(invoked, "grit-", 10) != 0) {
+    if (strcmp(invoked, "grit") != 0 && strncmp(invoked, "grit-", 5) != 0) {
         rc = bb_dispatch(invoked, argc, argv);
         if (rc >= 0)
             return rc;

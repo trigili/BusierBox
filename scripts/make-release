@@ -21,7 +21,7 @@ import grit_matrix as matrix
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SCHEMA_VERSION = 1
-PAYLOAD_MAGIC = b"BBXPAYLOADv1"
+PAYLOAD_MAGIC = b"GRITPAYLOADv1"
 PAYLOAD_TRAILER_SIZE = 512
 CONFIG_MAGIC = b"BBXCONFIGv1"
 CONFIG_TRAILER_SIZE = 4096
@@ -285,6 +285,60 @@ def tuple_metadata(resolved):
     }
 
 
+def tuple_metadata_from_preset(preset):
+    return tuple_metadata({
+        "TARGET_ARCH": preset.get("arch", ""),
+        "TARGET_LIBC": preset.get("libc", ""),
+        "TARGET_KERNEL_FLOOR": preset.get("kernel_floor", ""),
+        "TARGET_CPU": preset.get("cpu", ""),
+        "TARGET_ABI": preset.get("abi", ""),
+        "TARGET_ENDIAN": preset.get("endian", ""),
+        "TARGET_STATIC_POLICY": preset.get("static_policy", ""),
+        "TARGET_PAYLOAD_TIER": preset.get("payload_tier", ""),
+        "TARGET_QEMU_USER": preset.get("qemu_user", ""),
+    })
+
+
+def target_preset_records():
+    path = ROOT / "targets" / "presets.json"
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    presets = data.get("presets")
+    return presets if isinstance(presets, list) else []
+
+
+def tuple_match_key(tuple_info):
+    return (
+        tuple_info.get("arch") or "",
+        tuple_info.get("libc") or "",
+        tuple_info.get("kernel_floor") or "",
+    )
+
+
+def preferred_tuple_path_for_alias(alias_tuple, built_tuples):
+    exact = alias_tuple.get("path")
+    if exact in built_tuples:
+        return exact
+    key = tuple_match_key(alias_tuple)
+    candidates = [
+        (path, item)
+        for path, item in built_tuples.items()
+        if tuple_match_key(item.get("tuple") or {}) == key
+    ]
+    if not candidates:
+        return ""
+    # Prefer a generic discriminator when a device CPU is more specific than
+    # the release tuple, then fall back to a stable path sort.
+    def rank(entry):
+        path, item = entry
+        discr = (item.get("tuple") or {}).get("discriminator") or ""
+        generic = 0 if discr in {"generic", "default"} else 1
+        return (generic, path)
+    return sorted(candidates, key=rank)[0][0]
+
+
 def validate_tuple_metadata(tuple_info, context="tuple"):
     required = ("arch", "libc", "kernel_floor", "discriminator")
     missing = [key for key in required if not tuple_info.get(key) or tuple_info.get(key) == "unknown"]
@@ -349,6 +403,8 @@ def write_config(path, job, base_config=None):
         lines = path.read_text(encoding="utf-8").rstrip().splitlines()
     if job.get("runtime_mode"):
         lines.append(f"GRIT_RUNTIME_MODE={matrix.shell_quote(job['runtime_mode'])}")
+    if "GRIT_ALLOW_UNCONFIGURED_OPERATOR_HOST" not in "\n".join(lines):
+        lines.append("GRIT_ALLOW_UNCONFIGURED_OPERATOR_HOST=yes")
     path.write_text("\n".join(lines).rstrip() + "\n", encoding="utf-8")
 
 
@@ -553,7 +609,8 @@ def write_release_helpers(script_dir):
         import pathlib
         import sys
 
-        root = pathlib.Path(__file__).resolve().parents[1]
+        script_path = pathlib.Path(__file__).resolve()
+        root = script_path.parents[2] if script_path.parent.name == "lib" else script_path.parents[1]
 
         def load(path, fallback):
             try:
@@ -660,7 +717,8 @@ def write_release_helpers(script_dir):
         import pathlib
         import sys
 
-        root = pathlib.Path(__file__).resolve().parents[1]
+        script_path = pathlib.Path(__file__).resolve()
+        root = script_path.parents[2] if script_path.parent.name == "lib" else script_path.parents[1]
 
         def load(path):
             try:
@@ -1069,7 +1127,8 @@ def write_release_helpers(script_dir):
         import sys
         import tempfile
 
-        root = pathlib.Path(__file__).resolve().parents[1]
+        script_path = pathlib.Path(__file__).resolve()
+        root = script_path.parents[2] if script_path.parent.name == "lib" else script_path.parents[1]
         json_output = False
 
         def usage():
@@ -1445,10 +1504,12 @@ def write_release_helpers(script_dir):
 
 def copy_bundle_support(release_dir, include_sources_manifest=True):
     script_dir = release_dir / "scripts"
+    script_lib_dir = script_dir / "lib"
     doc_dir = release_dir / "docs"
     config_dir = release_dir / "config-examples"
     manifest_dir = release_dir / "manifests"
     script_dir.mkdir(parents=True, exist_ok=True)
+    script_lib_dir.mkdir(parents=True, exist_ok=True)
     doc_dir.mkdir(parents=True, exist_ok=True)
     config_dir.mkdir(parents=True, exist_ok=True)
     manifest_dir.mkdir(parents=True, exist_ok=True)
@@ -1459,11 +1520,16 @@ def copy_bundle_support(release_dir, include_sources_manifest=True):
     license_notices = ROOT / "LICENSES"
     if license_notices.exists():
         shutil.copytree(license_notices, release_dir / "LICENSES", dirs_exist_ok=True)
-    shutil.copy2(ROOT / "scripts" / "lib" / "artifact-config", script_dir / "artifact-config")
+    shutil.copy2(ROOT / "scripts" / "lib" / "artifact-config", script_lib_dir / "artifact-config")
+    (script_lib_dir / "artifact-config").chmod(0o755)
+    shutil.copy2(script_lib_dir / "artifact-config", script_dir / "artifact-config")
     (script_dir / "artifact-config").chmod(0o755)
     shutil.copy2(ROOT / "scripts" / "grit-server", script_dir / "grit-server")
     (script_dir / "grit-server").chmod(0o755)
     write_release_helpers(script_dir)
+    for name in ("release-index", "release-find", "release-self-test"):
+        shutil.copy2(script_dir / name, script_lib_dir / name)
+        (script_lib_dir / name).chmod(0o755)
     for name in ("grit.conf.example", "native-linux.example"):
         src = ROOT / "configs" / name
         if src.exists():
@@ -2092,6 +2158,39 @@ def write_tuple_layout(release_dir, records, layout_mode, include_missing=False)
             "The flat top-level bin/, configs/, and manifests/ paths are kept for scripts.\n",
             encoding="utf-8",
         )
+
+    for preset in target_preset_records():
+        category = str(preset.get("category") or "")
+        if not category.startswith("specific-targets/"):
+            continue
+        if preset.get("support_status") != "supported":
+            continue
+        alias_tuple = tuple_metadata_from_preset(preset)
+        tuple_path = preferred_tuple_path_for_alias(alias_tuple, tuples)
+        if not tuple_path:
+            continue
+        tuple_artifacts = [
+            rec.get("tuple_artifact") or rec.get("artifact")
+            for rec in (tuples.get(tuple_path, {}).get("artifacts") or [])
+            if rec.get("tuple_artifact") or rec.get("artifact")
+        ]
+        resolved = {
+            "TARGET_NAME": preset.get("preset_name") or "",
+            "TARGET_ARCH": preset.get("arch") or "",
+            "TARGET_LIBC": preset.get("libc") or "",
+            "TARGET_KERNEL_FLOOR": preset.get("kernel_floor") or "",
+            "TARGET_CPU": preset.get("cpu") or "",
+            "TARGET_ABI": preset.get("abi") or "",
+        }
+        for alias in target_aliases({"target": preset.get("preset_name") or ""}, resolved):
+            if alias in devices:
+                continue
+            devices[alias] = {
+                "alias": alias,
+                "tuple_path": tuple_path,
+                "artifacts": tuple_artifacts,
+                "alias_source": "target-preset",
+            }
 
     devices_dir = release_dir / "devices"
     for alias, item in sorted(devices.items()):

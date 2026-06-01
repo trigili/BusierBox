@@ -2,7 +2,24 @@
   "schema": 1,
   "name": "full",
   "description": "Complete release: all supported targets × all payload presets. Intended for airgapped deployment — probe identifies the device arch and grit-server serves the right binary.",
-  "targets": ["all"],
-  "payload_presets": ["survey-core", "default", "ssh-operator"],
+  "targets": [
+    "native",
+    "mips-linux-2.4-uclibc",
+    "mips-linux-2.6-uclibc",
+    "mips-linux-3.x-uclibc",
+    "mips-linux-4.x-uclibc",
+    "mipsel-linux-2.4-uclibc",
+    "mipsel-linux-2.6-uclibc-legacy",
+    "mipsel-linux-3.x-uclibc",
+    "mipsel-linux-3.x-musl",
+    "mipsel-linux-4.x-musl",
+    "armv7-linux-3.x-musl",
+    "armv7-linux-4.x-musl",
+    "aarch64-linux-3.x-musl",
+    "aarch64-linux-4.x-musl",
+    "x86_64-linux-4.x-musl",
+    "x86_64-linux-current-musl"
+  ],
+  "payload_presets": ["builtin-core-shell", "default", "full-debug", "payload-bash", "socat-rescue", "ssh-operator", "survey-core"],
   "formats": ["tgz"]
 }

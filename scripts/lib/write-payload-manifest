@@ -48,7 +48,7 @@ def read_doom_wads(payload):
 
 
 def read_tool_provider_status(tool, target, arch, libc):
-    script = pathlib.Path(__file__).resolve().parent / "tools" / "dropin-tool-status"
+    script = pathlib.Path(__file__).resolve().parents[1] / "tools" / "dropin-tool-status"
     if not script.exists():
         return {"status": "unavailable", "warning": f"missing helper {script}"}
     try:

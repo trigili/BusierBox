@@ -364,7 +364,7 @@ hostname=$(printf '%s' "grit-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
                 printf '%s\n' "BR2_PACKAGE_E2FSPROGS_DEBUGFS=y"
                 ;;
             parted) printf '%s\n' "BR2_PACKAGE_PARTED=y" ;;
-            doom) printf '%s\n' "BR2_PACKAGE_GRIPTYKIT_DOOM_ASCII=y" ;;
+            doom) printf '%s\n' "BR2_PACKAGE_GRIT_DOOM_ASCII=y" ;;
             *) printf '%s\n' "# Unknown heavy tool requested: $tool" ;;
         esac
     done

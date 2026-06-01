@@ -16,7 +16,7 @@ with open(path, "rb") as fh:
     fh.seek(size - 512)
     trailer = fh.read(512).split(b"\0", 1)[0].decode("ascii", "replace")
 
-if not trailer.startswith("BBXPAYLOADv1\n"):
+if not trailer.startswith("GRITPAYLOADv1\n"):
     print("payload_present=no")
     raise SystemExit(0)
 print("payload_present=yes")
@@ -25,4 +25,3 @@ for line in trailer.splitlines()[1:]:
         break
     print(line)
 PY
-

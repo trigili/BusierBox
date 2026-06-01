@@ -44,7 +44,7 @@ printf '%s\n' "$bringup_json" | python3 -c 'import json,sys; d=json.load(sys.std
 test -f local/presets/targets/smoke-bringup.json
 rm -f local/presets/targets/smoke-bringup.json
 release_tmp=$(mktemp -d "${TMPDIR:-/tmp}/grit-bringup-release.XXXXXX")
-mkdir -p "$release_tmp/scripts" "$release_tmp/bin"
+mkdir -p "$release_tmp/scripts/lib" "$release_tmp/bin"
 printf '%s\n' "fake artifact" >"$release_tmp/bin/grit-mipsel-full"
 cat >"$release_tmp/release.json" <<'JSON'
 {
@@ -85,7 +85,7 @@ cat >"$release_tmp/scripts/lib/release-find" <<'PY'
 import json
 import pathlib
 import sys
-root = pathlib.Path(__file__).resolve().parents[1]
+root = pathlib.Path(__file__).resolve().parents[2]
 if "--json" not in sys.argv or "--survey-json" not in sys.argv:
     raise SystemExit(2)
 if "--reality-json" not in sys.argv:
