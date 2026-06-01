@@ -51,7 +51,7 @@ package-native:
 release:
 	@PAYLOAD_FORMAT="$(PAYLOAD_FORMAT)" GRIT_RELEASE_NAME="$(GRIT_RELEASE_NAME)" scripts/lib/release-current "$(if $(TARGET),$(TARGET),--config)"
 
-# Full release: all supported targets × survey-core / default / ssh-operator.
+# Full release: generic supported kernel-era tuple targets × all payload presets.
 # Output: dist/releases/full-VERSION-COMMIT/
 # Usage:  make release-full            (build everything)
 #         make release-full GRIT_RELEASE_NAME=my-label

@@ -109,6 +109,37 @@ PY
 make source-mirror DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-mirror" >"$tmp/make-source-mirror.out"
 grep -q '"source_coverage"' "$tmp/make-source-mirror.out"
 grep -q '"all_supported_tools": true' "$tmp/make-source-mirror.out"
+python3 - "$tmp/make-source-mirror.out" <<'PY'
+import json
+import re
+import sys
+
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+jobs = [item.get("job", {}) for item in data.get("source_plans", [])]
+targets = {job.get("target") for job in jobs}
+payloads = {job.get("payload") for job in jobs}
+device_specific = {
+    target for target in targets
+    if target and re.search(r"glinet|tplink|asus|dlink|linksys|netgear", target)
+}
+expected_payloads = {
+    "builtin-core-shell",
+    "default",
+    "full-debug",
+    "payload-bash",
+    "socat-rescue",
+    "ssh-operator",
+    "survey-core",
+}
+if len(jobs) != 112:
+    raise SystemExit(f"release-full source mirror should plan 112 jobs, got {len(jobs)}")
+if len(targets) != 16:
+    raise SystemExit(f"release-full source mirror should plan 16 generic targets, got {len(targets)}")
+if payloads != expected_payloads:
+    raise SystemExit(f"release-full source mirror payload drift: {sorted(payloads)}")
+if device_specific:
+    raise SystemExit(f"release-full source mirror should not build device-specific targets: {sorted(device_specific)}")
+PY
 make source-release DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-release" SOURCE_RELEASE_DIR="$tmp/releases" SOURCE_RELEASE_NAME=smoke-source >"$tmp/make-source-release.out"
 grep -q 'would create' "$tmp/make-source-release.out"
 
