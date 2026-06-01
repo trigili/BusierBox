@@ -123,7 +123,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", default="configs/grit.conf")
     parser.add_argument("--buildroot-dir", default="buildroot/buildroot-2026.02.2")
-    parser.add_argument("--external-dir", default="buildroot/external/grit")
+    parser.add_argument("--external-dir", default="buildroot/external/griTTYkit")
     parser.add_argument("--compat", default="payloads/tool-compat.json")
     parser.add_argument("--tools", default="")
     parser.add_argument("--strict", action="store_true", help="exit nonzero for untested/provider-required mappings too")

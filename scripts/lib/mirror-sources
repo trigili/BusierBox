@@ -222,7 +222,7 @@ def generate_buildroot_plan(job, cfg, out, buildroot_dir, args, dry_run):
     if dry_run:
         record["commands"] = [
             f"GRIT_CONFIG={cfg} {' '.join(gen_cmd)}",
-            f"make -C {buildroot_dir} O={output_base / record['resolved_target']} BR2_EXTERNAL={ROOT / 'buildroot/external/grit'} BR2_DL_DIR={buildroot_dl} olddefconfig source",
+            f"make -C {buildroot_dir} O={output_base / record['resolved_target']} BR2_EXTERNAL={ROOT / 'buildroot/external/griTTYkit'} BR2_DL_DIR={buildroot_dl} olddefconfig source",
         ]
         return record
 
@@ -256,7 +256,7 @@ def generate_buildroot_plan(job, cfg, out, buildroot_dir, args, dry_run):
     cmd_base = [
         "make", "-C", str(buildroot_dir),
         f"O={out_dir.resolve()}",
-        f"BR2_EXTERNAL={ROOT / 'buildroot/external/grit'}",
+        f"BR2_EXTERNAL={ROOT / 'buildroot/external/griTTYkit'}",
         f"BR2_DL_DIR={buildroot_dl.resolve()}",
     ]
     proc = run(cmd_base + ["olddefconfig"], log_path=logs / f"{slug}.source.log", env=env)
