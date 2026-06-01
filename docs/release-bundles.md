@@ -41,7 +41,10 @@ Each release contains:
   Together with the recorded release commit and Buildroot package source
   manifests, these are the release's corresponding-source reconstruction inputs
   for GPL/source-offer workflows.
-- `release.json`: build status, commit, safe build-host metadata, source-lock summary, selected matrix, artifact paths, canonical tuple paths, device aliases, checksums, and failures.
+- `release.json`: build status, source-tree start/end commit and tracked
+  status, source-tree drift flag, safe build-host metadata, source-lock
+  summary, selected matrix, artifact paths, canonical tuple paths, device
+  aliases, checksums, and failures.
 - `release-index.json`: searchable index for artifacts, tuples, devices,
   payload presets, present tools, reverse-access capabilities, and trailer
   support.
@@ -76,6 +79,13 @@ When a matrix includes `version` or `include`, those values are preserved in
 `manifests/sources.lock.json`; older `include.source_lock`,
 `include.sources_manifest`, and `--include-sources-manifest` selectors remain
 accepted for compatibility.
+
+Strict releases also record source-tree stability: the source tree commit and
+tracked status at the start and end of the build, plus
+`source_tree_changed_during_build`. `scripts/lib/release-self-test` rejects
+bundles that record source-tree drift, and `make release-full` runs
+`scripts/make-release --strict`, so a tracked source change during the build
+exits nonzero instead of silently producing a mixed-source release.
 
 Matrix files can include a `configs` list. Each listed config is used as a
 base config for every selected target/payload/format combination, and
@@ -149,11 +159,13 @@ such as `license_evidence_verified_at`, `license_evidence_source_count`,
 `license_evidence_source_licenses`, and `license_evidence_source_urls`, and
 command-queue safety counters such as
 `command_queue_execution_supported_count` and
-`command_queue_operator_supplied_command_execution_count`. It also includes
-normalized `diagnostic_records` with lookup maps by name, category, and status
-plus `api`, `api_resources`, and `api_collections.diagnostic_records`, so
-release dashboards can discover and render individual checks without scraping
-flat summary keys or the human `release-self-test ok` line.
+`command_queue_operator_supplied_command_execution_count`. Source-tree
+diagnostics include `source_tree_changed_during_build` and a
+`source_tree_stability` diagnostic record. The JSON also includes normalized
+`diagnostic_records` with lookup maps by name, category, and status plus `api`,
+`api_resources`, and `api_collections.diagnostic_records`, so release
+dashboards can discover and render individual checks without scraping flat
+summary keys or the human `release-self-test ok` line.
 
 Use `scripts/lib/release-find` to choose an artifact without reading every
 manifest:
