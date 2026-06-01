@@ -57,6 +57,36 @@ def csv_items(value):
     return matrix.csv_items(value)
 
 
+def git_text(args):
+    proc = subprocess.run(
+        ["git", *args],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    return proc.stdout.strip() if proc.returncode == 0 else ""
+
+
+def git_snapshot():
+    commit = git_text(["rev-parse", "HEAD"])
+    tracked_status = git_text(["status", "--porcelain", "--untracked-files=no"])
+    return {
+        "git_available": bool(commit),
+        "commit": commit,
+        "tracked_status": tracked_status,
+        "tracked_clean": tracked_status == "",
+    }
+
+
+def git_snapshot_changed(start, end):
+    return (
+        (start.get("commit") or "") != (end.get("commit") or "")
+        or (start.get("tracked_status") or "") != (end.get("tracked_status") or "")
+    )
+
+
 def load_release_matrix(path):
     if not path:
         return {}
@@ -1231,6 +1261,16 @@ def write_release_helpers(script_dir):
             }
 
         release = load_json(root / "release.json")
+        source_tree = release.get("source_tree") if isinstance(release.get("source_tree"), dict) else {}
+        source_tree_changed = bool(
+            release.get("source_tree_changed_during_build")
+            or source_tree.get("changed_during_build")
+        )
+        if source_tree_changed:
+            fail(
+                "release source tree changed during build: "
+                f"{source_tree.get('start_commit', '')} -> {source_tree.get('end_commit', '')}"
+            )
         release_failures = [
             rec for rec in (release.get("failures") or [])
             if isinstance(rec, dict)
@@ -1337,6 +1377,11 @@ def write_release_helpers(script_dir):
             "helpers": list(helpers),
             "release_artifact_count": len(release.get("artifacts", []) or []),
             "release_failure_count": len(release_failures),
+            "source_tree_changed_during_build": source_tree_changed,
+            "source_tree_start_commit": str(source_tree.get("start_commit") or ""),
+            "source_tree_end_commit": str(source_tree.get("end_commit") or ""),
+            "source_tree_tracked_clean_start": source_tree.get("tracked_clean_start") is True,
+            "source_tree_tracked_clean_end": source_tree.get("tracked_clean_end") is True,
             "release_tuple_count": len((release.get("layout", {}).get("tuples") or {})),
             "release_device_count": len((release.get("layout", {}).get("devices") or {})),
             "matrix_path": str(matrix_info.get("path") or ""),
@@ -1476,6 +1521,19 @@ def write_release_helpers(script_dir):
         diagnostic_records = [
             diagnostic_record("checksum_original", "checksums", "pass", 1, {"verified": True}),
             diagnostic_record("helpers_executable", "helpers", "pass", diagnostics["helper_count"], {"helpers": diagnostics["helpers"]}),
+            diagnostic_record(
+                "source_tree_stability",
+                "release",
+                "pass" if not diagnostics["source_tree_changed_during_build"] else "fail",
+                1,
+                {
+                    "changed_during_build": diagnostics["source_tree_changed_during_build"],
+                    "start_commit": diagnostics["source_tree_start_commit"],
+                    "end_commit": diagnostics["source_tree_end_commit"],
+                    "tracked_clean_start": diagnostics["source_tree_tracked_clean_start"],
+                    "tracked_clean_end": diagnostics["source_tree_tracked_clean_end"],
+                },
+            ),
             diagnostic_record("release_artifacts", "release", "pass", diagnostics["checked_artifact_count"], {"release_artifact_count": diagnostics["release_artifact_count"]}),
             diagnostic_record(
                 "release_matrix",
@@ -2494,6 +2552,7 @@ def main(argv=None):
     release_dir = pathlib.Path(args.out_dir) if args.out_dir else ROOT / "dist" / "releases" / f"{safe_stem(args.name)}-{stamp}"
     jobs = selected_jobs(args, data)
     validate_selected_jobs(jobs)
+    source_start = git_snapshot()
     if args.dry_run:
         print(f"release={release_name}")
         if release_version:
@@ -2513,7 +2572,7 @@ def main(argv=None):
     write_release_readme(release_dir / "docs" / "README-release.md", release_name)
 
     records = []
-    git_commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True, stdout=subprocess.PIPE, check=False).stdout.strip()
+    git_commit = source_start.get("commit", "")
     n_total = len(jobs)
     n_done = 0
     n_ok = 0
@@ -2549,6 +2608,8 @@ def main(argv=None):
     bar_full = "█" * 20
     print(f"\n  [{bar_full}] {n_done}/{n_total}  done  —  {n_ok} built, {n_fail} failed")
     print("")
+    source_end = git_snapshot()
+    source_tree_changed = git_snapshot_changed(source_start, source_end)
 
     layout = write_tuple_layout(release_dir, records, args.layout_mode, include_missing=args.include_missing_reports)
     build_report_path = write_build_report(release_dir, records) if args.include_missing_reports else None
@@ -2559,6 +2620,16 @@ def main(argv=None):
         "release_version": release_version,
         "timestamp": stamp,
         "git_commit": git_commit,
+        "source_tree_changed_during_build": source_tree_changed,
+        "source_tree": {
+            "start_commit": source_start.get("commit", ""),
+            "end_commit": source_end.get("commit", ""),
+            "tracked_clean_start": source_start.get("tracked_clean", False),
+            "tracked_clean_end": source_end.get("tracked_clean", False),
+            "tracked_status_start": source_start.get("tracked_status", ""),
+            "tracked_status_end": source_end.get("tracked_status", ""),
+            "changed_during_build": source_tree_changed,
+        },
         "build_host": safe_build_host_metadata(),
         "source_lock": source_lock_metadata(),
         "matrix": {
@@ -2589,7 +2660,7 @@ def main(argv=None):
     tarball = make_tarball(release_dir)
     print_summary(records, release_dir, tarball)
     failed = bool(release["failures"])
-    if failed and args.strict:
+    if args.strict and (failed or source_tree_changed):
         return 1
     return 0
 

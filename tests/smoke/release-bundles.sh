@@ -821,6 +821,10 @@ if doc.get("checked_artifact_count") != 1 or doc.get("native_manifest_checked_co
     raise SystemExit(f"release self-test artifact checks missing: {doc!r}")
 if doc.get("release_failure_count") != 0:
     raise SystemExit(f"release self-test accepted recorded failures: {doc!r}")
+if doc.get("source_tree_changed_during_build") is not False:
+    raise SystemExit(f"release self-test source tree stability missing: {doc!r}")
+if not doc.get("source_tree_start_commit") or not doc.get("source_tree_end_commit"):
+    raise SystemExit(f"release self-test source tree commits missing: {doc!r}")
 if doc.get("matrix_target_count") != 1 or doc.get("matrix_payload_preset_count") != 1 or doc.get("matrix_format_count") != 1:
     raise SystemExit(f"release self-test matrix counts missing: {doc!r}")
 if doc.get("matrix_targets") != ["native"] or doc.get("matrix_payload_presets") != ["default"] or doc.get("matrix_formats") != ["tgz"]:
@@ -858,6 +862,9 @@ if doc.get("diagnostic_record_count") != len(records) or len(records) < 10:
     raise SystemExit(f"release self-test diagnostic records missing: {doc!r}")
 if by_name.get("command_queue_safety", {}).get("status") != "pass":
     raise SystemExit(f"release self-test command queue diagnostic missing: {by_name!r}")
+source_diag = by_name.get("source_tree_stability") or {}
+if source_diag.get("status") != "pass" or source_diag.get("details", {}).get("changed_during_build") is not False:
+    raise SystemExit(f"release self-test source tree diagnostic missing: {by_name!r}")
 matrix_diag = by_name.get("release_matrix") or {}
 if (matrix_diag.get("status") != "pass" or
         matrix_diag.get("details", {}).get("target_count") != 1 or
@@ -930,9 +937,9 @@ PY
     find . -type f \
         ! -name 'SHA256SUMS' \
         ! -name 'SHA256SUMS.original' \
-        ! -name 'SHA256SUMS.original.tmp' \
+        ! -name 'SHA256SUMS.original.tmp*' \
         ! -name 'SHA256SUMS.configured' \
-        ! -name 'SHA256SUMS.configured.tmp' \
+        ! -name 'SHA256SUMS.configured.tmp*' \
         ! -name '*.tar.gz' |
     LC_ALL=C sort |
     while IFS= read -r item; do
@@ -947,6 +954,46 @@ if "$work/matrix-gap-release/scripts/lib/release-self-test" >"$work/matrix-gap-s
     exit 1
 fi
 grep -q 'release matrix missing artifact builds: native/survey-core/tgz' "$work/matrix-gap-self-test.err"
+
+cp -a "$work/release" "$work/source-drift-release"
+python3 - "$work/source-drift-release/release.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+data = json.load(open(path, "r", encoding="utf-8"))
+tree = data.setdefault("source_tree", {})
+tree["start_commit"] = "1111111111111111111111111111111111111111"
+tree["end_commit"] = "2222222222222222222222222222222222222222"
+tree["changed_during_build"] = True
+data["source_tree_changed_during_build"] = True
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, indent=2, sort_keys=True)
+    fh.write("\n")
+PY
+(
+    cd "$work/source-drift-release"
+    tmp=$(mktemp SHA256SUMS.original.tmp.XXXXXX)
+    find . -type f \
+        ! -name 'SHA256SUMS' \
+        ! -name 'SHA256SUMS.original' \
+        ! -name 'SHA256SUMS.original.tmp*' \
+        ! -name 'SHA256SUMS.configured' \
+        ! -name 'SHA256SUMS.configured.tmp*' \
+        ! -name '*.tar.gz' |
+    LC_ALL=C sort |
+    while IFS= read -r item; do
+        item=${item#./}
+        sha256sum "$item"
+    done >"$tmp"
+    mv "$tmp" SHA256SUMS.original
+    cp SHA256SUMS.original SHA256SUMS
+)
+if "$work/source-drift-release/scripts/lib/release-self-test" >"$work/source-drift-self-test.out" 2>"$work/source-drift-self-test.err"; then
+    printf '%s\n' "release-bundles: release-self-test accepted source tree drift" >&2
+    exit 1
+fi
+grep -q 'release source tree changed during build' "$work/source-drift-self-test.err"
 
 failure_target=armv7-linux-3.x-musl
 hide_failure_artifact
