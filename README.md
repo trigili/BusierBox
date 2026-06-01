@@ -285,7 +285,9 @@ target-side fetch command to run on the device.
 ```
 grit[all]> files          # list staged files and fetch commands
 grit[all]> release        # list release artifacts and selectors
-grit[all]> release stage by_device:gl-mt1300 --start
+grit[all]> release stage by_device:glinet-mt1300 --start
+grit[all]> release stage by_device_payload_preset:glinet-mt1300:survey-core
+grit[all]> release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
 ```
 
 ### Command queue

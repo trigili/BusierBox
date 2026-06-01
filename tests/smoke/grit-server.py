@@ -804,6 +804,8 @@ def main(argv=None):
             "configure NAME|PATH KEY=VALUE" not in console_help or
             "configure NAME --operator-host HOST --transport builtin" not in console_help or
             "release, release stage SELECTOR" not in console_help or
+            "by_device_payload_preset:NAME:PRESET" not in console_help or
+            "by_tuple_payload_preset:PATH:PRESET" not in console_help or
             "fetch [--queue] [--start] NAME" not in console_help or
             "queue list|result|clear" not in console_help or
             "build, build set KEY VALUE" not in console_help or
@@ -11566,6 +11568,8 @@ def main(argv=None):
                 "Traceback" in (line_stderr or "") or
                 "Help: files" not in _line_stdout or
                 "release stage SELECTOR  |  release ? for help" not in _line_stdout or
+                "Preset selectors:" not in _line_stdout or
+                "by_tuple_payload_preset:by-tuple/native/host/host/host:default" not in _line_stdout or
                 "selector=by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout or
                 "Release artifact staged:" not in _line_stdout or
                 "target_fetch_command=grit fetch grit-test" not in _line_stdout or

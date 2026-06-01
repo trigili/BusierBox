@@ -1663,13 +1663,17 @@ def write_release_quickstart(path, name):
                  probe config --write-config configs/grit.conf
                  release                        # list matching release artifacts
                  release stage SELECTOR         # stage a tuple/device/recommendation
+                 release stage by_device_payload_preset:glinet-mt1300:survey-core
+                 release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
                  configure grit --operator-host 192.168.8.241 --transport builtin --zero-arg-mode rshell
                  fetch --start grit             # serve the staged payload to the target
 
                Device aliases live under devices/<alias>/ and canonical tuples live
                under by-tuple/<arch>/<libc>/<kernel-floor>/<cpu-or-abi>/.
                Selectors include recommendation IDs, artifact paths, by_device:NAME,
-               and by_tuple_path:PATH. The console can also stage a specific binary:
+               by_device_payload_preset:NAME:PRESET, by_tuple_path:PATH, and
+               by_tuple_payload_preset:PATH:PRESET. The console can also stage a
+               specific binary:
 
                  serve-binary --start bin/grit-...-full grit
 
@@ -1769,6 +1773,8 @@ def write_release_readme(path, name):
             scripts/lib/release-find --device glinet-mt1300
             # In the console, stage a release artifact, then configure its staged copy:
             #   release stage SELECTOR
+            #   release stage by_device_payload_preset:glinet-mt1300:survey-core
+            #   release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
             #   configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/configure-artifact bin/grit-...-full --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/configure-all --operator-host 192.168.8.241 --transport builtin --shell-port 22203

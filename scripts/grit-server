@@ -25732,6 +25732,13 @@ def run_line_tui(cfg):
         if tuples:
             sels = "  ".join(f"by_tuple_path:{r.get('path')}" for r in tuples[:6] if r.get("path"))
             print(f"  Tuple selectors:   {sels}")
+        preset_sels = [
+            str(r.get("id") or "")
+            for r in recommendations
+            if str(r.get("scope") or "") in {"by_device_payload_preset", "by_tuple_payload_preset"}
+        ]
+        if preset_sels:
+            print(f"  Preset selectors:  {'  '.join(preset_sels[:6])}")
         print("")
         print("  release stage SELECTOR  |  release ? for help")
 
@@ -29268,6 +29275,10 @@ Operations:
   upload [--start] LOCAL [NAME] stage and optionally serve a local file
   release, release stage SELECTOR
                                 list or stage release artifacts
+                                selectors include by_device:NAME,
+                                by_device_payload_preset:NAME:PRESET,
+                                by_tuple_path:PATH, and
+                                by_tuple_payload_preset:PATH:PRESET
   fetch [--queue] [--start] NAME
                                 show or queue target fetch of a staged file
   download [--queue] TARGET_PATH

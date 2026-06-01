@@ -92,6 +92,8 @@ Trailer configuration after packaging:
 ```sh
 scripts/grit-server --tui
 # In the console, after `release stage SELECTOR` or `serve-binary ...`:
+#   release stage by_device_payload_preset:glinet-mt1300:survey-core
+#   release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
 configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203
 configure grit --zero-arg-mode rshell --retry-count 12 --retry-interval 60
 configure grit --command-queue-enable yes --command-queue-poll-interval 300
@@ -367,7 +369,16 @@ Choose a GL.iNet exemplar artifact:
 
 ```sh
 scripts/lib/release-find --device glinet-mt1300
+scripts/lib/release-find --device glinet-mt1300 --payload-preset survey-core
 devices/glinet-mt1300/artifacts/README.txt
+```
+
+The console accepts the same payload-preset selection directly:
+
+```sh
+scripts/grit-server --tui
+release stage by_device_payload_preset:glinet-mt1300:survey-core
+release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
 ```
 
 Configure a bundle for an operator endpoint after release:
