@@ -22166,8 +22166,9 @@ def run_line_tui(cfg):
                     ("probe",                                   "show the target-side command (warns if listener is down)"),
                     ("probe --queue",                           "queue probe command for selected target's next phone-home"),
                     ("probe results",                           "show received probe results (arch, kernel, bits, endian)"),
-                    ("probe config",                            "generate config from most recent probe result"),
+                    ("probe config [N]",                        "generate config from the most recent or numbered probe result"),
                     ("probe config --write-config FILE",        "generate and save config"),
+                    ("probe clear [N|--all]",                   "remove stale probe results"),
                     ("probe serve [--start]",                   "stage the matching binary from the release for this arch"),
                 ],
                 "notes": [
@@ -24161,12 +24162,14 @@ def run_line_tui(cfg):
         if cmd == "probe":
             if at_arg(1):
                 return [f"{cmd} {item}" for item in prefixed(arg_pfx(1),
-                    ["results", "config", "serve", "--start", "--queue"])]
+                    ["results", "config", "clear", "serve", "--start", "--queue"])]
             subcmd = parts[1].lower() if len(parts) >= 2 else ""
             if subcmd == "config" and at_arg(2):
                 return [f"probe config {item}" for item in prefixed(arg_pfx(2),
-                    ["--write-config", "--prefer-rshell", "--prefer-runtime",
+                    ["1", "2", "3", "--write-config", "--prefer-rshell", "--prefer-runtime",
                      "--target-preset", "--payload-preset"])]
+            if subcmd == "clear" and at_arg(2):
+                return [f"probe clear {item}" for item in prefixed(arg_pfx(2), ["--all", "1", "2", "3"])]
             if subcmd == "serve" and at_arg(2):
                 return [f"probe serve {item}" for item in prefixed(arg_pfx(2), ["--start"])]
 
@@ -24901,6 +24904,18 @@ def run_line_tui(cfg):
         data = read_json_file(results_path, {})
         return list(reversed(data.get("results") or []))
 
+    def _probe_result_by_ordinal(selector):
+        text = str(selector or "").strip()
+        if not text:
+            return _probe_latest_result()
+        if not text.isdigit() or int(text) <= 0:
+            return {}
+        results = _probe_all_results()
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(results):
+            return {}
+        return results[idx]
+
     def _probe_effective_arch(rec):
         """Return (uname_m, endian) corrected so they're mutually consistent."""
         uname_m = str(rec.get("uname_m") or rec.get("architecture") or "")
@@ -24914,11 +24929,20 @@ def run_line_tui(cfg):
     def _probe_synthetic_survey(rec):
         """Build a minimal survey JSON dict from a probe result."""
         uname_m, endian = _probe_effective_arch(rec)
+        kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
         return {
             "schema": 1,
+            "arch": uname_m,
+            "kernel": kernel,
+            "endianness": endian,
             "uname_s": str(rec.get("uname_s") or "Linux"),
             "uname_m": uname_m,
-            "uname_r": str(rec.get("uname_r") or rec.get("kernel") or ""),
+            "uname_r": kernel,
+            "uname": {
+                "sysname": str(rec.get("uname_s") or "Linux"),
+                "machine": uname_m,
+                "release": kernel,
+            },
             "word_bits": str(rec.get("word_bits") or ""),
             "endian": endian,
             "os": "linux",
@@ -24936,7 +24960,7 @@ def run_line_tui(cfg):
     def _run_config_from_survey(survey_path, write_config_path, extra_args):
         """Run config-from-survey script and return the subprocess result."""
         scripts_dir = Path(__file__).parent
-        script = scripts_dir / "config-from-survey"
+        script = scripts_dir / "lib" / "config-from-survey"
         if not script.is_file():
             script = Path("scripts/lib/config-from-survey")
         if not script.is_file():
@@ -25117,7 +25141,9 @@ def run_line_tui(cfg):
         if bootstrap_results:
             print("  Next steps:")
             print("    probe config                           — generate config from most recent result")
+            print("    probe config N                         — generate config from a numbered result")
             print("    probe config --write-config FILE       — generate and save config")
+            print("    probe clear [N|--all]                  — remove stale probe results")
             print("    probe serve [--start]                  — stage the matching binary for this arch")
         else:
             print("  No results yet — run: probe --start")
@@ -25151,6 +25177,37 @@ def run_line_tui(cfg):
                 )
         return survey_path, write_config_path, extra_args
 
+    def clear_line_probe_results(args):
+        results_path = probe_results_path(cfg)
+        data = read_json_file(results_path, {"schema": 1, "results": []})
+        results = data.get("results") if isinstance(data.get("results"), list) else []
+        if not results:
+            print("no probe results to clear")
+            return 0
+        text = " ".join(str(arg or "") for arg in args).strip()
+        if not text or text in {"--all", "all"}:
+            count = len(results)
+            data["results"] = []
+        elif text.isdigit() and int(text) > 0:
+            ordinal = int(text)
+            if ordinal > len(results):
+                raise ValueError(f"probe result number out of range: {text}")
+            original_idx = len(results) - ordinal
+            removed = results.pop(original_idx)
+            count = 1
+            data["results"] = results
+            print(f"removed probe result {ordinal}: {removed.get('received_at', '') or '-'} {removed.get('remote_addr', '') or '-'}")
+        else:
+            raise ValueError("usage: probe clear [N|--all]")
+        atomic_write_json(results_path, data)
+        print(f"cleared {count} probe result(s)")
+        append_event(cfg, "workbench", "workbench_probe_results_cleared", details={
+            "count": count,
+            "selector": text or "--all",
+            "remaining_count": len(data.get("results") or []),
+        })
+        return count
+
     def _finish_config_run(result_obj, write_config_path, event_details):
         if write_config_path:
             print(f"\nConfig written: {write_config_path}")
@@ -25165,14 +25222,16 @@ def run_line_tui(cfg):
     def run_line_probe_config(args):
         survey_path, write_config_path, extra_args = _parse_config_args(args, "probe config")
         tmp_survey_path = None
-        if not survey_path:
-            rec = _probe_latest_result()
+        selected_probe_ordinal = ""
+        if not survey_path or str(survey_path).isdigit():
+            selected_probe_ordinal = str(survey_path or "1")
+            rec = _probe_result_by_ordinal(selected_probe_ordinal)
             if not rec:
-                raise ValueError("no probe results found — run: probe --start")
+                raise ValueError(f"probe result not found: {selected_probe_ordinal} — run: probe results")
             uname_m, endian = _probe_effective_arch(rec)
             bits = str(rec.get("word_bits") or "")
             kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
-            print(f"Using probe result ({rec.get('received_at', '')})")
+            print(f"Using probe result {selected_probe_ordinal} ({rec.get('received_at', '')})")
             print(f"  arch={uname_m}  kernel={kernel}  bits={bits}  endian={endian}")
             print(f"  Note: libc, filesystem, and tool data will use estimated defaults.")
             print("")
@@ -25203,6 +25262,7 @@ def run_line_tui(cfg):
             "write_config_path": write_config_path or "",
             "exit_code": result.returncode,
             "from_probe": True,
+            "probe_ordinal": selected_probe_ordinal,
         })
 
     def run_line_probe_serve(args):
@@ -27103,6 +27163,8 @@ def run_line_tui(cfg):
                         print_line_probe_results()
                     elif subcmd == "config":
                         run_line_probe_config(console_args[2:])
+                    elif subcmd == "clear":
+                        clear_line_probe_results(console_args[2:])
                     elif subcmd == "serve":
                         run_line_probe_serve(console_args[2:])
                     elif subcmd in {"help", "-h", "--help"}:

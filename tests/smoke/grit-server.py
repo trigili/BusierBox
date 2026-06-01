@@ -11706,7 +11706,19 @@ def main(argv=None):
             "schema": 1,
             "results": [
                 {
+                    "received_at": "2025-12-31T23:59:00Z",
+                    "remote_addr": "192.0.2.10:50000",
+                    "uname_s": "Linux",
+                    "uname_m": "x86_64",
+                    "uname_r": "4.19.0",
+                    "word_bits": "64",
+                    "endian": "little",
+                    "status": "received",
+                },
+                {
                     "received_at": "2026-01-01T00:00:00Z",
+                    "remote_addr": "192.0.2.11:50001",
+                    "uname_s": "Linux",
                     "uname_m": "mips",
                     "uname_r": "4.14.221",
                     "word_bits": "32",
@@ -11735,7 +11747,7 @@ def main(argv=None):
             os.close(probe_slave)
             probe_slave = -1
             time.sleep(0.3)
-            os.write(probe_master, b"probe serve\n1\nq\n")
+            os.write(probe_master, b"probe results\nprobe config 1\nprobe clear 2\nprobe results\nprobe serve\n1\nq\n")
             probe_output = b""
             deadline = time.time() + 8
             while probe_proc.poll() is None and time.time() < deadline:
@@ -11763,6 +11775,13 @@ def main(argv=None):
         probe_text = probe_output.decode("utf-8", errors="replace")
         if (probe_proc.returncode != 0 or
                 "Traceback" in (probe_stderr or "") or
+                "Probe results  (2 received)" not in probe_text or
+                "Using probe result 1 (2026-01-01T00:00:00Z)" not in probe_text or
+                "GRIT_TARGET_ARCH=mipsel" not in probe_text or
+                "GRIT_KERNEL_FLOOR=4.x" not in probe_text or
+                "removed probe result 2: 2025-12-31T23:59:00Z 192.0.2.10:50000" not in probe_text or
+                "cleared 1 probe result(s)" not in probe_text or
+                "Probe results  (1 received)" not in probe_text or
                 "Probe arch: mipsel" not in probe_text or
                 "floor: 4.x" not in probe_text or
                 "Available for mipsel  (2 found)" not in probe_text or
