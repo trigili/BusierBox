@@ -8,46 +8,54 @@ mirrored by generating the matching Buildroot defconfigs and running Buildroot's
 
 ## Online Preparation Machine
 
-Install normal build prerequisites, then inspect the selected matrix:
+Install normal build prerequisites, then inspect the release-full matrix:
 
 ```sh
 git submodule update --init third_party/busybox
-scripts/lib/build-matrix --matrix configs/matrix/all-supported.json --dry-run
+make release-full DRY_RUN=1
 ```
 
-Populate a source mirror for the same matrix:
+Populate a strict source mirror for the same matrix. This mirror is source-only:
+it intentionally does not contain compiled `release-full` artifacts, but it does
+include pinned griTTYkit sources, Buildroot package sources for the release-full
+matrix, and Buildroot-mapped utility sources for menuconfig choices beyond the
+release payload presets.
+
+```sh
+make source-mirror
+```
+
+Create a transferable source-release tarball:
+
+```sh
+make source-release
+```
+
+Use dry-run mode when you only want to inspect the planned mirror layout and
+Buildroot fetch commands. A dry run does not download files or create a tarball.
+
+```sh
+make source-mirror DRY_RUN=1
+make source-release DRY_RUN=1
+```
+
+The lower-level equivalent is:
 
 ```sh
 scripts/lib/mirror-sources \
-  --matrix configs/matrix/all-supported.json \
-  --out local/source-mirror/all-supported \
+  --matrix tests/matrix/release-full.json \
+  --source-only \
   --include-buildroot-packages \
+  --all-supported-tools \
+  --out dist/source-mirror/full \
+  --strict \
   --verify
 ```
 
-`--verify` runs strict offline readiness checks after the mirror is written. To
-run that check separately:
-
-```sh
-scripts/lib/check-offline-readiness \
-  --mirror local/source-mirror/all-supported \
-  --matrix configs/matrix/all-supported.json \
-  --strict
-```
-
-Use `--dry-run` with `mirror-sources` when you only want to inspect the planned
-mirror layout and Buildroot fetch commands. A dry run does not download files.
-
-Then package the local mirror for transfer:
-
-```sh
-tar -C local/source-mirror -czf all-supported-source-mirror.tar.gz all-supported
-```
-
-The generated mirror contains:
+The generated source mirror contains:
 
 ```text
-all-supported/
+full/
   grit-sources/
   sources/
   buildroot-dl/
@@ -64,47 +72,46 @@ all-supported/
 
 ## Transfer To Enclave
 
-Copy the repository and mirror archive into the enclave. Unpack the mirror and
-verify it before building:
+Copy the repository and source-release archive into the enclave. Unpack the
+mirror and verify it before building:
 
 ```sh
 mkdir -p /mnt/source-mirror
-tar -xzf all-supported-source-mirror.tar.gz -C /mnt/source-mirror
+tar -xzf source-full-*.tar.gz -C /mnt/source-mirror
 scripts/lib/check-offline-readiness \
-  --mirror /mnt/source-mirror/all-supported \
-  --matrix configs/matrix/all-supported.json \
+  --mirror /mnt/source-mirror/full \
+  --matrix tests/matrix/release-full.json \
   --strict
 ```
 
-Build with offline flags:
+Build the binary release from the source mirror:
 
 ```sh
-GRIT_OFFLINE=1 scripts/lib/build-matrix \
-  --matrix configs/matrix/all-supported.json \
-  --offline \
-  --mirror-dir /mnt/source-mirror/all-supported
+export GRIT_OFFLINE=1
+export GRIT_MIRROR_DIR=/mnt/source-mirror/full
+export BUILDROOT_DL_DIR=/mnt/source-mirror/full/buildroot-dl
+make release-full
 ```
 
-The matrix script exports these values for each job:
+The release build uses these values for each job:
 
 ```text
 GRIT_OFFLINE=1
-GRIT_MIRROR_DIR=/mnt/source-mirror/all-supported
-BUILDROOT_DL_DIR=/mnt/source-mirror/all-supported/buildroot-dl
+GRIT_MIRROR_DIR=/mnt/source-mirror/full
+BUILDROOT_DL_DIR=/mnt/source-mirror/full/buildroot-dl
 ```
 
-For non-dry-run offline builds, `scripts/lib/build-matrix` runs
-`scripts/lib/check-offline-readiness` before starting jobs. Add `--strict-offline`
-to require a complete mirror manifest with matching matrix coverage. Use
-`--skip-offline-preflight` only when deliberately debugging a partially prepared
-mirror.
+The resulting release bundle is the same operator-facing package produced on an
+online machine: it contains the generic kernel-era tuple artifacts, payload
+preset selectors, `scripts/grit-server`, `scripts/verify-checksums`, and
+`scripts/lib/release-self-test`.
 
 ## Reporting
 
 Summarize a prepared mirror with:
 
 ```sh
-scripts/lib/mirror-report local/source-mirror/all-supported
+scripts/lib/mirror-report dist/source-mirror/full
 ```
 
 The report includes strict readiness, selected job count, mirrored file count,
@@ -118,11 +125,11 @@ output.
   `buildroot-dl/`.
 - Hash mismatch: replace the file with the exact locked version; do not update
   the lockfile inside the enclave.
-- Missing Buildroot package source: rerun `scripts/lib/mirror-sources` online with
-  `--include-buildroot-packages --verify` for the same matrix.
+- Missing Buildroot package source: rerun `make source-mirror` online for the
+  same `tests/matrix/release-full.json` matrix.
 - Buildroot output needs inspection: rerun `scripts/lib/mirror-sources` with
-  `--keep-build-dirs`. By default successful temporary Buildroot output
-  directories are removed after the package sources are fetched.
+  the lower-level command above and inspect `plans/`, `logs/`, and
+  `buildroot-defconfigs/`.
 - Host dependency absent: install host compilers and build prerequisites inside
   the enclave before running the matrix.
 

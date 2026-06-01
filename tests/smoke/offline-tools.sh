@@ -179,6 +179,10 @@ if device_specific:
 PY
 make source-release DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-release" SOURCE_RELEASE_DIR="$tmp/releases" SOURCE_RELEASE_NAME=smoke-source >"$tmp/make-source-release.out"
 grep -q 'would create' "$tmp/make-source-release.out"
+grep -q 'make source-mirror' docs/offline-enclave.md
+grep -q 'make source-release' docs/offline-enclave.md
+grep -q 'tests/matrix/release-full.json' docs/offline-enclave.md
+grep -q 'make release-full' docs/offline-enclave.md
 
 scripts/lib/check-offline-readiness \
     --mirror "$tmp/ready" \
