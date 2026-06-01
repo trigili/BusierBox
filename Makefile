@@ -61,6 +61,7 @@ release-full:
 	@scripts/make-release \
 	  --name "$(GRIT_RELEASE_NAME)" \
 	  --matrix tests/matrix/release-full.json \
+	  --strict \
 	  $(if $(DRY_RUN),--dry-run,) \
 	  $(if $(FAIL_FAST),--fail-fast,) \
 	  $(if $(OUT_DIR),--out-dir "$(OUT_DIR)",)

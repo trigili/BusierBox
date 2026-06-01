@@ -98,6 +98,16 @@ grep -q 'would build target=native payload=builtin-core-shell format=tgz' "$work
 grep -q 'would build target=native payload=ssh-operator format=tgz' "$work/reverse-dry-run.out"
 grep -q 'would build target=native payload=socat-rescue format=tgz' "$work/reverse-dry-run.out"
 scripts/make-release --name full-smoke --matrix tests/matrix/release-full.json --dry-run >"$work/full-dry-run.out"
+python3 - <<'PY'
+from pathlib import Path
+
+text = Path("Makefile").read_text(encoding="utf-8")
+start = text.index("release-full:")
+end = text.index("SOURCE_MIRROR_DIR", start)
+target = text[start:end]
+if "--strict" not in target:
+    raise SystemExit("make release-full must pass --strict so failed matrix artifacts fail the build")
+PY
 python3 - "$work/full-dry-run.out" <<'PY'
 import sys
 
