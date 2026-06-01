@@ -111,6 +111,14 @@ if "make release-full" not in (source_release.get("rebuild_commands") or []):
     raise SystemExit("source mirror rebuild instructions missing make release-full")
 if coverage.get("all_supported_tools") is not True:
     raise SystemExit("source mirror did not record all-supported-tools coverage")
+mapping_ns = {}
+exec(compile(open("scripts/lib/check-buildroot-tool-mappings", encoding="utf-8").read(), "scripts/lib/check-buildroot-tool-mappings", "exec"), mapping_ns)
+expected_tools = set(mapping_ns.get("TOOL_SYMBOLS") or {})
+coverage_tools = set(coverage.get("tools") or [])
+if coverage_tools != expected_tools:
+    missing = sorted(expected_tools - coverage_tools)
+    extra = sorted(coverage_tools - expected_tools)
+    raise SystemExit(f"source coverage tool drift: missing={missing!r} extra={extra!r}")
 for tool in ("doom", "nmap", "jq", "mtd-utils"):
     if tool not in (coverage.get("tools") or []):
         raise SystemExit(f"source coverage missing {tool}")

@@ -18,47 +18,13 @@ import grit_matrix as matrix
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 BUILDROOT_VERSION_DEFAULT = "2026.02.2"
-ALL_SUPPORTED_TOOLS = (
-    "bash",
-    "curl",
-    "doom",
-    "dropbear",
-    "e2fsprogs",
-    "ethtool",
-    "fd",
-    "file",
-    "gdbserver",
-    "htop",
-    "i2c-tools",
-    "iperf3",
-    "iw",
-    "jq",
-    "ltrace",
-    "minicom",
-    "mmc-utils",
-    "mosh-client",
-    "mtd-utils",
-    "nmap",
-    "nmap-ncat",
-    "objdump",
-    "openssl",
-    "parted",
-    "pciutils",
-    "psmisc",
-    "readelf",
-    "ripgrep",
-    "rsync",
-    "screen",
-    "socat",
-    "spi-tools",
-    "strace",
-    "tcpdump",
-    "tmux",
-    "ubi-utils",
-    "usbutils",
-    "zoxide",
-    "zsh",
-)
+
+
+def all_supported_tools():
+    mapping_path = ROOT / "scripts" / "lib" / "check-buildroot-tool-mappings"
+    namespace = {}
+    exec(compile(mapping_path.read_text(encoding="utf-8"), str(mapping_path), "exec"), namespace)
+    return tuple(sorted(namespace.get("TOOL_SYMBOLS", {})))
 
 
 def load_lock(path):
@@ -235,9 +201,10 @@ def prepare_job_config(job, plans_dir):
 def append_source_coverage_config(cfg, args):
     if not args.all_supported_tools:
         return
+    tools = all_supported_tools()
     with open(cfg, "a", encoding="utf-8") as fh:
         fh.write("\n# source-mirror coverage augmentation\n")
-        fh.write("GRIT_HEAVY_TOOLS=" + matrix.shell_quote(" ".join(ALL_SUPPORTED_TOOLS)) + "\n")
+        fh.write("GRIT_HEAVY_TOOLS=" + matrix.shell_quote(" ".join(tools)) + "\n")
         fh.write("GRIT_BUSYBOX_GROUPS=" + matrix.shell_quote("shell fileops disk process network text system") + "\n")
         fh.write("GRIT_GDBSERVER_PROVIDER=buildroot\n")
 
@@ -346,6 +313,7 @@ def scan_buildroot_dl(out, jobs):
 def write_manifest(out, lock_path, args, lock_rows, source_plans, failures, dry_run, strict_ready):
     jobs = matrix.expand_jobs(args)
     files = []
+    coverage_tools = all_supported_tools() if args.all_supported_tools else []
     if not dry_run:
         files.extend(scan_buildroot_dl(out, jobs))
         for row in lock_rows:
@@ -377,7 +345,7 @@ def write_manifest(out, lock_path, args, lock_rows, source_plans, failures, dry_
         },
         "source_coverage": {
             "all_supported_tools": bool(args.all_supported_tools),
-            "tools": list(ALL_SUPPORTED_TOOLS) if args.all_supported_tools else [],
+            "tools": list(coverage_tools),
             "note": (
                 "When all_supported_tools is true, generated source-fetch defconfigs request every "
                 "Buildroot-mapped griTTYkit utility so the mirror covers menuconfig choices beyond "
