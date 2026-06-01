@@ -872,7 +872,7 @@ def main(argv=None):
                  "Operator daemon workflow action summary:", "operator_daemon_workflow_actions_by_workflow",
                  "operator_daemon_workflow_actions:",
                  "operator_daemon_workflow_action_selected", "operator_daemon_workflow_action_completed",
-                 "Survey bootstrap workflow action summary:", "probe_workflow_actions_by_route_kind",
+                 "Probe workflow action summary:", "probe_workflow_actions_by_route_kind",
                  "probe_workflow_actions:",
                  "probe_workflow_action_selected", "probe_workflow_action_completed",
                  "Command queue workflow action summary:", "command_queue_workflow_actions_by_action_id",
@@ -1808,7 +1808,7 @@ def main(argv=None):
         )
         if ("Generated target commands:" not in bridged_survey_text_status.stdout or
                 "routes: bridge=" not in bridged_survey_text_status.stdout or
-                "Survey bootstrap workflow action summary:" not in bridged_survey_text_status.stdout or
+                "Probe workflow action summary:" not in bridged_survey_text_status.stdout or
                 "survey routes: bridge=4" not in bridged_survey_text_status.stdout or
                 "bridge profiles: survey-route=" not in bridged_survey_text_status.stdout or
                 f"route=bridge bridge_profile=survey-route path=operator:{survey_route_port} -> rack-host:19001" not in bridged_survey_text_status.stdout or
@@ -1869,7 +1869,7 @@ def main(argv=None):
         survey_line_text = survey_line_output.decode("utf-8", errors="replace")
         if (survey_tui_proc.returncode != 0 or
                 "Traceback" in (survey_line_stderr or "") or
-                "Survey bootstrap:" not in survey_line_text or
+                "Probe:" not in survey_line_text or
                 f"target_command: {expected_survey_command}" not in survey_line_text or
                 "probe_workflow_actions: 4" not in survey_line_text or
                 "start_action_state=ready reason=run-now" not in survey_line_text or

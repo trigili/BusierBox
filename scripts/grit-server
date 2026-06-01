@@ -13783,9 +13783,9 @@ def serve_probe(cfg, timeout, max_sessions=0):
     start_session_record(cfg, service, log_dir, details=session_details)
     (log_dir / script_name).write_text(script_text, encoding="utf-8")
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-    print(f"Survey bootstrap listener. Listening on http://{host}:{port}/{script_name}")
+    print(f"Probe listener. Listening on http://{host}:{port}/{script_name}")
     if route.get("route_kind") == "bridge":
-        print(f"Survey bootstrap route: bridge profile {route.get('bridge_profile', '')} {route.get('bridge_route_path', '')}")
+        print(f"Probe route: bridge profile {route.get('bridge_profile', '')} {route.get('bridge_route_path', '')}")
     print(f"Target command: {target_command}")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **session_details})
     sessions = 0
@@ -19030,7 +19030,7 @@ def print_workbench_action_summary(doc):
     print(f"  offline work: {format_counts(summary.get('target_workflow_action_queues_offline_work_counts') or {})}")
     print(f"  action states: {format_counts(summary.get('target_workflow_action_operator_action_state_counts') or {})}")
     print(
-        "Survey bootstrap workflow action summary: "
+        "Probe workflow action summary: "
         f"total={summary.get('probe_workflow_action_count', 0)} "
         f"available={summary.get('probe_workflow_action_available_count', 0)} "
         f"requires_confirmation={summary.get('probe_workflow_action_requires_confirmation_count', 0)} "
@@ -22080,7 +22080,7 @@ def run_line_tui(cfg):
                     ("mailbox", "show command queue and mailbox state"),
                     ("download [--queue] PATH", "queue a target-to-operator upload command"),
                     ("fetch [--queue] NAME", "queue a target fetch command"),
-                    ("survey [--queue]", "queue the probe command"),
+                    ("probe [--queue]", "queue the probe command"),
                 ],
                 "notes": [
                     "Delivery depends on the command-queue policy and target polling interval.",
@@ -24059,7 +24059,7 @@ def run_line_tui(cfg):
                         path_values.append(value)
             return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), path_values)]
 
-        if cmd in {"probe", "probe"}:
+        if cmd == "probe":
             if at_arg(1):
                 return [f"{cmd} {item}" for item in prefixed(arg_pfx(1),
                     ["results", "config", "serve", "--start", "--queue"])]
@@ -26613,7 +26613,7 @@ def run_line_tui(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"probe", "probe"}:
+            elif cmd == "probe":
                 subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
                 try:
                     if subcmd in {"results", "result"}:
@@ -27445,7 +27445,7 @@ def run_line_tui(cfg):
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                 + " --transport probe"
             )
-            print("Survey bootstrap:")
+            print("Probe:")
             if rec:
                 print(f"  target_command: {rec.get('target_command', '')}")
                 print(f"  route={rec.get('route_kind', '')} bridge_profile={rec.get('bridge_profile', '') or '-'}")
@@ -28967,7 +28967,7 @@ Operations:
                                 show or queue target fetch of a staged file
   download [--queue] TARGET_PATH
                                 show or queue a target-to-operator upload command
-  survey [--start|--queue]       show, serve, or queue probe
+  probe [--start|--queue]       show, serve, or queue probe
   downloads                     list target-fetchable staged files
   unstage NAME                  remove a staged file request
   view PATH, cat PATH           view a local session/artifact path
