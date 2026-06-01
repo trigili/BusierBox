@@ -330,6 +330,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "help history\n"
                 "help complete\n"
                 "help commands\n"
+                "help events\n"
                 "help view\n"
                 "help download\n"
                 "help survey\n"
@@ -488,6 +489,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "queue grit survey --json\n"
                 "queue result 1\n"
                 "queue list\n"
+                "events -n 3\n"
+                "events service=workbench -n 2\n"
                 "probe --queue\n"
                 "download --queue /etc/config/network\n"
                 "show mailbox\n"
@@ -512,7 +515,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             ).encode("utf-8"),
         )
         line_console_chunks = []
-        deadline = time.time() + 16
+        deadline = time.time() + 24
         while line_console_proc.poll() is None and time.time() < deadline:
             ready, _, _ = select.select([line_console_master], [], [], 0.1)
             if ready:
@@ -565,9 +568,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Console help topics:",
         "Help: files",
         "Help: queue",
+        "Help: events",
         "Completions for <root>:",
         "resource ",
         "Workspace",
+        "Events  (",
+        "Raw JSONL: view ",
+        "filters: limit=2 service=workbench",
         "saved route zz-console-added",
         "started route zz-console-added",
         "stopped route zz-console-added",
@@ -660,6 +667,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             not any(event.get("event") == "workbench_console_resource_loaded" and (event.get("details") or {}).get("path") == str(line_console_resource) and (event.get("details") or {}).get("command_count") == 3 for event in line_console_events) or
             not any(event.get("event") == "workbench_console_makerc_saved" and (event.get("details") or {}).get("path") == str(line_console_makerc) and (event.get("details") or {}).get("command_count", 0) >= 20 for event in line_console_events) or
             not any(event.get("event") == "workbench_console_completions_shown" and (event.get("details") or {}).get("prefix") == "use job" for event in line_console_events) or
+            not any(event.get("event") == "workbench_events_viewed" and (event.get("details") or {}).get("limit") == 3 for event in line_console_events) or
+            not any(event.get("event") == "workbench_events_viewed" and (event.get("details") or {}).get("filters", {}).get("service") == "workbench" and (event.get("details") or {}).get("limit") == 2 for event in line_console_events) or
             not any(event.get("event") == "workbench_generated_commands_listed" and (event.get("details") or {}).get("command_count", 0) >= 1 for event in line_console_events) or
             not any(event.get("event") == "target_command_copied" and (event.get("details") or {}).get("ordinal") == 1 for event in line_console_events) or
             not any(event.get("event") == "workbench_bridge_profile_saved" and (event.get("details") or {}).get("name") == "zz-console-added" and (event.get("details") or {}).get("multi_hop") is True for event in line_console_events) or

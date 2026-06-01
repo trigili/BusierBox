@@ -21877,6 +21877,7 @@ def run_line_tui(cfg):
         print("  probe       shell probe (pre-deployment): run probe.sh, see results, gen config")
         print("  survey      full griTTYkit survey (post-deployment): config, presets")
         print("  queue       command queue, mailbox, results")
+        print("  events      operator event log browser and filters")
         print("  routes      bridge profiles, multi-hop tunnels")
         print("  daemon      systemd workflow actions")
         print("  jobs        background jobs")
@@ -22023,6 +22024,7 @@ def run_line_tui(cfg):
             "history": "console", "resource": "console", "makerc": "console",
             "complete": "console", "completions": "console", "search": "console",
             "use": "console", "main": "console", "back": "console",
+            "events": "events", "event": "events",
             "aliases": "console", "commands": "console",
             "workspace": "workspace", "overview": "workspace", "status": "workspace",
             "next": "workspace", "info": "workspace", "show": "workspace",
@@ -22139,6 +22141,22 @@ def run_line_tui(cfg):
                 ],
                 "notes": [
                     "Delivery depends on the command-queue policy and target polling interval.",
+                ],
+            },
+            "events": {
+                "title": "events — operator event log browser",
+                "entries": [
+                    ("events", "show the last 20 operator events"),
+                    ("events -n 50", "show the last 50 matching events"),
+                    ("events service=file-service", "filter by service"),
+                    ("events event=upload", "filter by event name"),
+                    ("events level=warning", "filter by level"),
+                    ("events target=my-router", "filter by target id or label"),
+                    ("events --since 2h", "show events from the last N seconds/minutes/hours/days"),
+                    ("view local/operator-session/events.jsonl", "open the raw JSONL event log"),
+                ],
+                "notes": [
+                    "Summary condenses common detail fields, including headless_command when present.",
                 ],
             },
             "probe": {
@@ -23813,6 +23831,7 @@ def run_line_tui(cfg):
         stripped = text.strip()
         base_commands = [
             "help", "complete", "search", "resource", "makerc", "history", "workspace", "status",
+            "events",
             "show", "info", "options", "next", "commands", "target-commands", "copy", "set", "setg", "unset", "unsetg",
             "agents", "agent", "targets", "target", "listeners", "listener",
             "routes", "route", "sessions", "session", "jobs", "job", "use",
@@ -23832,7 +23851,7 @@ def run_line_tui(cfg):
         help_topics = [
             "search", "complete", "commands", "resource", "makerc", "history", "use", "main", "show",
             "modules", "options", "next", "workspace", "aliases", "listeners",
-            "routes", "set", "setg", "run", "jobs", "queue", "download", "probe", "survey", "build", "release", "upload", "fetch", "files", "view",
+            "routes", "set", "setg", "run", "jobs", "queue", "events", "download", "probe", "survey", "build", "release", "upload", "fetch", "files", "view",
             "daemon", "interact", "sessions",
         ]
 
@@ -23966,6 +23985,11 @@ def run_line_tui(cfg):
         if cmd == "show":
             pfx = "" if trailing_space else " ".join(parts[1:])
             return [f"show {item}" for item in prefixed(pfx, show_resources)]
+
+        if cmd == "events":
+            return [f"events {item}" for item in prefixed(arg_pfx(1), [
+                "-n", "--since", "service=", "event=", "level=", "target=",
+            ])]
 
         if cmd in {"commands", "target-commands"}:
             if at_arg(1):
@@ -24278,6 +24302,157 @@ def run_line_tui(cfg):
         append_event(cfg, "workbench", "workbench_console_searched", details={
             "query": str(query or ""),
             "match_count": len(matches),
+        })
+
+    def parse_event_since(text):
+        value = str(text or "").strip().lower()
+        if not value:
+            raise ValueError("usage: events --since 2h")
+        unit = value[-1]
+        number_text = value[:-1] if unit.isalpha() else value
+        multipliers = {
+            "s": 1,
+            "m": 60,
+            "h": 3600,
+            "d": 86400,
+        }
+        multiplier = multipliers.get(unit, 1)
+        if not number_text.isdigit() or int(number_text) <= 0:
+            raise ValueError("usage: events --since 30m|2h|1d")
+        return time.time() - (int(number_text) * multiplier)
+
+    def event_matches_filter(event, key, expected):
+        expected = str(expected or "").lower()
+        if not expected:
+            return True
+        details = event.get("details") if isinstance(event.get("details"), dict) else {}
+        values = []
+        if key in {"service", "event", "level", "remote", "session"}:
+            values.append(event.get(key))
+        elif key == "target":
+            values.extend([
+                details.get("target_id"),
+                details.get("target_label"),
+                details.get("expected_target_id"),
+                details.get("target"),
+            ])
+        else:
+            values.append(details.get(key))
+        return any(expected in str(value or "").lower() for value in values)
+
+    def event_summary(event):
+        details = event.get("details") if isinstance(event.get("details"), dict) else {}
+        summary = compact_event_details(event)
+        if not summary and details.get("headless_command"):
+            summary = "headless_command=" + str(details.get("headless_command") or "")
+        elif details.get("headless_command"):
+            summary = summary + " headless_command=" + str(details.get("headless_command") or "")
+        if not summary:
+            interesting = []
+            for key in sorted(details):
+                value = details.get(key)
+                if value in (None, "", [], {}):
+                    continue
+                if isinstance(value, (dict, list)):
+                    continue
+                interesting.append(f"{key}={value}")
+                if len(interesting) >= 4:
+                    break
+            summary = " ".join(interesting)
+        if len(summary) > 120:
+            summary = summary[:117] + "..."
+        return summary or "-"
+
+    def parse_line_events_args(args):
+        limit = 20
+        since_epoch = None
+        filters = []
+        idx = 0
+        while idx < len(args):
+            arg = str(args[idx] or "")
+            if arg in {"-h", "--help", "help"}:
+                raise ValueError("usage: events [-n N] [service=NAME] [event=NAME] [level=LEVEL] [target=ID|LABEL] [--since 2h]")
+            if arg in {"-n", "--limit"}:
+                idx += 1
+                if idx >= len(args) or not str(args[idx]).isdigit() or int(args[idx]) <= 0:
+                    raise ValueError("usage: events -n N")
+                limit = int(args[idx])
+            elif arg.startswith("-n") and arg[2:].isdigit():
+                limit = int(arg[2:])
+            elif arg.startswith("--limit="):
+                value = arg.split("=", 1)[1]
+                if not value.isdigit() or int(value) <= 0:
+                    raise ValueError("usage: events --limit=N")
+                limit = int(value)
+            elif arg == "--since":
+                idx += 1
+                if idx >= len(args):
+                    raise ValueError("usage: events --since 2h")
+                since_epoch = parse_event_since(args[idx])
+            elif arg.startswith("--since="):
+                since_epoch = parse_event_since(arg.split("=", 1)[1])
+            elif "=" in arg:
+                key, value = arg.split("=", 1)
+                key = key.strip().lower()
+                if key not in {"service", "event", "level", "target", "remote", "session", "status", "operation", "request_name", "filename", "command_id", "job_id", "action_id"}:
+                    raise ValueError(f"unsupported event filter: {key}")
+                filters.append((key, value.strip()))
+            else:
+                raise ValueError("usage: events [-n N] [service=NAME] [event=NAME] [level=LEVEL] [target=ID|LABEL] [--since 2h]")
+            idx += 1
+        return limit, since_epoch, filters
+
+    def print_line_events(args):
+        limit, since_epoch, filters = parse_line_events_args(args)
+        records, invalid_count = EventLog(cfg).records()
+        filtered = []
+        for event in records:
+            ts_epoch = parse_utc_timestamp(event.get("ts"))
+            if since_epoch is not None and (ts_epoch is None or ts_epoch < since_epoch):
+                continue
+            if all(event_matches_filter(event, key, expected) for key, expected in filters):
+                filtered.append(event)
+        shown = filtered[-limit:] if limit else filtered
+
+        def _fmt_time(iso):
+            text = str(iso or "")
+            if len(text) >= 16 and "T" in text:
+                date, rest = text.split("T", 1)
+                return f"{date[5:]} {rest[:5]}"
+            return text or "-"
+
+        title = f"Events  ({len(shown)} shown of {len(filtered)} matching, {len(records)} total)"
+        if invalid_count:
+            title += f"  invalid={invalid_count}"
+        footer = f"Raw JSONL: view {EventLog(cfg).path}"
+        if filters or since_epoch is not None or limit != 20:
+            active = []
+            if limit != 20:
+                active.append(f"limit={limit}")
+            if since_epoch is not None:
+                active.append("since=set")
+            active.extend(f"{key}={value}" for key, value in filters)
+            footer += "  filters: " + " ".join(active)
+        _console_table(
+            title,
+            shown,
+            [
+                ("At", lambda r: _fmt_time(r.get("ts"))),
+                ("Service", lambda r: r.get("service") or "-"),
+                ("Event", lambda r: r.get("event") or "-"),
+                ("Level", lambda r: r.get("level") or "-"),
+                ("Summary", event_summary),
+            ],
+            footer=footer,
+        )
+        append_event(cfg, "workbench", "workbench_events_viewed", details={
+            "shown_count": len(shown),
+            "matching_count": len(filtered),
+            "total_count": len(records),
+            "invalid_count": invalid_count,
+            "limit": limit,
+            "filters": {key: value for key, value in filters},
+            "since": bool(since_epoch is not None),
         })
 
     def use_line_search_result(selector):
@@ -26440,6 +26615,12 @@ def run_line_tui(cfg):
             elif cmd == "history":
                 try:
                     print_line_history(console_args[1] if len(console_args) >= 2 else "")
+                except ValueError as exc:
+                    print(exc)
+                continue
+            elif cmd == "events":
+                try:
+                    print_line_events(console_args[1:])
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -29244,6 +29425,7 @@ Discovery:
   search TERM                   search agents, listeners, modules, sessions, jobs, files, queue
   complete [PREFIX]             show command/resource completions
   commands, copy N              list or copy generated target commands
+  events [-n N] [FILTER=VALUE]  browse the operator event log
   show agents|listeners|routes  list common operator resources
   show categories               summarize runnable module kinds
   show service|daemon modules   browse modules by operator category
@@ -29300,6 +29482,7 @@ Operations:
   route delete NAME              remove a reusable bridge route profile
   queue COMMAND                 queue work for the selected/offline target
   queue list|result|clear       inspect results or clear queued work
+  events service=NAME           filter event log by service, event, level, target, or --since
   run [MODULE] [--dry-run]      run selected or named module
   execute, exploit              aliases for run
   check [MODULE]                dry-run selected or named module
