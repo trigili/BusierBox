@@ -90,6 +90,12 @@ and `socat` maps to `socat-rescue`. They can be supplied with
 Trailer configuration after packaging:
 
 ```sh
+scripts/grit-server --tui
+# In the console, after `release stage SELECTOR` or `serve-binary ...`:
+configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203
+configure grit --zero-arg-mode rshell --retry-count 12 --retry-interval 60
+configure grit --command-queue-enable yes --command-queue-poll-interval 300
+
 scripts/configure-artifact bin/grit-native-default-full \
   --operator-host 192.168.8.241 \
   --transport builtin \
@@ -102,10 +108,12 @@ scripts/configure-all \
   --shell-port 22203
 ```
 
-The helper scripts wrap the bundled `scripts/lib/artifact-config`. They can show,
-clear, import, export, and set allowlisted trailer keys. After a trailer edit,
-they write `SHA256SUMS.configured` and update `SHA256SUMS` to match the current
-configured bundle.
+The console `configure` command applies trailer overrides to a staged copy under
+the operator session so the original release artifact remains pristine. The
+helper scripts wrap the bundled `scripts/lib/artifact-config`. They can show,
+clear, import, export, and set allowlisted trailer keys. After a helper-script
+trailer edit, they write `SHA256SUMS.configured` and update `SHA256SUMS` to
+match the current configured bundle.
 
 XOR trailer obfuscation is not encryption. Do not place credentials, private
 keys, or other secrets in trailer overrides or release bundles.
@@ -428,7 +436,9 @@ For receive-only evidence uploads, start the operator file service. It accepts
 target-initiated HTTP PUT/POST uploads over TLS by default, stores files under
 `local/sessions/<timestamp>-file-service/files/`, and writes per-file metadata
 JSON with source path, size, sha256, timestamp, and transfer status. It does
-not send artifacts, execute commands, or provide callback RPC.
+not execute commands or provide callback RPC. Release artifacts and local files
+are staged for explicit target fetch; the target still has to run the shown
+fetch command or poll command queue work.
 
 ```sh
 scripts/grit-server --file-service --file-port 22204

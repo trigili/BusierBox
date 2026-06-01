@@ -1587,6 +1587,7 @@ def write_release_quickstart(path, name):
                  probe config --write-config configs/grit.conf
                  release                        # list matching release artifacts
                  release stage SELECTOR         # stage a tuple/device/recommendation
+                 configure grit --operator-host 192.168.8.241 --transport builtin --zero-arg-mode rshell
                  fetch --start grit             # serve the staged payload to the target
 
                Device aliases live under devices/<alias>/ and canonical tuples live
@@ -1602,6 +1603,15 @@ def write_release_quickstart(path, name):
                scripts/lib/release-find --payload-preset survey-core
 
             4. Configure operator settings with trailer overrides:
+
+               From the console, configure the staged payload copy before the
+               target fetches it:
+
+                 configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203
+                 configure grit --zero-arg-mode rshell --retry-count 12 --retry-interval 60
+                 configure grit --command-queue-enable yes --command-queue-poll-interval 300
+
+               Or configure artifacts noninteractively:
 
                scripts/configure-artifact bin/grit-...-full \\
                  --operator-host 192.168.8.241 \\
@@ -1679,7 +1689,11 @@ def write_release_readme(path, name):
             ```sh
             scripts/verify-checksums --original
             scripts/lib/release-self-test
+            scripts/grit-server --tui
             scripts/lib/release-find --device glinet-mt1300
+            # In the console, stage a release artifact, then configure its staged copy:
+            #   release stage SELECTOR
+            #   configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/configure-artifact bin/grit-...-full --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/configure-all --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/verify-checksums --configured
@@ -1692,7 +1706,8 @@ def write_release_readme(path, name):
 
             XOR trailer obfuscation is not encryption and must not be used for secrets or
             private keys. Network autorun and external writes are not enabled by this bundle
-            tooling by default.
+            tooling by default. The console `configure` command edits a staged copy under
+            the operator session so the original release artifact remains pristine.
             """
         ).lstrip(),
         encoding="utf-8",

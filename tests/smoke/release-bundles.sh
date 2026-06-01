@@ -296,6 +296,9 @@ grep -q 'probe --start' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'probe config --write-config configs/grit.conf' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'release stage SELECTOR' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'serve-binary --start bin/grit-...-full grit' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'configure grit --zero-arg-mode rshell --retry-count 12 --retry-interval 60' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'configure grit --command-queue-enable yes --command-queue-poll-interval 300' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q './grit survey push' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q './grit reality-test push' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q './grit config-push' "$work/release/RELEASE-QUICKSTART.txt"
@@ -309,6 +312,8 @@ if grep -q -- '--survey-bootstrap-port' "$work/release/RELEASE-QUICKSTART.txt"; 
     printf '%s\n' "release-bundles: quickstart advertised stale probe port flag" >&2
     exit 1
 fi
+grep -q 'configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203' "$work/release/docs/README-release.md"
+grep -q 'original release artifact remains pristine' "$work/release/docs/README-release.md"
 grep -q 'scripts/grit-server' "$work/release/release-index.json"
 
 python3 -m json.tool "$work/release/release.json" >/dev/null
