@@ -27246,7 +27246,11 @@ def run_line_tui(cfg):
             nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=12)
             for idx, rec in enumerate(nav, 1):
                 print(f"{idx}: {rec.get('label', '')}")
-            selector_line = line_input("release selection number, recommendation id, artifact path, by_device:NAME, or by_tuple_path:PATH> ")
+            selector_line = line_input(
+                "release selection number, recommendation id, artifact path, "
+                "by_device:NAME, by_device_payload_preset:NAME:PRESET, "
+                "by_tuple_path:PATH, or by_tuple_payload_preset:PATH:PRESET> "
+            )
             selector = selector_line.strip() if selector_line is not None else ""
             if selector:
                 try:
