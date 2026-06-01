@@ -18,8 +18,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SECTION_DESCRIPTIONS = {
-    "full": "complete end-to-end grit-server integration smoke",
+    "full": "complete grit-server smoke: integration plus line-console workflow",
     "preflight": "fast static/API checks for help text, status fields, and safety guards",
+    "integration": "long runtime integration checks for listeners, workflows, status, and file service",
     "line-console": "isolated line-oriented TUI command workflow smoke",
 }
 SECTIONS = tuple(SECTION_DESCRIPTIONS)
@@ -946,7 +947,7 @@ def main(argv=None):
         "local/sessions",
         "metadata_path",
         "x-grit-source-path",
-        "does not send artifacts",
+        "serves operator-staged files only when the target explicitly requests them",
         "GRIT_OPERATOR_FILE_SERVICE_PORT",
     ):
         if word not in src:
@@ -12450,7 +12451,13 @@ def main(argv=None):
         else:
             print("skip: built griTTYkit artifact missing; fetch applet server smoke skipped")
 
-    print("grit-server smoke ok")
+    if args.section == "full":
+        line_console_rc = run_line_console_section(server)
+        if line_console_rc != 0:
+            return line_console_rc
+
+    label = "integration" if args.section == "integration" else args.section
+    print(f"grit-server smoke {label} ok")
     return 0
 
 

@@ -13173,7 +13173,7 @@ def serve_file_service(cfg, timeout, max_sessions=0):
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     print("Receive-only file service. Accepts target-initiated PUT/POST uploads.")
     print("Also serves operator-staged files only when the target explicitly requests them with grit fetch.")
-    print("This service does not send artifacts, execute commands, or provide callback RPC.")
+    print("This service does not execute commands or provide callback RPC.")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "staged_file": str(staged_file_path(cfg))})
     sessions = 0
     sock = None
