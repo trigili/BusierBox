@@ -811,6 +811,8 @@ if doc.get("matrix_target_count") != 1 or doc.get("matrix_payload_preset_count")
     raise SystemExit(f"release self-test matrix counts missing: {doc!r}")
 if doc.get("matrix_targets") != ["native"] or doc.get("matrix_payload_presets") != ["default"] or doc.get("matrix_formats") != ["tgz"]:
     raise SystemExit(f"release self-test matrix details missing: {doc!r}")
+if doc.get("matrix_expected_job_count") != 1 or doc.get("matrix_present_job_count") != 1 or doc.get("matrix_missing_job_count") != 0 or doc.get("matrix_missing_jobs") != []:
+    raise SystemExit(f"release self-test matrix completeness missing: {doc!r}")
 if doc.get("tuple_manifest_count") != 1 or doc.get("device_alias_count") != 1:
     raise SystemExit(f"release self-test layout diagnostics missing: {doc!r}")
 if doc.get("artifact_config_roundtrip_count") != 1:
@@ -843,7 +845,11 @@ if doc.get("diagnostic_record_count") != len(records) or len(records) < 10:
 if by_name.get("command_queue_safety", {}).get("status") != "pass":
     raise SystemExit(f"release self-test command queue diagnostic missing: {by_name!r}")
 matrix_diag = by_name.get("release_matrix") or {}
-if matrix_diag.get("status") != "pass" or matrix_diag.get("details", {}).get("target_count") != 1:
+if (matrix_diag.get("status") != "pass" or
+        matrix_diag.get("details", {}).get("target_count") != 1 or
+        matrix_diag.get("details", {}).get("expected_job_count") != 1 or
+        matrix_diag.get("details", {}).get("present_job_count") != 1 or
+        matrix_diag.get("details", {}).get("missing_job_count") != 0):
     raise SystemExit(f"release self-test release_matrix diagnostic missing: {by_name!r}")
 license_diag = by_name.get("license_inventory") or {}
 if license_diag.get("status") != "pass" or license_diag.get("details", {}).get("project_license") != "GPL-2.0-or-later":
@@ -890,6 +896,43 @@ doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 if doc.get("status") != "pass" or doc.get("checked_artifact_count") != 1:
     raise SystemExit("release-self-test wrapper did not forward --json diagnostics")
 PY
+
+cp -a "$work/release" "$work/matrix-gap-release"
+python3 - "$work/matrix-gap-release/release.json" <<'PY'
+import json
+import sys
+
+path = sys.argv[1]
+data = json.load(open(path, "r", encoding="utf-8"))
+data["matrix"]["payload_presets"].append("survey-core")
+with open(path, "w", encoding="utf-8") as fh:
+    json.dump(data, fh, indent=2, sort_keys=True)
+    fh.write("\n")
+PY
+(
+    cd "$work/matrix-gap-release"
+    tmp=SHA256SUMS.original.tmp
+    : >"$tmp"
+    find . -type f \
+        ! -name 'SHA256SUMS' \
+        ! -name 'SHA256SUMS.original' \
+        ! -name 'SHA256SUMS.original.tmp' \
+        ! -name 'SHA256SUMS.configured' \
+        ! -name 'SHA256SUMS.configured.tmp' \
+        ! -name '*.tar.gz' |
+    LC_ALL=C sort |
+    while IFS= read -r item; do
+        item=${item#./}
+        sha256sum "$item"
+    done >"$tmp"
+    mv "$tmp" SHA256SUMS.original
+    cp SHA256SUMS.original SHA256SUMS
+)
+if "$work/matrix-gap-release/scripts/lib/release-self-test" >"$work/matrix-gap-self-test.out" 2>"$work/matrix-gap-self-test.err"; then
+    printf '%s\n' "release-bundles: release-self-test accepted an incomplete matrix" >&2
+    exit 1
+fi
+grep -q 'release matrix missing artifact builds: native/survey-core/tgz' "$work/matrix-gap-self-test.err"
 
 failure_target=armv7-linux-3.x-musl
 hide_failure_artifact

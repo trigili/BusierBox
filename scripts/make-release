@@ -1299,6 +1299,34 @@ def write_release_helpers(script_dir):
         matrix_targets = sorted(set(str(item) for item in (matrix_info.get("targets") or []) if str(item)))
         matrix_payload_presets = sorted(set(str(item) for item in (matrix_info.get("payload_presets") or []) if str(item)))
         matrix_formats = sorted(set(str(item) for item in (matrix_info.get("formats") or []) if str(item)))
+        matrix_expected_jobs = set()
+        if matrix_targets and matrix_payload_presets and matrix_formats:
+            matrix_expected_jobs = {
+                (target, payload, fmt)
+                for target in matrix_targets
+                for payload in matrix_payload_presets
+                for fmt in matrix_formats
+            }
+            matrix_present_jobs = {
+                (
+                    str(rec.get("target") or ""),
+                    str(rec.get("payload_preset") or ""),
+                    str(rec.get("format") or ""),
+                )
+                for rec in (release.get("artifacts") or [])
+                if isinstance(rec, dict) and rec.get("build_status") != "failed"
+            }
+            matrix_missing_jobs = sorted(matrix_expected_jobs - matrix_present_jobs)
+            if matrix_missing_jobs:
+                labels = [
+                    f"{target}/{payload}/{fmt}"
+                    for target, payload, fmt in matrix_missing_jobs[:8]
+                ]
+                more = f" (+{len(matrix_missing_jobs) - len(labels)} more)" if len(matrix_missing_jobs) > len(labels) else ""
+                fail("release matrix missing artifact builds: " + "; ".join(labels) + more)
+        else:
+            matrix_present_jobs = set()
+            matrix_missing_jobs = []
         diagnostics = {
             "schema": 1,
             "status": "pass",
@@ -1318,6 +1346,13 @@ def write_release_helpers(script_dir):
             "matrix_targets": matrix_targets,
             "matrix_payload_presets": matrix_payload_presets,
             "matrix_formats": matrix_formats,
+            "matrix_expected_job_count": len(matrix_expected_jobs),
+            "matrix_present_job_count": len(matrix_present_jobs & matrix_expected_jobs) if matrix_expected_jobs else len(matrix_present_jobs),
+            "matrix_missing_job_count": len(matrix_missing_jobs),
+            "matrix_missing_jobs": [
+                {"target": target, "payload_preset": payload, "format": fmt}
+                for target, payload, fmt in matrix_missing_jobs
+            ],
             "project_license": project_policy.get("license", ""),
             "combined_gplv2_compatible": compatibility_policy.get("combined_gplv2_compatible") is True,
             "corresponding_source_required": corresponding_source_policy.get("status") == "required_for_distribution",
@@ -1452,9 +1487,13 @@ def write_release_helpers(script_dir):
                     "target_count": diagnostics["matrix_target_count"],
                     "payload_preset_count": diagnostics["matrix_payload_preset_count"],
                     "format_count": diagnostics["matrix_format_count"],
+                    "expected_job_count": diagnostics["matrix_expected_job_count"],
+                    "present_job_count": diagnostics["matrix_present_job_count"],
+                    "missing_job_count": diagnostics["matrix_missing_job_count"],
                     "targets": diagnostics["matrix_targets"],
                     "payload_presets": diagnostics["matrix_payload_presets"],
                     "formats": diagnostics["matrix_formats"],
+                    "missing_jobs": diagnostics["matrix_missing_jobs"],
                 },
             ),
             diagnostic_record("tuple_manifests", "layout", "pass", diagnostics["tuple_manifest_count"]),
