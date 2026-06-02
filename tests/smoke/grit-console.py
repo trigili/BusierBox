@@ -761,6 +761,23 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(line_console_stdout, file=sys.stderr)
         print(line_console_stderr or "", file=sys.stderr)
         return 1
+    daemon_start = line_console_stdout.find("grit[all]> daemon")
+    daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)
+    daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""
+    daemon_verbose_text = line_console_stdout[daemon_verbose_start:] if daemon_verbose_start != -1 else ""
+    if (not daemon_plain_text or
+            "Daemon actions" not in daemon_plain_text or
+            "\n     run: scripts/grit-console" in daemon_plain_text or
+            "\n     dry-run: scripts/grit-console" in daemon_plain_text or
+            "daemon -v for commands" not in daemon_plain_text or
+            "\n     run: scripts/grit-console" not in daemon_verbose_text or
+            "\n     dry-run: scripts/grit-console" not in daemon_verbose_text):
+        print("line-oriented TUI daemon output did not stay concise by default", file=sys.stderr)
+        print("plain daemon section:", file=sys.stderr)
+        print(daemon_plain_text, file=sys.stderr)
+        print("verbose daemon section:", file=sys.stderr)
+        print(daemon_verbose_text[:4000], file=sys.stderr)
+        return 1
     line_console_makerc_text = line_console_makerc.read_text(encoding="utf-8") if line_console_makerc.exists() else ""
     if (not line_console_makerc.is_file() or
             f"resource {line_console_resource}" not in line_console_makerc_text or
