@@ -1,6 +1,6 @@
 """Command queue policy and mode helpers for grit-console."""
 
-from gritlib.record_utils import int_value, records_by_key
+from gritlib.record_utils import int_value, record_count_by_key, records_by_key
 
 def valid_yes_no(value):
     return str(value) in ("yes", "no")
@@ -170,4 +170,88 @@ def command_result_output_size_bucket(size):
         return "medium"
     return "large"
 
+
+def command_queue_workflow_action_indexes(records):
+    return {
+        "command_queue_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "command_queue_workflow_actions_by_action_id": records_by_key(records, "action_id"),
+        "command_queue_workflow_actions_by_category": records_by_key(records, "category"),
+        "command_queue_workflow_actions_by_workflow": records_by_key(records, "workflow"),
+        "command_queue_workflow_actions_by_actual": records_by_key(records, "actual"),
+        "command_queue_workflow_actions_by_target_filter_active": records_by_key(records, "target_filter_active"),
+        "command_queue_workflow_actions_by_policy_valid": records_by_key(records, "policy_valid"),
+        "command_queue_workflow_actions_by_configured_for_polling": records_by_key(records, "configured_for_polling"),
+        "command_queue_workflow_actions_by_poll_transport_supported": records_by_key(records, "poll_transport_supported"),
+        "command_queue_workflow_actions_by_live_polling_supported": records_by_key(records, "live_polling_supported"),
+        "command_queue_workflow_actions_by_result_upload_supported": records_by_key(records, "result_upload_supported"),
+        "command_queue_workflow_actions_by_execution_supported": records_by_key(records, "execution_supported"),
+        "command_queue_workflow_actions_by_delivery_supported": records_by_key(records, "delivery_supported"),
+        "command_queue_workflow_actions_by_operator_queue_records_only": records_by_key(records, "operator_queue_records_only"),
+        "command_queue_workflow_actions_by_target_mailbox_pending_target_count": records_by_key(records, "target_mailbox_pending_target_count"),
+        "command_queue_workflow_actions_by_target_mailbox_pending_work_count": records_by_key(records, "target_mailbox_pending_work_count"),
+        "command_queue_workflow_actions_by_target_mailbox_pending_poll_overdue_count": records_by_key(records, "target_mailbox_pending_poll_overdue_count"),
+        "command_queue_workflow_actions_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "command_queue_workflow_actions_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "command_queue_workflow_actions_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "command_queue_workflow_actions_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "command_queue_workflow_actions_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "command_queue_workflow_actions_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "command_queue_workflow_actions_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "command_queue_workflow_actions_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "command_queue_workflow_actions_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "command_queue_workflow_actions_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
+        "command_queue_workflow_actions_by_requires_input": records_by_key(records, "requires_input"),
+        "command_queue_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
+        "command_queue_workflow_actions_by_queues_offline_work": records_by_key(records, "queues_offline_work"),
+        "command_queue_workflow_actions_by_target_phone_home_required": records_by_key(records, "target_phone_home_required"),
+        "command_queue_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "command_queue_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "command_queue_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "command_queue_workflow_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
+    }
+
+
+def command_queue_workflow_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
+        "queues_offline_work_count": len([rec for rec in records or [] if rec.get("queues_offline_work") is True]),
+        "target_phone_home_required_count": len([rec for rec in records or [] if rec.get("target_phone_home_required") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "category_counts": record_count_by_key(records, "category"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "actual_counts": record_count_by_key(records, "actual"),
+        "target_filter_active_counts": record_count_by_key(records, "target_filter_active"),
+        "policy_valid_counts": record_count_by_key(records, "policy_valid"),
+        "configured_for_polling_counts": record_count_by_key(records, "configured_for_polling"),
+        "poll_transport_supported_counts": record_count_by_key(records, "poll_transport_supported"),
+        "live_polling_supported_counts": record_count_by_key(records, "live_polling_supported"),
+        "result_upload_supported_counts": record_count_by_key(records, "result_upload_supported"),
+        "execution_supported_counts": record_count_by_key(records, "execution_supported"),
+        "delivery_supported_counts": record_count_by_key(records, "delivery_supported"),
+        "operator_queue_records_only_counts": record_count_by_key(records, "operator_queue_records_only"),
+        "target_mailbox_pending_target_count_counts": record_count_by_key(records, "target_mailbox_pending_target_count"),
+        "target_mailbox_pending_work_count_counts": record_count_by_key(records, "target_mailbox_pending_work_count"),
+        "target_mailbox_pending_poll_overdue_count_counts": record_count_by_key(records, "target_mailbox_pending_poll_overdue_count"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
+        "requires_input_counts": record_count_by_key(records, "requires_input"),
+        "requires_confirmation_counts": record_count_by_key(records, "requires_confirmation"),
+        "queues_offline_work_counts": record_count_by_key(records, "queues_offline_work"),
+        "target_phone_home_required_counts": record_count_by_key(records, "target_phone_home_required"),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
+    }
 
