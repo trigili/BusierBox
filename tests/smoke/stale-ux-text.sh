@@ -63,6 +63,12 @@ if grep -q 'release selection number, recommendation id, artifact path, by_devic
     printf '%s\n' "stale-ux-text: workbench release prompt omits payload preset selectors" >&2
     exit 1
 fi
+if grep -q 'not an artifact sender' scripts/grit-console; then
+    printf '%s\n' "stale-ux-text: grit-console still describes itself as not serving artifacts" >&2
+    exit 1
+fi
+require_text scripts/grit-console 'operator console and service supervisor'
+require_text scripts/grit-console 'staged file delivery'
 require_text docs/manifest.md 'positive inventory by default'
 require_text docs/manifest.md 'payload/bin/busybox'
 require_text docs/manifest.md 'payload/bin/<tool>'

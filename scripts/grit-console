@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""griTTYkit reverse access convenience server.
+"""griTTYkit operator console and service supervisor.
 
-This helper catches target-initiated reverse-access transports. It is not an
-artifact sender or target-side command executor.
+This helper manages target-initiated reverse-access transports, probe
+bootstrap listeners, staged file delivery, command queues, bridge routes,
+release artifact selection, and the interactive operator console.
 
 Transport model:
   ssh        — Dropbear/dbclient reverse SSH (GRIT_RSHELL_TRANSPORT=ssh)
