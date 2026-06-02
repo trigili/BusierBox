@@ -525,6 +525,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "queue list\n"
                 "events -n 3\n"
                 "events service=workbench -n 2\n"
+                "probe delivery\n"
                 "probe --queue\n"
                 "download --queue /etc/config/network\n"
                 "show mailbox\n"
@@ -612,6 +613,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Events  (",
         "Raw JSONL: view ",
         "filters: limit=2 service=workbench",
+        "Delivery options (pick what the target has):",
+        "nc:    printf 'GET /probe.sh HTTP/1.0",
+        "Current listener: probe-http",
+        "Not yet served here: probe-tftp, probe-ftp, probe-dns",
         "daemon -v for commands",
         "dry-run: scripts/grit-console --config",
         "saved route zz-console-added",
