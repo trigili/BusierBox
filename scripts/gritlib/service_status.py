@@ -3,7 +3,8 @@
 import os
 
 from gritlib.record_utils import (
-    record_count_by_key, records_by_bool, records_by_composite, records_by_key,
+    int_value, record_count_by_key, records_by_bool, records_by_composite,
+    records_by_key,
 )
 
 def service_manager_resource_records(snapshot):
@@ -63,6 +64,61 @@ def service_manager_resource_indexes(records):
         "service_manager_resources_by_pid": records_by_key(records, "pid"),
         "service_manager_resources_by_kind_state": records_by_composite(records, ("kind", "state")),
         "service_manager_resources_by_kind_active": records_by_composite(records, ("kind", "active")),
+    }
+
+
+def service_manager_status(snapshot):
+    resources = service_manager_resource_records(snapshot)
+    state_record = {
+        "id": "service-manager",
+        "shutdown_requested": bool(snapshot.get("shutdown_requested", False)),
+        "socket_count": int_value(snapshot.get("socket_count", 0)),
+        "open_socket_count": int_value(snapshot.get("open_socket_count", 0)),
+        "transport_count": int_value(snapshot.get("transport_count", 0)),
+        "active_transport_count": int_value(snapshot.get("active_transport_count", 0)),
+        "thread_count": int_value(snapshot.get("thread_count", 0)),
+        "alive_thread_count": int_value(snapshot.get("alive_thread_count", 0)),
+        "child_process_count": int_value(snapshot.get("child_process_count", 0)),
+        "running_child_process_count": int_value(snapshot.get("running_child_process_count", 0)),
+        "resource_count": len(resources),
+    }
+    state_record.update({
+        "has_open_sockets": state_record.get("open_socket_count", 0) > 0,
+        "has_active_transports": state_record.get("active_transport_count", 0) > 0,
+        "has_alive_threads": state_record.get("alive_thread_count", 0) > 0,
+        "has_running_children": state_record.get("running_child_process_count", 0) > 0,
+        "has_resources": state_record.get("resource_count", 0) > 0,
+    })
+    state_records = [state_record]
+    state_index_maps = {
+        "service_manager_state_records_by_id": {
+            rec.get("id", ""): rec for rec in state_records if rec.get("id")
+        },
+        "service_manager_state_records_by_shutdown_requested": records_by_key(
+            state_records, "shutdown_requested"
+        ),
+        "service_manager_state_records_by_has_open_sockets": records_by_key(
+            state_records, "has_open_sockets"
+        ),
+        "service_manager_state_records_by_has_active_transports": records_by_key(
+            state_records, "has_active_transports"
+        ),
+        "service_manager_state_records_by_has_alive_threads": records_by_key(
+            state_records, "has_alive_threads"
+        ),
+        "service_manager_state_records_by_has_running_children": records_by_key(
+            state_records, "has_running_children"
+        ),
+        "service_manager_state_records_by_has_resources": records_by_key(
+            state_records, "has_resources"
+        ),
+    }
+    return {
+        "resources": resources,
+        "resource_index_maps": service_manager_resource_indexes(resources),
+        "state_record": state_record,
+        "state_records": state_records,
+        "state_index_maps": state_index_maps,
     }
 
 
