@@ -43,6 +43,12 @@ if str(SCRIPT_DIR) not in sys.path:
 from gritlib import bridge_routes
 from gritlib.event_log import EventLog, event_record_indexes
 from gritlib.runtime import Service, ServiceManager, Session
+from gritlib.record_utils import (
+    count_records_with_key, format_counts, int_value, latest_record_value,
+    list_merge_unique, record_bool_counts, record_count_by_key, records_by_bool,
+    records_by_composite, records_by_key, records_by_list_item, records_by_nested_key,
+    records_by_session,
+)
 from gritlib.session_state import SessionManager
 from gritlib.target_records import target_record_indexes, target_record_summary
 
@@ -595,74 +601,10 @@ def staged_record_indexes(records):
     )
 
 
-def records_by_session(records):
-    grouped = {}
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        session_id = str(rec.get("session_id") or "")
-        if not session_id:
-            continue
-        grouped.setdefault(session_id, []).append(rec)
-    return grouped
 
 
-def int_value(value):
-    try:
-        return int(value or 0)
-    except (TypeError, ValueError):
-        return 0
 
 
-def record_count_by_key(records, key):
-    counts = {}
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        value = rec.get(key)
-        if value in (None, ""):
-            continue
-        text = str(value)
-        counts[text] = counts.get(text, 0) + 1
-    return counts
-
-
-def count_records_with_key(records, key):
-    return len([
-        rec for rec in records or []
-        if isinstance(rec, dict) and rec.get(key) not in (None, "")
-    ])
-
-
-def records_by_key(records, key):
-    grouped = {}
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        value = rec.get(key)
-        if value in (None, ""):
-            continue
-        grouped.setdefault(str(value), []).append(rec)
-    return grouped
-
-
-def records_by_composite(records, keys):
-    grouped = {}
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        parts = []
-        missing = False
-        for key in keys:
-            value = rec.get(key)
-            if value in (None, ""):
-                missing = True
-                break
-            parts.append(str(value))
-        if missing:
-            continue
-        grouped.setdefault(":".join(parts), []).append(rec)
-    return grouped
 
 
 def target_identity_from_headers(headers):
@@ -699,16 +641,6 @@ def load_targets(cfg):
     data.setdefault("schema", 1)
     return data
 
-
-def list_merge_unique(existing, values):
-    out = [str(item) for item in (existing or []) if str(item)]
-    seen = set(out)
-    for value in values or []:
-        value = str(value or "")
-        if value and value not in seen:
-            out.append(value)
-            seen.add(value)
-    return out
 
 
 def capability_report_summary(metadata):
@@ -2182,28 +2114,6 @@ def operator_state_health_counts(records):
     }
 
 
-def nested_index_key(value):
-    if value is True:
-        return "true"
-    if value is False:
-        return "false"
-    return str(value)
-
-
-def records_by_nested_key(records, parent_key, child_key):
-    grouped = {}
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        parent = rec.get(parent_key)
-        if not isinstance(parent, dict):
-            continue
-        value = parent.get(child_key)
-        if value in (None, ""):
-            continue
-        grouped.setdefault(nested_index_key(value), []).append(rec)
-    return grouped
-
 
 def record_count_by_nested_key(records, parent_key, child_key):
     counts = {}
@@ -2211,20 +2121,6 @@ def record_count_by_nested_key(records, parent_key, child_key):
         counts[key] = len(value)
     return counts
 
-
-def records_by_list_item(records, key):
-    grouped = {}
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        values = rec.get(key) or []
-        if not isinstance(values, list):
-            values = [values]
-        for value in values:
-            if value in (None, ""):
-                continue
-            grouped.setdefault(str(value), []).append(rec)
-    return grouped
 
 
 WORKBENCH_BUILD_CONFIG_FIELDS = [
@@ -2280,6 +2176,8 @@ WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS = {
     "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": ("no", "yes"),
     "GRIT_COMMAND_QUEUE_POLL_BACKOFF": ("none", "linear", "exponential"),
 }
+
+
 
 
 def workbench_config_safety_metadata(category, key):
@@ -4990,19 +4888,6 @@ def cancel_workbench_job(cfg, job_id, headless_command=""):
     raise ValueError(f"unknown workbench job: {job_id}")
 
 
-def latest_record_value(records, keys):
-    latest = ""
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        for key in keys:
-            value = str(rec.get(key) or "")
-            if value:
-                if value > latest:
-                    latest = value
-                break
-    return latest
-
 
 def record_sum_by_key(records, key):
     total = 0
@@ -5015,18 +4900,6 @@ def record_sum_by_key(records, key):
             pass
     return total
 
-
-def record_bool_counts(records, key):
-    true_count = 0
-    false_count = 0
-    for rec in records or []:
-        if not isinstance(rec, dict) or key not in rec:
-            continue
-        if rec.get(key) is True:
-            true_count += 1
-        elif rec.get(key) is False:
-            false_count += 1
-    return true_count, false_count
 
 
 def staged_record_summary(records):
@@ -5633,14 +5506,6 @@ def status_path_summary(records):
 def status_path_record_list(records):
     return list((records or {}).values())
 
-
-def records_by_bool(records, key):
-    grouped = {"yes": [], "no": []}
-    for rec in records or []:
-        if not isinstance(rec, dict) or key not in rec:
-            continue
-        grouped["yes" if rec.get(key) is True else "no"].append(rec)
-    return grouped
 
 
 def status_path_record_indexes(records):
@@ -6880,14 +6745,6 @@ def session_root_record(cfg, records):
         "latest_session_updated_at": latest_record_value(records, ("updated_at", "ended_at", "started_at")),
     }
 
-
-def format_counts(counts, limit=6):
-    if not counts:
-        return "none"
-    parts = []
-    for key, value in sorted(counts.items(), key=lambda item: (-int(item[1]), str(item[0])))[:limit]:
-        parts.append(f"{key}={value}")
-    return ", ".join(parts) if parts else "none"
 
 
 def yes_no(value):
