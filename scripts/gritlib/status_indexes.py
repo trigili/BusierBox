@@ -141,3 +141,84 @@ def warning_health_indexes(records):
             if warning_type:
                 by_warning_type.setdefault(warning_type, []).append(rec)
     return by_has_warnings, by_warning_type
+
+
+def operator_network_status(ips):
+    selected_local_ip = (ips or ["OPERATOR_IP"])[0]
+    operator_network_records = [
+        {
+            "id": f"local-ip-{idx}",
+            "kind": "local-ip",
+            "ip": ip,
+            "ordinal": idx,
+            "selected": ip == selected_local_ip,
+            "placeholder": ip == "OPERATOR_IP",
+            "source": "detected" if ip != "OPERATOR_IP" else "placeholder",
+            "usable_for_generated_commands": ip != "OPERATOR_IP",
+        }
+        for idx, ip in enumerate(ips or ["OPERATOR_IP"])
+    ]
+    operator_network_index_maps = {
+        "operator_network_records_by_id": {rec["id"]: rec for rec in operator_network_records},
+        "operator_network_records_by_kind": records_by_key(operator_network_records, "kind"),
+        "operator_network_records_by_ip": records_by_key(operator_network_records, "ip"),
+        "operator_network_records_by_selected": records_by_key(operator_network_records, "selected"),
+        "operator_network_records_by_placeholder": records_by_key(operator_network_records, "placeholder"),
+        "operator_network_records_by_source": records_by_key(operator_network_records, "source"),
+        "operator_network_records_by_usable_for_generated_commands": records_by_key(
+            operator_network_records, "usable_for_generated_commands"
+        ),
+    }
+    selected_operator_network_record = next(
+        (rec for rec in operator_network_records if rec.get("selected")),
+        operator_network_records[0] if operator_network_records else {},
+    )
+    operator_network_state_record = {
+        "id": "operator-network",
+        "selected_ip": selected_local_ip,
+        "selected_source": selected_operator_network_record.get("source", ""),
+        "selected_placeholder": bool(selected_operator_network_record.get("placeholder", False)),
+        "selected_usable_for_generated_commands": bool(
+            selected_operator_network_record.get("usable_for_generated_commands", False)
+        ),
+        "record_count": len(operator_network_records),
+        "detected_ip_count": len([rec for rec in operator_network_records if rec.get("source") == "detected"]),
+        "placeholder_count": len([rec for rec in operator_network_records if rec.get("placeholder")]),
+        "usable_for_generated_commands_count": len([
+            rec for rec in operator_network_records
+            if rec.get("usable_for_generated_commands")
+        ]),
+    }
+    operator_network_state_record.update({
+        "has_detected_ip": operator_network_state_record.get("detected_ip_count", 0) > 0,
+        "uses_placeholder": bool(operator_network_state_record.get("selected_placeholder", False)),
+        "has_generated_command_ip": bool(operator_network_state_record.get("selected_usable_for_generated_commands", False)),
+        "has_multiple_ips": operator_network_state_record.get("record_count", 0) > 1,
+    })
+    operator_network_state_records = [operator_network_state_record]
+    operator_network_state_index_maps = {
+        "operator_network_state_records_by_id": {
+            rec.get("id", ""): rec for rec in operator_network_state_records if rec.get("id")
+        },
+        "operator_network_state_records_by_selected_ip": records_by_key(operator_network_state_records, "selected_ip"),
+        "operator_network_state_records_by_selected_source": records_by_key(operator_network_state_records, "selected_source"),
+        "operator_network_state_records_by_selected_placeholder": records_by_key(
+            operator_network_state_records, "selected_placeholder"
+        ),
+        "operator_network_state_records_by_has_detected_ip": records_by_key(operator_network_state_records, "has_detected_ip"),
+        "operator_network_state_records_by_uses_placeholder": records_by_key(operator_network_state_records, "uses_placeholder"),
+        "operator_network_state_records_by_has_generated_command_ip": records_by_key(
+            operator_network_state_records, "has_generated_command_ip"
+        ),
+        "operator_network_state_records_by_has_multiple_ips": records_by_key(
+            operator_network_state_records, "has_multiple_ips"
+        ),
+    }
+    return {
+        "selected_local_ip": selected_local_ip,
+        "operator_network_records": operator_network_records,
+        "operator_network_index_maps": operator_network_index_maps,
+        "operator_network_state_record": operator_network_state_record,
+        "operator_network_state_records": operator_network_state_records,
+        "operator_network_state_index_maps": operator_network_state_index_maps,
+    }
