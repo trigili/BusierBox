@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from gritlib.record_utils import record_count_by_key
+from gritlib.record_utils import record_count_by_key, records_by_key
 
 
 def staged_file_path(cfg):
@@ -123,4 +123,86 @@ def staged_record_summary(records):
         "target_counts": record_count_by_key(records, "target_id"),
         "source_exists_by_kind": source_exists_by_kind,
         "source_missing_by_kind": source_missing_by_kind,
+    }
+
+
+def staged_file_workflow_action_indexes(records):
+    return {
+        "staged_file_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "staged_file_workflow_actions_by_action_id": records_by_key(records, "action_id"),
+        "staged_file_workflow_actions_by_request_name": records_by_key(records, "request_name"),
+        "staged_file_workflow_actions_by_stage_kind": records_by_key(records, "stage_kind"),
+        "staged_file_workflow_actions_by_category": records_by_key(records, "category"),
+        "staged_file_workflow_actions_by_workflow": records_by_key(records, "workflow"),
+        "staged_file_workflow_actions_by_target_id": records_by_key(records, "target_id"),
+        "staged_file_workflow_actions_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
+        "staged_file_workflow_actions_by_target_offline_age_bucket": records_by_key(records, "target_offline_age_bucket"),
+        "staged_file_workflow_actions_by_target_poll_overdue": records_by_key(records, "target_poll_overdue"),
+        "staged_file_workflow_actions_by_target_mailbox_pending_work_count": records_by_key(records, "target_mailbox_pending_work_count"),
+        "staged_file_workflow_actions_by_target_latest_phone_home_status": records_by_key(records, "target_latest_phone_home_status"),
+        "staged_file_workflow_actions_by_target_latest_successful_phone_home_status": records_by_key(records, "target_latest_successful_phone_home_status"),
+        "staged_file_workflow_actions_by_target_last_failed_phone_home_status": records_by_key(records, "target_last_failed_phone_home_status"),
+        "staged_file_workflow_actions_by_route_kind": records_by_key(records, "route_kind"),
+        "staged_file_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "staged_file_workflow_actions_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "staged_file_workflow_actions_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "staged_file_workflow_actions_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "staged_file_workflow_actions_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "staged_file_workflow_actions_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "staged_file_workflow_actions_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "staged_file_workflow_actions_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "staged_file_workflow_actions_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "staged_file_workflow_actions_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "staged_file_workflow_actions_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
+        "staged_file_workflow_actions_by_source_exists": records_by_key(records, "source_exists"),
+        "staged_file_workflow_actions_by_available": records_by_key(records, "available"),
+        "staged_file_workflow_actions_by_requires_target": records_by_key(records, "requires_target"),
+        "staged_file_workflow_actions_by_queues_offline_work": records_by_key(records, "queues_offline_work"),
+        "staged_file_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
+        "staged_file_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "staged_file_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "staged_file_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "staged_file_workflow_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
+    }
+
+
+def staged_file_workflow_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "request_counts": record_count_by_key(records, "request_name"),
+        "stage_kind_counts": record_count_by_key(records, "stage_kind"),
+        "category_counts": record_count_by_key(records, "category"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "target_counts": record_count_by_key(records, "target_id"),
+        "target_connectivity_state_counts": record_count_by_key(records, "target_connectivity_state"),
+        "target_offline_age_bucket_counts": record_count_by_key(records, "target_offline_age_bucket"),
+        "target_poll_overdue_counts": record_count_by_key(records, "target_poll_overdue"),
+        "target_mailbox_pending_work_count_counts": record_count_by_key(records, "target_mailbox_pending_work_count"),
+        "target_latest_phone_home_status_counts": record_count_by_key(records, "target_latest_phone_home_status"),
+        "target_latest_successful_phone_home_status_counts": record_count_by_key(records, "target_latest_successful_phone_home_status"),
+        "target_last_failed_phone_home_status_counts": record_count_by_key(records, "target_last_failed_phone_home_status"),
+        "route_kind_counts": record_count_by_key(records, "route_kind"),
+        "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
+        "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
+        "requires_target_count": len([rec for rec in records or [] if rec.get("requires_target") is True]),
+        "queues_offline_work_count": len([rec for rec in records or [] if rec.get("queues_offline_work") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
+        "source_exists_counts": record_count_by_key(records, "source_exists"),
+        "available_counts": record_count_by_key(records, "available"),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
     }
