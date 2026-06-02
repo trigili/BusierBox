@@ -41,6 +41,11 @@ if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
 from gritlib import bridge_routes
+from gritlib.command_queue import (
+    command_queue_mode_record_indexes, command_queue_mode_records,
+    command_queue_mode_semantics, command_queue_mode_summary,
+    command_queue_policy_errors, command_result_output_size_bucket,
+)
 from gritlib.build_config import (
     WORKBENCH_BUILD_CONFIG_FIELDS, WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS,
     build_config_path, delete_build_config_value, parse_build_config,
@@ -7342,175 +7347,6 @@ def record_command_result(cfg, command_id, result_path):
     except json.JSONDecodeError as exc:
         raise ValueError(f"command result JSON is invalid: {exc}") from exc
     return record_command_result_payload(cfg, command_id, result, str(path))
-
-
-def valid_yes_no(value):
-    return str(value) in ("yes", "no")
-
-
-def valid_uint_string(value):
-    text = str(value)
-    return bool(text) and text.isdigit()
-
-
-def valid_header_token(value):
-    text = str(value)
-    return "\r" not in text and "\n" not in text
-
-
-def command_queue_policy_errors(cfg):
-    errors = []
-    enabled = str(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no"))
-    allowed = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
-    execution = str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only"))
-    allow_arbitrary = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", "no"))
-    if not valid_yes_no(enabled):
-        errors.append("invalid command queue enable value")
-    if not valid_uint_string(cfg.get("GRIT_COMMAND_QUEUE_PORT", "22205")):
-        errors.append("invalid command queue port")
-    if not valid_uint_string(cfg.get("GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC", "5")):
-        errors.append("invalid command queue poll interval")
-    if not valid_uint_string(cfg.get("GRIT_COMMAND_QUEUE_POLL_JITTER_PCT", "0")):
-        errors.append("invalid command queue poll jitter")
-    if str(cfg.get("GRIT_COMMAND_QUEUE_POLL_BACKOFF", "none")) not in ("none", "linear", "exponential"):
-        errors.append("invalid command queue poll backoff")
-    if not valid_uint_string(cfg.get("GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC", "300")):
-        errors.append("invalid command queue poll max interval")
-    if not valid_uint_string(cfg.get("GRIT_COMMAND_QUEUE_MAX_POLLS", "0")):
-        errors.append("invalid command queue max polls")
-    if not valid_yes_no(cfg.get("GRIT_COMMAND_QUEUE_TLS", "yes")):
-        errors.append("invalid command queue TLS value")
-    if not valid_yes_no(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")):
-        errors.append("invalid command queue token requirement")
-    if str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN_SOURCE", "manual")) not in ("manual", "generated"):
-        errors.append("invalid command queue token source")
-    if not valid_header_token(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", "")):
-        errors.append("invalid command queue token value")
-    if enabled == "yes" and str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")) == "yes" and not str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", "")):
-        errors.append("enabled command queue requires command_queue_token when token requirement is yes")
-    if allowed not in ("none", "grit-only", "allowlist", "custom"):
-        errors.append("invalid command queue allowed commands policy")
-    if execution not in ("metadata-only", "execute"):
-        errors.append("invalid command queue execution mode")
-    if not valid_yes_no(allow_arbitrary):
-        errors.append("invalid command queue arbitrary-execution flag")
-    if enabled != "yes":
-        if allowed != "none":
-            errors.append("disabled command queue must keep allowed commands policy none")
-        if execution != "metadata-only":
-            errors.append("disabled command queue must keep execution mode metadata-only")
-        if allow_arbitrary != "no":
-            errors.append("disabled command queue must not allow arbitrary execution")
-    if execution == "execute" and allowed == "none":
-        errors.append("command queue execution mode execute requires a non-none allowed commands policy")
-    if allow_arbitrary == "yes" and allowed != "custom":
-        errors.append("arbitrary command queue execution requires allowed commands policy custom")
-    return errors
-
-
-def command_queue_mode_semantics(live_transport_supported=True, execution_supported=False):
-    modes = {
-        "status": {
-            "lifecycle": "inspect",
-            "requires_operator_host": False,
-            "would_poll_if_configured": False,
-        },
-        "poll": {
-            "lifecycle": "single-poll",
-            "requires_operator_host": True,
-            "would_poll_if_configured": True,
-        },
-        "once": {
-            "lifecycle": "single-cycle",
-            "requires_operator_host": True,
-            "would_poll_if_configured": True,
-        },
-        "daemon": {
-            "lifecycle": "long-running",
-            "requires_operator_host": True,
-            "would_poll_if_configured": True,
-        },
-        "stop": {
-            "lifecycle": "stop",
-            "requires_operator_host": False,
-            "would_poll_if_configured": False,
-        },
-    }
-    for rec in modes.values():
-        live_supported = bool(rec.get("would_poll_if_configured")) and bool(live_transport_supported)
-        live_execution_supported = live_supported and bool(execution_supported)
-        rec.update({
-            "dry_run_default": True,
-            "dry_run_only": False if live_supported else True,
-            "live_supported": live_supported,
-            "requires_explicit_target_action": True,
-            "would_contact_operator": False,
-            "live_would_contact_operator": live_supported,
-            "live_transport_supported": bool(live_transport_supported),
-            "live_transport_unsupported_reason": "" if live_transport_supported else "live command queue polling requires GRIT_COMMAND_QUEUE_TLS=no in this build",
-            "delivery_supported": False,
-            "result_upload_supported": True,
-            "execution_supported": live_execution_supported,
-            "executes_commands": live_execution_supported,
-            "active_control_channel": False,
-            "operator_supplied_command_execution": live_execution_supported,
-        })
-    return modes
-
-
-def command_queue_mode_summary(mode_semantics):
-    records = list(mode_semantics.values())
-    return {
-        "mode_count": len(records),
-        "polling_mode_count": len([rec for rec in records if rec.get("would_poll_if_configured")]),
-        "operator_host_required_mode_count": len([rec for rec in records if rec.get("requires_operator_host")]),
-        "live_supported_mode_count": len([rec for rec in records if rec.get("live_supported")]),
-        "delivery_supported_mode_count": len([rec for rec in records if rec.get("delivery_supported")]),
-        "result_upload_supported_mode_count": len([rec for rec in records if rec.get("result_upload_supported")]),
-        "execution_supported_mode_count": len([rec for rec in records if rec.get("execution_supported")]),
-        "active_control_channel_mode_count": len([rec for rec in records if rec.get("active_control_channel")]),
-        "operator_supplied_command_execution_mode_count": len([
-            rec for rec in records if rec.get("operator_supplied_command_execution")
-        ]),
-    }
-
-
-def command_queue_mode_records(mode_semantics):
-    records = []
-    for mode in sorted(mode_semantics or {}):
-        rec = dict(mode_semantics.get(mode) or {})
-        rec["mode"] = mode
-        records.append(rec)
-    return records
-
-
-def command_queue_mode_record_indexes(records):
-    return {
-        "command_queue_modes_by_mode": {rec["mode"]: rec for rec in records if rec.get("mode")},
-        "command_queue_modes_by_lifecycle": records_by_key(records, "lifecycle"),
-        "command_queue_modes_by_requires_operator_host": records_by_key(records, "requires_operator_host"),
-        "command_queue_modes_by_would_poll_if_configured": records_by_key(records, "would_poll_if_configured"),
-        "command_queue_modes_by_live_supported": records_by_key(records, "live_supported"),
-        "command_queue_modes_by_live_transport_supported": records_by_key(records, "live_transport_supported"),
-        "command_queue_modes_by_delivery_supported": records_by_key(records, "delivery_supported"),
-        "command_queue_modes_by_result_upload_supported": records_by_key(records, "result_upload_supported"),
-        "command_queue_modes_by_execution_supported": records_by_key(records, "execution_supported"),
-        "command_queue_modes_by_active_control_channel": records_by_key(records, "active_control_channel"),
-        "command_queue_modes_by_operator_supplied_command_execution": records_by_key(
-            records, "operator_supplied_command_execution"
-        ),
-    }
-
-
-def command_result_output_size_bucket(size):
-    size = int_value(size)
-    if size <= 0:
-        return "zero"
-    if size <= 1024:
-        return "small"
-    if size <= 65536:
-        return "medium"
-    return "large"
 
 
 def command_queue_summary(cfg):
