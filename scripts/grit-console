@@ -11005,11 +11005,13 @@ def release_recommendation_lines(release, limit=10):
 
 
 ROUTE_HELP_LINES = [
-    "Route model: expose LPORT on the operator, then forward to DEST_HOST:DEST_PORT.",
-    "Use hops to describe how the target reaches that operator listener.",
-    "HOP syntax: FROM=TO, FROM->TO, or FROM,TO; endpoints are labels like target:PORT, jump:PORT, operator:PORT.",
+    "Route model: the operator listens on LPORT; bridge traffic is delivered to DEST_HOST:DEST_PORT from the target side.",
+    "Use hops to document the path a target must traverse to reach that operator listener.",
+    "HOP syntax: FROM=TO, FROM->TO, or FROM,TO; use endpoint labels such as target:PORT, jump:PORT, operator:PORT.",
     "Direct target-to-operator SSH: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222",
-    "Multi-hop target-to-operator web: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
+    "  Meaning: connect to operator:2222, bridge to 127.0.0.1:22 as seen from the target.",
+    "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
+    "  Meaning: target reaches jump:9001, jump reaches operator:8080, bridge delivers to 192.168.1.1:80.",
 ]
 
 
@@ -30198,9 +30200,10 @@ Operations:
   routes [-v], route print      list bridge routes and hop details
   route add NAME LPORT HOST DPORT [HOP ...]
                                 create a reusable bridge route profile
-                                model: operator LPORT -> DEST_HOST:DEST_PORT
+                                model: operator listens on LPORT; bridge delivers to HOST:DPORT from target side
                                 hop: FROM=TO, FROM->TO, or FROM,TO; labels are target/jump/operator endpoints
                                 direct: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222
+                                meaning: connect to operator:2222, bridge to target-side 127.0.0.1:22
                                 multi-hop: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080
   route start NAME, route stop NAME
                                 control a reusable bridge route profile
