@@ -10119,7 +10119,9 @@ def release_artifact_compatibility_rank(rec):
 
 
 def release_artifact_recommendation_key(rec):
+    metadata_rank = 0 if rec.get("tuple_path") and rec.get("payload_preset") else 1
     return (
+        metadata_rank,
         release_artifact_compatibility_rank(rec),
         str(rec.get("payload_preset") or ""),
         str(rec.get("release_path") or rec.get("path") or rec.get("name") or ""),
@@ -10227,7 +10229,16 @@ def kernel_floor_from_release(release):
         return ""
     major = release.split(".", 1)[0]
     if major.isdigit():
-        return f"{major}.x"
+        major_int = int(major)
+        if major_int < 3:
+            parts = release.split(".", 2)
+            if len(parts) >= 2 and parts[1].isdigit():
+                return f"{major_int}.{int(parts[1])}"
+        if major_int == 3:
+            return "3.x"
+        if major_int == 4:
+            return "4.x"
+        return "current"
     return release
 
 
@@ -10269,6 +10280,35 @@ def release_record_matches_probe(release, record, probe_arch, probe_kernel_floor
         if tuple_kernel != probe_kernel_floor:
             return False
     return True
+
+
+def release_artifact_matches_probe(release, artifact, probe_arch, probe_kernel_floor):
+    tuple_path = str(artifact.get("tuple_path") or "")
+    tuple_rec = (release.get("tuples_by_path") or {}).get(tuple_path) or {}
+    tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
+    tuple_arch = normalized_probe_arch(tuple_info.get("arch") or "")
+    tuple_kernel = str(tuple_info.get("kernel_floor") or "").strip().lower()
+    if not tuple_path or not artifact.get("payload_preset"):
+        return False
+    if probe_arch and tuple_arch and probe_arch != tuple_arch:
+        return False
+    if not probe_kernel_floor or not tuple_kernel or tuple_kernel in {"host"}:
+        return True
+    probe_floor = str(probe_kernel_floor or "").strip().lower()
+    if probe_floor == tuple_kernel:
+        return True
+    if probe_floor == "current":
+        return tuple_kernel in {"current", "4.x"}
+    if probe_floor.endswith(".x"):
+        try:
+            probe_major = int(probe_floor.split(".", 1)[0])
+            tuple_major = int(tuple_kernel.split(".", 1)[0])
+        except (TypeError, ValueError):
+            return False
+        if probe_major >= 4:
+            return tuple_kernel in {"current", "4.x"}
+        return probe_major == tuple_major
+    return False
 
 
 RELEASE_LICENSE_NOTICE_FILES = (
@@ -25701,23 +25741,21 @@ def run_line_tui(cfg):
             cfg["release_dir"] = rel.get("release_dir", "")
             print(f"Using release: {rel.get('release_dir', '')}")
             print("")
-        recs = rel.get("recommendation_records") or []
+        recs = rel.get("artifacts") or []
         tuple_matches = [
             r for r in recs
-            if release_record_matches_probe(rel, r, probe_arch, probe_kernel_floor)
+            if release_artifact_matches_probe(rel, r, probe_arch, probe_kernel_floor)
         ]
         if not tuple_matches:
             tuple_matches = [
                 r for r in recs
-                if probe_arch and probe_arch in str(r.get("artifact") or r.get("artifact_name") or r.get("key") or "").lower()
+                if r.get("tuple_path") and r.get("payload_preset") and probe_arch and probe_arch in str(r.get("name") or r.get("release_path") or r.get("path") or "").lower()
             ]
-        if not tuple_matches:
-            tuple_matches = recs
         deduped_matches = []
         seen_matches = set()
         for item in tuple_matches:
             key = (
-                str(item.get("artifact") or ""),
+                str(item.get("release_path") or item.get("path") or item.get("name") or ""),
                 str(item.get("tuple_path") or ""),
                 str(item.get("payload_preset") or ""),
             )
@@ -25733,7 +25771,7 @@ def run_line_tui(cfg):
                 [
                     ("Preset",    lambda r: r.get("payload_preset") or "-"),
                     ("Tuple",     lambda r: r.get("tuple_path") or "-"),
-                    ("Artifact",  lambda r: r.get("artifact_name") or r.get("artifact") or "-"),
+                    ("Artifact",  lambda r: r.get("name") or r.get("release_path") or r.get("path") or "-"),
                     ("Compat",    lambda r: (r.get("compatibility") or {}).get("label") or "-"),
                 ],
             )
@@ -25776,6 +25814,7 @@ def run_line_tui(cfg):
                 if not chosen:
                     raise ValueError(f"no match for '{choice}' — enter a number or preset name")
             selector = str(chosen.get("id") or chosen.get("artifact") or "")
+            selector = str(chosen.get("release_path") or chosen.get("path") or chosen.get("name") or selector)
             preset = chosen.get("payload_preset") or "?"
             print(f"  Staging {preset}: {selector}")
             try:

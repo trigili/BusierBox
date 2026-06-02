@@ -11893,7 +11893,7 @@ def main(argv=None):
                     "remote_addr": "192.0.2.11:50001",
                     "uname_s": "Linux",
                     "uname_m": "mips",
-                    "uname_r": "4.14.221",
+                    "uname_r": "5.10.176",
                     "word_bits": "32",
                     "endian": "little",
                     "status": "received",
@@ -11951,16 +11951,19 @@ def main(argv=None):
                 "Probe results  (2 received)" not in probe_text or
                 "Using probe result 1 (2026-01-01T00:00:00Z)" not in probe_text or
                 "GRIT_TARGET_ARCH=mipsel" not in probe_text or
-                "GRIT_KERNEL_FLOOR=4.x" not in probe_text or
+                "GRIT_KERNEL_FLOOR=current" not in probe_text or
                 "removed probe result 2: 2025-12-31T23:59:00Z 192.0.2.10:50000" not in probe_text or
                 "cleared 1 probe result(s)" not in probe_text or
                 "Probe results  (1 received)" not in probe_text or
                 "Probe arch: mipsel" not in probe_text or
-                "floor: 4.x" not in probe_text or
+                "floor: current" not in probe_text or
                 f"Using release: {probe_release_dir}" not in probe_text or
                 "Available for mipsel  (2 found)" not in probe_text or
+                "default               by-tuple/mipsel/musl/4.x/mips32r2-24kc" not in probe_text or
+                "ssh-operator          by-tuple/mipsel/musl/4.x/mips32r2-24kc" not in probe_text or
                 "by-tuple/mipsel/musl/4.x/mips32r2-24kc" not in probe_text or
                 "by-tuple/x86_64/musl/4.x/generic" in probe_text or
+                "  1  -                     -" in probe_text or
                 "Release artifact staged:" not in probe_text or
                 "Target fetch options:" not in probe_text or
                 "wget --no-check-certificate -O ./grit-mipsel-default " not in probe_text or
