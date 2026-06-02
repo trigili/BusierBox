@@ -24,6 +24,62 @@ die() {
     exit 1
 }
 
+PACKAGE_TARGET_LOCK_DIR=${PACKAGE_TARGET_LOCK_DIR:-local/tmp/package-target.lock}
+PACKAGE_TARGET_LOCK_HELD=0
+
+cleanup_package_target_lock() {
+    if [ "${PACKAGE_TARGET_LOCK_HELD:-0}" = 1 ]; then
+        rm -f "$PACKAGE_TARGET_LOCK_DIR/pid" "$PACKAGE_TARGET_LOCK_DIR/target" 2>/dev/null || true
+        rmdir "$PACKAGE_TARGET_LOCK_DIR" 2>/dev/null || true
+        PACKAGE_TARGET_LOCK_HELD=0
+    fi
+}
+
+release_package_target_lock() {
+    cleanup_package_target_lock
+}
+
+package_target_signal() {
+    cleanup_package_target_lock
+    exit 130
+}
+
+acquire_package_target_lock() {
+    [ "${GRIT_PACKAGE_TARGET_LOCK:-yes}" != no ] || return 0
+
+    lock_parent=$(dirname "$PACKAGE_TARGET_LOCK_DIR")
+    mkdir -p "$lock_parent"
+    waited=0
+    while ! mkdir "$PACKAGE_TARGET_LOCK_DIR" 2>/dev/null; do
+        if [ -f "$PACKAGE_TARGET_LOCK_DIR/pid" ]; then
+            owner_pid=$(sed -n '1p' "$PACKAGE_TARGET_LOCK_DIR/pid" 2>/dev/null || true)
+            case "$owner_pid" in
+                ""|*[!0-9]*)
+                    rm -f "$PACKAGE_TARGET_LOCK_DIR/pid" "$PACKAGE_TARGET_LOCK_DIR/target" 2>/dev/null || true
+                    rmdir "$PACKAGE_TARGET_LOCK_DIR" 2>/dev/null || true
+                    ;;
+                *)
+                    if ! kill -0 "$owner_pid" 2>/dev/null; then
+                        rm -f "$PACKAGE_TARGET_LOCK_DIR/pid" "$PACKAGE_TARGET_LOCK_DIR/target" 2>/dev/null || true
+                        rmdir "$PACKAGE_TARGET_LOCK_DIR" 2>/dev/null || true
+                    fi
+                    ;;
+            esac
+        fi
+        waited=$((waited + 1))
+        if [ "$waited" = 1 ]; then
+            printf '%s\n' "package-target: waiting for shared payload staging lock: $PACKAGE_TARGET_LOCK_DIR" >&2
+        fi
+        sleep 1
+    done
+    PACKAGE_TARGET_LOCK_HELD=1
+    trap cleanup_package_target_lock EXIT
+    trap package_target_signal HUP INT TERM
+    printf '%s\n' "$$" >"$PACKAGE_TARGET_LOCK_DIR/pid" 2>/dev/null || true
+    printf '%s\n' "${target:-unknown}" >"$PACKAGE_TARGET_LOCK_DIR/target" 2>/dev/null || true
+    printf '%s\n' "package-target: acquired shared payload staging lock for ${target:-unknown}" >&2
+}
+
 for _name in PAYLOAD_FORMAT GRIT_BUILD_FULL GRIT_BUILD_INTERNAL_CORE \
     GRIT_BUILD_TIMESTAMP GRIT_GIT_COMMIT GRIT_PAYLOAD_VERSION \
     GRIT_ALLOW_UNCONFIGURED_OPERATOR_HOST \
@@ -520,6 +576,8 @@ compat_artifact="dist/grit-$target"
 suffix=$(payload_suffix)
 payload="dist/payload-$target.$suffix"
 
+acquire_package_target_lock
+
 if [ "$target" = native ]; then
     scripts/lib/build-busybox
     TARGET="$target" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" \
@@ -888,4 +946,5 @@ else
     primary_output=$core
 fi
 
+release_package_target_lock
 printf '%s\n' "PASS $target -> $primary_output"

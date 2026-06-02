@@ -116,6 +116,25 @@ if "--strict" not in target:
 if '--jobs "$(JOBS)"' not in target:
     raise SystemExit("make release-full must pass JOBS through to scripts/make-release")
 PY
+sh -n scripts/lib/package-target
+python3 - <<'PY'
+from pathlib import Path
+
+text = Path("scripts/lib/package-target").read_text(encoding="utf-8")
+for required in (
+    "PACKAGE_TARGET_LOCK_DIR",
+    "acquire_package_target_lock",
+    "release_package_target_lock",
+    "shared payload staging lock",
+):
+    if required not in text:
+        raise SystemExit(f"package-target missing concurrency guard: {required}")
+call = text.index("\nacquire_package_target_lock\n")
+if call > text.index("scripts/lib/build-payload"):
+    raise SystemExit("package-target lock must be acquired before native payload staging")
+if call > text.index("scripts/lib/buildroot-build-payload"):
+    raise SystemExit("package-target lock must be acquired before Buildroot payload staging")
+PY
 python3 - "$work/full-dry-run.out" "$work/full-dry-run-jobs.out" <<'PY'
 import sys
 
