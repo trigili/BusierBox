@@ -11988,6 +11988,10 @@ def main(argv=None):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(text, encoding="utf-8")
             path.chmod(0o755)
+            flat_path = probe_release_dir / "bin" / path.name
+            flat_path.write_text(text, encoding="utf-8")
+            flat_path.chmod(0o755)
+            (probe_release_dir / "bin" / f"{path.name}.sha256").write_text(f"hash  {path.name}\n", encoding="utf-8")
         probe_release_json = {
             "schema": 1,
             "release_name": "probe-release-smoke",

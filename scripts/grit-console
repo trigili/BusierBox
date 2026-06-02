@@ -10443,7 +10443,7 @@ def release_context(cfg=None):
             root = here / root_name
             if root.is_dir():
                 for path in sorted(root.iterdir()):
-                    if path.is_file():
+                    if path.is_file() and not path.name.endswith(".sha256"):
                         artifacts.append({
                             "name": path.name,
                             "path": str(path),
@@ -10454,9 +10454,10 @@ def release_context(cfg=None):
         index = read_json_file(here / "release-index.json", {})
         if isinstance(index, dict):
             for row in index.get("artifacts") or []:
-                artifact = row.get("tuple_artifact") or row.get("artifact")
+                artifact = row.get("artifact") or row.get("tuple_artifact")
                 if not artifact:
                     continue
+                tuple_artifact = row.get("tuple_artifact") or ""
                 path = here / artifact
                 rec = {
                     "name": Path(artifact).name,
@@ -10465,6 +10466,8 @@ def release_context(cfg=None):
                     "size": path.stat().st_size if path.is_file() else row.get("size", 0),
                     "source": "release-index",
                     "release_path": artifact,
+                    "tuple_artifact": tuple_artifact,
+                    "tuple_artifact_path": str(here / tuple_artifact) if tuple_artifact else "",
                     "tuple_path": row.get("tuple_path", ""),
                     "payload_preset": row.get("payload_preset", ""),
                     "sha256": row.get("sha256", ""),
