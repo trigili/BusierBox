@@ -3,14 +3,14 @@
 The first-contact bootstrap workflow is now exposed as the `probe` transport:
 
 ```sh
-scripts/grit-server \
+scripts/grit-console \
   --transport probe \
   --listen-host 0.0.0.0 \
   --probe-port 22207 \
   --probe-name probe.sh
 ```
 
-`scripts/grit-server --transport probe` serves a small architecture-agnostic
+`scripts/grit-console --transport probe` serves a small architecture-agnostic
 `/bin/sh` script and accepts the script's result upload. This is intended for
 first contact when the operator does not yet know which griTTYkit artifact to
 send to the target.
@@ -50,7 +50,7 @@ When a bridge profile is selected, generated target commands use the bridge's
 target-visible route instead of the direct probe listener:
 
 ```sh
-scripts/grit-server \
+scripts/grit-console \
   --transport probe \
   --probe-port 22207 \
   --bridge-profile rack-chain

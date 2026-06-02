@@ -784,11 +784,11 @@ static void rshell_server_listener(char *out, size_t outsz)
     const char *ssh_port = bb_config_get("GRIT_OPERATOR_SERVER_SSH_PORT");
 
     if (!strcmp(transport, "ssh"))
-        snprintf(out, outsz, "scripts/grit-server --transport ssh --ssh-port %s", ssh_port);
+        snprintf(out, outsz, "scripts/grit-console --transport ssh --ssh-port %s", ssh_port);
     else if (!strcmp(encryption, "none"))
-        snprintf(out, outsz, "scripts/grit-server --transport plain-shell --shell-port %s", shell_port);
+        snprintf(out, outsz, "scripts/grit-console --transport plain-shell --shell-port %s", shell_port);
     else
-        snprintf(out, outsz, "scripts/grit-server --transport tls-shell --shell-port %s", shell_port);
+        snprintf(out, outsz, "scripts/grit-console --transport tls-shell --shell-port %s", shell_port);
 }
 
 static void rshell_connect_hint(char *out, size_t outsz)
@@ -801,7 +801,7 @@ static void rshell_connect_hint(char *out, size_t outsz)
     else if (!strcmp(transport, "none"))
         snprintf(out, outsz, "reverse access disabled");
     else
-        snprintf(out, outsz, "shell stream is attached by scripts/grit-server");
+        snprintf(out, outsz, "shell stream is attached by scripts/grit-console");
 }
 
 static int rshell_session_policy_valid(const char *policy)

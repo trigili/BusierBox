@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-SERVER = ROOT / "scripts" / "grit-server"
+SERVER = ROOT / "scripts" / "grit-console"
 
 
 def run(*args):
@@ -1044,12 +1044,12 @@ def write_topology_artifact(artifact_dir, cfg, ports, phases):
             {"name": "return-offline", "state": "offline-after-short-window", "evidence": "return-offline.json"},
         ],
         "operator_commands": [
-            "scripts/grit-server --config CONFIG --target-id TARGET --queue-command COMMAND",
-            "scripts/grit-server --config CONFIG --transport command-queue --one-shot",
-            "scripts/grit-server --config CONFIG --transport probe --one-shot",
-            "scripts/grit-server --config CONFIG --transport file-service --one-shot",
-            "scripts/grit-server --config CONFIG --transport bridge --bridge-profile PROFILE --one-shot",
-            "scripts/grit-server --config CONFIG --daemon --daemon-service command-queue",
+            "scripts/grit-console --config CONFIG --target-id TARGET --queue-command COMMAND",
+            "scripts/grit-console --config CONFIG --transport command-queue --one-shot",
+            "scripts/grit-console --config CONFIG --transport probe --one-shot",
+            "scripts/grit-console --config CONFIG --transport file-service --one-shot",
+            "scripts/grit-console --config CONFIG --transport bridge --bridge-profile PROFILE --one-shot",
+            "scripts/grit-console --config CONFIG --daemon --daemon-service command-queue",
         ],
         "qemu_lab_followup": {
             "status": "planned",
@@ -1178,7 +1178,7 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     tui_result = run_line_tui(cfg, "20\n18\ntarget-workflow\nq\n")
     assert_condition(tui_result["returncode"] == 0, "offline workflow line TUI failed", tui_result)
     tui_text = tui_result["stdout"]
-    assert_condition("headless_command: scripts/grit-server --config" in tui_text, "offline workflow TUI missing headless command", tui_text)
+    assert_condition("headless_command: scripts/grit-console --config" in tui_text, "offline workflow TUI missing headless command", tui_text)
     assert_condition("queue COMMAND  |  queue list  |  queue ? for help" in tui_text, "offline workflow TUI missing command queue controls", tui_text)
     assert_condition("Mailbox  (2 records)" in tui_text, "offline workflow TUI missing mailbox section", tui_text)
     assert_condition("target-workflow" in tui_text, "offline workflow TUI missing target-scoped mailbox records", tui_text)

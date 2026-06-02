@@ -41,12 +41,12 @@ opt in:
   `GRIT_COMMAND_QUEUE_TOKEN` on the target and `command_queue_token` on the
   operator server config. Poll and result requests send/check
   `X-griTTYkit-Command-Queue-Token`.
-- `scripts/grit-server --queue-command ...` records explicit operator
+- `scripts/grit-console --queue-command ...` records explicit operator
   queue entries in `local/operator-session/command-queue.json` for inspection
   and tooling. The command-queue listener can mark a queued entry delivered to
   a polling target; the target decides whether to execute based on its effective
   command-queue policy.
-- `scripts/grit-server --json-status` or `--api-status` includes the
+- `scripts/grit-console --json-status` or `--api-status` includes the
   command queue path, counts, entries, `commands_by_id`,
   `commands_by_status`, result lookup maps, queue-time and delivery-time
   policy snapshot lookup maps, latest queue/result timestamps,
@@ -176,7 +176,7 @@ Safety boundary:
   availability, delivery support, result-upload support, execution support, and
   active-control-channel posture.
 
-Operator `scripts/grit-server --json-status` mirrors the mode records for
+Operator `scripts/grit-console --json-status` mirrors the mode records for
 future TUI/web clients. The `command_queue_modes` API collection includes
 indexes by lifecycle, polling posture, live support, delivery support,
 result-upload support, execution support, active-control-channel posture, and
@@ -224,13 +224,13 @@ operator-supplied-command execution posture.
 Operator queue inspection:
 
 ```sh
-scripts/grit-server --queue-command 'grit reality-test --json'
-scripts/grit-server --queue-command 'grit survey --json' --queue-expire-sec 3600
-scripts/grit-server --transport command-queue --config local/server-config.json
-scripts/grit-server --list-command-queue
-scripts/grit-server --json-command-queue
-scripts/grit-server --record-command-result cq-id --result-json result.json
-scripts/grit-server --clear-command-queue
+scripts/grit-console --queue-command 'grit reality-test --json'
+scripts/grit-console --queue-command 'grit survey --json' --queue-expire-sec 3600
+scripts/grit-console --transport command-queue --config local/server-config.json
+scripts/grit-console --list-command-queue
+scripts/grit-console --json-command-queue
+scripts/grit-console --record-command-result cq-id --result-json result.json
+scripts/grit-console --clear-command-queue
 ```
 
 Queue entries include an id, timestamp, literal command text, command SHA-256,
@@ -518,25 +518,25 @@ The same actions can be run headlessly or from the line-oriented TUI. For
 automation, use the stable action id:
 
 ```sh
-scripts/grit-server --run-target-workflow-action target-alpha:queue-command \
+scripts/grit-console --run-target-workflow-action target-alpha:queue-command \
   --target-workflow-command 'grit survey --json'
 
-scripts/grit-server --run-target-workflow-action target-alpha:queue-probe
+scripts/grit-console --run-target-workflow-action target-alpha:queue-probe
 
-scripts/grit-server --run-target-workflow-action target-alpha:stage-file-fetch \
+scripts/grit-console --run-target-workflow-action target-alpha:stage-file-fetch \
   --target-workflow-local-file ./dist/grit-target-full \
   --target-workflow-request-name grit
 
-scripts/grit-server --run-target-workflow-action target-alpha:stage-release-artifact \
+scripts/grit-console --run-target-workflow-action target-alpha:stage-release-artifact \
   --target-workflow-command by_device:lab-router
 
-scripts/grit-server --run-target-workflow-action target-alpha:queue-staged-fetch \
+scripts/grit-console --run-target-workflow-action target-alpha:queue-staged-fetch \
   --target-workflow-request-name grit
 
-scripts/grit-server --run-target-workflow-action target-alpha:show-upload-command \
+scripts/grit-console --run-target-workflow-action target-alpha:show-upload-command \
   --target-workflow-command /etc/config/network
 
-scripts/grit-server --run-target-workflow-action target-alpha:queue-bridge-start:lab-http
+scripts/grit-console --run-target-workflow-action target-alpha:queue-bridge-start:lab-http
 ```
 
 In line-mode TUI, action `15` lists the target workflow actions and prompts for

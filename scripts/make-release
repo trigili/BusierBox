@@ -714,7 +714,7 @@ def write_release_helpers(script_dir):
                 "trailer_support": {
                     "helpers": [
                         "scripts/lib/artifact-config",
-                        "scripts/grit-server",
+                        "scripts/grit-console",
                         "scripts/configure-artifact",
                         "scripts/configure-all",
                         "scripts/verify-checksums",
@@ -1327,7 +1327,7 @@ def write_release_helpers(script_dir):
             str(item) for item in (corresponding_source_policy.get("source_reconstruction_inputs") or [])
         ]
         run([str(root / "scripts" / "verify-checksums"), "--original"])
-        helpers = ("artifact-config", "grit-server", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find")
+        helpers = ("artifact-config", "grit-console", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find")
         for helper in helpers:
             path = root / "scripts" / helper
             if not os.access(path, os.X_OK):
@@ -1658,8 +1658,8 @@ def copy_bundle_support(release_dir, include_sources_manifest=True):
     (script_lib_dir / "artifact-config").chmod(0o755)
     shutil.copy2(script_lib_dir / "artifact-config", script_dir / "artifact-config")
     (script_dir / "artifact-config").chmod(0o755)
-    shutil.copy2(ROOT / "scripts" / "grit-server", script_dir / "grit-server")
-    (script_dir / "grit-server").chmod(0o755)
+    shutil.copy2(ROOT / "scripts" / "grit-console", script_dir / "grit-console")
+    (script_dir / "grit-console").chmod(0o755)
     write_release_helpers(script_dir)
     for name in ("release-index", "release-find", "release-self-test"):
         shutil.copy2(script_dir / name, script_lib_dir / name)
@@ -1712,7 +1712,7 @@ def write_release_quickstart(path, name):
 
             2. Start the operator console:
 
-               scripts/grit-server --tui
+               scripts/grit-console --tui
 
                In the console, type `?` for topics. The main release workflow is:
 
@@ -1778,12 +1778,12 @@ def write_release_quickstart(path, name):
 
             6. Operator services and target transfers:
 
-               scripts/grit-server --tui
-               scripts/grit-server --transport probe --probe-port 22207
-               scripts/grit-server --transport tls-shell --shell-port 22203
-               scripts/grit-server --transport ssh --ssh-port 22202
-               scripts/grit-server --file-service --file-port 22204
-               scripts/grit-server --daemon --daemon-service file-service --daemon-service command-queue
+               scripts/grit-console --tui
+               scripts/grit-console --transport probe --probe-port 22207
+               scripts/grit-console --transport tls-shell --shell-port 22203
+               scripts/grit-console --transport ssh --ssh-port 22202
+               scripts/grit-console --file-service --file-port 22204
+               scripts/grit-console --daemon --daemon-service file-service --daemon-service command-queue
 
                ./grit put /tmp/evidence.txt
                ./grit survey push
@@ -1832,7 +1832,7 @@ def write_release_readme(path, name):
             ```sh
             scripts/verify-checksums --original
             scripts/lib/release-self-test
-            scripts/grit-server --tui
+            scripts/grit-console --tui
             scripts/lib/release-find --device glinet-mt1300
             # In the console, probe the target, stage a matching release artifact,
             # then configure its staged copy before target fetch:
@@ -1856,7 +1856,7 @@ def write_release_readme(path, name):
             tooling by default. The console `configure` command edits a staged copy under
             the operator session so the original release artifact remains pristine.
 
-            `scripts/grit-server --tui` is the intended operator entry point for release
+            `scripts/grit-console --tui` is the intended operator entry point for release
             users. It can serve `probe.sh`, recommend a matching tuple, stage release
             artifacts or local files, print plain wget/curl target fetch commands, configure
             staged payload trailers, receive target uploads, and queue work for polling

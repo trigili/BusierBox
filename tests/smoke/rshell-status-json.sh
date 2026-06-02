@@ -208,7 +208,7 @@ grep -q '^would_reconnect_after_success_attempt_0=' "$tmp/status-human.out"
 grep -q '^would_reconnect_after_success_attempt_1=' "$tmp/status-human.out"
 grep -q '^would_reconnect_after_success_attempt_2=' "$tmp/status-human.out"
 grep -q '^target_dropbear=' "$tmp/status-human.out"
-grep -q '^server_listener=scripts/grit-server --transport ssh --ssh-port ' "$tmp/status-human.out"
+grep -q '^server_listener=scripts/grit-console --transport ssh --ssh-port ' "$tmp/status-human.out"
 grep -q '^zero_arg_autorun=' "$tmp/status-human.out"
 
 rm -f "$tmp/guard/rshell.status"

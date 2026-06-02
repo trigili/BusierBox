@@ -1,13 +1,13 @@
 # Server Bridge
 
-`scripts/grit-server --transport bridge` starts an explicit TCP relay. It
+`scripts/grit-console --transport bridge` starts an explicit TCP relay. It
 listens on the operator host and forwards each accepted client connection to a
 configured destination host and port.
 
 Example:
 
 ```sh
-scripts/grit-server \
+scripts/grit-console \
   --transport bridge \
   --listen-host 127.0.0.1 \
   --bridge-port 22206 \
@@ -46,24 +46,24 @@ Bridge profiles store repeatable bridge routes for CLI, status JSON, and the
 operator console. A profile without explicit hops is a simple one-hop route:
 
 ```sh
-scripts/grit-server \
+scripts/grit-console \
   --save-bridge-profile lab-http \
   --bridge-port 22206 \
   --bridge-dest-host 10.10.40.8 \
   --bridge-dest-port 80 \
   --bridge-profile-purpose web-admin
 
-scripts/grit-server --list-bridge-profiles
-scripts/grit-server --json-bridge-profiles
-scripts/grit-server --inspect-bridge-profile lab-http
-scripts/grit-server --transport bridge --bridge-profile lab-http
+scripts/grit-console --list-bridge-profiles
+scripts/grit-console --json-bridge-profiles
+scripts/grit-console --inspect-bridge-profile lab-http
+scripts/grit-console --transport bridge --bridge-profile lab-http
 ```
 
 Profiles can also carry explicit multi-hop chain metadata. Repeat `--bridge-hop`
 when saving the profile:
 
 ```sh
-scripts/grit-server \
+scripts/grit-console \
   --save-bridge-profile rack-chain \
   --bridge-port 22206 \
   --bridge-dest-host 10.10.40.8 \
@@ -85,7 +85,7 @@ listener; stop listeners explicitly with `--stop --transport bridge`.
 In line-mode TUI, action `17` opens bridge profile management. It lists saved
 profiles, can create or update a profile from prompts, inspect a profile, start
 or stop the bridge listener, and delete a profile. Each TUI path prints the
-equivalent `scripts/grit-server ...` command before or after applying the
+equivalent `scripts/grit-console ...` command before or after applying the
 action.
 The curses TUI also includes a persistent `Bridge Routes` pane. It lists saved
 profiles/chains with state, target association, hop count, and failure state;

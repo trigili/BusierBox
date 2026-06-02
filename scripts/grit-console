@@ -2756,7 +2756,7 @@ def set_workbench_target_filter(cfg, selector, targets=None):
             "selected_target_label": "",
             "selected_target_at": now,
         })
-        headless = "scripts/grit-server --config " + shquote(config_path) + " --status"
+        headless = "scripts/grit-console --config " + shquote(config_path) + " --status"
         append_event(cfg, "workbench", "workbench_target_filter_cleared", details={
             "selected_at": now,
             "headless_command": headless,
@@ -2804,7 +2804,7 @@ def set_workbench_target_filter(cfg, selector, targets=None):
         "selected_target_at": now,
     })
     headless = (
-        "scripts/grit-server --config "
+        "scripts/grit-console --config "
         + shquote(config_path)
         + " --target-id "
         + shquote(target_id)
@@ -2978,8 +2978,8 @@ def bridge_profile_record(cfg, name, rec, service_state=None):
     out["route_path"] = bridge_route_path(out)
     out["hop_count"] = len(out.get("hops") or []) if isinstance(out.get("hops"), list) else 1
     out["multi_hop"] = out["hop_count"] > 1
-    out["start_command"] = f"scripts/grit-server --transport bridge --bridge-profile {shquote(out['name'])}"
-    out["stop_command"] = "scripts/grit-server --stop --transport bridge"
+    out["start_command"] = f"scripts/grit-console --transport bridge --bridge-profile {shquote(out['name'])}"
+    out["stop_command"] = "scripts/grit-console --stop --transport bridge"
     out["requires_target_online"] = bool(out.get("target_id"))
     state = service_state if isinstance(service_state, dict) else {}
     active_profile = str(state.get("bridge_profile") or "")
@@ -3032,7 +3032,7 @@ def bridge_profile_indexes(records):
 
 def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    base = "scripts/grit-server --config " + shquote(config_path)
+    base = "scripts/grit-console --config " + shquote(config_path)
     target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
     fleet_mailbox_pending_work_count = sum(
         int_value(rec.get("mailbox_pending_work_count", 0))
@@ -3892,7 +3892,7 @@ def workbench_config_field_records(cfg):
             "options": fixed_options,
             "fixed_options": bool(fixed_options),
             "option_count": len(fixed_options),
-            "set_command": "scripts/grit-server --build-config "
+            "set_command": "scripts/grit-console --build-config "
                            + shquote(str(path)) + " --set-build-config "
                            + shquote(f"{key}=VALUE"),
             "has_set_command": True,
@@ -3950,9 +3950,9 @@ def set_workbench_build_config(cfg, assignment):
     path = build_config_path(cfg)
     old_value = parse_build_config(path).get("values", {}).get(key, "")
     write_build_config_value(path, key, value)
-    command = "scripts/grit-server --build-config " + shquote(str(path)) + " --set-build-config " + shquote(f"{key}={value}")
+    command = "scripts/grit-console --build-config " + shquote(str(path)) + " --set-build-config " + shquote(f"{key}={value}")
     headless_command = (
-        "scripts/grit-server --config "
+        "scripts/grit-console --config "
         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
         + " --build-config "
         + shquote(str(path))
@@ -3980,7 +3980,7 @@ def unset_workbench_build_config(cfg, key):
     old_value = parse_build_config(path).get("values", {}).get(key, "")
     removed = delete_build_config_value(path, key)
     headless_command = (
-        "scripts/grit-server --config "
+        "scripts/grit-console --config "
         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
         + " --build-config "
         + shquote(str(path))
@@ -4005,7 +4005,7 @@ def workbench_action_records(cfg):
     if not daemon_services:
         daemon_services = ["file-service", "command-queue"]
     daemon_service_args = " ".join("--daemon-service " + shquote(service) for service in daemon_services)
-    daemon_command = "scripts/grit-server --config " + shquote(config_path) + " --daemon " + daemon_service_args
+    daemon_command = "scripts/grit-console --config " + shquote(config_path) + " --daemon " + daemon_service_args
     records = [
         {
             "id": "configure-binary",
@@ -4123,7 +4123,7 @@ def workbench_action_records(cfg):
             "id": "operator-daemon-start",
             "category": "daemon",
             "label": "Start operator daemon for selected services",
-            "script": "scripts/grit-server",
+            "script": "scripts/grit-console",
             "command": daemon_command,
             "config_path": config_path,
             "writes_config": False,
@@ -4139,8 +4139,8 @@ def workbench_action_records(cfg):
             "id": "operator-daemon-status",
             "category": "daemon",
             "label": "Inspect operator daemon and managed listener state",
-            "script": "scripts/grit-server",
-            "command": "scripts/grit-server --config " + shquote(config_path) + " --status",
+            "script": "scripts/grit-console",
+            "command": "scripts/grit-console --config " + shquote(config_path) + " --status",
             "config_path": config_path,
             "writes_config": False,
             "runs_build": False,
@@ -4155,8 +4155,8 @@ def workbench_action_records(cfg):
             "id": "operator-daemon-stop",
             "category": "daemon",
             "label": "Stop managed operator daemon services",
-            "script": "scripts/grit-server",
-            "command": "scripts/grit-server --config " + shquote(config_path) + " --stop",
+            "script": "scripts/grit-console",
+            "command": "scripts/grit-console --config " + shquote(config_path) + " --stop",
             "config_path": config_path,
             "writes_config": False,
             "runs_build": False,
@@ -4171,8 +4171,8 @@ def workbench_action_records(cfg):
             "id": "systemd-user-print",
             "category": "daemon",
             "label": "Print systemd user service for operator daemon",
-            "script": "scripts/grit-server",
-            "command": "scripts/grit-server --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action print",
+            "script": "scripts/grit-console",
+            "command": "scripts/grit-console --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action print",
             "config_path": config_path,
             "writes_config": False,
             "runs_build": False,
@@ -4187,8 +4187,8 @@ def workbench_action_records(cfg):
             "id": "systemd-user-install",
             "category": "daemon",
             "label": "Install systemd user service for operator daemon",
-            "script": "scripts/grit-server",
-            "command": "scripts/grit-server --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action install",
+            "script": "scripts/grit-console",
+            "command": "scripts/grit-console --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action install",
             "config_path": config_path,
             "writes_config": True,
             "runs_build": False,
@@ -4203,8 +4203,8 @@ def workbench_action_records(cfg):
             "id": "systemd-user-start",
             "category": "daemon",
             "label": "Start systemd user service for operator daemon",
-            "script": "scripts/grit-server",
-            "command": "scripts/grit-server --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action start",
+            "script": "scripts/grit-console",
+            "command": "scripts/grit-console --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action start",
             "config_path": config_path,
             "writes_config": False,
             "runs_build": False,
@@ -4219,8 +4219,8 @@ def workbench_action_records(cfg):
             "id": "systemd-user-stop",
             "category": "daemon",
             "label": "Stop systemd user service for operator daemon",
-            "script": "scripts/grit-server",
-            "command": "scripts/grit-server --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action stop",
+            "script": "scripts/grit-console",
+            "command": "scripts/grit-console --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action stop",
             "config_path": config_path,
             "writes_config": False,
             "runs_build": False,
@@ -4235,8 +4235,8 @@ def workbench_action_records(cfg):
             "id": "systemd-user-restart",
             "category": "daemon",
             "label": "Restart systemd user service for operator daemon",
-            "script": "scripts/grit-server",
-            "command": "scripts/grit-server --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action restart",
+            "script": "scripts/grit-console",
+            "command": "scripts/grit-console --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action restart",
             "config_path": config_path,
             "writes_config": False,
             "runs_build": False,
@@ -4251,8 +4251,8 @@ def workbench_action_records(cfg):
             "id": "systemd-user-status",
             "category": "daemon",
             "label": "Check systemd user service for operator daemon",
-            "script": "scripts/grit-server",
-            "command": "scripts/grit-server --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action status",
+            "script": "scripts/grit-console",
+            "command": "scripts/grit-console --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action status",
             "config_path": config_path,
             "writes_config": False,
             "runs_build": False,
@@ -4491,7 +4491,7 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets
         start_job_command = str(action.get("start_job_command") or "")
         command = str(action.get("command") or "")
         workflow_run_command = (
-            "scripts/grit-server --config "
+            "scripts/grit-console --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
             + " --run-operator-daemon-workflow-action "
             + shquote(action_id)
@@ -4700,7 +4700,7 @@ def operator_console_workflow_records(
     warnings=None,
 ):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    base = "scripts/grit-server --config " + shquote(config_path)
+    base = "scripts/grit-console --config " + shquote(config_path)
     release = release or {}
 
     target_records = list(targets or [])
@@ -5168,7 +5168,7 @@ def operator_console_workflow_summary(records):
 
 def target_workflow_action_records(cfg, targets, bridge_profiles=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    base = "scripts/grit-server --config " + shquote(config_path)
+    base = "scripts/grit-console --config " + shquote(config_path)
     release = release_context(cfg)
     bridge_by_target = {}
     for profile in bridge_profiles or []:
@@ -5456,7 +5456,7 @@ def target_workflow_action_summary(records):
 
 def probe_workflow_action_records(cfg, service_row=None, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    base = "scripts/grit-server --config " + shquote(config_path)
+    base = "scripts/grit-console --config " + shquote(config_path)
     bridge_arg = (" --bridge-profile " + shquote(str(cfg.get("bridge_profile")))) if cfg.get("bridge_profile") else ""
     service_row = service_row if isinstance(service_row, dict) else {}
     actual = str(service_row.get("actual") or "unknown")
@@ -5464,7 +5464,7 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
     host = (local_ips() or ["OPERATOR_IP"])[0]
     route = probe_route_context(cfg, host=host, port=port)
     target_command = render_probe_command(cfg, host=host, port=port)
-    start_parts = ["scripts/grit-server", "--config", config_path, "--transport", "probe"]
+    start_parts = ["scripts/grit-console", "--config", config_path, "--transport", "probe"]
     if cfg.get("bridge_profile"):
         start_parts.extend(["--bridge-profile", str(cfg.get("bridge_profile"))])
     start_command = " ".join(shquote(str(item)) for item in start_parts)
@@ -5728,7 +5728,7 @@ def workbench_job_ownership_evidence(pid, rec):
     job_id = str(rec.get("id") or "")
     action_id = str(rec.get("action_id") or "")
     evidence = []
-    if str(rec.get("managed_by") or "") == "grit-server-workbench":
+    if str(rec.get("managed_by") or "") == "grit-console-workbench":
         evidence.append("ledger:managed-by-workbench")
     if job_id and pid_environ_contains(pid, "GRIT_WORKBENCH_JOB_ID", job_id):
         evidence.append("environ:job-id")
@@ -5934,7 +5934,7 @@ def workbench_job_summary(records):
 
 def start_workbench_job_headless_command(cfg, action_id, command_override=None):
     parts = [
-        "scripts/grit-server",
+        "scripts/grit-console",
         "--config",
         str(cfg.get("_config_path", DEFAULT_CONFIG)),
         "--start-workbench-job",
@@ -5947,7 +5947,7 @@ def start_workbench_job_headless_command(cfg, action_id, command_override=None):
 
 def cancel_workbench_job_headless_command(cfg, job_id):
     return (
-        "scripts/grit-server --config "
+        "scripts/grit-console --config "
         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
         + " --cancel-workbench-job "
         + shquote(str(job_id or ""))
@@ -5972,7 +5972,7 @@ def workbench_action_by_selector(cfg, selector):
 
 def run_workbench_action_headless_command(cfg, action_id, dry_run=False, confirmed=False):
     parts = [
-        "scripts/grit-server",
+        "scripts/grit-console",
         "--config",
         str(cfg.get("_config_path", DEFAULT_CONFIG)),
         "--run-workbench-action",
@@ -6110,7 +6110,7 @@ def start_workbench_job(cfg, action_id, command_override=None, headless_command=
         "state": "running",
         "pid": proc.pid,
         "process_group_id": proc.pid,
-        "managed_by": "grit-server-workbench",
+        "managed_by": "grit-console-workbench",
         "managed_by_pid": os.getpid(),
         "started_at": utc_now(),
         "log_path": str(log_path),
@@ -6242,7 +6242,7 @@ def staged_record_summary(records):
 
 def staged_file_workflow_action_records(cfg, staged_records, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    base = "scripts/grit-server --config " + shquote(config_path)
+    base = "scripts/grit-console --config " + shquote(config_path)
     target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
     targets_by_id = {str(rec.get("target_id") or ""): rec for rec in target_records if rec.get("target_id")}
     fleet_mailbox_pending_work_count = sum(
@@ -6483,7 +6483,7 @@ def staged_file_workflow_action_summary(records):
 
 def file_service_workflow_action_records(cfg, service_row, staged_records=None, uploads=None, fetches=None, transfer_records=None, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    base = "scripts/grit-server --config " + shquote(config_path)
+    base = "scripts/grit-console --config " + shquote(config_path)
     service_row = service_row if isinstance(service_row, dict) else {}
     actual = str(service_row.get("actual") or "unknown")
     configured = str(service_row.get("configured") or "")
@@ -7132,7 +7132,7 @@ def service_record_indexes(records):
 
 def service_workflow_action_records(cfg, services, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    status_command = "scripts/grit-server --config " + shquote(config_path) + " --status"
+    status_command = "scripts/grit-console --config " + shquote(config_path) + " --status"
     target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
     fleet_mailbox_pending_work_count = sum(
         int_value(rec.get("mailbox_pending_work_count", 0))
@@ -9645,7 +9645,7 @@ def command_queue_summary(cfg):
 
 def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_records=None, service_row=None, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    base = "scripts/grit-server --config " + shquote(config_path)
+    base = "scripts/grit-console --config " + shquote(config_path)
     service_row = service_row if isinstance(service_row, dict) else {}
     actual = str(service_row.get("actual") or "unknown")
     target_filter_id = configured_target_filter(cfg)
@@ -11081,7 +11081,7 @@ def stage_release_selection(cfg, selector):
 def release_artifact_workflow_action_records(cfg, release):
     release = release or {}
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    base = "scripts/grit-server --config " + shquote(config_path)
+    base = "scripts/grit-console --config " + shquote(config_path)
     release_dir = str(release.get("release_dir") or cfg.get("release_dir") or ".")
     release_present = bool(release)
     release_valid = bool(release.get("valid", release_present))
@@ -11572,7 +11572,7 @@ def open_path_in_pager(path):
 
 def view_path_headless_command(cfg, path):
     return (
-        "scripts/grit-server --config "
+        "scripts/grit-console --config "
         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
         + " --view-path "
         + shquote(str(path or ""))
@@ -11625,7 +11625,7 @@ def copy_generated_command(cfg, index):
     rec = records[pos]
     command = str(rec.get("command") or "")
     headless_parts = [
-        "scripts/grit-server",
+        "scripts/grit-console",
         "--config",
         str(cfg.get("_config_path", DEFAULT_CONFIG)),
     ]
@@ -11731,7 +11731,7 @@ def cmdline_option_matches_path(args, option, expected):
 
 
 def cmdline_looks_like_grit_server(args):
-    return any(Path(arg).name == "grit-server" or "grit-server" in arg for arg in args)
+    return any(Path(arg).name == "grit-console" or "grit-console" in arg for arg in args)
 
 
 def managed_server_evidence(pid, cfg=None, rec=None):
@@ -11739,12 +11739,12 @@ def managed_server_evidence(pid, cfg=None, rec=None):
         pid_text = str(int(pid))
     except (ValueError, TypeError):
         return []
-    if pid_text == str(os.getpid()) and Path(sys.argv[0]).name == "grit-server":
+    if pid_text == str(os.getpid()) and Path(sys.argv[0]).name == "grit-console":
         return ["current-process"]
     args = pid_cmdline_args(pid)
     if not cmdline_looks_like_grit_server(args):
         return []
-    evidence = ["cmdline:grit-server"]
+    evidence = ["cmdline:grit-console"]
     cfg = cfg or {}
     rec = rec if isinstance(rec, dict) else {}
     state_candidates = [
@@ -11928,8 +11928,8 @@ def bind_listen_socket(cfg, service, port, backlog):
                 if owner.get("cmdline"):
                     details.append(f"cmdline={owner.get('cmdline')}")
                 print(f"  pid={owner['pid']} {' '.join(details)}", file=sys.stderr)
-        print("Run: scripts/grit-server --status", file=sys.stderr)
-        print("Or stop managed listeners with: scripts/grit-server --stop", file=sys.stderr)
+        print("Run: scripts/grit-console --status", file=sys.stderr)
+        print("Or stop managed listeners with: scripts/grit-console --stop", file=sys.stderr)
         raise
 
 
@@ -14106,7 +14106,7 @@ def daemon_child_command(cfg, service):
 
 def operator_daemon_headless_command(cfg, services, timeout=None):
     parts = [
-        "scripts/grit-server",
+        "scripts/grit-console",
         "--config",
         str(cfg.get("_config_path", DEFAULT_CONFIG)),
         "--daemon",
@@ -14120,7 +14120,7 @@ def operator_daemon_headless_command(cfg, services, timeout=None):
 
 def operator_stop_headless_command(cfg):
     return (
-        "scripts/grit-server --config "
+        "scripts/grit-console --config "
         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
         + " --stop"
     )
@@ -14253,7 +14253,7 @@ def systemd_user_daemon_command(cfg, services):
 
 
 def systemd_user_headless_command(cfg, action, services, unit_name, unit_dir=None, dry_run=False):
-    parts = ["scripts/grit-server", "--config", str(cfg.get("_config_path", DEFAULT_CONFIG))]
+    parts = ["scripts/grit-console", "--config", str(cfg.get("_config_path", DEFAULT_CONFIG))]
     for service in configured_daemon_services(cfg, services):
         parts.extend(["--daemon-service", service])
     parts.extend(["--systemd-user-action", action, "--systemd-user-unit-name", unit_name])
@@ -14486,7 +14486,7 @@ def record_workbench_refresh(cfg, reason="manual"):
     rec = services.setdefault("workbench", {})
     count = int(rec.get("refresh_count", 0) or 0) + 1
     now = utc_now()
-    headless = "scripts/grit-server --config " + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG))) + " --status"
+    headless = "scripts/grit-console --config " + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG))) + " --status"
     rec.update({
         "status": rec.get("status") or "open",
         "last_refresh_at": now,
@@ -14589,7 +14589,7 @@ def status_summary_and_warnings(services):
                 warnings.append({**warning_context(row),
                     "type": "unexpected_listener",
                     "message": "actual listener was found but configured state does not say the service is listening",
-                    "suggested_action": "inspect the listener PID and run scripts/grit-server --stop if it is managed",
+                    "suggested_action": "inspect the listener PID and run scripts/grit-console --stop if it is managed",
                 })
         if row.get("listener_bind_mismatch"):
             warnings.append({**warning_context(row),
@@ -14607,14 +14607,14 @@ def status_summary_and_warnings(services):
             warnings.append({**warning_context(row),
                 "type": "service_error",
                 "message": message,
-                "suggested_action": "scripts/grit-server --status or scripts/grit-server --stop",
+                "suggested_action": "scripts/grit-console --status or scripts/grit-console --stop",
             })
         if row.get("stale"):
             summary["stale_count"] += 1
             warnings.append({**warning_context(row),
                 "type": "stale_state",
                 "message": "configured state says listening, but no actual listener was found",
-                "suggested_action": "scripts/grit-server --stop",
+                "suggested_action": "scripts/grit-console --stop",
             })
         if row.get("pid") and row.get("pid_alive") and not row.get("pid_managed"):
             warnings.append({**warning_context(row),
@@ -18018,8 +18018,8 @@ def status_document(cfg):
         "generated_at": utc_now(),
         "api": {
             "schema": 1,
-            "status_command": "scripts/grit-server --api-status",
-            "json_status_command": "scripts/grit-server --json-status",
+            "status_command": "scripts/grit-console --api-status",
+            "json_status_command": "scripts/grit-console --json-status",
             "event_limit": int(cfg.get("_event_limit", 0) or 0),
             "target_filter_active": bool(target_filter_id),
             "target_filter_id": target_filter_id,
@@ -19554,7 +19554,7 @@ def generated_target_command_records(cfg, staged=None):
         record["ordinal"] = idx
         record["copy_supported"] = bool(command)
         record["copy_selector"] = str(idx)
-        copy_cmd = ["scripts/grit-server"]
+        copy_cmd = ["scripts/grit-console"]
         if configured_target_filter(cfg):
             copy_cmd.extend(["--target-id", configured_target_filter(cfg)])
         copy_cmd.extend(["--copy-target-command", str(idx)])
@@ -19656,7 +19656,7 @@ def print_status(cfg, json_output=False):
                 print(f"  operator path kind mismatch: {rec.get('path', '')} expected={rec.get('expected_kind', '')} actual={actual}")
     if any(row["stale"] for row in doc["services"]):
         print_warnings_header_once()
-        print("  stale state detected; run scripts/grit-server --stop to clean managed records")
+        print("  stale state detected; run scripts/grit-console --stop to clean managed records")
     if any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]):
         print_warnings_header_once()
         print("  actual listener detected while configured state is not listening; inspect listener PID ownership")
@@ -19930,7 +19930,7 @@ def stop_managed_services(cfg):
             continue
         ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec)
         if not ownership_evidence:
-            print(f"{name}: skipped pid {pid}; not clearly a managed grit-server process")
+            print(f"{name}: skipped pid {pid}; not clearly a managed grit-console process")
             append_event(cfg, name, "service_stop_skipped", details={"pid": pid, "reason": "unmanaged-pid", "via": "server-stop", "headless_command": headless})
             skipped += 1
             continue
@@ -20263,7 +20263,7 @@ def print_workbench(cfg, include_api_summary=True):
                     print(f"    {line}")
                 for line in artifact_doom_wad_lines(artifact):
                     print(f"    {line}")
-                print(f"    stage: scripts/grit-server --stage-release-artifact {shquote(artifact.get('release_path') or artifact.get('name', ''))}")
+                print(f"    stage: scripts/grit-console --stage-release-artifact {shquote(artifact.get('release_path') or artifact.get('name', ''))}")
         else:
             print("  artifacts: none")
         print("Release recommendations:")
@@ -20287,7 +20287,7 @@ def print_workbench(cfg, include_api_summary=True):
 
 def service_start_headless_command(cfg, service, argv_extra=None):
     parts = [
-        "scripts/grit-server",
+        "scripts/grit-console",
         "--config",
         str(cfg.get("_config_path", DEFAULT_CONFIG)),
         "--transport",
@@ -20370,7 +20370,7 @@ def stop_workbench_started_services(cfg):
 
 def service_stop_headless_command(cfg, service):
     return (
-        "scripts/grit-server --config "
+        "scripts/grit-console --config "
         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
         + " --stop-service "
         + shquote(str(service or ""))
@@ -20379,7 +20379,7 @@ def service_stop_headless_command(cfg, service):
 
 def run_service_workflow_action_headless_command(cfg, action_id, dry_run=False, confirmed=False):
     parts = [
-        "scripts/grit-server",
+        "scripts/grit-console",
         "--config",
         str(cfg.get("_config_path", DEFAULT_CONFIG)),
         "--run-service-workflow-action",
@@ -20424,7 +20424,7 @@ def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="
         return
     ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec)
     if not ownership_evidence:
-        print(f"{service}: skipped pid {pid}; not clearly a managed grit-server process")
+        print(f"{service}: skipped pid {pid}; not clearly a managed grit-console process")
         append_event(cfg, service, "service_stop_skipped", details={**details_base, "pid": pid, "reason": "unmanaged-pid"})
         return
     try:
@@ -21844,7 +21844,7 @@ def run_line_tui(cfg):
         return None
 
     def bridge_profile_headless_command(action, name="", extra=None):
-        cmd = ["scripts/grit-server", "--config", str(cfg.get("_config_path", DEFAULT_CONFIG))]
+        cmd = ["scripts/grit-console", "--config", str(cfg.get("_config_path", DEFAULT_CONFIG))]
         if action == "inspect":
             cmd.extend(["--inspect-bridge-profile", name])
         elif action == "start":
@@ -23074,7 +23074,7 @@ def run_line_tui(cfg):
         else:
             raise ValueError(f"unknown option: {name}")
         headless = (
-            "scripts/grit-server --config "
+            "scripts/grit-console --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
             + " --set-target-label "
             + shquote(target_id)
@@ -23133,7 +23133,7 @@ def run_line_tui(cfg):
     def print_target_metadata_headless_command(target_id):
         rec = (load_targets(cfg).get("targets") or {}).get(target_id, {})
         headless = (
-            "scripts/grit-server --config "
+            "scripts/grit-console --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
             + " --set-target-label "
             + shquote(target_id)
@@ -23333,7 +23333,7 @@ def run_line_tui(cfg):
         print(target_filter_summary_text(target_filter, prefix="  status:"))
         print("  commands: queue COMMAND, probe --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target")
         print(
-            "  headless_status: scripts/grit-server --config "
+            "  headless_status: scripts/grit-console --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
             + " --target-id "
             + shquote(target_id)
@@ -24855,7 +24855,7 @@ def run_line_tui(cfg):
         if not text:
             raise ValueError("usage: queue COMMAND")
         headless = (
-            "scripts/grit-server --config "
+            "scripts/grit-console --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
         )
         if configured_target_filter(cfg):
@@ -24934,7 +24934,7 @@ def run_line_tui(cfg):
                 raise ValueError("usage: queue clear --confirm")
             count = clear_command_queue(cfg)
             headless = (
-                "scripts/grit-server --config "
+                "scripts/grit-console --config "
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                 + " --clear-command-queue --list-command-queue"
             )
@@ -24977,7 +24977,7 @@ def run_line_tui(cfg):
             raise ValueError("select an agent before download; use agent NAME or use target ID")
         command = render_file_service_command(["put", path], cfg)
         headless = (
-            "scripts/grit-server --config "
+            "scripts/grit-console --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
             + " --target-id "
             + shquote(target_id)
@@ -26179,7 +26179,7 @@ def run_line_tui(cfg):
         if not selector:
             raise ValueError("usage: release stage [--start] SELECTOR")
         headless = (
-            "scripts/grit-server --config "
+            "scripts/grit-console --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
             + " --stage-release-artifact "
             + shquote(selector)
@@ -26266,7 +26266,7 @@ def run_line_tui(cfg):
         source_path = Path(selector).expanduser()
         if source_path.is_file():
             headless = (
-                "scripts/grit-server --config "
+                "scripts/grit-console --config "
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                 + " --serve-file "
                 + shquote(str(source_path))
@@ -26279,7 +26279,7 @@ def run_line_tui(cfg):
             if not rel:
                 raise ValueError(f"binary path does not exist and no release bundle is available: {selector}")
             headless = (
-                "scripts/grit-server --config "
+                "scripts/grit-console --config "
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                 + " --stage-release-artifact "
                 + shquote(selector)
@@ -26551,7 +26551,7 @@ def run_line_tui(cfg):
             raise ValueError("usage: upload [--start] LOCAL [NAME]")
         name = str(request_name or "").strip() or Path(path).name
         headless = (
-            "scripts/grit-server --config "
+            "scripts/grit-console --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
             + " --serve-file "
             + shquote(path)
@@ -26635,7 +26635,7 @@ def run_line_tui(cfg):
         fetch_command = render_fetch_command(name, scoped)
         if target_id:
             headless = (
-                "scripts/grit-server --config "
+                "scripts/grit-console --config "
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                 + " --target-id "
                 + shquote(target_id)
@@ -26644,7 +26644,7 @@ def run_line_tui(cfg):
             )
         else:
             headless = (
-                "scripts/grit-server --config "
+                "scripts/grit-console --config "
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                 + " --run-staged-file-workflow-action "
                 + shquote(f"{name}:show-fetch-command")
@@ -26694,7 +26694,7 @@ def run_line_tui(cfg):
         if not name:
             raise ValueError("usage: unstage NAME")
         headless = (
-            "scripts/grit-server --config "
+            "scripts/grit-console --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
             + " --unstage "
             + shquote(name)
@@ -27569,7 +27569,7 @@ def run_line_tui(cfg):
             name = name_line.strip() if name_line is not None else ""
             try:
                 headless = (
-                    "scripts/grit-server --config "
+                    "scripts/grit-console --config "
                     + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                     + " --serve-file "
                     + shquote(path)
@@ -27626,7 +27626,7 @@ def run_line_tui(cfg):
                     )
                     print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
             headless = (
-                "scripts/grit-server --config "
+                "scripts/grit-console --config "
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                 + " --list-staged"
             )
@@ -27643,7 +27643,7 @@ def run_line_tui(cfg):
             if name:
                 try:
                     headless = (
-                        "scripts/grit-server --config "
+                        "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                         + " --unstage "
                         + shquote(name)
@@ -27690,7 +27690,7 @@ def run_line_tui(cfg):
             if selector:
                 try:
                     headless = (
-                        "scripts/grit-server --config "
+                        "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                         + " --stage-release-artifact "
                         + shquote(selector)
@@ -27717,7 +27717,7 @@ def run_line_tui(cfg):
                 print(exc)
         elif choice == "11":
             headless = (
-                "scripts/grit-server --config "
+                "scripts/grit-console --config "
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                 + " --status"
             )
@@ -27905,7 +27905,7 @@ def run_line_tui(cfg):
                 try:
                     action = runnable[int(selected) - 1]["id"] if selected.isdigit() else selected
                     headless = (
-                        "scripts/grit-server --config "
+                        "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                         + " --start-workbench-job "
                         + shquote(action)
@@ -27925,7 +27925,7 @@ def run_line_tui(cfg):
             if job_id:
                 try:
                     headless = (
-                        "scripts/grit-server --config "
+                        "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                         + " --cancel-workbench-job "
                         + shquote(job_id)
@@ -27950,11 +27950,11 @@ def run_line_tui(cfg):
                     if not key:
                         raise ValueError(f"unknown build config field: {selected}")
                     print(f"current {key}={shell_double_quote(rec.get('value', ''))}")
-                    print(f"underlying command: scripts/grit-server --build-config {shquote(str(build_config_path(cfg)))} --set-build-config {shquote(key + '=VALUE')}")
+                    print(f"underlying command: scripts/grit-console --build-config {shquote(str(build_config_path(cfg)))} --set-build-config {shquote(key + '=VALUE')}")
                     value_line = line_input("new value> ")
                     value = value_line if value_line is not None else ""
                     headless = (
-                        "scripts/grit-server --config "
+                        "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                         + " --build-config "
                         + shquote(str(build_config_path(cfg)))
@@ -28108,7 +28108,7 @@ def run_line_tui(cfg):
                         raise ValueError(f"target not found: {current}")
                 elif selected.lower() in ("all", "*"):
                     headless = (
-                        "scripts/grit-server --config "
+                        "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                         + " --status"
                     )
@@ -28143,7 +28143,7 @@ def run_line_tui(cfg):
                 scoped = scoped_target_cfg(cfg, target_id, target_label=target_label)
                 scoped_snap = workbench_snapshot(scoped)
                 headless = (
-                    "scripts/grit-server --config "
+                    "scripts/grit-console --config "
                     + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                     + " --target-id "
                     + shquote(target_id)
@@ -28188,7 +28188,7 @@ def run_line_tui(cfg):
             if cfg.get("bridge_profile"):
                 argv_extra.extend(["--bridge-profile", str(cfg.get("bridge_profile"))])
             headless = start_action.get("headless_command") or start_action.get("command") or (
-                "scripts/grit-server --config "
+                "scripts/grit-console --config "
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                 + " --transport probe"
             )
@@ -28280,7 +28280,7 @@ def run_line_tui(cfg):
                         raise ValueError(f"target not found: {selected}")
                 if scope == "all":
                     headless = (
-                        "scripts/grit-server --config "
+                        "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                         + " --json-status"
                     )
@@ -28300,7 +28300,7 @@ def run_line_tui(cfg):
                     scoped = scoped_target_cfg(cfg, target_id, target_label=target_label)
                     activity_doc = workbench_snapshot(scoped)
                     headless = (
-                        "scripts/grit-server --config "
+                        "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                         + " --target-id "
                         + shquote(target_id)
@@ -29353,7 +29353,7 @@ def run_curses_tui(cfg):
                 elif pane == 10:
                     action = command_queue_workflow_actions_by_id.get("command-queue:list-command-queue") or {}
                     command = action.get("headless_command", action.get("command", "")) or (
-                        "scripts/grit-server --config "
+                        "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                         + " --list-command-queue"
                     )
@@ -29558,7 +29558,7 @@ def run_line_console(cfg):
         return run_line_tui(cfg)
     except KeyboardInterrupt:
         request_shutdown("keyboard_interrupt")
-        print("grit-server: interrupted, shutting down workbench", file=sys.stderr)
+        print("grit-console: interrupted, shutting down workbench", file=sys.stderr)
         return 130
     finally:
         stop_workbench_started_services(cfg)
@@ -29594,7 +29594,7 @@ def run_tui(cfg):
         return run_curses_tui(cfg)
     except KeyboardInterrupt:
         request_shutdown("keyboard_interrupt")
-        print("grit-server: interrupted, shutting down workbench", file=sys.stderr)
+        print("grit-console: interrupted, shutting down workbench", file=sys.stderr)
         return 130
     except Exception as exc:
         print(f"curses workbench unavailable, using line console: {exc}", file=sys.stderr)
@@ -29637,14 +29637,14 @@ def _resolve_transport(cfg, args_transport):
 
 def print_concise_help():
     print("""\
-usage: grit-server [--config CONFIG] [mode] [options]
+usage: grit-console [--config CONFIG] [mode] [options]
 
 griTTYkit operator control plane.
 
 Start here:
-  grit-server --tui
-  grit-server --status
-  grit-server --json-status
+  grit-console --tui
+  grit-console --status
+  grit-console --json-status
 
 Common operator workflows:
   --daemon --daemon-service file-service --daemon-service command-queue
@@ -29670,7 +29670,7 @@ Reference:
 
 def print_console_help_reference():
     print("""\
-usage: grit-server --tui
+usage: grit-console --tui
 
 griTTYkit operator console reference.
 
@@ -30120,10 +30120,10 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         try:
             apply_bridge_profile(cfg, args.bridge_profile)
         except ValueError as exc:
-            print(f"grit-server: {exc}", file=sys.stderr)
+            print(f"grit-console: {exc}", file=sys.stderr)
             return 2
     if args.event_limit < 0:
-        print("grit-server: --event-limit must be >= 0", file=sys.stderr)
+        print("grit-console: --event-limit must be >= 0", file=sys.stderr)
         return 2
     cfg["_event_limit"] = args.event_limit
 
@@ -30287,7 +30287,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             print(f"targets_file={targets_path(cfg)}")
             return 0
     except ValueError as exc:
-        print(f"grit-server: {exc}", file=sys.stderr)
+        print(f"grit-console: {exc}", file=sys.stderr)
         return 2
 
     try:
@@ -30321,7 +30321,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             print_command_queue(cfg, json_output=args.json_command_queue)
             return 0
     except ValueError as exc:
-        print(f"grit-server: {exc}", file=sys.stderr)
+        print(f"grit-console: {exc}", file=sys.stderr)
         return 2
 
     if args.status or args.json_status or args.api_status:
@@ -30347,7 +30347,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                 dry_run=args.systemd_user_dry_run,
             )
         except ValueError as exc:
-            print(f"grit-server: {exc}", file=sys.stderr)
+            print(f"grit-console: {exc}", file=sys.stderr)
             return 2
 
     timeout = None if args.timeout == 0 else args.timeout
@@ -30355,7 +30355,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         try:
             return run_operator_daemon(cfg, args.daemon_service, timeout=timeout)
         except ValueError as exc:
-            print(f"grit-server: {exc}", file=sys.stderr)
+            print(f"grit-console: {exc}", file=sys.stderr)
             return 2
     action = "file-service" if args.file_service else _resolve_transport(cfg, args.transport)
     script_bytes = None
@@ -30396,7 +30396,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             print_staged(cfg)
             return 0
     except ValueError as exc:
-        print(f"grit-server: {exc}", file=sys.stderr)
+        print(f"grit-console: {exc}", file=sys.stderr)
         return 2
 
     if args.tui:
@@ -30439,7 +30439,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         if action == "probe":
             return serve_probe(cfg, timeout, max_sessions=1 if args.one_shot else 0)
     except KeyboardInterrupt:
-        print("grit-server: interrupted, shutting down", file=sys.stderr)
+        print("grit-console: interrupted, shutting down", file=sys.stderr)
         request_shutdown("keyboard_interrupt")
         record_shutdown_event(cfg, action)
         mark_service_stopped(cfg, action, "keyboard_interrupt")

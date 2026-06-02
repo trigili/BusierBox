@@ -215,11 +215,11 @@ cat >"$cfg" <<EOF
   "session_root": "$sessions_dir"
 }
 EOF
-scripts/grit-server --config "$cfg" --transport file-service --file-service-tls no \
+scripts/grit-console --config "$cfg" --transport file-service --file-service-tls no \
     --serve-file "$staged" --as reality-fetch.txt --timeout 10 >"$tmp/server.out" 2>"$tmp/server.err" &
 server_pid=$!
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-    scripts/grit-server --config "$cfg" --json-status >"$tmp/server-status.json"
+    scripts/grit-console --config "$cfg" --json-status >"$tmp/server-status.json"
     if grep -q "\"actual\": \"listening\"" "$tmp/server-status.json"; then
         break
     fi
@@ -250,11 +250,11 @@ for name in ("upload_operator", "fetch_operator"):
         raise SystemExit(f"reality-test: {name} did not pass against local operator service: {item}")
 PY
 
-scripts/grit-server --config "$cfg" --transport file-service --file-service-tls no \
+scripts/grit-console --config "$cfg" --transport file-service --file-service-tls no \
     --serve-file "$staged_spaced" --as "dir/reality fetch spaced.txt" --timeout 10 >"$tmp/server-spaced.out" 2>"$tmp/server-spaced.err" &
 server_pid=$!
 for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
-    scripts/grit-server --config "$cfg" --json-status >"$tmp/server-spaced-status.json"
+    scripts/grit-console --config "$cfg" --json-status >"$tmp/server-spaced-status.json"
     if grep -q "\"actual\": \"listening\"" "$tmp/server-spaced-status.json"; then
         break
     fi

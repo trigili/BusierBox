@@ -18,7 +18,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 SECTION_DESCRIPTIONS = {
-    "full": "complete grit-server smoke: integration plus line-console workflow",
+    "full": "complete grit-console smoke: integration plus line-console workflow",
     "preflight": "fast static/API checks for help text, status fields, and safety guards",
     "integration": "long runtime integration checks for listeners, workflows, status, and file service",
     "line-console": "isolated line-oriented TUI command workflow smoke",
@@ -244,7 +244,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "artifacts": [],
     }), encoding="utf-8")
     line_console_target = run(
-        "scripts/grit-server",
+        "scripts/grit-console",
         "--config", str(upload_cfg),
         "--state-file", str(line_console_state),
         "--staged-file", str(line_console_staged),
@@ -267,7 +267,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     while line_console_added_route_dest_port in {line_console_route_port, line_console_route_dest_port, line_console_added_route_port}:
         line_console_added_route_dest_port = free_port()
     line_console_route = run(
-        "scripts/grit-server",
+        "scripts/grit-console",
         "--config", str(upload_cfg),
         "--state-file", str(line_console_state),
         "--staged-file", str(line_console_staged),
@@ -558,7 +558,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "grit[all]/session/",
         "session.id=",
         "session.service=",
-        "session.view_command=scripts/grit-server --config",
+        "session.view_command=scripts/grit-console --config",
         "commands: info, options, interact, sessions -v, background",
     ]
     line_console_missing_markers = [
@@ -580,7 +580,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Raw JSONL: view ",
         "filters: limit=2 service=workbench",
         "daemon -v for commands",
-        "dry-run: scripts/grit-server --config",
+        "dry-run: scripts/grit-console --config",
         "saved route zz-console-added",
         "started route zz-console-added",
         "stopped route zz-console-added",
@@ -764,7 +764,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     return 0
 
 def parse_args(argv):
-    parser = argparse.ArgumentParser(description="Run grit-server smoke checks.")
+    parser = argparse.ArgumentParser(description="Run grit-console smoke checks.")
     parser.add_argument(
         "--section",
         choices=SECTIONS,
@@ -786,12 +786,12 @@ def main(argv=None):
             print(f"{section}\t{SECTION_DESCRIPTIONS[section]}")
         return 0
 
-    server = ROOT / "scripts" / "grit-server"
+    server = ROOT / "scripts" / "grit-console"
 
     if args.section == "line-console":
         return run_line_console_section(server)
 
-    help_out = run("scripts/grit-server", "--help")
+    help_out = run("scripts/grit-console", "--help")
     if help_out.returncode != 0:
         print(help_out.stderr, file=sys.stderr)
         return 1
@@ -800,10 +800,10 @@ def main(argv=None):
             "--help-console prints interactive console commands and examples." not in concise_help or
             "--help-all prints every compatibility/API flag." not in concise_help or
             "--run-target-workflow-action" in concise_help):
-        print("grit-server concise help did not stay operator-focused", file=sys.stderr)
+        print("grit-console concise help did not stay operator-focused", file=sys.stderr)
         print(concise_help, file=sys.stderr)
         return 1
-    help_console_out = run("scripts/grit-server", "--help-console")
+    help_console_out = run("scripts/grit-console", "--help-console")
     if help_console_out.returncode != 0:
         print(help_console_out.stderr, file=sys.stderr)
         return 1
@@ -828,10 +828,10 @@ def main(argv=None):
             "makerc FILE" not in console_help or
             "!!, !N, repeat N" not in console_help or
             "--run-target-workflow-action" in console_help):
-        print("grit-server console help did not stay console-focused", file=sys.stderr)
+        print("grit-console console help did not stay console-focused", file=sys.stderr)
         print(console_help, file=sys.stderr)
         return 1
-    help_all_out = run("scripts/grit-server", "--help-all")
+    help_all_out = run("scripts/grit-console", "--help-all")
     if help_all_out.returncode != 0:
         print(help_all_out.stderr, file=sys.stderr)
         return 1
@@ -844,16 +844,16 @@ def main(argv=None):
 
     # help must describe tls-shell as accepting both builtin+tls and socat+tls
     if "tls-shell" not in combined:
-        print("grit-server help missing tls-shell transport description", file=sys.stderr)
+        print("grit-console help missing tls-shell transport description", file=sys.stderr)
         return 1
     if "file-service" not in combined or "--file-service" not in combined:
-        print("grit-server help missing receive-only file service", file=sys.stderr)
+        print("grit-console help missing receive-only file service", file=sys.stderr)
         return 1
     if "bridge" not in combined or "--bridge-dest-host" not in combined or "--bridge-dest-port" not in combined:
-        print("grit-server help missing explicit bridge mode", file=sys.stderr)
+        print("grit-console help missing explicit bridge mode", file=sys.stderr)
         return 1
     if "probe" not in combined or "--probe-port" not in combined:
-        print("grit-server help missing probe mode", file=sys.stderr)
+        print("grit-console help missing probe mode", file=sys.stderr)
         return 1
     for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--run-release-artifact-workflow-action", "--list-staged", "--status", "--stop", "--stop-service", "--view-path", "--json-status", "--api-status", "--event-limit",
                  "--help-console",
@@ -868,11 +868,11 @@ def main(argv=None):
                  "--run-staged-file-workflow-action", "--confirm-staged-file-workflow-action",
                  "--build-config", "--list-build-config", "--set-build-config"):
         if word not in combined:
-            print(f"grit-server help missing operator workbench flag: {word}", file=sys.stderr)
+            print(f"grit-console help missing operator workbench flag: {word}", file=sys.stderr)
             return 1
 
     # Paramiko key comparison must use get_name/get_base64, not object equality
-    src = (ROOT / "scripts" / "grit-server").read_text()
+    src = (ROOT / "scripts" / "grit-console").read_text()
     release_docs = (ROOT / "docs" / "release-bundles.md").read_text()
     for word in ("invalid_command_queue_policy",
                  "command_queue_policy_valid",
@@ -881,20 +881,20 @@ def main(argv=None):
             print(f"release bundle status docs missing command queue policy contract: {word}", file=sys.stderr)
             return 1
     if "get_name()" not in src or "get_base64()" not in src:
-        print("grit-server: Paramiko key comparison missing get_name()/get_base64()", file=sys.stderr)
+        print("grit-console: Paramiko key comparison missing get_name()/get_base64()", file=sys.stderr)
         return 1
     # Should not use bare == or 'is' for key objects
     # (keys_equal helper function should exist)
     if "keys_equal" not in src:
-        print("grit-server: keys_equal helper not found", file=sys.stderr)
+        print("grit-console: keys_equal helper not found", file=sys.stderr)
         return 1
 
     # New config field names: GRIT_RSHELL_SOCAT_PORT (not socat_listen_port or shell_listen_port)
     if "GRIT_RSHELL_SOCAT_PORT" not in src:
-        print("grit-server: shell_listen_port not found (expected rename from socat_listen_port)", file=sys.stderr)
+        print("grit-console: shell_listen_port not found (expected rename from socat_listen_port)", file=sys.stderr)
         return 1
     if "sys.stdin.isatty()" not in src or "--no-stdin" not in src or "--log-only" not in src:
-        print("grit-server: stdin EOF/log-only handling not found", file=sys.stderr)
+        print("grit-console: stdin EOF/log-only handling not found", file=sys.stderr)
         return 1
     for word in ("open_path_in_pager", "view_path_headless_command", "workbench_path_viewed", "pager_command", 'ord("v")', "v opens", "copy_generated_command", "clipboard_command",
                  "event_id:", "details_json:", "v opens operator event log in pager", "record_workbench_refresh",
@@ -943,21 +943,21 @@ def main(argv=None):
                  "Workflow Actions", "enter starts background workflow job when supported", "action 11 opens full workflow action list",
                  "Operator Daemon", "enter starts/stops attached operator daemon", "TUI attaches through shared status/state files"):
         if word not in src:
-            print(f"grit-server: workbench pager inspection missing: {word}", file=sys.stderr)
+            print(f"grit-console: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
     for word in ("stage_release_nav_item", "stage_release_selection", "by_device:", "by_tuple_path:", "enter/s stages recommended artifact when available"):
         if word not in src:
-            print(f"grit-server: release device/tuple staging missing: {word}", file=sys.stderr)
+            print(f"grit-console: release device/tuple staging missing: {word}", file=sys.stderr)
             return 1
     for word in ("tty.setraw", "tcsetattr", "SSLWantReadError", "SSLWantWriteError",
                  "bytearray", "--one-shot", "listener remains open", 'reason = "active"',
                  "TLSVersion.TLSv1_2"):
         if word not in src:
-            print(f"grit-server: robust interactive relay feature missing: {word}", file=sys.stderr)
+            print(f"grit-console: robust interactive relay feature missing: {word}", file=sys.stderr)
             return 1
     for reason in ("stdin_eof", "remote_eof", "socket_error", "tls_error", "keyboard_interrupt", "timeout"):
         if reason not in src:
-            print(f"grit-server: relay exit reason missing: {reason}", file=sys.stderr)
+            print(f"grit-console: relay exit reason missing: {reason}", file=sys.stderr)
             return 1
     for word in (
         "Receive-only file service",
@@ -968,22 +968,22 @@ def main(argv=None):
         "GRIT_OPERATOR_FILE_SERVICE_PORT",
     ):
         if word not in src:
-            print(f"grit-server: file service feature missing: {word}", file=sys.stderr)
+            print(f"grit-console: file service feature missing: {word}", file=sys.stderr)
             return 1
     for word in ("reverse_forward_active", "requested_port", "forward_host",
                  "reverse_forward_listener", "reverse-forward listener bind failed"):
         if word not in src:
-            print(f"grit-server: reverse forward event missing: {word}", file=sys.stderr)
+            print(f"grit-console: reverse forward event missing: {word}", file=sys.stderr)
             return 1
     if 'name="grit-reverse-forward"' not in src or "join(timeout=2.0)" not in src:
-        print("grit-server: reverse-forward listener thread is not explicitly owned/joined", file=sys.stderr)
+        print("grit-console: reverse-forward listener thread is not explicitly owned/joined", file=sys.stderr)
         return 1
     if ("grit-reverse-forward-pipe-" not in src or
             "register_socket(local)" not in src or
             "register_transport(chan)" not in src or
             "register_thread(threading.Thread(" not in src or
             "daemon=True" in src):
-        print("grit-server: reverse-forward relay resources are not explicitly owned", file=sys.stderr)
+        print("grit-console: reverse-forward relay resources are not explicitly owned", file=sys.stderr)
         return 1
     for word in ("class ServiceManager", "SERVICE_MANAGER = ServiceManager()", "register_transport",
                  "SERVICE_MANAGER.register_socket", "SERVICE_MANAGER.shutdown()", "register_thread",
@@ -991,29 +991,29 @@ def main(argv=None):
                  "class Session", "class SessionManager", "SESSION_MANAGER = SessionManager()",
                  "SESSION_MANAGER.start_record", "SESSION_MANAGER.finish_record"):
         if word not in src:
-            print(f"grit-server: service/session manager primitive missing: {word}", file=sys.stderr)
+            print(f"grit-console: service/session manager primitive missing: {word}", file=sys.stderr)
             return 1
     if "OWNED_TRANSPORTS.append(transport)" in src:
-        print("grit-server: transport ownership bypasses ServiceManager", file=sys.stderr)
+        print("grit-console: transport ownership bypasses ServiceManager", file=sys.stderr)
         return 1
     if "proc = subprocess.Popen(cmd" in src:
-        print("grit-server: workbench child process bypasses ServiceManager", file=sys.stderr)
+        print("grit-console: workbench child process bypasses ServiceManager", file=sys.stderr)
         return 1
     stop_helper = src[src.find("def stop_recorded_service"):src.find("def run_line_tui")]
     if ("managed_server_evidence(pid, cfg=cfg, rec=rec)" not in stop_helper or
             "service_stop_skipped" not in stop_helper or
             "unmanaged-pid" not in stop_helper or
             "workbench-stop" not in stop_helper):
-        print("grit-server: workbench stop path lacks managed-PID safety guard", file=sys.stderr)
+        print("grit-console: workbench stop path lacks managed-PID safety guard", file=sys.stderr)
         return 1
     if ("cmdline_option_matches_path" not in src or
             "ownership_evidence" not in src or
             "unmanaged_recorded_pid" not in src):
-        print("grit-server: PID ownership evidence reporting missing", file=sys.stderr)
+        print("grit-console: PID ownership evidence reporting missing", file=sys.stderr)
         return 1
 
     if args.section == "preflight":
-        print("grit-server smoke preflight ok")
+        print("grit-console smoke preflight ok")
         return 0
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -1036,7 +1036,7 @@ def main(argv=None):
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
         }), encoding="utf-8")
-        result = run("scripts/grit-server", "--config", str(cfg),
+        result = run("scripts/grit-console", "--config", str(cfg),
                      "--transport", "tls-shell", "--timeout", "0.05")
         combined = result.stdout + result.stderr
         # The server should have auto-generated the cert and started
@@ -1068,7 +1068,7 @@ def main(argv=None):
             "bridge_profiles_file": str(bridge_profiles),
         }), encoding="utf-8")
         save_bridge_profile = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--target-id", "target-bridge",
             "--target-label", "Bridge Target",
@@ -1085,7 +1085,7 @@ def main(argv=None):
             print(save_bridge_profile.stderr, file=sys.stderr)
             return 1
         save_bridge_chain = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--target-id", "target-bridge",
             "--target-label", "Bridge Target",
@@ -1104,7 +1104,7 @@ def main(argv=None):
             print(save_bridge_chain.stderr, file=sys.stderr)
             return 1
         save_delete_bridge = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--save-bridge-profile", "delete-me",
             "--bridge-profile-purpose", "temporary",
@@ -1115,7 +1115,7 @@ def main(argv=None):
             print(save_delete_bridge.stderr, file=sys.stderr)
             return 1
         inspect_bridge_profile = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--inspect-bridge-profile", "chain-http",
         )
@@ -1128,7 +1128,7 @@ def main(argv=None):
             print(inspect_bridge_profile.stderr, file=sys.stderr)
             return 1
         inspect_bridge_json = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--inspect-bridge-profile", "chain-http",
             "--json-bridge-profiles",
@@ -1139,7 +1139,7 @@ def main(argv=None):
             print(json.dumps(inspect_bridge_json, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         delete_bridge_profile = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--delete-bridge-profile", "delete-me",
         )
@@ -1207,7 +1207,7 @@ def main(argv=None):
             print(bridge_tui_stderr or "", file=sys.stderr)
             return 1
         list_bridge_profiles = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--list-bridge-profiles",
         )
@@ -1222,7 +1222,7 @@ def main(argv=None):
             print(list_bridge_profiles.stdout, file=sys.stderr)
             return 1
         json_bridge_profiles = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--json-bridge-profiles",
         ).stdout)
@@ -1248,7 +1248,7 @@ def main(argv=None):
             return 1
         bridge_proc = subprocess.Popen(
             [
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(bridge_cfg),
                 "--transport", "bridge",
                 "--bridge-profile", "lab-http",
@@ -1281,7 +1281,7 @@ def main(argv=None):
             print(err, file=sys.stderr)
             return 1
         bridge_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--event-limit", "32",
             "--json-status",
@@ -1336,18 +1336,18 @@ def main(argv=None):
                 bridge_action.get("workflow") != "bridge" or
                 bridge_action.get("requires_target_online") is not True or
                 bridge_action.get("offline_supported") is not False or
-                bridge_action.get("headless_command") != f"scripts/grit-server --config {str(bridge_cfg)} --transport bridge --bridge-profile lab-http" or
+                bridge_action.get("headless_command") != f"scripts/grit-console --config {str(bridge_cfg)} --transport bridge --bridge-profile lab-http" or
                 bridge_queue_action.get("target_id") != "target-bridge" or
                 bridge_queue_action.get("workflow") != "bridge" or
                 bridge_queue_action.get("requires_target_online") is not False or
                 bridge_queue_action.get("queues_offline_work") is not True or
                 bridge_queue_action.get("target_phone_home_required") is not True or
-                bridge_queue_action.get("headless_command") != f"scripts/grit-server --config {str(bridge_cfg)} --run-target-workflow-action target-bridge:queue-bridge-start:lab-http" or
+                bridge_queue_action.get("headless_command") != f"scripts/grit-console --config {str(bridge_cfg)} --run-target-workflow-action target-bridge:queue-bridge-start:lab-http" or
                 len(bridge_profile_workflow_actions) != 8 or
                 len(bridge_profile_actions_by_profile.get("lab-http", [])) != 4 or
-                lab_profile_actions.get("start-profile", {}).get("headless_command") != f"scripts/grit-server --config {str(bridge_cfg)} --transport bridge --bridge-profile lab-http" or
-                lab_profile_actions.get("start-profile", {}).get("run_command") != f"scripts/grit-server --config {str(bridge_cfg)} --run-bridge-profile-workflow-action lab-http:start-profile" or
-                lab_profile_actions.get("start-profile", {}).get("dry_run_command") != f"scripts/grit-server --config {str(bridge_cfg)} --run-bridge-profile-workflow-action lab-http:start-profile --bridge-profile-workflow-dry-run" or
+                lab_profile_actions.get("start-profile", {}).get("headless_command") != f"scripts/grit-console --config {str(bridge_cfg)} --transport bridge --bridge-profile lab-http" or
+                lab_profile_actions.get("start-profile", {}).get("run_command") != f"scripts/grit-console --config {str(bridge_cfg)} --run-bridge-profile-workflow-action lab-http:start-profile" or
+                lab_profile_actions.get("start-profile", {}).get("dry_run_command") != f"scripts/grit-console --config {str(bridge_cfg)} --run-bridge-profile-workflow-action lab-http:start-profile --bridge-profile-workflow-dry-run" or
                 lab_profile_actions.get("start-profile", {}).get("operator_action_state") != "ready" or
                 lab_profile_actions.get("start-profile", {}).get("can_run_from_curses_enter") is not True or
                 lab_profile_actions.get("start-profile", {}).get("fleet_target_count") != 1 or
@@ -1357,8 +1357,8 @@ def main(argv=None):
                 lab_profile_actions.get("stop-profile", {}).get("run_command", "").find("--confirm-bridge-profile-workflow-action") == -1 or
                 lab_profile_actions.get("delete-profile", {}).get("requires_confirmation") is not True or
                 lab_profile_actions.get("delete-profile", {}).get("run_command", "").find("--confirm-bridge-profile-workflow-action") == -1 or
-                lab_profile_actions.get("inspect-profile", {}).get("headless_command") != f"scripts/grit-server --config {str(bridge_cfg)} --inspect-bridge-profile lab-http" or
-                lab_profile_actions.get("inspect-profile", {}).get("run_command") != f"scripts/grit-server --config {str(bridge_cfg)} --run-bridge-profile-workflow-action lab-http:inspect-profile" or
+                lab_profile_actions.get("inspect-profile", {}).get("headless_command") != f"scripts/grit-console --config {str(bridge_cfg)} --inspect-bridge-profile lab-http" or
+                lab_profile_actions.get("inspect-profile", {}).get("run_command") != f"scripts/grit-console --config {str(bridge_cfg)} --run-bridge-profile-workflow-action lab-http:inspect-profile" or
                 bridge_profile.get("target_id") != "target-bridge" or
                 bridge_profile.get("purpose") != "web-admin" or
                 bridge_profile.get("route_path") != f"operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" or
@@ -1414,7 +1414,7 @@ def main(argv=None):
             print(json.dumps(bridge_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         inspect_relay_profile = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--inspect-bridge-profile", "lab-http",
         )
@@ -1427,7 +1427,7 @@ def main(argv=None):
             print(inspect_relay_profile.stderr, file=sys.stderr)
             return 1
         bridge_action_inspect = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--run-bridge-profile-workflow-action", "lab-http:inspect-profile",
         )
@@ -1440,7 +1440,7 @@ def main(argv=None):
             print(bridge_action_inspect.stderr, file=sys.stderr)
             return 1
         bridge_action_dry_run = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--run-bridge-profile-workflow-action", "lab-http:start-profile",
             "--bridge-profile-workflow-dry-run",
@@ -1454,7 +1454,7 @@ def main(argv=None):
             print(bridge_action_dry_run.stderr, file=sys.stderr)
             return 1
         bridge_action_start = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--run-bridge-profile-workflow-action", "lab-http:start-profile",
         )
@@ -1466,7 +1466,7 @@ def main(argv=None):
             print(bridge_action_start.stderr, file=sys.stderr)
             return 1
         bridge_action_stop = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--run-bridge-profile-workflow-action", "lab-http:stop-profile",
             "--confirm-bridge-profile-workflow-action",
@@ -1483,7 +1483,7 @@ def main(argv=None):
         while delete_bridge_dest_port == delete_bridge_port:
             delete_bridge_dest_port = free_port()
         save_delete_bridge = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--save-bridge-profile", "delete-http",
             "--bridge-port", str(delete_bridge_port),
@@ -1497,7 +1497,7 @@ def main(argv=None):
             print(save_delete_bridge.stderr, file=sys.stderr)
             return 1
         bridge_action_delete = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--run-bridge-profile-workflow-action", "delete-http:delete-profile",
             "--confirm-bridge-profile-workflow-action",
@@ -1511,7 +1511,7 @@ def main(argv=None):
             return 1
 
         queue_bridge_action = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--run-target-workflow-action", "target-bridge:queue-bridge-start:lab-http",
         )
@@ -1526,7 +1526,7 @@ def main(argv=None):
             print(queue_bridge_action.stderr, file=sys.stderr)
             return 1
         bridge_queue_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--event-limit", "80",
             "--json-status",
@@ -1577,7 +1577,7 @@ def main(argv=None):
         while bad_bridge_dest_port == bad_bridge_port:
             bad_bridge_dest_port = free_port()
         save_bad_bridge = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--target-id", "target-bridge",
             "--target-label", "Bridge Target",
@@ -1594,7 +1594,7 @@ def main(argv=None):
             return 1
         bad_bridge_proc = subprocess.Popen(
             [
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(bridge_cfg),
                 "--transport", "bridge",
                 "--bridge-profile", "bad-http",
@@ -1643,7 +1643,7 @@ def main(argv=None):
             print(bad_err, file=sys.stderr)
             return 1
         bridge_failure_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(bridge_cfg),
             "--event-limit", "48",
             "--json-status",
@@ -1691,7 +1691,7 @@ def main(argv=None):
         }), encoding="utf-8")
         survey_proc = subprocess.Popen(
             [
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(survey_cfg),
                 "--transport", "probe",
                 "--timeout", "1",
@@ -1740,7 +1740,7 @@ def main(argv=None):
             print(json.dumps(survey_results, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         survey_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(survey_cfg),
             "--json-status",
         ).stdout)
@@ -1774,7 +1774,7 @@ def main(argv=None):
             return 1
         survey_route_port = free_port()
         save_survey_route = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(survey_cfg),
             "--save-bridge-profile", "survey-route",
             "--bridge-port", str(survey_route_port),
@@ -1790,7 +1790,7 @@ def main(argv=None):
             return 1
         bridged_survey_proc = subprocess.Popen(
             [
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(survey_cfg),
                 "--transport", "probe",
                 "--bridge-profile", "survey-route",
@@ -1818,7 +1818,7 @@ def main(argv=None):
             print(bridged_script.decode("utf-8", errors="replace"), file=sys.stderr)
             return 1
         bridged_survey_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(survey_cfg),
             "--bridge-profile", "survey-route",
             "--json-status",
@@ -1851,7 +1851,7 @@ def main(argv=None):
             print(json.dumps(bridged_survey_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         bridged_survey_text_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(survey_cfg),
             "--bridge-profile", "survey-route",
             "--status",
@@ -1867,7 +1867,7 @@ def main(argv=None):
             print(bridged_survey_text_status.stdout, file=sys.stderr)
             return 1
         bridged_survey_tui = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(survey_cfg),
             "--bridge-profile", "survey-route",
             "--tui",
@@ -1932,7 +1932,7 @@ def main(argv=None):
             print(survey_line_stderr or "", file=sys.stderr)
             return 1
         survey_action_show = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(survey_cfg),
             "--bridge-profile", "survey-route",
             "--run-probe-workflow-action", "probe:show-target-command",
@@ -1946,7 +1946,7 @@ def main(argv=None):
             print(survey_action_show.stderr, file=sys.stderr)
             return 1
         survey_tui_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(survey_cfg),
             "--bridge-profile", "survey-route",
             "--event-limit", "32",
@@ -1974,7 +1974,7 @@ def main(argv=None):
 
         command_copy_file = queue_operator_dir / "last-command.txt"
         copied = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-copy-file", str(command_copy_file),
             "--copy-target-command", "1",
@@ -1989,7 +1989,7 @@ def main(argv=None):
             print("generated target command copy file has wrong content", file=sys.stderr)
             return 1
         copied_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--json-status",
         ).stdout)
@@ -2004,7 +2004,7 @@ def main(argv=None):
                 copied_state.get("has_command") is not True or
                 copied_state.get("empty_or_missing") is not False or
                 copied_state.get("has_readable_command") is not True or
-                (copied_status.get("target_commands_by_ordinal") or {}).get("1", {}).get("copy_command") != "scripts/grit-server --copy-target-command 1" or
+                (copied_status.get("target_commands_by_ordinal") or {}).get("1", {}).get("copy_command") != "scripts/grit-console --copy-target-command 1" or
                 (copied_status.get("target_commands_by_copy_supported") or {}).get("True", [{}])[0].get("ordinal") != 1 or
                 copied_status.get("command_copy_records_by_has_command", {}).get("True", [{}])[0].get("path") != str(command_copy_file) or
                 copied_status.get("command_copy_state_records_by_has_readable_command", {}).get("True", [{}])[0].get("id") != "command-copy" or
@@ -2064,7 +2064,7 @@ def main(argv=None):
         if (copy_tui_proc.returncode != 0 or
                 "Traceback" in (copy_tui_stderr or "") or
                 "copied command to " not in copy_tui_text or
-                "headless_command: scripts/grit-server --config" not in copy_tui_text or
+                "headless_command: scripts/grit-console --config" not in copy_tui_text or
                 "--copy-target-command 1" not in copy_tui_text):
             print("line TUI generated-command copy did not expose headless command", file=sys.stderr)
             print(copy_tui_text, file=sys.stderr)
@@ -2111,13 +2111,13 @@ def main(argv=None):
         if (actions_tui_proc.returncode != 0 or
                 "Traceback" in (actions_tui_stderr or "") or
                 "Workbench action summary:" not in actions_tui_text or
-                "headless_command: scripts/grit-server --config" not in actions_tui_text or
+                "headless_command: scripts/grit-console --config" not in actions_tui_text or
                 "--status" not in actions_tui_text or
                 "operator-daemon-status" not in actions_tui_text or
                 "operator action id/number to run" not in actions_tui_text or
                 "foreground_runnable=yes" not in actions_tui_text or
-                "dry_run: scripts/grit-server --config" not in actions_tui_text or
-                "start_job: scripts/grit-server --config" not in actions_tui_text or
+                "dry_run: scripts/grit-console --config" not in actions_tui_text or
+                "start_job: scripts/grit-console --config" not in actions_tui_text or
                 "service 1:" not in actions_tui_text or
                 "file-service:start-service" not in actions_tui_text or
                 "enter_action=start-service" not in actions_tui_text or
@@ -2227,7 +2227,7 @@ def main(argv=None):
         if (refresh_tui_proc.returncode != 0 or
                 "Traceback" in (refresh_tui_stderr or "") or
                 "refreshed workbench at " not in refresh_tui_text or
-                "headless_command: scripts/grit-server --config" not in refresh_tui_text or
+                "headless_command: scripts/grit-console --config" not in refresh_tui_text or
                 "--status" not in refresh_tui_text):
             print("line TUI refresh did not expose headless status command", file=sys.stderr)
             print(refresh_tui_text, file=sys.stderr)
@@ -2248,7 +2248,7 @@ def main(argv=None):
 
         missing_view_path = str(Path(tmp) / "missing-view-path.txt")
         view_path = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--view-path", missing_view_path,
         )
@@ -2296,7 +2296,7 @@ def main(argv=None):
         view_tui_text = view_tui_output.decode("utf-8", errors="replace")
         if (view_tui_proc.returncode != 0 or
                 "Traceback" in (view_tui_stderr or "") or
-                "headless_command: scripts/grit-server --config" not in view_tui_text or
+                "headless_command: scripts/grit-console --config" not in view_tui_text or
                 "--view-path " not in view_tui_text or
                 f"no viewable local file: {missing_view_path}" not in view_tui_text):
             print("line TUI path view did not expose headless view-path command", file=sys.stderr)
@@ -2323,7 +2323,7 @@ def main(argv=None):
             return 1
 
         stop_service = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--stop-service", "file-service",
         )
@@ -2409,7 +2409,7 @@ def main(argv=None):
             encoding="utf-8",
         )
         listed_build_config = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--build-config", str(guided_build_config),
             "--list-build-config",
@@ -2425,7 +2425,7 @@ def main(argv=None):
             print(listed_build_config.stderr, file=sys.stderr)
             return 1
         set_build_config = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--build-config", str(guided_build_config),
             "--set-build-config", "GRIT_NORESIDUE_LEVEL=aggressive",
@@ -2451,7 +2451,7 @@ def main(argv=None):
             print(guided_text, file=sys.stderr)
             return 1
         guided_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--build-config", str(guided_build_config),
             "--json-status",
@@ -2531,7 +2531,7 @@ def main(argv=None):
             print(json.dumps(guided_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         bad_build_config = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--build-config", str(guided_build_config),
             "--set-build-config", "GRIT_RSHELL_SESSION_POLICY=resume",
@@ -2593,14 +2593,14 @@ def main(argv=None):
         if (build_config_tui_proc.returncode != 0 or
                 "Traceback" in (build_config_tui_stderr or "") or
                 'set GRIT_COMMAND_QUEUE_ENABLE="yes"' not in build_config_tui_text or
-                "headless_command: scripts/grit-server --config" not in build_config_tui_text or
+                "headless_command: scripts/grit-console --config" not in build_config_tui_text or
                 f"--build-config {str(guided_build_config)} --set-build-config GRIT_COMMAND_QUEUE_ENABLE=yes" not in build_config_tui_text):
             print("line TUI build config edit did not show equivalent headless command", file=sys.stderr)
             print(build_config_tui_text, file=sys.stderr)
             print(build_config_tui_stderr or "", file=sys.stderr)
             return 1
         build_config_tui_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--build-config", str(guided_build_config),
             "--json-status",
@@ -2621,7 +2621,7 @@ def main(argv=None):
             "session_root": str(Path(tmp) / "sessions-workbench-job"),
         }), encoding="utf-8")
         started_job = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(workbench_job_cfg),
             "--start-workbench-job", "package-artifact",
             "--job-command", "printf 'job ready\\n'; sleep 30",
@@ -2646,7 +2646,7 @@ def main(argv=None):
         job_status = None
         for _ in range(20):
             job_status_doc = run(
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(workbench_job_cfg),
                 "--json-status",
             )
@@ -2710,7 +2710,7 @@ def main(argv=None):
         if (job_cancel_proc.returncode != 0 or
                 "Traceback" in (job_cancel_stderr or "") or
                 f"cancel requested for {job_id}" not in job_cancel_text or
-                "headless_command: scripts/grit-server --config" not in job_cancel_text or
+                "headless_command: scripts/grit-console --config" not in job_cancel_text or
                 f"--cancel-workbench-job {job_id}" not in job_cancel_text):
             print("line TUI workbench background job did not cancel with headless command", file=sys.stderr)
             print(job_cancel_text, file=sys.stderr)
@@ -2718,7 +2718,7 @@ def main(argv=None):
             return 1
         for _ in range(20):
             cancelled_status_doc = run(
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(workbench_job_cfg),
                 "--json-status",
             )
@@ -2753,7 +2753,7 @@ def main(argv=None):
             return 1
 
         quick_job = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(workbench_job_cfg),
             "--start-workbench-job", "bringup-recommend",
             "--job-command", "printf 'quick job done\\n'; exit 7",
@@ -2775,7 +2775,7 @@ def main(argv=None):
         quick_status = None
         for _ in range(30):
             quick_status_doc = run(
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(workbench_job_cfg),
                 "--json-status",
             )
@@ -2848,7 +2848,7 @@ def main(argv=None):
             print(json.dumps(quick_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         quick_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(workbench_job_cfg),
             "--status",
         )
@@ -2897,12 +2897,12 @@ def main(argv=None):
                 "action_id": "package-artifact",
                 "state": "running",
                 "pid": os.getpid(),
-                "managed_by": "grit-server-workbench",
+                "managed_by": "grit-console-workbench",
                 "started_at": "2026-01-01T00:00:00Z",
             }],
         }), encoding="utf-8")
         forged_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(forged_cfg),
             "--json-status",
         ).stdout)
@@ -2912,7 +2912,7 @@ def main(argv=None):
             print(json.dumps(forged_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         forged_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(forged_cfg),
             "--status",
         )
@@ -2924,7 +2924,7 @@ def main(argv=None):
             print(forged_text.stdout, file=sys.stderr)
             return 1
         forged_cancel = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(forged_cfg),
             "--cancel-workbench-job", "job-forged",
         )
@@ -2942,7 +2942,7 @@ def main(argv=None):
             "session_root": str(Path(tmp) / "isolated-sessions"),
         }), encoding="utf-8")
         isolated_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(isolated_cfg),
             "--json-status",
         )
@@ -2960,7 +2960,7 @@ def main(argv=None):
             print(isolated_status.stdout, file=sys.stderr)
             return 1
         isolated_workbench = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(isolated_cfg),
             "--tui",
         )
@@ -2981,7 +2981,7 @@ def main(argv=None):
             "command_copy_file": str(mismatched_copy_path),
         }), encoding="utf-8")
         path_mismatch_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(path_mismatch_cfg),
             "--json-status",
         )
@@ -3021,7 +3021,7 @@ def main(argv=None):
             print(path_mismatch_status.stdout, file=sys.stderr)
             return 1
         path_mismatch_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(path_mismatch_cfg),
             "--status",
         )
@@ -3049,7 +3049,7 @@ def main(argv=None):
             "session_root": str(Path(tmp) / "invalid-state-sessions"),
         }), encoding="utf-8")
         invalid_state_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(invalid_state_cfg),
             "--json-status",
         )
@@ -3159,7 +3159,7 @@ def main(argv=None):
             print(invalid_state_status.stdout, file=sys.stderr)
             return 1
         invalid_state_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(invalid_state_cfg),
             "--status",
         )
@@ -3176,7 +3176,7 @@ def main(argv=None):
 
         queue_file = queue_operator_dir / "command-queue.json"
         queued = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--queue-command", "grit reality-test --json",
@@ -3196,7 +3196,7 @@ def main(argv=None):
             print("operator command queue JSON missing non-exec safety fields", file=sys.stderr)
             return 1
         bad_queue_timeout = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--queue-command", "grit survey",
@@ -3208,7 +3208,7 @@ def main(argv=None):
             print(bad_queue_timeout.stderr, file=sys.stderr)
             return 1
         bad_queue_output = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--queue-command", "grit survey",
@@ -3220,7 +3220,7 @@ def main(argv=None):
             print(bad_queue_output.stderr, file=sys.stderr)
             return 1
         bad_queue_expire = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--queue-command", "grit survey",
@@ -3270,7 +3270,7 @@ def main(argv=None):
             print(unique_queue.stdout, file=sys.stderr)
             return 1
         queue_list = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--json-command-queue",
@@ -3338,7 +3338,7 @@ def main(argv=None):
             "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "no",
         }), encoding="utf-8")
         expired_label = run(
-            "scripts/grit-server", "--config", str(expired_cfg),
+            "scripts/grit-console", "--config", str(expired_cfg),
             "--set-target-label", "target-expired",
             "--target-label", "Expired Router",
         )
@@ -3347,7 +3347,7 @@ def main(argv=None):
             print(expired_label.stderr, file=sys.stderr)
             return 1
         expired_queue = run(
-            "scripts/grit-server", "--config", str(expired_cfg),
+            "scripts/grit-console", "--config", str(expired_cfg),
             "--target-id", "target-expired",
             "--queue-command", "grit survey --json",
             "--queue-expire-sec", "1",
@@ -3363,7 +3363,7 @@ def main(argv=None):
         expired_doc["commands"][0]["expires_at"] = "2000-01-01T00:00:01Z"
         expired_queue_file.write_text(json.dumps(expired_doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         expired_status = json.loads(run(
-            "scripts/grit-server", "--config", str(expired_cfg),
+            "scripts/grit-console", "--config", str(expired_cfg),
             "--json-status",
         ).stdout)
         expired_command = (expired_status.get("command_queue") or {}).get("commands_by_id", {}).get(expired_id) or {}
@@ -3389,7 +3389,7 @@ def main(argv=None):
             print(json.dumps(expired_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         expired_poll_server = subprocess.Popen(
-            ["scripts/grit-server", "--config", str(expired_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            ["scripts/grit-console", "--config", str(expired_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -3418,7 +3418,7 @@ def main(argv=None):
             "exit_code": 0,
         }) + "\n", encoding="utf-8")
         expired_result = run(
-            "scripts/grit-server", "--config", str(expired_cfg),
+            "scripts/grit-console", "--config", str(expired_cfg),
             "--record-command-result", expired_id,
             "--result-json", str(expired_result_file),
         )
@@ -3429,7 +3429,7 @@ def main(argv=None):
             return 1
 
         failed_label = run(
-            "scripts/grit-server", "--config", str(expired_cfg),
+            "scripts/grit-console", "--config", str(expired_cfg),
             "--set-target-label", "target-failed",
             "--target-label", "Failed Router",
         )
@@ -3438,7 +3438,7 @@ def main(argv=None):
             print(failed_label.stderr, file=sys.stderr)
             return 1
         failed_queue = run(
-            "scripts/grit-server", "--config", str(expired_cfg),
+            "scripts/grit-console", "--config", str(expired_cfg),
             "--target-id", "target-failed",
             "--queue-command", "grit survey --json",
         )
@@ -3450,7 +3450,7 @@ def main(argv=None):
         failed_doc = json.loads(expired_queue_file.read_text(encoding="utf-8"))
         failed_id = next(rec["id"] for rec in failed_doc["commands"] if rec.get("target_id") == "target-failed")
         failed_poll_server = subprocess.Popen(
-            ["scripts/grit-server", "--config", str(expired_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            ["scripts/grit-console", "--config", str(expired_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -3481,7 +3481,7 @@ def main(argv=None):
             "stderr_bytes": 11,
         }).encode("utf-8")
         failed_result_server = subprocess.Popen(
-            ["scripts/grit-server", "--config", str(expired_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            ["scripts/grit-console", "--config", str(expired_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -3506,7 +3506,7 @@ def main(argv=None):
             print(failed_result_stderr, file=sys.stderr)
             return 1
         failed_expired_status = json.loads(run(
-            "scripts/grit-server", "--config", str(expired_cfg),
+            "scripts/grit-console", "--config", str(expired_cfg),
             "--json-status",
         ).stdout)
         failed_mailbox = (failed_expired_status.get("target_mailbox_records_by_command_id") or {}).get(failed_id) or {}
@@ -3649,7 +3649,7 @@ def main(argv=None):
             "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "yes",
         }), encoding="utf-8")
         invalid_queue_list = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(invalid_queue_cfg),
             "--json-command-queue",
         )
@@ -3674,7 +3674,7 @@ def main(argv=None):
             print(invalid_queue_list.stdout, file=sys.stderr)
             return 1
         invalid_queue_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(invalid_queue_cfg),
             "--list-command-queue",
         )
@@ -3698,7 +3698,7 @@ def main(argv=None):
             "exit_code": 0,
         }) + "\n", encoding="utf-8")
         mismatched_result = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--record-command-result", command_id,
@@ -3723,7 +3723,7 @@ def main(argv=None):
             "stderr_bytes": 0,
         }) + "\n", encoding="utf-8")
         recorded_result = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--record-command-result", command_id,
@@ -3774,7 +3774,7 @@ def main(argv=None):
             "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "no",
         }), encoding="utf-8")
         http_queued = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(http_result_cfg),
             "--queue-command", "grit survey --json",
             "--queue-timeout", "3",
@@ -3786,7 +3786,7 @@ def main(argv=None):
             return 1
         http_command_id = json.loads(http_queue_file.read_text(encoding="utf-8"))["commands"][0]["id"]
         http_server = subprocess.Popen(
-            ["scripts/grit-server", "--config", str(http_result_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            ["scripts/grit-console", "--config", str(http_result_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -3852,7 +3852,7 @@ def main(argv=None):
         }), encoding="utf-8")
         for target_id, label in (("target-bravo", "Bravo Router"), ("target-alpha", "Alpha Router")):
             labeled = run(
-                "scripts/grit-server", "--config", str(poll_target_cfg),
+                "scripts/grit-console", "--config", str(poll_target_cfg),
                 "--set-target-label", target_id,
                 "--target-label", label,
             )
@@ -3861,7 +3861,7 @@ def main(argv=None):
                 print(labeled.stderr, file=sys.stderr)
                 return 1
             queued_target = run(
-                "scripts/grit-server", "--config", str(poll_target_cfg),
+                "scripts/grit-console", "--config", str(poll_target_cfg),
                 "--target-id", target_id,
                 "--queue-command", f"grit survey --target {target_id}",
             )
@@ -3887,7 +3887,7 @@ def main(argv=None):
         })
         poll_targets_file.write_text(json.dumps(poll_targets, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         anonymous_poll_server = subprocess.Popen(
-            ["scripts/grit-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            ["scripts/grit-console", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -3914,7 +3914,7 @@ def main(argv=None):
             print(json.dumps(anonymous_after, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         offline_status = json.loads(run(
-            "scripts/grit-server", "--config", str(poll_target_cfg),
+            "scripts/grit-console", "--config", str(poll_target_cfg),
             "--json-status",
         ).stdout)
         offline_bravo = (offline_status.get("targets_by_id") or {}).get("target-bravo") or {}
@@ -3963,7 +3963,7 @@ def main(argv=None):
             print(json.dumps(offline_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         poll_target_server = subprocess.Popen(
-            ["scripts/grit-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            ["scripts/grit-console", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -4011,7 +4011,7 @@ def main(argv=None):
             "stderr_bytes": 0,
         }).encode("utf-8")
         poll_target_status = json.loads(run(
-            "scripts/grit-server", "--config", str(poll_target_cfg),
+            "scripts/grit-console", "--config", str(poll_target_cfg),
             "--target-id", "target-alpha",
             "--json-status",
         ).stdout)
@@ -4083,7 +4083,7 @@ def main(argv=None):
             print(json.dumps(poll_target_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         result_without_target_server = subprocess.Popen(
-            ["scripts/grit-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            ["scripts/grit-console", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -4106,7 +4106,7 @@ def main(argv=None):
             print(result_without_target_stderr, file=sys.stderr)
             return 1
         result_wrong_target_server = subprocess.Popen(
-            ["scripts/grit-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            ["scripts/grit-console", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -4147,7 +4147,7 @@ def main(argv=None):
         })
         poll_targets_file.write_text(json.dumps(poll_targets, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         result_alpha_server = subprocess.Popen(
-            ["scripts/grit-server", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
+            ["scripts/grit-console", "--config", str(poll_target_cfg), "--transport", "command-queue", "--timeout", "10", "--one-shot"],
             cwd=ROOT,
             text=True,
             stdout=subprocess.PIPE,
@@ -4172,7 +4172,7 @@ def main(argv=None):
             print(result_alpha_stderr, file=sys.stderr)
             return 1
         result_status = json.loads(run(
-            "scripts/grit-server", "--config", str(poll_target_cfg),
+            "scripts/grit-console", "--config", str(poll_target_cfg),
             "--json-status",
         ).stdout)
         result_alpha = (result_status.get("targets_by_id") or {}).get("target-alpha") or {}
@@ -4337,11 +4337,11 @@ def main(argv=None):
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         result_alpha_filtered = json.loads(run(
-            "scripts/grit-server", "--config", str(poll_target_cfg),
+            "scripts/grit-console", "--config", str(poll_target_cfg),
             "--target-id", "target-alpha", "--json-status",
         ).stdout)
         result_bravo_filtered = json.loads(run(
-            "scripts/grit-server", "--config", str(poll_target_cfg),
+            "scripts/grit-console", "--config", str(poll_target_cfg),
             "--target-id", "target-bravo", "--json-status",
         ).stdout)
         result_alpha_filter = result_alpha_filtered.get("target_filter") or {}
@@ -4425,7 +4425,7 @@ def main(argv=None):
             print(json.dumps(result_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         result_status_text = run(
-            "scripts/grit-server", "--config", str(poll_target_cfg),
+            "scripts/grit-console", "--config", str(poll_target_cfg),
             "--status",
         )
         if ("target-alpha label=Alpha Router" not in result_status_text.stdout or
@@ -4451,7 +4451,7 @@ def main(argv=None):
             print(result_status_text.stdout, file=sys.stderr)
             return 1
         result_bravo_filter_text = run(
-            "scripts/grit-server", "--config", str(poll_target_cfg),
+            "scripts/grit-console", "--config", str(poll_target_cfg),
             "--target-id", "target-bravo", "--status",
         )
         if (result_bravo_filter_text.returncode != 0 or
@@ -4499,7 +4499,7 @@ def main(argv=None):
         queue_tui_text = queue_tui_output.decode("utf-8", errors="replace")
         if (queue_tui_proc.returncode != 0 or
                 "Traceback" in (queue_tui_stderr or "") or
-                "headless_command: scripts/grit-server --config" not in queue_tui_text or
+                "headless_command: scripts/grit-console --config" not in queue_tui_text or
                 "Command queue:" not in queue_tui_text or
                 "queue COMMAND  |  queue list" not in queue_tui_text or
                 "command-queue:list-command-queue" not in queue_tui_text or
@@ -4529,7 +4529,7 @@ def main(argv=None):
             print(queue_tui_stderr or "", file=sys.stderr)
             return 1
         queue_tui_status = json.loads(run(
-            "scripts/grit-server", "--config", str(poll_target_cfg),
+            "scripts/grit-console", "--config", str(poll_target_cfg),
             "--json-status",
         ).stdout)
         queue_workflow_actions = queue_tui_status.get("command_queue_workflow_actions") or []
@@ -4580,7 +4580,7 @@ def main(argv=None):
             print(json.dumps(queue_tui_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         queue_action_run = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(poll_target_cfg),
             "--run-command-queue-workflow-action", "command-queue:queue-command",
             "--command-queue-workflow-command", "grit survey --json",
@@ -4594,7 +4594,7 @@ def main(argv=None):
             print(queue_action_run.stderr, file=sys.stderr)
             return 1
         queue_action_list = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(poll_target_cfg),
             "--run-command-queue-workflow-action", "command-queue:list-command-queue",
         )
@@ -4632,7 +4632,7 @@ def main(argv=None):
             "targets_file": str(daemon_targets),
         }), encoding="utf-8")
         daemon_labeled = run(
-            "scripts/grit-server", "--config", str(daemon_cfg),
+            "scripts/grit-console", "--config", str(daemon_cfg),
             "--set-target-label", "daemon-target",
             "--target-label", "Daemon Target",
         )
@@ -4642,7 +4642,7 @@ def main(argv=None):
             print(daemon_labeled.stderr, file=sys.stderr)
             return 1
         daemon_queued = run(
-            "scripts/grit-server", "--config", str(daemon_cfg),
+            "scripts/grit-console", "--config", str(daemon_cfg),
             "--target-id", "daemon-target",
             "--queue-command", "grit survey --json",
         )
@@ -4671,7 +4671,7 @@ def main(argv=None):
                 if daemon_proc.poll() is not None:
                     break
                 daemon_status = run(
-                    "scripts/grit-server",
+                    "scripts/grit-console",
                     "--config", str(daemon_cfg),
                     "--json-status",
                 )
@@ -4744,7 +4744,7 @@ def main(argv=None):
                 print(json.dumps(daemon_doc, indent=2, sort_keys=True), file=sys.stderr)
                 return 1
             daemon_action_status = run(
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(daemon_cfg),
                 "--run-operator-daemon-workflow-action", "operator-daemon-status",
             )
@@ -4756,7 +4756,7 @@ def main(argv=None):
                 print(daemon_action_status.stderr, file=sys.stderr)
                 return 1
             daemon_action_dry_run = run(
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(daemon_cfg),
                 "--run-operator-daemon-workflow-action", "operator-daemon-start",
                 "--operator-daemon-workflow-dry-run",
@@ -4770,7 +4770,7 @@ def main(argv=None):
                 print(daemon_action_dry_run.stderr, file=sys.stderr)
                 return 1
             daemon_systemd_action = run(
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(daemon_cfg),
                 "--run-operator-daemon-workflow-action", "systemd-user-status",
                 "--operator-daemon-workflow-dry-run",
@@ -4796,7 +4796,7 @@ def main(argv=None):
                 print(daemon_upload_response.decode("utf-8", errors="replace"), file=sys.stderr)
                 return 1
             daemon_stop = run(
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(daemon_cfg),
                 "--stop",
             )
@@ -4812,7 +4812,7 @@ def main(argv=None):
                 print(daemon_stderr, file=sys.stderr)
                 return 1
             stopped_doc = json.loads(run(
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(daemon_cfg),
                 "--json-status",
             ).stdout)
@@ -4882,7 +4882,7 @@ def main(argv=None):
                 if daemon_restart_proc.poll() is not None:
                     break
                 restarted_status = run(
-                    "scripts/grit-server",
+                    "scripts/grit-console",
                     "--config", str(daemon_cfg),
                     "--json-status",
                 )
@@ -4911,7 +4911,7 @@ def main(argv=None):
                 print(json.dumps(restarted_doc, indent=2, sort_keys=True), file=sys.stderr)
                 return 1
             daemon_restart_stop = run(
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(daemon_cfg),
                 "--stop",
             )
@@ -4945,7 +4945,7 @@ def main(argv=None):
         systemd_unit_dir = Path(tmp) / "systemd-user"
         systemd_unit_name = "grit-smoke.service"
         systemd_print = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(daemon_cfg),
             "--daemon-service", "file-service",
             "--systemd-user-action", "print",
@@ -4961,7 +4961,7 @@ def main(argv=None):
             print(systemd_print.stderr, file=sys.stderr)
             return 1
         systemd_install = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(daemon_cfg),
             "--daemon-service", "file-service",
             "--systemd-user-action", "install",
@@ -4985,7 +4985,7 @@ def main(argv=None):
             print(unit_text, file=sys.stderr)
             return 1
         systemd_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(daemon_cfg),
             "--systemd-user-action", "status",
             "--systemd-user-unit-name", systemd_unit_name,
@@ -4997,7 +4997,7 @@ def main(argv=None):
             print(systemd_status.stderr, file=sys.stderr)
             return 1
         systemd_workbench_action = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(daemon_cfg),
             "--run-workbench-action", "systemd-user-status",
             "--workbench-action-dry-run",
@@ -5066,7 +5066,7 @@ def main(argv=None):
         }) + "\n", encoding="utf-8")
 
         queue_status_doc = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--json-status",
@@ -5128,7 +5128,7 @@ def main(argv=None):
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         invalid_queue_status_doc = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(invalid_queue_cfg),
             "--json-status",
         )
@@ -5161,7 +5161,7 @@ def main(argv=None):
             print(invalid_queue_status_doc.stdout, file=sys.stderr)
             return 1
         invalid_queue_status_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(invalid_queue_cfg),
             "--status",
         )
@@ -5176,7 +5176,7 @@ def main(argv=None):
             "GRIT_RSHELL_SESSION_POLICY": "bogus",
         }), encoding="utf-8")
         invalid_rshell_status_doc = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(invalid_rshell_cfg),
             "--json-status",
         )
@@ -5212,7 +5212,7 @@ def main(argv=None):
             print(invalid_rshell_status_doc.stdout, file=sys.stderr)
             return 1
         invalid_rshell_status_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(invalid_rshell_cfg),
             "--status",
         )
@@ -5223,7 +5223,7 @@ def main(argv=None):
             return 1
         exceeded_queue_file = Path(tmp) / "operator-session" / "exceeded-command-queue.json"
         exceeded_queued = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(exceeded_queue_file),
             "--queue-command", "grit survey",
@@ -5245,7 +5245,7 @@ def main(argv=None):
             "stderr_bytes": 7,
         }) + "\n", encoding="utf-8")
         exceeded_recorded = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(exceeded_queue_file),
             "--record-command-result", exceeded_id,
@@ -5257,7 +5257,7 @@ def main(argv=None):
             print(exceeded_recorded.stderr, file=sys.stderr)
             return 1
         exceeded_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(exceeded_queue_file),
             "--json-command-queue",
@@ -5286,7 +5286,7 @@ def main(argv=None):
             "GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY": "yes",
         }), encoding="utf-8")
         arbitrary_queue_doc = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(arbitrary_queue_cfg),
             "--json-command-queue",
         )
@@ -5406,8 +5406,8 @@ def main(argv=None):
         api_resources_by_primary_key = queue_status_json.get("api_resources_by_primary_key") or {}
         api_resources_by_warning_indexes = queue_status_json.get("api_resources_by_has_warning_indexes") or {}
         if (api.get("schema") != 1 or
-                api.get("status_command") != "scripts/grit-server --api-status" or
-                api.get("json_status_command") != "scripts/grit-server --json-status" or
+                api.get("status_command") != "scripts/grit-console --api-status" or
+                api.get("json_status_command") != "scripts/grit-console --json-status" or
                 api.get("event_limit") != 12 or
                 api.get("resource_count") != len(api_resources) or
                 api.get("resources_key") != "api_resources" or
@@ -5670,7 +5670,7 @@ def main(argv=None):
                 workbench_summary.get("workbench_action_curses_enter_action_counts", {}).get("start-job", 0) < 3 or
                 workbench_summary.get("workbench_action_config_path_counts", {}).get(str(cfg), 0) < 5 or
                 actions_by_id.get("package-artifact", {}).get("command") != "make package" or
-                actions_by_id.get("package-artifact", {}).get("start_job_command") != f"scripts/grit-server --config {str(cfg)} --start-workbench-job package-artifact" or
+                actions_by_id.get("package-artifact", {}).get("start_job_command") != f"scripts/grit-console --config {str(cfg)} --start-workbench-job package-artifact" or
                 actions_by_id.get("package-artifact", {}).get("operator_action_state") != "background-ready" or
                 actions_by_id.get("package-artifact", {}).get("operator_action_reason") != "start-background-job" or
                 actions_by_id.get("package-artifact", {}).get("can_run_from_curses_enter") is not True or
@@ -5679,9 +5679,9 @@ def main(argv=None):
                 actions_by_id.get("operator-daemon-start", {}).get("long_running") is not True or
                 actions_by_id.get("operator-daemon-start", {}).get("operator_action_state") != "background-ready" or
                 "--daemon --daemon-service file-service --daemon-service command-queue" not in actions_by_id.get("operator-daemon-start", {}).get("command", "") or
-                actions_by_id.get("operator-daemon-stop", {}).get("command") != f"scripts/grit-server --config {str(cfg)} --stop" or
-                actions_by_id.get("operator-daemon-stop", {}).get("run_command") != f"scripts/grit-server --config {str(cfg)} --run-workbench-action operator-daemon-stop" or
-                actions_by_id.get("operator-daemon-stop", {}).get("dry_run_command") != f"scripts/grit-server --config {str(cfg)} --run-workbench-action operator-daemon-stop --workbench-action-dry-run" or
+                actions_by_id.get("operator-daemon-stop", {}).get("command") != f"scripts/grit-console --config {str(cfg)} --stop" or
+                actions_by_id.get("operator-daemon-stop", {}).get("run_command") != f"scripts/grit-console --config {str(cfg)} --run-workbench-action operator-daemon-stop" or
+                actions_by_id.get("operator-daemon-stop", {}).get("dry_run_command") != f"scripts/grit-console --config {str(cfg)} --run-workbench-action operator-daemon-stop --workbench-action-dry-run" or
                 actions_by_id.get("operator-daemon-stop", {}).get("operator_action_state") != "confirm-required" or
                 actions_by_id.get("operator-daemon-stop", {}).get("can_run_from_curses_enter") is not False or
                 actions_by_id.get("systemd-user-print", {}).get("command", "").endswith("--systemd-user-action print") is not True or
@@ -5702,7 +5702,7 @@ def main(argv=None):
                 not actions_by_category.get("configuration") or
                 len(actions_by_category.get("daemon", [])) < 9 or
                 not actions_by_script.get("scripts/grit-bringup") or
-                not actions_by_script.get("scripts/grit-server") or
+                not actions_by_script.get("scripts/grit-console") or
                 not actions_by_background.get("True") or
                 not actions_by_confirmation.get("True") or
                 not actions_by_foreground.get("True") or
@@ -5931,11 +5931,11 @@ def main(argv=None):
                 service_actions_by_id.get("file-service:start-service", {}).get("fleet_target_count") != service_fleet_target_count or
                 service_actions_by_id.get("file-service:start-service", {}).get("fleet_mailbox_pending_work_count") != service_fleet_pending_work_count or
                 "--transport file-service" not in service_actions_by_id.get("file-service:start-service", {}).get("command", "") or
-                service_actions_by_id.get("file-service:start-service", {}).get("run_command") != f"scripts/grit-server --config {str(cfg)} --run-service-workflow-action file-service:start-service" or
-                service_actions_by_id.get("file-service:start-service", {}).get("dry_run_command") != f"scripts/grit-server --config {str(cfg)} --run-service-workflow-action file-service:start-service --service-workflow-dry-run" or
+                service_actions_by_id.get("file-service:start-service", {}).get("run_command") != f"scripts/grit-console --config {str(cfg)} --run-service-workflow-action file-service:start-service" or
+                service_actions_by_id.get("file-service:start-service", {}).get("dry_run_command") != f"scripts/grit-console --config {str(cfg)} --run-service-workflow-action file-service:start-service --service-workflow-dry-run" or
                 service_actions_by_id.get("file-service:stop-service", {}).get("operator_action_state") != "not-running" or
                 service_actions_by_id.get("file-service:stop-service", {}).get("requires_confirmation") is not True or
-                service_actions_by_id.get("file-service:inspect-status", {}).get("command") != f"scripts/grit-server --config {str(cfg)} --status" or
+                service_actions_by_id.get("file-service:inspect-status", {}).get("command") != f"scripts/grit-console --config {str(cfg)} --status" or
                 len(service_actions_by_service.get("file-service", [])) != 3 or
                 len(service_actions_by_action.get("start-service", [])) != 7 or
                 len(service_actions_by_state.get("ready", [])) != 14 or
@@ -5949,7 +5949,7 @@ def main(argv=None):
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         service_action_dry_run = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--run-service-workflow-action", "file-service:start-service",
             "--service-workflow-dry-run",
@@ -5964,7 +5964,7 @@ def main(argv=None):
             print(service_action_dry_run.stderr, file=sys.stderr)
             return 1
         service_action_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--run-service-workflow-action", "file-service:inspect-status",
         )
@@ -6278,7 +6278,7 @@ def main(argv=None):
             "session_root": str(Path(tmp) / "truncated-event-sessions"),
         }), encoding="utf-8")
         truncated_event_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(truncated_event_cfg),
             "--json-status",
         )
@@ -6316,7 +6316,7 @@ def main(argv=None):
             print(truncated_event_status.stdout, file=sys.stderr)
             return 1
         limited_event_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(truncated_event_cfg),
             "--json-status",
             "--event-limit", "5",
@@ -6333,7 +6333,7 @@ def main(argv=None):
             print(limited_event_status.stdout, file=sys.stderr)
             return 1
         zero_event_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(truncated_event_cfg),
             "--json-status",
             "--event-limit", "0",
@@ -6351,7 +6351,7 @@ def main(argv=None):
             print(zero_event_status.stdout, file=sys.stderr)
             return 1
         zero_event_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(truncated_event_cfg),
             "--status",
             "--event-limit", "0",
@@ -6364,7 +6364,7 @@ def main(argv=None):
             print(zero_event_text.stdout, file=sys.stderr)
             return 1
         zero_event_workbench = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(truncated_event_cfg),
             "--tui",
             "--event-limit", "0",
@@ -6377,7 +6377,7 @@ def main(argv=None):
             print(zero_event_workbench.stdout, file=sys.stderr)
             return 1
         negative_event_limit = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(truncated_event_cfg),
             "--json-status",
             "--event-limit", "-1",
@@ -6392,7 +6392,7 @@ def main(argv=None):
         with event_log_path.open("a", encoding="utf-8") as fh:
             fh.write("not-json\n")
         invalid_event_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--json-status",
@@ -6416,7 +6416,7 @@ def main(argv=None):
             print(invalid_event_status.stdout, file=sys.stderr)
             return 1
         invalid_event_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--status",
@@ -6426,7 +6426,7 @@ def main(argv=None):
             print(invalid_event_text.stdout, file=sys.stderr)
             return 1
         api_status_doc = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--api-status",
@@ -6437,7 +6437,7 @@ def main(argv=None):
             print(api_status_doc.stderr, file=sys.stderr)
             return 1
         queue_status_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--status",
@@ -6488,7 +6488,7 @@ def main(argv=None):
             print(queue_status_text.stdout, file=sys.stderr)
             return 1
         cleared = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(cfg),
             "--command-queue-file", str(queue_file),
             "--clear-command-queue",
@@ -6498,7 +6498,7 @@ def main(argv=None):
             return 1
 
         # Test: cert already present → server does not regenerate (no generation message)
-        result_existing = run("scripts/grit-server", "--config", str(cfg),
+        result_existing = run("scripts/grit-console", "--config", str(cfg),
                               "--transport", "tls-shell", "--timeout", "0.05")
         if "Generating" in result_existing.stderr or "generating" in result_existing.stderr:
             print("Server re-generated existing cert:", file=sys.stderr)
@@ -6514,7 +6514,7 @@ def main(argv=None):
             "tls_cert": str(cert_path),
             "tls_key": str(key_path),
         }), encoding="utf-8")
-        result2 = run("scripts/grit-server", "--config", str(cfg2),
+        result2 = run("scripts/grit-console", "--config", str(cfg2),
                       "--transport", "tls-shell", "--timeout", "0.05")
         # Should start without error (cert already exists from above)
         if result2.returncode not in (0, None) and "Error" in result2.stderr:
@@ -6556,7 +6556,7 @@ def main(argv=None):
         deadline = time.time() + 5
         while time.time() < deadline:
             status = run(
-                "scripts/grit-server", "--config", str(lifecycle_cfg),
+                "scripts/grit-console", "--config", str(lifecycle_cfg),
                 "--state-file", str(lifecycle_state),
                 "--staged-file", str(lifecycle_staged),
                 "--json-status",
@@ -6600,7 +6600,7 @@ def main(argv=None):
                 lifecycle_actions_by_id.get("file-service:start-service", {}).get("can_run_from_curses_enter") is not False or
                 lifecycle_actions_by_id.get("file-service:stop-service", {}).get("operator_action_state") != "ready" or
                 lifecycle_actions_by_id.get("file-service:stop-service", {}).get("can_run_from_curses_enter") is not True or
-                lifecycle_actions_by_id.get("file-service:stop-service", {}).get("command") != f"scripts/grit-server --config {str(lifecycle_cfg)} --stop-service file-service"):
+                lifecycle_actions_by_id.get("file-service:stop-service", {}).get("command") != f"scripts/grit-console --config {str(lifecycle_cfg)} --stop-service file-service"):
             print("status missing live service workflow action readiness", file=sys.stderr)
             print(status.stdout, file=sys.stderr)
             lifecycle_proc.terminate()
@@ -6680,7 +6680,7 @@ def main(argv=None):
             lifecycle_proc.terminate()
             return 1
         lifecycle_status_text = run(
-            "scripts/grit-server", "--config", str(lifecycle_cfg),
+            "scripts/grit-console", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
             "--staged-file", str(lifecycle_staged),
             "--status",
@@ -6732,7 +6732,7 @@ def main(argv=None):
             lifecycle_proc.terminate()
             return 1
         stop = run(
-            "scripts/grit-server", "--config", str(lifecycle_cfg),
+            "scripts/grit-console", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
             "--staged-file", str(lifecycle_staged),
             "--stop",
@@ -6769,7 +6769,7 @@ def main(argv=None):
             print("--stop did not record that the listener port was released", file=sys.stderr)
             return 1
         status_after = run(
-            "scripts/grit-server", "--config", str(lifecycle_cfg),
+            "scripts/grit-console", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
             "--staged-file", str(lifecycle_staged),
             "--json-status",
@@ -6844,7 +6844,7 @@ def main(argv=None):
         deadline = time.time() + 5
         while time.time() < deadline:
             sigint_status = run(
-                "scripts/grit-server",
+                "scripts/grit-console",
                 "--config", str(sigint_cfg),
                 "--state-file", str(sigint_state),
                 "--staged-file", str(sigint_staged),
@@ -6938,7 +6938,7 @@ def main(argv=None):
             deadline = time.time() + 5
             while time.time() < deadline:
                 tui_status = run(
-                    "scripts/grit-server", "--config", str(tui_owned_cfg),
+                    "scripts/grit-console", "--config", str(tui_owned_cfg),
                     "--state-file", str(tui_owned_state),
                     "--staged-file", str(tui_owned_staged),
                     "--json-status",
@@ -6981,14 +6981,14 @@ def main(argv=None):
             print("line TUI summary did not report populated event counts", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
             return 1
-        if ("headless_command: scripts/grit-server --config" not in tui_owned_text or
+        if ("headless_command: scripts/grit-console --config" not in tui_owned_text or
                 "--transport file-service" not in tui_owned_text or
                 "--file-service-tls no" not in tui_owned_text):
             print("line TUI service start did not expose transport command", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
             return 1
         tui_after = run(
-            "scripts/grit-server", "--config", str(tui_owned_cfg),
+            "scripts/grit-console", "--config", str(tui_owned_cfg),
             "--state-file", str(tui_owned_state),
             "--staged-file", str(tui_owned_staged),
             "--json-status",
@@ -7059,7 +7059,7 @@ def main(argv=None):
             deadline = time.time() + 5
             while time.time() < deadline:
                 tui_sigterm_owned_status = run(
-                    "scripts/grit-server", "--config", str(tui_sigterm_owned_cfg),
+                    "scripts/grit-console", "--config", str(tui_sigterm_owned_cfg),
                     "--state-file", str(tui_sigterm_owned_state),
                     "--staged-file", str(tui_sigterm_owned_staged),
                     "--json-status",
@@ -7089,7 +7089,7 @@ def main(argv=None):
             print(tui_sigterm_owned_stderr or "", file=sys.stderr)
             return 1
         tui_sigterm_owned_after = run(
-            "scripts/grit-server", "--config", str(tui_sigterm_owned_cfg),
+            "scripts/grit-console", "--config", str(tui_sigterm_owned_cfg),
             "--state-file", str(tui_sigterm_owned_state),
             "--staged-file", str(tui_sigterm_owned_staged),
             "--json-status",
@@ -7158,7 +7158,7 @@ def main(argv=None):
             deadline = time.time() + 5
             while time.time() < deadline:
                 sigterm_status = run(
-                    "scripts/grit-server", "--config", str(tui_sigterm_cfg),
+                    "scripts/grit-console", "--config", str(tui_sigterm_cfg),
                     "--state-file", str(tui_sigterm_state),
                     "--staged-file", str(tui_sigterm_staged),
                     "--json-status",
@@ -7187,7 +7187,7 @@ def main(argv=None):
             print(tui_sigterm_stderr or "", file=sys.stderr)
             return 1
         tui_sigterm_after = run(
-            "scripts/grit-server", "--config", str(tui_sigterm_cfg),
+            "scripts/grit-console", "--config", str(tui_sigterm_cfg),
             "--state-file", str(tui_sigterm_state),
             "--staged-file", str(tui_sigterm_staged),
             "--json-status",
@@ -7221,7 +7221,7 @@ def main(argv=None):
             blocker.bind(("127.0.0.1", bind_fail_port))
             blocker.listen(1)
             bind_fail = run(
-                "scripts/grit-server", "--config", str(bind_fail_cfg),
+                "scripts/grit-console", "--config", str(bind_fail_cfg),
                 "--state-file", str(bind_fail_state),
                 "--staged-file", str(lifecycle_staged),
                 "--transport", "file-service",
@@ -7264,7 +7264,7 @@ def main(argv=None):
             blocker.bind(("127.0.0.1", bind_fail_port))
             blocker.listen(1)
             command_queue_bind_fail = run(
-                "scripts/grit-server", "--config", str(command_queue_bind_cfg),
+                "scripts/grit-console", "--config", str(command_queue_bind_cfg),
                 "--state-file", str(command_queue_bind_state),
                 "--transport", "command-queue",
                 "--timeout", "0.05",
@@ -7280,7 +7280,7 @@ def main(argv=None):
             print(json.dumps(command_queue_bind_doc, indent=2), file=sys.stderr)
             return 1
         bind_fail_status = run(
-            "scripts/grit-server", "--config", str(bind_fail_cfg),
+            "scripts/grit-console", "--config", str(bind_fail_cfg),
             "--state-file", str(bind_fail_state),
             "--staged-file", str(lifecycle_staged),
             "--json-status",
@@ -7391,7 +7391,7 @@ def main(argv=None):
             print(bind_fail_status.stdout, file=sys.stderr)
             return 1
         bind_fail_text_status = run(
-            "scripts/grit-server", "--config", str(bind_fail_cfg),
+            "scripts/grit-console", "--config", str(bind_fail_cfg),
             "--state-file", str(bind_fail_state),
             "--staged-file", str(lifecycle_staged),
             "--status",
@@ -7411,7 +7411,7 @@ def main(argv=None):
             print(bind_fail_text_status.stdout, file=sys.stderr)
             return 1
         bind_fail_workbench = run(
-            "scripts/grit-server", "--config", str(bind_fail_cfg),
+            "scripts/grit-console", "--config", str(bind_fail_cfg),
             "--state-file", str(bind_fail_state),
             "--tui",
         )
@@ -7467,7 +7467,7 @@ def main(argv=None):
             blocker.bind(("127.0.0.1", bind_fail_port))
             blocker.listen(1)
             unexpected_status = run(
-                "scripts/grit-server", "--config", str(bind_fail_cfg),
+                "scripts/grit-console", "--config", str(bind_fail_cfg),
                 "--state-file", str(bind_fail_state),
                 "--staged-file", str(lifecycle_staged),
                 "--status",
@@ -7477,7 +7477,7 @@ def main(argv=None):
                 print(unexpected_status.stdout, file=sys.stderr)
                 return 1
             unexpected_json = run(
-                "scripts/grit-server", "--config", str(bind_fail_cfg),
+                "scripts/grit-console", "--config", str(bind_fail_cfg),
                 "--state-file", str(bind_fail_state),
                 "--staged-file", str(lifecycle_staged),
                 "--json-status",
@@ -7524,7 +7524,7 @@ def main(argv=None):
             blocker.bind(("127.0.0.1", bind_mismatch_port))
             blocker.listen(1)
             bind_mismatch_text = run(
-                "scripts/grit-server", "--config", str(bind_mismatch_cfg),
+                "scripts/grit-console", "--config", str(bind_mismatch_cfg),
                 "--state-file", str(bind_mismatch_state),
                 "--staged-file", str(lifecycle_staged),
                 "--status",
@@ -7534,7 +7534,7 @@ def main(argv=None):
                 print(bind_mismatch_text.stdout, file=sys.stderr)
                 return 1
             bind_mismatch_json = run(
-                "scripts/grit-server", "--config", str(bind_mismatch_cfg),
+                "scripts/grit-console", "--config", str(bind_mismatch_cfg),
                 "--state-file", str(bind_mismatch_state),
                 "--staged-file", str(lifecycle_staged),
                 "--json-status",
@@ -7558,7 +7558,7 @@ def main(argv=None):
         state_after_bind["services"]["file-service"].update({"status": "listening", "pid": 999999, "updated_at": "stale"})
         lifecycle_state.write_text(json.dumps(state_after_bind, indent=2) + "\n", encoding="utf-8")
         stale = run(
-            "scripts/grit-server", "--config", str(lifecycle_cfg),
+            "scripts/grit-console", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
             "--staged-file", str(lifecycle_staged),
             "--status",
@@ -7568,7 +7568,7 @@ def main(argv=None):
             print(stale.stdout, file=sys.stderr)
             return 1
         stale_json = run(
-            "scripts/grit-server", "--config", str(lifecycle_cfg),
+            "scripts/grit-console", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
             "--staged-file", str(lifecycle_staged),
             "--json-status",
@@ -7586,7 +7586,7 @@ def main(argv=None):
             print("--json-status did not expose structured stale-state warning", file=sys.stderr)
             return 1
         stale_stop = run(
-            "scripts/grit-server", "--config", str(lifecycle_cfg),
+            "scripts/grit-console", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
             "--staged-file", str(lifecycle_staged),
             "--stop",
@@ -7599,7 +7599,7 @@ def main(argv=None):
             print(stale_stop.stderr, file=sys.stderr)
             return 1
         stale_clean_doc = json.loads(run(
-            "scripts/grit-server", "--config", str(lifecycle_cfg),
+            "scripts/grit-console", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
             "--staged-file", str(lifecycle_staged),
             "--json-status",
@@ -7655,7 +7655,7 @@ def main(argv=None):
         deadline = time.time() + 5
         while time.time() < deadline:
             sigint_status = run(
-                "scripts/grit-server", "--config", str(sigint_cfg),
+                "scripts/grit-console", "--config", str(sigint_cfg),
                 "--state-file", str(sigint_state),
                 "--staged-file", str(sigint_staged),
                 "--json-status",
@@ -7678,7 +7678,7 @@ def main(argv=None):
             print(sigint_combined, file=sys.stderr)
             return 1
         sigint_after = run(
-            "scripts/grit-server", "--config", str(sigint_cfg),
+            "scripts/grit-console", "--config", str(sigint_cfg),
             "--state-file", str(sigint_state),
             "--staged-file", str(sigint_staged),
             "--json-status",
@@ -7738,7 +7738,7 @@ def main(argv=None):
         deadline = time.time() + 5
         while time.time() < deadline:
             sigterm_status = run(
-                "scripts/grit-server", "--config", str(sigterm_cfg),
+                "scripts/grit-console", "--config", str(sigterm_cfg),
                 "--state-file", str(sigterm_state),
                 "--staged-file", str(sigterm_staged),
                 "--json-status",
@@ -7761,7 +7761,7 @@ def main(argv=None):
             print(sigterm_combined, file=sys.stderr)
             return 1
         sigterm_after = run(
-            "scripts/grit-server", "--config", str(sigterm_cfg),
+            "scripts/grit-console", "--config", str(sigterm_cfg),
             "--state-file", str(sigterm_state),
             "--staged-file", str(sigterm_staged),
             "--json-status",
@@ -7801,7 +7801,7 @@ def main(argv=None):
             "operator_session_dir": str(single_shell_operator_dir),
         }), encoding="utf-8")
         single_shell_label = run(
-            "scripts/grit-server", "--config", str(single_shell_cfg),
+            "scripts/grit-console", "--config", str(single_shell_cfg),
             "--set-target-label", "target-shell",
             "--target-label", "Shell Router",
         )
@@ -7828,7 +7828,7 @@ def main(argv=None):
         deadline = time.time() + 5
         while time.time() < deadline:
             status = run(
-                "scripts/grit-server", "--config", str(single_shell_cfg),
+                "scripts/grit-console", "--config", str(single_shell_cfg),
                 "--state-file", str(single_shell_state),
                 "--staged-file", str(single_shell_staged),
                 "--json-status",
@@ -7855,7 +7855,7 @@ def main(argv=None):
             print(single_stderr, file=sys.stderr)
             return 1
         single_after = json.loads(run(
-            "scripts/grit-server", "--config", str(single_shell_cfg),
+            "scripts/grit-console", "--config", str(single_shell_cfg),
             "--state-file", str(single_shell_state),
             "--staged-file", str(single_shell_staged),
             "--json-status",
@@ -7891,7 +7891,7 @@ def main(argv=None):
             print(json.dumps(single_after, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         single_shell_filtered = json.loads(run(
-            "scripts/grit-server", "--config", str(single_shell_cfg),
+            "scripts/grit-console", "--config", str(single_shell_cfg),
             "--state-file", str(single_shell_state),
             "--staged-file", str(single_shell_staged),
             "--target-id", "target-shell",
@@ -7934,7 +7934,7 @@ def main(argv=None):
         deadline = time.time() + 5
         while time.time() < deadline:
             status = run(
-                "scripts/grit-server", "--config", str(reconnect_shell_cfg),
+                "scripts/grit-console", "--config", str(reconnect_shell_cfg),
                 "--state-file", str(reconnect_shell_state),
                 "--staged-file", str(reconnect_shell_staged),
                 "--json-status",
@@ -7954,7 +7954,7 @@ def main(argv=None):
         deadline = time.time() + 5
         while time.time() < deadline:
             reconnect_status = run(
-                "scripts/grit-server", "--config", str(reconnect_shell_cfg),
+                "scripts/grit-console", "--config", str(reconnect_shell_cfg),
                 "--state-file", str(reconnect_shell_state),
                 "--staged-file", str(reconnect_shell_staged),
                 "--json-status",
@@ -8010,7 +8010,7 @@ def main(argv=None):
         deadline = time.time() + 5
         while time.time() < deadline:
             status = run(
-                "scripts/grit-server", "--config", str(persistent_shell_cfg),
+                "scripts/grit-console", "--config", str(persistent_shell_cfg),
                 "--state-file", str(persistent_shell_state),
                 "--staged-file", str(persistent_shell_staged),
                 "--json-status",
@@ -8031,7 +8031,7 @@ def main(argv=None):
             deadline = time.time() + 5
             while time.time() < deadline:
                 persistent_status = run(
-                    "scripts/grit-server", "--config", str(persistent_shell_cfg),
+                    "scripts/grit-console", "--config", str(persistent_shell_cfg),
                     "--state-file", str(persistent_shell_state),
                     "--staged-file", str(persistent_shell_staged),
                     "--json-status",
@@ -8059,7 +8059,7 @@ def main(argv=None):
             print(persistent_stderr, file=sys.stderr)
             return 1
         persistent_after = json.loads(run(
-            "scripts/grit-server", "--config", str(persistent_shell_cfg),
+            "scripts/grit-console", "--config", str(persistent_shell_cfg),
             "--state-file", str(persistent_shell_state),
             "--staged-file", str(persistent_shell_staged),
             "--json-status",
@@ -8092,7 +8092,7 @@ def main(argv=None):
         }
         lifecycle_state.write_text(json.dumps(unmanaged_state, indent=2) + "\n", encoding="utf-8")
         unmanaged_status = run(
-            "scripts/grit-server", "--config", str(lifecycle_cfg),
+            "scripts/grit-console", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
             "--staged-file", str(lifecycle_staged),
             "--json-status",
@@ -8111,7 +8111,7 @@ def main(argv=None):
             print("--json-status did not expose unmanaged recorded PID warning", file=sys.stderr)
             return 1
         unmanaged_stop = run(
-            "scripts/grit-server", "--config", str(lifecycle_cfg),
+            "scripts/grit-console", "--config", str(lifecycle_cfg),
             "--state-file", str(lifecycle_state),
             "--staged-file", str(lifecycle_staged),
             "--stop",
@@ -8304,7 +8304,7 @@ def main(argv=None):
             print("server-state sessions missing file-service session id", file=sys.stderr)
             return 1
         upload_status_json = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--json-status",
         )
@@ -8359,7 +8359,7 @@ def main(argv=None):
                 target_alpha.get("latest_file_transfer_sha256") != upload_sha256 or
                 target_alpha.get("latest_session_id") != session_json_paths[0].parent.name or
                 len(alpha_workflow_actions) != 9 or
-                alpha_actions_by_action.get("queue-command", {}).get("headless_command") != f"scripts/grit-server --config {str(upload_cfg)} --target-id target-alpha --queue-command COMMAND" or
+                alpha_actions_by_action.get("queue-command", {}).get("headless_command") != f"scripts/grit-console --config {str(upload_cfg)} --target-id target-alpha --queue-command COMMAND" or
                 alpha_actions_by_action.get("queue-command", {}).get("operator_action_state") != "needs-input" or
                 alpha_actions_by_action.get("queue-command", {}).get("operator_action_reason") != "input-required" or
                 alpha_actions_by_action.get("queue-command", {}).get("can_run_from_curses_enter") is not False or
@@ -8370,14 +8370,14 @@ def main(argv=None):
                 alpha_actions_by_action.get("queue-probe", {}).get("operator_action_reason") != "queues-until-phone-home" or
                 alpha_actions_by_action.get("queue-probe", {}).get("can_run_from_curses_enter") is not True or
                 alpha_actions_by_action.get("queue-probe", {}).get("target_phone_home_required") is not True or
-                alpha_actions_by_action.get("queue-probe", {}).get("headless_command") != f"scripts/grit-server --config {str(upload_cfg)} --run-target-workflow-action target-alpha:queue-probe" or
+                alpha_actions_by_action.get("queue-probe", {}).get("headless_command") != f"scripts/grit-console --config {str(upload_cfg)} --run-target-workflow-action target-alpha:queue-probe" or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("requires_input") is not True or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("stage-file-fetch", {}).get("offline_supported") is not True or
                 alpha_actions_by_action.get("show-upload-command", {}).get("requires_input") is not True or
                 alpha_actions_by_action.get("show-upload-command", {}).get("queues_offline_work") is not False or
                 alpha_actions_by_action.get("show-upload-command", {}).get("target_phone_home_required") is not True or
-                alpha_actions_by_action.get("show-upload-command", {}).get("headless_command") != f"scripts/grit-server --config {str(upload_cfg)} --run-target-workflow-action target-alpha:show-upload-command --target-workflow-command TARGET_PATH" or
+                alpha_actions_by_action.get("show-upload-command", {}).get("headless_command") != f"scripts/grit-console --config {str(upload_cfg)} --run-target-workflow-action target-alpha:show-upload-command --target-workflow-command TARGET_PATH" or
                 alpha_actions_by_action.get("queue-staged-fetch", {}).get("requires_input") is not True or
                 alpha_actions_by_action.get("queue-staged-fetch", {}).get("queues_offline_work") is not True or
                 alpha_actions_by_action.get("queue-staged-fetch", {}).get("target_phone_home_required") is not True or
@@ -8511,7 +8511,7 @@ def main(argv=None):
             "GRIT_OPERATOR_FILE_SERVICE_PORT": free_port(),
         }), encoding="utf-8")
         action_label = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(action_cfg),
             "--set-target-label", "target-action",
             "--target-label", "Action Router",
@@ -8523,7 +8523,7 @@ def main(argv=None):
         action_staged_source = Path(tmp) / "action-staged.txt"
         action_staged_source.write_text("target workflow staged file\n", encoding="utf-8")
         action_stage = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(action_cfg),
             "--run-target-workflow-action", "target-action:stage-file-fetch",
             "--target-workflow-local-file", str(action_staged_source),
@@ -8583,7 +8583,7 @@ def main(argv=None):
                 "? help" not in line_text or
                 "workspace overview" not in line_text or
                 "Target detail: target-action label=Action Router" not in line_text or
-                "headless_command: scripts/grit-server --config" not in line_text or
+                "headless_command: scripts/grit-console --config" not in line_text or
                 "--target-id target-action --status" not in line_text or
                 " --status" not in line_text or
                 "queues_offline_work=yes" not in line_text or
@@ -8650,7 +8650,7 @@ def main(argv=None):
             print(activity_stderr or "", file=sys.stderr)
             return 1
         action_survey = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(action_cfg),
             "--run-target-workflow-action", "target-action:queue-probe",
         )
@@ -8665,7 +8665,7 @@ def main(argv=None):
             print(action_survey.stderr, file=sys.stderr)
             return 1
         action_fetch = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(action_cfg),
             "--run-target-workflow-action", "target-action:queue-staged-fetch",
             "--target-workflow-request-name", "action-staged.txt",
@@ -8680,7 +8680,7 @@ def main(argv=None):
             print(action_fetch.stderr, file=sys.stderr)
             return 1
         action_upload = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(action_cfg),
             "--run-target-workflow-action", "target-action:show-upload-command",
             "--target-workflow-command", "/etc/passwd",
@@ -8696,7 +8696,7 @@ def main(argv=None):
             print(action_upload.stderr, file=sys.stderr)
             return 1
         action_doc = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(action_cfg),
             "--event-limit", "32",
             "--json-status",
@@ -8922,7 +8922,7 @@ def main(argv=None):
             "GRIT_OPERATOR_FILE_SERVICE_PORT": upload_port,
         }), encoding="utf-8")
         legacy_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(legacy_cfg),
             "--json-status",
         )
@@ -8944,7 +8944,7 @@ def main(argv=None):
             print(legacy_status.stdout, file=sys.stderr)
             return 1
         legacy_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(legacy_cfg),
             "--status",
         )
@@ -9514,7 +9514,7 @@ def main(argv=None):
             print(upload_status_json.stdout, file=sys.stderr)
             return 1
         upload_status_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--status",
         )
@@ -9564,7 +9564,7 @@ def main(argv=None):
         state_file = Path(tmp) / "operator-session" / "server-state.json"
         staged_file = Path(tmp) / "operator-session" / "staged-files.json"
         uploads_view = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -9618,7 +9618,7 @@ def main(argv=None):
             return 1
 
         label_update = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--set-target-label", "target-alpha",
             "--target-label", "Alpha Router Renamed",
@@ -9689,7 +9689,7 @@ def main(argv=None):
             print(response2.decode("utf-8", errors="replace"), file=sys.stderr)
             return 1
         multi_target_doc = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--json-status",
         ).stdout)
@@ -9725,7 +9725,7 @@ def main(argv=None):
             print(json.dumps(multi_target_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         filtered_alpha = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--target-id", "target-alpha",
             "--json-status",
@@ -9842,7 +9842,7 @@ def main(argv=None):
             print(json.dumps(filtered_alpha, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         filtered_unknown = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--target-id", "target-missing",
             "--json-status",
@@ -9901,7 +9901,7 @@ def main(argv=None):
             print(json.dumps(filtered_unknown, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         filtered_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--target-id", "target-bravo",
             "--status",
@@ -9923,7 +9923,7 @@ def main(argv=None):
             print(filtered_status.stdout, file=sys.stderr)
             return 1
         filtered_workbench = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--target-id", "target-bravo",
             "--tui",
@@ -9946,7 +9946,7 @@ def main(argv=None):
         target_staged_source = Path(tmp) / "bravo-staged.txt"
         target_staged_source.write_text("target scoped staged file\n", encoding="utf-8")
         target_stage = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--target-id", "target-bravo",
             "--serve-file", str(target_staged_source),
@@ -9960,7 +9960,7 @@ def main(argv=None):
             print(target_stage.stdout, file=sys.stderr)
             return 1
         target_queue = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--target-id", "target-bravo",
             "--queue-command", "grit survey",
@@ -9973,7 +9973,7 @@ def main(argv=None):
             print(target_queue.stdout, file=sys.stderr)
             return 1
         scoped_doc = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--target-id", "target-bravo",
             "--json-status",
@@ -10109,7 +10109,7 @@ def main(argv=None):
             print(json.dumps(target_fetch_docs, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         all_fetch_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--json-status",
         ).stdout)
@@ -10126,7 +10126,7 @@ def main(argv=None):
             print(json.dumps(all_fetch_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         scoped_fetch_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(upload_cfg),
             "--target-id", "target-bravo",
             "--json-status",
@@ -10234,7 +10234,7 @@ def main(argv=None):
             print(capability_stderr, file=sys.stderr)
             return 1
         capability_status = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(capability_cfg),
             "--target-id", "target-capability",
             "--json-status",
@@ -10321,7 +10321,7 @@ def main(argv=None):
             print(json.dumps(capability_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         capability_text_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(capability_cfg),
             "--target-id", "target-capability",
             "--status",
@@ -10334,7 +10334,7 @@ def main(argv=None):
             print(capability_text_status.stdout, file=sys.stderr)
             return 1
         capability_workbench = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(capability_cfg),
             "--target-id", "target-capability",
             "--tui",
@@ -10547,7 +10547,7 @@ def main(argv=None):
                 pass
         if (line_stage_proc.returncode != 0 or
                 "Traceback" in (line_stage_stderr or "") or
-                "headless_command: scripts/grit-server --config" not in line_stage_stdout or
+                "headless_command: scripts/grit-console --config" not in line_stage_stdout or
                 "--serve-file " not in line_stage_stdout or
                 "--as /tmp/line-stage --list-staged" not in line_stage_stdout or
                 "--as grit --list-staged" not in line_stage_stdout or
@@ -10673,7 +10673,7 @@ def main(argv=None):
             "GRIT_OPERATOR_FILE_SERVICE_PORT": free_port(),
         }), encoding="utf-8")
         file_action_stage = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(file_workflow_cfg),
             "--target-id", "file-workflow-target",
             "--target-label", "File Workflow Target",
@@ -10690,7 +10690,7 @@ def main(argv=None):
             print(file_action_stage.stderr, file=sys.stderr)
             return 1
         file_action_upload = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(file_workflow_cfg),
             "--target-id", "file-workflow-target",
             "--target-label", "File Workflow Target",
@@ -10706,7 +10706,7 @@ def main(argv=None):
             print(file_action_upload.stderr, file=sys.stderr)
             return 1
         staged_action_show = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(file_workflow_cfg),
             "--run-staged-file-workflow-action", "workflow-staged.txt:show-fetch-command",
         )
@@ -10719,7 +10719,7 @@ def main(argv=None):
             print(staged_action_show.stderr, file=sys.stderr)
             return 1
         staged_action_queue = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(file_workflow_cfg),
             "--run-staged-file-workflow-action", "workflow-staged.txt:queue-staged-fetch",
         )
@@ -10733,7 +10733,7 @@ def main(argv=None):
             print(staged_action_queue.stderr, file=sys.stderr)
             return 1
         staged_action_unstage = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(file_workflow_cfg),
             "--run-staged-file-workflow-action", "workflow-staged.txt:unstage",
             "--confirm-staged-file-workflow-action",
@@ -10746,7 +10746,7 @@ def main(argv=None):
             print(staged_action_unstage.stderr, file=sys.stderr)
             return 1
         file_workflow_doc = json.loads(run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(file_workflow_cfg),
             "--event-limit", "24",
             "--json-status",
@@ -10786,7 +10786,7 @@ def main(argv=None):
         }), encoding="utf-8")
 
         tui = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -10820,7 +10820,7 @@ def main(argv=None):
             print(tui.stdout, file=sys.stderr)
             return 1
         tui_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -11598,7 +11598,7 @@ def main(argv=None):
                 "wget --no-check-certificate -O ./grit-test " not in _line_stdout or
                 "curl -fLk -o ./grit-test " not in _line_stdout or
                 "/fetch?name=grit-test" not in _line_stdout or
-                "headless_command: scripts/grit-server --config" not in _line_stdout or
+                "headless_command: scripts/grit-console --config" not in _line_stdout or
                 "--stage-release-artifact by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout):
             print("line-oriented TUI did not expose direct release staging", file=sys.stderr)
             print(_line_stdout, file=sys.stderr)
@@ -11995,7 +11995,7 @@ def main(argv=None):
             return 1
 
         bad_stage = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -12068,7 +12068,7 @@ def main(argv=None):
             print("staged fetch connection_close event missing request outcome details", file=sys.stderr)
             return 1
         fetch_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -12168,7 +12168,7 @@ def main(argv=None):
             print(fetch_status.stdout, file=sys.stderr)
             return 1
         fetch_status_text = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -12185,7 +12185,7 @@ def main(argv=None):
             print(fetch_status_text.stdout, file=sys.stderr)
             return 1
         fetch_view = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -12207,7 +12207,7 @@ def main(argv=None):
             print("staged-files JSON missing request name", file=sys.stderr)
             return 1
         listed = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -12218,7 +12218,7 @@ def main(argv=None):
             print(listed.stdout, file=sys.stderr)
             return 1
         status_enriched = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -12301,7 +12301,7 @@ def main(argv=None):
             print(status_enriched.stdout, file=sys.stderr)
             return 1
         unstage = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -12377,7 +12377,7 @@ def main(argv=None):
             print("missing fetch connection_close event missing request outcome details", file=sys.stderr)
             return 1
         missing_fetch_status = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(missing_fetch_cfg),
             "--state-file", str(Path(tmp) / "missing-fetch-state.json"),
             "--staged-file", str(Path(tmp) / "missing-fetch-staged.json"),
@@ -12402,7 +12402,7 @@ def main(argv=None):
         serve_dir.mkdir()
         (serve_dir / "tcpdump").write_text("fake tcpdump\n", encoding="utf-8")
         list_dir = run(
-            "scripts/grit-server",
+            "scripts/grit-console",
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
@@ -12509,7 +12509,7 @@ def main(argv=None):
             return line_console_rc
 
     label = "integration" if args.section == "integration" else args.section
-    print(f"grit-server smoke {label} ok")
+    print(f"grit-console smoke {label} ok")
     return 0
 
 

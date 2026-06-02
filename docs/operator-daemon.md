@@ -1,6 +1,6 @@
 # Operator Daemon
 
-`scripts/grit-server --daemon` runs a foreground operator control-plane
+`scripts/grit-console --daemon` runs a foreground operator control-plane
 process that owns selected listener child processes. Direct one-service commands
 still work; daemon mode is an explicit lifecycle wrapper around those same
 headless transports.
@@ -8,7 +8,7 @@ headless transports.
 Select services with repeatable `--daemon-service` flags:
 
 ```sh
-scripts/grit-server --daemon \
+scripts/grit-console --daemon \
   --daemon-service file-service \
   --daemon-service command-queue
 ```
@@ -23,9 +23,9 @@ services, and process-log paths under `operator_session_dir/daemon-logs/`.
 Existing `--status`, `--json-status`, and `--stop` continue to work:
 
 ```sh
-scripts/grit-server --status
-scripts/grit-server --json-status
-scripts/grit-server --stop
+scripts/grit-console --status
+scripts/grit-console --json-status
+scripts/grit-console --stop
 ```
 
 `--stop` uses the same managed-process ownership checks as direct listeners and
@@ -82,14 +82,14 @@ The same records include selector-based `run_command` and `dry_run_command`
 values for headless parity:
 
 ```sh
-scripts/grit-server --run-service-workflow-action file-service:start-service \
+scripts/grit-console --run-service-workflow-action file-service:start-service \
   --service-workflow-dry-run
 ```
 
 Foreground-safe actions can also be run through the workbench action API:
 
 ```sh
-scripts/grit-server --run-workbench-action systemd-user-status \
+scripts/grit-console --run-workbench-action systemd-user-status \
   --workbench-action-dry-run
 ```
 
@@ -126,11 +126,11 @@ currently attached daemon when it is already running.
 The same daemon command can be rendered or installed as a systemd user service:
 
 ```sh
-scripts/grit-server --systemd-user-action print \
+scripts/grit-console --systemd-user-action print \
   --daemon-service file-service \
   --daemon-service command-queue
 
-scripts/grit-server --systemd-user-action install \
+scripts/grit-console --systemd-user-action install \
   --daemon-service file-service \
   --systemd-user-unit-name grit-operator.service
 ```
@@ -140,10 +140,10 @@ follow-up `systemctl --user daemon-reload` / `enable --now` commands. Service
 control actions are also available:
 
 ```sh
-scripts/grit-server --systemd-user-action start
-scripts/grit-server --systemd-user-action stop
-scripts/grit-server --systemd-user-action restart
-scripts/grit-server --systemd-user-action status
+scripts/grit-console --systemd-user-action start
+scripts/grit-console --systemd-user-action stop
+scripts/grit-console --systemd-user-action restart
+scripts/grit-console --systemd-user-action status
 ```
 
 Use `--systemd-user-dry-run` to print the `systemctl --user ...` command without

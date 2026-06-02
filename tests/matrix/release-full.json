@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "name": "full",
-  "description": "Complete release: all supported targets × all payload presets. Intended for airgapped deployment — probe identifies the device arch and grit-server serves the right binary.",
+  "description": "Complete release: all supported targets × all payload presets. Intended for airgapped deployment — probe identifies the device arch and grit-console serves the right binary.",
   "targets": [
     "native",
     "mips-linux-2.4-uclibc",

@@ -12,7 +12,7 @@ Branch: `reverse-access-hardening`
 - Improved builtin wolfSSL relay handling for handshake errors, EINTR,
   WANT_READ/WANT_WRITE, partial writes, EOF, hangups, child exit, and SIGPIPE.
 - Added a repeatable GL.iNet integration harness at `scripts/lib/integration-glinet`.
-- Added scripted shell support to `scripts/grit-server` for TLS/plain shell
+- Added scripted shell support to `scripts/grit-console` for TLS/plain shell
   integration cases.
 - Added local regression coverage for validation-matrix cases and retired
   stager/callback UX text.

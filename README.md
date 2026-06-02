@@ -201,14 +201,14 @@ ssh root@router 'chmod +x /tmp/grit && /tmp/grit doctor'
 
 ## Operator Console
 
-The operator side is managed through `scripts/grit-server`, which provides an
+The operator side is managed through `scripts/grit-console`, which provides an
 interactive console, reverse-access listeners, a file service, and command
 queueing for targets that phone home.
 
 ### Starting the console
 
 ```sh
-scripts/grit-server --tui
+scripts/grit-console --tui
 ```
 
 The console opens with a compact status banner and a `grit[all]>` prompt. It
@@ -310,21 +310,21 @@ grit[my-router]> queue result 1
 Common workflows without the interactive console:
 
 ```sh
-scripts/grit-server --status
-scripts/grit-server --json-status
-scripts/grit-server --transport ssh
-scripts/grit-server --serve-file ./grit --as grit
-scripts/grit-server --stage-release-artifact by_device:glinet-mt1300
-scripts/grit-server --list-staged
-scripts/grit-server --target-id my-router --queue-command 'grit survey --json'
+scripts/grit-console --status
+scripts/grit-console --json-status
+scripts/grit-console --transport ssh
+scripts/grit-console --serve-file ./grit --as grit
+scripts/grit-console --stage-release-artifact by_device:glinet-mt1300
+scripts/grit-console --list-staged
+scripts/grit-console --target-id my-router --queue-command 'grit survey --json'
 ```
 
 Run as a background daemon with systemd:
 
 ```sh
-scripts/grit-server --systemd-user-action print    # preview unit file
-scripts/grit-server --systemd-user-action install  # install and enable
-scripts/grit-server --daemon --daemon-service file-service --daemon-service command-queue
+scripts/grit-console --systemd-user-action print    # preview unit file
+scripts/grit-console --systemd-user-action install  # install and enable
+scripts/grit-console --daemon --daemon-service file-service --daemon-service command-queue
 ```
 
 ---
@@ -436,12 +436,12 @@ eval "$(./grit envfix)"       # apply them
 ./grit rshell stop            # stop the reverse shell
 ```
 
-In SSH transport mode, `grit-server --transport ssh` acts as an operator-side
+In SSH transport mode, `grit-console --transport ssh` acts as an operator-side
 Paramiko SSH server. The target runs dbclient and establishes a reverse
 forward; the operator connects through the forwarded port:
 
 ```sh
-scripts/grit-server --transport ssh   # operator side
+scripts/grit-console --transport ssh   # operator side
 ./grit rshell                         # target side — calls dbclient internally
 ssh -p 2200 root@127.0.0.1            # operator connects through the forward
 ```
@@ -633,7 +633,7 @@ targets/              target presets
 configs/              active build config
 manifests/            source pins, license policy
 scripts/              operator tools and build helpers
-  grit-server         operator console and reverse-access server
+  grit-console         operator console and reverse-access server
   grit-bringup        guided first-contact and survey loop
   config-from-survey  generate build config from survey JSON
   preset-from-survey  generate reusable target preset from survey JSON

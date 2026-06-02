@@ -1124,7 +1124,7 @@ print_operator_session_instructions() {
 griTTYkit reverse shell catch instructions
 ------------------------------------------
 This is the Dropbear/dbclient reverse SSH path used by zero-arg rshell mode and
-explicit 'grit rshell'. scripts/grit-server can also listen for the
+explicit 'grit rshell'. scripts/grit-console can also listen for the
 reverse SSH connection using the saved defaults.
 
 # On operator workstation, ensure sshd is running and authorized_keys contains
@@ -1139,7 +1139,7 @@ ssh ${_op_user}@${_op_host} -p ${_op_ssh_port} \\
 ssh -p ${_fwd_port} root@127.0.0.1
 
 # Or let griTTYkit load the saved defaults and wait for the reverse tunnel:
-scripts/grit-server --transport ssh --ssh-port ${_op_ssh_port}
+scripts/grit-console --transport ssh --ssh-port ${_op_ssh_port}
 
 Configured files:
   target -> operator identity: ${GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE:-<not set>}
@@ -2405,7 +2405,7 @@ configure_operator_reverse_ssh_advanced() {
         dialog --title "Operator reverse SSH / Advanced" \
             --menu "Advanced reverse SSH settings. Defaults are generated under local/operator-session and use the Dropbear port from the Dropbear menu." 24 90 11 \
             "1" "Operator workstation SSH user: $GRIT_OPERATOR_SERVER_USER" \
-            "2" "grit-server listener port: $GRIT_OPERATOR_SERVER_SSH_PORT" \
+            "2" "grit-console listener port: $GRIT_OPERATOR_SERVER_SSH_PORT" \
             "3" "Remote forward port: $GRIT_OPERATOR_REMOTE_FORWARD_PORT" \
             "4" "Target Dropbear bind host: $GRIT_OPERATOR_TARGET_BIND_HOST" \
             "5" "Target Dropbear port: $GRIT_OPERATOR_TARGET_DROPBEAR_PORT" \
@@ -2418,7 +2418,7 @@ configure_operator_reverse_ssh_advanced() {
         _choice=$(cat "$temp_out")
         case "$_choice" in
             1) dialog --title "Operator SSH user" --inputbox "SSH user on the operator workstation." 9 78 "$GRIT_OPERATOR_SERVER_USER" 2>"$temp_out" || true; GRIT_OPERATOR_SERVER_USER=$(cat "$temp_out") ;;
-            2) dialog --title "grit-server listener port" --inputbox "Port grit-server listens on for incoming dbclient connections (no root needed for ports >= 1024)." 9 72 "$GRIT_OPERATOR_SERVER_SSH_PORT" 2>"$temp_out" || true; GRIT_OPERATOR_SERVER_SSH_PORT=$(cat "$temp_out") ;;
+            2) dialog --title "grit-console listener port" --inputbox "Port grit-console listens on for incoming dbclient connections (no root needed for ports >= 1024)." 9 72 "$GRIT_OPERATOR_SERVER_SSH_PORT" 2>"$temp_out" || true; GRIT_OPERATOR_SERVER_SSH_PORT=$(cat "$temp_out") ;;
             3) dialog --title "Remote forward port" --inputbox "Port opened on the operator workstation and forwarded back to target Dropbear." 9 70 "$GRIT_OPERATOR_REMOTE_FORWARD_PORT" 2>"$temp_out" || true; GRIT_OPERATOR_REMOTE_FORWARD_PORT=$(cat "$temp_out") ;;
             4) dialog --title "Target Dropbear bind host" --inputbox "Target-side Dropbear bind address for the forwarded service." 9 70 "$GRIT_OPERATOR_TARGET_BIND_HOST" 2>"$temp_out" || true; GRIT_OPERATOR_TARGET_BIND_HOST=$(cat "$temp_out") ;;
             5) dialog --title "Target Dropbear port" --inputbox "Target-side Dropbear listen port. Defaults to the Dropbear menu listen port." 9 70 "$GRIT_OPERATOR_TARGET_DROPBEAR_PORT" 2>"$temp_out" || true; GRIT_OPERATOR_TARGET_DROPBEAR_PORT=$(cat "$temp_out") ;;
@@ -2448,7 +2448,7 @@ Reverse access summary
 
 Transport: ssh
 Operator host: ${_h}
-Server listener: scripts/grit-server --transport ssh --ssh-port ${_sp}
+Server listener: scripts/grit-console --transport ssh --ssh-port ${_sp}
 Target action: grit rshell
 Target Dropbear: ${_bh}:${_tp}
 Reverse forward: 127.0.0.1:${_fp} -> target ${_bh}:${_tp}
@@ -2467,7 +2467,7 @@ Reverse access summary
 
 Transport: ${_transport}
 Operator host: ${_h}
-Server listener: scripts/grit-server --transport ${_server_transport} --shell-port ${_shell_port}
+Server listener: scripts/grit-console --transport ${_server_transport} --shell-port ${_shell_port}
 Target action: grit rshell
 Shell provider: ${GRIT_RSHELL_SHELL_PROVIDER}
 Session policy: ${GRIT_RSHELL_SESSION_POLICY}
@@ -2490,24 +2490,24 @@ EOF
 
 _rshell_server_command() {
     case "$GRIT_RSHELL_TRANSPORT:$GRIT_RSHELL_ENCRYPTION" in
-        ssh:*) printf 'scripts/grit-server --transport ssh --ssh-port %s\n' "$GRIT_OPERATOR_SERVER_SSH_PORT" ;;
-        *:none) printf 'scripts/grit-server --transport plain-shell --shell-port %s\n' "$GRIT_RSHELL_SOCAT_PORT" ;;
-        *) printf 'scripts/grit-server --transport tls-shell --shell-port %s\n' "$GRIT_RSHELL_SOCAT_PORT" ;;
+        ssh:*) printf 'scripts/grit-console --transport ssh --ssh-port %s\n' "$GRIT_OPERATOR_SERVER_SSH_PORT" ;;
+        *:none) printf 'scripts/grit-console --transport plain-shell --shell-port %s\n' "$GRIT_RSHELL_SOCAT_PORT" ;;
+        *) printf 'scripts/grit-console --transport tls-shell --shell-port %s\n' "$GRIT_RSHELL_SOCAT_PORT" ;;
     esac
 }
 
 _rshell_operator_connect_command() {
     case "$GRIT_RSHELL_TRANSPORT" in
         ssh) printf 'ssh -p %s root@127.0.0.1\n' "$GRIT_OPERATOR_REMOTE_FORWARD_PORT" ;;
-        *) printf '# shell stream is attached by scripts/grit-server\n' ;;
+        *) printf '# shell stream is attached by scripts/grit-console\n' ;;
     esac
 }
 
 _rshell_scripted_test_command() {
     case "$GRIT_RSHELL_TRANSPORT:$GRIT_RSHELL_ENCRYPTION" in
         ssh:*) printf '# after the reverse forward is established: ssh -p %s root@127.0.0.1 "uname -a"\n' "$GRIT_OPERATOR_REMOTE_FORWARD_PORT" ;;
-        *:none) printf 'printf "echo grit-rshell-ok; exit\\n" | scripts/grit-server --transport plain-shell --shell-port %s --script - --session-timeout 20\n' "$GRIT_RSHELL_SOCAT_PORT" ;;
-        *) printf 'printf "echo grit-rshell-ok; exit\\n" | scripts/grit-server --transport tls-shell --shell-port %s --script - --session-timeout 20\n' "$GRIT_RSHELL_SOCAT_PORT" ;;
+        *:none) printf 'printf "echo grit-rshell-ok; exit\\n" | scripts/grit-console --transport plain-shell --shell-port %s --script - --session-timeout 20\n' "$GRIT_RSHELL_SOCAT_PORT" ;;
+        *) printf 'printf "echo grit-rshell-ok; exit\\n" | scripts/grit-console --transport tls-shell --shell-port %s --script - --session-timeout 20\n' "$GRIT_RSHELL_SOCAT_PORT" ;;
     esac
 }
 
@@ -2544,7 +2544,7 @@ $(_rshell_summary_text)
 | Session policy | ${GRIT_RSHELL_SESSION_POLICY} |
 | Operator host | ${_h} |
 | Operator SSH user | ${_u} |
-| grit-server listen port | ${_sp} |
+| grit-console listen port | ${_sp} |
 | Shell listener port | ${GRIT_RSHELL_SOCAT_PORT} |
 | Remote forward port | ${_fp} |
 | Target Dropbear bind | ${_bh}:${_tp} |
@@ -2710,7 +2710,7 @@ configure_rshell_endpoint() {
                     --msgbox "Prepared defaults under local/operator-session where needed.\n\nTarget -> operator identity:\n  ${GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE:-auto}\n\nOperator -> target public key:\n  ${GRIT_OPERATOR_AUTHORIZED_KEY_FILE:-auto}\n\nTLS server cert (builtin/socat+tls):\n  $_tls_cert_status\n\nTarget Dropbear port:\n  ${GRIT_OPERATOR_TARGET_DROPBEAR_PORT:-${GRIT_DROPBEAR_LISTEN_PORT:-2222}}" \
                     19 82
                 ;;
-            3) dialog --title "Operator SSH listener port" --inputbox "Port scripts/grit-server listens on for reverse SSH." 9 74 "$GRIT_OPERATOR_SERVER_SSH_PORT" 2>"$temp_out" || true; GRIT_OPERATOR_SERVER_SSH_PORT=$(cat "$temp_out") ;;
+            3) dialog --title "Operator SSH listener port" --inputbox "Port scripts/grit-console listens on for reverse SSH." 9 74 "$GRIT_OPERATOR_SERVER_SSH_PORT" 2>"$temp_out" || true; GRIT_OPERATOR_SERVER_SSH_PORT=$(cat "$temp_out") ;;
             4) dialog --title "Remote forward port" --inputbox "Operator-side localhost port forwarded to target Dropbear." 9 74 "$GRIT_OPERATOR_REMOTE_FORWARD_PORT" 2>"$temp_out" || true; GRIT_OPERATOR_REMOTE_FORWARD_PORT=$(cat "$temp_out") ;;
             5)
                 dialog --title "Target Dropbear bind host" --inputbox "Host/interface Dropbear binds on the target." 9 74 "$GRIT_OPERATOR_TARGET_BIND_HOST" 2>"$temp_out" || true
@@ -2718,7 +2718,7 @@ configure_rshell_endpoint() {
                 dialog --title "Target Dropbear port" --inputbox "Dropbear port on the target." 9 74 "${GRIT_OPERATOR_TARGET_DROPBEAR_PORT:-${GRIT_DROPBEAR_LISTEN_PORT:-2222}}" 2>"$temp_out" || true
                 GRIT_OPERATOR_TARGET_DROPBEAR_PORT=$(cat "$temp_out")
                 ;;
-            6) dialog --title "Shell listener port" --inputbox "Port scripts/grit-server listens on for the shell connection." 9 72 "$GRIT_RSHELL_SOCAT_PORT" 2>"$temp_out" || true; GRIT_RSHELL_SOCAT_PORT=$(cat "$temp_out") ;;
+            6) dialog --title "Shell listener port" --inputbox "Port scripts/grit-console listens on for the shell connection." 9 72 "$GRIT_RSHELL_SOCAT_PORT" 2>"$temp_out" || true; GRIT_RSHELL_SOCAT_PORT=$(cat "$temp_out") ;;
             H) show_page_help rshell ;;
             0) return 0 ;;
         esac

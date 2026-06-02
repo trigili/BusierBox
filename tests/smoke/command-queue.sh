@@ -199,7 +199,7 @@ cfg = {
 }
 Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
 PY
-scripts/grit-server --config "$cq_cfg" --transport command-queue --timeout 10 --one-shot >"$cq_out" 2>"$cq_err" &
+scripts/grit-console --config "$cq_cfg" --transport command-queue --timeout 10 --one-shot >"$cq_out" 2>"$cq_err" &
 cq_pid=$!
 sleep 0.5
 GRIT_COMMAND_QUEUE_ENABLE=yes GRIT_COMMAND_QUEUE_REQUIRE_TOKEN=no GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS=grit-only GRIT_COMMAND_QUEUE_TLS=no GRIT_COMMAND_QUEUE_PORT="$port" GRIT_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --event-log "$cq_events" --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; ms=d["mode_summary"]; assert d["dry_run"] is False; assert d["status"] == "polling"; assert d["poll_transport_supported"] is True; assert d["delivery_supported"] is True; assert d["execution_supported"] is False; assert d["executes_commands"] is False; assert ms["delivery_supported_mode_count"] == 3; assert ms["active_control_channel_mode_count"] == 1; assert ms["execution_supported_mode_count"] == 0; assert r["attempted"] is True; assert r["attempts"] == 1; assert r["successes"] == 1; assert r["failures"] == 0; assert r["last_status"] == "no-command"; assert r["event_count"] == 3; assert r["event_warning_count"] == 0; assert r["event_counts_by_event"]["command_queue_poll_attempt"] == 1; assert r["event_counts_by_event"]["command_queue_poll_no_command"] == 1; assert r["event_counts_by_event"]["command_queue_poll_shutdown"] == 1'
@@ -264,7 +264,7 @@ cfg = {
 }
 Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
 PY
-scripts/grit-server --config "$token_cfg" --transport command-queue --timeout 10 --one-shot >"$token_out" 2>"$token_err" &
+scripts/grit-console --config "$token_cfg" --transport command-queue --timeout 10 --one-shot >"$token_out" 2>"$token_err" &
 token_pid=$!
 sleep 0.5
 GRIT_COMMAND_QUEUE_ENABLE=yes GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS=grit-only GRIT_COMMAND_QUEUE_TLS=no GRIT_COMMAND_QUEUE_TOKEN=wrong-token GRIT_COMMAND_QUEUE_PORT="$token_port" GRIT_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; assert d["policy_valid"] is True; assert r["attempted"] is True; assert r["failures"] == 1; assert r["last_status"] == "error"; assert "unexpected poll response" in r["last_error"]'
@@ -283,7 +283,7 @@ events = [
 assert any(event.get("service") == "command-queue" and event.get("event") == "command_queue_poll" and event.get("details", {}).get("status") == "rejected" for event in events)
 assert any(event.get("service") == "command-queue" and event.get("event") == "command_queue_poll_rejected" and event.get("details", {}).get("reason") == "invalid token" for event in events)
 PY
-scripts/grit-server --config "$token_cfg" --transport command-queue --timeout 10 --one-shot >"$token_out" 2>"$token_err" &
+scripts/grit-console --config "$token_cfg" --transport command-queue --timeout 10 --one-shot >"$token_out" 2>"$token_err" &
 token_pid=$!
 sleep 0.5
 GRIT_COMMAND_QUEUE_ENABLE=yes GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS=grit-only GRIT_COMMAND_QUEUE_TLS=no GRIT_COMMAND_QUEUE_TOKEN=server-token GRIT_COMMAND_QUEUE_PORT="$token_port" GRIT_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --json | python3 -c 'import json,sys; d=json.load(sys.stdin); r=d["poll_run"]; assert d["policy_valid"] is True; assert d["token_configured"] is True; assert r["attempted"] is True; assert r["successes"] == 1; assert r["last_status"] == "no-command"'
@@ -319,7 +319,7 @@ cfg = {
 }
 Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
 PY
-scripts/grit-server --config "$bad_cfg" --transport command-queue --timeout 10 --one-shot >"$bad_out" 2>"$bad_err" &
+scripts/grit-console --config "$bad_cfg" --transport command-queue --timeout 10 --one-shot >"$bad_out" 2>"$bad_err" &
 bad_pid=$!
 sleep 0.5
 python3 - "$bad_port" <<'PY'
@@ -380,7 +380,7 @@ cfg = {
 }
 Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
 PY
-scripts/grit-server --config "$result_bad_cfg" --transport command-queue --timeout 10 --one-shot >"$result_bad_out" 2>"$result_bad_err" &
+scripts/grit-console --config "$result_bad_cfg" --transport command-queue --timeout 10 --one-shot >"$result_bad_out" 2>"$result_bad_err" &
 result_bad_pid=$!
 sleep 0.5
 python3 - "$result_bad_port" <<'PY'
@@ -549,8 +549,8 @@ cfg = {
 }
 Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
 PY
-scripts/grit-server --config "$queued_cfg" --queue-command 'grit reality-test --json' >/dev/null
-scripts/grit-server --config "$queued_cfg" --transport command-queue --timeout 2 >"$queued_out" 2>"$queued_err" &
+scripts/grit-console --config "$queued_cfg" --queue-command 'grit reality-test --json' >/dev/null
+scripts/grit-console --config "$queued_cfg" --transport command-queue --timeout 2 >"$queued_out" 2>"$queued_err" &
 queued_pid=$!
 sleep 0.5
 GRIT_COMMAND_QUEUE_ENABLE=yes GRIT_COMMAND_QUEUE_REQUIRE_TOKEN=no GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS=grit-only GRIT_COMMAND_QUEUE_TLS=no GRIT_COMMAND_QUEUE_PORT="$queued_port" GRIT_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --event-log "$queued_events" --json | python3 -c 'import hashlib,json,sys; d=json.load(sys.stdin); expected=hashlib.sha256(b"grit reality-test --json").hexdigest(); r=d["poll_run"]; p=d["poll_plan"]; q=d["queued_command"]; assert d["dry_run"] is False; assert d["status"] == "polling"; assert d["poll_transport_supported"] is True; assert d["delivery_supported"] is True; assert d["execution_supported"] is False; assert d["executes_commands"] is False; assert d["result_upload_supported"] is True; assert p["result_upload_supported"] is True; assert p["queued_command_available"] is True; assert q["id"].startswith("cq-"); assert q["command"] == "grit reality-test --json"; assert q["command_sha256"] == expected; assert q["timeout_sec"] == 30; assert q["max_output_bytes"] == 65536; assert q["execution_supported"] is False; assert q["executes_commands"] is False; assert r["queued_command_available"] is True; assert r["execution_decision"] == "rejected"; assert r["attempted"] is True; assert r["attempts"] == 1; assert r["successes"] == 1; assert r["failures"] == 0; assert r["delivered_commands"] == 1; assert r["rejected_commands"] == 1; assert r["result_uploads"] == 1; assert r["result_upload_failures"] == 0; assert r["last_status"] == "delivered-rejected"; assert r["last_error"] == ""; assert r["last_command_id"] == q["id"]; assert r["last_command_sha256"] == expected; assert r["last_command"] == q["command"]; assert r["last_timeout_sec"] == 30; assert r["last_max_output_bytes"] == 65536; assert r["event_count"] == 5; assert r["event_info_count"] == 4; assert r["event_warning_count"] == 1; assert r["event_counts_by_event"]["command_queue_poll_attempt"] == 1; assert r["event_counts_by_event"]["command_queue_poll_complete"] == 1; assert r["event_counts_by_event"]["command_queue_execution_decision"] == 1; assert r["event_counts_by_event"]["command_queue_result_upload"] == 1; assert r["event_counts_by_event"]["command_queue_poll_shutdown"] == 1'
@@ -620,9 +620,9 @@ assert any(event["service"] == "command-queue" and event["event"] == "command_qu
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_result_upload_received" and event["details"].get("command_sha256") == expected_sha for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_queue_poll" and event["details"].get("status") == "delivered" for event in operator)
 PY
-scripts/grit-server --config "$queued_cfg" --json-command-queue | python3 -c 'import json,sys; q=json.load(sys.stdin)["command_queue"]; commands=q["commands"]; assert len(commands) == 1; command_id=commands[0]["id"]; assert q["execution_decision_counts"]["rejected"] == 1; assert q["commands_by_execution_decision"]["rejected"][0]["id"] == command_id'
+scripts/grit-console --config "$queued_cfg" --json-command-queue | python3 -c 'import json,sys; q=json.load(sys.stdin)["command_queue"]; commands=q["commands"]; assert len(commands) == 1; command_id=commands[0]["id"]; assert q["execution_decision_counts"]["rejected"] == 1; assert q["commands_by_execution_decision"]["rejected"][0]["id"] == command_id'
 queued_status_file="${TMPDIR:-/tmp}/grit-command-queue-status.$$.json"
-scripts/grit-server --config "$queued_cfg" --json-status >"$queued_status_file"
+scripts/grit-console --config "$queued_cfg" --json-status >"$queued_status_file"
 python3 - "$queued_status_file" <<'PY'
 import hashlib
 import json
@@ -688,7 +688,7 @@ assert "events_by_service_detail_command_sha256" in events_api["indexes"]
 PY
 rm -f "$queued_status_file"
 queued_text_file="${TMPDIR:-/tmp}/grit-command-queue-status.$$.txt"
-scripts/grit-server --config "$queued_cfg" --list-command-queue >"$queued_text_file"
+scripts/grit-console --config "$queued_cfg" --list-command-queue >"$queued_text_file"
 grep -q '^  delivery_policy_counts: .*delivery_supported=true=1.*result_upload_supported=true=1.*active_control_channel=true=1' "$queued_text_file"
 grep -q '^  delivery_policy: enabled=yes valid=yes execution_mode=metadata-only delivery_supported=yes result_upload_supported=yes active_control_channel=yes$' "$queued_text_file"
 rm -f "$queued_text_file"
@@ -725,8 +725,8 @@ cfg = {
 }
 Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
 PY
-scripts/grit-server --config "$exec_cfg" --queue-command 'printf cq-executed' >/dev/null
-scripts/grit-server --config "$exec_cfg" --transport command-queue --timeout 2 >"$exec_out" 2>"$exec_err" &
+scripts/grit-console --config "$exec_cfg" --queue-command 'printf cq-executed' >/dev/null
+scripts/grit-console --config "$exec_cfg" --transport command-queue --timeout 2 >"$exec_out" 2>"$exec_err" &
 exec_pid=$!
 sleep 0.5
 GRIT_COMMAND_QUEUE_ENABLE=yes GRIT_COMMAND_QUEUE_REQUIRE_TOKEN=no GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS=custom GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY=yes GRIT_COMMAND_QUEUE_EXECUTION=execute GRIT_COMMAND_QUEUE_TLS=no GRIT_COMMAND_QUEUE_PORT="$exec_port" GRIT_OPERATOR_SERVER_HOST=127.0.0.1 "$bb" command-queue poll --live --event-log "$exec_events" --json | python3 -c 'import hashlib,json,sys; d=json.load(sys.stdin); expected=hashlib.sha256(b"printf cq-executed").hexdigest(); r=d["poll_run"]; p=d["poll_plan"]; q=d["queued_command"]; assert d["dry_run"] is False; assert d["status"] == "polling"; assert d["execution_supported"] is True; assert d["executes_commands"] is True; assert d["arbitrary_execution_allowed"] is True; assert p["operator_supplied_command_execution"] is True; assert q["command"] == "printf cq-executed"; assert q["command_sha256"] == expected; assert q["execution_supported"] is True; assert q["executes_commands"] is True; assert q["execution_decision"] == "executed"; assert r["queued_command_available"] is True; assert r["execution_decision"] == "executed"; assert r["attempted"] is True; assert r["attempts"] == 1; assert r["successes"] == 1; assert r["failures"] == 0; assert r["delivered_commands"] == 1; assert r["executed_commands"] == 1; assert r["rejected_commands"] == 0; assert r["result_uploads"] == 1; assert r["result_upload_failures"] == 0; assert r["last_status"] == "delivered-executed"; assert r["last_error"] == ""; assert r["last_command_id"] == q["id"]; assert r["last_command_sha256"] == expected; assert r["last_command"] == q["command"]; assert r["event_count"] == 5; assert r["event_info_count"] == 5; assert r["event_warning_count"] == 0; assert r["event_counts_by_event"]["command_queue_execution_decision"] == 1; assert r["event_counts_by_event"]["command_queue_result_upload"] == 1'
@@ -765,7 +765,7 @@ operator = [json.loads(line) for line in operator_events.open(encoding="utf-8")]
 assert any(event["service"] == "command-queue" and event["event"] == "command_delivered" and event["details"]["execution_supported"] is True and event["details"]["execution_decision"] == "pending" for event in operator)
 assert any(event["service"] == "command-queue" and event["event"] == "command_result_received" and event["details"].get("execution_decision") == "executed" for event in operator)
 PY
-scripts/grit-server --config "$exec_cfg" --json-command-queue | python3 -c 'import json,sys; q=json.load(sys.stdin)["command_queue"]; commands=q["commands"]; assert len(commands) == 1; command_id=commands[0]["id"]; assert q["execution_supported"] is True; assert q["executes_commands"] is True; assert q["arbitrary_execution_allowed"] is True; assert q["execution_decision_counts"]["executed"] == 1; assert q["result_status_counts"]["success"] == 1; assert q["commands_by_execution_decision"]["executed"][0]["id"] == command_id'
+scripts/grit-console --config "$exec_cfg" --json-command-queue | python3 -c 'import json,sys; q=json.load(sys.stdin)["command_queue"]; commands=q["commands"]; assert len(commands) == 1; command_id=commands[0]["id"]; assert q["execution_supported"] is True; assert q["executes_commands"] is True; assert q["arbitrary_execution_allowed"] is True; assert q["execution_decision_counts"]["executed"] == 1; assert q["result_status_counts"]["success"] == 1; assert q["commands_by_execution_decision"]["executed"][0]["id"] == command_id'
 rm -f "$exec_cfg" "$exec_out" "$exec_err" "$exec_events"
 term_port=$(python3 - <<'PY'
 import socket
@@ -797,7 +797,7 @@ cfg = {
 }
 Path(sys.argv[1]).write_text(json.dumps(cfg), encoding="utf-8")
 PY
-scripts/grit-server --config "$term_cfg" --transport command-queue --timeout 20 >"$term_out" 2>"$term_err" &
+scripts/grit-console --config "$term_cfg" --transport command-queue --timeout 20 >"$term_out" 2>"$term_err" &
 term_pid=$!
 python3 - "$term_cfg" <<'PY'
 import json
@@ -850,8 +850,8 @@ service = (state.get("services") or {}).get("command-queue") or {}
 if service.get("status") != "stopped" or service.get("stopped_reason") != "SIGTERM":
     raise SystemExit("command-queue SIGTERM did not persist stopped state")
 PY
-scripts/grit-server --config "$term_cfg" --json-status | python3 -c 'import json,sys; d=json.load(sys.stdin); summary=d["summary"]; by_reason=d["services_by_stopped_reason"]; api=d["api_collections"]["services"]; assert summary["service_stopped_reason_counts"]["SIGTERM"] == 1; assert by_reason["SIGTERM"][0]["name"] == "command-queue"; assert "services_by_stopped_reason" in api["indexes"]'
-scripts/grit-server --config "$term_cfg" --status >"$term_out"
+scripts/grit-console --config "$term_cfg" --json-status | python3 -c 'import json,sys; d=json.load(sys.stdin); summary=d["summary"]; by_reason=d["services_by_stopped_reason"]; api=d["api_collections"]["services"]; assert summary["service_stopped_reason_counts"]["SIGTERM"] == 1; assert by_reason["SIGTERM"][0]["name"] == "command-queue"; assert "services_by_stopped_reason" in api["indexes"]'
+scripts/grit-console --config "$term_cfg" --status >"$term_out"
 grep -q 'service lifecycle: .*stopped_reasons=SIGTERM=1' "$term_out"
 rm -f "$term_cfg" "$term_out" "$term_err"
 "$bb" plan command-queue --json | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["command"] == "command-queue"; assert d["configured_for_polling"] is False; assert d["missing_operator_host"] is False; assert d["execution_supported"] is False; assert d["requires_external_writes"] is False; assert d["poll_interval_sec"] == "5"; assert d["poll_jitter_pct"] == "0"; assert d["poll_backoff"] == "none"; assert d["poll_max_interval_sec"] == "300"; assert d["daemon_state_file"].endswith("/run/command-queue-daemon.state"); assert d["daemon_state_file_supported"] is True; assert d["daemon_status_supported"] is True; assert d["daemon_stop_supported"] is True; assert d["result_upload_supported"] is True; assert d["mode_records_by_target_polling_supported"]["true"] == [1,2,3]; assert d["mode_records_by_delivery_supported"]["false"] == [0,1,2,3,4]; assert d["mode_records_by_result_upload_supported"]["true"] == [0,1,2,3,4]; assert d["mode_summary"]["target_polling_supported_mode_count"] == 3; assert d["mode_summary"]["delivery_supported_mode_count"] == 0; assert d["mode_summary"]["result_upload_supported_mode_count"] == 5; assert "mode_records_by_target_polling_supported" in d["api_collections"]["mode_records"]["indexes"]; assert "mode_records_by_delivery_supported" in d["api_collections"]["mode_records"]["indexes"]; assert "mode_records_by_result_upload_supported" in d["api_collections"]["mode_records"]["indexes"]'

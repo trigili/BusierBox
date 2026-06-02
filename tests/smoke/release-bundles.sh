@@ -247,7 +247,7 @@ test -f "$work/release/devices/native/target.json"
 test -f "$work/release/devices/native/README.txt"
 test -f "$work/release/devices/native/notes.md"
 test -x "$work/release/scripts/lib/artifact-config"
-test -x "$work/release/scripts/grit-server"
+test -x "$work/release/scripts/grit-console"
 test -x "$work/release/scripts/configure-artifact"
 test -x "$work/release/scripts/configure-all"
 test -x "$work/release/scripts/verify-checksums"
@@ -324,7 +324,7 @@ for forbidden in (
     if name in names:
         raise SystemExit(f"editor temp file included in release tarball: {name}")
 PY
-grep -q 'scripts/grit-server --transport tls-shell' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'scripts/grit-console --transport tls-shell' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'GPL-2.0-or-later' "$work/release/LICENSE.grit"
 grep -q 'GPL-2.0-or-later' "$work/release/NOTICE"
 grep -q 'third_party/busybox/LICENSE' "$work/release/LICENSES/busybox.txt"
@@ -334,9 +334,9 @@ grep -q 'third_party/miniz/LICENSE' "$work/release/LICENSES/miniz.txt"
 grep -q 'GPL compatibility summary' "$work/release/docs/licensing.md"
 python3 -m json.tool "$work/release/manifests/license-policy.json" >/dev/null
 grep -q '"combined_gplv2_compatible": true' "$work/release/manifests/license-policy.json"
-grep -q 'scripts/grit-server --file-service --file-port 22204' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q 'scripts/grit-server --tui' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q 'scripts/grit-server --transport probe --probe-port 22207' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'scripts/grit-console --file-service --file-port 22204' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'scripts/grit-console --tui' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'scripts/grit-console --transport probe --probe-port 22207' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'probe --start' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'probe config --write-config configs/grit.conf' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'probe serve --start' "$work/release/RELEASE-QUICKSTART.txt"
@@ -355,7 +355,7 @@ grep -q './grit config-push' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'stage release artifacts' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'queue commands for targets that' "$work/release/RELEASE-QUICKSTART.txt"
 if grep -q 'not an artifact sender' "$work/release/RELEASE-QUICKSTART.txt"; then
-    printf '%s\n' "release-bundles: quickstart still says grit-server cannot send artifacts" >&2
+    printf '%s\n' "release-bundles: quickstart still says grit-console cannot send artifacts" >&2
     exit 1
 fi
 if grep -q -- '--survey-bootstrap-port' "$work/release/RELEASE-QUICKSTART.txt"; then
@@ -366,7 +366,7 @@ grep -q 'configure grit --operator-host 192.168.8.241 --transport builtin --shel
 grep -q 'probe serve --start' "$work/release/docs/README-release.md"
 grep -q 'print plain wget/curl target fetch commands' "$work/release/docs/README-release.md"
 grep -q 'original release artifact remains pristine' "$work/release/docs/README-release.md"
-grep -q 'scripts/grit-server' "$work/release/release-index.json"
+grep -q 'scripts/grit-console' "$work/release/release-index.json"
 
 python3 -m json.tool "$work/release/release.json" >/dev/null
 grep -q '"release_name": "smoke"' "$work/release/release.json"

@@ -8,8 +8,8 @@ trap 'rm -f "$tmp"' EXIT HUP INT TERM
 rg -n \
     -e '--rshell' \
     -e 'wait-operator-tunnel' \
-    -e 'scripts/grit-server --rshell' \
-    -e 'scripts/grit-server --wait-operator-tunnel' \
+    -e 'scripts/grit-console --rshell' \
+    -e 'scripts/grit-console --wait-operator-tunnel' \
     -e 'shell-again' \
     -e 'send_file' \
     -e 'framed callback' \
@@ -18,11 +18,11 @@ rg -n \
     >"$tmp" || true
 
 # Internal regression tests may mention forbidden strings as data.
-if grep -v '^tests/smoke/grit-server.py:' "$tmp" |
+if grep -v '^tests/smoke/grit-console.py:' "$tmp" |
     grep -v '^tests/smoke/stale-ux-text.sh:' |
     grep -q .; then
     printf '%s\n' "stale-ux-text: retired user-facing text found" >&2
-    grep -v '^tests/smoke/grit-server.py:' "$tmp" |
+    grep -v '^tests/smoke/grit-console.py:' "$tmp" |
         grep -v '^tests/smoke/stale-ux-text.sh:' >&2
     exit 1
 fi
@@ -59,7 +59,7 @@ if grep -q 'by_device:gl-mt1300' README.md docs/release-bundles.md; then
     printf '%s\n' "stale-ux-text: release docs still use stale gl-mt1300 selector" >&2
     exit 1
 fi
-if grep -q 'release selection number, recommendation id, artifact path, by_device:NAME, or by_tuple_path:PATH' scripts/grit-server; then
+if grep -q 'release selection number, recommendation id, artifact path, by_device:NAME, or by_tuple_path:PATH' scripts/grit-console; then
     printf '%s\n' "stale-ux-text: workbench release prompt omits payload preset selectors" >&2
     exit 1
 fi

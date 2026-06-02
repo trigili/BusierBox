@@ -126,10 +126,10 @@ static void append_rshell_ledger_setup(char *cmd, size_t cmdsz)
 static void rshell_server_listener(char *out, size_t outsz, const char *transport)
 {
     if (!strcmp(transport, "ssh")) {
-        snprintf(out, outsz, "scripts/grit-server --transport ssh --ssh-port %s", GRIT_OPERATOR_SERVER_SSH_PORT);
+        snprintf(out, outsz, "scripts/grit-console --transport ssh --ssh-port %s", GRIT_OPERATOR_SERVER_SSH_PORT);
     } else {
         const char *server_transport = !strcmp(GRIT_RSHELL_ENCRYPTION, "none") ? "plain-shell" : "tls-shell";
-        snprintf(out, outsz, "scripts/grit-server --transport %s --shell-port %s", server_transport, GRIT_RSHELL_SOCAT_PORT);
+        snprintf(out, outsz, "scripts/grit-console --transport %s --shell-port %s", server_transport, GRIT_RSHELL_SOCAT_PORT);
     }
 }
 

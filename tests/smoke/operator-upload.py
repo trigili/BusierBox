@@ -52,7 +52,7 @@ def main():
         )
         server = subprocess.Popen(
             [
-                str(ROOT / "scripts/grit-server"),
+                str(ROOT / "scripts/grit-console"),
                 "--config",
                 str(cfg),
                 "--file-service",

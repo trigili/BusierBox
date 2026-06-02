@@ -103,7 +103,7 @@ BUILDROOT_DL_DIR=/mnt/source-mirror/full/buildroot-dl
 
 The resulting release bundle is the same operator-facing package produced on an
 online machine: it contains the generic kernel-era tuple artifacts, payload
-preset selectors, `scripts/grit-server`, `scripts/verify-checksums`, and
+preset selectors, `scripts/grit-console`, `scripts/verify-checksums`, and
 `scripts/lib/release-self-test`.
 
 ## Reporting

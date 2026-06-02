@@ -198,7 +198,7 @@ int applet_fetch_main(int argc, char **argv)
 
     if (is_help(argc, argv)) {
         puts("usage: grit fetch REQUEST --host HOST [--port PORT] [--output PATH] [--force] [--no-tls] [--target-id ID] [--target-label LABEL] [--target-alias ALIAS]");
-        puts("Fetches an operator-staged file from grit-server only when explicitly run on the target.");
+        puts("Fetches an operator-staged file from grit-console only when explicitly run on the target.");
         puts("Refuses path traversal and refuses to overwrite an existing output unless --force is present.");
         return 0;
     }

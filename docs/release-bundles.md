@@ -100,7 +100,7 @@ and `socat` maps to `socat-rescue`. They can be supplied with
 Trailer configuration after packaging:
 
 ```sh
-scripts/grit-server --tui
+scripts/grit-console --tui
 # In the console, after `release stage SELECTOR` or `serve-binary ...`:
 #   release stage by_device_payload_preset:glinet-mt1300:survey-core
 #   release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
@@ -314,7 +314,7 @@ matching `matches_by_project_license`, `matches_by_combined_gplv2_compatible`,
 `matches_by_corresponding_source_status`,
 `matches_by_package_license_audit_required`, `matches_by_license_component`,
 and `matches_by_component_license` maps.
-When `scripts/grit-server` is launched from a release bundle, `--status`,
+When `scripts/grit-console` is launched from a release bundle, `--status`,
 `--json-status`, and the workbench release browser expose the same compact
 release license record as `release.release_license`, `release_licenses`, and
 `api_collections.release_licenses`, plus summary counters for project license,
@@ -388,7 +388,7 @@ devices/glinet-mt1300/artifacts/README.txt
 The console accepts the same payload-preset selection directly:
 
 ```sh
-scripts/grit-server --tui
+scripts/grit-console --tui
 release stage by_device_payload_preset:glinet-mt1300:survey-core
 release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
 ```
@@ -443,7 +443,7 @@ For the builtin TLS shell preset, prepare the operator listener and then run the
 artifact explicitly:
 
 ```sh
-scripts/grit-server --transport tls-shell --shell-port 22203
+scripts/grit-console --transport tls-shell --shell-port 22203
 ./grit rshell start
 ```
 
@@ -451,7 +451,7 @@ For the SSH operator preset, listen for the reverse SSH forward and connect
 through the forwarded port:
 
 ```sh
-scripts/grit-server --transport ssh --ssh-port 22
+scripts/grit-console --transport ssh --ssh-port 22
 ssh -p 2200 root@127.0.0.1
 ```
 
@@ -464,7 +464,7 @@ are staged for explicit target fetch; the target still has to run the shown
 fetch command or poll command queue work.
 
 ```sh
-scripts/grit-server --file-service --file-port 22204
+scripts/grit-console --file-service --file-port 22204
 ./grit put /tmp/evidence.txt
 ./grit survey push
 ./grit reality-test push
@@ -477,12 +477,12 @@ When launched from a release bundle, the operator workbench and JSON status can
 also browse release artifacts, device aliases, and tuple directories:
 
 ```sh
-scripts/grit-server --tui
-scripts/grit-server --json-status
-scripts/grit-server --api-status
-scripts/grit-server --api-status --event-limit 50
-scripts/grit-server --stage-release-artifact by_device:lab-router --list-staged
-scripts/grit-server --stage-release-artifact by-tuple/native/host/host/host/bin/grit-native-default-full --list-staged
+scripts/grit-console --tui
+scripts/grit-console --json-status
+scripts/grit-console --api-status
+scripts/grit-console --api-status --event-limit 50
+scripts/grit-console --stage-release-artifact by_device:lab-router --list-staged
+scripts/grit-console --stage-release-artifact by-tuple/native/host/host/host/bin/grit-native-default-full --list-staged
 ```
 
 `--json-status` and `--api-status` include top-level `summary` and `warnings`

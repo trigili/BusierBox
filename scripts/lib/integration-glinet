@@ -386,7 +386,7 @@ def start_shell_server(case_dir, transport, port, marker, args):
     config = write_operator_server_config(case_dir, args)
     log_file = (case_dir / "server.log").open("wb")
     proc = subprocess.Popen([
-        sys.executable, "-u", "scripts/grit-server",
+        sys.executable, "-u", "scripts/grit-console",
         "--config", str(config),
         "--transport", transport,
         "--shell-port", str(port),
@@ -600,7 +600,7 @@ def case_ssh_operator(ctx):
     config = write_operator_server_config(ctx["case_dir"], ctx["args"])
     log_file = (ctx["case_dir"] / "server.log").open("wb")
     server = subprocess.Popen([
-        sys.executable, "-u", "scripts/grit-server",
+        sys.executable, "-u", "scripts/grit-console",
         "--config", str(config),
         "--transport", "ssh",
         "--ssh-port", str(ctx["args"].ssh_port),

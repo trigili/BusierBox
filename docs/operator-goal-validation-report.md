@@ -13,7 +13,7 @@ documentation, and safety tests were implemented first.
 ## What Changed
 
 - Server lifecycle and status handling now center on structured service/session
-  state in `scripts/grit-server`, with `--status`, `--stop`,
+  state in `scripts/grit-console`, with `--status`, `--stop`,
   `--json-status`, and `--api-status` surfaces for operator and future frontend
   use.
 - The workbench exposes services, staged files, uploads, sessions, events,
@@ -85,15 +85,15 @@ documentation, and safety tests were implemented first.
 ## Evidence Map
 
 Server lifecycle:
-- `scripts/grit-server --status`
-- `scripts/grit-server --stop`
-- `tests/smoke/grit-server.py`
+- `scripts/grit-console --status`
+- `scripts/grit-console --stop`
+- `tests/smoke/grit-console.py`
 
 Workbench and future API status:
-- `scripts/grit-server --json-status`
-- `scripts/grit-server --api-status`
+- `scripts/grit-console --json-status`
+- `scripts/grit-console --api-status`
 - `docs/release-bundles.md`
-- `tests/smoke/grit-server.py`
+- `tests/smoke/grit-console.py`
 
 Reverse shell policy:
 - `src/applet_rshell.c`
@@ -140,26 +140,26 @@ Bringup:
 
 Command queue:
 - `src/applet_command_queue.c`
-- `scripts/grit-server`
+- `scripts/grit-console`
 - `docs/command-queue.md`
 - `docs/release-bundles.md`
 - `tests/smoke/command-queue.sh`
-- `tests/smoke/grit-server.py`
+- `tests/smoke/grit-console.py`
 
 Multi-target status:
-- `scripts/grit-server`
+- `scripts/grit-console`
 - `docs/release-bundles.md`
-- `tests/smoke/grit-server.py`
+- `tests/smoke/grit-console.py`
 
 Release and offline artifact browsing:
 - `scripts/make-release`
 - `scripts/index-release-repo`
 - `scripts/lib/find-artifact`
 - `scripts/lib/release-self-test`
-- `scripts/grit-server --status`
+- `scripts/grit-console --status`
 - `tests/smoke/release-bundles.sh`
 - `tests/smoke/release-repo-index.sh`
-- `tests/smoke/grit-server.py`
+- `tests/smoke/grit-console.py`
 
 Licensing:
 - `LICENSE`
@@ -171,18 +171,18 @@ Licensing:
 - `scripts/lib/release-self-test --json`
 - `scripts/index-release-repo`
 - `scripts/lib/find-artifact`
-- `scripts/grit-server --status`
+- `scripts/grit-console --status`
 - `tests/smoke/licensing.sh`
 - `tests/smoke/release-bundles.sh`
 - `tests/smoke/release-repo-index.sh`
-- `tests/smoke/grit-server.py`
+- `tests/smoke/grit-console.py`
 
 ## Verification Run
 
 Fresh completion-audit commands run on 2026-05-29:
 
 ```sh
-python3 -m py_compile scripts/grit-server tests/smoke/grit-server.py scripts/make-release scripts/index-release-repo scripts/lib/find-artifact scripts/lib/preset-from-survey
+python3 -m py_compile scripts/grit-console tests/smoke/grit-console.py scripts/make-release scripts/index-release-repo scripts/lib/find-artifact scripts/lib/preset-from-survey
 sh -n scripts/lib/config-from-survey scripts/grit-bringup tests/smoke/integration-glinet-harness.sh tests/smoke/release-bundles.sh tests/smoke/release-repo-index.sh tests/smoke/licensing.sh
 python3 -m json.tool manifests/license-policy.json
 scripts/lib/check-licensing
@@ -192,7 +192,7 @@ tests/smoke/licensing.sh
 tests/smoke/command-queue.sh
 tests/smoke/recovery.sh
 tests/smoke/reality-test.sh
-python3 tests/smoke/grit-server.py
+python3 tests/smoke/grit-console.py
 make smoke-test
 ```
 
@@ -217,10 +217,10 @@ Fresh result:
 Commands run for earlier committed slices:
 
 ```sh
-python3 -m py_compile scripts/grit-server tests/smoke/grit-server.py
+python3 -m py_compile scripts/grit-console tests/smoke/grit-console.py
 tests/smoke/rshell-transport-names.sh
 git diff --check
-tests/smoke/grit-server.py
+tests/smoke/grit-console.py
 ```
 
 Result:
@@ -246,7 +246,7 @@ Result:
   listener names such as `tls-shell` and `plain-shell`.
 - The server smoke test passed after the release summary text was extended to
   expose corresponding-source posture.
-- `scripts/grit-server --status` and the TUI release browser now render
+- `scripts/grit-console --status` and the TUI release browser now render
   `corresponding_source` with required/status/input-count/package-audit fields
   alongside the existing release license summary.
 - JSON/API status already exposes the same fields in `release.release_license`,
@@ -301,9 +301,9 @@ python3 -m json.tool manifests/license-policy.json
 scripts/lib/check-licensing
 make check-licensing
 tests/smoke/licensing.sh
-python3 -m py_compile scripts/lib/find-artifact scripts/index-release-repo scripts/grit-server tests/smoke/grit-server.py
+python3 -m py_compile scripts/lib/find-artifact scripts/index-release-repo scripts/grit-console tests/smoke/grit-console.py
 tests/smoke/release-repo-index.sh
-python3 tests/smoke/grit-server.py
+python3 tests/smoke/grit-console.py
 python3 -m py_compile scripts/make-release
 sh -n tests/smoke/release-bundles.sh
 tests/smoke/release-bundles.sh
@@ -318,7 +318,7 @@ Result:
   `tests/smoke/licensing.sh` validate that the repository declares
   `GPL-2.0-or-later`, preserves the current GPLv2-compatible stack assessment,
   and keeps the expected evidence references.
-- `scripts/grit-server --status`, `--json-status`, and API status expose
+- `scripts/grit-console --status`, `--json-status`, and API status expose
   release license evidence counts, verification date, evidence-source lookup
   maps, and evidence-source/license lookup maps.
 - `scripts/index-release-repo` and `scripts/lib/find-artifact --recommendation-json`
@@ -426,8 +426,8 @@ Recent full smoke coverage included:
 Server lifecycle:
 
 ```sh
-scripts/grit-server --status
-scripts/grit-server --stop
+scripts/grit-console --status
+scripts/grit-console --stop
 ```
 
 Expected evidence includes configured versus actual service state, listener
@@ -472,7 +472,7 @@ Command queue safety:
 ```sh
 ./grit command-queue status
 ./grit command-queue poll --json
-scripts/grit-server --json-command-queue
+scripts/grit-console --json-command-queue
 ```
 
 Expected evidence shows disabled-by-default policy, metadata-only default,

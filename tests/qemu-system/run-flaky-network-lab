@@ -421,7 +421,7 @@ topology = {
     "service_ports": service_ports,
     "operator_node": {
         "name": "operator",
-        "role": "grit-server",
+        "role": "grit-console",
         "host_forward_ports": service_ports,
         "network_mode": "host-side control plane with per-target controllable links",
     },
@@ -561,61 +561,61 @@ for key, rec in path_requirements.items():
 
 phase_operator_commands = {
     "offline-queue": [
-        "scripts/grit-server --daemon --daemon-service command-queue --daemon-service file-service --daemon-service probe",
-        "scripts/grit-server --target-id target-alpha --queue-command 'grit survey --json'",
-        "scripts/grit-server --target-id target-bravo --queue-command 'grit survey --json'",
-        "scripts/grit-server --line-tui",
-        "scripts/grit-server --json-status > offline-status.json",
+        "scripts/grit-console --daemon --daemon-service command-queue --daemon-service file-service --daemon-service probe",
+        "scripts/grit-console --target-id target-alpha --queue-command 'grit survey --json'",
+        "scripts/grit-console --target-id target-bravo --queue-command 'grit survey --json'",
+        "scripts/grit-console --line-tui",
+        "scripts/grit-console --json-status > offline-status.json",
     ],
     "offline-workflow-drain": [
-        "scripts/grit-server --target-id target-workflow --run-target-workflow-action queue-probe",
-        "scripts/grit-server --target-id target-workflow --run-target-workflow-action stage-file-fetch --target-workflow-local-file ./payload.bin --target-workflow-request-name payload.bin",
-        "scripts/grit-server --target-id target-workflow --json-status > offline-workflow-drain-status.json",
-        "scripts/grit-server --line-tui --target-id target-workflow",
+        "scripts/grit-console --target-id target-workflow --run-target-workflow-action queue-probe",
+        "scripts/grit-console --target-id target-workflow --run-target-workflow-action stage-file-fetch --target-workflow-local-file ./payload.bin --target-workflow-request-name payload.bin",
+        "scripts/grit-console --target-id target-workflow --json-status > offline-workflow-drain-status.json",
+        "scripts/grit-console --line-tui --target-id target-workflow",
     ],
     "systemd-user-service": [
-        "scripts/grit-server --systemd-user-action print --systemd-user-dry-run --daemon-service command-queue --daemon-service file-service --daemon-service probe",
-        "scripts/grit-server --systemd-user-action status --systemd-user-dry-run",
+        "scripts/grit-console --systemd-user-action print --systemd-user-dry-run --daemon-service command-queue --daemon-service file-service --daemon-service probe",
+        "scripts/grit-console --systemd-user-action status --systemd-user-dry-run",
     ],
     "short-phone-home-window": [
         "./host-network-setup.sh link target-alpha-link-up",
-        "scripts/grit-server --target-id target-alpha --json-status > after-alpha-poll.json",
+        "scripts/grit-console --target-id target-alpha --json-status > after-alpha-poll.json",
     ],
     "duplicate-poll": [
-        "scripts/grit-server --target-id target-alpha --json-status > after-duplicate-alpha-poll.json",
+        "scripts/grit-console --target-id target-alpha --json-status > after-duplicate-alpha-poll.json",
     ],
     "dropped-result-upload": [
-        "scripts/grit-server --target-id target-alpha --json-status > after-dropped-alpha-result.json",
+        "scripts/grit-console --target-id target-alpha --json-status > after-dropped-alpha-result.json",
     ],
     "malformed-result-upload": [
-        "scripts/grit-server --target-id target-alpha --json-status > after-malformed-alpha-result.json",
+        "scripts/grit-console --target-id target-alpha --json-status > after-malformed-alpha-result.json",
     ],
     "result-upload": [
-        "scripts/grit-server --target-id target-alpha --json-status > after-alpha-result.json",
+        "scripts/grit-console --target-id target-alpha --json-status > after-alpha-result.json",
     ],
     "multi-target-isolation": [
-        "scripts/grit-server --target-id target-alpha --json-status > multi-target-isolation.json",
-        "scripts/grit-server --target-id target-bravo --list-command-queue",
+        "scripts/grit-console --target-id target-alpha --json-status > multi-target-isolation.json",
+        "scripts/grit-console --target-id target-bravo --list-command-queue",
     ],
     "target-mismatch-phone-home": [
-        "scripts/grit-server --target-id target-alpha --json-status > target-mismatch-phone-home.json",
+        "scripts/grit-console --target-id target-alpha --json-status > target-mismatch-phone-home.json",
     ],
     "survey-window": [
-        "scripts/grit-server --transport probe --probe-port 22207 --one-shot",
-        "scripts/grit-server --target-id target-alpha --json-status > after-survey-result.json",
+        "scripts/grit-console --transport probe --probe-port 22207 --one-shot",
+        "scripts/grit-console --target-id target-alpha --json-status > after-survey-result.json",
     ],
     "partial-transfer": [
-        "scripts/grit-server --file-service --file-service-port 22204 --one-shot",
-        "scripts/grit-server --target-id target-alpha --json-status > after-partial-upload.json",
+        "scripts/grit-console --file-service --file-service-port 22204 --one-shot",
+        "scripts/grit-console --target-id target-alpha --json-status > after-partial-upload.json",
     ],
     "bridge-interruption": [
-        "scripts/grit-server --save-bridge-profile flaky-bad-bridge --bridge-port 22206 --bridge-dest-host target-alpha --bridge-dest-port 80 --bridge-hop operator:22206=target-alpha:80",
-        "scripts/grit-server --bridge-profile flaky-bad-bridge --bridge",
-        "scripts/grit-server --target-id target-alpha --json-status > after-bridge-relay.json",
+        "scripts/grit-console --save-bridge-profile flaky-bad-bridge --bridge-port 22206 --bridge-dest-host target-alpha --bridge-dest-port 80 --bridge-hop operator:22206=target-alpha:80",
+        "scripts/grit-console --bridge-profile flaky-bad-bridge --bridge",
+        "scripts/grit-console --target-id target-alpha --json-status > after-bridge-relay.json",
     ],
     "return-offline": [
-        "scripts/grit-server --json-status > return-offline-status.json",
-        "scripts/grit-server --json-status > final-status.json",
+        "scripts/grit-console --json-status > return-offline-status.json",
+        "scripts/grit-console --json-status > final-status.json",
     ],
 }
 

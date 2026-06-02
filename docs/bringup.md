@@ -34,7 +34,7 @@ harness for known cases.
 
 ## What It Does Not Do
 
-- It does not start `scripts/grit-server`.
+- It does not start `scripts/grit-console`.
 - It does not start reverse access.
 - It does not enable network autorun.
 - It does not install persistence.
@@ -216,7 +216,7 @@ records. It also publishes `api`, `api_resources`,
 `api_resources_by_summary_key` so future TUI/web clients can discover each
 record collection, its JSON path, summary counter, primary key, and index names
 without hard-coding bringup-specific paths. This mirrors the collection/index
-discovery pattern used by `scripts/grit-server --api-status` and the
+discovery pattern used by `scripts/grit-console --api-status` and the
 native JSON applets.
 It also includes a `safety_boundary` object that states that bringup does not
 enable network autorun, hidden control channels, command queue execution, or

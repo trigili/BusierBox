@@ -3,7 +3,7 @@
 set -eu
 
 script=${1:-scripts/lib/integration-glinet}
-server=${2:-scripts/grit-server}
+server=${2:-scripts/grit-console}
 
 [ -x "$script" ] || {
     printf '%s\n' "integration-glinet-harness: missing executable $script" >&2
@@ -22,7 +22,7 @@ done
 scripts/grit-bringup --help 2>&1 | grep -q 'Guided target bring-up flow'
 scripts/grit-bringup --help 2>&1 | grep -q -- '--reality-json PATH'
 scripts/grit-bringup --help 2>&1 | grep -q -- '--max-compatibility LABEL'
-scripts/grit-bringup --help 2>&1 | grep -q 'does not start scripts/grit-server'
+scripts/grit-bringup --help 2>&1 | grep -q 'does not start scripts/grit-console'
 scripts/grit-bringup --help 2>&1 | grep -q 'does not install persistence'
 scripts/grit-bringup --help 2>&1 | grep -q 'integration-glinet is the regression harness'
 scripts/grit-bringup --host root@192.0.2.1 --dry-run >/dev/null
