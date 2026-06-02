@@ -12421,13 +12421,24 @@ def exit_reason_for(log_dir):
         return ""
 
 
-def print_candidates(cfg, port):
-    print(f"Listening on {cfg['listen_host']}:{port}")
-    candidates = local_ips()
+def print_candidates(cfg, port, advertised_host=None, advertised_port=None):
+    bind_host = str(cfg.get("listen_host") or "0.0.0.0")
+    advertised = operator_advertised_host(cfg, host=advertised_host)
+    target_port = int(advertised_port or port)
+    print(f"Listening on {bind_host}:{port}")
+    print(f"Advertised target endpoint: {advertised}:{target_port}")
+    candidates = []
+    configured = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
+    if configured:
+        candidates.append(configured)
+    for ip in local_ips():
+        if ip not in candidates:
+            candidates.append(ip)
     if candidates:
         print("Candidate target connect-back hosts:")
         for ip in candidates:
-            print(f"  {ip}:{port}")
+            marker = "  *" if ip == advertised else "   "
+            print(f"{marker} {ip}:{target_port}")
     else:
         print("Candidate target connect-back hosts: unable to infer local IPs")
 
@@ -14338,7 +14349,8 @@ def serve_probe(cfg, timeout, max_sessions=0):
     start_session_record(cfg, service, log_dir, details=session_details)
     (log_dir / script_name).write_text(script_text, encoding="utf-8")
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-    print(f"Probe listener. Listening on http://{host}:{port}/{script_name}")
+    print(f"Probe listener. Binding on http://{cfg.get('listen_host', '0.0.0.0')}:{port}/{script_name}")
+    print(f"Probe target URL: http://{route_host}:{route_port}/{script_name}")
     if route.get("route_kind") == "bridge":
         print(f"Probe route: bridge profile {route.get('bridge_profile', '')} {route.get('bridge_route_path', '')}")
     print(f"Target command: {target_command}")
@@ -14352,7 +14364,7 @@ def serve_probe(cfg, timeout, max_sessions=0):
         sock.settimeout(timeout)
         update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
         append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
-        print_candidates(cfg, port)
+        print_candidates(cfg, port, advertised_host=route_host, advertised_port=route_port)
         while not SHUTDOWN.is_set():
             print("Waiting for probe request...")
             try:
