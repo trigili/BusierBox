@@ -2,6 +2,7 @@
 """Build or assemble griTTYkit multi-artifact release bundles."""
 
 import argparse
+import concurrent.futures
 import datetime as dt
 import hashlib
 import io
@@ -9,10 +10,12 @@ import json
 import os
 import pathlib
 import platform
+import queue
 import shutil
 import subprocess
 import sys
 import tarfile
+import threading
 import textwrap
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "lib"))
@@ -38,6 +41,16 @@ REVERSE_ACCESS_PROFILES = {
 def die(msg, code=1):
     print(f"make-release: {msg}", file=sys.stderr)
     raise SystemExit(code)
+
+
+def positive_int(value):
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    if number < 1:
+        raise argparse.ArgumentTypeError("must be a positive integer")
+    return number
 
 
 def sha256_file(path):
@@ -2551,6 +2564,108 @@ def failed_record(job, config, reason):
     }
 
 
+def build_release_job(job, release_dir, args):
+    config_stem, _stem = job_stems(job)
+    config = release_dir / "configs" / f"{config_stem}.conf"
+    write_config(config, job, base_config=job.get("config_source"))
+    try:
+        return build_or_copy(job, config, release_dir, args)
+    except Exception as exc:
+        return failed_record(job, config, str(exc))
+
+
+def grouped_jobs_by_target(jobs):
+    groups = {}
+    for index, job in enumerate(jobs):
+        groups.setdefault(job["target"], []).append((index, job))
+    return list(groups.values())
+
+
+def print_job_progress(n_done, n_total, job):
+    target = job["target"]
+    payload = job["payload"]
+    bar_done = int(20 * (n_done - 1) / n_total)
+    bar = "█" * bar_done + "░" * (20 - bar_done)
+    print(f"  [{bar}] {n_done}/{n_total}  {target}  ×  {payload} ...", flush=True)
+
+
+def print_job_result(rec):
+    status = rec.get("build_status", "?")
+    if status in ("built", "copied"):
+        size_mb = rec.get("size", 0) / (1024 * 1024)
+        print(f"         ✓  {size_mb:.1f} MB")
+        return True
+    reason = rec.get("reason", "")
+    print(f"         ✗  {reason or status}")
+    return False
+
+
+def build_target_group(group, release_dir, args, result_queue, stop_event):
+    try:
+        for index, job in group:
+            if args.fail_fast and stop_event.is_set():
+                break
+            rec = build_release_job(job, release_dir, args)
+            result_queue.put(("result", index, job, rec))
+            if args.fail_fast and rec.get("build_status") == "failed":
+                stop_event.set()
+                break
+    finally:
+        result_queue.put(("group-done", None, None, None))
+
+
+def run_release_jobs(jobs, release_dir, args):
+    n_total = len(jobs)
+    n_done = 0
+    n_ok = 0
+    n_fail = 0
+    records_by_index = [None] * n_total
+
+    if args.jobs == 1:
+        for index, job in enumerate(jobs):
+            n_done += 1
+            print_job_progress(n_done, n_total, job)
+            rec = build_release_job(job, release_dir, args)
+            records_by_index[index] = rec
+            if print_job_result(rec):
+                n_ok += 1
+            else:
+                n_fail += 1
+            if args.fail_fast and rec.get("build_status") == "failed":
+                break
+        records = [rec for rec in records_by_index if rec is not None]
+        return records, n_done, n_ok, n_fail
+
+    groups = grouped_jobs_by_target(jobs)
+    result_queue = queue.Queue()
+    stop_event = threading.Event()
+    max_workers = min(args.jobs, len(groups))
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(build_target_group, group, release_dir, args, result_queue, stop_event)
+            for group in groups
+        ]
+        groups_done = 0
+        while groups_done < len(futures):
+            kind, index, job, rec = result_queue.get()
+            if kind == "group-done":
+                groups_done += 1
+                continue
+            n_done += 1
+            print_job_progress(n_done, n_total, job)
+            records_by_index[index] = rec
+            if print_job_result(rec):
+                n_ok += 1
+            else:
+                n_fail += 1
+        for fut in futures:
+            fut.result()
+
+    records = [rec for rec in records_by_index if rec is not None]
+    return records, n_done, n_ok, n_fail
+
+
 def print_summary(records, release_dir, tarball=None):
     print(f"{'Status':<10} {'Target':<34} {'Payload':<20} Artifact")
     for rec in records:
@@ -2562,6 +2677,10 @@ def print_summary(records, release_dir, tarball=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    try:
+        default_jobs = positive_int(os.environ.get("GRIT_RELEASE_JOBS", "1"))
+    except argparse.ArgumentTypeError as exc:
+        die(f"GRIT_RELEASE_JOBS: {exc}")
     parser.add_argument("--name", required=True)
     parser.add_argument("--targets")
     parser.add_argument("--payload-presets")
@@ -2581,6 +2700,8 @@ def main(argv=None):
                         help="populate by-tuple/devices layout with copied files for portability")
     parser.add_argument("--fail-fast", action="store_true")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--jobs", type=positive_int, default=default_jobs,
+                        help="build different targets concurrently; payload presets for the same target remain serial")
     parser.add_argument("--out-dir")
     args = parser.parse_args(argv)
 
@@ -2612,40 +2733,13 @@ def main(argv=None):
     write_release_quickstart(release_dir / "RELEASE-QUICKSTART.txt", release_name)
     write_release_readme(release_dir / "docs" / "README-release.md", release_name)
 
-    records = []
     git_commit = source_start.get("commit", "")
     n_total = len(jobs)
-    n_done = 0
-    n_ok = 0
-    n_fail = 0
     print(f"Building {n_total} artifact(s) into {release_dir}")
+    if args.jobs > 1:
+        print(f"Concurrency: {args.jobs} target worker(s)")
     print("")
-    for job in jobs:
-        n_done += 1
-        target = job["target"]
-        payload = job["payload"]
-        bar_done = int(20 * (n_done - 1) / n_total)
-        bar = "█" * bar_done + "░" * (20 - bar_done)
-        print(f"  [{bar}] {n_done}/{n_total}  {target}  ×  {payload} ...", flush=True)
-        config_stem, _stem = job_stems(job)
-        config = release_dir / "configs" / f"{config_stem}.conf"
-        write_config(config, job, base_config=job.get("config_source"))
-        try:
-            rec = build_or_copy(job, config, release_dir, args)
-        except Exception as exc:
-            rec = failed_record(job, config, str(exc))
-        status = rec.get("build_status", "?")
-        if status in ("built", "copied"):
-            n_ok += 1
-            size_mb = rec.get("size", 0) / (1024 * 1024)
-            print(f"         ✓  {size_mb:.1f} MB")
-        else:
-            n_fail += 1
-            reason = rec.get("reason", "")
-            print(f"         ✗  {reason or status}")
-        records.append(rec)
-        if args.fail_fast and status == "failed":
-            break
+    records, n_done, n_ok, n_fail = run_release_jobs(jobs, release_dir, args)
     bar_full = "█" * 20
     print(f"\n  [{bar_full}] {n_done}/{n_total}  done  —  {n_ok} built, {n_fail} failed")
     print("")

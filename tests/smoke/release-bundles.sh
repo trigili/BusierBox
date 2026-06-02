@@ -98,6 +98,12 @@ grep -q 'would build target=native payload=builtin-core-shell format=tgz' "$work
 grep -q 'would build target=native payload=ssh-operator format=tgz' "$work/reverse-dry-run.out"
 grep -q 'would build target=native payload=socat-rescue format=tgz' "$work/reverse-dry-run.out"
 scripts/make-release --name full-smoke --matrix tests/matrix/release-full.json --dry-run >"$work/full-dry-run.out"
+scripts/make-release --name full-smoke --matrix tests/matrix/release-full.json --dry-run --jobs 4 >"$work/full-dry-run-jobs.out"
+if scripts/make-release --name bad-jobs --targets native --payload-presets default --dry-run --jobs 0 >"$work/bad-jobs.out" 2>"$work/bad-jobs.err"; then
+    printf '%s\n' "expected --jobs 0 to fail" >&2
+    exit 1
+fi
+grep -q 'must be a positive integer' "$work/bad-jobs.err"
 python3 - <<'PY'
 from pathlib import Path
 
@@ -107,25 +113,33 @@ end = text.index("SOURCE_MIRROR_DIR", start)
 target = text[start:end]
 if "--strict" not in target:
     raise SystemExit("make release-full must pass --strict so failed matrix artifacts fail the build")
+if '--jobs "$(JOBS)"' not in target:
+    raise SystemExit("make release-full must pass JOBS through to scripts/make-release")
 PY
-python3 - "$work/full-dry-run.out" <<'PY'
+python3 - "$work/full-dry-run.out" "$work/full-dry-run-jobs.out" <<'PY'
 import sys
 
-lines = [line for line in open(sys.argv[1], encoding="utf-8") if line.startswith("would build ")]
-if len(lines) != 112:
-    raise SystemExit(f"release-full should be 16 generic targets x 7 presets, got {len(lines)}")
-for forbidden in ("glinet-", "tplink-", "asus-", "dlink-", "linksys-", "netgear-"):
-    if any(f"target={forbidden}" in line for line in lines):
-        raise SystemExit(f"release-full built device-specific target: {forbidden}")
-for expected in (
-    "target=mips-linux-2.4-uclibc",
-    "target=mipsel-linux-3.x-musl",
-    "target=aarch64-linux-3.x-musl",
-    "payload=full-debug",
-    "payload=socat-rescue",
-):
-    if not any(expected in line for line in lines):
-        raise SystemExit(f"release-full missing {expected}")
+baseline = None
+for path in sys.argv[1:]:
+    lines = [line for line in open(path, encoding="utf-8") if line.startswith("would build ")]
+    if len(lines) != 112:
+        raise SystemExit(f"release-full should be 16 generic targets x 7 presets, got {len(lines)} from {path}")
+    if baseline is None:
+        baseline = lines
+    elif lines != baseline:
+        raise SystemExit("--jobs changed release-full dry-run job selection")
+    for forbidden in ("glinet-", "tplink-", "asus-", "dlink-", "linksys-", "netgear-"):
+        if any(f"target={forbidden}" in line for line in lines):
+            raise SystemExit(f"release-full built device-specific target: {forbidden}")
+    for expected in (
+        "target=mips-linux-2.4-uclibc",
+        "target=mipsel-linux-3.x-musl",
+        "target=aarch64-linux-3.x-musl",
+        "payload=full-debug",
+        "payload=socat-rescue",
+    ):
+        if not any(expected in line for line in lines):
+            raise SystemExit(f"release-full missing {expected}")
 PY
 if scripts/make-release --name bad-reverse --targets native --reverse-access-profiles no-such-profile --dry-run >"$work/bad-reverse.out" 2>"$work/bad-reverse.err"; then
     printf '%s\n' "expected bad reverse profile to fail" >&2
