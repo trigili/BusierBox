@@ -4,6 +4,18 @@ set -eu
 policy=${1:-manifests/license-policy.json}
 sources_lock=${2:-manifests/sources.lock.json}
 
+case "${1:-}" in
+    -h|--help|help)
+        cat <<'EOF'
+usage: scripts/lib/check-licensing [POLICY_JSON] [SOURCES_LOCK_JSON]
+
+Validate repository licensing metadata, notices, source-lock license fields,
+and distribution/source-bundle policy expectations.
+EOF
+        exit 0
+        ;;
+esac
+
 [ -f LICENSE ] || {
     printf '%s\n' "check-licensing: missing LICENSE" >&2
     exit 1
