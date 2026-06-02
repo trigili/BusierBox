@@ -10951,6 +10951,15 @@ def release_recommendation_lines(release, limit=10):
     return lines
 
 
+ROUTE_HELP_LINES = [
+    "Route model: listen locally on LPORT, forward to DEST_HOST:DEST_PORT.",
+    "Use hops only when traffic should traverse named bridge segments.",
+    "HOP syntax: FROM=TO, FROM->TO, or FROM,TO.",
+    "Single hop target-to-operator SSH: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:22",
+    "Multi-hop example: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:80",
+]
+
+
 def stage_release_artifact(cfg, artifact_name):
     rel = release_context(cfg)
     if not rel:
@@ -22288,8 +22297,7 @@ def run_line_tui(cfg):
                     ("info, options", "show selected route context and headless commands"),
                 ],
                 "notes": [
-                    "HOP syntax: FROM=TO  FROM->TO  FROM,TO",
-                    "Example: route add tun 22207 192.168.1.1 22 127.0.0.1=192.168.1.1",
+                    *ROUTE_HELP_LINES,
                 ],
             },
             "daemon": {
@@ -23605,7 +23613,10 @@ def run_line_tui(cfg):
     def add_line_route(args):
         values = list(args or [])
         if len(values) < 5:
-            raise ValueError("usage: route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]")
+            raise ValueError(
+                "usage: route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]\n"
+                + "\n".join(f"  {line}" for line in ROUTE_HELP_LINES)
+            )
         name = values[1]
         try:
             listen_port = int(values[2])
@@ -29649,6 +29660,10 @@ Operations:
   routes [-v], route print      list bridge routes and hop details
   route add NAME LPORT HOST DPORT [HOP ...]
                                 create a reusable bridge route profile
+                                model: local LPORT -> DEST_HOST:DEST_PORT
+                                hop: FROM=TO, FROM->TO, or FROM,TO
+                                example: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:22
+                                multi-hop: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:80
   route start NAME, route stop NAME
                                 control a reusable bridge route profile
   route delete NAME              remove a reusable bridge route profile
