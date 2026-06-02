@@ -23299,6 +23299,25 @@ def run_line_tui(cfg):
                 key = keys[idx]
             else:
                 raise ValueError(f"no option at row {key} — run: options")
+        if key in {"release_dir", "release-dir", "server.release_dir"}:
+            cfg["release_dir"] = text
+            config_path = Path(str(cfg.get("_config_path") or DEFAULT_CONFIG))
+            try:
+                existing = {}
+                if config_path.is_file():
+                    try:
+                        existing = json.loads(config_path.read_text(encoding="utf-8"))
+                    except (OSError, json.JSONDecodeError):
+                        pass
+                if not isinstance(existing, dict):
+                    existing = {}
+                existing["release_dir"] = text
+                config_path.parent.mkdir(parents=True, exist_ok=True)
+                atomic_write_json(config_path, existing)
+                print(f"set release_dir={shell_double_quote(text)}  (saved to {config_path})")
+            except OSError as exc:
+                print(f"set release_dir={shell_double_quote(text)}  (warning: could not save: {exc})")
+            return
         build_keys = {rec.get("key") for rec in workbench_config_field_records(cfg)}
         if key.startswith("build."):
             key = key.split(".", 1)[1]
@@ -25868,6 +25887,22 @@ def run_line_tui(cfg):
             if preset_candidates:
                 print("  Payload presets available in this release:")
                 print("    " + ", ".join(sorted(preset_candidates)))
+            expected_patterns = []
+            for tuple_path in tuple_candidates[:4]:
+                tuple_rec = (rel.get("tuples_by_path") or {}).get(tuple_path) or {}
+                tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
+                arch = str(tuple_info.get("arch") or probe_arch or uname_m or "ARCH")
+                libc = str(tuple_info.get("libc") or "LIBC")
+                kernel_floor = str(tuple_info.get("kernel_floor") or probe_kernel_floor or "KERNEL")
+                target_stem = "native" if arch == "native" else f"{arch}-linux-{kernel_floor}-{libc}"
+                for preset in (sorted(preset_candidates) or ["PRESET"])[:4]:
+                    expected_patterns.append(f"grit-{target_stem}-{preset}-full")
+            if not expected_patterns:
+                floor = probe_kernel_floor or "KERNEL"
+                expected_patterns.append(f"grit-{probe_arch or uname_m or 'ARCH'}-linux-{floor}-LIBC-PRESET-full")
+            print("  Expected generic artifact names like:")
+            for pattern in expected_patterns[:8]:
+                print(f"    {pattern}")
             print("  Try: release")
         append_event(cfg, "workbench", "workbench_probe_serve_run", details={
             "probe_arch": probe_arch or uname_m,
@@ -26393,12 +26428,22 @@ def run_line_tui(cfg):
             raise ValueError("usage: show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options")
 
     def print_line_release():
-        rel = release_context(cfg)
+        rel, checked_releases = discover_release_context(cfg)
         if not rel:
             print("Release  (none detected)")
             print("")
-            print("  Run make package or pass --release-dir, then: release stage SELECTOR")
+            print("  Looked for a release bundle in:")
+            for state in checked_releases[:8]:
+                markers = state.get("detection_reason") or "not-a-release"
+                print(f"    {state.get('release_dir', '')}  ({markers})")
+            if len(checked_releases) > 8:
+                print(f"    ... {len(checked_releases) - 8} more")
+            print("")
+            print("  Run make release-full, extract the tarball, or set a release root here:")
+            print("    set release_dir /path/to/extracted-release")
             return
+        if rel.get("release_discovery_source") == "auto":
+            cfg["release_dir"] = rel.get("release_dir", "")
         name = rel.get("release_name") or "-"
         rdir = rel.get("release_dir") or "-"
         recommendations = rel.get("recommendation_records") or []

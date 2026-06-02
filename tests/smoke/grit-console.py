@@ -11181,6 +11181,72 @@ def main(argv=None):
                 }
             ],
         }) + "\n", encoding="utf-8")
+        release_set_cfg = Path(tmp) / "release-set-config.json"
+        release_set_state = Path(tmp) / "release-set-state.json"
+        release_set_staged = Path(tmp) / "release-set-staged.json"
+        release_set_cfg.write_text(json.dumps({
+            "listen_host": "127.0.0.1",
+            "operator_session_dir": str(Path(tmp) / "release-set-operator-session"),
+            "server_state": str(release_set_state),
+            "staged_files": str(release_set_staged),
+        }), encoding="utf-8")
+        release_set_master, release_set_slave = pty.openpty()
+        try:
+            release_set_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(release_set_cfg),
+                    "--state-file", str(release_set_state),
+                    "--staged-file", str(release_set_staged),
+                    "--tui",
+                ],
+                cwd=tmp,
+                stdin=release_set_slave,
+                stdout=release_set_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(release_set_slave)
+            release_set_slave = -1
+            time.sleep(0.3)
+            os.write(release_set_master, f"release\nset release_dir {release_dir}\nrelease\nq\n".encode("utf-8"))
+            release_set_chunks = []
+            deadline = time.time() + 8
+            while release_set_proc.poll() is None and time.time() < deadline:
+                ready, _, _ = select.select([release_set_master], [], [], 0.1)
+                if ready:
+                    try:
+                        release_set_chunks.append(os.read(release_set_master, 65536).decode("utf-8", errors="replace"))
+                    except OSError:
+                        break
+            if release_set_proc.poll() is None:
+                release_set_proc.terminate()
+                try:
+                    release_set_proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    release_set_proc.kill()
+                    release_set_proc.wait(timeout=2)
+            release_set_stdout = "".join(release_set_chunks)
+            release_set_stderr = release_set_proc.stderr.read()
+        finally:
+            if release_set_slave != -1:
+                os.close(release_set_slave)
+            try:
+                os.close(release_set_master)
+            except OSError:
+                pass
+        release_set_saved = json.loads(release_set_cfg.read_text(encoding="utf-8"))
+        if (release_set_proc.returncode != 0 or
+                "Traceback" in (release_set_stderr or "") or
+                "set release_dir=" not in release_set_stdout or
+                "Release  operator-smoke" not in release_set_stdout or
+                str(release_set_saved.get("release_dir") or "") != str(release_dir)):
+            print("line console could not set release_dir without restarting", file=sys.stderr)
+            print(release_set_stdout, file=sys.stderr)
+            print(release_set_stderr or "", file=sys.stderr)
+            return 1
+
         release_view = subprocess.run(
             [
                 str(server),
