@@ -23,6 +23,9 @@ SECTION_DESCRIPTIONS = {
     "preflight": "fast static/API checks for help text, status fields, and safety guards",
     "probe-delivery": "focused TFTP probe delivery listener checks",
     "integration": "long runtime integration checks for listeners, workflows, status, and file service",
+    "integration-bridge-probe": "integration checkpoint through bridge profiles and probe workflows",
+    "integration-command-queue": "integration checkpoint through command queue workflows",
+    "integration-daemon-status": "integration checkpoint through daemon, service, status, and event workflows",
     "line-console": "isolated line-oriented TUI command workflow smoke",
 }
 SECTIONS = tuple(SECTION_DESCRIPTIONS)
@@ -2206,6 +2209,10 @@ def main(argv=None):
             print("line TUI probe listener was not workbench-owned/stopped", file=sys.stderr)
             print(json.dumps(survey_tui_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+
+        if args.section == "integration-bridge-probe":
+            print("grit-console smoke integration-bridge-probe ok")
+            return 0
 
         command_copy_file = queue_operator_dir / "last-command.txt"
         copied = run(
@@ -4841,6 +4848,10 @@ def main(argv=None):
             print(queue_action_list.stderr, file=sys.stderr)
             return 1
 
+        if args.section == "integration-command-queue":
+            print("grit-console smoke integration-command-queue ok")
+            return 0
+
         daemon_file_port = free_port()
         daemon_queue_port = free_port()
         while daemon_queue_port == daemon_file_port:
@@ -6731,6 +6742,10 @@ def main(argv=None):
         if cleared.returncode != 0 or "cleared 1 command queue entry" not in cleared.stdout:
             print("operator command queue clear failed", file=sys.stderr)
             return 1
+
+        if args.section == "integration-daemon-status":
+            print("grit-console smoke integration-daemon-status ok")
+            return 0
 
         # Test: cert already present → server does not regenerate (no generation message)
         result_existing = run("scripts/grit-console", "--config", str(cfg),
