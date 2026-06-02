@@ -10,7 +10,7 @@ import sys
 import tempfile
 
 
-MAGIC = b"BBXCONFIGv1"
+MAGIC = b"GRITCONFIGv1"
 TRAILER_SIZE = 4096
 
 ALLOWED_KEYS = {

@@ -308,7 +308,7 @@ import pathlib, sys
 p = pathlib.Path(sys.argv[1])
 b = bytearray(p.read_bytes())
 start = len(b) - 4096
-b[start:start + len(b"BBXCONFIGv1")] = b"BADCONFIGv1"
+b[start:start + len(b"GRITCONFIGv1")] = b"BORKCONFIGv1"
 p.write_bytes(b)
 PY
 scripts/lib/artifact-config show "$work/grit-bad-magic" >"$work/show.bad-magic"
@@ -353,7 +353,7 @@ PY
 cp "$work/grit" "$work/grit-bad-bounds"
 python3 - "$work/grit-bad-bounds" <<'PY'
 import hashlib, pathlib, sys
-MAGIC = b"BBXCONFIGv1"
+MAGIC = b"GRITCONFIGv1"
 TRAILER_SIZE = 4096
 p = pathlib.Path(sys.argv[1])
 payload = b"GRIT_OPERATOR_SERVER_HOST=192.0.2.99\n"
@@ -392,7 +392,7 @@ PY
 cp "$work/grit" "$work/grit-bad-offset"
 python3 - "$work/grit-bad-offset" <<'PY'
 import hashlib, pathlib, sys
-MAGIC = b"BBXCONFIGv1"
+MAGIC = b"GRITCONFIGv1"
 TRAILER_SIZE = 4096
 p = pathlib.Path(sys.argv[1])
 payload = b"GRIT_OPERATOR_SERVER_HOST=192.0.2.77\n"
@@ -555,7 +555,7 @@ PY
 cp "$artifact" "$work/grit-unknown-runtime"
 python3 - "$work/grit-unknown-runtime" <<'PY'
 import hashlib, pathlib, sys
-MAGIC = b"BBXCONFIGv1"
+MAGIC = b"GRITCONFIGv1"
 TRAILER_SIZE = 4096
 p = pathlib.Path(sys.argv[1])
 payload = b"GRIT_OPERATOR_SERVER_HOST=192.0.2.88\nGRIT_TARGET_ARCH=mipsel\n"
@@ -625,7 +625,7 @@ grep -q 'refusing secret-like trailer value' "$work/secret.out"
 cp "$artifact" "$work/grit-secret-runtime"
 python3 - "$work/grit-secret-runtime" <<'PY'
 import hashlib, pathlib, sys
-MAGIC = b"BBXCONFIGv1"
+MAGIC = b"GRITCONFIGv1"
 TRAILER_SIZE = 4096
 p = pathlib.Path(sys.argv[1])
 payload = b"GRIT_ZERO_ARG_CUSTOM_COMMAND=echo TOKEN=abc123\n"

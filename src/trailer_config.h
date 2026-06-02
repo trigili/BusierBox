@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 #define GRIT_CONFIG_TRAILER_SIZE 4096
-#define GRIT_CONFIG_TRAILER_MAGIC "BBXCONFIGv1"
+#define GRIT_CONFIG_TRAILER_MAGIC "GRITCONFIGv1"
 
 struct bb_config_trailer {
     int present;

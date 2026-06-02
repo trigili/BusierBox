@@ -48,7 +48,7 @@ or add, remove, or replace payload contents. Rebuild the artifact when the targe
 tuple, BusyBox applets, heavy tools, dotfiles, overlays, or compiled features
 need to change.
 
-The trailer is fixed-size and appended at EOF with `BBXCONFIGv1` magic, version,
+The trailer is fixed-size and appended at EOF with `GRITCONFIGv1` magic, version,
 encoding, payload format, payload offset/size, SHA-256 of the decoded
 `KEY=VALUE` payload, and optional XOR metadata. XOR payload bytes are stored as
 ASCII-safe hex so trailer inspection never depends on raw binary payload bytes.
