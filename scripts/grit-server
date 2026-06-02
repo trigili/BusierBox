@@ -22304,6 +22304,7 @@ def run_line_tui(cfg):
                 "title": "daemon — systemd/init workflow actions",
                 "entries": [
                     ("daemon", "list available daemon workflow actions"),
+                    ("daemon -v", "list daemon workflow actions with headless commands"),
                     ("daemon ACTION", "run a daemon workflow action"),
                     ("daemon ACTION --dry-run", "preview a daemon workflow action"),
                     ("daemon ACTION --confirm", "run a confirmed daemon workflow action"),
@@ -23835,11 +23836,13 @@ def run_line_tui(cfg):
         print(f"headless_command: {headless}")
         print(f"command: {rec.get('command', '')}")
 
-    def print_line_daemon_actions():
+    def print_line_daemon_actions(verbose=False):
         snap = workbench_snapshot(cfg)
         actions = snap.get("operator_daemon_workflow_actions") or []
 
         def _detail(rec):
+            if not verbose:
+                return []
             run_cmd = rec.get("run_command") or rec.get("headless_command") or rec.get("command") or ""
             details = [("run", run_cmd)]
             if rec.get("dry_run_command"):
@@ -23856,23 +23859,26 @@ def run_line_tui(cfg):
         _console_table(
             f"Daemon actions  ({len(actions)} total)" if actions else "Daemon actions  (none)",
             actions, cols, detail_fn=_detail,
-            footer="daemon ACTION  |  daemon ACTION --dry-run  |  daemon ? for help",
+            footer="daemon ACTION  |  daemon ACTION --dry-run  |  daemon -v for commands  |  daemon ? for help",
         )
 
     def run_line_daemon_action(args):
         values = list(args or [])
         dry_run = False
         confirmed = False
+        verbose = False
         filtered = []
         for item in values:
             if item == "--dry-run":
                 dry_run = True
             elif item in ("--confirm", "confirm", "yes"):
                 confirmed = True
+            elif item in {"-v", "--verbose", "verbose"}:
+                verbose = True
             else:
                 filtered.append(item)
         if not filtered:
-            print_line_daemon_actions()
+            print_line_daemon_actions(verbose=verbose)
             return
         action = filtered[0]
         aliases = {
@@ -24153,7 +24159,7 @@ def run_line_tui(cfg):
             return [f"daemon {item}" for item in prefixed(arg_pfx(1),
                 ["start", "stop", "status", "install", "print",
                  "systemd-start", "systemd-stop", "systemd-restart", "systemd-status",
-                 "--dry-run"] + daemon_ids)]
+                 "--dry-run", "-v", "--verbose"] + daemon_ids)]
 
         if cmd in {"modules", "module"}:
             if at_arg(1):
@@ -29680,6 +29686,7 @@ Operations:
   sessions -i SESSION           inspect a session
   interact                      inspect selected session or selected-agent work context
   interact agent ID|LABEL       select and inspect an agent work context
+  daemon [-v]                   list daemon/systemd workflows; -v shows commands
   daemon ACTION [--dry-run]     preview or run daemon/systemd workflow
 
 Automation:

@@ -414,6 +414,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "agents\n"
                 "routes\n"
                 "daemon\n"
+                "daemon -v\n"
                 "jobs -k missing-job\n"
                 "jobs\n"
                 "jobs -v\n"
@@ -578,6 +579,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Events  (",
         "Raw JSONL: view ",
         "filters: limit=2 service=workbench",
+        "daemon -v for commands",
+        "dry-run: scripts/grit-server --config",
         "saved route zz-console-added",
         "started route zz-console-added",
         "stopped route zz-console-added",
