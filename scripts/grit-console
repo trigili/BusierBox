@@ -94,6 +94,7 @@ from gritlib.target_activity import (
 )
 from gritlib.target_commands import (
     target_command_record_indexes, target_command_record_summary,
+    target_command_state_status,
 )
 from gritlib.target_records import target_record_indexes, target_record_summary
 from gritlib.warnings import (
@@ -12116,41 +12117,10 @@ def status_document(cfg):
         "target_filter_records_by_has_filtered_observed_activity": records_by_key(target_filter_records, "has_filtered_observed_activity"),
         "target_filter_records_by_filter_reduced_observed_activity": records_by_key(target_filter_records, "filter_reduced_observed_activity"),
     }
-    target_command_state_record = {
-        "id": "target-commands",
-        "command_count": int_value(target_command_summary.get("total_count", 0)),
-        "target_count": int_value(target_command_summary.get("target_count", 0)),
-        "network_count": int_value(target_command_summary.get("network_count", 0)),
-        "explicit_target_action_count": int_value(target_command_summary.get("explicit_target_action_count", 0)),
-        "operator_supplied_command_execution_count": int_value(target_command_summary.get("operator_supplied_command_execution_count", 0)),
-        "copy_supported_count": int_value(target_command_summary.get("copy_supported_count", 0)),
-        "session_policy_error_count": int_value(target_command_summary.get("session_policy_error_count", 0)),
-        "executes_operator_supplied_commands": bool(target_command_summary.get("executes_operator_supplied_commands", False)),
-        "all_require_explicit_target_action": bool(target_command_summary.get("all_require_explicit_target_action", False)),
-    }
-    target_command_state_record.update({
-        "has_commands": target_command_state_record.get("command_count", 0) > 0,
-        "has_network_commands": target_command_state_record.get("network_count", 0) > 0,
-        "has_copy_supported_commands": target_command_state_record.get("copy_supported_count", 0) > 0,
-        "has_operator_supplied_command_execution": target_command_state_record.get("operator_supplied_command_execution_count", 0) > 0,
-        "has_session_policy_errors": target_command_state_record.get("session_policy_error_count", 0) > 0,
-    })
-    target_command_state_record["safe_explicit_target_action_boundary"] = (
-        target_command_state_record.get("has_commands") is True and
-        target_command_state_record.get("all_require_explicit_target_action") is True and
-        target_command_state_record.get("has_operator_supplied_command_execution") is False
-    )
-    target_command_state_records = [target_command_state_record]
-    target_command_state_index_maps = {
-        "target_command_state_records_by_id": {rec.get("id", ""): rec for rec in target_command_state_records if rec.get("id")},
-        "target_command_state_records_by_has_commands": records_by_key(target_command_state_records, "has_commands"),
-        "target_command_state_records_by_has_network_commands": records_by_key(target_command_state_records, "has_network_commands"),
-        "target_command_state_records_by_has_copy_supported_commands": records_by_key(target_command_state_records, "has_copy_supported_commands"),
-        "target_command_state_records_by_has_operator_supplied_command_execution": records_by_key(target_command_state_records, "has_operator_supplied_command_execution"),
-        "target_command_state_records_by_all_require_explicit_target_action": records_by_key(target_command_state_records, "all_require_explicit_target_action"),
-        "target_command_state_records_by_safe_explicit_target_action_boundary": records_by_key(target_command_state_records, "safe_explicit_target_action_boundary"),
-        "target_command_state_records_by_has_session_policy_errors": records_by_key(target_command_state_records, "has_session_policy_errors"),
-    }
+    target_command_state = target_command_state_status(target_command_summary)
+    target_command_state_record = target_command_state["state_record"]
+    target_command_state_records = target_command_state["state_records"]
+    target_command_state_index_maps = target_command_state["state_index_maps"]
     (uploads_by_filename,
      uploads_by_kind,
      uploads_by_sha256,

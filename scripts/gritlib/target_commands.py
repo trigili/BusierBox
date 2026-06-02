@@ -1,6 +1,6 @@
 """Target command index and summary helpers for grit-console."""
 
-from gritlib.record_utils import records_by_key
+from gritlib.record_utils import int_value, records_by_key
 
 
 def target_command_record_indexes(records):
@@ -174,4 +174,71 @@ def target_command_record_summary(records):
         "by_session_policy_valid": by_session_policy_valid,
         "session_policy_error_count": session_policy_error_count,
         "by_retry_backoff": by_retry_backoff,
+    }
+
+
+def target_command_state_status(summary):
+    state_record = {
+        "id": "target-commands",
+        "command_count": int_value(summary.get("total_count", 0)),
+        "target_count": int_value(summary.get("target_count", 0)),
+        "network_count": int_value(summary.get("network_count", 0)),
+        "explicit_target_action_count": int_value(summary.get("explicit_target_action_count", 0)),
+        "operator_supplied_command_execution_count": int_value(
+            summary.get("operator_supplied_command_execution_count", 0)
+        ),
+        "copy_supported_count": int_value(summary.get("copy_supported_count", 0)),
+        "session_policy_error_count": int_value(summary.get("session_policy_error_count", 0)),
+        "executes_operator_supplied_commands": bool(
+            summary.get("executes_operator_supplied_commands", False)
+        ),
+        "all_require_explicit_target_action": bool(
+            summary.get("all_require_explicit_target_action", False)
+        ),
+    }
+    state_record.update({
+        "has_commands": state_record.get("command_count", 0) > 0,
+        "has_network_commands": state_record.get("network_count", 0) > 0,
+        "has_copy_supported_commands": state_record.get("copy_supported_count", 0) > 0,
+        "has_operator_supplied_command_execution": (
+            state_record.get("operator_supplied_command_execution_count", 0) > 0
+        ),
+        "has_session_policy_errors": state_record.get("session_policy_error_count", 0) > 0,
+    })
+    state_record["safe_explicit_target_action_boundary"] = (
+        state_record.get("has_commands") is True and
+        state_record.get("all_require_explicit_target_action") is True and
+        state_record.get("has_operator_supplied_command_execution") is False
+    )
+    state_records = [state_record]
+    state_index_maps = {
+        "target_command_state_records_by_id": {
+            rec.get("id", ""): rec for rec in state_records if rec.get("id")
+        },
+        "target_command_state_records_by_has_commands": records_by_key(
+            state_records, "has_commands"
+        ),
+        "target_command_state_records_by_has_network_commands": records_by_key(
+            state_records, "has_network_commands"
+        ),
+        "target_command_state_records_by_has_copy_supported_commands": records_by_key(
+            state_records, "has_copy_supported_commands"
+        ),
+        "target_command_state_records_by_has_operator_supplied_command_execution": records_by_key(
+            state_records, "has_operator_supplied_command_execution"
+        ),
+        "target_command_state_records_by_all_require_explicit_target_action": records_by_key(
+            state_records, "all_require_explicit_target_action"
+        ),
+        "target_command_state_records_by_safe_explicit_target_action_boundary": records_by_key(
+            state_records, "safe_explicit_target_action_boundary"
+        ),
+        "target_command_state_records_by_has_session_policy_errors": records_by_key(
+            state_records, "has_session_policy_errors"
+        ),
+    }
+    return {
+        "state_record": state_record,
+        "state_records": state_records,
+        "state_index_maps": state_index_maps,
     }
