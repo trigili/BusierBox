@@ -14,6 +14,19 @@ Options:
 EOF
 }
 
+usage_help() {
+    cat <<'EOF'
+usage: scripts/tools/install-dropin-tool --tool TOOL --source FILE [options]
+
+Options:
+  --target NAME
+  --arch ARCH
+  --libc LIBC
+  --dest-root DIR      default: local/tools
+  --strict             fail installation on detected arch/endian mismatch
+EOF
+}
+
 tool=
 source=
 target=
@@ -37,7 +50,7 @@ while [ "$#" -gt 0 ]; do
         --dest-root) dest_root=$2; shift 2 ;;
         --dest-root=*) dest_root=${1#--dest-root=}; shift ;;
         --strict) strict=1; shift ;;
-        --help|-h) usage; exit 0 ;;
+        --help|-h) usage_help; exit 0 ;;
         *) usage; exit 2 ;;
     esac
 done

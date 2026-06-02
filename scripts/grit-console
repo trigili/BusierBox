@@ -11823,7 +11823,12 @@ def print_staged(cfg):
             print(f"  release={rec.get('release_path', '')} tuple={rec.get('tuple_path', '')} preset={rec.get('payload_preset', '')}{compat_text}")
         if rec.get("target_id"):
             print(f"  target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
-        print(f"  {render_fetch_command(name, cfg)}")
+        print_staged_fetch_target_options(
+            name,
+            cfg,
+            output_name=Path(str(rec.get("source_path") or name)).name,
+            executable=bool(str(rec.get("stage_kind") or "") in {"release-artifact", "operator-binary"}),
+        )
 
 
 def unstage_file(cfg, request_name):
@@ -14387,7 +14392,7 @@ def serve_probe(cfg, timeout, max_sessions=0):
     service = "probe"
     port = int(cfg.get("GRIT_PROBE_PORT", 22207))
     host = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
-    if not host or host in ("0.0.0.0", "::", "127.0.0.1"):
+    if not host or host in ("0.0.0.0", "::"):
         candidates = local_ips()
         host = candidates[0] if candidates else "OPERATOR_IP"
     script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
@@ -14555,7 +14560,7 @@ def serve_probe_tftp(cfg, timeout, max_sessions=0):
     service = "probe-tftp"
     port = int(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
     host = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
-    if not host or host in ("0.0.0.0", "::", "127.0.0.1"):
+    if not host or host in ("0.0.0.0", "::"):
         candidates = local_ips()
         host = candidates[0] if candidates else "OPERATOR_IP"
     script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
@@ -20751,7 +20756,8 @@ def print_workbench(cfg, include_api_summary=True):
     print("Operator workflow actions:")
     print_workbench_action_summary(snap)
     actions = snap.get("workbench_actions") or []
-    for rec in actions[:8]:
+    preview_action_limit = 12
+    for rec in actions[:preview_action_limit]:
         bg = "yes" if rec.get("background_supported") else "no"
         confirm = "yes" if rec.get("requires_confirmation") else "no"
         runnable = "yes" if rec.get("foreground_runnable") else "no"
@@ -20763,8 +20769,8 @@ def print_workbench(cfg, include_api_summary=True):
             print(f"    run: {rec.get('run_command', '')}")
         if rec.get("start_job_command"):
             print(f"    start_job: {rec.get('start_job_command', '')}")
-    if len(actions) > 8:
-        print(f"  ... {len(actions) - 8} more operator workflow action(s); choose action 11 in line mode for the full list")
+    if len(actions) > preview_action_limit:
+        print(f"  ... {len(actions) - preview_action_limit} more operator workflow action(s); choose action 11 in line mode for the full list")
     if snap.get("target_workflow_actions"):
         print("Target workflow actions:")
         actions = snap.get("target_workflow_actions") or []
