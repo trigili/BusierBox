@@ -1,16 +1,6 @@
 """Target record index and summary helpers for grit-console."""
 
-def record_count_by_key(records, key):
-    counts = {}
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        value = rec.get(key)
-        if value in (None, ""):
-            continue
-        text = str(value)
-        counts[text] = counts.get(text, 0) + 1
-    return counts
+from gritlib.record_utils import record_count_by_key
 
 
 def target_record_indexes(records):
@@ -407,4 +397,3 @@ def target_record_summary(records):
         "target_missing_capability_counts": missing_capability_counts,
         "target_observed_constraint_counts": observed_constraint_counts,
     }
-
