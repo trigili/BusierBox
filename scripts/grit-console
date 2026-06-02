@@ -4099,6 +4099,22 @@ def workbench_action_records(cfg):
             "event": "workbench_job_requested",
         },
         {
+            "id": "release-current",
+            "category": "release",
+            "label": "Build current target and stage a small release",
+            "script": "scripts/lib/release-current",
+            "command": "scripts/lib/release-current --config",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": True,
+            "long_running": True,
+            "background_supported": True,
+            "requires_confirmation": True,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_job_requested",
+        },
+        {
             "id": "bringup-recommend",
             "category": "bringup",
             "label": "Generate bringup recommendation with current operator route",
@@ -4193,6 +4209,38 @@ def workbench_action_records(cfg):
             "execution_default": "show-command",
             "target_execution": False,
             "event": "workbench_job_requested",
+        },
+        {
+            "id": "release-index",
+            "category": "release",
+            "label": "Inspect release index",
+            "script": "scripts/lib/release-index",
+            "command": "scripts/lib/release-index --release-dir " + shquote(release_dir),
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": False,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+        {
+            "id": "release-find",
+            "category": "release",
+            "label": "Find compatible release artifacts",
+            "script": "scripts/lib/release-find",
+            "command": "scripts/lib/release-find --release-dir " + shquote(release_dir) + " FIND_ARGS",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": False,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
         },
         {
             "id": "release-self-test",
@@ -4362,7 +4410,7 @@ def workbench_action_records(cfg):
             command_tokens = shlex.split(command)
         except ValueError:
             command_tokens = command.split()
-        placeholder_tokens = {"NAME", "ARTIFACT", "KEY=VALUE", "VALUE", "LOCAL_PATH", "REQUEST_NAME", "RELEASE_SELECTOR"}
+        placeholder_tokens = {"NAME", "ARTIFACT", "KEY=VALUE", "VALUE", "LOCAL_PATH", "REQUEST_NAME", "RELEASE_SELECTOR", "FIND_ARGS"}
         has_placeholder = any(token in placeholder_tokens for token in command_tokens)
         background = rec.get("background_supported") is True
         foreground_runnable = bool(command and not background and not has_placeholder)

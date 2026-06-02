@@ -5941,6 +5941,17 @@ def main(argv=None):
                 actions_by_id.get("package-artifact", {}).get("operator_action_reason") != "start-background-job" or
                 actions_by_id.get("package-artifact", {}).get("can_run_from_curses_enter") is not True or
                 actions_by_id.get("package-artifact", {}).get("curses_enter_action") != "start-job" or
+                actions_by_id.get("release-current", {}).get("script") != "scripts/lib/release-current" or
+                actions_by_id.get("release-current", {}).get("command") != "scripts/lib/release-current --config" or
+                actions_by_id.get("release-current", {}).get("operator_action_state") != "background-ready" or
+                actions_by_id.get("release-current", {}).get("can_run_from_curses_enter") is not True or
+                actions_by_id.get("release-index", {}).get("script") != "scripts/lib/release-index" or
+                actions_by_id.get("release-index", {}).get("command", "").startswith("scripts/lib/release-index --release-dir ") is not True or
+                actions_by_id.get("release-index", {}).get("operator_action_state") != "ready" or
+                actions_by_id.get("release-find", {}).get("script") != "scripts/lib/release-find" or
+                actions_by_id.get("release-find", {}).get("command", "").startswith("scripts/lib/release-find --release-dir ") is not True or
+                " FIND_ARGS" not in actions_by_id.get("release-find", {}).get("command", "") or
+                actions_by_id.get("release-find", {}).get("operator_action_state") != "needs-input" or
                 actions_by_id.get("operator-daemon-start", {}).get("background_supported") is not True or
                 actions_by_id.get("operator-daemon-start", {}).get("long_running") is not True or
                 actions_by_id.get("operator-daemon-start", {}).get("operator_action_state") != "background-ready" or
