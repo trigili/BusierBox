@@ -14476,7 +14476,7 @@ def serve_probe(cfg, timeout, max_sessions=0):
             update_server_state(cfg, service, "stopped", {
                 "session_log": str(log_dir),
                 "script_name": script_name,
-                "url": f"http://{host}:{port}/{script_name}",
+                "url": f"http://{route_host}:{route_port}/{script_name}",
                 "pid": "",
                 "managed_by": "",
                 "stopped_at": utc_now(),
@@ -14573,7 +14573,8 @@ def serve_probe_tftp(cfg, timeout, max_sessions=0):
     start_session_record(cfg, service, log_dir, details=session_details)
     (log_dir / script_name).write_text(script_text, encoding="utf-8")
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-    print(f"Probe TFTP listener. Serving tftp://{host}:{port}/{script_name}")
+    print(f"Probe TFTP listener. Binding on udp://{cfg.get('listen_host', '0.0.0.0')}:{port}")
+    print(f"Probe TFTP target URL: tftp://{host}:{port}/{script_name}")
     print(f"Target command: {target_command}")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **session_details})
     sessions = 0
