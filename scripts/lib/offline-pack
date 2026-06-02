@@ -1,6 +1,18 @@
 #!/bin/sh
 set -eu
 
+case "${1:-}" in
+    -h|--help|help)
+        cat <<'EOF'
+usage: scripts/lib/offline-pack
+
+Pack manifests/ and dl/ into dist/grit-sdk-YYYYMMDD.tar.zst when zstd is
+available, otherwise dist/grit-sdk-YYYYMMDD.tar.gz.
+EOF
+        exit 0
+        ;;
+esac
+
 date_stamp=$(date +%Y%m%d)
 base="grit-sdk-$date_stamp"
 out_dir=dist
@@ -25,4 +37,3 @@ fi
 
 rm -rf "$tmp_dir"
 printf '%s\n' "$out"
-

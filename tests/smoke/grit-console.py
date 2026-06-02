@@ -5878,13 +5878,25 @@ def main(argv=None):
         workbench_summary = queue_status_json.get("summary") or {}
         artifact_inspect_help = run("scripts/grit-artifact", "inspect", "--help")
         artifact_verify_help = run("scripts/grit-artifact", "verify", "--help")
+        fetch_sources_help = run("scripts/lib/fetch-sources", "--help")
+        verify_sources_help = run("scripts/lib/verify-sources", "--help")
+        offline_pack_help = run("scripts/lib/offline-pack", "--help")
         if (artifact_inspect_help.returncode != 0 or
                 "usage: grit-artifact inspect ARTIFACT" not in artifact_inspect_help.stdout or
                 artifact_verify_help.returncode != 0 or
-                "usage: grit-artifact verify ARTIFACT" not in artifact_verify_help.stdout):
-            print("grit-artifact per-command help failed", file=sys.stderr)
+                "usage: grit-artifact verify ARTIFACT" not in artifact_verify_help.stdout or
+                fetch_sources_help.returncode != 0 or
+                "usage: scripts/lib/fetch-sources [MANIFEST]" not in fetch_sources_help.stdout or
+                verify_sources_help.returncode != 0 or
+                "usage: scripts/lib/verify-sources [MANIFEST]" not in verify_sources_help.stdout or
+                offline_pack_help.returncode != 0 or
+                "usage: scripts/lib/offline-pack" not in offline_pack_help.stdout):
+            print("helper per-command help failed", file=sys.stderr)
             print(artifact_inspect_help.stdout + artifact_inspect_help.stderr, file=sys.stderr)
             print(artifact_verify_help.stdout + artifact_verify_help.stderr, file=sys.stderr)
+            print(fetch_sources_help.stdout + fetch_sources_help.stderr, file=sys.stderr)
+            print(verify_sources_help.stdout + verify_sources_help.stderr, file=sys.stderr)
+            print(offline_pack_help.stdout + offline_pack_help.stderr, file=sys.stderr)
             return 1
         if (target_workflow_actions != [] or
                 workbench_summary.get("target_workflow_action_count") != 0 or
@@ -5952,6 +5964,21 @@ def main(argv=None):
                 actions_by_id.get("release-find", {}).get("command", "").startswith("scripts/lib/release-find --release-dir ") is not True or
                 " FIND_ARGS" not in actions_by_id.get("release-find", {}).get("command", "") or
                 actions_by_id.get("release-find", {}).get("operator_action_state") != "needs-input" or
+                actions_by_id.get("tool-provider-check", {}).get("script") != "scripts/lib/check-tool-providers" or
+                actions_by_id.get("tool-provider-check", {}).get("operator_action_state") != "needs-input" or
+                actions_by_id.get("dropin-tool-status", {}).get("script") != "scripts/tools/dropin-tool-status" or
+                actions_by_id.get("dropin-tool-status", {}).get("operator_action_state") != "needs-input" or
+                actions_by_id.get("check-dropin-tool", {}).get("script") != "scripts/tools/check-dropin-tool" or
+                actions_by_id.get("check-dropin-tool", {}).get("operator_action_state") != "needs-input" or
+                actions_by_id.get("verify-sources", {}).get("script") != "scripts/lib/verify-sources" or
+                actions_by_id.get("verify-sources", {}).get("operator_action_state") != "ready" or
+                actions_by_id.get("source-mirror-plan", {}).get("script") != "scripts/lib/mirror-sources" or
+                actions_by_id.get("source-mirror-plan", {}).get("operator_action_state") != "needs-input" or
+                "--dry-run" not in actions_by_id.get("source-mirror-plan", {}).get("command", "") or
+                actions_by_id.get("offline-readiness", {}).get("script") != "scripts/lib/check-offline-readiness" or
+                actions_by_id.get("offline-readiness", {}).get("operator_action_state") != "needs-input" or
+                actions_by_id.get("offline-pack", {}).get("script") != "scripts/lib/offline-pack" or
+                actions_by_id.get("offline-pack", {}).get("operator_action_state") != "confirm-required" or
                 actions_by_id.get("operator-daemon-start", {}).get("background_supported") is not True or
                 actions_by_id.get("operator-daemon-start", {}).get("long_running") is not True or
                 actions_by_id.get("operator-daemon-start", {}).get("operator_action_state") != "background-ready" or
@@ -5993,8 +6020,12 @@ def main(argv=None):
                 actions_by_id.get("configure-trailer", {}).get("operator_action_state") != "needs-input" or
                 not actions_by_category.get("configuration") or
                 len(actions_by_category.get("daemon", [])) < 9 or
+                len(actions_by_category.get("tooling", [])) < 3 or
+                len(actions_by_category.get("offline", [])) < 4 or
                 not actions_by_script.get("scripts/grit-bringup") or
                 len(actions_by_script.get("scripts/grit-artifact", [])) < 3 or
+                len(actions_by_script.get("scripts/tools/dropin-tool-status", [])) < 1 or
+                len(actions_by_script.get("scripts/lib/mirror-sources", [])) < 1 or
                 not actions_by_script.get("scripts/grit-console") or
                 not actions_by_background.get("True") or
                 not actions_by_confirmation.get("True") or

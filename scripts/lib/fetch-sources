@@ -4,6 +4,18 @@ set -eu
 manifest=${1:-manifests/sources.lock.json}
 dl_dir=${DL_DIR:-dl}
 
+case "${1:-}" in
+    -h|--help|help)
+        cat <<'EOF'
+usage: scripts/lib/fetch-sources [MANIFEST]
+
+Fetch pinned sources into ${DL_DIR:-dl}, then verify them by SHA-256.
+Default manifest: manifests/sources.lock.json
+EOF
+        exit 0
+        ;;
+esac
+
 mkdir -p "$dl_dir"
 
 fetch_one() {
