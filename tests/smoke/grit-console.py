@@ -5876,6 +5876,16 @@ def main(argv=None):
         actions_by_enter = queue_status_json.get("workbench_actions_by_can_run_from_curses_enter") or {}
         actions_by_enter_action = queue_status_json.get("workbench_actions_by_curses_enter_action") or {}
         workbench_summary = queue_status_json.get("summary") or {}
+        artifact_inspect_help = run("scripts/grit-artifact", "inspect", "--help")
+        artifact_verify_help = run("scripts/grit-artifact", "verify", "--help")
+        if (artifact_inspect_help.returncode != 0 or
+                "usage: grit-artifact inspect ARTIFACT" not in artifact_inspect_help.stdout or
+                artifact_verify_help.returncode != 0 or
+                "usage: grit-artifact verify ARTIFACT" not in artifact_verify_help.stdout):
+            print("grit-artifact per-command help failed", file=sys.stderr)
+            print(artifact_inspect_help.stdout + artifact_inspect_help.stderr, file=sys.stderr)
+            print(artifact_verify_help.stdout + artifact_verify_help.stderr, file=sys.stderr)
+            return 1
         if (target_workflow_actions != [] or
                 workbench_summary.get("target_workflow_action_count") != 0 or
                 workbench_summary.get("target_workflow_action_available_count") != 0 or
@@ -5961,11 +5971,19 @@ def main(argv=None):
                 actions_by_id.get("systemd-user-status", {}).get("requires_confirmation") is not False or
                 actions_by_id.get("systemd-user-status", {}).get("command", "").endswith("--systemd-user-action status") is not True or
                 actions_by_id.get("systemd-user-status", {}).get("operator_action_state") != "ready" or
-                actions_by_id.get("configure-trailer", {}).get("script") != "scripts/lib/artifact-config" or
+                actions_by_id.get("inspect-artifact", {}).get("script") != "scripts/grit-artifact" or
+                actions_by_id.get("inspect-artifact", {}).get("command") != "scripts/grit-artifact inspect ARTIFACT" or
+                actions_by_id.get("inspect-artifact", {}).get("operator_action_state") != "needs-input" or
+                actions_by_id.get("verify-artifact", {}).get("script") != "scripts/grit-artifact" or
+                actions_by_id.get("verify-artifact", {}).get("command") != "scripts/grit-artifact verify ARTIFACT" or
+                actions_by_id.get("verify-artifact", {}).get("operator_action_state") != "needs-input" or
+                actions_by_id.get("configure-trailer", {}).get("script") != "scripts/grit-artifact" or
+                actions_by_id.get("configure-trailer", {}).get("command") != "scripts/grit-artifact config set ARTIFACT KEY=VALUE" or
                 actions_by_id.get("configure-trailer", {}).get("operator_action_state") != "needs-input" or
                 not actions_by_category.get("configuration") or
                 len(actions_by_category.get("daemon", [])) < 9 or
                 not actions_by_script.get("scripts/grit-bringup") or
+                len(actions_by_script.get("scripts/grit-artifact", [])) < 3 or
                 not actions_by_script.get("scripts/grit-console") or
                 not actions_by_background.get("True") or
                 not actions_by_confirmation.get("True") or

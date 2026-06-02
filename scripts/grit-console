@@ -4131,11 +4131,43 @@ def workbench_action_records(cfg):
             "event": "workbench_job_requested",
         },
         {
+            "id": "inspect-artifact",
+            "category": "artifact",
+            "label": "Inspect artifact metadata without execution",
+            "script": "scripts/grit-artifact",
+            "command": "scripts/grit-artifact inspect ARTIFACT",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": False,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+        {
+            "id": "verify-artifact",
+            "category": "artifact",
+            "label": "Verify artifact integrity and execution",
+            "script": "scripts/grit-artifact",
+            "command": "scripts/grit-artifact verify ARTIFACT",
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": False,
+            "background_supported": False,
+            "requires_confirmation": True,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_action_selected",
+        },
+        {
             "id": "configure-trailer",
             "category": "trailer",
             "label": "Configure runtime trailer overrides",
-            "script": "scripts/lib/artifact-config",
-            "command": "scripts/lib/artifact-config set ARTIFACT KEY=VALUE",
+            "script": "scripts/grit-artifact",
+            "command": "scripts/grit-artifact config set ARTIFACT KEY=VALUE",
             "config_path": config_path,
             "writes_config": True,
             "runs_build": False,
@@ -4326,7 +4358,12 @@ def workbench_action_records(cfg):
     for rec in records:
         action_id = str(rec.get("id") or "")
         command = str(rec.get("command") or "")
-        has_placeholder = any(token in command for token in (" NAME ", " ARTIFACT ", "KEY=VALUE", "VALUE"))
+        try:
+            command_tokens = shlex.split(command)
+        except ValueError:
+            command_tokens = command.split()
+        placeholder_tokens = {"NAME", "ARTIFACT", "KEY=VALUE", "VALUE", "LOCAL_PATH", "REQUEST_NAME", "RELEASE_SELECTOR"}
+        has_placeholder = any(token in placeholder_tokens for token in command_tokens)
         background = rec.get("background_supported") is True
         foreground_runnable = bool(command and not background and not has_placeholder)
         requires_confirmation = rec.get("requires_confirmation") is True

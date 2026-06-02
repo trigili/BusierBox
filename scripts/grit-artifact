@@ -28,6 +28,27 @@ Examples:
 """)
 
 
+def command_usage(cmd):
+    if cmd == "inspect":
+        print("""\
+usage: grit-artifact inspect ARTIFACT
+
+Parse embedded payload/trailer metadata without executing the artifact.
+""")
+        return 0
+    if cmd == "verify":
+        print("""\
+usage: grit-artifact verify ARTIFACT [options]
+
+Verify payload structure, checksums, and executable behavior.
+""")
+        return 0
+    if cmd == "config":
+        return subprocess.run([sys.executable, str(LIB / "artifact-config"), "--help"]).returncode
+    usage()
+    return 2
+
+
 def main():
     args = sys.argv[1:]
     if not args or args[0] in ("-h", "--help", "help"):
@@ -36,6 +57,8 @@ def main():
 
     cmd = args[0]
     rest = args[1:]
+    if rest and rest[0] in ("-h", "--help", "help"):
+        return command_usage(cmd)
 
     dispatch = {
         "inspect": LIB / "inspect-artifact",
