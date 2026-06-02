@@ -11389,6 +11389,29 @@ def staged_fetch_target_commands(request_name, cfg, output_name=None, executable
         "curl": " ".join(shquote(part) for part in curl_parts),
         "grit": render_fetch_command(request_name, cfg),
     }
+    parsed = urllib.parse.urlsplit(url)
+    host = parsed.hostname or "OPERATOR_IP"
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+    path = parsed.path or "/fetch"
+    if parsed.query:
+        path += "?" + parsed.query
+    if tls:
+        commands["nc_note"] = "requires file-service TLS=no; use wget/curl/grit, or set GRIT_OPERATOR_FILE_SERVICE_TLS=no"
+    else:
+        safe_path = path.replace("'", "")
+        safe_host = str(host).replace("'", "")
+        commands["nc"] = (
+            "printf 'GET "
+            + safe_path
+            + " HTTP/1.0\\r\\nHost: "
+            + safe_host
+            + "\\r\\nConnection: close\\r\\n\\r\\n' | nc "
+            + shquote(str(host))
+            + " "
+            + shquote(str(port))
+            + " | sed '1,/^\\r*$/d' > "
+            + shquote(output)
+        )
     if executable:
         commands["run"] = "chmod +x " + shquote(output) + " && " + shquote(output) + " --help"
     return commands
@@ -11400,6 +11423,10 @@ def print_staged_fetch_target_options(request_name, cfg, output_name=None, execu
     print(f"    url:   {commands['url']}")
     print(f"    wget:  {commands['wget']}")
     print(f"    curl:  {commands['curl']}")
+    if commands.get("nc"):
+        print(f"    nc:    {commands['nc']}")
+    elif commands.get("nc_note"):
+        print(f"    nc:    {commands['nc_note']}")
     print(f"    grit:  {commands['grit']}")
     if executable:
         print(f"    run:   {commands['run']}")

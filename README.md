@@ -55,8 +55,9 @@ grit[all]> probe serve --start
 
 `probe serve --start` stages the selected binary, starts the file service when
 requested, and prints target-side fetch options. For first deployment use the
-shown `wget` or `curl` command; after griTTYkit is already present, use the
-shown `grit fetch ...` command.
+shown `wget` or `curl` command; when the file service is configured without TLS,
+the console also prints a raw HTTP `nc` fallback. After griTTYkit is already
+present, use the shown `grit fetch ...` command.
 
 ### Finds somewhere to live, no matter what
 
@@ -384,6 +385,7 @@ Release artifact staged:
   Target fetch options:
     wget:  wget --no-check-certificate -O ./grit-mipsel-linux-4.x-musl-default-full ...
     curl:  curl -fLk -o ./grit-mipsel-linux-4.x-musl-default-full ...
+    nc:    requires file-service TLS=no; use wget/curl/grit, or set GRIT_OPERATOR_FILE_SERVICE_TLS=no
     grit:  grit fetch grit-mipsel-linux-4.x-musl-default-full ...
     run:   chmod +x ./grit-mipsel-linux-4.x-musl-default-full && ./grit-mipsel-linux-4.x-musl-default-full --help
 ```

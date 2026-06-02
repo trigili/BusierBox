@@ -10810,6 +10810,7 @@ def main(argv=None):
                 "Target fetch options:" not in line_stage_stdout or
                 "wget --no-check-certificate -O ./grit " not in line_stage_stdout or
                 "curl -fLk -o ./grit " not in line_stage_stdout or
+                "nc:    requires file-service TLS=no" not in line_stage_stdout or
                 "/fetch?name=grit" not in line_stage_stdout or
                 "--config " + str(upload_cfg) + " --list-staged" not in line_stage_stdout or
                 "File service workflow actions:" not in line_stage_stdout or
@@ -11915,6 +11916,7 @@ def main(argv=None):
                 "Target fetch options:" not in _line_stdout or
                 "wget -O ./grit-test " not in _line_stdout or
                 "curl -fL -o ./grit-test " not in _line_stdout or
+                "nc:    printf 'GET /fetch?name=grit-test HTTP/1.0" not in _line_stdout or
                 "/fetch?name=grit-test" not in _line_stdout or
                 "headless_command: scripts/grit-console --config" not in _line_stdout or
                 "--stage-release-artifact by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout):
@@ -12128,6 +12130,7 @@ def main(argv=None):
                 "Target fetch options:" not in probe_text or
                 "wget --no-check-certificate -O ./grit-mipsel-default " not in probe_text or
                 "curl -fLk -o ./grit-mipsel-default " not in probe_text or
+                "nc:    requires file-service TLS=no" not in probe_text or
                 "/fetch?name=grit-mipsel-default" not in probe_text or
                 "grit-mipsel-default" not in probe_text):
             print("probe serve did not choose the matching release tuple", file=sys.stderr)

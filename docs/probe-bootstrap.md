@@ -60,9 +60,11 @@ delivery services without changing the probe result workflow.
 
 `probe serve --start` stages the matching release artifact and prints target
 fetch options. On a target that does not have griTTYkit yet, use the printed
-plain `wget` or `curl` command against `/fetch?name=...`, then run the printed
-`chmod +x ./grit... && ./grit... --help` hint. On a target that already has
-griTTYkit, use the printed `grit fetch ...` command instead.
+plain `wget` or `curl` command against `/fetch?name=...`; if the file service
+is configured without TLS, the console also prints a raw HTTP `nc` fallback.
+Then run the printed `chmod +x ./grit... && ./grit... --help` hint. On a
+target that already has griTTYkit, use the printed `grit fetch ...` command
+instead.
 
 `probe config` converts the newest probe result into a generated config. The
 probe only captures basic platform evidence, so a later full `grit survey push`
