@@ -171,6 +171,85 @@ def command_result_output_size_bucket(size):
     return "large"
 
 
+def command_queue_policy_status(command_queue):
+    policy_summary = command_queue.get("policy_summary") or {}
+    policy_record = {
+        "id": "command-queue",
+        "enabled": bool(policy_summary.get("enabled", False)),
+        "default_enabled": bool(policy_summary.get("default_enabled", False)),
+        "valid": bool(policy_summary.get("valid", True)),
+        "errors": command_queue.get("policy_errors") or [],
+        "error_count": len(command_queue.get("policy_errors") or []),
+        "configured_for_polling": bool(policy_summary.get("configured_for_polling", False)),
+        "operator_queue_records_only": bool(policy_summary.get("operator_queue_records_only", False)),
+        "allowed_commands": command_queue.get("allowed_commands", "none"),
+        "execution_mode": policy_summary.get("execution_mode", "metadata-only"),
+        "metadata_only_default": bool(policy_summary.get("metadata_only_default", False)),
+        "execution_supported": bool(policy_summary.get("execution_supported", False)),
+        "executes_commands": bool(policy_summary.get("executes_commands", False)),
+        "delivery_supported": bool(policy_summary.get("delivery_supported", False)),
+        "result_upload_supported": bool(policy_summary.get("result_upload_supported", False)),
+        "poll_transport_supported": bool(policy_summary.get("poll_transport_supported", False)),
+        "live_polling_supported": bool(policy_summary.get("live_polling_supported", False)),
+        "poll_transport_unsupported_reason": policy_summary.get("poll_transport_unsupported_reason", ""),
+        "active_control_channel": bool(policy_summary.get("active_control_channel", False)),
+        "token_required": bool(policy_summary.get("token_required", False)),
+        "token_configured": bool(policy_summary.get("token_configured", False)),
+        "poll_interval_sec": policy_summary.get("poll_interval_sec", "5"),
+        "poll_jitter_pct": policy_summary.get("poll_jitter_pct", "0"),
+        "poll_backoff": policy_summary.get("poll_backoff", "none"),
+        "poll_max_interval_sec": policy_summary.get("poll_max_interval_sec", "300"),
+        "max_polls": policy_summary.get("max_polls", "0"),
+        "arbitrary_policy_requested": bool(policy_summary.get("arbitrary_policy_requested", False)),
+        "arbitrary_execution_allowed": bool(policy_summary.get("arbitrary_execution_allowed", False)),
+        "safe_disabled_default": bool(policy_summary.get("safe_disabled_default", False)),
+        "policy_summary": policy_summary,
+    }
+    policy_records = [policy_record]
+    policy_index_maps = {
+        "command_queue_policy_records_by_id": {
+            rec.get("id", ""): rec for rec in policy_records if rec.get("id")
+        },
+        "command_queue_policy_records_by_enabled": records_by_key(policy_records, "enabled"),
+        "command_queue_policy_records_by_valid": records_by_key(policy_records, "valid"),
+        "command_queue_policy_records_by_configured_for_polling": records_by_key(
+            policy_records, "configured_for_polling"
+        ),
+        "command_queue_policy_records_by_execution_mode": records_by_key(
+            policy_records, "execution_mode"
+        ),
+        "command_queue_policy_records_by_allowed_commands": records_by_key(
+            policy_records, "allowed_commands"
+        ),
+        "command_queue_policy_records_by_token_required": records_by_key(
+            policy_records, "token_required"
+        ),
+        "command_queue_policy_records_by_token_configured": records_by_key(
+            policy_records, "token_configured"
+        ),
+        "command_queue_policy_records_by_safe_disabled_default": records_by_key(
+            policy_records, "safe_disabled_default"
+        ),
+        "command_queue_policy_records_by_poll_transport_supported": records_by_key(
+            policy_records, "poll_transport_supported"
+        ),
+        "command_queue_policy_records_by_live_polling_supported": records_by_key(
+            policy_records, "live_polling_supported"
+        ),
+        "command_queue_policy_records_by_active_control_channel": records_by_key(
+            policy_records, "active_control_channel"
+        ),
+        "command_queue_policy_records_by_arbitrary_execution_allowed": records_by_key(
+            policy_records, "arbitrary_execution_allowed"
+        ),
+    }
+    return {
+        "policy_record": policy_record,
+        "policy_records": policy_records,
+        "policy_index_maps": policy_index_maps,
+    }
+
+
 def command_queue_workflow_action_indexes(records):
     return {
         "command_queue_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
@@ -254,4 +333,3 @@ def command_queue_workflow_action_summary(records):
         "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
         "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
     }
-
