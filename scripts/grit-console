@@ -22597,6 +22597,8 @@ def run_line_tui(cfg):
                     ("probe",                                   "show the target-side command (warns if listener is down)"),
                     ("probe --queue",                           "queue probe command for selected target's next phone-home"),
                     ("probe delivery",                          "show wget, curl, and raw nc delivery commands"),
+                    ("probe paste",                             "print a serial/admin-shell heredoc that runs without writing a file"),
+                    ("probe script",                            "print the raw generated probe.sh script"),
                     ("probe results",                           "show received probe results (arch, kernel, bits, endian)"),
                     ("probe config [N]",                        "generate config from the most recent or numbered probe result"),
                     ("probe config --write-config FILE",        "generate and save config"),
@@ -22606,6 +22608,7 @@ def run_line_tui(cfg):
                 "notes": [
                     "probe.sh captures: arch (uname_m), kernel, OS, word size, endian.",
                     "No griTTYkit required — download with wget, curl, or raw nc over HTTP.",
+                    "probe paste bypasses the script download step for serial consoles and limited admin shells.",
                     "probe config uses estimated defaults for libc/filesystem; use survey config for full data.",
                 ],
                 "examples": [
@@ -23896,10 +23899,12 @@ def run_line_tui(cfg):
         print(f"    nc:    {nc_cmd}")
         print(f"    ssh:   ssh root@target '{wget_cmd}'")
         print(f"    copy:  scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'")
+        print("    paste: probe paste")
         print("")
         print("  Current listeners: probe-http, probe-tftp")
         print("  Not yet served here: probe-ftp, probe-dns")
         print("  If HTTP is blocked but nc works, use the nc command above against the same listener.")
+        print("  If the target only has a serial/admin shell, use: probe paste")
         print("")
         print("  probe results  — after running any of the above")
 
@@ -24698,7 +24703,7 @@ def run_line_tui(cfg):
         if cmd == "probe":
             if at_arg(1):
                 return [f"{cmd} {item}" for item in prefixed(arg_pfx(1),
-                    ["results", "config", "clear", "serve", "--start", "--queue"])]
+                    ["results", "config", "clear", "serve", "delivery", "paste", "script", "--start", "--queue"])]
             subcmd = parts[1].lower() if len(parts) >= 2 else ""
             if subcmd == "config" and at_arg(2):
                 return [f"probe config {item}" for item in prefixed(arg_pfx(2),
@@ -25536,6 +25541,25 @@ def run_line_tui(cfg):
     # keep old name as alias for backward compat with any direct callers
     def parse_line_survey_args(args):
         return parse_line_probe_args(args)
+
+    def print_line_probe_script(paste=False):
+        route = probe_route_context(cfg)
+        route_host = str(route.get("host", "OPERATOR_IP") or "OPERATOR_IP")
+        route_port = int(route.get("port", cfg.get("GRIT_PROBE_PORT", 22207)) or 22207)
+        script_text = probe_script_fn(cfg, route_host, route_port).rstrip()
+        if paste:
+            delimiter = "GRIT_PROBE_SCRIPT"
+            while delimiter in script_text:
+                delimiter += "_END"
+            print("")
+            print("Serial/manual paste:")
+            print(f"sh <<'{delimiter}'")
+            print(script_text)
+            print(delimiter)
+            print("")
+            print("After it runs, use: probe results")
+            return
+        print(script_text)
 
     def probe_line_start(queue=False, start_service=False):
         # If operator host isn't pinned and we have an interactive terminal,
@@ -27789,6 +27813,14 @@ def run_line_tui(cfg):
                         if len(console_args) > 2:
                             raise ValueError("usage: probe delivery")
                         _print_probe_delivery()
+                    elif subcmd in {"paste", "serial", "heredoc"}:
+                        if len(console_args) > 2:
+                            raise ValueError("usage: probe paste")
+                        print_line_probe_script(paste=True)
+                    elif subcmd in {"script", "raw"}:
+                        if len(console_args) > 2:
+                            raise ValueError("usage: probe script")
+                        print_line_probe_script(paste=False)
                     elif subcmd in {"help", "-h", "--help"}:
                         print_line_command_help("probe")
                     else:
@@ -30154,7 +30186,7 @@ Operations:
                                 show or queue target fetch of a staged file
   download [--queue] TARGET_PATH
                                 show or queue a target-to-operator upload command
-  probe [--start|--queue], probe delivery
+  probe [--start|--queue], probe delivery, probe paste
                                 show, serve, queue, or print probe delivery commands
   downloads                     list target-fetchable staged files
   unstage NAME                  remove a staged file request

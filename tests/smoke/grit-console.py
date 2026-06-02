@@ -701,6 +701,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "events -n 3\n"
                 "events service=workbench -n 2\n"
                 "probe delivery\n"
+                "probe paste\n"
                 "probe --queue\n"
                 "download --queue /etc/config/network\n"
                 "show mailbox\n"
@@ -793,6 +794,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "tftp:  tftp -g -r probe.sh",
         "Current listeners: probe-http, probe-tftp",
         "Not yet served here: probe-ftp, probe-dns",
+        "paste: probe paste",
+        "Serial/manual paste:",
+        "sh <<'GRIT_PROBE_SCRIPT'",
+        "bb_payload=\"schema=1&script=probe.sh",
+        "After it runs, use: probe results",
         "daemon -v for commands",
         "dry-run: scripts/grit-console --config",
         "saved route zz-console-added",
