@@ -51,6 +51,10 @@ from gritlib.command_queue import (
     command_queue_workflow_action_indexes, command_queue_workflow_action_summary,
     command_result_output_size_bucket,
 )
+from gritlib.command_copy import (
+    command_copy_indexes, command_copy_path, command_copy_record,
+    command_copy_state_status,
+)
 from gritlib.build_config import (
     WORKBENCH_BUILD_CONFIG_FIELDS, WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS,
     build_config_path, delete_build_config_value, parse_build_config,
@@ -381,56 +385,8 @@ def targets_path(cfg):
     return Path(str(cfg.get("targets_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "targets.json"))
 
 
-def command_copy_path(cfg):
-    return Path(str(cfg.get("command_copy_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "last-command.txt"))
-
-
 def bridge_profiles_path(cfg):
     return Path(str(cfg.get("bridge_profiles_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "bridge-profiles.json"))
-
-
-def command_copy_record(cfg):
-    path = command_copy_path(cfg)
-    rec = {
-        "schema": 1,
-        "path": str(path),
-        "exists": path.is_file(),
-        "readable": False,
-        "size": 0,
-        "line_count": 0,
-        "command": "",
-        "command_sha256": "",
-        "has_command": False,
-    }
-    if not path.is_file():
-        return rec
-    try:
-        data = path.read_bytes()
-    except OSError as exc:
-        rec["error"] = str(exc)
-        return rec
-    rec["readable"] = True
-    rec["size"] = len(data)
-    text = data.decode("utf-8", errors="replace")
-    lines = text.splitlines()
-    command = lines[0] if lines else ""
-    rec.update({
-        "line_count": len(lines),
-        "command": command,
-        "command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest() if command else "",
-        "has_command": bool(command),
-    })
-    return rec
-
-
-def command_copy_indexes(records):
-    return {
-        "command_copy_records_by_path": {rec.get("path", ""): rec for rec in records or [] if rec.get("path")},
-        "command_copy_records_by_exists": records_by_key(records, "exists"),
-        "command_copy_records_by_readable": records_by_key(records, "readable"),
-        "command_copy_records_by_has_command": records_by_key(records, "has_command"),
-        "command_copy_records_by_command_sha256": records_by_key(records, "command_sha256"),
-    }
 
 
 def workbench_jobs_state_record(cfg):
@@ -12293,36 +12249,10 @@ def status_document(cfg):
     command_copy = command_copy_record(cfg)
     command_copy_records = [command_copy]
     command_copy_record_indexes = command_copy_indexes(command_copy_records)
-    command_copy_state_record = {
-        "id": "command-copy",
-        "path": command_copy.get("path", ""),
-        "exists": bool(command_copy.get("exists", False)),
-        "readable": bool(command_copy.get("readable", False)),
-        "size": int_value(command_copy.get("size", 0)),
-        "line_count": int_value(command_copy.get("line_count", 0)),
-        "has_command": bool(command_copy.get("has_command", False)),
-        "command_sha256": command_copy.get("command_sha256", ""),
-    }
-    command_copy_state_record.update({
-        "empty_or_missing": not command_copy_state_record.get("has_command", False),
-        "has_readable_command": (
-            command_copy_state_record.get("readable") is True and
-            command_copy_state_record.get("has_command") is True
-        ),
-    })
-    if command_copy.get("error"):
-        command_copy_state_record["error"] = command_copy.get("error")
-    command_copy_state_records = [command_copy_state_record]
-    command_copy_state_index_maps = {
-        "command_copy_state_records_by_id": {rec.get("id", ""): rec for rec in command_copy_state_records if rec.get("id")},
-        "command_copy_state_records_by_path": {rec.get("path", ""): rec for rec in command_copy_state_records if rec.get("path")},
-        "command_copy_state_records_by_exists": records_by_key(command_copy_state_records, "exists"),
-        "command_copy_state_records_by_readable": records_by_key(command_copy_state_records, "readable"),
-        "command_copy_state_records_by_has_command": records_by_key(command_copy_state_records, "has_command"),
-        "command_copy_state_records_by_empty_or_missing": records_by_key(command_copy_state_records, "empty_or_missing"),
-        "command_copy_state_records_by_has_readable_command": records_by_key(command_copy_state_records, "has_readable_command"),
-        "command_copy_state_records_by_command_sha256": records_by_key(command_copy_state_records, "command_sha256"),
-    }
+    command_copy_state = command_copy_state_status(command_copy)
+    command_copy_state_record = command_copy_state["state_record"]
+    command_copy_state_records = command_copy_state["state_records"]
+    command_copy_state_index_maps = command_copy_state["state_index_maps"]
     workbench_jobs_state = workbench_jobs_state_record(cfg)
     workbench_jobs_state["has_jobs"] = int(workbench_jobs_state.get("job_count") or 0) > 0
     workbench_jobs_state_records = [workbench_jobs_state]
