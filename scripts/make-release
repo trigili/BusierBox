@@ -1719,21 +1719,26 @@ def write_release_quickstart(path, name):
                  probe --start                  # serve probe.sh and show target command
                  probe results                  # inspect returned arch/kernel evidence
                  probe config --write-config configs/grit.conf
-                 release                        # list matching release artifacts
+                 probe serve --start            # choose/stage a matching payload
+
+               After `probe serve --start`, run one of the printed target fetch
+               commands on the target. First deployment can use the printed
+               wget/curl command; a target that already has griTTYkit can use
+               the printed `grit fetch ...` command.
+
+               You can also stage explicitly:
+
+                 release                        # list release artifacts
                  release stage SELECTOR         # stage a tuple/device/recommendation
                  release stage by_device_payload_preset:glinet-mt1300:survey-core
                  release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
-                 configure grit --operator-host 192.168.8.241 --transport builtin --zero-arg-mode rshell
-                 fetch --start grit             # serve the staged payload to the target
+                 serve-binary --start bin/grit-...-full grit
 
                Device aliases live under devices/<alias>/ and canonical tuples live
                under by-tuple/<arch>/<libc>/<kernel-floor>/<cpu-or-abi>/.
                Selectors include recommendation IDs, artifact paths, by_device:NAME,
                by_device_payload_preset:NAME:PRESET, by_tuple_path:PATH, and
-               by_tuple_payload_preset:PATH:PRESET. The console can also stage a
-               specific binary:
-
-                 serve-binary --start bin/grit-...-full grit
+               by_tuple_payload_preset:PATH:PRESET.
 
             3. Choose an artifact without the console:
 
@@ -1829,10 +1834,12 @@ def write_release_readme(path, name):
             scripts/lib/release-self-test
             scripts/grit-server --tui
             scripts/lib/release-find --device glinet-mt1300
-            # In the console, stage a release artifact, then configure its staged copy:
-            #   release stage SELECTOR
-            #   release stage by_device_payload_preset:glinet-mt1300:survey-core
-            #   release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
+            # In the console, probe the target, stage a matching release artifact,
+            # then configure its staged copy before target fetch:
+            #   probe --start
+            #   probe results
+            #   probe config --write-config configs/grit.conf
+            #   probe serve --start
             #   configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/configure-artifact bin/grit-...-full --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/configure-all --operator-host 192.168.8.241 --transport builtin --shell-port 22203
@@ -1848,6 +1855,12 @@ def write_release_readme(path, name):
             private keys. Network autorun and external writes are not enabled by this bundle
             tooling by default. The console `configure` command edits a staged copy under
             the operator session so the original release artifact remains pristine.
+
+            `scripts/grit-server --tui` is the intended operator entry point for release
+            users. It can serve `probe.sh`, recommend a matching tuple, stage release
+            artifacts or local files, print plain wget/curl target fetch commands, configure
+            staged payload trailers, receive target uploads, and queue work for polling
+            targets.
             """
         ).lstrip(),
         encoding="utf-8",

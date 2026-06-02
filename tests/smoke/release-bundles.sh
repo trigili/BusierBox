@@ -339,6 +339,9 @@ grep -q 'scripts/grit-server --tui' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'scripts/grit-server --transport probe --probe-port 22207' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'probe --start' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'probe config --write-config configs/grit.conf' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'probe serve --start' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'First deployment can use the printed' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'grit fetch ...' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'release stage SELECTOR' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'release stage by_device_payload_preset:glinet-mt1300:survey-core' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator' "$work/release/RELEASE-QUICKSTART.txt"
@@ -360,8 +363,8 @@ if grep -q -- '--survey-bootstrap-port' "$work/release/RELEASE-QUICKSTART.txt"; 
     exit 1
 fi
 grep -q 'configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203' "$work/release/docs/README-release.md"
-grep -q 'release stage by_device_payload_preset:glinet-mt1300:survey-core' "$work/release/docs/README-release.md"
-grep -q 'release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator' "$work/release/docs/README-release.md"
+grep -q 'probe serve --start' "$work/release/docs/README-release.md"
+grep -q 'print plain wget/curl target fetch commands' "$work/release/docs/README-release.md"
 grep -q 'original release artifact remains pristine' "$work/release/docs/README-release.md"
 grep -q 'scripts/grit-server' "$work/release/release-index.json"
 
