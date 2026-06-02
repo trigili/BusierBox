@@ -11622,7 +11622,7 @@ def main(argv=None):
             print("line-oriented TUI did not record release staging event", file=sys.stderr)
             print(json.dumps(line_release_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
-        probe_release_dir = Path(tmp) / "probe-release"
+        probe_release_dir = Path(tmp) / "dist/releases/probe-release"
         probe_release_operator = Path(tmp) / "operator-session-probe-release"
         probe_release_state = probe_release_operator / "state.json"
         probe_release_staged = probe_release_operator / "staged.json"
@@ -11632,7 +11632,6 @@ def main(argv=None):
             "operator_session_dir": str(probe_release_operator),
             "server_state": str(probe_release_state),
             "staged_files": str(probe_release_staged),
-            "release_dir": str(probe_release_dir),
             "GRIT_OPERATOR_FILE_SERVICE_PORT": free_port(),
         }), encoding="utf-8")
         (probe_release_dir / "scripts").mkdir(parents=True)
@@ -11737,7 +11736,7 @@ def main(argv=None):
                     "--staged-file", str(probe_release_staged),
                     "--tui",
                 ],
-                cwd=probe_release_dir,
+                cwd=tmp,
                 stdin=probe_slave,
                 stdout=probe_slave,
                 stderr=subprocess.PIPE,
@@ -11784,6 +11783,7 @@ def main(argv=None):
                 "Probe results  (1 received)" not in probe_text or
                 "Probe arch: mipsel" not in probe_text or
                 "floor: 4.x" not in probe_text or
+                f"Using release: {probe_release_dir}" not in probe_text or
                 "Available for mipsel  (2 found)" not in probe_text or
                 "by-tuple/mipsel/musl/4.x/mips32r2-24kc" not in probe_text or
                 "by-tuple/x86_64/musl/4.x/generic" in probe_text or

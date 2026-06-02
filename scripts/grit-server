@@ -10716,6 +10716,76 @@ def release_context(cfg=None):
     return {}
 
 
+def release_context_for_dir(path):
+    return release_context({"release_dir": str(path)})
+
+
+def release_discovery_candidates(cfg=None):
+    cfg = cfg or {}
+    candidates = []
+
+    def add(path):
+        try:
+            p = Path(path).expanduser()
+        except (TypeError, ValueError):
+            return
+        if not p:
+            return
+        candidates.append(p)
+
+    if cfg.get("release_dir"):
+        add(cfg.get("release_dir"))
+    cwd = Path.cwd()
+    source_root = Path(__file__).resolve().parents[1]
+    add(cwd)
+    for parent in cwd.parents:
+        add(parent)
+        if parent == source_root:
+            break
+    for base in (cwd / "dist" / "releases", source_root / "dist" / "releases"):
+        if base.is_dir():
+            for path in sorted(base.iterdir(), key=lambda p: p.stat().st_mtime if p.exists() else 0, reverse=True):
+                if path.is_dir():
+                    add(path)
+    seen = set()
+    out = []
+    for path in candidates:
+        try:
+            resolved = path.resolve()
+        except OSError:
+            resolved = path
+        key = str(resolved)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(path)
+    return out
+
+
+def discover_release_context(cfg=None):
+    cfg = cfg or {}
+    configured = release_context(cfg)
+    if configured:
+        configured = dict(configured)
+        configured["release_discovery_source"] = "configured"
+        return configured, []
+    checked = []
+    explicit = bool(cfg.get("release_dir"))
+    for path in release_discovery_candidates(cfg):
+        state = release_state_record({"release_dir": str(path)})
+        checked.append(state)
+        if explicit and str(path) == str(cfg.get("release_dir")):
+            continue
+        if not state.get("valid"):
+            continue
+        rel = release_context_for_dir(path)
+        if rel:
+            rel = dict(rel)
+            rel["release_discovery_source"] = "auto"
+            return rel, checked
+    return {}, checked
+
+
 def release_state_record(cfg=None, release=None):
     cfg = cfg or {}
     explicit_release_dir = bool(cfg.get("release_dir"))
@@ -25281,11 +25351,24 @@ def run_line_tui(cfg):
         probe_kernel_floor = kernel_floor_from_release(kernel)
         print(f"Probe arch: {probe_arch or uname_m}  kernel: {kernel}  floor: {probe_kernel_floor or '-'}  endian: {endian}")
         print("")
-        rel = release_context(cfg)
+        rel, checked_releases = discover_release_context(cfg)
         if not rel:
             print("No release configured.")
-            print(f"  Build a release or point --release-dir at one, then run: probe serve")
+            print("  Looked for a release bundle in:")
+            for state in checked_releases[:8]:
+                markers = state.get("detection_reason") or "not-a-release"
+                print(f"    {state.get('release_dir', '')}  ({markers})")
+            if len(checked_releases) > 8:
+                print(f"    ... {len(checked_releases) - 8} more")
+            print("")
+            print("  Expected a release directory containing release.json, bin/, and scripts/.")
+            print("  From a source checkout, build one with: make release-full")
+            print("  From an extracted release tarball, run this console from the release root or set release_dir.")
             return
+        if rel.get("release_discovery_source") == "auto":
+            cfg["release_dir"] = rel.get("release_dir", "")
+            print(f"Using release: {rel.get('release_dir', '')}")
+            print("")
         recs = rel.get("recommendation_records") or []
         tuple_matches = [
             r for r in recs
@@ -25368,13 +25451,40 @@ def run_line_tui(cfg):
             except Exception as exc:
                 raise ValueError(f"staging failed: {exc}") from exc
         else:
-            print(f"  No artifacts found. Run: release  to see what's available.")
+            tuple_candidates = []
+            preset_candidates = []
+            for tuple_rec in rel.get("tuples") or []:
+                tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
+                if probe_arch and str(tuple_info.get("arch") or "") != probe_arch:
+                    continue
+                if probe_kernel_floor and str(tuple_info.get("kernel_floor") or "") != probe_kernel_floor:
+                    continue
+                if tuple_rec.get("path"):
+                    tuple_candidates.append(str(tuple_rec.get("path")))
+            for artifact in rel.get("artifacts") or []:
+                preset = str(artifact.get("payload_preset") or "")
+                if preset and preset not in preset_candidates:
+                    preset_candidates.append(preset)
+            print("  No matching release artifact found for this probe.")
+            print(f"  Expected arch={probe_arch or uname_m} kernel_floor={probe_kernel_floor or '-'} endian={endian or '-'}")
+            if tuple_candidates:
+                print("  Candidate tuple paths in this release:")
+                for path in tuple_candidates[:8]:
+                    print(f"    {path}")
+            else:
+                print("  No tuple path in this release matched the probe arch/kernel floor.")
+            if preset_candidates:
+                print("  Payload presets available in this release:")
+                print("    " + ", ".join(sorted(preset_candidates)))
+            print("  Try: release")
         append_event(cfg, "workbench", "workbench_probe_serve_run", details={
             "probe_arch": probe_arch or uname_m,
             "probe_kernel": kernel,
             "probe_kernel_floor": probe_kernel_floor,
             "match_count": len(tuple_matches),
             "start_file_service": start_file_service,
+            "release_dir": rel.get("release_dir", ""),
+            "release_discovery_source": rel.get("release_discovery_source", ""),
         })
 
     # ── survey commands (full griTTYkit survey, post-deployment) ────────────
