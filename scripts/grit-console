@@ -68,8 +68,9 @@ from gritlib.record_utils import (
 from gritlib.session_state import SessionManager
 from gritlib.session_records import session_record_indexes, session_root_record
 from gritlib.service_status import (
-    port_record_indexes, service_manager_resource_indexes, service_manager_resource_records,
-    service_record_indexes, service_workflow_action_indexes, service_workflow_action_summary,
+    port_record_indexes, port_records_from_services, service_manager_resource_indexes,
+    service_manager_resource_records, service_record_indexes,
+    service_workflow_action_indexes, service_workflow_action_summary,
 )
 from gritlib.staged_files import (
     staged_files_state_record, staged_record_indexes, staged_record_summary,
@@ -5413,31 +5414,6 @@ def service_workflow_action_records(cfg, services, targets=None):
 
 
 
-def port_records_from_services(records):
-    ports = []
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        port = rec.get("port")
-        if port in (None, ""):
-            continue
-        ports.append({
-            "service": rec.get("name", ""),
-            "port": port,
-            "protocol": rec.get("protocol", "tcp"),
-            "bind_address": rec.get("bind_address", ""),
-            "tls": rec.get("tls", False),
-            "configured": rec.get("configured", ""),
-            "actual": rec.get("actual", ""),
-            "pid": rec.get("pid", ""),
-            "pid_alive": rec.get("pid_alive", False),
-            "pid_managed": rec.get("pid_managed", False),
-            "listener_pids": rec.get("listener_pids") or [],
-            "listener_endpoints": rec.get("listener_endpoints") or [],
-            "stale": rec.get("stale", False),
-            "error": rec.get("error", ""),
-        })
-    return ports
 
 
 

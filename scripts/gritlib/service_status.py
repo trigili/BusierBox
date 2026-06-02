@@ -196,3 +196,29 @@ def port_record_indexes(records):
             by_actual.setdefault(actual, []).append(rec)
     return by_number, by_service, by_actual
 
+
+def port_records_from_services(records):
+    ports = []
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        port = rec.get("port")
+        if port in (None, ""):
+            continue
+        ports.append({
+            "service": rec.get("name", ""),
+            "port": port,
+            "protocol": rec.get("protocol", "tcp"),
+            "bind_address": rec.get("bind_address", ""),
+            "tls": rec.get("tls", False),
+            "configured": rec.get("configured", ""),
+            "actual": rec.get("actual", ""),
+            "pid": rec.get("pid", ""),
+            "pid_alive": rec.get("pid_alive", False),
+            "pid_managed": rec.get("pid_managed", False),
+            "listener_pids": rec.get("listener_pids") or [],
+            "listener_endpoints": rec.get("listener_endpoints") or [],
+            "stale": rec.get("stale", False),
+            "error": rec.get("error", ""),
+        })
+    return ports
