@@ -11035,9 +11035,11 @@ def main(argv=None):
         staged_source = Path(tmp) / "operator-file.bin"
         staged_source.write_bytes(b"operator staged bytes\n")
         fetch_port = free_port()
+        advertised_operator_host = "192.0.2.44"
         fetch_cfg = Path(tmp) / "server-config-fetch.json"
         fetch_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
+            "GRIT_OPERATOR_SERVER_HOST": advertised_operator_host,
             "GRIT_OPERATOR_FILE_SERVICE_PORT": fetch_port,
             "session_root": str(Path(tmp) / "sessions-fetch"),
             "operator_session_dir": str(Path(tmp) / "operator-session-fetch"),
@@ -11851,7 +11853,9 @@ def main(argv=None):
             capture_output=True,
         )
         if (staged_release_tuple_recommendation.returncode != 0 or
-                "grit fetch grit-test" not in staged_release_tuple_recommendation.stdout):
+                "grit fetch grit-test" not in staged_release_tuple_recommendation.stdout or
+                f"http://{advertised_operator_host}:{fetch_port}/fetch?name=grit-test" not in staged_release_tuple_recommendation.stdout or
+                f"--host {advertised_operator_host} --port {fetch_port}" not in staged_release_tuple_recommendation.stdout):
             print("--stage-release-artifact did not stage tuple recommendation", file=sys.stderr)
             print(staged_release_tuple_recommendation.stdout, file=sys.stderr)
             print(staged_release_tuple_recommendation.stderr, file=sys.stderr)
@@ -11922,6 +11926,8 @@ def main(argv=None):
                 "Release artifact staged:" not in _line_stdout or
                 "target_fetch_command=grit fetch grit-test" not in _line_stdout or
                 "Target fetch options:" not in _line_stdout or
+                f"http://{advertised_operator_host}:{fetch_port}/fetch?name=grit-test" not in _line_stdout or
+                f"--host {advertised_operator_host} --port {fetch_port}" not in _line_stdout or
                 "wget -O ./grit-test " not in _line_stdout or
                 "curl -fL -o ./grit-test " not in _line_stdout or
                 "nc:    printf 'GET /fetch?name=grit-test HTTP/1.0" not in _line_stdout or
@@ -11973,6 +11979,7 @@ def main(argv=None):
         probe_release_cfg = Path(tmp) / "probe-release-config.json"
         probe_release_cfg.write_text(json.dumps({
             "listen_host": "127.0.0.1",
+            "GRIT_OPERATOR_SERVER_HOST": advertised_operator_host,
             "operator_session_dir": str(probe_release_operator),
             "server_state": str(probe_release_state),
             "staged_files": str(probe_release_staged),
@@ -12140,6 +12147,8 @@ def main(argv=None):
                 "  1  -                     -" in probe_text or
                 "Release artifact staged:" not in probe_text or
                 "Target fetch options:" not in probe_text or
+                f"https://{advertised_operator_host}:" not in probe_text or
+                f"--host {advertised_operator_host}" not in probe_text or
                 "wget --no-check-certificate -O ./grit-mipsel-default " not in probe_text or
                 "curl -fLk -o ./grit-mipsel-default " not in probe_text or
                 "nc:    requires file-service TLS=no" not in probe_text or
