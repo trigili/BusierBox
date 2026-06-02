@@ -4027,6 +4027,28 @@ def workbench_action_records(cfg):
         daemon_services = ["file-service", "command-queue"]
     daemon_service_args = " ".join("--daemon-service " + shquote(service) for service in daemon_services)
     daemon_command = "scripts/grit-console --config " + shquote(config_path) + " --daemon " + daemon_service_args
+
+    def bringup_command(stage_recommended=False):
+        target_ctx = selected_target_context(cfg)
+        parts = [
+            "scripts/grit-bringup",
+            "--recommend-only",
+            "--json",
+            "--operator-config", config_path,
+            "--operator-host", operator_advertised_host(cfg),
+        ]
+        if release_dir:
+            parts.extend(["--release-dir", release_dir])
+        if target_ctx.get("target_id"):
+            parts.extend(["--target-id", target_ctx.get("target_id", "")])
+        if target_ctx.get("target_label"):
+            parts.extend(["--target-label", target_ctx.get("target_label", "")])
+        for alias in target_ctx.get("target_aliases") or []:
+            parts.extend(["--target-alias", alias])
+        if stage_recommended:
+            parts.append("--stage-recommended-artifact")
+        return " ".join(shquote(str(part)) for part in parts)
+
     records = [
         {
             "id": "configure-binary",
@@ -4079,9 +4101,25 @@ def workbench_action_records(cfg):
         {
             "id": "bringup-recommend",
             "category": "bringup",
-            "label": "Generate bringup recommendation",
+            "label": "Generate bringup recommendation with current operator route",
             "script": "scripts/grit-bringup",
-            "command": "scripts/grit-bringup --recommend-only --json",
+            "command": bringup_command(),
+            "config_path": config_path,
+            "writes_config": False,
+            "runs_build": False,
+            "long_running": True,
+            "background_supported": True,
+            "requires_confirmation": True,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "event": "workbench_job_requested",
+        },
+        {
+            "id": "bringup-stage-recommended",
+            "category": "bringup",
+            "label": "Select and stage recommended bringup artifact",
+            "script": "scripts/grit-bringup",
+            "command": bringup_command(stage_recommended=True),
             "config_path": config_path,
             "writes_config": False,
             "runs_build": False,

@@ -5935,6 +5935,14 @@ def main(argv=None):
                 actions_by_id.get("operator-daemon-start", {}).get("long_running") is not True or
                 actions_by_id.get("operator-daemon-start", {}).get("operator_action_state") != "background-ready" or
                 "--daemon --daemon-service file-service --daemon-service command-queue" not in actions_by_id.get("operator-daemon-start", {}).get("command", "") or
+                actions_by_id.get("bringup-recommend", {}).get("script") != "scripts/grit-bringup" or
+                actions_by_id.get("bringup-recommend", {}).get("operator_action_state") != "background-ready" or
+                f"--operator-config {str(cfg)}" not in actions_by_id.get("bringup-recommend", {}).get("command", "") or
+                "--operator-host " not in actions_by_id.get("bringup-recommend", {}).get("command", "") or
+                actions_by_id.get("bringup-stage-recommended", {}).get("script") != "scripts/grit-bringup" or
+                actions_by_id.get("bringup-stage-recommended", {}).get("operator_action_state") != "background-ready" or
+                f"--operator-config {str(cfg)}" not in actions_by_id.get("bringup-stage-recommended", {}).get("command", "") or
+                "--stage-recommended-artifact" not in actions_by_id.get("bringup-stage-recommended", {}).get("command", "") or
                 actions_by_id.get("operator-daemon-stop", {}).get("command") != f"scripts/grit-console --config {str(cfg)} --stop" or
                 actions_by_id.get("operator-daemon-stop", {}).get("run_command") != f"scripts/grit-console --config {str(cfg)} --run-workbench-action operator-daemon-stop" or
                 actions_by_id.get("operator-daemon-stop", {}).get("dry_run_command") != f"scripts/grit-console --config {str(cfg)} --run-workbench-action operator-daemon-stop --workbench-action-dry-run" or
@@ -11078,7 +11086,8 @@ def main(argv=None):
                 "session_root:" not in tui.stdout or
                 "Operator workflow actions:" not in tui.stdout or
                 "make package" not in tui.stdout or
-                "scripts/grit-bringup --recommend-only --json" not in tui.stdout):
+                "scripts/grit-bringup --recommend-only --json --operator-config" not in tui.stdout or
+                "--stage-recommended-artifact" not in tui.stdout):
             print("noninteractive TUI/workbench missing operator path details", file=sys.stderr)
             print(tui.stdout, file=sys.stderr)
             return 1

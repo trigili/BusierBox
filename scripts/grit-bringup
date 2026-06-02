@@ -28,6 +28,7 @@ What it does not do:
 
 Options:
   --operator-host HOST|auto   operator address for generated reverse-access config
+  --operator-config PATH      grit-console config used when staging fetchable artifacts
   --target-id ID              target id to attach to generated target-side commands
   --target-label LABEL        friendly label for generated target-side commands
   --target-alias ALIAS        target alias for generated commands; may be repeated
@@ -63,6 +64,7 @@ EOF
 
 host=
 operator_host=auto
+operator_config=
 target_id=
 target_label=
 target_aliases=
@@ -105,6 +107,8 @@ while [ "$#" -gt 0 ]; do
         --host=*) host=${1#--host=}; shift ;;
         --operator-host) operator_host=$2; shift 2 ;;
         --operator-host=*) operator_host=${1#--operator-host=}; shift ;;
+        --operator-config) operator_config=$2; shift 2 ;;
+        --operator-config=*) operator_config=${1#--operator-config=}; shift ;;
         --target-id) target_id=$2; shift 2 ;;
         --target-id=*) target_id=${1#--target-id=}; shift ;;
         --target-label) target_label=$2; shift 2 ;;
@@ -198,6 +202,7 @@ write_summary() {
     PAYLOAD_PRESET="$payload_preset" \
     TARGET_PRESET="$target_preset" \
     OPERATOR_HOST="$operator_host" \
+    OPERATOR_CONFIG="$operator_config" \
     SURVEY_JSON="$survey" \
     REALITY_JSON="$reality" \
     RECOMMENDATION_JSON="$run_dir/recommendation.json" \
@@ -871,6 +876,7 @@ doc = {
     "payload_preset": env("PAYLOAD_PRESET"),
     "target_preset": env("TARGET_PRESET"),
     "operator_host": operator_host,
+    "operator_config": env("OPERATOR_CONFIG"),
     "target_context": target_context,
     "survey_json": env("SURVEY_JSON"),
     "reality_json": maybe_file(env("REALITY_JSON")),
@@ -1327,7 +1333,9 @@ stage_artifact_for_fetch() {
     }
     staged_request_name=$(basename "$artifact_to_stage")
     if [ -n "$selected_artifact" ] && [ -n "$release_dir" ] && [ -f "$release_dir/release.json" ]; then
-        set -- scripts/grit-console --release-dir "$release_dir"
+        set -- scripts/grit-console
+        [ -z "$operator_config" ] || set -- "$@" --config "$operator_config"
+        set -- "$@" --release-dir "$release_dir"
         [ -z "$target_id" ] || set -- "$@" --target-id "$target_id"
         [ -z "$target_label" ] || set -- "$@" --target-label "$target_label"
         if [ -n "$target_aliases" ]; then
@@ -1348,6 +1356,7 @@ stage_artifact_for_fetch() {
         }
     else
         set -- scripts/grit-console
+        [ -z "$operator_config" ] || set -- "$@" --config "$operator_config"
         [ -z "$target_id" ] || set -- "$@" --target-id "$target_id"
         [ -z "$target_label" ] || set -- "$@" --target-label "$target_label"
         if [ -n "$target_aliases" ]; then
