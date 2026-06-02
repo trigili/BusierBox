@@ -20321,6 +20321,7 @@ def start_service_process(cfg, service, argv_extra=None, headless_command=""):
             },
         )
         print(f"{service}: already listening on port {current.get('port', '')}; not starting duplicate")
+        print(f"  details: events service={service} -n 3")
         return None
     cmd = [
         sys.executable,
@@ -20357,6 +20358,7 @@ def start_service_process(cfg, service, argv_extra=None, headless_command=""):
     if service not in started:
         started.append(service)
     print(f"started {service}: pid={proc.pid} log={log_path}")
+    print(f"  details: events service={service} -n 3")
     return proc
 
 
@@ -23525,7 +23527,7 @@ def run_line_tui(cfg):
         headless = service_start_headless_command(cfg, service)
         cfg["_service_start_command"] = headless
         start_service_process(cfg, service, headless_command=headless)
-        print(f"headless_command: {headless}")
+        print("  copy start  — copy the headless start command")
         if service == "probe":
             # Brief poll for the listener to be ready, then show delivery commands
             for _ in range(10):

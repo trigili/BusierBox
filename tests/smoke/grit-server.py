@@ -1923,6 +1923,8 @@ def main(argv=None):
                 f"target_command: {expected_survey_command}" not in survey_line_text or
                 "probe_workflow_actions: 4" not in survey_line_text or
                 "start_action_state=ready reason=run-now" not in survey_line_text or
+                "details: events service=probe -n 3" not in survey_line_text or
+                "copy start" not in survey_line_text or
                 "--transport probe" not in survey_line_text or
                 "bridge_profile=survey-route" not in survey_line_text):
             print("line TUI probe action did not show bridged command", file=sys.stderr)
