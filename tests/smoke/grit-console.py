@@ -1232,10 +1232,10 @@ def main(argv=None):
             "daemon=True" in src):
         print("grit-console: reverse-forward relay resources are not explicitly owned", file=sys.stderr)
         return 1
-    for word in ("class ServiceManager", "SERVICE_MANAGER = ServiceManager()", "register_transport",
+    for word in ("ServiceManager", "SERVICE_MANAGER = ServiceManager(", "register_transport",
                  "SERVICE_MANAGER.register_socket", "SERVICE_MANAGER.shutdown()", "register_thread",
-                 "start_child_process", "register_child_process", "EventLog", "class Service",
-                 "class Session", "class SessionManager", "SESSION_MANAGER = SessionManager()",
+                 "start_child_process", "from gritlib.runtime import", "EventLog", "Service",
+                 "Session", "class SessionManager", "SESSION_MANAGER = SessionManager()",
                  "SESSION_MANAGER.start_record", "SESSION_MANAGER.finish_record"):
         if word not in src:
             print(f"grit-console: service/session manager primitive missing: {word}", file=sys.stderr)
