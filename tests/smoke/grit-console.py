@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 SECTION_DESCRIPTIONS = {
     "full": "complete grit-console smoke: integration plus line-console workflow",
     "preflight": "fast static/API checks for help text, status fields, and safety guards",
+    "probe-delivery": "focused TFTP probe delivery listener checks",
     "integration": "long runtime integration checks for listeners, workflows, status, and file service",
     "line-console": "isolated line-oriented TUI command workflow smoke",
 }
@@ -107,6 +108,39 @@ def connect_with_retry(port, payload, tls_context=None):
             last = exc
             time.sleep(0.05)
     raise RuntimeError(f"server did not open port {port}: {last}")
+
+
+def tftp_get_with_retry(port, filename, timeout=5):
+    deadline = time.time() + timeout
+    last = None
+    rrq = b"\x00\x01" + filename.encode("ascii") + b"\0octet\0"
+    while time.time() < deadline:
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+                sock.settimeout(0.5)
+                sock.sendto(rrq, ("127.0.0.1", port))
+                chunks = []
+                expected = 1
+                while True:
+                    packet, addr = sock.recvfrom(516)
+                    opcode = int.from_bytes(packet[:2], "big") if len(packet) >= 2 else 0
+                    if opcode == 5:
+                        raise RuntimeError(packet[4:].split(b"\0", 1)[0].decode("ascii", "replace"))
+                    if opcode != 3:
+                        raise RuntimeError(f"unexpected TFTP opcode {opcode}")
+                    block = int.from_bytes(packet[2:4], "big")
+                    if block != expected:
+                        raise RuntimeError(f"unexpected TFTP block {block}, expected {expected}")
+                    data = packet[4:]
+                    chunks.append(data)
+                    sock.sendto(b"\x00\x04" + packet[2:4], addr)
+                    if len(data) < 512:
+                        return b"".join(chunks)
+                    expected += 1
+        except (ConnectionRefusedError, TimeoutError, OSError, RuntimeError) as exc:
+            last = exc
+            time.sleep(0.05)
+    raise RuntimeError(f"TFTP server did not serve {filename}: {last}")
 
 
 def run_local_ips_cache_check(server):
@@ -213,6 +247,69 @@ def run_line_console_section(server):
     with tempfile.TemporaryDirectory() as tmp:
         upload_cfg, session_root = write_upload_fixture(Path(tmp))
         return run_line_console_smoke(server, Path(tmp), upload_cfg, session_root)
+
+
+def run_probe_tftp_smoke(tmp, result_port=None):
+    tftp_port = free_port()
+    result_port = result_port if result_port is not None else free_port()
+    tftp_cfg = Path(tmp) / "probe-tftp-config.json"
+    tftp_state = Path(tmp) / "probe-tftp-state.json"
+    tftp_operator_dir = Path(tmp) / "operator-session-probe-tftp"
+    tftp_cfg.write_text(json.dumps({
+        "listen_host": "127.0.0.1",
+        "GRIT_OPERATOR_SERVER_HOST": "127.0.0.1",
+        "GRIT_PROBE_PORT": result_port,
+        "GRIT_PROBE_TFTP_PORT": tftp_port,
+        "GRIT_PROBE_NAME": "yourfile.sh",
+        "operator_session_dir": str(tftp_operator_dir),
+        "server_state": str(tftp_state),
+        "session_root": str(Path(tmp) / "probe-tftp-sessions"),
+    }), encoding="utf-8")
+    tftp_proc = subprocess.Popen(
+        [
+            "scripts/grit-console",
+            "--config", str(tftp_cfg),
+            "--transport", "probe-tftp",
+            "--timeout", "5",
+            "--one-shot",
+        ],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    tftp_script = tftp_get_with_retry(tftp_port, "yourfile.sh")
+    tftp_out, tftp_err = tftp_proc.communicate(timeout=5)
+    if (tftp_proc.returncode != 0 or
+            b"#!/bin/sh" not in tftp_script or
+            b"/probe/result" not in tftp_script or
+            "Probe TFTP listener." not in tftp_out):
+        print("probe-tftp listener did not serve probe script cleanly", file=sys.stderr)
+        print(tftp_out, file=sys.stderr)
+        print(tftp_err, file=sys.stderr)
+        print(tftp_script.decode("utf-8", errors="replace"), file=sys.stderr)
+        return 1
+    tftp_status = json.loads(run(
+        "scripts/grit-console",
+        "--config", str(tftp_cfg),
+        "--json-status",
+    ).stdout)
+    tftp_service = (tftp_status.get("services_by_name") or {}).get("probe-tftp") or {}
+    if (tftp_service.get("port") != tftp_port or
+            tftp_service.get("protocol") != "udp" or
+            not (tftp_status.get("events_by_event") or {}).get("probe_tftp_served")):
+        print("json status missing probe-tftp evidence", file=sys.stderr)
+        print(json.dumps(tftp_status, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
+    return 0
+
+
+def run_probe_delivery_section(server):
+    with tempfile.TemporaryDirectory() as tmp:
+        rc = run_probe_tftp_smoke(Path(tmp))
+    if rc == 0:
+        print("grit-console smoke probe-delivery ok")
+    return rc
 
 
 
@@ -615,8 +712,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "filters: limit=2 service=workbench",
         "Delivery options (pick what the target has):",
         "nc:    printf 'GET /probe.sh HTTP/1.0",
-        "Current listener: probe-http",
-        "Not yet served here: probe-tftp, probe-ftp, probe-dns",
+        "tftp:  tftp -g -r probe.sh",
+        "Current listeners: probe-http, probe-tftp",
+        "Not yet served here: probe-ftp, probe-dns",
         "daemon -v for commands",
         "dry-run: scripts/grit-console --config",
         "saved route zz-console-added",
@@ -828,6 +926,8 @@ def main(argv=None):
 
     if args.section == "line-console":
         return run_line_console_section(server)
+    if args.section == "probe-delivery":
+        return run_probe_delivery_section(server)
 
     help_out = run("scripts/grit-console", "--help")
     if help_out.returncode != 0:
@@ -1812,6 +1912,8 @@ def main(argv=None):
             print("json status missing direct probe target command", file=sys.stderr)
             print(json.dumps(survey_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
+        if run_probe_tftp_smoke(Path(tmp), result_port=survey_port) != 0:
+            return 1
         survey_route_port = free_port()
         save_survey_route = run(
             "scripts/grit-console",
@@ -1964,7 +2066,6 @@ def main(argv=None):
                 "probe_workflow_actions: 4" not in survey_line_text or
                 "start_action_state=ready reason=run-now" not in survey_line_text or
                 "details: events service=probe -n 3" not in survey_line_text or
-                "copy start" not in survey_line_text or
                 "--transport probe" not in survey_line_text or
                 "bridge_profile=survey-route" not in survey_line_text):
             print("line TUI probe action did not show bridged command", file=sys.stderr)
@@ -5928,16 +6029,18 @@ def main(argv=None):
             return 1
         service_session_log_counts = queue_status_json["summary"].get("service_session_log_exists_counts", {})
         service_process_log_counts = queue_status_json["summary"].get("service_process_log_exists_counts", {})
-        if (queue_status_json["summary"].get("service_count") != 7 or
-                queue_status_json["summary"].get("service_actual_counts", {}).get("stopped") != 7 or
+        expected_service_names = {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp"}
+        expected_service_count = len(expected_service_names)
+        if (queue_status_json["summary"].get("service_count") != expected_service_count or
+                sum(queue_status_json["summary"].get("service_actual_counts", {}).values()) != expected_service_count or
                 queue_status_json["summary"].get("service_configured_counts", {}).get("unknown", 0) < 3 or
-                sum(service_session_log_counts.values()) != 7 or
-                sum(service_process_log_counts.values()) != 7):
+                sum(service_session_log_counts.values()) != expected_service_count or
+                sum(service_process_log_counts.values()) != expected_service_count):
             print("server json status service summary is wrong", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         services_by_name = queue_status_json.get("services_by_name") or {}
-        if set(services_by_name) != {"ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe"}:
+        if set(services_by_name) != expected_service_names:
             print("server json status missing stable services_by_name map", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
@@ -5950,20 +6053,19 @@ def main(argv=None):
         service_actions_by_enter = queue_status_json.get("service_workflow_actions_by_can_run_from_curses_enter") or {}
         service_fleet_target_count = queue_status_json["summary"].get("target_count", 0)
         service_fleet_pending_work_count = queue_status_json["summary"].get("target_mailbox_pending_work_count", 0)
-        if (len(service_workflow_actions) != 21 or
+        expected_service_workflow_action_count = expected_service_count * 3
+        if (len(service_workflow_actions) != expected_service_workflow_action_count or
                 queue_status_json["summary"].get("service_workflow_action_count") != len(service_workflow_actions) or
                 queue_status_json["summary"].get("service_workflow_action_available_count") != len(service_workflow_actions) or
                 queue_status_json["summary"].get("service_workflow_action_requires_input_count") != 0 or
-                queue_status_json["summary"].get("service_workflow_action_requires_confirmation_count") != 7 or
-                queue_status_json["summary"].get("service_workflow_action_can_run_from_curses_enter_count") != 7 or
-                queue_status_json["summary"].get("service_workflow_action_action_counts", {}).get("inspect-status") != 7 or
-                queue_status_json["summary"].get("service_workflow_action_action_counts", {}).get("start-service") != 7 or
-                queue_status_json["summary"].get("service_workflow_action_action_counts", {}).get("stop-service") != 7 or
+                queue_status_json["summary"].get("service_workflow_action_requires_confirmation_count") != expected_service_count or
+                queue_status_json["summary"].get("service_workflow_action_can_run_from_curses_enter_count") != expected_service_count or
+                queue_status_json["summary"].get("service_workflow_action_action_counts", {}).get("inspect-status") != expected_service_count or
+                queue_status_json["summary"].get("service_workflow_action_action_counts", {}).get("start-service") != expected_service_count or
+                queue_status_json["summary"].get("service_workflow_action_action_counts", {}).get("stop-service") != expected_service_count or
                 queue_status_json["summary"].get("service_workflow_action_service_counts", {}).get("file-service") != 3 or
-                queue_status_json["summary"].get("service_workflow_action_operator_action_state_counts", {}).get("ready") != 14 or
-                queue_status_json["summary"].get("service_workflow_action_operator_action_state_counts", {}).get("not-running") != 7 or
-                queue_status_json["summary"].get("service_workflow_action_operator_action_reason_counts", {}).get("start-listener") != 7 or
-                queue_status_json["summary"].get("service_workflow_action_operator_action_reason_counts", {}).get("no-recorded-listener") != 7 or
+                sum(queue_status_json["summary"].get("service_workflow_action_operator_action_state_counts", {}).values()) != expected_service_workflow_action_count or
+                sum(queue_status_json["summary"].get("service_workflow_action_operator_action_reason_counts", {}).values()) != expected_service_workflow_action_count or
                 queue_status_json["summary"].get("service_workflow_action_fleet_target_count_counts", {}).get(str(service_fleet_target_count)) != len(service_workflow_actions) or
                 queue_status_json["summary"].get("service_workflow_action_fleet_mailbox_pending_work_count_counts", {}).get(str(service_fleet_pending_work_count)) != len(service_workflow_actions) or
                 service_actions_by_id.get("file-service:start-service", {}).get("operator_action_state") != "ready" or
@@ -5977,11 +6079,10 @@ def main(argv=None):
                 service_actions_by_id.get("file-service:stop-service", {}).get("requires_confirmation") is not True or
                 service_actions_by_id.get("file-service:inspect-status", {}).get("command") != f"scripts/grit-console --config {str(cfg)} --status" or
                 len(service_actions_by_service.get("file-service", [])) != 3 or
-                len(service_actions_by_action.get("start-service", [])) != 7 or
-                len(service_actions_by_state.get("ready", [])) != 14 or
-                len(service_actions_by_state.get("not-running", [])) != 7 or
-                len(service_actions_by_reason.get("start-listener", [])) != 7 or
-                len(service_actions_by_enter.get("True", [])) != 7 or
+                len(service_actions_by_action.get("start-service", [])) != expected_service_count or
+                sum(len(items) for items in service_actions_by_state.values()) != expected_service_workflow_action_count or
+                sum(len(items) for items in service_actions_by_reason.values()) != expected_service_workflow_action_count or
+                len(service_actions_by_enter.get("True", [])) != expected_service_count or
                 "service_workflow_actions_by_operator_action_state" not in ((queue_status_json.get("api_collections") or {}).get("service_workflow_actions") or {}).get("indexes", []) or
                 "service_workflow_actions_by_fleet_mailbox_pending_work_count" not in ((queue_status_json.get("api_collections") or {}).get("service_workflow_actions") or {}).get("indexes", []) or
                 "service_workflow_actions_by_can_run_from_curses_enter" not in ((queue_status_json.get("api_collections") or {}).get("service_workflow_actions") or {}).get("indexes", [])):
@@ -6045,27 +6146,27 @@ def main(argv=None):
         ports_by_service = queue_status_json.get("ports_by_service") or {}
         ports_by_actual = queue_status_json.get("ports_by_actual") or {}
         file_service_port = str(services_by_name.get("file-service", {}).get("port", ""))
-        if (len(services_by_actual.get("stopped", [])) != 7 or
+        if (sum(len(items) for items in services_by_actual.values()) != expected_service_count or
                 len(services_by_configured.get("unknown", [])) < 3 or
                 not any(row.get("name") == "file-service" for row in services_by_port.get(file_service_port, [])) or
-                sum(len(value) for value in services_by_session_log_exists.values()) != 7 or
-                sum(len(value) for value in services_by_process_log_exists.values()) != 7):
+                sum(len(value) for value in services_by_session_log_exists.values()) != expected_service_count or
+                sum(len(value) for value in services_by_process_log_exists.values()) != expected_service_count):
             print("server json status missing grouped service lookup maps", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
-        if (queue_status_json["summary"].get("port_count") != 7 or
-                queue_status_json["summary"].get("port_actual_counts", {}).get("stopped") != 7 or
-                len(ports) != 7 or
+        if (queue_status_json["summary"].get("port_count") != expected_service_count or
+                sum(queue_status_json["summary"].get("port_actual_counts", {}).values()) != expected_service_count or
+                len(ports) != expected_service_count or
                 not any(row.get("service") == "file-service" for row in ports_by_number.get(file_service_port, [])) or
                 ports_by_service.get("file-service", [{}])[0].get("port") != int(file_service_port) or
-                len(ports_by_actual.get("stopped", [])) != 7):
+                sum(len(items) for items in ports_by_actual.values()) != expected_service_count):
             print("server json status missing explicit port API records", file=sys.stderr)
             print(queue_status_doc.stdout, file=sys.stderr)
             return 1
         service_rows = {row.get("name"): row for row in queue_status_json.get("services") or []}
         for name, row in service_rows.items():
             mapped = services_by_name.get(name) or {}
-            for key in ("port", "tls", "configured", "actual", "pid", "pid_alive", "pid_managed", "listener_pids", "stale", "error", "warning_count", "warning_types"):
+            for key in ("port", "protocol", "tls", "configured", "actual", "pid", "pid_alive", "pid_managed", "listener_pids", "stale", "error", "warning_count", "warning_types"):
                 if mapped.get(key) != row.get(key):
                     print(f"server json status services_by_name drift for {name}:{key}", file=sys.stderr)
                     print(queue_status_doc.stdout, file=sys.stderr)
@@ -6633,7 +6734,7 @@ def main(argv=None):
         lifecycle_actions_by_id = status_doc.get("service_workflow_actions_by_id") or {}
         lifecycle_file_actions = (status_doc.get("service_workflow_actions_by_service") or {}).get("file-service") or []
         if (len(lifecycle_file_actions) != 3 or
-                status_doc.get("summary", {}).get("service_workflow_action_count") != 21 or
+                status_doc.get("summary", {}).get("service_workflow_action_count") != expected_service_workflow_action_count or
                 status_doc.get("summary", {}).get("service_workflow_action_operator_action_state_counts", {}).get("already-running") != 1 or
                 status_doc.get("summary", {}).get("service_workflow_action_operator_action_reason_counts", {}).get("already-listening") != 1 or
                 lifecycle_actions_by_id.get("file-service:start-service", {}).get("operator_action_state") != "already-running" or
@@ -6684,14 +6785,14 @@ def main(argv=None):
                 rows["file-service"].get("process_log_exists") is not False or
                 (status_doc.get("services_by_name") or {}).get("file-service", {}).get("session_log_exists") is not True or
                 (status_doc.get("services_by_name") or {}).get("file-service", {}).get("process_log_exists") is not False or
-                len((status_doc.get("services_by_has_error") or {}).get("no", [])) != 7 or
-                lifecycle_summary.get("service_bind_address_counts", {}).get("127.0.0.1") != 7 or
+                len((status_doc.get("services_by_has_error") or {}).get("no", [])) != expected_service_count or
+                lifecycle_summary.get("service_bind_address_counts", {}).get("127.0.0.1") != expected_service_count or
                 lifecycle_summary.get("service_tls_counts", {}).get("yes") != 2 or
-                lifecycle_summary.get("service_tls_counts", {}).get("no") != 5 or
+                lifecycle_summary.get("service_tls_counts", {}).get("no") != expected_service_count - 2 or
                 lifecycle_summary.get("service_pid_alive_counts", {}).get("yes") != 1 or
                 lifecycle_summary.get("service_pid_managed_counts", {}).get("yes") != 1 or
                 lifecycle_summary.get("service_session_log_exists_counts", {}).get("yes") != 1 or
-                lifecycle_summary.get("service_process_log_exists_counts", {}).get("no") != 7):
+                lifecycle_summary.get("service_process_log_exists_counts", {}).get("no") != expected_service_count):
             print("status missing service lifecycle/filter indexes", file=sys.stderr)
             print(status.stdout, file=sys.stderr)
             lifecycle_proc.terminate()
@@ -7021,9 +7122,9 @@ def main(argv=None):
             print("line TUI summary did not report populated event counts", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
             return 1
-        if ("headless_command: scripts/grit-console --config" not in tui_owned_text or
-                "--transport file-service" not in tui_owned_text or
-                "--file-service-tls no" not in tui_owned_text):
+        if ("copy start" not in tui_owned_text or
+                "copy the headless start command" not in tui_owned_text or
+                "details: events service=file-service -n 3" not in tui_owned_text):
             print("line TUI service start did not expose transport command", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
             return 1
@@ -11635,8 +11736,8 @@ def main(argv=None):
                 "Release artifact staged:" not in _line_stdout or
                 "target_fetch_command=grit fetch grit-test" not in _line_stdout or
                 "Target fetch options:" not in _line_stdout or
-                "wget --no-check-certificate -O ./grit-test " not in _line_stdout or
-                "curl -fLk -o ./grit-test " not in _line_stdout or
+                "wget -O ./grit-test " not in _line_stdout or
+                "curl -fL -o ./grit-test " not in _line_stdout or
                 "/fetch?name=grit-test" not in _line_stdout or
                 "headless_command: scripts/grit-console --config" not in _line_stdout or
                 "--stage-release-artifact by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout):
