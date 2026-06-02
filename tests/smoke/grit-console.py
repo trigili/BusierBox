@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import pty
+import runpy
 import select
 import signal
 import socket
@@ -106,6 +107,38 @@ def connect_with_retry(port, payload, tls_context=None):
             last = exc
             time.sleep(0.05)
     raise RuntimeError(f"server did not open port {port}: {last}")
+
+
+def run_local_ips_cache_check(server):
+    ns = runpy.run_path(str(server), run_name="__grit_console_smoke__")
+    globals_ns = ns["local_ips"].__globals__
+    mod_socket = globals_ns["socket"]
+    original_getaddrinfo = mod_socket.getaddrinfo
+    globals_ns["LOCAL_IPS_SLOW_LOOKUP_SEC"] = 0.01
+    globals_ns["LOCAL_IPS_SLOW_CACHE_SEC"] = 1.0
+    globals_ns["LOCAL_IPS_CACHE"].update({"until": 0.0, "hostname_ips": [], "slow": False})
+
+    def slow_getaddrinfo(*_args, **_kwargs):
+        time.sleep(0.2)
+        return []
+
+    mod_socket.getaddrinfo = slow_getaddrinfo
+    try:
+        started = time.monotonic()
+        ns["local_ips"]()
+        first_elapsed = time.monotonic() - started
+        started = time.monotonic()
+        ns["local_ips"]()
+        second_elapsed = time.monotonic() - started
+    finally:
+        mod_socket.getaddrinfo = original_getaddrinfo
+    if first_elapsed > 0.15 or second_elapsed > 0.05:
+        print(
+            f"grit-console: local_ips slow lookup cache ineffective first={first_elapsed:.3f}s second={second_elapsed:.3f}s",
+            file=sys.stderr,
+        )
+        return 1
+    return 0
 
 
 def request_with_retry(port, payload):
@@ -1010,6 +1043,8 @@ def main(argv=None):
             "ownership_evidence" not in src or
             "unmanaged_recorded_pid" not in src):
         print("grit-console: PID ownership evidence reporting missing", file=sys.stderr)
+        return 1
+    if run_local_ips_cache_check(server) != 0:
         return 1
 
     if args.section == "preflight":
