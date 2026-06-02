@@ -11002,11 +11002,11 @@ def release_recommendation_lines(release, limit=10):
 
 
 ROUTE_HELP_LINES = [
-    "Route model: listen locally on LPORT, forward to DEST_HOST:DEST_PORT.",
-    "Use hops only when traffic should traverse named bridge segments.",
-    "HOP syntax: FROM=TO, FROM->TO, or FROM,TO.",
-    "Single hop target-to-operator SSH: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:22",
-    "Multi-hop example: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:80",
+    "Route model: expose LPORT on the operator, then forward to DEST_HOST:DEST_PORT.",
+    "Use hops to describe how the target reaches that operator listener.",
+    "HOP syntax: FROM=TO, FROM->TO, or FROM,TO; endpoints are labels like target:PORT, jump:PORT, operator:PORT.",
+    "Direct target-to-operator SSH: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222",
+    "Multi-hop target-to-operator web: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
 ]
 
 
@@ -30109,10 +30109,10 @@ Operations:
   routes [-v], route print      list bridge routes and hop details
   route add NAME LPORT HOST DPORT [HOP ...]
                                 create a reusable bridge route profile
-                                model: local LPORT -> DEST_HOST:DEST_PORT
-                                hop: FROM=TO, FROM->TO, or FROM,TO
-                                example: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:22
-                                multi-hop: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:80
+                                model: operator LPORT -> DEST_HOST:DEST_PORT
+                                hop: FROM=TO, FROM->TO, or FROM,TO; labels are target/jump/operator endpoints
+                                direct: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222
+                                multi-hop: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080
   route start NAME, route stop NAME
                                 control a reusable bridge route profile
   route delete NAME              remove a reusable bridge route profile
