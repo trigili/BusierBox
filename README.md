@@ -49,7 +49,7 @@ stages the right binary for the detected architecture.
 grit[all]> probe --start
   wget -O- http://192.168.1.10:22207/probe.sh | /bin/sh   # ← run this on target
 grit[all]> probe results      # see what came back
-grit[all]> probe config --write-config local/server-config.json
+grit[all]> probe config --write-config configs/grit.conf
 grit[all]> probe serve --start
 ```
 
@@ -368,8 +368,11 @@ Probe results  (1 received)
 Generate and save a config from probe data:
 
 ```
-grit[all]> probe config --write-config local/server-config.json
+grit[all]> probe config --write-config configs/grit.conf
 ```
+
+This writes a build/artifact config. It is separate from the operator console
+server config such as `local/server-config.json`.
 
 Stage the right binary for the detected architecture:
 
