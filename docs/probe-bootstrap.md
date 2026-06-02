@@ -10,8 +10,9 @@ scripts/grit-console \
   --probe-name probe.sh
 ```
 
-The HTTP probe listener is `probe-http` in the console delivery view. A separate
-TFTP fallback listener can serve the same script over UDP:
+The HTTP probe listener is `probe-http` in the interactive console listener
+table and delivery view. Headless commands still use `--transport probe`. A
+separate TFTP fallback listener can serve the same script over UDP:
 
 ```sh
 scripts/grit-console \

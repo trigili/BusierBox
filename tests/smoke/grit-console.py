@@ -457,7 +457,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         os.close(numeric_slave)
         numeric_slave = -1
         time.sleep(0.3)
-        os.write(numeric_master, b"listener probe\noptions\nback\nlisteners\nstart 1\nstop 1\nq\n")
+        os.write(numeric_master, b"listener probe-http\noptions\nback\nlisteners\nstart 1\nstop 1\nq\n")
         numeric_chunks = []
         deadline = time.time() + 8
         while numeric_proc.poll() is None and time.time() < deadline:
@@ -485,6 +485,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             pass
     if (numeric_proc.returncode != 0 or
             "Traceback" in (numeric_stderr or "") or
+            "probe-http  " not in numeric_stdout or
+            "transport: probe" not in numeric_stdout or
             "start probe first to serve target-side commands" not in numeric_stdout or
             "started probe:" not in numeric_stdout or
             "stopped probe:" not in numeric_stdout or

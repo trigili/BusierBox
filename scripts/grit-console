@@ -23000,7 +23000,9 @@ def run_line_tui(cfg):
                 bind = f"  |  {host}:{port}" if host else (f"  |  :{port}" if port else "")
                 tls = "  |  TLS: yes" if rec.get("tls") else ""
 
-            print(f"{service}  ─  {status}{bind}{tls if rec else ''}")
+            print(f"{line_service_display_name(service)}  ─  {status}{bind}{tls if rec else ''}")
+            if line_service_display_name(service) != service:
+                print(f"transport: {service}")
             print("")
 
             relevant = _SERVICE_OPTIONS.get(service, [])
@@ -23495,6 +23497,17 @@ def run_line_tui(cfg):
         ("Initial access",     ["ssh", "tls-shell", "plain-shell"]),
         ("Post-deployment",    ["file-service", "command-queue"]),
     ]
+    LINE_SERVICE_DISPLAY_NAMES = {
+        "probe": "probe-http",
+    }
+    LINE_SERVICE_ALIASES = {
+        "probe-http": "probe",
+        "http-probe": "probe",
+    }
+
+    def line_service_display_name(name):
+        text = str(name or "").strip()
+        return LINE_SERVICE_DISPLAY_NAMES.get(text, text)
 
     def ordered_line_service_records():
         rows = service_status_rows(cfg)
@@ -23507,6 +23520,7 @@ def run_line_tui(cfg):
         text = str(selector or "").strip()
         if not text:
             return ""
+        text = LINE_SERVICE_ALIASES.get(text, text)
         records = ordered_line_service_records()
         if text.isdigit():
             idx = int(text) - 1
@@ -23516,10 +23530,21 @@ def run_line_tui(cfg):
         names = [str(rec.get("name") or "") for rec in records]
         if text in names:
             return text
+        display_to_name = {
+            line_service_display_name(str(rec.get("name") or "")): str(rec.get("name") or "")
+            for rec in records
+        }
+        if text in display_to_name:
+            return display_to_name[text]
         return ""
 
     def line_service_names():
         return [str(rec.get("name") or "") for rec in ordered_line_service_records() if str(rec.get("name") or "")]
+
+    def line_service_completion_names():
+        names = line_service_names()
+        displayed = [line_service_display_name(name) for name in names]
+        return list(dict.fromkeys(displayed + names))
 
     def line_service_record(name):
         text = str(name or "").strip()
@@ -23544,9 +23569,11 @@ def run_line_tui(cfg):
             tls = "TLS: yes" if rec.get("tls") else "TLS: no"
             pid = rec.get("pid")
             pid_str = f"  |  pid {pid}" if pid else ""
-            print(f"  {service}  —  {actual}  |  :{port}  |  {tls}{pid_str}")
+            print(f"  {line_service_display_name(service)}  —  {actual}  |  :{port}  |  {tls}{pid_str}")
+            if line_service_display_name(service) != service:
+                print(f"  transport: {service}")
         else:
-            print(f"  {service}  —  (no status)")
+            print(f"  {line_service_display_name(service)}  —  (no status)")
         print("  options / info / start / stop / copy start / back")
         return service
 
@@ -23746,12 +23773,12 @@ def run_line_tui(cfg):
         by_name = {str(r.get("name") or ""): r for r in rows}
         num_w = len(str(len(rows)))
         w = [max(len(h), max((len(c) for r in rows for c in [
-            [str(r.get("name") or ""), _status(r), _bind(r),
+            [line_service_display_name(str(r.get("name") or "")), _status(r), _bind(r),
              "yes" if r.get("tls") else "no", str(r.get("pid") or "-")][i]
         ]), default=0)) for i, (h, _) in enumerate(cols)]
 
         def _row_line(n, rec):
-            cells = [str(rec.get("name") or ""), _status(rec), _bind(rec),
+            cells = [line_service_display_name(str(rec.get("name") or "")), _status(rec), _bind(rec),
                      "yes" if rec.get("tls") else "no", str(rec.get("pid") or "-")]
             return (f"  {n:{num_w}}  " + "  ".join(f"{c:{w[i]}}" for i, c in enumerate(cells))).rstrip()
 
@@ -23798,10 +23825,10 @@ def run_line_tui(cfg):
         search_records = [
             {
                 "kind": "service",
-                "label": f"{rec.get('name','')} status={_status(rec)} bind={_bind(rec)}",
+                "label": f"{line_service_display_name(str(rec.get('name') or ''))} status={_status(rec)} bind={_bind(rec)}",
                 "rec": rec,
                 "command": service_start_headless_command(cfg, str(rec.get("name") or "")),
-                "use_hint": f"use listener {shquote(str(rec.get('name', '')))}",
+                "use_hint": f"use listener {shquote(line_service_display_name(str(rec.get('name') or '')))}",
             }
             for rec in rows
         ]
@@ -24491,7 +24518,7 @@ def run_line_tui(cfg):
             kind_pfx = arg_pfx(2)
             values = {
                 "agent": target_names, "target": target_names, "host": target_names,
-                "listener": line_service_names, "service": line_service_names,
+                "listener": line_service_completion_names, "service": line_service_completion_names,
                 "route": route_names,
                 "session": session_names,
                 "job": job_names,
@@ -24505,7 +24532,7 @@ def run_line_tui(cfg):
 
         if cmd in {"listener", "service", "listeners", "services",
                    "uselistener", "useservice"}:
-            values = (["-v"] if cmd in {"listeners", "services"} else []) + line_service_names()
+            values = (["-v"] if cmd in {"listeners", "services"} else []) + line_service_completion_names()
             return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), values)]
 
         if cmd in {"start", "stop"}:
