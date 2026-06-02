@@ -23038,15 +23038,22 @@ def run_line_tui(cfg):
                 cfg.pop("_options_keys", None)
                 print("  No specific options for this service.  Run: build")
 
-            # Target-side connection command
+            # Target-side connection command.  Do not print runnable target
+            # commands for stopped listeners; that makes the command look
+            # available even though nothing is serving it yet.
             tcmds = [r for r in generated_target_command_records(cfg)
                      if str(r.get("service") or "") == service]
-            if tcmds:
+            service_actual = str((rec or {}).get("actual") or "")
+            if tcmds and service_actual == "listening":
                 print("")
                 print("  Target command:")
                 for r in tcmds[:2]:
                     cmd = str(r.get("command") or "")
                     print(f"    {cmd}")
+            elif tcmds:
+                print("")
+                print("  Target command:")
+                print(f"    start {service} first to serve target-side commands")
 
             print("")
             print("  set KEY VALUE  /  build  /  back")
@@ -23464,8 +23471,36 @@ def run_line_tui(cfg):
         print(f"unsetg {rec.get('key', key)}")
         print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
 
+    LINE_SERVICE_CATEGORIES = [
+        ("Probe & discovery",  ["probe", "probe-tftp", "bridge"]),
+        ("Initial access",     ["ssh", "tls-shell", "plain-shell"]),
+        ("Post-deployment",    ["file-service", "command-queue"]),
+    ]
+
+    def ordered_line_service_records():
+        rows = service_status_rows(cfg)
+        order = {name: i for i, name in enumerate(
+            s for _, names in LINE_SERVICE_CATEGORIES for s in names
+        )}
+        return sorted(rows, key=lambda r: order.get(str(r.get("name") or ""), 99))
+
+    def resolve_line_service_selector(selector):
+        text = str(selector or "").strip()
+        if not text:
+            return ""
+        records = ordered_line_service_records()
+        if text.isdigit():
+            idx = int(text) - 1
+            if idx < 0 or idx >= len(records):
+                raise ValueError(f"service number out of range: {text}")
+            return str(records[idx].get("name") or "")
+        names = [str(rec.get("name") or "") for rec in records]
+        if text in names:
+            return text
+        return ""
+
     def line_service_names():
-        return [str(rec.get("name") or "") for rec in service_status_rows(cfg) if str(rec.get("name") or "")]
+        return [str(rec.get("name") or "") for rec in ordered_line_service_records() if str(rec.get("name") or "")]
 
     def line_service_record(name):
         text = str(name or "").strip()
@@ -23476,17 +23511,9 @@ def run_line_tui(cfg):
 
     def select_line_service(selector):
         text = str(selector or "").strip()
-        names = line_service_names()
-        if text.isdigit():
-            idx = int(text) - 1
-            if idx < 0 or idx >= len(names):
-                raise ValueError(f"service number out of range: {text}")
-            service = names[idx]
-        else:
-            matches = [name for name in names if name == text]
-            if not matches:
-                raise ValueError(f"service not found: {text}")
-            service = matches[0]
+        service = resolve_line_service_selector(text)
+        if not service:
+            raise ValueError(f"service not found: {text}")
         cfg["_line_console_module"] = f"service/{service}"
         # Store headless commands so `copy start` / `copy stop` can retrieve them
         cfg["_service_start_command"] = service_start_headless_command(cfg, service)
@@ -23659,19 +23686,7 @@ def run_line_tui(cfg):
         })
 
     def print_line_services(verbose=False):
-        rows = service_status_rows(cfg)
-
-        # Category grouping
-        _CATEGORIES = [
-            ("Probe & discovery",  ["probe", "probe-tftp", "bridge"]),
-            ("Initial access",     ["ssh", "tls-shell", "plain-shell"]),
-            ("Post-deployment",    ["file-service", "command-queue"]),
-        ]
-        # Build name → index for numbered selection (global across categories)
-        _order = {name: i for i, name in enumerate(
-            s for _, names in _CATEGORIES for s in names
-        )}
-        rows = sorted(rows, key=lambda r: _order.get(str(r.get("name") or ""), 99))
+        rows = ordered_line_service_records()
 
         def _bind(rec):
             host = rec.get("bind_address") or ""
@@ -23732,9 +23747,9 @@ def run_line_tui(cfg):
             print(header)
             print(sep)
             n = 1
-            cat_all = {name for _, names in _CATEGORIES for name in names}
+            cat_all = {name for _, names in LINE_SERVICE_CATEGORIES for name in names}
             printed_any = False
-            for cat_title, cat_names in _CATEGORIES:
+            for cat_title, cat_names in LINE_SERVICE_CATEGORIES:
                 cat_rows = [by_name[name] for name in cat_names if name in by_name]
                 if not cat_rows:
                     continue
@@ -23760,7 +23775,7 @@ def run_line_tui(cfg):
                     print(_row_line(n, rec))
                     n += 1
         print("")
-        print("  use N or listener NAME to select  |  start/stop NAME  |  listeners ? for help")
+        print("  use N or listener NAME to select  |  start/stop N or NAME  |  listeners ? for help")
         search_records = [
             {
                 "kind": "service",
@@ -23827,6 +23842,9 @@ def run_line_tui(cfg):
             return start_line_route(service.split(None, 1)[1])
         if not service:
             raise ValueError("usage: start SERVICE|ROUTE")
+        resolved_service = resolve_line_service_selector(service)
+        if resolved_service:
+            service = resolved_service
         if service not in line_service_names():
             if line_route_record(service):
                 return start_line_route(service)
@@ -23855,6 +23873,9 @@ def run_line_tui(cfg):
             return stop_line_route(service.split(None, 1)[1])
         if not service:
             raise ValueError("usage: stop SERVICE|ROUTE")
+        resolved_service = resolve_line_service_selector(service)
+        if resolved_service:
+            service = resolved_service
         if service not in line_service_names():
             if line_route_record(service):
                 return stop_line_route(service)

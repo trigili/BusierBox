@@ -227,6 +227,8 @@ def write_upload_fixture(tmp):
         "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "yes",
         "listen_host": "127.0.0.1",
         "GRIT_OPERATOR_FILE_SERVICE_PORT": upload_port,
+        "GRIT_PROBE_PORT": free_port(),
+        "GRIT_PROBE_TFTP_PORT": free_port(),
         "session_root": str(session_root),
         "operator_session_dir": str(upload_operator_dir),
         "server_state": str(upload_operator_dir / "server-state.json"),
@@ -418,6 +420,77 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(line_console_route.stdout, file=sys.stderr)
         print(line_console_route.stderr, file=sys.stderr)
         return 1
+
+    numeric_listener_cfg = Path(tmp) / "numeric-listener-config.json"
+    numeric_listener_state = Path(tmp) / "operator-session" / "numeric-listener-state.json"
+    numeric_listener_staged = Path(tmp) / "operator-session" / "numeric-listener-staged.json"
+    numeric_listener_cfg.write_text(json.dumps({
+        "listen_host": "127.0.0.1",
+        "GRIT_OPERATOR_SERVER_HOST": "127.0.0.1",
+        "GRIT_PROBE_PORT": free_port(),
+        "GRIT_PROBE_TFTP_PORT": free_port(),
+        "session_root": str(Path(tmp) / "numeric-listener-sessions"),
+        "operator_session_dir": str(Path(tmp) / "numeric-listener-operator-session"),
+        "server_state": str(numeric_listener_state),
+        "staged_files": str(numeric_listener_staged),
+    }), encoding="utf-8")
+    numeric_master, numeric_slave = pty.openpty()
+    try:
+        numeric_proc = subprocess.Popen(
+            [
+                str(server),
+                "--config", str(numeric_listener_cfg),
+                "--state-file", str(numeric_listener_state),
+                "--staged-file", str(numeric_listener_staged),
+                "--tui",
+            ],
+            cwd=ROOT,
+            stdin=numeric_slave,
+            stdout=numeric_slave,
+            stderr=subprocess.PIPE,
+            text=True,
+            env={**os.environ, "TERM": "dumb"},
+        )
+        os.close(numeric_slave)
+        numeric_slave = -1
+        time.sleep(0.3)
+        os.write(numeric_master, b"listener probe\noptions\nback\nlisteners\nstart 1\nstop 1\nq\n")
+        numeric_chunks = []
+        deadline = time.time() + 8
+        while numeric_proc.poll() is None and time.time() < deadline:
+            ready, _, _ = select.select([numeric_master], [], [], 0.1)
+            if ready:
+                try:
+                    numeric_chunks.append(os.read(numeric_master, 65536).decode("utf-8", errors="replace"))
+                except OSError:
+                    break
+        if numeric_proc.poll() is None:
+            numeric_proc.terminate()
+            try:
+                numeric_proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                numeric_proc.kill()
+                numeric_proc.wait(timeout=2)
+        numeric_stdout = "".join(numeric_chunks)
+        numeric_stderr = numeric_proc.stderr.read()
+    finally:
+        if numeric_slave != -1:
+            os.close(numeric_slave)
+        try:
+            os.close(numeric_master)
+        except OSError:
+            pass
+    if (numeric_proc.returncode != 0 or
+            "Traceback" in (numeric_stderr or "") or
+            "start probe first to serve target-side commands" not in numeric_stdout or
+            "started probe:" not in numeric_stdout or
+            "stopped probe:" not in numeric_stdout or
+            "service or route not found: 1" in numeric_stdout):
+        print("line console numbered listener start/stop UX failed", file=sys.stderr)
+        print(numeric_stdout, file=sys.stderr)
+        print(numeric_stderr or "", file=sys.stderr)
+        return 1
+
     line_console_master, line_console_slave = pty.openpty()
     try:
         line_console_proc = subprocess.Popen(
@@ -760,6 +833,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(f"missing line console markers: {line_console_missing_required}", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         print(line_console_stderr or "", file=sys.stderr)
+        return 1
+    if "service or route not found: 1" in line_console_stdout:
+        print("line-oriented TUI did not accept numbered start/stop listener rows", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
         return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
     daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)
