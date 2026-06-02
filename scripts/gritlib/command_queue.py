@@ -1,6 +1,66 @@
 """Command queue policy and mode helpers for grit-console."""
 
+import json
+from pathlib import Path
+
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key
+
+
+DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
+
+
+def command_queue_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
+    return Path(str(
+        cfg.get("command_queue_file") or
+        Path(str(cfg.get("operator_session_dir", default_operator_session_dir))) / "command-queue.json"
+    ))
+
+
+def command_queue_state_record(cfg):
+    path = command_queue_path(cfg)
+    rec = {
+        "path": str(path),
+        "exists": False,
+        "valid": False,
+        "schema": None,
+        "command_count": 0,
+        "command_ids": [],
+        "status_counts": {},
+        "error": "",
+    }
+    try:
+        rec["exists"] = path.exists()
+        if not rec["exists"]:
+            return rec
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            rec["error"] = "command-queue JSON is not an object"
+            return rec
+        commands = data.get("commands")
+        if not isinstance(commands, list):
+            rec["error"] = "command-queue JSON commands field is not a list"
+            return rec
+        command_ids = []
+        status_counts = {}
+        for item in commands:
+            if not isinstance(item, dict):
+                continue
+            command_id = str(item.get("id") or "")
+            status = str(item.get("status") or "")
+            if command_id:
+                command_ids.append(command_id)
+            if status:
+                status_counts[status] = status_counts.get(status, 0) + 1
+        rec.update({
+            "valid": True,
+            "schema": data.get("schema"),
+            "command_count": len(commands),
+            "command_ids": command_ids,
+            "status_counts": status_counts,
+        })
+    except (OSError, json.JSONDecodeError) as exc:
+        rec["error"] = str(exc)
+    return rec
 
 def valid_yes_no(value):
     return str(value) in ("yes", "no")
