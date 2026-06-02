@@ -1,0 +1,1 @@
+"""Shared griTTYkit operator helpers."""

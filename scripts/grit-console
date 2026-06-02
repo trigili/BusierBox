@@ -36,6 +36,12 @@ import tty
 import urllib.parse
 from pathlib import Path
 
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from gritlib import bridge_routes
+
 try:
     import readline as _readline
     HAVE_READLINE = True
@@ -2838,85 +2844,31 @@ def set_workbench_target_filter(cfg, selector, targets=None):
 
 
 def valid_profile_name(name):
-    text = str(name or "").strip()
-    return bool(text) and all(ch.isalnum() or ch in "._-" for ch in text)
+    return bridge_routes.valid_profile_name(name)
 
 
 def load_bridge_profiles(cfg):
-    data = read_json_file(bridge_profiles_path(cfg), {"schema": 1, "profiles": {}})
-    if not isinstance(data, dict):
-        data = {"schema": 1, "profiles": {}}
-    if not isinstance(data.get("profiles"), dict):
-        data["profiles"] = {}
-    data.setdefault("schema", 1)
-    return data
+    return bridge_routes.load_bridge_profiles(cfg, DEFAULT_OPERATOR_SESSION_DIR)
 
 
 def parse_bridge_hop(text):
-    raw = str(text or "").strip()
-    for sep in ("->", "=", ","):
-        if sep in raw:
-            left, right = raw.split(sep, 1)
-            left = left.strip()
-            right = right.strip()
-            if not left or not right:
-                raise ValueError("--bridge-hop requires non-empty FROM and TO endpoints")
-            return {"from": left, "to": right}
-    raise ValueError("--bridge-hop must use FROM=TO, FROM->TO, or FROM,TO")
+    return bridge_routes.parse_bridge_hop(text)
 
 
 def default_bridge_hops(cfg, dest_port):
-    listen_port = int(cfg.get("bridge_listen_port") or cfg.get("listen_port") or 22206)
-    dest_host = str(cfg.get("bridge_dest_host") or cfg.get("dest_host") or "127.0.0.1")
-    return [
-        {
-            "from": f"operator:{listen_port}",
-            "to": f"{dest_host}:{dest_port}",
-        }
-    ]
+    return bridge_routes.default_bridge_hops(cfg, dest_port)
 
 
 def bridge_hops_from_args(cfg, dest_port, hop_args=None):
-    if not hop_args:
-        return default_bridge_hops(cfg, dest_port)
-    return [parse_bridge_hop(item) for item in hop_args]
+    return bridge_routes.bridge_hops_from_args(cfg, dest_port, hop_args=hop_args)
 
 
 def bridge_route_path(rec):
-    hops = rec.get("hops")
-    if isinstance(hops, list) and hops:
-        path = []
-        for hop in hops:
-            if not isinstance(hop, dict):
-                continue
-            src = str(hop.get("from") or "").strip()
-            dst = str(hop.get("to") or "").strip()
-            if not src or not dst:
-                continue
-            if not path:
-                path.append(src)
-            elif path[-1] != src:
-                path.append(src)
-            path.append(dst)
-        if path:
-            return " -> ".join(path)
-    return f"operator:{rec.get('listen_port', '')} -> {rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
+    return bridge_routes.bridge_route_path(rec)
 
 
 def parse_endpoint_host_port(endpoint):
-    text = str(endpoint or "").strip()
-    if not text:
-        return "", 0
-    if text.startswith("[") and "]:" in text:
-        host, port = text[1:].split("]:", 1)
-    elif ":" in text:
-        host, port = text.rsplit(":", 1)
-    else:
-        return text, 0
-    try:
-        return host.strip(), int(port)
-    except (TypeError, ValueError):
-        return host.strip(), 0
+    return bridge_routes.parse_endpoint_host_port(endpoint)
 
 
 def target_visible_host(host, cfg, fallback_host=None):
@@ -2987,71 +2939,15 @@ def target_route_context(cfg, service, direct_host=None, direct_port=None):
 
 
 def bridge_profile_record(cfg, name, rec, service_state=None):
-    out = dict(rec or {})
-    out["name"] = str(name or out.get("name") or "")
-    out["listen_host"] = str(out.get("listen_host") or cfg.get("listen_host") or "")
-    out["listen_port"] = int(out.get("listen_port") or cfg.get("bridge_listen_port", 22206) or 0)
-    out["dest_host"] = str(out.get("dest_host") or "")
-    out["dest_port"] = int(out.get("dest_port") or 0)
-    out["target_id"] = str(out.get("target_id") or "")
-    out["target_label"] = str(out.get("target_label") or "")
-    out["purpose"] = str(out.get("purpose") or "")
-    out["notes"] = str(out.get("notes") or "")
-    if not isinstance(out.get("hops"), list) or not out.get("hops"):
-        out["hops"] = default_bridge_hops(out, int(out.get("dest_port") or 0))
-    out["route_path"] = bridge_route_path(out)
-    out["hop_count"] = len(out.get("hops") or []) if isinstance(out.get("hops"), list) else 1
-    out["multi_hop"] = out["hop_count"] > 1
-    out["start_command"] = f"scripts/grit-console --transport bridge --bridge-profile {shquote(out['name'])}"
-    out["stop_command"] = "scripts/grit-console --stop --transport bridge"
-    out["requires_target_online"] = bool(out.get("target_id"))
-    state = service_state if isinstance(service_state, dict) else {}
-    active_profile = str(state.get("bridge_profile") or "")
-    out["current_state"] = str(state.get("status") or "configured") if active_profile == out["name"] else "configured"
-    out["active"] = active_profile == out["name"] and out["current_state"] in ("starting", "listening")
-    out["pid"] = state.get("pid", "") if active_profile == out["name"] else ""
-    out["last_error"] = str(state.get("error") or "") if active_profile == out["name"] else ""
-    state_failure = ""
-    if active_profile == out["name"]:
-        state_failure = str(state.get("error") or "")
-        if not state_failure and out["current_state"] == "error":
-            state_failure = str(state.get("stopped_reason") or "")
-    out["last_failure_reason"] = str(out.get("last_failure_reason") or state_failure)
-    out["last_failure_at"] = str(out.get("last_failure_at") or "")
-    out["last_failure_remote_addr"] = str(out.get("last_failure_remote_addr") or "")
-    out["last_successful_relay_at"] = str(out.get("last_successful_relay_at") or "")
-    out["has_last_successful_relay"] = bool(out["last_successful_relay_at"])
-    out["has_last_failure"] = bool(out["last_failure_at"] or out["last_failure_reason"])
-    return out
+    return bridge_routes.bridge_profile_record(cfg, name, rec, service_state=service_state)
 
 
 def bridge_profile_records(cfg):
-    profiles = load_bridge_profiles(cfg).get("profiles") or {}
-    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
-    bridge_state = ((state.get("services") or {}).get("bridge") or {}) if isinstance(state, dict) else {}
-    records = [
-        bridge_profile_record(cfg, name, rec, service_state=bridge_state)
-        for name, rec in sorted(profiles.items())
-        if isinstance(rec, dict)
-    ]
-    return records
+    return bridge_routes.bridge_profile_records(cfg)
 
 
 def bridge_profile_indexes(records):
-    return {
-        "bridge_profiles_by_name": {rec.get("name", ""): rec for rec in records or [] if rec.get("name")},
-        "bridge_profiles_by_target_id": records_by_key(records, "target_id"),
-        "bridge_profiles_by_dest_host": records_by_key(records, "dest_host"),
-        "bridge_profiles_by_listen_port": records_by_key(records, "listen_port"),
-        "bridge_profiles_by_current_state": records_by_key(records, "current_state"),
-        "bridge_profiles_by_active": records_by_key(records, "active"),
-        "bridge_profiles_by_requires_target_online": records_by_key(records, "requires_target_online"),
-        "bridge_profiles_by_multi_hop": records_by_key(records, "multi_hop"),
-        "bridge_profiles_by_hop_count": records_by_key(records, "hop_count"),
-        "bridge_profiles_by_route_path": records_by_key(records, "route_path"),
-        "bridge_profiles_by_has_last_successful_relay": records_by_key(records, "has_last_successful_relay"),
-        "bridge_profiles_by_has_last_failure": records_by_key(records, "has_last_failure"),
-    }
+    return bridge_routes.bridge_profile_indexes(records)
 
 
 def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None):
@@ -3284,201 +3180,44 @@ def bridge_profile_workflow_action_summary(records):
 
 
 def bridge_hop_records_from_profiles(profiles):
-    records = []
-    for profile in profiles or []:
-        if not isinstance(profile, dict):
-            continue
-        profile_name = str(profile.get("name") or "")
-        route_path = str(profile.get("route_path") or "")
-        hops = profile.get("hops") if isinstance(profile.get("hops"), list) else []
-        hop_count = len(hops)
-        for idx, hop in enumerate(hops, 1):
-            if not isinstance(hop, dict):
-                continue
-            from_endpoint = str(hop.get("from") or "").strip()
-            to_endpoint = str(hop.get("to") or "").strip()
-            from_host, from_port = parse_endpoint_host_port(from_endpoint)
-            to_host, to_port = parse_endpoint_host_port(to_endpoint)
-            records.append({
-                "id": f"{profile_name}:{idx}",
-                "profile": profile_name,
-                "profile_name": profile_name,
-                "ordinal": idx,
-                "hop_index": idx,
-                "hop_count": hop_count,
-                "is_first_hop": idx == 1,
-                "is_last_hop": idx == hop_count,
-                "multi_hop": hop_count > 1,
-                "from": from_endpoint,
-                "to": to_endpoint,
-                "from_host": from_host,
-                "from_port": from_port,
-                "to_host": to_host,
-                "to_port": to_port,
-                "route_path": route_path,
-                "target_id": str(profile.get("target_id") or ""),
-                "target_label": str(profile.get("target_label") or ""),
-                "requires_target_online": bool(profile.get("requires_target_online")),
-                "current_state": str(profile.get("current_state") or ""),
-                "profile_active": bool(profile.get("active")),
-                "profile_has_last_successful_relay": bool(profile.get("has_last_successful_relay")),
-                "profile_has_last_failure": bool(profile.get("has_last_failure")),
-            })
-    return records
+    return bridge_routes.bridge_hop_records_from_profiles(profiles)
 
 
 def bridge_hop_indexes(records):
-    return {
-        "bridge_hops_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
-        "bridge_hops_by_profile": records_by_key(records, "profile"),
-        "bridge_hops_by_profile_name": records_by_key(records, "profile_name"),
-        "bridge_hops_by_ordinal": records_by_key(records, "ordinal"),
-        "bridge_hops_by_from": records_by_key(records, "from"),
-        "bridge_hops_by_to": records_by_key(records, "to"),
-        "bridge_hops_by_from_host": records_by_key(records, "from_host"),
-        "bridge_hops_by_from_port": records_by_key(records, "from_port"),
-        "bridge_hops_by_to_host": records_by_key(records, "to_host"),
-        "bridge_hops_by_to_port": records_by_key(records, "to_port"),
-        "bridge_hops_by_route_path": records_by_key(records, "route_path"),
-        "bridge_hops_by_target_id": records_by_key(records, "target_id"),
-        "bridge_hops_by_multi_hop": records_by_key(records, "multi_hop"),
-        "bridge_hops_by_is_first_hop": records_by_key(records, "is_first_hop"),
-        "bridge_hops_by_is_last_hop": records_by_key(records, "is_last_hop"),
-        "bridge_hops_by_current_state": records_by_key(records, "current_state"),
-        "bridge_hops_by_profile_active": records_by_key(records, "profile_active"),
-        "bridge_hops_by_profile_has_last_successful_relay": records_by_key(records, "profile_has_last_successful_relay"),
-        "bridge_hops_by_profile_has_last_failure": records_by_key(records, "profile_has_last_failure"),
-    }
+    return bridge_routes.bridge_hop_indexes(records)
 
 
 def save_bridge_profile(cfg, name, purpose="", notes="", hop_args=None):
-    name = str(name or "").strip()
-    if not valid_profile_name(name):
-        raise ValueError("bridge profile name must contain only letters, numbers, dot, underscore, or dash")
-    dest_port = int(cfg.get("bridge_dest_port", 0) or 0)
-    if dest_port <= 0:
-        raise ValueError("--save-bridge-profile requires --bridge-dest-port")
-    target = selected_target_context(cfg)
-    rec = {
-        "schema": 1,
-        "name": name,
-        "listen_host": str(cfg.get("listen_host", "")),
-        "listen_port": int(cfg.get("bridge_listen_port", 22206)),
-        "dest_host": str(cfg.get("bridge_dest_host", "127.0.0.1")),
-        "dest_port": dest_port,
-        "target_id": str(target.get("target_id") or ""),
-        "target_label": str(target.get("target_label") or ""),
-        "purpose": str(purpose or ""),
-        "notes": str(notes or ""),
-        "hops": bridge_hops_from_args(cfg, dest_port, hop_args=hop_args),
-        "created_at": utc_now(),
-        "updated_at": utc_now(),
-    }
-    data = load_bridge_profiles(cfg)
-    existing = data.setdefault("profiles", {}).get(name)
-    if isinstance(existing, dict) and existing.get("created_at"):
-        rec["created_at"] = existing.get("created_at")
-    data["profiles"][name] = rec
-    atomic_write_json(bridge_profiles_path(cfg), data)
+    route_cfg = dict(cfg)
+    route_cfg["_now"] = utc_now()
+    rec = bridge_routes.save_bridge_profile(
+        route_cfg,
+        name,
+        purpose=purpose,
+        notes=notes,
+        hop_args=hop_args,
+        target=selected_target_context(cfg),
+    )
     append_event(cfg, "bridge", "bridge_profile_saved", details=rec)
-    return bridge_profile_record(cfg, name, rec)
+    return rec
 
 
 def delete_bridge_profile(cfg, name):
-    name = str(name or "").strip()
-    if not name:
-        raise ValueError("bridge profile name is required")
-    data = load_bridge_profiles(cfg)
-    profiles = data.setdefault("profiles", {})
-    rec = profiles.get(name)
-    if not isinstance(rec, dict):
-        raise ValueError(f"bridge profile not found: {name}")
-    out = bridge_profile_record(cfg, name, rec)
-    del profiles[name]
-    atomic_write_json(bridge_profiles_path(cfg), data)
-    append_event(cfg, "bridge", "bridge_profile_deleted", details=out)
-    return out
+    rec = bridge_routes.delete_bridge_profile(cfg, name)
+    append_event(cfg, "bridge", "bridge_profile_deleted", details=rec)
+    return rec
 
 
 def apply_bridge_profile(cfg, name):
-    name = str(name or "").strip()
-    profiles = load_bridge_profiles(cfg).get("profiles") or {}
-    rec = profiles.get(name)
-    if not isinstance(rec, dict):
-        raise ValueError(f"bridge profile not found: {name}")
-    cfg["bridge_profile"] = name
-    cfg["listen_host"] = str(rec.get("listen_host") or cfg.get("listen_host", "0.0.0.0"))
-    cfg["bridge_listen_port"] = int(rec.get("listen_port") or cfg.get("bridge_listen_port", 22206))
-    cfg["bridge_dest_host"] = str(rec.get("dest_host") or cfg.get("bridge_dest_host", "127.0.0.1"))
-    cfg["bridge_dest_port"] = int(rec.get("dest_port") or cfg.get("bridge_dest_port", 0))
-    if rec.get("target_id"):
-        cfg["_target_id_filter"] = str(rec.get("target_id") or "")
-        if rec.get("target_label"):
-            cfg["_target_label_filter"] = str(rec.get("target_label") or "")
-    return bridge_profile_record(cfg, name, rec)
+    return bridge_routes.apply_bridge_profile(cfg, name)
 
 
 def print_bridge_profile(cfg, name, json_output=False):
-    name = str(name or "").strip()
-    profiles = load_bridge_profiles(cfg).get("profiles") or {}
-    rec = profiles.get(name)
-    if not isinstance(rec, dict):
-        raise ValueError(f"bridge profile not found: {name}")
-    out = bridge_profile_record(cfg, name, rec)
-    if json_output:
-        print(json.dumps({
-            "schema": 1,
-            "path": str(bridge_profiles_path(cfg)),
-            "profile": out,
-        }, indent=2, sort_keys=True))
-        return 0
-    print(f"Bridge profile {out.get('name', '')}")
-    print(f"  listen: {out.get('listen_host', '')}:{out.get('listen_port', '')}")
-    print(f"  destination: {out.get('dest_host', '')}:{out.get('dest_port', '')}")
-    print(f"  route_path: {out.get('route_path', '')}")
-    print(f"  state: {out.get('current_state', '')} active={'yes' if out.get('active') else 'no'} pid={out.get('pid', '') or '-'}")
-    print(f"  relay: last_success={out.get('last_successful_relay_at', '') or '-'} client_bytes={out.get('last_bytes_from_client', '') or 0} upstream_bytes={out.get('last_bytes_from_upstream', '') or 0}")
-    print(f"  failure: last={out.get('last_failure_at', '') or '-'} reason={out.get('last_failure_reason', '') or '-'}")
-    print(f"  target: {out.get('target_id', '') or '-'} label={out.get('target_label', '') or '-'}")
-    print(f"  purpose: {out.get('purpose', '') or '-'}")
-    print(f"  notes: {out.get('notes', '') or '-'}")
-    print(f"  start_command: {out.get('start_command', '')}")
-    print(f"  stop_command: {out.get('stop_command', '')}")
-    for idx, hop in enumerate(out.get("hops") or [], 1):
-        print(f"  hop {idx}: {hop.get('from', '')} -> {hop.get('to', '')}")
-    return 0
+    return bridge_routes.print_bridge_profile(cfg, name, json_output=json_output)
 
 
 def print_bridge_profiles(cfg, json_output=False):
-    records = bridge_profile_records(cfg)
-    hop_records = bridge_hop_records_from_profiles(records)
-    if json_output:
-        payload = {
-            "schema": 1,
-            "path": str(bridge_profiles_path(cfg)),
-            "profiles": records,
-            "bridge_hop_records": hop_records,
-            **bridge_profile_indexes(records),
-            **bridge_hop_indexes(hop_records),
-        }
-        print(json.dumps(payload, indent=2, sort_keys=True))
-        return 0
-    if not records:
-        print("No bridge profiles.")
-        return 0
-    for rec in records:
-        print(
-            f"{rec.get('name', '')}\t{rec.get('listen_host', '')}:{rec.get('listen_port', '')}"
-            f"\t{rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
-            f"\tstate={rec.get('current_state', '')}"
-            f"\ttarget={rec.get('target_id', '') or '-'}"
-            f"\tlast_success={rec.get('last_successful_relay_at', '') or '-'}"
-            f"\tlast_failure={rec.get('last_failure_reason', '') or '-'}"
-        )
-        print(f"  path: {rec.get('route_path', '')}")
-        if rec.get("purpose") or rec.get("notes"):
-            print(f"  purpose={rec.get('purpose', '') or '-'} notes={rec.get('notes', '') or '-'}")
-    return 0
+    return bridge_routes.print_bridge_profiles(cfg, json_output=json_output)
 
 
 def details_with_target(cfg, details=None, target_context=None):
