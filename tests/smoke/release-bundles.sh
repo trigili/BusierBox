@@ -826,6 +826,11 @@ if doc.get("status") != "pass" or doc.get("release_name") != "smoke":
     raise SystemExit(f"unexpected release self-test status/name: {doc!r}")
 if doc.get("checksum_original_verified") is not True:
     raise SystemExit("release self-test did not report checksum verification")
+helpers = doc.get("helpers") or []
+if "grit-console" not in helpers:
+    raise SystemExit(f"release self-test helper inventory missing grit-console: {doc!r}")
+if "grit-server" in helpers:
+    raise SystemExit(f"release self-test helper inventory still reports grit-server: {doc!r}")
 if doc.get("project_license") != "GPL-2.0-or-later":
     raise SystemExit(f"release self-test project license missing: {doc!r}")
 if doc.get("combined_gplv2_compatible") is not True:
