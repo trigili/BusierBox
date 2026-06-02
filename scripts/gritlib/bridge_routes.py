@@ -30,6 +30,19 @@ def records_by_key(records, key):
     return out
 
 
+def record_count_by_key(records, key):
+    counts = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        value = rec.get(key)
+        if value in (None, ""):
+            continue
+        text = str(value)
+        counts[text] = counts.get(text, 0) + 1
+    return counts
+
+
 def int_value(value):
     try:
         return int(value)
@@ -258,6 +271,74 @@ def bridge_hop_indexes(records):
         "bridge_hops_by_profile_active": records_by_key(records, "profile_active"),
         "bridge_hops_by_profile_has_last_successful_relay": records_by_key(records, "profile_has_last_successful_relay"),
         "bridge_hops_by_profile_has_last_failure": records_by_key(records, "profile_has_last_failure"),
+    }
+
+
+def bridge_profile_workflow_action_indexes(records):
+    return {
+        "bridge_profile_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "bridge_profile_workflow_actions_by_action_id": records_by_key(records, "action_id"),
+        "bridge_profile_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "bridge_profile_workflow_actions_by_target_id": records_by_key(records, "target_id"),
+        "bridge_profile_workflow_actions_by_category": records_by_key(records, "category"),
+        "bridge_profile_workflow_actions_by_workflow": records_by_key(records, "workflow"),
+        "bridge_profile_workflow_actions_by_current_state": records_by_key(records, "current_state"),
+        "bridge_profile_workflow_actions_by_active": records_by_key(records, "active"),
+        "bridge_profile_workflow_actions_by_requires_target_online": records_by_key(records, "requires_target_online"),
+        "bridge_profile_workflow_actions_by_multi_hop": records_by_key(records, "multi_hop"),
+        "bridge_profile_workflow_actions_by_hop_count": records_by_key(records, "hop_count"),
+        "bridge_profile_workflow_actions_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "bridge_profile_workflow_actions_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "bridge_profile_workflow_actions_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "bridge_profile_workflow_actions_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "bridge_profile_workflow_actions_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "bridge_profile_workflow_actions_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "bridge_profile_workflow_actions_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "bridge_profile_workflow_actions_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "bridge_profile_workflow_actions_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "bridge_profile_workflow_actions_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
+        "bridge_profile_workflow_actions_by_has_last_successful_relay": records_by_key(records, "has_last_successful_relay"),
+        "bridge_profile_workflow_actions_by_has_last_failure": records_by_key(records, "has_last_failure"),
+        "bridge_profile_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
+        "bridge_profile_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "bridge_profile_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "bridge_profile_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "bridge_profile_workflow_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
+    }
+
+
+def bridge_profile_workflow_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
+        "target_counts": record_count_by_key(records, "target_id"),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "category_counts": record_count_by_key(records, "category"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "current_state_counts": record_count_by_key(records, "current_state"),
+        "active_counts": record_count_by_key(records, "active"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
+        "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
+        "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
+        "requires_target_online_count": len([rec for rec in records or [] if rec.get("requires_target_online") is True]),
+        "multi_hop_count": len([rec for rec in records or [] if rec.get("multi_hop") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
+        "has_last_successful_relay_counts": record_count_by_key(records, "has_last_successful_relay"),
+        "has_last_failure_counts": record_count_by_key(records, "has_last_failure"),
     }
 
 
