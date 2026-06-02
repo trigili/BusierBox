@@ -53,6 +53,11 @@ grit[all]> probe config --write-config local/server-config.json
 grit[all]> probe serve --start
 ```
 
+`probe serve --start` stages the selected binary, starts the file service when
+requested, and prints target-side fetch options. For first deployment use the
+shown `wget` or `curl` command; after griTTYkit is already present, use the
+shown `grit fetch ...` command.
+
 ### Finds somewhere to live, no matter what
 
 Before extracting, griTTYkit probes whether a directory is actually usable for
@@ -370,6 +375,14 @@ Stage the right binary for the detected architecture:
 
 ```
 grit[all]> probe serve --start
+
+Release artifact staged:
+  target_fetch_command=grit fetch grit-mipsel-linux-4.x-musl-default-full ...
+  Target fetch options:
+    wget:  wget --no-check-certificate -O ./grit-mipsel-linux-4.x-musl-default-full ...
+    curl:  curl -fLk -o ./grit-mipsel-linux-4.x-musl-default-full ...
+    grit:  grit fetch grit-mipsel-linux-4.x-musl-default-full ...
+    run:   chmod +x ./grit-mipsel-linux-4.x-musl-default-full && ./grit-mipsel-linux-4.x-musl-default-full --help
 ```
 
 ### Step 2 — full survey (post-deployment)

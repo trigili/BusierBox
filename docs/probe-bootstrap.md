@@ -36,6 +36,12 @@ grit[all]> probe config --write-config configs/grit.conf
 grit[all]> probe serve --start
 ```
 
+`probe serve --start` stages the matching release artifact and prints target
+fetch options. On a target that does not have griTTYkit yet, use the printed
+plain `wget` or `curl` command against `/fetch?name=...`, then run the printed
+`chmod +x ./grit... && ./grit... --help` hint. On a target that already has
+griTTYkit, use the printed `grit fetch ...` command instead.
+
 `probe config` converts the newest probe result into a generated config. The
 probe only captures basic platform evidence, so a later full `grit survey push`
 can refine the recommendation after a payload is deployed.
@@ -78,4 +84,3 @@ Operator-side records:
 The probe script is not a griTTYkit binary and does not assume a target
 architecture. It only requires `/bin/sh`; upload requires either `wget` or
 `curl` on the target.
-

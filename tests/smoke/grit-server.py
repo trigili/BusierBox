@@ -10553,6 +10553,10 @@ def main(argv=None):
                 "request_name=grit" not in line_stage_stdout or
                 "target_fetch_command=grit fetch grit" not in line_stage_stdout or
                 "target_run_hint=chmod +x ./grit && ./grit --help" not in line_stage_stdout or
+                "Target fetch options:" not in line_stage_stdout or
+                "wget --no-check-certificate -O ./grit " not in line_stage_stdout or
+                "curl -fLk -o ./grit " not in line_stage_stdout or
+                "/fetch?name=grit" not in line_stage_stdout or
                 "--config " + str(upload_cfg) + " --list-staged" not in line_stage_stdout or
                 "File service workflow actions:" not in line_stage_stdout or
                 "file-service:list-staged-files state=ready reason=run-now enter=yes" not in line_stage_stdout or
@@ -11588,6 +11592,10 @@ def main(argv=None):
                 "selector=by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout or
                 "Release artifact staged:" not in _line_stdout or
                 "target_fetch_command=grit fetch grit-test" not in _line_stdout or
+                "Target fetch options:" not in _line_stdout or
+                "wget --no-check-certificate -O ./grit-test " not in _line_stdout or
+                "curl -fLk -o ./grit-test " not in _line_stdout or
+                "/fetch?name=grit-test" not in _line_stdout or
                 "headless_command: scripts/grit-server --config" not in _line_stdout or
                 "--stage-release-artifact by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout):
             print("line-oriented TUI did not expose direct release staging", file=sys.stderr)
@@ -11794,6 +11802,10 @@ def main(argv=None):
                 "by-tuple/mipsel/musl/4.x/mips32r2-24kc" not in probe_text or
                 "by-tuple/x86_64/musl/4.x/generic" in probe_text or
                 "Release artifact staged:" not in probe_text or
+                "Target fetch options:" not in probe_text or
+                "wget --no-check-certificate -O ./grit-mipsel-default " not in probe_text or
+                "curl -fLk -o ./grit-mipsel-default " not in probe_text or
+                "/fetch?name=grit-mipsel-default" not in probe_text or
                 "grit-mipsel-default" not in probe_text):
             print("probe serve did not choose the matching release tuple", file=sys.stderr)
             print(probe_text, file=sys.stderr)
