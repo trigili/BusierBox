@@ -14,6 +14,8 @@ rg -n \
     -e 'send_file' \
     -e 'framed callback' \
     -e 'stager callback' \
+    -e 'grit-server\.py' \
+    -e 'probe-server\.py' \
     scripts src docs presets targets tests \
     >"$tmp" || true
 

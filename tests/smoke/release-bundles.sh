@@ -248,6 +248,10 @@ test -f "$work/release/devices/native/README.txt"
 test -f "$work/release/devices/native/notes.md"
 test -x "$work/release/scripts/lib/artifact-config"
 test -x "$work/release/scripts/grit-console"
+if [ -e "$work/release/scripts/grit-server" ]; then
+    printf '%s\n' "release-bundles: release bundle still includes stale scripts/grit-server" >&2
+    exit 1
+fi
 test -x "$work/release/scripts/configure-artifact"
 test -x "$work/release/scripts/configure-all"
 test -x "$work/release/scripts/verify-checksums"
