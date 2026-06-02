@@ -41,7 +41,7 @@ grep -q 'GRIT_DOOM_WAD_PATH' configs/grit.conf.example
 ! grep -q 'GRIT_DOOM_USER_PATH' "$menu"
 ! grep -q 'GRIT_DOOM_USER_PATH' scripts/lib/build-payload
 ! grep -q 'GRIT_DOOM_USER_PATH' configs/grit.conf.example
-grep -Fq 'require_static_payload_tool runtime/payload/bin/doom-ascii "doom-ascii"' scripts/lib/buildroot-build-payload
+grep -Fq 'require_static_payload_tool $PAYLOAD_ROOT/bin/doom-ascii "doom-ascii"' scripts/lib/buildroot-build-payload
 grep -Fq 'must be statically linked for the griTTYkit doom payload' scripts/lib/buildroot-build-payload
 grep -Fq 'requested doom but the static doom-ascii engine was not found' scripts/lib/buildroot-build-payload
 ! grep -Fq 'stage_first_found_as doom prboom' scripts/lib/buildroot-build-payload

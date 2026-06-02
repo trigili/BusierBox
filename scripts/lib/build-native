@@ -107,10 +107,19 @@ src="src/grit.c src/payload_runtime.c src/applet_extract.c src/applet_list.c src
 miniz_src="third_party/miniz/miniz.c"
 miniz_cflags="-Os -std=c99 -Ithird_party/miniz"
 tmp="${OUT}.$$.tmp"
+tool_headers_dir="${OUT}.$$.headers"
 
-mkdir -p src dist
+cleanup_build_native() {
+    rm -rf "$tool_headers_dir"
+    rm -f "$tmp"
+}
 
-scripts/lib/gen-tool-headers
+trap cleanup_build_native EXIT HUP INT TERM
+
+mkdir -p src dist "${tool_headers_dir%/*}"
+
+GRIT_TOOL_HEADERS_DIR="$tool_headers_dir" scripts/lib/gen-tool-headers
+CPPFLAGS="$CPPFLAGS -I$tool_headers_dir"
 
 quote_c() { printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'; }
 

@@ -28,12 +28,12 @@
 #define GRIT_PAYLOAD_MODE_FILE ".grit-extract-mode"
 
 static const char *busybox_tools[] = {
-#include "grit_busybox_applets.h"
+#include <grit_busybox_applets.h>
     NULL
 };
 
 static const char *heavy_tools[] = {
-#include "grit_heavy_tools.h"
+#include <grit_heavy_tools.h>
     NULL
 };
 

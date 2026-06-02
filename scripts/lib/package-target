@@ -41,7 +41,15 @@ release_package_target_lock() {
 
 package_target_signal() {
     cleanup_package_target_lock
+    cleanup_isolated_package_payload
     exit 130
+}
+
+cleanup_isolated_package_payload() {
+    if [ -n "${package_payload_stage:-}" ]; then
+        rm -rf "$package_payload_stage" "${package_payload_archive_prefix%/*}" 2>/dev/null || true
+        package_payload_stage=
+    fi
 }
 
 acquire_package_target_lock() {
@@ -288,12 +296,12 @@ payload_suffix() {
 
 copy_payload_artifacts() {
     suffix=$(payload_suffix)
-    [ -f "dist/payload.$suffix" ] || die "payload archive dist/payload.$suffix was not produced"
-    cp "dist/payload.tar" "dist/payload-$target.tar"
-    [ -f dist/payload.tar.sha256 ] && cp dist/payload.tar.sha256 "dist/payload-$target.tar.sha256"
-    if [ -f dist/payload.tar.gz ]; then
-        cp dist/payload.tar.gz "dist/payload-$target.tar.gz"
-        [ -f dist/payload.tar.gz.sha256 ] && cp dist/payload.tar.gz.sha256 "dist/payload-$target.tar.gz.sha256"
+    [ -f "$package_payload_archive_prefix.$suffix" ] || die "payload archive $package_payload_archive_prefix.$suffix was not produced"
+    cp "$package_payload_archive_prefix.tar" "dist/payload-$target.tar"
+    sha256_write "dist/payload-$target.tar" "dist/payload-$target.tar.sha256"
+    if [ -f "$package_payload_archive_prefix.tar.gz" ]; then
+        cp "$package_payload_archive_prefix.tar.gz" "dist/payload-$target.tar.gz"
+        sha256_write "dist/payload-$target.tar.gz" "dist/payload-$target.tar.gz.sha256"
     fi
 }
 
@@ -576,11 +584,25 @@ compat_artifact="dist/grit-$target"
 suffix=$(payload_suffix)
 payload="dist/payload-$target.$suffix"
 
-acquire_package_target_lock
+if [ "${PACKAGE_TARGET_ISOLATED_PAYLOAD:-0}" = 1 ]; then
+    package_payload_stage="runtime/package-target/$target-$$"
+    package_payload_root="$package_payload_stage/payload"
+    package_payload_archive_prefix="dist/package-target/$target-$$/payload"
+    rm -rf "$package_payload_stage" "${package_payload_archive_prefix%/*}"
+    mkdir -p "$package_payload_root/bin" "${package_payload_archive_prefix%/*}"
+    trap cleanup_isolated_package_payload EXIT
+    trap package_target_signal HUP INT TERM
+else
+    package_payload_root=${PAYLOAD_ROOT:-runtime/payload}
+    package_payload_archive_prefix=${PAYLOAD_ARCHIVE_PREFIX:-dist/payload}
+    acquire_package_target_lock
+fi
 
 if [ "$target" = native ]; then
-    scripts/lib/build-busybox
+    BUSYBOX_OUT="$package_payload_root/bin/busybox" scripts/lib/build-busybox
     TARGET="$target" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" \
+        PAYLOAD_ROOT="$package_payload_root" \
+        PAYLOAD_ARCHIVE_PREFIX="$package_payload_archive_prefix" \
         GRIT_TARGET_NAME="$TARGET_NAME" \
         GRIT_TARGET_ARCH="$TARGET_ARCH" \
         GRIT_TARGET_LIBC="$TARGET_LIBC" \
@@ -606,7 +628,7 @@ if [ "$target" = native ]; then
         GRIT_USER_OVERLAY_ALLOW_OVERRIDE="$GRIT_USER_OVERLAY_ALLOW_OVERRIDE" \
         scripts/lib/build-payload
     copy_payload_artifacts
-    OUT="$full_core" ARTIFACT_TIER=full ADVERTISE_PAYLOAD_TOOLS=1 \
+    PAYLOAD_ROOT="$package_payload_root" OUT="$full_core" ARTIFACT_TIER=full ADVERTISE_PAYLOAD_TOOLS=1 \
         GRIT_TARGET_PRESET="$manifest_target_preset" \
         GRIT_TARGET_NAME="$TARGET_NAME" \
         GRIT_TARGET_ARCH="$TARGET_ARCH" \
@@ -696,6 +718,8 @@ else
     [ -n "$TARGET_PROFILE_FILE" ] && [ -f "$TARGET_PROFILE_FILE" ] || die "generated profile missing for $target"
     [ -n "$TARGET_BUILDROOT_DEFCONFIG" ] && [ -f "$TARGET_BUILDROOT_DEFCONFIG" ] || die "generated Buildroot defconfig missing for $target"
     TARGET="$target" TARGET_PROFILE_FILE="$TARGET_PROFILE_FILE" TARGET_BUILDROOT_DEFCONFIG="$TARGET_BUILDROOT_DEFCONFIG" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" BUILDROOT_OUTPUT_BASE="$BUILDROOT_OUTPUT_BASE" \
+        PAYLOAD_ROOT="$package_payload_root" \
+        PAYLOAD_ARCHIVE_PREFIX="$package_payload_archive_prefix" \
         GRIT_RUNTIME_MODE="$GRIT_RUNTIME_MODE" \
         GRIT_NORESIDUE_LEVEL="$GRIT_NORESIDUE_LEVEL" \
         GRIT_HEAVY_TOOLS="$GRIT_HEAVY_TOOLS" \
@@ -763,7 +787,7 @@ else
         fi
         rm -rf "$_wssl_probe_dir"
     fi
-    CC="$cross_cc" OUT="$full_core" ARTIFACT_TIER=full ADVERTISE_PAYLOAD_TOOLS=1 \
+    PAYLOAD_ROOT="$package_payload_root" CC="$cross_cc" OUT="$full_core" ARTIFACT_TIER=full ADVERTISE_PAYLOAD_TOOLS=1 \
         GRIT_TARGET_PRESET="$manifest_target_preset" \
         GRIT_TARGET_NAME="$TARGET_NAME" \
         GRIT_TARGET_ARCH="$TARGET_ARCH" \
@@ -855,7 +879,7 @@ fi
 
 if [ "$GRIT_BUILD_INTERNAL_CORE" = yes ]; then
     if [ "$target" = native ]; then
-        OUT="$core" ARTIFACT_TIER=core ADVERTISE_PAYLOAD_TOOLS=0 \
+        PAYLOAD_ROOT="$package_payload_root" OUT="$core" ARTIFACT_TIER=core ADVERTISE_PAYLOAD_TOOLS=0 \
             GRIT_TARGET_PRESET="$manifest_target_preset" \
             GRIT_TARGET_NAME="$TARGET_NAME" \
             GRIT_TARGET_ARCH="$TARGET_ARCH" \
@@ -891,7 +915,7 @@ if [ "$GRIT_BUILD_INTERNAL_CORE" = yes ]; then
             GRIT_COMMAND_QUEUE_MAX_POLLS="$GRIT_COMMAND_QUEUE_MAX_POLLS" \
             scripts/lib/build-native
     else
-        CC="$cross_cc" OUT="$core" ARTIFACT_TIER=core ADVERTISE_PAYLOAD_TOOLS=0 \
+        PAYLOAD_ROOT="$package_payload_root" CC="$cross_cc" OUT="$core" ARTIFACT_TIER=core ADVERTISE_PAYLOAD_TOOLS=0 \
             GRIT_TARGET_PRESET="$manifest_target_preset" \
             GRIT_TARGET_NAME="$TARGET_NAME" \
             GRIT_TARGET_ARCH="$TARGET_ARCH" \
@@ -946,5 +970,9 @@ else
     primary_output=$core
 fi
 
-release_package_target_lock
+if [ "${PACKAGE_TARGET_ISOLATED_PAYLOAD:-0}" = 1 ]; then
+    rm -rf "$package_payload_stage" "${package_payload_archive_prefix%/*}"
+else
+    release_package_target_lock
+fi
 printf '%s\n' "PASS $target -> $primary_output"

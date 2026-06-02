@@ -10,6 +10,11 @@ BUILDROOT_VERSION=${BUILDROOT_VERSION:-2026.02.2}
 BUILDROOT_TARBALL=${BUILDROOT_TARBALL:-dl/buildroot-$BUILDROOT_VERSION.tar.xz}
 BUILDROOT_DIR=${BUILDROOT_DIR:-buildroot/buildroot-$BUILDROOT_VERSION}
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
+PAYLOAD_ROOT=${PAYLOAD_ROOT:-runtime/payload}
+PAYLOAD_ARCHIVE_PREFIX=${PAYLOAD_ARCHIVE_PREFIX:-dist/payload}
+PAYLOAD_PARENT=${PAYLOAD_ROOT%/*}
+PAYLOAD_BASENAME=${PAYLOAD_ROOT##*/}
+[ "$PAYLOAD_PARENT" != "$PAYLOAD_ROOT" ] || PAYLOAD_PARENT=.
 OUT_BASE=${BUILDROOT_OUTPUT_BASE:-buildroot/output}
 JOBS=${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || printf 2)}
 STRICT_HEAVY_TOOLS=${STRICT_HEAVY_TOOLS:-0}
@@ -62,7 +67,7 @@ ensure_buildroot() {
 }
 
 stage_dotfiles() {
-    mkdir -p runtime/payload/home
+    mkdir -p $PAYLOAD_ROOT/home
     [ "${GRIT_DOTFILES_ENABLE:-yes}" = yes ] || return 0
     [ "${GRIT_RUNTIME_MODE:-extract}" != core-only ] || return 0
     stage_dotfile_one profile "${GRIT_DOTFILE_PROFILE_MODE:-default}" "${GRIT_DOTFILE_PROFILE_USER_FILE:-}" ".profile"
@@ -89,7 +94,7 @@ stage_dotfile_one() {
             ;;
         *) die "invalid $_app dotfile mode: $_mode" ;;
     esac
-    cp "$_src" "runtime/payload/home/$_name"
+    cp "$_src" "$PAYLOAD_ROOT/home/$_name"
 }
 
 copy_shared_libs_if_dynamic() {
@@ -98,12 +103,12 @@ copy_shared_libs_if_dynamic() {
         printf '%s\n' static
         return 0
     fi
-    mkdir -p runtime/payload/lib
+    mkdir -p $PAYLOAD_ROOT/lib
     if [ -d "$out_dir/target/lib" ]; then
-        find "$out_dir/target/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' -o -name 'ld-*.so*' \) -exec cp -P {} runtime/payload/lib/ \;
+        find "$out_dir/target/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' -o -name 'ld-*.so*' \) -exec cp -P {} $PAYLOAD_ROOT/lib/ \;
     fi
     if [ -d "$out_dir/target/usr/lib" ]; then
-        find "$out_dir/target/usr/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' \) -exec cp -P {} runtime/payload/lib/ \;
+        find "$out_dir/target/usr/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' \) -exec cp -P {} $PAYLOAD_ROOT/lib/ \;
     fi
     printf '%s\n' dynamic
 }
@@ -114,23 +119,23 @@ copy_shared_libs_for_dynamic_payload_tools() {
         printf '%s\n' "$status"
         return 0
     fi
-    find runtime/payload/bin -maxdepth 1 -type f -perm /111 -print 2>/dev/null | while IFS= read -r exe; do
+    find $PAYLOAD_ROOT/bin -maxdepth 1 -type f -perm /111 -print 2>/dev/null | while IFS= read -r exe; do
         if file "$exe" | grep -qi 'dynamically linked'; then
             printf '%s\n' "$exe"
         fi
-    done >runtime/payload/dynamic-tools.txt
-    if [ -s runtime/payload/dynamic-tools.txt ]; then
-        mkdir -p runtime/payload/lib
+    done >$PAYLOAD_ROOT/dynamic-tools.txt
+    if [ -s $PAYLOAD_ROOT/dynamic-tools.txt ]; then
+        mkdir -p $PAYLOAD_ROOT/lib
         if [ -d "$out_dir/target/lib" ]; then
-            find "$out_dir/target/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' -o -name 'ld-*.so*' \) -exec cp -P {} runtime/payload/lib/ \;
+            find "$out_dir/target/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' -o -name 'ld-*.so*' \) -exec cp -P {} $PAYLOAD_ROOT/lib/ \;
         fi
         if [ -d "$out_dir/target/usr/lib" ]; then
-            find "$out_dir/target/usr/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' \) -exec cp -P {} runtime/payload/lib/ \;
+            find "$out_dir/target/usr/lib" -maxdepth 1 \( -name '*.so' -o -name '*.so.*' \) -exec cp -P {} $PAYLOAD_ROOT/lib/ \;
         fi
-        printf '%s\n' "buildroot-build-payload: WARNING: staged dynamic payload tools require bundled shared libraries in runtime/payload/lib" >&2
+        printf '%s\n' "buildroot-build-payload: WARNING: staged dynamic payload tools require bundled shared libraries in $PAYLOAD_ROOT/lib" >&2
         printf '%s\n' dynamic
     else
-        rm -f runtime/payload/dynamic-tools.txt
+        rm -f $PAYLOAD_ROOT/dynamic-tools.txt
         printf '%s\n' "$status"
     fi
 }
@@ -148,10 +153,10 @@ stage_tool_path() {
     src=$2
     dst=${3:-${src##*/}}
     [ -x "$src" ] || return 1
-    cp "$src" "runtime/payload/bin/$dst"
-    chmod 0755 "runtime/payload/bin/$dst"
-    printf '%s\n' "$dst" >>runtime/payload/staged-tools.txt
-    printf '%s\n' "$requested" >>runtime/payload/built-tools.txt
+    cp "$src" "$PAYLOAD_ROOT/bin/$dst"
+    chmod 0755 "$PAYLOAD_ROOT/bin/$dst"
+    printf '%s\n' "$dst" >>$PAYLOAD_ROOT/staged-tools.txt
+    printf '%s\n' "$requested" >>$PAYLOAD_ROOT/built-tools.txt
 }
 
 stage_first_found() {
@@ -189,14 +194,14 @@ stage_doom_wad() {
         *.wad|*.WAD) ;;
         *) printf '%s\n' "buildroot-build-payload: WARNING: Doom WAD path does not end in .wad/.WAD: $_wad_path" >&2 ;;
     esac
-    mkdir -p runtime/payload/share/games/doom
-    cp "$_wad_path" "runtime/payload/share/games/doom/$_wad_name"
+    mkdir -p $PAYLOAD_ROOT/share/games/doom
+    cp "$_wad_path" "$PAYLOAD_ROOT/share/games/doom/$_wad_name"
     printf '%s\n' "buildroot-build-payload: staged Doom WAD $_wad_name"
 }
 
 write_doom_launcher() {
-    [ -x runtime/payload/bin/doom-ascii ] || return 1
-    cat >runtime/payload/bin/doom <<'EOF'
+    [ -x $PAYLOAD_ROOT/bin/doom-ascii ] || return 1
+    cat >$PAYLOAD_ROOT/bin/doom <<'EOF'
 #!/bin/sh
 PAYLOAD_DIR=${GRIT_PAYLOAD_DIR:-}
 if [ -z "$PAYLOAD_DIR" ]; then
@@ -207,9 +212,9 @@ for wad in "$PAYLOAD_DIR/share/games/doom"/*.wad "$PAYLOAD_DIR/share/games/doom"
 done
 exec "$PAYLOAD_DIR/bin/doom-ascii" "$@"
 EOF
-    chmod 0755 runtime/payload/bin/doom
-    printf '%s\n' doom >>runtime/payload/staged-tools.txt
-    printf '%s\n' doom >>runtime/payload/built-tools.txt
+    chmod 0755 $PAYLOAD_ROOT/bin/doom
+    printf '%s\n' doom >>$PAYLOAD_ROOT/staged-tools.txt
+    printf '%s\n' doom >>$PAYLOAD_ROOT/built-tools.txt
 }
 
 payload_sha_file() {
@@ -246,8 +251,8 @@ check_bin_arch_warn() {
     esac
     if ! printf '%s\n' "$_fout" | grep -qi "$_want"; then
         printf '%s\n' "buildroot-build-payload: WARNING: '$_name' may not match target arch for ${TARGET:-}: $_fout" >&2
-        mkdir -p runtime/payload/share/grit
-        printf '%s\n' "arch-mismatch:$_name" >>runtime/payload/share/grit/overlay-warnings.txt
+        mkdir -p $PAYLOAD_ROOT/share/grit
+        printf '%s\n' "arch-mismatch:$_name" >>$PAYLOAD_ROOT/share/grit/overlay-warnings.txt
     fi
 }
 
@@ -279,11 +284,11 @@ stage_user_binary() {
         return 1
     fi
     check_bin_arch_warn "$_src" "$_tool"
-    cp "$_src" "runtime/payload/bin/$_tool"
-    chmod 0755 "runtime/payload/bin/$_tool"
-    printf '%s\n' "$_tool" >>runtime/payload/staged-tools.txt
-    printf '%s\n' "$_tool" >>runtime/payload/built-tools.txt
-    printf '%s\n' "$_tool" >>runtime/payload/user-provided-tools.txt
+    cp "$_src" "$PAYLOAD_ROOT/bin/$_tool"
+    chmod 0755 "$PAYLOAD_ROOT/bin/$_tool"
+    printf '%s\n' "$_tool" >>$PAYLOAD_ROOT/staged-tools.txt
+    printf '%s\n' "$_tool" >>$PAYLOAD_ROOT/built-tools.txt
+    printf '%s\n' "$_tool" >>$PAYLOAD_ROOT/user-provided-tools.txt
     printf '%s\n' "buildroot-build-payload: staged user-supplied $_tool from $_src"
     return 0
 }
@@ -323,25 +328,25 @@ stage_dropin_tool() {
 apply_overlay_dir() {
     _src=$1
     _label=$2
-    _warn="runtime/payload/share/grit/overlay-warnings.txt"
+    _warn="$PAYLOAD_ROOT/share/grit/overlay-warnings.txt"
     [ -d "$_src" ] || return 0
     for _subdir in bin lib share home etc; do
         _subdir_src="$_src/$_subdir"
         [ -d "$_subdir_src" ] || continue
-        mkdir -p "runtime/payload/$_subdir"
+        mkdir -p "$PAYLOAD_ROOT/$_subdir"
         for _f in "$_subdir_src/"*; do
             [ -e "$_f" ] || continue
             _fname="${_f##*/}"
             case "$_fname" in
                 .git|.gitignore|.gitmodules|*.swp|*~|.DS_Store|.keep|.gitkeep|THIS_IS_YOUR_ROOT_FILESYSTEM) continue ;;
             esac
-            _target="runtime/payload/$_subdir/$_fname"
+            _target="$PAYLOAD_ROOT/$_subdir/$_fname"
             if [ -e "$_target" ]; then
                 if [ "$GRIT_USER_OVERLAY_ALLOW_OVERRIDE" = "yes" ]; then
                     printf '%s\n' "buildroot-build-payload: overlay [$_label] overriding: $_subdir/$_fname" >&2
                 else
                     printf '%s\n' "buildroot-build-payload: overlay [$_label] conflict (not overwriting): $_subdir/$_fname — set GRIT_USER_OVERLAY_ALLOW_OVERRIDE=yes to override" >&2
-                    mkdir -p runtime/payload/share/grit
+                    mkdir -p $PAYLOAD_ROOT/share/grit
                     printf '%s\n' "conflict:$_label:$_subdir/$_fname" >>"$_warn"
                     continue
                 fi
@@ -351,13 +356,13 @@ apply_overlay_dir() {
             else
                 cp "$_f" "$_target" || continue
             fi
-            printf '%s\n' "$_label:$_subdir/$_fname" >>runtime/payload/overlay-files.txt
+            printf '%s\n' "$_label:$_subdir/$_fname" >>$PAYLOAD_ROOT/overlay-files.txt
             if [ "$_subdir" = "bin" ]; then
                 chmod 0755 "$_target"
                 check_bin_arch_warn "$_target" "$_fname"
-                printf '%s\n' "$_fname" >>runtime/payload/staged-tools.txt
-                printf '%s\n' "$_fname" >>runtime/payload/built-tools.txt
-                printf '%s\n' "$_fname" >>runtime/payload/overlay-tools.txt
+                printf '%s\n' "$_fname" >>$PAYLOAD_ROOT/staged-tools.txt
+                printf '%s\n' "$_fname" >>$PAYLOAD_ROOT/built-tools.txt
+                printf '%s\n' "$_fname" >>$PAYLOAD_ROOT/overlay-tools.txt
                 printf '%s\n' "buildroot-build-payload: staged overlay [$_label] bin/$_fname"
             fi
         done
@@ -373,11 +378,11 @@ apply_overlays() {
     fi
     # The overlay root is the common directory; a <TARGET>/ subdir is applied on top.
     apply_overlay_dir "$GRIT_USER_OVERLAY_ROOT" "common"
-    printf '%s\n' "$GRIT_USER_OVERLAY_ROOT" >>runtime/payload/overlay-paths.txt
+    printf '%s\n' "$GRIT_USER_OVERLAY_ROOT" >>$PAYLOAD_ROOT/overlay-paths.txt
     _toverlay="$GRIT_USER_OVERLAY_ROOT/$TARGET"
     if [ -d "$_toverlay" ]; then
         apply_overlay_dir "$_toverlay" "$TARGET"
-        printf '%s\n' "$_toverlay" >>runtime/payload/overlay-paths.txt
+        printf '%s\n' "$_toverlay" >>$PAYLOAD_ROOT/overlay-paths.txt
     fi
     printf '%s\n' "buildroot-build-payload: overlay applied from $GRIT_USER_OVERLAY_ROOT"
 }
@@ -385,7 +390,7 @@ apply_overlays() {
 write_exclusion_reasons() {
     _pre=$1
     _failed=$2
-    _dir="runtime/payload/share/grit"
+    _dir="$PAYLOAD_ROOT/share/grit"
     mkdir -p "$_dir"
     _file="$_dir/exclusion-reasons.txt"
     : >"$_file"
@@ -401,18 +406,18 @@ write_exclusion_reasons() {
 }
 
 make_payload_archives() {
-    rm -f dist/payload.tar dist/payload.tar.gz
+    rm -f $PAYLOAD_ARCHIVE_PREFIX.tar $PAYLOAD_ARCHIVE_PREFIX.tar.gz
     if tar --version 2>/dev/null | grep -qi 'GNU tar'; then
-        tar --format=ustar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 1970-01-01' -C runtime -cf dist/payload.tar payload
-    elif tar --format=ustar -cf /dev/null -C runtime payload >/dev/null 2>&1; then
-        tar --format=ustar -C runtime -cf dist/payload.tar payload
+        tar --format=ustar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 1970-01-01' --transform "s|^$PAYLOAD_BASENAME|payload|" -C "$PAYLOAD_PARENT" -cf $PAYLOAD_ARCHIVE_PREFIX.tar "$PAYLOAD_BASENAME"
+    elif tar --format=ustar -cf /dev/null -C "$PAYLOAD_PARENT" "$PAYLOAD_BASENAME" >/dev/null 2>&1; then
+        tar --format=ustar -C "$PAYLOAD_PARENT" -cf $PAYLOAD_ARCHIVE_PREFIX.tar "$PAYLOAD_BASENAME"
     else
         printf '%s\n' "buildroot-build-payload: tar does not support --format=ustar; refusing to create payload for the built-in extractor" >&2
         exit 1
     fi
-    scripts/lib/check-payload-tar dist/payload.tar
+    scripts/lib/check-payload-tar $PAYLOAD_ARCHIVE_PREFIX.tar
     if command -v gzip >/dev/null 2>&1; then
-        gzip -n -c dist/payload.tar >dist/payload.tar.gz
+        gzip -n -c $PAYLOAD_ARCHIVE_PREFIX.tar >$PAYLOAD_ARCHIVE_PREFIX.tar.gz
     else
         printf '%s\n' "buildroot-build-payload: gzip is required for PAYLOAD_FORMAT=tgz" >&2
         [ "$PAYLOAD_FORMAT" = tar ] || exit 1
@@ -426,12 +431,12 @@ write_manifest() {
     libc=$(profile_value LIBC)
     kernel_floor=$(profile_value KERNEL_FLOOR)
     if command -v strings >/dev/null 2>&1; then
-        busybox_version=$(strings runtime/payload/bin/busybox | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
+        busybox_version=$(strings $PAYLOAD_ROOT/bin/busybox | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
     else
         busybox_version=unknown
     fi
     [ -n "$busybox_version" ] || busybox_version=unknown
-    scripts/lib/write-payload-manifest --target "$TARGET" --arch "$arch" --libc "$libc" --kernel-floor "$kernel_floor" --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$payload_sha" --requested-tools "$requested_tools" --overlay-enable "${GRIT_USER_OVERLAY_ENABLE:-no}" --overlay-root "${GRIT_USER_OVERLAY_ROOT:-}" --gdbserver-provider "$GDBSERVER_PROVIDER"
+    scripts/lib/write-payload-manifest --target "$TARGET" --arch "$arch" --libc "$libc" --kernel-floor "$kernel_floor" --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$payload_sha" --requested-tools "$requested_tools" --payload-dir "$PAYLOAD_ROOT" --overlay-enable "${GRIT_USER_OVERLAY_ENABLE:-no}" --overlay-root "${GRIT_USER_OVERLAY_ROOT:-}" --gdbserver-provider "$GDBSERVER_PROVIDER"
 }
 
 [ -f "$profile" ] || die "unknown TARGET=$TARGET; missing $profile"
@@ -482,7 +487,7 @@ if [ "$PREPARE_ONLY" -eq 1 ]; then
     printf '%s\n' "Buildroot ready at $BUILDROOT_DIR"
     exit 0
 fi
-mkdir -p "$out_dir" runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/payload/home dist
+mkdir -p "$out_dir" $PAYLOAD_ROOT/bin $PAYLOAD_ROOT/lib $PAYLOAD_ROOT/share $PAYLOAD_ROOT/home "${PAYLOAD_ARCHIVE_PREFIX%/*}"
 
 printf '%s\n' "configuring Buildroot payload for $TARGET..."
 cp "$defconfig" "$out_dir/.config"
@@ -572,24 +577,24 @@ busybox_src="$out_dir/target/bin/busybox"
 [ -x "$busybox_src" ] || busybox_src="$out_dir/target/usr/bin/busybox"
 [ -x "$busybox_src" ] || die "Buildroot completed but busybox was not found in $out_dir/target"
 
-rm -rf runtime/payload
-mkdir -p runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/payload/home
-cp "$busybox_src" runtime/payload/bin/busybox
-chmod 0755 runtime/payload/bin/busybox
-static_status=$(copy_shared_libs_if_dynamic runtime/payload/bin/busybox)
+rm -rf $PAYLOAD_ROOT
+mkdir -p $PAYLOAD_ROOT/bin $PAYLOAD_ROOT/lib $PAYLOAD_ROOT/share $PAYLOAD_ROOT/home
+cp "$busybox_src" $PAYLOAD_ROOT/bin/busybox
+chmod 0755 $PAYLOAD_ROOT/bin/busybox
+static_status=$(copy_shared_libs_if_dynamic $PAYLOAD_ROOT/bin/busybox)
 _bb_build_cfg=$(find "$out_dir/build" -maxdepth 2 -path '*/busybox-*/.config' -type f | sort | sed -n '1p')
 if [ -n "$_bb_build_cfg" ]; then
-    scripts/lib/busybox-applets-from-config "$_bb_build_cfg" >runtime/payload/busybox-applets.txt
+    scripts/lib/busybox-applets-from-config "$_bb_build_cfg" >$PAYLOAD_ROOT/busybox-applets.txt
 else
-    scripts/lib/discover-buildroot-applets "$out_dir/target" runtime/payload/busybox-applets.txt
+    scripts/lib/discover-buildroot-applets "$out_dir/target" $PAYLOAD_ROOT/busybox-applets.txt
 fi
-rm -f runtime/payload/staged-tools.txt runtime/payload/built-tools.txt \
-    runtime/payload/user-provided-tools.txt runtime/payload/overlay-tools.txt \
-    runtime/payload/overlay-files.txt runtime/payload/overlay-paths.txt
-: >runtime/payload/staged-tools.txt
-: >runtime/payload/built-tools.txt
-: >runtime/payload/user-provided-tools.txt
-mkdir -p runtime/payload/share/grit
+rm -f $PAYLOAD_ROOT/staged-tools.txt $PAYLOAD_ROOT/built-tools.txt \
+    $PAYLOAD_ROOT/user-provided-tools.txt $PAYLOAD_ROOT/overlay-tools.txt \
+    $PAYLOAD_ROOT/overlay-files.txt $PAYLOAD_ROOT/overlay-paths.txt
+: >$PAYLOAD_ROOT/staged-tools.txt
+: >$PAYLOAD_ROOT/built-tools.txt
+: >$PAYLOAD_ROOT/user-provided-tools.txt
+mkdir -p $PAYLOAD_ROOT/share/grit
 
 if tool_requested strace; then
     stage_first_found strace usr/bin/strace bin/strace || printf '%s\n' "buildroot-build-payload: requested strace but no built binary was found" >&2
@@ -645,9 +650,9 @@ if tool_requested dropbear; then
 fi
 if tool_requested dropbear && [ -n "${GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE:-}" ]; then
     if [ -f "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
-        mkdir -p runtime/payload/home/.ssh
-        cp "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" runtime/payload/home/.ssh/id_dbclient
-        chmod 600 runtime/payload/home/.ssh/id_dbclient
+        mkdir -p $PAYLOAD_ROOT/home/.ssh
+        cp "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" $PAYLOAD_ROOT/home/.ssh/id_dbclient
+        chmod 600 $PAYLOAD_ROOT/home/.ssh/id_dbclient
         printf '%s\n' "buildroot-build-payload: staged dbclient identity from $GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE"
     else
         printf '%s\n' "buildroot-build-payload: WARNING: GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE not found: $GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" >&2
@@ -655,9 +660,9 @@ if tool_requested dropbear && [ -n "${GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE:-}" ]
 fi
 if tool_requested dropbear && [ -n "${GRIT_OPERATOR_AUTHORIZED_KEY_FILE:-}" ]; then
     if [ -f "$GRIT_OPERATOR_AUTHORIZED_KEY_FILE" ]; then
-        mkdir -p runtime/payload/home/.ssh
-        cp "$GRIT_OPERATOR_AUTHORIZED_KEY_FILE" runtime/payload/home/.ssh/authorized_keys
-        chmod 600 runtime/payload/home/.ssh/authorized_keys
+        mkdir -p $PAYLOAD_ROOT/home/.ssh
+        cp "$GRIT_OPERATOR_AUTHORIZED_KEY_FILE" $PAYLOAD_ROOT/home/.ssh/authorized_keys
+        chmod 600 $PAYLOAD_ROOT/home/.ssh/authorized_keys
         printf '%s\n' "buildroot-build-payload: staged operator authorized_keys from $GRIT_OPERATOR_AUTHORIZED_KEY_FILE"
     else
         printf '%s\n' "buildroot-build-payload: WARNING: GRIT_OPERATOR_AUTHORIZED_KEY_FILE not found: $GRIT_OPERATOR_AUTHORIZED_KEY_FILE" >&2
@@ -771,11 +776,11 @@ fi
 if tool_requested doom; then
     stage_doom_wad
     if stage_first_found_as doom doom-ascii usr/bin/doom bin/doom usr/games/doom; then
-        require_static_payload_tool runtime/payload/bin/doom-ascii "doom-ascii"
+        require_static_payload_tool $PAYLOAD_ROOT/bin/doom-ascii "doom-ascii"
         if [ -f "$out_dir/target/usr/share/grit/doom/.default.cfg" ]; then
-            mkdir -p runtime/payload/share/doom
-            cp "$out_dir/target/usr/share/grit/doom/.default.cfg" runtime/payload/share/doom/.default.cfg
-            cp "$out_dir/target/usr/share/grit/doom/.default.cfg" runtime/payload/bin/.default.cfg
+            mkdir -p $PAYLOAD_ROOT/share/doom
+            cp "$out_dir/target/usr/share/grit/doom/.default.cfg" $PAYLOAD_ROOT/share/doom/.default.cfg
+            cp "$out_dir/target/usr/share/grit/doom/.default.cfg" $PAYLOAD_ROOT/bin/.default.cfg
         fi
         write_doom_launcher || printf '%s\n' "buildroot-build-payload: requested doom but launcher could not be written" >&2
     else
@@ -786,54 +791,54 @@ fi
 # Stage terminfo database if built
 for ti_src in "$out_dir/target/usr/share/terminfo" "$out_dir/target/lib/terminfo"; do
     if [ -d "$ti_src" ]; then
-        mkdir -p runtime/payload/share/terminfo
-        cp -r "$ti_src/." runtime/payload/share/terminfo/
+        mkdir -p $PAYLOAD_ROOT/share/terminfo
+        cp -r "$ti_src/." $PAYLOAD_ROOT/share/terminfo/
         printf '%s\n' "buildroot-build-payload: staged terminfo from $ti_src"
         break
     fi
 done
 
-sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
-sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
+sort -u $PAYLOAD_ROOT/staged-tools.txt -o $PAYLOAD_ROOT/staged-tools.txt
+sort -u $PAYLOAD_ROOT/built-tools.txt -o $PAYLOAD_ROOT/built-tools.txt
 
 # Initialize overlay tracking files and apply user overlays
-: >runtime/payload/overlay-tools.txt
-: >runtime/payload/overlay-files.txt
-: >runtime/payload/overlay-paths.txt
+: >$PAYLOAD_ROOT/overlay-tools.txt
+: >$PAYLOAD_ROOT/overlay-files.txt
+: >$PAYLOAD_ROOT/overlay-paths.txt
 apply_overlays
-sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
-sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
-sort -u runtime/payload/overlay-tools.txt -o runtime/payload/overlay-tools.txt
-sort -u runtime/payload/overlay-files.txt -o runtime/payload/overlay-files.txt
-sort -u runtime/payload/overlay-paths.txt -o runtime/payload/overlay-paths.txt
-sort -u runtime/payload/user-provided-tools.txt -o runtime/payload/user-provided-tools.txt
+sort -u $PAYLOAD_ROOT/staged-tools.txt -o $PAYLOAD_ROOT/staged-tools.txt
+sort -u $PAYLOAD_ROOT/built-tools.txt -o $PAYLOAD_ROOT/built-tools.txt
+sort -u $PAYLOAD_ROOT/overlay-tools.txt -o $PAYLOAD_ROOT/overlay-tools.txt
+sort -u $PAYLOAD_ROOT/overlay-files.txt -o $PAYLOAD_ROOT/overlay-files.txt
+sort -u $PAYLOAD_ROOT/overlay-paths.txt -o $PAYLOAD_ROOT/overlay-paths.txt
+sort -u $PAYLOAD_ROOT/user-provided-tools.txt -o $PAYLOAD_ROOT/user-provided-tools.txt
 
-scripts/lib/install-busybox-symlinks runtime/payload
+scripts/lib/install-busybox-symlinks $PAYLOAD_ROOT
 
 for _bb_tool in xxd gdb radare2 rizin gcore tshark doom; do
-    if tool_requested "$_bb_tool" && [ -e "runtime/payload/bin/$_bb_tool" ]; then
-        printf '%s\n' "$_bb_tool" >>runtime/payload/staged-tools.txt
-        printf '%s\n' "$_bb_tool" >>runtime/payload/built-tools.txt
+    if tool_requested "$_bb_tool" && [ -e "$PAYLOAD_ROOT/bin/$_bb_tool" ]; then
+        printf '%s\n' "$_bb_tool" >>$PAYLOAD_ROOT/staged-tools.txt
+        printf '%s\n' "$_bb_tool" >>$PAYLOAD_ROOT/built-tools.txt
     fi
 done
-sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
-sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
+sort -u $PAYLOAD_ROOT/staged-tools.txt -o $PAYLOAD_ROOT/staged-tools.txt
+sort -u $PAYLOAD_ROOT/built-tools.txt -o $PAYLOAD_ROOT/built-tools.txt
 
 stage_dotfiles
-printf '%s\n' "${GRIT_PAYLOAD_VERSION:-dev}" >runtime/payload/VERSION
+printf '%s\n' "${GRIT_PAYLOAD_VERSION:-dev}" >$PAYLOAD_ROOT/VERSION
 
 write_exclusion_reasons "${pre_excluded:-}" "${build_failed_tools:-}"
 static_status=$(copy_shared_libs_for_dynamic_payload_tools "$static_status")
 write_manifest "$static_status" pending
 make_payload_archives
-if [ "$PAYLOAD_FORMAT" = "tar" ]; then selected=dist/payload.tar; else selected=dist/payload.tar.gz; fi
+if [ "$PAYLOAD_FORMAT" = "tar" ]; then selected=$PAYLOAD_ARCHIVE_PREFIX.tar; else selected=$PAYLOAD_ARCHIVE_PREFIX.tar.gz; fi
 payload_sha=$(payload_sha_file "$selected")
 write_manifest "$static_status" "$payload_sha"
 make_payload_archives
-if [ "$PAYLOAD_FORMAT" = "tar" ]; then selected=dist/payload.tar; else selected=dist/payload.tar.gz; fi
+if [ "$PAYLOAD_FORMAT" = "tar" ]; then selected=$PAYLOAD_ARCHIVE_PREFIX.tar; else selected=$PAYLOAD_ARCHIVE_PREFIX.tar.gz; fi
 payload_sha=$(payload_sha_file "$selected")
 write_manifest "$static_status" "$payload_sha"
 make_payload_archives
-payload_sha_file dist/payload.tar | awk '{print $1 "  dist/payload.tar"}' >dist/payload.tar.sha256
-payload_sha_file dist/payload.tar.gz | awk '{print $1 "  dist/payload.tar.gz"}' >dist/payload.tar.gz.sha256
+payload_sha_file $PAYLOAD_ARCHIVE_PREFIX.tar | awk -v file="$PAYLOAD_ARCHIVE_PREFIX.tar" '{print $1 "  " file}' >$PAYLOAD_ARCHIVE_PREFIX.tar.sha256
+payload_sha_file $PAYLOAD_ARCHIVE_PREFIX.tar.gz | awk -v file="$PAYLOAD_ARCHIVE_PREFIX.tar.gz" '{print $1 "  " file}' >$PAYLOAD_ARCHIVE_PREFIX.tar.gz.sha256
 printf '%s\n' "created payload archives for $TARGET"

@@ -17,23 +17,31 @@ _dot_gdb_file_from_env=${GRIT_DOTFILE_GDB_USER_FILE:-}
 _dot_profile_mode_from_env=${GRIT_DOTFILE_PROFILE_MODE:-}
 _dot_profile_file_from_env=${GRIT_DOTFILE_PROFILE_USER_FILE:-}
 PAYLOAD_FORMAT=${PAYLOAD_FORMAT:-tgz}
+PAYLOAD_ROOT=${PAYLOAD_ROOT:-runtime/payload}
+PAYLOAD_ARCHIVE_PREFIX=${PAYLOAD_ARCHIVE_PREFIX:-dist/payload}
+PAYLOAD_PARENT=${PAYLOAD_ROOT%/*}
+PAYLOAD_BASENAME=${PAYLOAD_ROOT##*/}
+[ "$PAYLOAD_PARENT" != "$PAYLOAD_ROOT" ] || PAYLOAD_PARENT=.
 
 if [ "$TARGET" != "native" ]; then
-    TARGET="$TARGET" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" scripts/lib/buildroot-build-payload
+    TARGET="$TARGET" PAYLOAD_FORMAT="$PAYLOAD_FORMAT" \
+        PAYLOAD_ROOT="$PAYLOAD_ROOT" \
+        PAYLOAD_ARCHIVE_PREFIX="$PAYLOAD_ARCHIVE_PREFIX" \
+        scripts/lib/buildroot-build-payload
     exit $?
 fi
 
-mkdir -p runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/payload/home dist
-if [ ! -x runtime/payload/bin/busybox ]; then
-    printf '%s\n' "runtime/payload/bin/busybox missing; run make busybox first" >&2
+mkdir -p $PAYLOAD_ROOT/bin $PAYLOAD_ROOT/lib $PAYLOAD_ROOT/share $PAYLOAD_ROOT/home "${PAYLOAD_ARCHIVE_PREFIX%/*}"
+if [ ! -x $PAYLOAD_ROOT/bin/busybox ]; then
+    printf '%s\n' "$PAYLOAD_ROOT/bin/busybox missing; run make busybox first" >&2
     exit 1
 fi
-busybox_tmp="runtime/busybox.$$"
-cp runtime/payload/bin/busybox "$busybox_tmp"
-rm -rf runtime/payload
-mkdir -p runtime/payload/bin runtime/payload/lib runtime/payload/share runtime/payload/home
-mv "$busybox_tmp" runtime/payload/bin/busybox
-chmod 0755 runtime/payload/bin/busybox
+busybox_tmp="$PAYLOAD_PARENT/busybox.$$"
+cp $PAYLOAD_ROOT/bin/busybox "$busybox_tmp"
+rm -rf $PAYLOAD_ROOT
+mkdir -p $PAYLOAD_ROOT/bin $PAYLOAD_ROOT/lib $PAYLOAD_ROOT/share $PAYLOAD_ROOT/home
+mv "$busybox_tmp" $PAYLOAD_ROOT/bin/busybox
+chmod 0755 $PAYLOAD_ROOT/bin/busybox
 
 # Read config if it exists
 config=${GRIT_CONFIG:-configs/grit.conf}
@@ -44,7 +52,7 @@ fi
 # Resolve version and format: env > config file > built-in default
 VERSION=${_ver_from_env:-${GRIT_PAYLOAD_VERSION:-dev}}
 PAYLOAD_FORMAT=${_pf_from_env:-${GRIT_PAYLOAD_FORMAT:-tgz}}
-printf '%s\n' "$VERSION" >runtime/payload/VERSION
+printf '%s\n' "$VERSION" >$PAYLOAD_ROOT/VERSION
 
 GRIT_HEAVY_TOOLS="${GRIT_HEAVY_TOOLS:-}"
 GRIT_DROPBEAR_SERVER_MODE="${GRIT_DROPBEAR_SERVER_MODE:-no}"
@@ -81,7 +89,7 @@ GRIT_DOOM_WAD_PATH="${GRIT_DOOM_WAD_PATH:-}"
 stage_dotfiles() {
     [ "$GRIT_DOTFILES_ENABLE" = yes ] || return 0
     [ "$GRIT_RUNTIME_MODE" != core-only ] || return 0
-    mkdir -p runtime/payload/home
+    mkdir -p $PAYLOAD_ROOT/home
     stage_dotfile_one profile "$GRIT_DOTFILE_PROFILE_MODE" "$GRIT_DOTFILE_PROFILE_USER_FILE" ".profile"
     stage_dotfile_one zsh "$GRIT_DOTFILE_ZSH_MODE" "$GRIT_DOTFILE_ZSH_USER_FILE" ".zshrc"
     stage_dotfile_one bash "$GRIT_DOTFILE_BASH_MODE" "$GRIT_DOTFILE_BASH_USER_FILE" ".bashrc"
@@ -115,7 +123,7 @@ stage_dotfile_one() {
             exit 1
             ;;
     esac
-    cp "$_src" "runtime/payload/home/$_name"
+    cp "$_src" "$PAYLOAD_ROOT/home/$_name"
 }
 
 stage_dotfiles
@@ -126,21 +134,21 @@ for tool in bash zsh tmux strace gdbserver dropbear dbclient dropbearkey curl dr
     ltrace readelf objdump lsusb lspci gdb radare2 rizin gcore tshark nmap ncat pstree openssl fd zoxide flash_erase nanddump nandwrite \
     mtd_debug ubinfo ubiattach ubidetach ubimkvol ubirmvol ubirsvol ubiupdatevol i2cdetect i2cget i2cset \
     i2cdump spidev_test spidev_fdx mmc debugfs tune2fs e2fsck lsattr chattr parted doom prboom chocolate-doom; do
-    rm -f "runtime/payload/bin/$tool"
+    rm -f "$PAYLOAD_ROOT/bin/$tool"
 done
-rm -f runtime/payload/busybox-applets.txt runtime/payload/staged-tools.txt runtime/payload/built-tools.txt \
-    runtime/payload/overlay-tools.txt runtime/payload/overlay-files.txt runtime/payload/overlay-paths.txt \
-    runtime/payload/user-provided-tools.txt
-mkdir -p runtime/payload/share/grit
-: >runtime/payload/staged-tools.txt
-: >runtime/payload/built-tools.txt
-: >runtime/payload/overlay-tools.txt
-: >runtime/payload/overlay-files.txt
-: >runtime/payload/overlay-paths.txt
-: >runtime/payload/user-provided-tools.txt
+rm -f $PAYLOAD_ROOT/busybox-applets.txt $PAYLOAD_ROOT/staged-tools.txt $PAYLOAD_ROOT/built-tools.txt \
+    $PAYLOAD_ROOT/overlay-tools.txt $PAYLOAD_ROOT/overlay-files.txt $PAYLOAD_ROOT/overlay-paths.txt \
+    $PAYLOAD_ROOT/user-provided-tools.txt
+mkdir -p $PAYLOAD_ROOT/share/grit
+: >$PAYLOAD_ROOT/staged-tools.txt
+: >$PAYLOAD_ROOT/built-tools.txt
+: >$PAYLOAD_ROOT/overlay-tools.txt
+: >$PAYLOAD_ROOT/overlay-files.txt
+: >$PAYLOAD_ROOT/overlay-paths.txt
+: >$PAYLOAD_ROOT/user-provided-tools.txt
 
-if ! runtime/payload/bin/busybox --list >runtime/payload/busybox-applets.txt 2>/dev/null || [ ! -s runtime/payload/busybox-applets.txt ]; then
-    printf '%s\n' "build-payload: unable to discover native BusyBox applets from runtime/payload/bin/busybox --list" >&2
+if ! $PAYLOAD_ROOT/bin/busybox --list >$PAYLOAD_ROOT/busybox-applets.txt 2>/dev/null || [ ! -s $PAYLOAD_ROOT/busybox-applets.txt ]; then
+    printf '%s\n' "build-payload: unable to discover native BusyBox applets from $PAYLOAD_ROOT/bin/busybox --list" >&2
     exit 1
 fi
 
@@ -149,10 +157,10 @@ stage_real_tool() {
     src=$2
     dst=${3:-$tool}
     [ -n "$src" ] && [ -x "$src" ] || return 1
-    cp "$src" "runtime/payload/bin/$dst"
-    chmod 0755 "runtime/payload/bin/$dst"
-    printf '%s\n' "$dst" >>runtime/payload/staged-tools.txt
-    printf '%s\n' "$tool" >>runtime/payload/built-tools.txt
+    cp "$src" "$PAYLOAD_ROOT/bin/$dst"
+    chmod 0755 "$PAYLOAD_ROOT/bin/$dst"
+    printf '%s\n' "$dst" >>$PAYLOAD_ROOT/staged-tools.txt
+    printf '%s\n' "$tool" >>$PAYLOAD_ROOT/built-tools.txt
     return 0
 }
 
@@ -161,7 +169,7 @@ stage_user_binary() {
     src=$2
     dst=${3:-$tool}
     stage_real_tool "$tool" "$src" "$dst" || return 1
-    printf '%s\n' "$tool" >>runtime/payload/user-provided-tools.txt
+    printf '%s\n' "$tool" >>$PAYLOAD_ROOT/user-provided-tools.txt
     return 0
 }
 
@@ -187,7 +195,7 @@ stage_dropin_tool() {
     if scripts/tools/check-dropin-tool --tool "$_tool" --path "$_path" \
             --target "$GRIT_TARGET_NAME" --arch "$GRIT_TARGET_ARCH" --libc "$GRIT_TARGET_LIBC" --strict >/dev/null; then
         stage_real_tool "$_tool" "$_path" "$_tool" || return 1
-        printf '%s\n' "$_tool" >>runtime/payload/user-provided-tools.txt
+        printf '%s\n' "$_tool" >>$PAYLOAD_ROOT/user-provided-tools.txt
         printf '%s\n' "build-payload: staged $_tool from local drop-in $_path"
         return 0
     fi
@@ -213,11 +221,11 @@ stage_host_terminfo() {
         [ -d "$root" ] || continue
         for term in t/tmux t/tmux-256color t/tmux-direct s/screen s/screen-256color x/xterm x/xterm-256color; do
             [ -f "$root/$term" ] || continue
-            mkdir -p "runtime/payload/share/terminfo/${term%/*}"
-            cp "$root/$term" "runtime/payload/share/terminfo/$term"
+            mkdir -p "$PAYLOAD_ROOT/share/terminfo/${term%/*}"
+            cp "$root/$term" "$PAYLOAD_ROOT/share/terminfo/$term"
         done
     done
-    if [ -d runtime/payload/share/terminfo ]; then
+    if [ -d $PAYLOAD_ROOT/share/terminfo ]; then
         printf '%s\n' "build-payload: staged host terminfo entries"
     else
         printf '%s\n' "build-payload: WARNING: terminal tools selected but no host terminfo entries were found" >&2
@@ -238,8 +246,8 @@ stage_doom_wad() {
         *.wad|*.WAD) ;;
         *) printf '%s\n' "build-payload: WARNING: doom WAD path does not end in .wad/.WAD: $GRIT_DOOM_WAD_PATH" >&2 ;;
     esac
-    mkdir -p runtime/payload/share/games/doom
-    cp "$GRIT_DOOM_WAD_PATH" "runtime/payload/share/games/doom/$_wad_name"
+    mkdir -p $PAYLOAD_ROOT/share/games/doom
+    cp "$GRIT_DOOM_WAD_PATH" "$PAYLOAD_ROOT/share/games/doom/$_wad_name"
     printf '%s\n' "build-payload: staged Doom WAD $_wad_name"
 }
 
@@ -323,15 +331,15 @@ for tool in bash zsh tmux strace gdbserver gdb dropbear curl socat tcpdump rsync
     fi
 done
 
-sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
-sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
+sort -u $PAYLOAD_ROOT/staged-tools.txt -o $PAYLOAD_ROOT/staged-tools.txt
+sort -u $PAYLOAD_ROOT/built-tools.txt -o $PAYLOAD_ROOT/built-tools.txt
 
 # Dropbear: stage authorized_keys from host if configured
 if tool_selected dropbear && [ -n "$GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE" ]; then
     if [ -f "$GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE" ]; then
-        mkdir -p runtime/payload/home/.ssh
-        cp "$GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE" runtime/payload/home/.ssh/authorized_keys
-        chmod 600 runtime/payload/home/.ssh/authorized_keys
+        mkdir -p $PAYLOAD_ROOT/home/.ssh
+        cp "$GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE" $PAYLOAD_ROOT/home/.ssh/authorized_keys
+        chmod 600 $PAYLOAD_ROOT/home/.ssh/authorized_keys
         printf '%s\n' "build-payload: staged authorized_keys from $GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE"
     else
         printf '%s\n' "build-payload: WARNING: GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE not found: $GRIT_DROPBEAR_AUTHORIZED_KEYS_FILE" >&2
@@ -340,9 +348,9 @@ fi
 
 if tool_selected dropbear && [ -n "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
     if [ -f "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" ]; then
-        mkdir -p runtime/payload/home/.ssh
-        cp "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" runtime/payload/home/.ssh/id_dbclient
-        chmod 600 runtime/payload/home/.ssh/id_dbclient
+        mkdir -p $PAYLOAD_ROOT/home/.ssh
+        cp "$GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" $PAYLOAD_ROOT/home/.ssh/id_dbclient
+        chmod 600 $PAYLOAD_ROOT/home/.ssh/id_dbclient
         printf '%s\n' "build-payload: staged dbclient identity from $GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE"
     else
         printf '%s\n' "build-payload: WARNING: GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE not found: $GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE" >&2
@@ -351,9 +359,9 @@ fi
 
 # Dropbear: pre-generate host key at build time
 if tool_selected dropbear && [ "$GRIT_DROPBEAR_PREGENERATE_HOSTKEY" = yes ]; then
-    mkdir -p runtime/payload/etc/dropbear
+    mkdir -p $PAYLOAD_ROOT/etc/dropbear
     for _kt in $GRIT_DROPBEAR_KEYTYPES; do
-        _kf="runtime/payload/etc/dropbear/dropbear_${_kt}_host_key"
+        _kf="$PAYLOAD_ROOT/etc/dropbear/dropbear_${_kt}_host_key"
         if [ ! -f "$_kf" ]; then
             if command -v dropbearkey >/dev/null 2>&1; then
                 dropbearkey -t "$_kt" -f "$_kf"
@@ -367,7 +375,7 @@ fi
 
 # Dropbear: generate server startup wrapper when server mode is enabled
 if tool_selected dropbear && [ "$GRIT_DROPBEAR_SERVER_MODE" = yes ]; then
-    mkdir -p runtime/payload/etc/dropbear
+    mkdir -p $PAYLOAD_ROOT/etc/dropbear
     _db_flags="-p ${GRIT_DROPBEAR_BIND_HOST}:${GRIT_DROPBEAR_LISTEN_PORT}"
     [ "$GRIT_DROPBEAR_NO_PASSWORD_AUTH" = yes ] && _db_flags="$_db_flags -s"
     [ "$GRIT_DROPBEAR_NO_ROOT_PASSWORD" = yes ]  && _db_flags="$_db_flags -g"
@@ -383,8 +391,8 @@ if tool_selected dropbear && [ "$GRIT_DROPBEAR_SERVER_MODE" = yes ]; then
         printf '    [ -f "$kf" ] || "$DROPBEARKEY" -t "$kt" -f "$kf" >/dev/null 2>&1 || true\n'
         printf 'done\n'
         printf 'exec "$DROPBEAR" %s "$@"\n' "$_db_flags"
-    } >runtime/payload/bin/dropbear-start
-    chmod 0755 runtime/payload/bin/dropbear-start
+    } >$PAYLOAD_ROOT/bin/dropbear-start
+    chmod 0755 $PAYLOAD_ROOT/bin/dropbear-start
     printf '%s\n' "build-payload: generated dropbear-start (listen=${GRIT_DROPBEAR_BIND_HOST}:${GRIT_DROPBEAR_LISTEN_PORT})"
 fi
 
@@ -399,75 +407,75 @@ apply_overlay() {
     for _subdir in bin lib share home etc; do
         _src="$GRIT_USER_OVERLAY_ROOT/$_subdir"
         [ -d "$_src" ] || continue
-        mkdir -p "runtime/payload/$_subdir"
+        mkdir -p "$PAYLOAD_ROOT/$_subdir"
         for _f in "$_src/"*; do
             [ -e "$_f" ] || continue
             _fname="${_f##*/}"
             case "$_fname" in
                 .git|.gitignore|.gitmodules|*.swp|*~|.DS_Store|.keep|.gitkeep|THIS_IS_YOUR_ROOT_FILESYSTEM) continue ;;
             esac
-            _target="runtime/payload/$_subdir/$_fname"
+            _target="$PAYLOAD_ROOT/$_subdir/$_fname"
             if [ -e "$_target" ] && [ "$GRIT_USER_OVERLAY_ALLOW_OVERRIDE" != "yes" ]; then
                 printf '%s\n' "build-payload: overlay conflict (not overwriting): $_subdir/$_fname" >&2
                 continue
             fi
             cp "$_f" "$_target" || continue
             [ "$_subdir" = "bin" ] && chmod 0755 "$_target"
-            printf '%s\n' "$_subdir/$_fname" >>runtime/payload/overlay-files.txt
-            [ "$_subdir" = "bin" ] && printf '%s\n' "$_fname" >>runtime/payload/overlay-tools.txt
+            printf '%s\n' "$_subdir/$_fname" >>$PAYLOAD_ROOT/overlay-files.txt
+            [ "$_subdir" = "bin" ] && printf '%s\n' "$_fname" >>$PAYLOAD_ROOT/overlay-tools.txt
             _applied=$((_applied + 1))
         done
     done
-    [ "$_applied" -gt 0 ] && printf '%s\n' "$GRIT_USER_OVERLAY_ROOT" >>runtime/payload/overlay-paths.txt
+    [ "$_applied" -gt 0 ] && printf '%s\n' "$GRIT_USER_OVERLAY_ROOT" >>$PAYLOAD_ROOT/overlay-paths.txt
     _toverlay="$GRIT_USER_OVERLAY_ROOT/native"
     if [ -d "$_toverlay" ]; then
         _target_applied=0
         for _subdir in bin lib share home etc; do
             _src="$_toverlay/$_subdir"
             [ -d "$_src" ] || continue
-            mkdir -p "runtime/payload/$_subdir"
+            mkdir -p "$PAYLOAD_ROOT/$_subdir"
             for _f in "$_src/"*; do
                 [ -e "$_f" ] || continue
                 _fname="${_f##*/}"
                 case "$_fname" in
                     .git|.gitignore|.gitmodules|*.swp|*~|.DS_Store|.keep|.gitkeep|THIS_IS_YOUR_ROOT_FILESYSTEM) continue ;;
                 esac
-                _target="runtime/payload/$_subdir/$_fname"
+                _target="$PAYLOAD_ROOT/$_subdir/$_fname"
                 if [ -e "$_target" ] && [ "$GRIT_USER_OVERLAY_ALLOW_OVERRIDE" != "yes" ]; then
                     printf '%s\n' "build-payload: overlay conflict (not overwriting): native/$_subdir/$_fname" >&2
                     continue
                 fi
                 cp "$_f" "$_target" || continue
                 [ "$_subdir" = "bin" ] && chmod 0755 "$_target"
-                printf '%s\n' "native/$_subdir/$_fname" >>runtime/payload/overlay-files.txt
-                [ "$_subdir" = "bin" ] && printf '%s\n' "$_fname" >>runtime/payload/overlay-tools.txt
+                printf '%s\n' "native/$_subdir/$_fname" >>$PAYLOAD_ROOT/overlay-files.txt
+                [ "$_subdir" = "bin" ] && printf '%s\n' "$_fname" >>$PAYLOAD_ROOT/overlay-tools.txt
                 _target_applied=$((_target_applied + 1))
                 _applied=$((_applied + 1))
             done
         done
-        [ "$_target_applied" -gt 0 ] && printf '%s\n' "$_toverlay" >>runtime/payload/overlay-paths.txt
+        [ "$_target_applied" -gt 0 ] && printf '%s\n' "$_toverlay" >>$PAYLOAD_ROOT/overlay-paths.txt
     fi
     [ "$_applied" -gt 0 ] && printf '%s\n' "build-payload: overlay applied from $GRIT_USER_OVERLAY_ROOT ($_applied files)"
     return 0
 }
 
 apply_overlay
-scripts/lib/install-busybox-symlinks runtime/payload
+scripts/lib/install-busybox-symlinks $PAYLOAD_ROOT
 stage_host_terminfo
 tool_selected doom && stage_doom_wad
 
 for tool in xxd doom gdb radare2 rizin gcore tshark; do
-    if tool_selected "$tool" && [ -e "runtime/payload/bin/$tool" ]; then
-        printf '%s\n' "$tool" >>runtime/payload/staged-tools.txt
-        printf '%s\n' "$tool" >>runtime/payload/built-tools.txt
+    if tool_selected "$tool" && [ -e "$PAYLOAD_ROOT/bin/$tool" ]; then
+        printf '%s\n' "$tool" >>$PAYLOAD_ROOT/staged-tools.txt
+        printf '%s\n' "$tool" >>$PAYLOAD_ROOT/built-tools.txt
     fi
 done
-sort -u runtime/payload/staged-tools.txt -o runtime/payload/staged-tools.txt
-sort -u runtime/payload/built-tools.txt -o runtime/payload/built-tools.txt
-sort -u runtime/payload/overlay-tools.txt -o runtime/payload/overlay-tools.txt
-sort -u runtime/payload/overlay-files.txt -o runtime/payload/overlay-files.txt
-sort -u runtime/payload/overlay-paths.txt -o runtime/payload/overlay-paths.txt
-sort -u runtime/payload/user-provided-tools.txt -o runtime/payload/user-provided-tools.txt
+sort -u $PAYLOAD_ROOT/staged-tools.txt -o $PAYLOAD_ROOT/staged-tools.txt
+sort -u $PAYLOAD_ROOT/built-tools.txt -o $PAYLOAD_ROOT/built-tools.txt
+sort -u $PAYLOAD_ROOT/overlay-tools.txt -o $PAYLOAD_ROOT/overlay-tools.txt
+sort -u $PAYLOAD_ROOT/overlay-files.txt -o $PAYLOAD_ROOT/overlay-files.txt
+sort -u $PAYLOAD_ROOT/overlay-paths.txt -o $PAYLOAD_ROOT/overlay-paths.txt
+sort -u $PAYLOAD_ROOT/user-provided-tools.txt -o $PAYLOAD_ROOT/user-provided-tools.txt
 
 payload_sha() {
     if command -v sha256sum >/dev/null 2>&1; then
@@ -480,18 +488,18 @@ payload_sha() {
 }
 
 make_payload_archives() {
-    rm -f dist/payload.tar dist/payload.tar.gz
+    rm -f $PAYLOAD_ARCHIVE_PREFIX.tar $PAYLOAD_ARCHIVE_PREFIX.tar.gz
     if tar --version 2>/dev/null | grep -qi 'GNU tar'; then
-        tar --format=ustar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 1970-01-01' -C runtime -cf dist/payload.tar payload
-    elif tar --format=ustar -cf /dev/null -C runtime payload >/dev/null 2>&1; then
-        tar --format=ustar -C runtime -cf dist/payload.tar payload
+        tar --format=ustar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 1970-01-01' --transform "s|^$PAYLOAD_BASENAME|payload|" -C "$PAYLOAD_PARENT" -cf $PAYLOAD_ARCHIVE_PREFIX.tar "$PAYLOAD_BASENAME"
+    elif tar --format=ustar -cf /dev/null -C "$PAYLOAD_PARENT" "$PAYLOAD_BASENAME" >/dev/null 2>&1; then
+        tar --format=ustar -C "$PAYLOAD_PARENT" -cf $PAYLOAD_ARCHIVE_PREFIX.tar "$PAYLOAD_BASENAME"
     else
         printf '%s\n' "build-payload: tar does not support --format=ustar; refusing to create payload for the built-in extractor" >&2
         exit 1
     fi
-    scripts/lib/check-payload-tar dist/payload.tar
+    scripts/lib/check-payload-tar $PAYLOAD_ARCHIVE_PREFIX.tar
     if command -v gzip >/dev/null 2>&1; then
-        gzip -n -c dist/payload.tar >dist/payload.tar.gz
+        gzip -n -c $PAYLOAD_ARCHIVE_PREFIX.tar >$PAYLOAD_ARCHIVE_PREFIX.tar.gz
     else
         printf '%s\n' "build-payload: gzip is required for PAYLOAD_FORMAT=tgz" >&2
         [ "$PAYLOAD_FORMAT" = "tar" ] || exit 1
@@ -499,29 +507,29 @@ make_payload_archives() {
 }
 
 static_status=dynamic
-if command -v file >/dev/null 2>&1 && file runtime/payload/bin/busybox | grep -qi 'statically linked'; then
+if command -v file >/dev/null 2>&1 && file $PAYLOAD_ROOT/bin/busybox | grep -qi 'statically linked'; then
     static_status=static
 fi
-busybox_version=$(runtime/payload/bin/busybox 2>&1 | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
+busybox_version=$($PAYLOAD_ROOT/bin/busybox 2>&1 | sed -n 's/^BusyBox v\([^ ]*\).*/\1/p' | sed -n '1p')
 [ -n "$busybox_version" ] || busybox_version=unknown
-scripts/lib/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 pending --requested-tools "$GRIT_HEAVY_TOOLS" --gdbserver-provider "$GRIT_GDBSERVER_PROVIDER"
+scripts/lib/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 pending --requested-tools "$GRIT_HEAVY_TOOLS" --payload-dir "$PAYLOAD_ROOT" --gdbserver-provider "$GRIT_GDBSERVER_PROVIDER"
 make_payload_archives
 if [ "$PAYLOAD_FORMAT" = "tar" ]; then
-    selected=dist/payload.tar
+    selected=$PAYLOAD_ARCHIVE_PREFIX.tar
 else
-    selected=dist/payload.tar.gz
+    selected=$PAYLOAD_ARCHIVE_PREFIX.tar.gz
 fi
 sha=$(payload_sha "$selected")
-scripts/lib/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$sha" --requested-tools "$GRIT_HEAVY_TOOLS" --gdbserver-provider "$GRIT_GDBSERVER_PROVIDER"
+scripts/lib/write-payload-manifest --target native --arch native --libc host --kernel-floor host --busybox-version "$busybox_version" --static-status "$static_status" --payload-sha256 "$sha" --requested-tools "$GRIT_HEAVY_TOOLS" --payload-dir "$PAYLOAD_ROOT" --gdbserver-provider "$GRIT_GDBSERVER_PROVIDER"
 make_payload_archives
 if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum dist/payload.tar >dist/payload.tar.sha256
-    [ -f dist/payload.tar.gz ] && sha256sum dist/payload.tar.gz >dist/payload.tar.gz.sha256
+    sha256sum $PAYLOAD_ARCHIVE_PREFIX.tar >$PAYLOAD_ARCHIVE_PREFIX.tar.sha256
+    [ -f $PAYLOAD_ARCHIVE_PREFIX.tar.gz ] && sha256sum $PAYLOAD_ARCHIVE_PREFIX.tar.gz >$PAYLOAD_ARCHIVE_PREFIX.tar.gz.sha256
 elif command -v shasum >/dev/null 2>&1; then
-    shasum -a 256 dist/payload.tar >dist/payload.tar.sha256
-    [ -f dist/payload.tar.gz ] && shasum -a 256 dist/payload.tar.gz >dist/payload.tar.gz.sha256
+    shasum -a 256 $PAYLOAD_ARCHIVE_PREFIX.tar >$PAYLOAD_ARCHIVE_PREFIX.tar.sha256
+    [ -f $PAYLOAD_ARCHIVE_PREFIX.tar.gz ] && shasum -a 256 $PAYLOAD_ARCHIVE_PREFIX.tar.gz >$PAYLOAD_ARCHIVE_PREFIX.tar.gz.sha256
 else
-    printf '%s\n' "sha256 unavailable" >dist/payload.tar.sha256
-    printf '%s\n' "sha256 unavailable" >dist/payload.tar.gz.sha256
+    printf '%s\n' "sha256 unavailable" >$PAYLOAD_ARCHIVE_PREFIX.tar.sha256
+    printf '%s\n' "sha256 unavailable" >$PAYLOAD_ARCHIVE_PREFIX.tar.gz.sha256
 fi
-printf '%s\n' "created dist/payload.tar and dist/payload.tar.gz"
+printf '%s\n' "created $PAYLOAD_ARCHIVE_PREFIX.tar and $PAYLOAD_ARCHIVE_PREFIX.tar.gz"

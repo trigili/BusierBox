@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
+import os
 import pathlib
 import subprocess
 
-payload = pathlib.Path("runtime/payload")
-src = pathlib.Path("src")
-src.mkdir(exist_ok=True)
+payload = pathlib.Path(os.environ.get("PAYLOAD_ROOT", "runtime/payload"))
+header_dir = pathlib.Path(os.environ.get("GRIT_TOOL_HEADERS_DIR", "src"))
+header_dir.mkdir(parents=True, exist_ok=True)
 
 applets_path = payload / "busybox-applets.txt"
 busybox_path = payload / "bin" / "busybox"
@@ -36,6 +37,6 @@ def write_header(path, items):
     tmp.replace(path)
 
 
-write_header(src / "grit_busybox_applets.h", read_list(payload / "busybox-applets.txt"))
-write_header(src / "grit_heavy_tools.h", read_list(payload / "staged-tools.txt"))
-print("generated src/grit_busybox_applets.h and src/grit_heavy_tools.h from staged payload metadata")
+write_header(header_dir / "grit_busybox_applets.h", read_list(payload / "busybox-applets.txt"))
+write_header(header_dir / "grit_heavy_tools.h", read_list(payload / "staged-tools.txt"))
+print(f"generated {header_dir}/grit_busybox_applets.h and {header_dir}/grit_heavy_tools.h from staged payload metadata")

@@ -122,18 +122,20 @@ from pathlib import Path
 
 text = Path("scripts/lib/package-target").read_text(encoding="utf-8")
 for required in (
-    "PACKAGE_TARGET_LOCK_DIR",
-    "acquire_package_target_lock",
-    "release_package_target_lock",
-    "shared payload staging lock",
+    "PACKAGE_TARGET_ISOLATED_PAYLOAD",
+    "package_payload_root",
+    "package_payload_archive_prefix",
+    "runtime/package-target/",
 ):
     if required not in text:
-        raise SystemExit(f"package-target missing concurrency guard: {required}")
-call = text.index("\nacquire_package_target_lock\n")
-if call > text.index("scripts/lib/build-payload"):
-    raise SystemExit("package-target lock must be acquired before native payload staging")
-if call > text.index("scripts/lib/buildroot-build-payload"):
-    raise SystemExit("package-target lock must be acquired before Buildroot payload staging")
+        raise SystemExit(f"package-target missing isolated payload staging: {required}")
+if text.index("PAYLOAD_ROOT=\"$package_payload_root\"") > text.index("scripts/lib/build-payload"):
+    raise SystemExit("package-target must pass isolated PAYLOAD_ROOT before native payload staging")
+if text.index("PAYLOAD_ROOT=\"$package_payload_root\"") > text.index("scripts/lib/buildroot-build-payload"):
+    raise SystemExit("package-target must pass isolated PAYLOAD_ROOT before Buildroot payload staging")
+make_release = Path("scripts/make-release").read_text(encoding="utf-8")
+if 'PACKAGE_TARGET_ISOLATED_PAYLOAD"] = "1"' not in make_release:
+    raise SystemExit("make-release must enable isolated package-target payload staging")
 PY
 python3 - "$work/full-dry-run.out" "$work/full-dry-run-jobs.out" <<'PY'
 import sys

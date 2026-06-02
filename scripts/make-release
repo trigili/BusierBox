@@ -2505,6 +2505,7 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
     env = os.environ.copy()
     env["GRIT_CONFIG"] = str(config)
     env["PAYLOAD_FORMAT"] = job["format"]
+    env["PACKAGE_TARGET_ISOLATED_PAYLOAD"] = "1"
     if args.skip_build:
         rc = 0
     else:
