@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from gritlib.record_utils import records_by_bool, records_by_key
+from gritlib.record_utils import record_count_by_key, records_by_bool, records_by_key
 
 
 def upload_record_indexes(records):
@@ -277,4 +277,77 @@ def target_file_transfer_record_indexes(records):
         "target_file_transfer_records_by_filename": records_by_key(records, "filename"),
         "target_file_transfer_records_by_sha256": records_by_key(records, "sha256"),
         "target_file_transfer_records_by_session_id": records_by_key(records, "session_id"),
+    }
+
+
+def file_service_workflow_action_indexes(records):
+    return {
+        "file_service_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "file_service_workflow_actions_by_action_id": records_by_key(records, "action_id"),
+        "file_service_workflow_actions_by_service": records_by_key(records, "service"),
+        "file_service_workflow_actions_by_category": records_by_key(records, "category"),
+        "file_service_workflow_actions_by_workflow": records_by_key(records, "workflow"),
+        "file_service_workflow_actions_by_actual": records_by_key(records, "actual"),
+        "file_service_workflow_actions_by_configured": records_by_key(records, "configured"),
+        "file_service_workflow_actions_by_target_filter_active": records_by_key(records, "target_filter_active"),
+        "file_service_workflow_actions_by_route_kind": records_by_key(records, "route_kind"),
+        "file_service_workflow_actions_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "file_service_workflow_actions_by_requires_bridge": records_by_key(records, "requires_bridge"),
+        "file_service_workflow_actions_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "file_service_workflow_actions_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "file_service_workflow_actions_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "file_service_workflow_actions_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "file_service_workflow_actions_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "file_service_workflow_actions_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "file_service_workflow_actions_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "file_service_workflow_actions_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "file_service_workflow_actions_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "file_service_workflow_actions_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
+        "file_service_workflow_actions_by_available": records_by_key(records, "available"),
+        "file_service_workflow_actions_by_requires_input": records_by_key(records, "requires_input"),
+        "file_service_workflow_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
+        "file_service_workflow_actions_by_queues_offline_work": records_by_key(records, "queues_offline_work"),
+        "file_service_workflow_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "file_service_workflow_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "file_service_workflow_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "file_service_workflow_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
+    }
+
+
+def file_service_workflow_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "available_count": len([rec for rec in records or [] if rec.get("available") is True]),
+        "requires_input_count": len([rec for rec in records or [] if rec.get("requires_input") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
+        "queues_offline_work_count": len([rec for rec in records or [] if rec.get("queues_offline_work") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "service_counts": record_count_by_key(records, "service"),
+        "category_counts": record_count_by_key(records, "category"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "actual_counts": record_count_by_key(records, "actual"),
+        "configured_counts": record_count_by_key(records, "configured"),
+        "target_filter_active_counts": record_count_by_key(records, "target_filter_active"),
+        "route_kind_counts": record_count_by_key(records, "route_kind"),
+        "bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
+        "requires_bridge_counts": record_count_by_key(records, "requires_bridge"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
+        "available_counts": record_count_by_key(records, "available"),
+        "requires_input_counts": record_count_by_key(records, "requires_input"),
+        "requires_confirmation_counts": record_count_by_key(records, "requires_confirmation"),
+        "queues_offline_work_counts": record_count_by_key(records, "queues_offline_work"),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
     }
