@@ -1877,35 +1877,6 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
 
 
 
-def run_workbench_action(cfg, selector, dry_run=False, confirmed=False):
-    return run_workbench_action_record(
-        cfg,
-        workbench_action_records(cfg),
-        selector,
-        dry_run=dry_run,
-        confirmed=confirmed,
-    )
-
-
-def start_workbench_job(cfg, action_id, command_override=None, headless_command=""):
-    return start_workbench_job_record(
-        cfg,
-        workbench_action_records(cfg),
-        action_id,
-        command_override=command_override,
-        headless_command=headless_command,
-    )
-
-
-def cancel_workbench_job(cfg, job_id, headless_command=""):
-    return cancel_workbench_job_record(
-        cfg,
-        workbench_action_records(cfg),
-        job_id,
-        headless_command=headless_command,
-    )
-
-
 def file_service_workflow_action_records(cfg, service_row, staged_records=None, uploads=None, fetches=None, transfer_records=None, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)
@@ -9015,7 +8986,13 @@ def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=
     })
     if dry_run:
         if rec.get("workflow") == "systemd-user-service":
-            rc = run_workbench_action(cfg, workbench_action_id, dry_run=True, confirmed=confirmed)
+            rc = run_workbench_action_record(
+                cfg,
+                workbench_action_records(cfg),
+                workbench_action_id,
+                dry_run=True,
+                confirmed=confirmed,
+            )
         else:
             print("dry_run=yes")
             rc = 0
@@ -9032,8 +9009,9 @@ def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=
     if rec.get("requires_confirmation") is True and not confirmed:
         raise ValueError(f"operator daemon workflow action requires --confirm-operator-daemon-workflow-action: {rec_id}")
     if action_id == "operator-daemon-start":
-        started = start_workbench_job(
+        started = start_workbench_job_record(
             cfg,
+            workbench_action_records(cfg),
             workbench_action_id,
             headless_command=run_command or rec.get("headless_command", "") or command,
         )
@@ -9041,7 +9019,13 @@ def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=
         print(f"log={started.get('log_path', '')}")
         rc = 0
     else:
-        rc = run_workbench_action(cfg, workbench_action_id, dry_run=False, confirmed=confirmed)
+        rc = run_workbench_action_record(
+            cfg,
+            workbench_action_records(cfg),
+            workbench_action_id,
+            dry_run=False,
+            confirmed=confirmed,
+        )
     append_event(cfg, "workbench", "operator_daemon_workflow_action_completed", details={
         "id": rec_id,
         "action_id": action_id,
@@ -12226,7 +12210,12 @@ def run_line_tui(cfg):
             raise ValueError(f"unknown workbench job: {text}")
         job_id = str(rec.get("id") or text)
         headless = cancel_workbench_job_headless_command(cfg, job_id)
-        cancelled = cancel_workbench_job(cfg, job_id, headless_command=headless)
+        cancelled = cancel_workbench_job_record(
+            cfg,
+            workbench_action_records(cfg),
+            job_id,
+            headless_command=headless,
+        )
         print(f"cancel requested for {cancelled.get('id', job_id)}")
         print(f"headless_command: {headless}")
 
@@ -12243,7 +12232,12 @@ def run_line_tui(cfg):
             raise ValueError(f"workbench action is not background-capable: {action.get('id', '')}")
         action_id = str(action.get("id") or "")
         headless = start_workbench_job_headless_command(cfg, action_id)
-        rec = start_workbench_job(cfg, action_id, headless_command=headless)
+        rec = start_workbench_job_record(
+            cfg,
+            workbench_action_records(cfg),
+            action_id,
+            headless_command=headless,
+        )
         print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
         print(f"headless_command: {headless}")
         print(f"command: {rec.get('command', '')}")
@@ -13192,7 +13186,13 @@ def run_line_tui(cfg):
             print(f"action_returncode={rc}")
             return rc
         if kind == "workbench":
-            rc = run_workbench_action(cfg, rec_id, dry_run=dry_run, confirmed=confirmed)
+            rc = run_workbench_action_record(
+                cfg,
+                workbench_action_records(cfg),
+                rec_id,
+                dry_run=dry_run,
+                confirmed=confirmed,
+            )
             print(f"action_returncode={rc}")
             return rc
         if kind == "target":
@@ -16251,8 +16251,9 @@ def run_line_tui(cfg):
                     if not dry_run and action.get("requires_confirmation") is True:
                         confirm_line = line_input("run confirmed action now? type yes> ")
                         confirmed = confirm_line is not None and confirm_line.strip().lower() == "yes"
-                    rc = run_workbench_action(
+                    rc = run_workbench_action_record(
                         cfg,
+                        workbench_action_records(cfg),
                         action.get("id", selected),
                         dry_run=dry_run,
                         confirmed=confirmed,
@@ -16330,7 +16331,12 @@ def run_line_tui(cfg):
                         + " --start-workbench-job "
                         + shquote(action)
                     )
-                    rec = start_workbench_job(cfg, action, headless_command=headless)
+                    rec = start_workbench_job_record(
+                        cfg,
+                        workbench_action_records(cfg),
+                        action,
+                        headless_command=headless,
+                    )
                     print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
                     print(f"headless_command: {headless}")
                     print(f"command: {rec.get('command', '')}")
@@ -16350,7 +16356,12 @@ def run_line_tui(cfg):
                         + " --cancel-workbench-job "
                         + shquote(job_id)
                     )
-                    rec = cancel_workbench_job(cfg, job_id, headless_command=headless)
+                    rec = cancel_workbench_job_record(
+                        cfg,
+                        workbench_action_records(cfg),
+                        job_id,
+                        headless_command=headless,
+                    )
                     print(f"cancel requested for {rec.get('id', job_id)}")
                     print(f"headless_command: {headless}")
                 except ValueError as exc:
@@ -17797,7 +17808,11 @@ def run_curses_tui(cfg):
                     rec = workbench_jobs[min(selected, len(workbench_jobs) - 1)]
                     if rec.get("cancel_supported"):
                         try:
-                            cancel_workbench_job(cfg, str(rec.get("id") or ""))
+                            cancel_workbench_job_record(
+                                cfg,
+                                workbench_action_records(cfg),
+                                str(rec.get("id") or ""),
+                            )
                         except ValueError as exc:
                             safe_add(stdscr, height - 2, 0, str(exc))
                             stdscr.getch()
@@ -17806,8 +17821,9 @@ def run_curses_tui(cfg):
                     action_id = str(rec.get("id") or "")
                     if action_id and rec.get("background_supported"):
                         try:
-                            started = start_workbench_job(
+                            started = start_workbench_job_record(
                                 cfg,
+                                workbench_action_records(cfg),
                                 action_id,
                                 headless_command=start_workbench_job_headless_command(cfg, action_id),
                             )
@@ -17843,13 +17859,19 @@ def run_curses_tui(cfg):
                         if daemon_attached:
                             output = io.StringIO()
                             with contextlib.redirect_stdout(output), contextlib.redirect_stderr(output):
-                                rc = run_workbench_action(cfg, "operator-daemon-stop", confirmed=True)
+                                rc = run_workbench_action_record(
+                                    cfg,
+                                    workbench_action_records(cfg),
+                                    "operator-daemon-stop",
+                                    confirmed=True,
+                                )
                             lines = [line for line in output.getvalue().splitlines() if line.strip()]
                             message = lines[-1] if lines else f"operator daemon stop exited {rc}"
                             safe_add(stdscr, height - 2, 0, f"daemon stop rc={rc}: {message}")
                         else:
-                            started = start_workbench_job(
+                            started = start_workbench_job_record(
                                 cfg,
+                                workbench_action_records(cfg),
                                 "operator-daemon-start",
                                 headless_command=start_workbench_job_headless_command(cfg, "operator-daemon-start"),
                             )
@@ -18433,8 +18455,9 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                 args.start_workbench_job,
                 command_override=args.job_command,
             )
-            rec = start_workbench_job(
+            rec = start_workbench_job_record(
                 cfg,
+                workbench_action_records(cfg),
                 args.start_workbench_job,
                 command_override=args.job_command,
                 headless_command=headless,
@@ -18446,14 +18469,20 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             return 0
         if args.cancel_workbench_job:
             headless = cancel_workbench_job_headless_command(cfg, args.cancel_workbench_job)
-            rec = cancel_workbench_job(cfg, args.cancel_workbench_job, headless_command=headless)
+            rec = cancel_workbench_job_record(
+                cfg,
+                workbench_action_records(cfg),
+                args.cancel_workbench_job,
+                headless_command=headless,
+            )
             print(f"cancel requested for workbench job {rec.get('id', args.cancel_workbench_job)}")
             print(f"pid={rec.get('pid', '')}")
             print(f"headless_command={headless}")
             return 0
         if args.run_workbench_action:
-            return run_workbench_action(
+            return run_workbench_action_record(
                 cfg,
+                workbench_action_records(cfg),
                 args.run_workbench_action,
                 dry_run=args.workbench_action_dry_run,
                 confirmed=args.confirm_workbench_action,
