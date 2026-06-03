@@ -185,6 +185,21 @@ def target_route_context(cfg, service, direct_host=None, direct_port=None):
     return direct
 
 
+def attach_target_route_fields(record, route):
+    rec = dict(record)
+    route_doc = dict(route or {})
+    rec["target_route"] = route_doc
+    rec["route_kind"] = str(route_doc.get("route_kind") or "direct")
+    rec["route_host"] = str(route_doc.get("host") or "")
+    rec["route_port"] = int(route_doc.get("port") or 0)
+    rec["bridge_profile"] = str(route_doc.get("bridge_profile") or "")
+    rec["bridge_route_path"] = str(route_doc.get("bridge_route_path") or "")
+    rec["bridge_hop_count"] = int(route_doc.get("bridge_hop_count") or 0)
+    rec["bridge_multi_hop"] = bool(route_doc.get("bridge_multi_hop"))
+    rec["requires_bridge"] = bool(route_doc.get("requires_bridge"))
+    return rec
+
+
 def bridge_profile_records(cfg):
     profiles = load_bridge_profiles(cfg).get("profiles") or {}
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})

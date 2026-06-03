@@ -39,6 +39,7 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from gritlib import bridge_routes
 from gritlib.bridge_routes import (
+    attach_target_route_fields,
     bridge_hop_indexes, bridge_hop_records_from_profiles, bridge_hops_from_args,
     bridge_profile_indexes, bridge_profile_record, bridge_profile_records,
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_summary,
@@ -95,7 +96,8 @@ from gritlib.operator_network import (
     local_ips, operator_advertised_host, print_candidates, target_visible_host,
 )
 from gritlib.probe_commands import (
-    render_probe_dns_command, render_probe_ftp_command, render_probe_tftp_command,
+    probe_route_context, render_probe_command, render_probe_dns_command,
+    render_probe_ftp_command, render_probe_tftp_command,
 )
 from gritlib.probe_results import append_probe_result, probe_results_path
 from gritlib.runtime import Service, ServiceManager, Session
@@ -4589,34 +4591,6 @@ def render_file_service_command(parts, cfg, host=None):
     for alias in target_ctx.get("target_aliases") or []:
         cmd.extend(["--target-alias", alias])
     return " ".join(shquote(part) for part in cmd)
-
-
-def probe_route_context(cfg, host=None, port=None):
-    direct_host = operator_advertised_host(cfg, host=host)
-    direct_port = port or cfg.get("GRIT_PROBE_PORT", 22207)
-    return target_route_context(cfg, "probe", direct_host=direct_host, direct_port=direct_port)
-
-
-def render_probe_command(cfg, host=None, port=None):
-    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
-    route = probe_route_context(cfg, host=host, port=port)
-    url = f"http://{route.get('host', 'OPERATOR_IP')}:{route.get('port', 22207)}/{script_name}"
-    return f"wget -O- {shquote(url)} | /bin/sh"
-
-
-def attach_target_route_fields(record, route):
-    rec = dict(record)
-    route_doc = dict(route or {})
-    rec["target_route"] = route_doc
-    rec["route_kind"] = str(route_doc.get("route_kind") or "direct")
-    rec["route_host"] = str(route_doc.get("host") or "")
-    rec["route_port"] = int(route_doc.get("port") or 0)
-    rec["bridge_profile"] = str(route_doc.get("bridge_profile") or "")
-    rec["bridge_route_path"] = str(route_doc.get("bridge_route_path") or "")
-    rec["bridge_hop_count"] = int(route_doc.get("bridge_hop_count") or 0)
-    rec["bridge_multi_hop"] = bool(route_doc.get("bridge_multi_hop"))
-    rec["requires_bridge"] = bool(route_doc.get("requires_bridge"))
-    return rec
 
 
 def print_staged(cfg):

