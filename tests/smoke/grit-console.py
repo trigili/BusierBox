@@ -886,6 +886,20 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("clear section:", file=sys.stderr)
         print(clear_text or line_console_stdout, file=sys.stderr)
         return 1
+    metadata_start = line_console_stdout.find("set target.notes=Rack shelf A")
+    metadata_end = line_console_stdout.find("show activity", metadata_start + 1)
+    metadata_text = line_console_stdout[metadata_start:metadata_end] if metadata_start != -1 and metadata_end != -1 else ""
+    direct_metadata_start = line_console_stdout.find("renamed target line-console-target")
+    direct_metadata_end = line_console_stdout.find("Search results for Console Router", direct_metadata_start + 1)
+    direct_metadata_text = line_console_stdout[direct_metadata_start:direct_metadata_end] if direct_metadata_start != -1 and direct_metadata_end != -1 else ""
+    if (not metadata_text or "set target.aliases=" not in metadata_text or "headless_command:" in metadata_text or
+            not direct_metadata_text or "aliased target line-console-target" not in direct_metadata_text or "headless_command:" in direct_metadata_text):
+        print("line-oriented target metadata commands exposed noisy headless commands", file=sys.stderr)
+        print("metadata section:", file=sys.stderr)
+        print(metadata_text or line_console_stdout, file=sys.stderr)
+        print("direct metadata section:", file=sys.stderr)
+        print(direct_metadata_text or line_console_stdout, file=sys.stderr)
+        return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
     daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)
     daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""
@@ -983,6 +997,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "line-console-job" for event in line_console_events) or
             not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
             not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
+            not any(event.get("event") == "workbench_target_metadata_updated" and (event.get("details") or {}).get("target_id") == "line-console-target" and "--set-target-label" in ((event.get("details") or {}).get("headless_command") or "") for event in line_console_events) or
             not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
             not any(event.get("event") == "workbench_command_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" and "--queue-command" in ((event.get("details") or {}).get("headless_command") or "") for event in line_console_events) or
             not any(event.get("event") == "workbench_command_result_inspected" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("has_result") is False for event in line_console_events) or

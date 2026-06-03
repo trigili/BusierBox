@@ -9036,15 +9036,7 @@ def run_line_tui(cfg):
             print(f"set target.aliases={','.join(str(item) for item in updated.get('aliases') or []) or '-'}")
         else:
             raise ValueError(f"unknown option: {name}")
-        headless = (
-            "scripts/grit-console --config "
-            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-            + " --set-target-label "
-            + shquote(target_id)
-            + " --target-label "
-            + shquote(str((load_targets(cfg).get("targets") or {}).get(target_id, {}).get("label") or ""))
-        )
-        print(f"headless_command: {headless}")
+        record_target_metadata_headless_command(target_id, action="set-option", field=key)
 
     def rename_line_target(label):
         text = str(label or "").strip()
@@ -9060,7 +9052,7 @@ def run_line_tui(cfg):
         )
         cfg["_target_label_filter"] = str(updated.get("label") or "")
         print(f"renamed target {target_id} label={updated.get('label', '') or '-'}")
-        print_target_metadata_headless_command(target_id)
+        record_target_metadata_headless_command(target_id, action="rename", field="target.label")
 
     def note_line_target(notes):
         text = str(notes or "").strip()
@@ -9076,7 +9068,7 @@ def run_line_tui(cfg):
             notes=text,
         )
         print(f"noted target {target_id} notes={str(updated.get('notes') or '') or '-'}")
-        print_target_metadata_headless_command(target_id)
+        record_target_metadata_headless_command(target_id, action="note", field="target.notes")
 
     def alias_line_target(alias):
         text = str(alias or "").strip()
@@ -9091,9 +9083,9 @@ def run_line_tui(cfg):
             notes=rec.get("notes", ""),
         )
         print(f"aliased target {target_id} aliases={','.join(str(item) for item in updated.get('aliases') or []) or '-'}")
-        print_target_metadata_headless_command(target_id)
+        record_target_metadata_headless_command(target_id, action="alias", field="target.aliases")
 
-    def print_target_metadata_headless_command(target_id):
+    def record_target_metadata_headless_command(target_id, action="", field=""):
         rec = (load_targets(cfg).get("targets") or {}).get(target_id, {})
         headless = (
             "scripts/grit-console --config "
@@ -9103,7 +9095,15 @@ def run_line_tui(cfg):
             + " --target-label "
             + shquote(str(rec.get("label") or ""))
         )
-        print(f"headless_command: {headless}")
+        append_event(cfg, "workbench", "workbench_target_metadata_updated", details={
+            "action": action,
+            "field": field,
+            "target_id": target_id,
+            "target_label": rec.get("label", ""),
+            "aliases": rec.get("aliases") or [],
+            "notes": rec.get("notes", ""),
+            "headless_command": headless,
+        })
 
     def set_line_global_option(name, value):
         key = str(name or "").strip()
