@@ -7500,6 +7500,9 @@ def run_line_tui(cfg):
             quote=shquote,
         )
 
+    def clear_line_selectable_results():
+        cfg["_line_console_search_results"] = []
+
     def print_line_command_result(selector):
         return line_command_queue_print_result(cfg, command_queue_summary(cfg), selector)
 
@@ -8868,6 +8871,9 @@ def run_line_tui(cfg):
                 continue
             cmd = console_args[0].lower() if console_args else ""
             compact_next_prompt = True
+            preserve_line_results = cmd == "use" and len(console_args) == 2 and console_args[1].isdigit()
+            if not preserve_line_results:
+                clear_line_selectable_results()
             # Handle "<topic> ?" syntax, e.g. "files ?", "routes ?"
             if len(console_args) >= 2 and console_args[-1] == "?":
                 print_line_command_help(cmd)
@@ -9150,6 +9156,7 @@ def run_line_tui(cfg):
             elif cmd == "use" and len(console_args) == 2 and console_args[1].isdigit():
                 try:
                     use_line_search_result(console_args[1])
+                    clear_line_selectable_results()
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -9587,6 +9594,7 @@ def run_line_tui(cfg):
             if 0 <= idx < len(search_results):
                 try:
                     use_line_search_result(choice)
+                    clear_line_selectable_results()
                 except ValueError as exc:
                     print(exc)
                 compact_next_prompt = True

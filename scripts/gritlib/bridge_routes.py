@@ -278,6 +278,12 @@ def print_bridge_route_records(records, verbose=False, command_builder=None, quo
         records, cols, detail_fn=_detail,
         footer="use N or route NAME to select  |  start/stop NAME  |  routes ? for help",
     )
+    return bridge_route_search_records(records, command_builder=command_builder, quote=quote)
+
+
+def bridge_route_search_records(records, command_builder=None, quote=shquote):
+    records = list(records or [])
+    command_builder = command_builder or (lambda _action, _name: "")
     return [
         {
             "kind": "route",
@@ -494,6 +500,10 @@ def delete_line_route(cfg, route_name, records, headless_command_builder=None):
         "route_path": rec.get("route_path", ""),
         "headless_command": headless,
     })
+    cfg["_line_console_search_results"] = bridge_route_search_records(
+        bridge_profile_records(cfg),
+        headless_command_builder,
+    )
     return rec
 
 
