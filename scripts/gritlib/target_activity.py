@@ -8,7 +8,7 @@ from gritlib.command_queue import (
     command_queue_expired, command_result_output_size_bucket, load_command_queue,
 )
 from gritlib.console_display import console_table
-from gritlib.record_utils import int_value, records_by_key
+from gritlib.record_utils import format_counts, int_value, records_by_key
 from gritlib.session_state import parse_utc_timestamp, utc_now
 
 
@@ -550,6 +550,27 @@ def print_target_activity_records(doc, target_id=None, limit=8):
         f"Activity  ({len(shown)} shown of {len(records)})" if records else "Activity  (none)",
         shown, cols,
     )
+
+
+def print_workbench_phone_home_attempts(snap):
+    print("Target phone-home attempts:")
+    phone_home = snap.get("target_phone_home_records") or []
+    if phone_home:
+        print(f"  total={len(phone_home)} statuses={format_counts(snap.get('target_phone_home_records_by_status') or {})} failed={format_counts(snap.get('target_phone_home_records_by_failed') or {})}")
+        for rec in phone_home[:5]:
+            target = rec.get("target_id", "") or "anonymous"
+            reason = rec.get("pending_reason") or rec.get("reason") or ""
+            suffix = f" reason={reason}" if reason else ""
+            command = f" command={rec.get('command_id', '')}" if rec.get("command_id") else ""
+            target_state = f" target_state={rec.get('target_connectivity_state', '')}" if rec.get("target_connectivity_state") else ""
+            offline_age = f" offline_age={rec.get('target_offline_age_bucket', '')}" if rec.get("target_offline_age_bucket") else ""
+            remaining = (
+                f" queued_remaining={rec.get('queued_remaining_count')}"
+                if rec.get("queued_remaining_count") != "" else ""
+            )
+            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{target_state}{offline_age}{command}{remaining}{suffix}")
+    else:
+        print("  none")
 
 
 def target_activity_record_indexes(records):

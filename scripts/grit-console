@@ -166,7 +166,7 @@ from gritlib.status_indexes import (
 )
 from gritlib.target_activity import (
     apply_target_phone_home_summary, mailbox_wait_bucket,
-    print_target_activity_records,
+    print_target_activity_records, print_workbench_phone_home_attempts,
     target_activity_record_indexes, target_activity_records_from_sources,
     target_mailbox_record_indexes, target_mailbox_records_from_commands,
     target_phone_home_record_indexes,
@@ -9520,24 +9520,7 @@ def print_workbench(cfg, include_api_summary=True):
     print("")
     print_workbench_command_queue_summary(snap["command_queue"])
     print("")
-    print("Target phone-home attempts:")
-    phone_home = snap.get("target_phone_home_records") or []
-    if phone_home:
-        print(f"  total={len(phone_home)} statuses={format_counts(snap.get('target_phone_home_records_by_status') or {})} failed={format_counts(snap.get('target_phone_home_records_by_failed') or {})}")
-        for rec in phone_home[:5]:
-            target = rec.get("target_id", "") or "anonymous"
-            reason = rec.get("pending_reason") or rec.get("reason") or ""
-            suffix = f" reason={reason}" if reason else ""
-            command = f" command={rec.get('command_id', '')}" if rec.get("command_id") else ""
-            target_state = f" target_state={rec.get('target_connectivity_state', '')}" if rec.get("target_connectivity_state") else ""
-            offline_age = f" offline_age={rec.get('target_offline_age_bucket', '')}" if rec.get("target_offline_age_bucket") else ""
-            remaining = (
-                f" queued_remaining={rec.get('queued_remaining_count')}"
-                if rec.get("queued_remaining_count") != "" else ""
-            )
-            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{target_state}{offline_age}{command}{remaining}{suffix}")
-    else:
-        print("  none")
+    print_workbench_phone_home_attempts(snap)
     print("")
     print("Event log:")
     stats = snap.get("event_log_stats") or {}
