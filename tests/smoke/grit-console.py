@@ -1020,6 +1020,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     ]
     line_console_required_markers = [
         "Console help topics:",
+        "Operator workspace",
+        "Target work",
+        "Control plane",
+        "Console",
         "Help: files",
         "Help: queue",
         "Help: events",
@@ -1248,13 +1252,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(line_console_stdout, file=sys.stderr)
         return 1
     upload_start = line_console_stdout.find("File staged for target fetch:")
-    upload_end = line_console_stdout.find("grit[Console Router]> fetch --queue console-upload", upload_start + 1)
+    upload_end = line_console_stdout.find("grit[Console Router]/files> fetch --queue console-upload", upload_start + 1)
     upload_text = line_console_stdout[upload_start:upload_end] if upload_start != -1 and upload_end != -1 else ""
     fetch_start = line_console_stdout.find("Staged fetch command:")
-    fetch_end = line_console_stdout.find("grit[Console Router]> stop file-service", fetch_start + 1)
+    fetch_end = line_console_stdout.find("grit[Console Router]/files> stop file-service", fetch_start + 1)
     fetch_text = line_console_stdout[fetch_start:fetch_end] if fetch_start != -1 and fetch_end != -1 else ""
-    unstage_start = line_console_stdout.find("grit[Console Router]> unstage console-upload")
-    unstage_end = line_console_stdout.find("grit[Console Router]> stagers", unstage_start + 1)
+    unstage_start = line_console_stdout.find("grit[Console Router]/files> unstage console-upload")
+    unstage_end = line_console_stdout.find("grit[Console Router]/files> stagers", unstage_start + 1)
     unstage_text = line_console_stdout[unstage_start:unstage_end] if unstage_start != -1 and unstage_end != -1 else ""
     if (not upload_text or "File staged for target fetch:" not in upload_text or "headless_command:" in upload_text or
             not fetch_text or "Staged fetch command:" not in fetch_text or "headless_command:" in fetch_text or
@@ -1268,7 +1272,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(unstage_text or line_console_stdout, file=sys.stderr)
         return 1
     download_start = line_console_stdout.find("Target download command:")
-    download_end = line_console_stdout.find("grit[Console Router]> show mailbox", download_start + 1)
+    download_end = line_console_stdout.find("grit[Console Router]/files> show mailbox", download_start + 1)
     download_text = line_console_stdout[download_start:download_end] if download_start != -1 and download_end != -1 else ""
     if not download_text or "target_upload_path=/etc/config/network" not in download_text or "headless_command:" in download_text:
         print("line-oriented download command exposed noisy headless command", file=sys.stderr)
@@ -1282,7 +1286,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(binary_text or line_console_stdout, file=sys.stderr)
         return 1
     configure_start = line_console_stdout.find("Artifact trailer configured:")
-    configure_end = line_console_stdout.find("grit[Console Router]> stop file-service", configure_start + 1)
+    configure_end = line_console_stdout.find("grit[Console Router]/files> stop file-service", configure_start + 1)
     configure_text = line_console_stdout[configure_start:configure_end] if configure_start != -1 and configure_end != -1 else ""
     if (not configure_text or
             "target_fetch_command=grit fetch grit-console" not in configure_text or
@@ -1291,8 +1295,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented configure command exposed noisy headless command", file=sys.stderr)
         print(configure_text or line_console_stdout, file=sys.stderr)
         return 1
-    stagers_start = line_console_stdout.find("grit[Console Router]> show stagers")
-    stagers_end = line_console_stdout.find("grit[Console Router]> unstage console-upload", stagers_start + 1)
+    stagers_start = line_console_stdout.find("grit[Console Router]/files> show stagers")
+    stagers_end = line_console_stdout.find("grit[Console Router]/files> unstage console-upload", stagers_start + 1)
     stagers_text = line_console_stdout[stagers_start:stagers_end] if stagers_start != -1 and stagers_end != -1 else ""
     if (not stagers_text or
             "Files  (" not in stagers_text or
@@ -1324,14 +1328,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented selected daemon action commands exposed noisy headless commands", file=sys.stderr)
         print(module_action_text or line_console_stdout, file=sys.stderr)
         return 1
-    path_view_start = line_console_stdout.find("grit[all]> interact 1")
-    path_view_end = line_console_stdout.find("grit[all]> use session 1", path_view_start + 1)
+    path_view_start = line_console_stdout.find("grit[all]/sessions> interact 1")
+    path_view_end = line_console_stdout.find("grit[all]/sessions> use session 1", path_view_start + 1)
     path_view_text = line_console_stdout[path_view_start:path_view_end] if path_view_start != -1 and path_view_end != -1 else ""
     if not path_view_text or "session_log=" not in path_view_text or "headless_command:" in path_view_text:
         print("line-oriented direct path view exposed noisy headless command", file=sys.stderr)
         print(path_view_text or line_console_stdout, file=sys.stderr)
         return 1
-    daemon_start = line_console_stdout.find("grit[all]> daemon")
+    daemon_start = line_console_stdout.find("grit[all]/routes> daemon")
     daemon_verbose_start = line_console_stdout.find("grit[all]/daemon> daemon -v", daemon_start + 1)
     daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""
     daemon_verbose_text = line_console_stdout[daemon_verbose_start:] if daemon_verbose_start != -1 else ""
@@ -1355,6 +1359,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "grit[all]/routes> route start 2",
         "grit[Console Router]/queue> mailbox targets",
         "grit[Console Router]/queue> queue",
+        "grit[Console Router]/files> fetch --queue console-upload",
+        "grit[Console Router]/files> show stagers",
         "grit[all]/daemon> daemon -v",
         "grit[all]/jobs> jobs -v",
     ]

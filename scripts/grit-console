@@ -8789,6 +8789,7 @@ def run_line_repl(cfg):
                 print_line_local_ips(workbench_snapshot(cfg))
                 continue
             elif cmd in {"workspace", "overview", "dashboard"}:
+                clear_line_module(quiet=True)
                 print_line_workspace()
                 continue
             elif cmd in {"main", "home", "root"}:
@@ -9228,6 +9229,7 @@ def run_line_repl(cfg):
                 try:
                     target_path, queue_download, start_download_service = parse_line_download_args(console_args[1:])
                     download_line_target(target_path, queue=queue_download, start_file_service=start_download_service)
+                    set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -9308,6 +9310,7 @@ def run_line_repl(cfg):
                     try:
                         selector, start_release_service = parse_line_release_stage_args(console_args[2:])
                         stage_line_release(selector, start_file_service=start_release_service)
+                        set_line_collection("files")
                     except ValueError as exc:
                         print(exc)
                 elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
@@ -9319,6 +9322,7 @@ def run_line_repl(cfg):
                 try:
                     selector, start_release_service = parse_line_release_stage_args(console_args[1:])
                     stage_line_release(selector, start_file_service=start_release_service)
+                    set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -9326,6 +9330,7 @@ def run_line_repl(cfg):
                 try:
                     selector, request_name, start_upload_service = parse_line_file_args(console_args[1:])
                     stage_line_file(selector, request_name, start_file_service=start_upload_service)
+                    set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -9333,12 +9338,14 @@ def run_line_repl(cfg):
                 try:
                     request_name, queue_fetch, start_fetch_service = parse_line_fetch_args(console_args[1:], queue_default=cmd == "queue-fetch")
                     fetch_line_staged(request_name, queue=queue_fetch, start_file_service=start_fetch_service)
+                    set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
                 continue
             elif cmd in {"unstage", "rmfile", "rm-file"}:
                 try:
                     unstage_line_file(" ".join(console_args[1:]).strip())
+                    set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -9354,17 +9361,20 @@ def run_line_repl(cfg):
                     try:
                         selector, request_name, start_svc = parse_line_file_args(console_args[2:])
                         stage_line_file(selector, request_name, start_file_service=start_svc)
+                        set_line_collection("files")
                     except ValueError as exc:
                         print(exc)
                 elif subcmd in {"fetch", "deploy"}:
                     try:
                         request_name, queue_fetch, start_svc = parse_line_fetch_args(console_args[2:])
                         fetch_line_staged(request_name, queue=queue_fetch, start_file_service=start_svc)
+                        set_line_collection("files")
                     except ValueError as exc:
                         print(exc)
                 elif subcmd in {"unstage", "rm", "remove"}:
                     try:
                         unstage_line_file(" ".join(console_args[2:]).strip())
+                        set_line_collection("files")
                     except ValueError as exc:
                         print(exc)
                 elif subcmd in {"clear", "purge"}:
@@ -9391,6 +9401,7 @@ def run_line_repl(cfg):
                                 "removed": removed,
                                 "target_filter": target_filter_id or "all",
                             })
+                    set_line_collection("files")
                 elif subcmd in {"-v", "--verbose"}:
                     set_line_collection("files")
                     print_line_files(verbose=True)
@@ -9433,12 +9444,14 @@ def run_line_repl(cfg):
                         prompt_start=(not selector and not no_start_binary_service),
                         start_file_service=start_binary_service,
                     )
+                    set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
                 continue
             elif cmd in {"configure", "trailer"}:
                 try:
                     configure_line_artifact(console_args[1:])
+                    set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
                 continue

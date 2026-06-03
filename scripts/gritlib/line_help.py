@@ -6,20 +6,47 @@ from gritlib.bridge_routes import ROUTE_HELP_LINES
 def print_line_console_help():
     print("Console help topics:")
     print("")
-    print("  workspace   overview, status, info, search, next")
-    print("  targets     agents, select, mailbox, activity feed")
-    print("  listeners   services, start/stop, options")
-    print("  sessions    list, select, inspect, interact")
-    print("  files       stage, fetch, download, release, serve-binary, view")
-    print("  probe       shell probe (pre-deployment): run probe.sh, see results, gen config")
-    print("  survey      full griTTYkit survey (post-deployment): config, presets")
-    print("  queue       command queue, mailbox, results")
-    print("  events      operator event log browser and filters")
-    print("  routes      bridge profiles, multi-hop tunnels")
-    print("  daemon      systemd workflow actions")
-    print("  jobs        background jobs")
-    print("  build       binary build config, guided options")
-    print("  console     history, resource scripts, completions, aliases")
+    groups = [
+        (
+            "Operator workspace",
+            [
+                ("workspace", "overview, status, info, search, next"),
+                ("targets", "agents, select, mailbox, activity feed"),
+                ("listeners", "services, start/stop, options"),
+                ("sessions", "list, select, inspect, interact"),
+            ],
+        ),
+        (
+            "Target work",
+            [
+                ("files", "stage, fetch, download, release, serve-binary, view"),
+                ("probe", "shell probe: run probe.sh, see results, gen config"),
+                ("survey", "full griTTYkit survey: config, presets"),
+                ("queue", "command queue, mailbox, results"),
+            ],
+        ),
+        (
+            "Control plane",
+            [
+                ("routes", "bridge profiles, multi-hop tunnels"),
+                ("daemon", "systemd workflow actions"),
+                ("jobs", "background jobs"),
+                ("build", "binary build config, guided options"),
+                ("events", "operator event log browser and filters"),
+            ],
+        ),
+        (
+            "Console",
+            [
+                ("console", "history, resource scripts, completions, aliases"),
+            ],
+        ),
+    ]
+    for title, entries in groups:
+        print(title)
+        for topic, desc in entries:
+            print(f"  {topic:<10} {desc}")
+        print("")
     print("")
     print("  help <topic>  or  <topic> ?   get detailed help on a topic")
 
