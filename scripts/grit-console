@@ -157,9 +157,9 @@ from gritlib.status_indexes import (
     api_resource_records, browser_path_indexes, browser_path_summary,
     operator_state_health_counts, operator_network_status, operator_state_indexes,
     operator_browser_path_records, operator_state_records, print_activity_summary,
-    print_api_resource_summary, status_path_record_indexes,
-    status_path_record_list, status_path_records, status_path_summary,
-    warning_health_indexes,
+    print_api_resource_summary, print_operator_state_records,
+    status_path_record_indexes, status_path_record_list, status_path_records,
+    status_path_summary, warning_health_indexes,
 )
 from gritlib.target_activity import (
     apply_target_phone_home_summary, mailbox_wait_bucket,
@@ -9219,25 +9219,6 @@ def print_target_activity_records(doc, target_id=None, limit=8):
         f"Activity  ({len(shown)} shown of {len(records)})" if records else "Activity  (none)",
         shown, cols,
     )
-
-
-def print_operator_state_records(doc):
-    print("Operator state:")
-    operator_state_records = sorted(doc.get("operator_state_records") or [], key=lambda rec: rec.get("name", ""))
-    if operator_state_records:
-        for rec in operator_state_records:
-            exists = "yes" if rec.get("exists") else "no"
-            valid = "yes" if rec.get("valid") else "no"
-            line = (
-                f"  {rec.get('name', '')}: status={rec.get('status', '')} "
-                f"kind={rec.get('kind', '')} exists={exists} valid={valid} "
-                f"records={rec.get('record_count', 0)} path={rec.get('path', '')}"
-            )
-            if rec.get("error"):
-                line = f"{line} error={rec.get('error', '')}"
-            print(line)
-    else:
-        print("  none")
 
 
 def print_workbench_action_summary(doc):

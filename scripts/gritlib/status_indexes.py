@@ -119,6 +119,25 @@ def print_api_resource_summary(doc, limit=8):
         print(f"  ... {len(resources) - limit} more resource(s)")
 
 
+def print_operator_state_records(doc):
+    print("Operator state:")
+    operator_state_records = sorted(doc.get("operator_state_records") or [], key=lambda rec: rec.get("name", ""))
+    if operator_state_records:
+        for rec in operator_state_records:
+            exists = "yes" if rec.get("exists") else "no"
+            valid = "yes" if rec.get("valid") else "no"
+            line = (
+                f"  {rec.get('name', '')}: status={rec.get('status', '')} "
+                f"kind={rec.get('kind', '')} exists={exists} valid={valid} "
+                f"records={rec.get('record_count', 0)} path={rec.get('path', '')}"
+            )
+            if rec.get("error"):
+                line = f"{line} error={rec.get('error', '')}"
+            print(line)
+    else:
+        print("  none")
+
+
 def operator_state_record(name, kind, path, exists, valid, record_count=0, error="", extra=None):
     if exists and not valid:
         status = "invalid"
