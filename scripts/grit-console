@@ -124,8 +124,9 @@ from gritlib.line_build import (
     unset_line_global_build_option,
 )
 from gritlib.line_command_queue import (
-    line_command_queue_record_by_selector,
-    print_line_command_queue_records, print_line_command_result_record,
+    print_line_command_queue_records,
+    print_line_command_result as line_command_queue_print_result,
+    queue_line_command as line_command_queue_queue_command,
 )
 from gritlib.line_configure import (
     artifact_config_candidates, find_artifact_config,
@@ -7491,51 +7492,16 @@ def run_line_tui(cfg):
         )
 
     def queue_line_command(command):
-        text = str(command or "").strip()
-        if not text:
-            raise ValueError("usage: queue COMMAND")
-        headless = (
-            "scripts/grit-console --config "
-            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-        )
-        if configured_target_filter(cfg):
-            headless += " --target-id " + shquote(configured_target_filter(cfg))
-        headless += " --queue-command " + shquote(text) + " --list-command-queue"
-        rec = queue_command(cfg, text)
-        print(f"queued {rec['id']}: {rec['command']}")
-        if rec.get("target_id"):
-            print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
-        print(f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} delivery_supported=no")
-        append_event(cfg, "workbench", "workbench_command_queued", details={
-            "command_id": rec.get("id", ""),
-            "target_id": rec.get("target_id", ""),
-            "target_label": rec.get("target_label", ""),
-            "headless_command": headless,
-        })
-
-    def line_command_queue_record(selector):
-        return line_command_queue_record_by_selector(
-            command_queue_summary(cfg).get("commands") or [],
-            selector,
+        return line_command_queue_queue_command(
+            cfg,
+            command,
+            queue_command,
+            target_filter_func=configured_target_filter,
+            quote=shquote,
         )
 
     def print_line_command_result(selector):
-        text = str(selector or "").strip()
-        if not text:
-            raise ValueError("usage: queue result ID|NUMBER")
-        rec = line_command_queue_record(text)
-        if not rec:
-            raise ValueError(f"command queue id not found: {text}")
-        result = rec.get("result") if isinstance(rec.get("result"), dict) else {}
-        print_line_command_result_record(rec)
-        append_event(cfg, "workbench", "workbench_command_result_inspected", details={
-            "command_id": str(rec.get("id") or ""),
-            "status": str(rec.get("status") or ""),
-            "has_result": bool(result),
-            "result_status": str(result.get("status") or ""),
-            "target_id": str(rec.get("target_id") or ""),
-            "target_label": str(rec.get("target_label") or ""),
-        })
+        return line_command_queue_print_result(cfg, command_queue_summary(cfg), selector)
 
     def run_line_queue_command(args):
         if not args:
