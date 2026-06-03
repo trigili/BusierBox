@@ -54,6 +54,28 @@ def resolve_line_service_selector(selector, rows):
     return ""
 
 
+def line_service_names(rows):
+    return [
+        str(rec.get("name") or "")
+        for rec in ordered_line_service_records(rows)
+        if str(rec.get("name") or "")
+    ]
+
+
+def line_service_completion_names(rows):
+    names = line_service_names(rows)
+    displayed = [line_service_display_name(name) for name in names]
+    return list(dict.fromkeys(displayed + names))
+
+
+def line_service_record(rows, name):
+    text = str(name or "").strip()
+    for rec in rows or []:
+        if str(rec.get("name") or "") == text:
+            return rec
+    return {}
+
+
 def line_service_bind_text(rec):
     host = rec.get("bind_address") or ""
     port = rec.get("port") or "-"

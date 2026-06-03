@@ -141,6 +141,7 @@ from gritlib.line_resources import (
 from gritlib.line_search import print_line_search_results
 from gritlib.line_services import (
     line_service_display_name,
+    line_service_completion_names, line_service_names, line_service_record,
     ordered_line_service_records as line_services_ordered_records,
     print_line_service_records,
     resolve_line_service_selector as line_services_resolve_selector,
@@ -6459,7 +6460,7 @@ def run_line_tui(cfg):
             print("    next: options, check, run, run --dry-run, run --confirm, back")
         elif module.startswith("service/"):
             service = module.split("/", 1)[1]
-            rec = line_service_record(service)
+            rec = line_service_record(service_status_rows(cfg), service)
             actual = rec.get("actual") or "-" if rec else "-"
             port = rec.get("port") or "-" if rec else "-"
             pid = rec.get("pid") or "-" if rec else "-"
@@ -6600,7 +6601,7 @@ def run_line_tui(cfg):
 
         if module.startswith("service/"):
             service = module.split("/", 1)[1]
-            rec = line_service_record(service)
+            rec = line_service_record(service_status_rows(cfg), service)
             status = f"{rec.get('actual','?')}"
             if rec.get('configured') and rec.get('configured') != rec.get('actual'):
                 status += f" (want {rec.get('configured')})"
@@ -6964,37 +6965,16 @@ def run_line_tui(cfg):
         print(f"unsetg {rec.get('key', key)}")
         print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
 
-    def ordered_line_service_records():
-        return line_services_ordered_records(service_status_rows(cfg))
-
-    def resolve_line_service_selector(selector):
-        return line_services_resolve_selector(selector, service_status_rows(cfg))
-
-    def line_service_names():
-        return [str(rec.get("name") or "") for rec in ordered_line_service_records() if str(rec.get("name") or "")]
-
-    def line_service_completion_names():
-        names = line_service_names()
-        displayed = [line_service_display_name(name) for name in names]
-        return list(dict.fromkeys(displayed + names))
-
-    def line_service_record(name):
-        text = str(name or "").strip()
-        for rec in service_status_rows(cfg):
-            if str(rec.get("name") or "") == text:
-                return rec
-        return {}
-
     def select_line_service(selector):
         text = str(selector or "").strip()
-        service = resolve_line_service_selector(text)
+        service = line_services_resolve_selector(text, service_status_rows(cfg))
         if not service:
             raise ValueError(f"service not found: {text}")
         cfg["_line_console_module"] = f"service/{service}"
         # Store headless commands so `copy start` / `copy stop` can retrieve them
         cfg["_service_start_command"] = service_start_headless_command(cfg, service)
         cfg["_service_stop_command"] = service_stop_headless_command(cfg, service)
-        rec = line_service_record(service)
+        rec = line_service_record(service_status_rows(cfg), service)
         if rec:
             actual = rec.get("actual") or "?"
             port = rec.get("port") or "-"
@@ -7164,7 +7144,7 @@ def run_line_tui(cfg):
         })
 
     def print_line_services(verbose=False):
-        rows = ordered_line_service_records()
+        rows = line_services_ordered_records(service_status_rows(cfg))
         search_records = print_line_service_records(
             rows,
             verbose=verbose,
@@ -7194,10 +7174,10 @@ def run_line_tui(cfg):
             return start_line_route(service.split(None, 1)[1])
         if not service:
             raise ValueError("usage: start SERVICE|ROUTE")
-        resolved_service = resolve_line_service_selector(service)
+        resolved_service = line_services_resolve_selector(service, service_status_rows(cfg))
         if resolved_service:
             service = resolved_service
-        if service not in line_service_names():
+        if service not in line_service_names(service_status_rows(cfg)):
             if line_route_record(service):
                 return start_line_route(service)
             raise ValueError(f"service or route not found: {service}")
@@ -7209,7 +7189,7 @@ def run_line_tui(cfg):
             # Brief poll for the listener to be ready, then show delivery commands
             for _ in range(10):
                 time.sleep(0.1)
-                if str((line_service_record(service) or {}).get("actual") or "") == "listening":
+                if str((line_service_record(service_status_rows(cfg), service) or {}).get("actual") or "") == "listening":
                     break
             _print_probe_delivery()
 
@@ -7225,10 +7205,10 @@ def run_line_tui(cfg):
             return stop_line_route(service.split(None, 1)[1])
         if not service:
             raise ValueError("usage: stop SERVICE|ROUTE")
-        resolved_service = resolve_line_service_selector(service)
+        resolved_service = line_services_resolve_selector(service, service_status_rows(cfg))
         if resolved_service:
             service = resolved_service
-        if service not in line_service_names():
+        if service not in line_service_names(service_status_rows(cfg)):
             if line_route_record(service):
                 return stop_line_route(service)
             raise ValueError(f"service or route not found: {service}")
@@ -7734,13 +7714,13 @@ def run_line_tui(cfg):
 
         if cmd in {"listener", "service", "listeners", "services",
                    "uselistener", "useservice"}:
-            values = (["-v"] if cmd in {"listeners", "services"} else []) + line_service_completion_names()
+            values = (["-v"] if cmd in {"listeners", "services"} else []) + line_service_completion_names(service_status_rows(cfg))
             return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), values)]
 
         if cmd in {"start", "stop"}:
             if len(parts) >= 2 and parts[1].lower() == "route":
                 return [f"{cmd} route {item}" for item in prefixed(arg_pfx(2), route_names())]
-            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), line_service_names() + route_names())]
+            return [f"{cmd} {item}" for item in prefixed(arg_pfx(1), line_service_names(service_status_rows(cfg)) + route_names())]
 
         if cmd in {"route", "useroute"}:
             rnames = route_names()
@@ -8022,7 +8002,7 @@ def run_line_tui(cfg):
         if dry_run_default and "--dry-run" not in flags:
             flags.append("--dry-run")
         if selector:
-            if not dry_run_default and not selected_line_action() and selector in line_service_names():
+            if not dry_run_default and not selected_line_action() and selector in line_service_names(service_status_rows(cfg)):
                 start_line_service(selector)
                 return 0
             select_line_action(selector)
@@ -8283,7 +8263,7 @@ def run_line_tui(cfg):
             or service_start_headless_command(cfg, "probe")
         )
 
-        svc = line_service_record("probe")
+        svc = line_service_record(service_status_rows(cfg), "probe")
         already_listening = str(svc.get("actual") or "") == "listening"
 
         started = False
@@ -10238,7 +10218,7 @@ def run_line_tui(cfg):
             # Brief poll so the banner reflects actual listening state
             for _ in range(10):
                 time.sleep(0.1)
-                if str((line_service_record(service) or {}).get("actual") or "") == "listening":
+                if str((line_service_record(service_status_rows(cfg), service) or {}).get("actual") or "") == "listening":
                     break
         elif choice == "5":
             service = line_input("service> ")
