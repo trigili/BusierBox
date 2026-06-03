@@ -97,3 +97,24 @@ def print_line_command_queue_records(queue_summary, mailbox_records, command_que
         )
     else:
         print("\n  queue COMMAND  |  queue list  |  queue ? for help")
+
+
+def print_line_command_result_record(rec):
+    rec = rec or {}
+    result = rec.get("result") if isinstance(rec.get("result"), dict) else {}
+    print("Command result:")
+    print(f"  id={rec.get('id', '')}")
+    print(f"  status={rec.get('status', '') or '-'}")
+    print(f"  command={rec.get('command', '')}")
+    print(f"  target={rec.get('target_id', '') or '-'} label={rec.get('target_label', '') or '-'}")
+    print(f"  created={rec.get('created_at', '') or '-'} delivered={rec.get('delivered_at', '') or '-'} result_at={rec.get('result_received_at', '') or '-'}")
+    if result:
+        print(f"  result_status={result.get('status', '') or '-'} exit={result.get('exit_code', '') if result.get('exit_code', '') != '' else '-'}")
+        print(f"  stdout_bytes={result.get('stdout_bytes', '') if result.get('stdout_bytes', '') != '' else rec.get('result_stdout_bytes', '')}")
+        print(f"  stderr_bytes={result.get('stderr_bytes', '') if result.get('stderr_bytes', '') != '' else rec.get('result_stderr_bytes', '')}")
+        print(f"  output_bytes={rec.get('result_output_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
+        print(f"  source={rec.get('result_source_path', '') or '-'}")
+    else:
+        print("  result_status=none")
+        waiting_for = "delivery" if rec.get("status") == "queued" else "result-upload" if rec.get("status") == "delivered" else "-"
+        print(f"  waiting_for={waiting_for}")
