@@ -281,6 +281,10 @@ def target_id_arg(target_id):
     return " --target-id " + shquote(target_id)
 
 
+def optional_target_id_arg(target_id):
+    return target_id_arg(target_id) if target_id else ""
+
+
 def target_scoped_command(base_command, target_id, suffix):
     return str(base_command) + target_id_arg(target_id) + str(suffix)
 

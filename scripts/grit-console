@@ -233,6 +233,7 @@ from gritlib.workflow_actions import (
     operator_daemon_workflow_action_record,
     operator_daemon_workflow_action_indexes,
     operator_daemon_workflow_action_summary,
+    optional_target_id_arg,
     operator_console_headless_command,
     operator_console_workflow_context,
     operator_console_workflow_indexes,
@@ -1560,7 +1561,7 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
     base = "scripts/grit-console --config " + shquote(config_path)
     service_row = service_row if isinstance(service_row, dict) else {}
     target_filter_id = configured_target_filter(cfg)
-    target_arg = (" --target-id " + shquote(target_filter_id)) if target_filter_id else ""
+    target_arg = optional_target_id_arg(target_filter_id)
     route = target_route_context(
         cfg,
         "file-service",
@@ -1776,7 +1777,7 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
     base = "scripts/grit-console --config " + shquote(config_path)
     service_row = service_row if isinstance(service_row, dict) else {}
     target_filter_id = configured_target_filter(cfg)
-    target_arg = (" --target-id " + shquote(target_filter_id)) if target_filter_id else ""
+    target_arg = optional_target_id_arg(target_filter_id)
     queued_count = int(command_queue.get("queued_count", 0) or 0)
     total_count = int(command_queue.get("total_count", 0) or 0)
     result_count = int(command_queue.get("result_count", 0) or 0)
