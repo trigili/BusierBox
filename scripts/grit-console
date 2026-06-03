@@ -81,7 +81,7 @@ from gritlib.build_config import (
     workbench_config_field_records, workbench_config_field_summary,
 )
 from gritlib.event_log import (
-    EventLog, append_event, compact_event_details, event_log_state_record,
+    EventLog, append_event, compact_event_details, event_log_state_status,
     event_log_stats, event_record_indexes, event_tail,
     event_summary_stats_for_records, event_tail_availability_text,
     print_event_log_summary,
@@ -4164,19 +4164,10 @@ def status_document(cfg):
      sessions_by_event_log_exists,
      sessions_by_session_log_exists) = session_record_indexes(sessions)
     event_stats = event_log_stats(cfg, event_limit)
-    event_log_state = event_log_state_record(cfg, event_stats)
-    event_log_state["has_invalid_records"] = int(event_log_state.get("invalid_count") or 0) > 0
-    event_log_state_records = [event_log_state]
-    event_log_state_index_maps = {
-        "event_log_state_records_by_path": {rec.get("path", ""): rec for rec in event_log_state_records if rec.get("path")},
-        "event_log_state_records_by_exists": records_by_key(event_log_state_records, "exists"),
-        "event_log_state_records_by_valid": records_by_key(event_log_state_records, "valid"),
-        "event_log_state_records_by_tail_truncated": records_by_key(event_log_state_records, "tail_truncated"),
-        "event_log_state_records_by_has_invalid_records": records_by_key(event_log_state_records, "has_invalid_records"),
-        "event_log_state_records_by_tail_has_records": records_by_key(event_log_state_records, "tail_has_records"),
-        "event_log_state_records_by_tail_has_omitted_records": records_by_key(event_log_state_records, "tail_has_omitted_records"),
-        "event_log_state_records_by_tail_empty_due_to_limit": records_by_key(event_log_state_records, "tail_empty_due_to_limit"),
-    }
+    event_log_status = event_log_state_status(cfg, event_stats)
+    event_log_state = event_log_status["state_record"]
+    event_log_state_records = event_log_status["state_records"]
+    event_log_state_index_maps = event_log_status["state_index_maps"]
     events = event_stats["tail"]
     unfiltered_counts["event_tail"] = len(events)
     if target_filter_id:

@@ -6,7 +6,7 @@ import os
 import time
 from pathlib import Path
 
-from gritlib.record_utils import format_counts
+from gritlib.record_utils import format_counts, records_by_key
 
 
 EVENT_COUNTER = itertools.count(1)
@@ -283,6 +283,39 @@ def event_log_state_record(cfg, stats=None):
         except OSError as exc:
             rec["error"] = str(exc)
     return rec
+
+
+def event_log_state_status(cfg, stats=None):
+    state_record = event_log_state_record(cfg, stats)
+    state_record["has_invalid_records"] = int(state_record.get("invalid_count") or 0) > 0
+    state_records = [state_record]
+    state_index_maps = {
+        "event_log_state_records_by_path": {
+            rec.get("path", ""): rec for rec in state_records if rec.get("path")
+        },
+        "event_log_state_records_by_exists": records_by_key(state_records, "exists"),
+        "event_log_state_records_by_valid": records_by_key(state_records, "valid"),
+        "event_log_state_records_by_tail_truncated": records_by_key(
+            state_records, "tail_truncated"
+        ),
+        "event_log_state_records_by_has_invalid_records": records_by_key(
+            state_records, "has_invalid_records"
+        ),
+        "event_log_state_records_by_tail_has_records": records_by_key(
+            state_records, "tail_has_records"
+        ),
+        "event_log_state_records_by_tail_has_omitted_records": records_by_key(
+            state_records, "tail_has_omitted_records"
+        ),
+        "event_log_state_records_by_tail_empty_due_to_limit": records_by_key(
+            state_records, "tail_empty_due_to_limit"
+        ),
+    }
+    return {
+        "state_record": state_record,
+        "state_records": state_records,
+        "state_index_maps": state_index_maps,
+    }
 
 
 def event_tail_availability_text(doc):
