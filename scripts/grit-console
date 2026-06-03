@@ -59,8 +59,8 @@ from gritlib.command_queue import (
     command_queue_policy_yes_no, command_queue_state_record, command_queue_summary,
     command_queue_workflow_action_indexes, command_queue_workflow_action_summary,
     clear_command_queue, load_command_queue, mark_command_delivered, queue_command,
-    record_command_result, record_command_result_payload, save_command_queue,
-    yes_no,
+    print_command_queue_mode_lines, record_command_result,
+    record_command_result_payload, save_command_queue, yes_no,
 )
 from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
@@ -8972,30 +8972,6 @@ def status_document(cfg):
 
 def generated_target_commands(cfg, staged=None):
     return [rec["command"] for rec in generated_target_command_records(cfg, staged)]
-
-
-def print_command_queue_mode_lines(queue):
-    mode_summary = queue.get("mode_summary") or {}
-    print(
-        "  modes: "
-        f"total={mode_summary.get('mode_count', 0)} "
-        f"would_poll_if_configured={mode_summary.get('polling_mode_count', 0)} "
-        f"operator_host_required={mode_summary.get('operator_host_required_mode_count', 0)} "
-        f"delivery_supported={mode_summary.get('delivery_supported_mode_count', 0)} "
-        f"result_upload_supported={mode_summary.get('result_upload_supported_mode_count', 0)} "
-        f"execution_supported={mode_summary.get('execution_supported_mode_count', 0)} "
-        f"active_control_channel={mode_summary.get('active_control_channel_mode_count', 0)}"
-    )
-    for name in ("status", "poll", "once", "daemon", "stop"):
-        rec = (queue.get("mode_semantics") or {}).get(name) or {}
-        print(
-            f"  mode {name}: "
-            f"lifecycle={rec.get('lifecycle', '')} "
-            f"requires_operator_host={'yes' if rec.get('requires_operator_host') else 'no'} "
-            f"would_poll_if_configured={'yes' if rec.get('would_poll_if_configured') else 'no'} "
-            f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} "
-            f"active_control_channel={'yes' if rec.get('active_control_channel') else 'no'}"
-        )
 
 
 def print_target_summary(doc, limit=8):

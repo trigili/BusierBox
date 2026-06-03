@@ -20,6 +20,30 @@ from gritlib.session_state import (
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
 
 
+def print_command_queue_mode_lines(queue):
+    mode_summary = queue.get("mode_summary") or {}
+    print(
+        "  modes: "
+        f"total={mode_summary.get('mode_count', 0)} "
+        f"would_poll_if_configured={mode_summary.get('polling_mode_count', 0)} "
+        f"operator_host_required={mode_summary.get('operator_host_required_mode_count', 0)} "
+        f"delivery_supported={mode_summary.get('delivery_supported_mode_count', 0)} "
+        f"result_upload_supported={mode_summary.get('result_upload_supported_mode_count', 0)} "
+        f"execution_supported={mode_summary.get('execution_supported_mode_count', 0)} "
+        f"active_control_channel={mode_summary.get('active_control_channel_mode_count', 0)}"
+    )
+    for name in ("status", "poll", "once", "daemon", "stop"):
+        rec = (queue.get("mode_semantics") or {}).get(name) or {}
+        print(
+            f"  mode {name}: "
+            f"lifecycle={rec.get('lifecycle', '')} "
+            f"requires_operator_host={'yes' if rec.get('requires_operator_host') else 'no'} "
+            f"would_poll_if_configured={'yes' if rec.get('would_poll_if_configured') else 'no'} "
+            f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} "
+            f"active_control_channel={'yes' if rec.get('active_control_channel') else 'no'}"
+        )
+
+
 def command_queue_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
     return Path(str(
         cfg.get("command_queue_file") or
