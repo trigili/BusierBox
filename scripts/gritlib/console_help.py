@@ -8,7 +8,7 @@ usage: grit-console [--config CONFIG] [mode] [options]
 griTTYkit operator control plane.
 
 Start here:
-  grit-console --tui
+  grit-console
   grit-console --status
   grit-console --json-status
 
@@ -28,8 +28,9 @@ Common operator workflows:
   --transport probe-dns
 
 Interactive console:
-  --tui opens the line-oriented operator console for targets, mailbox work,
-  files, bridges, daemon/service lifecycle, generated commands, and build config.
+  Running grit-console with no service action opens the line-oriented operator
+  console for targets, mailbox work, files, bridges, daemon/service lifecycle,
+  generated commands, and build config.
 
 Reference:
   --help-console prints interactive console commands and examples.
@@ -39,7 +40,7 @@ Reference:
 
 def print_console_help_reference():
     print("""\
-usage: grit-console --tui
+usage: grit-console
 
 griTTYkit operator console reference.
 

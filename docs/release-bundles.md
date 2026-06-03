@@ -100,7 +100,7 @@ and `socat` maps to `socat-rescue`. They can be supplied with
 Trailer configuration after packaging:
 
 ```sh
-scripts/grit-console --tui
+scripts/grit-console
 # In the console, after `release stage SELECTOR` or `serve-binary ...`:
 #   release stage by_device_payload_preset:glinet-mt1300:survey-core
 #   release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
@@ -388,7 +388,7 @@ devices/glinet-mt1300/artifacts/README.txt
 The console accepts the same payload-preset selection directly:
 
 ```sh
-scripts/grit-console --tui
+scripts/grit-console
 release stage by_device_payload_preset:glinet-mt1300:survey-core
 release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
 ```
@@ -477,7 +477,7 @@ When launched from a release bundle, the operator workbench and JSON status can
 also browse release artifacts, device aliases, and tuple directories:
 
 ```sh
-scripts/grit-console --tui
+scripts/grit-console
 scripts/grit-console --json-status
 scripts/grit-console --api-status
 scripts/grit-console --api-status --event-limit 50

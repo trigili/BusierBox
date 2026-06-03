@@ -188,7 +188,7 @@ def run_line_tui(cfg, script, timeout=8):
     proc = None
     try:
         proc = subprocess.Popen(
-            [str(SERVER), "--config", str(cfg), "--tui"],
+            [str(SERVER), "--config", str(cfg)],
             cwd=ROOT,
             stdin=slave,
             stdout=slave,
@@ -1516,8 +1516,8 @@ def run_systemd_user_service_scenario(artifact_dir):
     return {"name": "systemd-user-service", "status": "pass", "artifact": "systemd-user-service-status.json"}
 
 
-def run_tui_offline_queue_scenario(artifact_dir):
-    scenario_dir = artifact_dir / "tui-offline-queue-session"
+def run_console_offline_queue_scenario(artifact_dir):
+    scenario_dir = artifact_dir / "console-offline-queue-session"
     queue_port = free_port()
     survey_port = free_port()
     file_port = free_port()
@@ -1781,7 +1781,7 @@ def run_harness(artifact_dir):
     phases.append(run_restart_persistence_scenario(artifact_dir))
     phases.append(run_bad_token_phone_home_scenario(artifact_dir))
     phases.append(run_systemd_user_service_scenario(artifact_dir))
-    phases.append(run_tui_offline_queue_scenario(artifact_dir))
+    phases.append(run_console_offline_queue_scenario(artifact_dir))
 
     queue_command(cfg, "target-alpha", "Alpha Router", "grit survey --json")
     queue_command(cfg, "target-bravo", "Bravo Router", "grit survey --json")

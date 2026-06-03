@@ -1396,7 +1396,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "open-workbench",
             "inspect",
             "Open the workbench scoped to this target",
-            target_scoped_command(base, target_id, " --tui"),
+            target_scoped_command(base, target_id, ""),
             "workbench",
         )
         add(

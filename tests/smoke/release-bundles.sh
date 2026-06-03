@@ -374,7 +374,7 @@ grep -q 'GPL compatibility summary' "$work/release/docs/licensing.md"
 python3 -m json.tool "$work/release/manifests/license-policy.json" >/dev/null
 grep -q '"combined_gplv2_compatible": true' "$work/release/manifests/license-policy.json"
 grep -q 'scripts/grit-console --file-service --file-port 22204' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q 'scripts/grit-console --tui' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'scripts/grit-console' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'scripts/grit-console --transport probe --probe-port 22207' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'probe --start' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'probe config --write-config configs/grit.conf' "$work/release/RELEASE-QUICKSTART.txt"

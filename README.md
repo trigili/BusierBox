@@ -209,7 +209,7 @@ queueing for targets that phone home.
 ### Starting the console
 
 ```sh
-scripts/grit-console --tui
+scripts/grit-console
 ```
 
 The console opens with a compact status banner and a `grit[all]>` prompt. It

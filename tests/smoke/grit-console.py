@@ -445,7 +445,6 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "--config", str(numeric_listener_cfg),
                 "--state-file", str(numeric_listener_state),
                 "--staged-file", str(numeric_listener_staged),
-                "--tui",
             ],
             cwd=ROOT,
             stdin=numeric_slave,
@@ -506,7 +505,6 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "--staged-file", str(line_console_staged),
                 "--bridge-profiles-file", str(line_console_routes),
                 "--build-config", str(line_console_build),
-                "--tui",
             ],
             cwd=ROOT,
             stdin=line_console_slave,
@@ -1269,7 +1267,7 @@ def main(argv=None):
     if "probe" not in combined or "--probe-port" not in combined:
         print("grit-console help missing probe mode", file=sys.stderr)
         return 1
-    for word in ("--tui", "--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--run-release-artifact-workflow-action", "--list-staged", "--status", "--stop", "--stop-service", "--view-path", "--json-status", "--api-status", "--event-limit",
+    for word in ("--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--run-release-artifact-workflow-action", "--list-staged", "--status", "--stop", "--stop-service", "--view-path", "--json-status", "--api-status", "--event-limit",
                  "--help-console",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
@@ -1585,7 +1583,6 @@ def main(argv=None):
                 [
                     str(server),
                     "--config", str(bridge_cfg),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=bridge_tui_slave,
@@ -2305,7 +2302,6 @@ def main(argv=None):
             "scripts/grit-console",
             "--config", str(survey_cfg),
             "--bridge-profile", "survey-route",
-            "--tui",
         )
         if ("Generated target commands:" not in bridged_survey_tui.stdout or
                 "routes: bridge=" not in bridged_survey_tui.stdout or
@@ -2321,7 +2317,6 @@ def main(argv=None):
                     str(server),
                     "--config", str(survey_cfg),
                     "--bridge-profile", "survey-route",
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=survey_tui_slave,
@@ -2469,7 +2464,6 @@ def main(argv=None):
                 [
                     str(server),
                     "--config", str(cfg),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=copy_tui_slave,
@@ -2515,7 +2509,6 @@ def main(argv=None):
                 [
                     str(server),
                     "--config", str(cfg),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=actions_tui_slave,
@@ -2594,7 +2587,6 @@ def main(argv=None):
                 [
                     str(server),
                     "--config", str(cfg),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=refresh_tui_slave,
@@ -2697,7 +2689,6 @@ def main(argv=None):
                 [
                     str(server),
                     "--config", str(cfg),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=view_tui_slave,
@@ -2771,7 +2762,6 @@ def main(argv=None):
                 [
                     str(server),
                     "--config", str(cfg),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=stop_tui_slave,
@@ -2992,7 +2982,6 @@ def main(argv=None):
                     str(server),
                     "--config", str(cfg),
                     "--build-config", str(guided_build_config),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=build_config_tui_slave,
@@ -3108,7 +3097,6 @@ def main(argv=None):
                 [
                     str(server),
                     "--config", str(workbench_job_cfg),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=job_cancel_slave,
@@ -3393,7 +3381,6 @@ def main(argv=None):
         isolated_workbench = run(
             "scripts/grit-console",
             "--config", str(isolated_cfg),
-            "--tui",
         )
         if (str(expected_isolated["staged_files"]) not in isolated_workbench.stdout or
                 str(expected_isolated["command_queue_file"]) not in isolated_workbench.stdout or
@@ -3955,7 +3942,6 @@ def main(argv=None):
                 [
                     str(server),
                     "--config", str(expired_cfg),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=lifecycle_tui_slave,
@@ -4902,7 +4888,6 @@ def main(argv=None):
                 [
                     str(server),
                     "--config", str(poll_target_cfg),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=queue_tui_slave,
@@ -6907,7 +6892,6 @@ def main(argv=None):
         zero_event_workbench = run(
             "scripts/grit-console",
             "--config", str(truncated_event_cfg),
-            "--tui",
             "--event-limit", "0",
         )
         if (zero_event_workbench.returncode != 0 or
@@ -7466,7 +7450,6 @@ def main(argv=None):
                     "--config", str(tui_owned_cfg),
                     "--state-file", str(tui_owned_state),
                     "--staged-file", str(tui_owned_staged),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=tui_slave,
@@ -7588,7 +7571,6 @@ def main(argv=None):
                     "--config", str(tui_sigterm_owned_cfg),
                     "--state-file", str(tui_sigterm_owned_state),
                     "--staged-file", str(tui_sigterm_owned_staged),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=sigterm_owned_slave,
@@ -7689,7 +7671,6 @@ def main(argv=None):
                     "--config", str(tui_sigterm_cfg),
                     "--state-file", str(tui_sigterm_state),
                     "--staged-file", str(tui_sigterm_staged),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=sigterm_slave,
@@ -7958,7 +7939,6 @@ def main(argv=None):
         bind_fail_workbench = run(
             "scripts/grit-console", "--config", str(bind_fail_cfg),
             "--state-file", str(bind_fail_state),
-            "--tui",
         )
         if ("Warnings:" not in bind_fail_workbench.stdout or
                 "service_error file-service" not in bind_fail_workbench.stdout or
@@ -9092,7 +9072,6 @@ def main(argv=None):
                     str(server),
                     "--config", str(action_cfg),
                     "--state-file", str(line_action_state),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=line_slave,
@@ -9155,7 +9134,6 @@ def main(argv=None):
                     str(server),
                     "--config", str(action_cfg),
                     "--state-file", str(line_action_state),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=activity_slave,
@@ -10113,7 +10091,6 @@ def main(argv=None):
             "--config", str(upload_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
-            "--tui",
         )
         if ("Received uploads" not in uploads_view.stdout or
                 "evidence.txt" not in uploads_view.stdout or
@@ -10471,7 +10448,6 @@ def main(argv=None):
             "scripts/grit-console",
             "--config", str(upload_cfg),
             "--target-id", "target-bravo",
-            "--tui",
         )
         if (filtered_workbench.returncode != 0 or
                 "Target filter: target-bravo targets=1 uploads=1" not in filtered_workbench.stdout or
@@ -10882,7 +10858,6 @@ def main(argv=None):
             "scripts/grit-console",
             "--config", str(capability_cfg),
             "--target-id", "target-capability",
-            "--tui",
         )
         if (capability_workbench.returncode != 0 or
                 "Target filter: target-capability targets=1 uploads=1" not in capability_workbench.stdout or
@@ -10901,7 +10876,6 @@ def main(argv=None):
                     "--config", str(upload_cfg),
                     "--state-file", str(tui_sigint_state),
                     "--staged-file", str(staged_file),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=tui_slave,
@@ -10945,7 +10919,6 @@ def main(argv=None):
                     "--config", str(upload_cfg),
                     "--state-file", str(dumb_tui_state),
                     "--staged-file", str(staged_file),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=dumb_slave,
@@ -10989,7 +10962,6 @@ def main(argv=None):
                     "--config", str(upload_cfg),
                     "--state-file", str(dumb_invalid_state),
                     "--staged-file", str(dumb_invalid_staged),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=dumb_invalid_slave,
@@ -11048,7 +11020,6 @@ def main(argv=None):
                     "--config", str(upload_cfg),
                     "--state-file", str(line_stage_state),
                     "--staged-file", str(line_stage_staged),
-                    "--tui",
                 ],
                 cwd=ROOT,
                 stdin=line_stage_slave,
@@ -11329,7 +11300,6 @@ def main(argv=None):
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
-            "--tui",
         )
         if tui.returncode != 0 or "griTTYkit Operator Workbench" not in tui.stdout:
             print("noninteractive TUI/workbench failed:", file=sys.stderr)
@@ -11503,7 +11473,6 @@ def main(argv=None):
                     "--config", str(release_set_cfg),
                     "--state-file", str(release_set_state),
                     "--staged-file", str(release_set_staged),
-                    "--tui",
                 ],
                 cwd=tmp,
                 stdin=release_set_slave,
@@ -11558,7 +11527,6 @@ def main(argv=None):
                 "--config", str(fetch_cfg),
                 "--state-file", str(state_file),
                 "--staged-file", str(staged_file),
-                "--tui",
             ],
             cwd=release_dir,
             text=True,
@@ -12147,7 +12115,6 @@ def main(argv=None):
                     "--config", str(fetch_cfg),
                     "--state-file", str(line_release_state_file),
                     "--staged-file", str(line_release_staged_file),
-                    "--tui",
                 ],
                 cwd=release_dir,
                 stdin=line_slave,
@@ -12463,7 +12430,6 @@ def main(argv=None):
                     "--config", str(probe_release_cfg),
                     "--state-file", str(probe_release_state),
                     "--staged-file", str(probe_release_staged),
-                    "--tui",
                 ],
                 cwd=tmp,
                 stdin=probe_slave,
@@ -12908,7 +12874,6 @@ def main(argv=None):
             "--config", str(fetch_cfg),
             "--state-file", str(state_file),
             "--staged-file", str(staged_file),
-            "--tui",
         )
         if ("Recent fetches:" not in fetch_view.stdout or
                 "Activity summary:" not in fetch_view.stdout or

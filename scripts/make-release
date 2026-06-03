@@ -1725,7 +1725,7 @@ def write_release_quickstart(path, name):
 
             2. Start the operator console:
 
-               scripts/grit-console --tui
+               scripts/grit-console
 
                In the console, type `?` for topics. The main release workflow is:
 
@@ -1791,7 +1791,7 @@ def write_release_quickstart(path, name):
 
             6. Operator services and target transfers:
 
-               scripts/grit-console --tui
+               scripts/grit-console
                scripts/grit-console --transport probe --probe-port 22207
                scripts/grit-console --transport tls-shell --shell-port 22203
                scripts/grit-console --transport ssh --ssh-port 22202
@@ -1845,7 +1845,7 @@ def write_release_readme(path, name):
             ```sh
             scripts/verify-checksums --original
             scripts/lib/release-self-test
-            scripts/grit-console --tui
+            scripts/grit-console
             scripts/lib/release-find --device glinet-mt1300
             # In the console, probe the target, stage a matching release artifact,
             # then configure its staged copy before target fetch:
@@ -1869,7 +1869,7 @@ def write_release_readme(path, name):
             tooling by default. The console `configure` command edits a staged copy under
             the operator session so the original release artifact remains pristine.
 
-            `scripts/grit-console --tui` is the intended operator entry point for release
+            `scripts/grit-console` is the intended operator entry point for release
             users. It can serve `probe.sh`, recommend a matching tuple, stage release
             artifacts or local files, print plain wget/curl target fetch commands, configure
             staged payload trailers, receive target uploads, and queue work for polling
