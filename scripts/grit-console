@@ -103,7 +103,9 @@ from gritlib.target_commands import (
     target_command_record_indexes, target_command_record_summary,
     target_command_state_status,
 )
-from gritlib.target_records import target_record_indexes, target_record_summary
+from gritlib.target_records import (
+    target_record_indexes, target_record_summary, targets_path,
+)
 from gritlib.warnings import (
     annotate_path_records_with_warnings, annotate_service_port_records_with_warnings,
     annotate_warning_records, warning_record_indexes, warning_stats,
@@ -373,10 +375,6 @@ def event_log_state_record(cfg, stats=None):
         except OSError as exc:
             rec["error"] = str(exc)
     return rec
-
-
-def targets_path(cfg):
-    return Path(str(cfg.get("targets_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "targets.json"))
 
 
 def bridge_profiles_path(cfg):

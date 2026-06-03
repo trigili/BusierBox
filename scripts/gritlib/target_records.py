@@ -1,6 +1,18 @@
 """Target record index and summary helpers for grit-console."""
 
+from pathlib import Path
+
 from gritlib.record_utils import record_count_by_key
+
+
+DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
+
+
+def targets_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
+    return Path(str(
+        cfg.get("targets_file") or
+        Path(str(cfg.get("operator_session_dir", default_operator_session_dir))) / "targets.json"
+    ))
 
 
 def target_record_indexes(records):
