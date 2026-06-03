@@ -8,7 +8,7 @@ from gritlib.target_records import (
 )
 
 
-def line_tui_prompt(target_id="", module="", target_context=None):
+def line_repl_prompt(target_id="", module="", target_context=None):
     target_id = str(target_id or "").strip()
     module = str(module or "").strip()
     module_suffix = f"/{module}" if module else ""
@@ -22,7 +22,7 @@ def line_tui_prompt(target_id="", module="", target_context=None):
     return f"grit[{display}]{module_suffix}> "
 
 
-def line_tui_status_bar(snap):
+def line_repl_status_bar(snap):
     summary = snap.get("summary") or {}
     target_filter = snap.get("target_filter") or {}
     counts = summary.get("connectivity_state_counts") or summary.get("target_connectivity_state_counts") or {}

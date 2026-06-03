@@ -184,8 +184,8 @@ from gritlib.line_target_commands import (
     copy_line_generated_command, run_line_generated_command,
 )
 from gritlib.line_workspace import (
-    line_tui_prompt as line_workspace_tui_prompt,
-    line_tui_status_bar, print_line_console_banner,
+    line_repl_prompt as line_workspace_repl_prompt,
+    line_repl_status_bar, print_line_console_banner,
     print_line_info as line_workspace_print_line_info,
     print_line_next as line_workspace_print_line_next,
     print_line_workspace_snapshot,
@@ -6314,16 +6314,16 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
     raise ValueError(f"unsupported target workflow action: {action_id}")
 
 
-def run_line_tui(cfg):
+def run_line_repl(cfg):
     if HAVE_READLINE:
         _readline.set_history_length(500)
 
-    # Override SIGTERM for the duration of the line TUI.
+    # Override SIGTERM for the duration of the line REPL.
     # readline installs its own SIGTERM handler that resumes reading after calling
     # the original handler, so setting flags or raising signals is not enough.
     # Replacing stdin with /dev/null causes readline's next read() to get EOF,
     # which makes input() raise EOFError and unblocks line_input().
-    def _line_tui_shutdown(reason, _signum, _frame):
+    def _line_repl_shutdown(reason, _signum, _frame):
         request_shutdown(reason)
         if reason == "SIGTERM":
             # Give managed subprocesses a moment to exit after SIGTERM before cleanup
@@ -6342,8 +6342,8 @@ def run_line_tui(cfg):
     _prev_sigterm = signal.getsignal(signal.SIGTERM)
     _prev_sigint = signal.getsignal(signal.SIGINT)
     try:
-        signal.signal(signal.SIGTERM, lambda s, f: _line_tui_shutdown("SIGTERM", s, f))
-        signal.signal(signal.SIGINT, lambda s, f: _line_tui_shutdown("keyboard_interrupt", s, f))
+        signal.signal(signal.SIGTERM, lambda s, f: _line_repl_shutdown("SIGTERM", s, f))
+        signal.signal(signal.SIGINT, lambda s, f: _line_repl_shutdown("keyboard_interrupt", s, f))
     except (OSError, ValueError):
         _prev_sigterm = None
         _prev_sigint = None
@@ -6444,11 +6444,11 @@ def run_line_tui(cfg):
         except (TypeError, ValueError) as exc:
             print(exc)
 
-    def line_tui_prompt():
+    def line_repl_prompt():
         target_id = configured_target_filter(cfg)
         module = str(cfg.get("_line_console_module") or "").strip()
         ctx = target_context_fields(cfg, target_id) if target_id else {}
-        return line_workspace_tui_prompt(target_id=target_id, module=module, target_context=ctx)
+        return line_workspace_repl_prompt(target_id=target_id, module=module, target_context=ctx)
 
     def print_line_console_help():
         return line_help_print_line_console_help()
@@ -6468,7 +6468,7 @@ def run_line_tui(cfg):
         return line_workspace_print_line_info(
             snap,
             module=module,
-            prompt_text=line_tui_prompt(),
+            prompt_text=line_repl_prompt(),
             selected_action=selected_line_action,
             service_record=lambda service: line_service_record(service_status_rows(cfg), service),
             route_record=line_route_record,
@@ -6489,7 +6489,7 @@ def run_line_tui(cfg):
             snap,
             module=module,
             target_id=target_id,
-            prompt_text=line_tui_prompt(),
+            prompt_text=line_repl_prompt(),
             selected_action=selected_line_action,
             job_record=line_job_record,
         )
@@ -8717,9 +8717,9 @@ def run_line_tui(cfg):
             print_line_console_banner(snap, grit_version())
         if pending_console_lines:
             line = pending_console_lines.pop(0)
-            print(f"{line_tui_prompt()}{line}")
+            print(f"{line_repl_prompt()}{line}")
         else:
-            line = line_input(line_tui_prompt())
+            line = line_input(line_repl_prompt())
         if line is None:
             break
         choice = line.strip()
@@ -8800,7 +8800,7 @@ def run_line_tui(cfg):
                     print(exc)
                 continue
             elif cmd in {"status", "summary"}:
-                print(line_tui_status_bar(workbench_snapshot(cfg)))
+                print(line_repl_status_bar(workbench_snapshot(cfg)))
                 continue
             elif cmd == "reload":
                 config_path = str(cfg.get("_config_path") or DEFAULT_CONFIG)
@@ -10270,7 +10270,7 @@ def run_line_console(cfg):
             "workbench_mode": "line",
         })
         append_event(cfg, "workbench", "workbench_opened", details={"mode": "line"})
-        return run_line_tui(cfg)
+        return run_line_repl(cfg)
     except KeyboardInterrupt:
         request_shutdown("keyboard_interrupt")
         print("grit-console: interrupted, shutting down workbench", file=sys.stderr)
