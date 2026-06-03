@@ -127,7 +127,9 @@ from gritlib.line_services import (
     print_line_service_records,
     resolve_line_service_selector as line_services_resolve_selector,
 )
-from gritlib.line_sessions import print_line_session_records
+from gritlib.line_sessions import (
+    line_session_record_by_selector, print_line_session_records,
+)
 from gritlib.line_workspace import print_line_workspace_snapshot
 from gritlib.operator_io import (
     clipboard_command, open_path_in_pager, restore_interactive_tty,
@@ -9175,19 +9177,10 @@ def run_line_tui(cfg):
         })
 
     def line_session_record(selector):
-        text = str(selector or "").strip()
-        if not text:
-            return {}
-        sessions = workbench_snapshot(cfg).get("sessions") or []
-        if text.isdigit():
-            idx = int(text) - 1
-            if 0 <= idx < len(sessions):
-                return sessions[idx]
-        for item in sessions:
-            session_id = str(item.get("session_id") or Path(str(item.get("path", ""))).name)
-            if text == session_id or text == str(item.get("path", "")):
-                return item
-        return {}
+        return line_session_record_by_selector(
+            workbench_snapshot(cfg).get("sessions") or [],
+            selector,
+        )
 
     def select_line_session(selector):
         text = str(selector or "").strip()

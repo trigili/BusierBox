@@ -31,6 +31,22 @@ def line_session_time_text(iso):
     return iso or "-"
 
 
+def line_session_record_by_selector(sessions, selector):
+    text = str(selector or "").strip()
+    if not text:
+        return {}
+    sessions = list(sessions or [])
+    if text.isdigit():
+        idx = int(text) - 1
+        if 0 <= idx < len(sessions):
+            return sessions[idx]
+    for item in sessions:
+        session_id = str(item.get("session_id") or Path(str(item.get("path", ""))).name)
+        if text == session_id or text == str(item.get("path", "")):
+            return item
+    return {}
+
+
 def print_line_session_records(sessions, verbose=False, view_command=None, quote=None):
     all_sessions = list(sessions or [])
     shown = all_sessions[:12]
