@@ -134,8 +134,8 @@ from gritlib.target_activity import (
     target_phone_home_records_from_events,
 )
 from gritlib.target_commands import (
-    target_command_record_indexes, target_command_record_summary,
-    target_command_state_status,
+    rshell_session_policy_record, target_command_record_indexes,
+    target_command_record_summary, target_command_state_status,
 )
 from gritlib.target_records import (
     attach_target_identity, capability_report_summary,
@@ -12725,101 +12725,6 @@ def print_release_summary(doc):
         )
     for error in release_state.get("errors") or []:
         print(f"  error: {error}")
-
-
-def rshell_cfg_value(cfg, lower_key, upper_key, default):
-    value = cfg.get(lower_key)
-    if value in (None, ""):
-        value = cfg.get(upper_key)
-    if value in (None, ""):
-        value = default
-    return str(value)
-
-
-def parse_int_default(value, default):
-    try:
-        return int(str(value))
-    except (TypeError, ValueError):
-        return int(default)
-
-
-def rshell_retry_delay_without_jitter(attempt, interval_sec, backoff, max_interval_sec):
-    base = max(parse_int_default(interval_sec, 5), 0)
-    max_delay = max(parse_int_default(max_interval_sec, 300), base)
-    delay = base
-    attempt = max(parse_int_default(attempt, 0), 0)
-    if backoff == "linear":
-        delay = base * (attempt + 1)
-    elif backoff == "exponential":
-        delay = base
-        for _idx in range(attempt):
-            if delay >= max_delay:
-                break
-            if delay > max_delay // 2:
-                delay = max_delay
-                break
-            delay *= 2
-    return min(delay, max_delay)
-
-
-def rshell_session_policy_record(cfg):
-    policy = str(cfg.get("GRIT_RSHELL_SESSION_POLICY") or cfg.get("GRIT_RSHELL_SESSION_POLICY") or "single")
-    retry_count = rshell_cfg_value(cfg, "GRIT_RSHELL_RETRY_COUNT", "GRIT_RSHELL_RETRY_COUNT", "1")
-    retry_interval = rshell_cfg_value(cfg, "GRIT_RSHELL_RETRY_INTERVAL_SEC", "GRIT_RSHELL_RETRY_INTERVAL_SEC", "5")
-    retry_jitter = rshell_cfg_value(cfg, "GRIT_RSHELL_RETRY_JITTER_PCT", "GRIT_RSHELL_RETRY_JITTER_PCT", "20")
-    retry_backoff = rshell_cfg_value(cfg, "GRIT_RSHELL_RETRY_BACKOFF", "GRIT_RSHELL_RETRY_BACKOFF", "none")
-    retry_max_interval = rshell_cfg_value(cfg, "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC", "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC", "300")
-    valid = policy in ("single", "reconnect", "persistent")
-    reconnects = policy in ("reconnect", "persistent")
-    post_disconnect_count = "-1" if policy == "persistent" else ("0" if policy == "single" else retry_count)
-    retry_timing = {
-        "backoff": retry_backoff,
-        "interval_sec": retry_interval,
-        "max_interval_sec": retry_max_interval,
-        "jitter_pct": retry_jitter,
-        "sample_delays_sec": [
-            rshell_retry_delay_without_jitter(0, retry_interval, retry_backoff, retry_max_interval),
-            rshell_retry_delay_without_jitter(1, retry_interval, retry_backoff, retry_max_interval),
-            rshell_retry_delay_without_jitter(2, retry_interval, retry_backoff, retry_max_interval),
-        ],
-        "sample_delays_exclude_jitter": True,
-    }
-    summary = {
-        "valid": valid,
-        "errors": [] if valid else ["unsupported rshell session policy"],
-        "retry_scope": "pre-connect+post-disconnect" if reconnects else "pre-connect",
-        "pre_connect_retry_count": retry_count,
-        "post_disconnect_retry_count": post_disconnect_count,
-        "stops_after_success": policy == "single",
-        "reconnects_after_disconnect": reconnects,
-        "persistent_lifecycle": policy == "persistent",
-        "fresh_session_on_reconnect": reconnects,
-        "session_resume_supported": False,
-    }
-    return {
-        "session_policy": policy,
-        "session_policy_valid": valid,
-        "session_policy_errors": [] if valid else ["unsupported rshell session policy"],
-        "session_semantics": {
-            "retry_until_first_connection": valid,
-            "stop_after_first_success": policy == "single",
-            "reconnect_after_disconnect": reconnects,
-            "persistent_lifecycle": policy == "persistent",
-            "fresh_session_on_reconnect": reconnects,
-            "session_resume_supported": False,
-        },
-        "session_policy_summary": summary,
-        "retry": {
-            "count": retry_count,
-            "interval_sec": retry_interval,
-            "jitter_pct": retry_jitter,
-            "backoff": retry_backoff,
-            "max_interval_sec": retry_max_interval,
-            "pre_connect_count": retry_count,
-            "post_disconnect_count": post_disconnect_count,
-        },
-        "retry_timing": retry_timing,
-    }
 
 
 def generated_target_command_records(cfg, staged=None):
