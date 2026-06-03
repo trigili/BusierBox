@@ -23529,8 +23529,8 @@ def run_line_tui(cfg):
                     print_line_files()
                 continue
             elif cmd in {"mailbox", "queue"}:
-                compact_next_prompt = False
-                choice = "20"
+                print_line_command_queue_view()
+                continue
             elif cmd == "jobs":
                 try:
                     if len(console_args) >= 3 and console_args[1] in {"-k", "--kill", "--cancel"}:

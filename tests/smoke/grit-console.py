@@ -688,6 +688,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "note Console quick note\n"
                 "alias console-alias\n"
                 "search Console Router\n"
+                "mailbox\n"
                 "use 1\n"
                 "show options\n"
                 "set target.notes Rack shelf A\n"
@@ -851,6 +852,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         return 1
     if "service or route not found: 1" in line_console_stdout:
         print("line-oriented TUI did not accept numbered start/stop listener rows", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
+    if "search result number out of range: 20" in line_console_stdout:
+        print("line-oriented TUI interpreted bare mailbox as a stale search result", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
