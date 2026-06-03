@@ -90,3 +90,45 @@ def print_line_action_records(actions, filter_text="", kind_filter="", quote=Non
         "group_counts": {kind: len(items) for kind, items in grouped.items()},
     }
     return search_records, event_details
+
+
+def print_line_module_category_records(actions):
+    actions = list(actions or [])
+    grouped = {}
+    category_counts = {}
+    workflow_counts = {}
+    for rec in actions:
+        kind = str(rec.get("kind") or "other")
+        grouped.setdefault(kind, []).append(rec)
+        category = str(rec.get("category") or "-")
+        workflow = str(rec.get("workflow") or "-")
+        category_counts[category] = category_counts.get(category, 0) + 1
+        workflow_counts[workflow] = workflow_counts.get(workflow, 0) + 1
+    total = len(actions)
+    print(f"Modules  ({total} total)")
+    if not actions:
+        print("  (none)")
+        return {
+            "module_count": total,
+            "kind_counts": {},
+            "category_counts": category_counts,
+            "workflow_counts": workflow_counts,
+        }
+    print("")
+    col = max(len(kind) for kind in grouped) + 2
+    for kind in sorted(grouped):
+        items = grouped[kind]
+        states = {}
+        for rec in items:
+            state = rec.get("operator_action_state") or "unknown"
+            states[state] = states.get(state, 0) + 1
+        state_summary = "  ".join(f"{state}={count}" for state, count in sorted(states.items()))
+        print(f"  {kind:{col}}{len(items)} modules   {state_summary}")
+    print("")
+    print("  show service|daemon|target|workbench modules  |  modules FILTER  |  use N")
+    return {
+        "module_count": total,
+        "kind_counts": {kind: len(items) for kind, items in grouped.items()},
+        "category_counts": category_counts,
+        "workflow_counts": workflow_counts,
+    }
