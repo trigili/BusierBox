@@ -200,6 +200,7 @@ from gritlib.target_records import (
 )
 from gritlib.tftp import parse_tftp_rrq, send_tftp_file, tftp_error_packet
 from gritlib.tls_io import recv_ssl_nonblocking, send_ssl_nonblocking
+from gritlib.version import grit_version
 from gritlib.warnings import (
     annotate_path_records_with_warnings, annotate_service_port_records_with_warnings,
     annotate_warning_records, print_warning_summary, warning_badge_suffix,
@@ -260,23 +261,6 @@ SESSION_MANAGER = SessionManager()
 DEFAULT_CONFIG = Path("local/server-config.json")
 
 
-def _grit_version():
-    """Return version as MAJOR.MINOR.PATCH (patch = git commit count)."""
-    root = Path(__file__).resolve().parents[1]
-    version_file = root / "VERSION"
-    base = "0.1"
-    if version_file.is_file():
-        base = version_file.read_text(encoding="utf-8").strip()
-    try:
-        result = subprocess.run(
-            ["git", "rev-list", "--count", "HEAD"],
-            capture_output=True, text=True, cwd=str(root), timeout=3,
-        )
-        if result.returncode == 0:
-            return f"{base}.{result.stdout.strip()}"
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-    return base
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
 DEFAULT_STATE_FILE = DEFAULT_OPERATOR_SESSION_DIR / "server-state.json"
 DEFAULT_STAGED_FILE = DEFAULT_OPERATOR_SESSION_DIR / "staged-files.json"
@@ -10615,7 +10599,7 @@ def run_line_tui(cfg):
         events = summary.get("event_count", 0)
         if events:
             parts.append(f"{events} events")
-        print(f"griTTYkit v{_grit_version()}  " + "  |  ".join(parts))
+        print(f"griTTYkit v{grit_version()}  " + "  |  ".join(parts))
         if target_filter.get("active"):
             label = target_filter.get("selected_target_label") or target_filter.get("target_id", "")
             state = target_filter.get("selected_target_connectivity_state") or "-"
@@ -18870,7 +18854,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     parser.add_argument("--managed-by", help=argparse.SUPPRESS)
     parser.add_argument("--process-log", help=argparse.SUPPRESS)
     if "--version" in raw_argv or "-V" in raw_argv:
-        print(f"griTTYkit {_grit_version()}")
+        print(f"griTTYkit {grit_version()}")
         return 0
     if "--help-console" in raw_argv:
         print_console_help_reference()
