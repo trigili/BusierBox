@@ -1129,6 +1129,7 @@ def main(argv=None):
     operator_io_src = (ROOT / "scripts" / "gritlib" / "operator_io.py").read_text()
     process_status_src = (ROOT / "scripts" / "gritlib" / "process_status.py").read_text()
     service_status_src = (ROOT / "scripts" / "gritlib" / "service_status.py").read_text()
+    ssh_keys_src = (ROOT / "scripts" / "gritlib" / "ssh_keys.py").read_text()
     release_docs = (ROOT / "docs" / "release-bundles.md").read_text()
     for word in ("invalid_command_queue_policy",
                  "command_queue_policy_valid",
@@ -1136,12 +1137,12 @@ def main(argv=None):
         if word not in release_docs:
             print(f"release bundle status docs missing command queue policy contract: {word}", file=sys.stderr)
             return 1
-    if "get_name()" not in src or "get_base64()" not in src:
+    if "get_name()" not in src + ssh_keys_src or "get_base64()" not in src + ssh_keys_src:
         print("grit-console: Paramiko key comparison missing get_name()/get_base64()", file=sys.stderr)
         return 1
     # Should not use bare == or 'is' for key objects
     # (keys_equal helper function should exist)
-    if "keys_equal" not in src:
+    if "keys_equal" not in src + ssh_keys_src:
         print("grit-console: keys_equal helper not found", file=sys.stderr)
         return 1
 
