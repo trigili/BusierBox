@@ -1,11 +1,17 @@
 """Command queue policy and mode helpers for grit-console."""
 
+import hashlib
 import json
+import os
 import time
 from pathlib import Path
 
+from gritlib.event_log import append_event
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key
-from gritlib.session_state import atomic_write_json, parse_utc_timestamp, read_json_file, utc_now
+from gritlib.session_state import (
+    atomic_write_json, parse_utc_timestamp, read_json_file, utc_from_epoch,
+    utc_now,
+)
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
@@ -80,6 +86,227 @@ def save_command_queue(cfg, data):
     if not isinstance(data.get("commands"), list):
         data["commands"] = []
     atomic_write_json(command_queue_path(cfg), data)
+
+
+def mark_command_delivered(cfg, command_id, remote_addr="", target_identity=None):
+    data = load_command_queue(cfg)
+    for rec in data.get("commands", []):
+        if isinstance(rec, dict) and rec.get("id") == command_id:
+            if command_queue_expired(rec):
+                raise ValueError(f"command queue id expired: {command_id}")
+            policy = command_queue_delivery_policy_snapshot(cfg)
+            target_identity = dict(target_identity or {})
+            rec_target_id = str(rec.get("target_id") or "").strip()
+            poll_target_id = str(target_identity.get("target_id") or "").strip()
+            if rec_target_id and not poll_target_id:
+                raise ValueError(f"command target id required: expected {rec_target_id}")
+            if poll_target_id and rec_target_id and poll_target_id != rec_target_id:
+                raise ValueError(f"command target mismatch: expected {rec_target_id}, got {poll_target_id}")
+            if poll_target_id and not rec_target_id:
+                rec.update(target_identity)
+            rec["status"] = "delivered"
+            rec["delivered_at"] = utc_now()
+            rec["delivered_to"] = remote_addr
+            rec["delivery_supported"] = True
+            rec["result_upload_supported"] = True
+            rec["execution_supported"] = bool(policy.get("execution_supported"))
+            rec["executes_commands"] = bool(policy.get("executes_commands"))
+            rec["execution_decision"] = "pending" if policy.get("execution_supported") else "rejected"
+            rec["execution_decision_reason"] = "" if policy.get("execution_supported") else command_queue_execution_rejection_reason(cfg)
+            rec["delivery_policy_snapshot"] = policy
+            save_command_queue(cfg, data)
+            append_event(
+                cfg,
+                "command-queue",
+                "command_delivered",
+                details={
+                    "id": command_id,
+                    "command_id": command_id,
+                    "command_sha256": rec.get("command_sha256", ""),
+                    "remote_addr": remote_addr,
+                    "timeout_sec": rec.get("timeout_sec", 0),
+                    "max_output_bytes": rec.get("max_output_bytes", 0),
+                    "delivery_supported": True,
+                    "result_upload_supported": True,
+                    "execution_supported": rec["execution_supported"],
+                    "executes_commands": rec["executes_commands"],
+                    "execution_decision": rec["execution_decision"],
+                    "target_id": rec.get("target_id", ""),
+                    "target_label": rec.get("target_label", ""),
+                    "target_identity_source": rec.get("target_identity_source", ""),
+                    "target_identity_confidence": rec.get("target_identity_confidence", ""),
+                    **command_queue_work_metadata(rec),
+                    "policy_snapshot": policy,
+                },
+            )
+            return rec
+    return None
+
+
+def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None, expire_sec=None, metadata=None):
+    from gritlib.target_records import configured_target_filter, target_context_fields
+
+    text = str(command or "").strip()
+    if not text:
+        raise ValueError("command queue entry must not be empty")
+    timeout_value = int(timeout_sec) if timeout_sec is not None else 30
+    max_output_value = int(max_output_bytes) if max_output_bytes is not None else 65536
+    if timeout_value <= 0:
+        raise ValueError("command queue timeout must be a positive integer")
+    if max_output_value <= 0:
+        raise ValueError("command queue max output must be a positive integer")
+    expire_value = int(expire_sec) if expire_sec is not None else 0
+    if expire_value < 0:
+        raise ValueError("command queue expiration must be zero or a positive integer")
+    data = load_command_queue(cfg)
+    now = utc_now()
+    now_epoch = parse_utc_timestamp(now) or int(time.time())
+    digest = hashlib.sha256(f"{now}\0{time.time_ns()}\0{text}\0{os.getpid()}".encode("utf-8")).hexdigest()[:16]
+    queue_policy = command_queue_policy_snapshot(cfg)
+    rec = {
+        "id": f"cq-{digest}",
+        "created_at": now,
+        "status": "queued",
+        "command": text,
+        "command_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "timeout_sec": timeout_value,
+        "max_output_bytes": max_output_value,
+        "expire_sec": expire_value,
+        "expires_at": utc_from_epoch(now_epoch + expire_value) if expire_value > 0 else "",
+        "execution_supported": bool(queue_policy.get("execution_supported")),
+        "executes_commands": False,
+        "delivery_supported": False,
+        "queue_policy_snapshot": queue_policy,
+        "safety_boundary": "operator queue record only; execution requires explicit target poll and execute policy",
+    }
+    if configured_target_filter(cfg):
+        rec.update(target_context_fields(cfg, configured_target_filter(cfg)))
+    queue_metadata = metadata if isinstance(metadata, dict) else {}
+    for key in COMMAND_QUEUE_WORK_METADATA_FIELDS:
+        if key in queue_metadata and queue_metadata.get(key) not in (None, ""):
+            rec[key] = queue_metadata.get(key)
+    data["commands"].append(rec)
+    save_command_queue(cfg, data)
+    append_event(
+        cfg,
+        "command-queue",
+        "command_queue_queued",
+        details={
+            "id": rec["id"],
+            "command_id": rec["id"],
+            "status": rec["status"],
+            "command_sha256": rec["command_sha256"],
+            "timeout_sec": rec["timeout_sec"],
+            "max_output_bytes": rec["max_output_bytes"],
+            "expire_sec": rec["expire_sec"],
+            "expires_at": rec["expires_at"],
+            "delivery_supported": rec["delivery_supported"],
+            "execution_supported": rec["execution_supported"],
+            "executes_commands": rec["executes_commands"],
+            "target_id": rec.get("target_id", ""),
+            "target_label": rec.get("target_label", ""),
+            "work_kind": rec.get("work_kind", ""),
+            "workflow": rec.get("workflow", ""),
+            "request_name": rec.get("request_name", ""),
+            "bridge_profile": rec.get("bridge_profile", ""),
+            "bridge_route_path": rec.get("bridge_route_path", ""),
+            "bridge_requires_target_online": rec.get("bridge_requires_target_online", ""),
+            "policy_snapshot": rec["queue_policy_snapshot"],
+        },
+    )
+    return rec
+
+
+def clear_command_queue(cfg):
+    data = load_command_queue(cfg)
+    count = len(data.get("commands", []))
+    data["commands"] = []
+    save_command_queue(cfg, data)
+    append_event(cfg, "command-queue", "command_queue_cleared", details={"count": count})
+    return count
+
+
+def record_command_result_payload(cfg, command_id, result, result_source_path="", target_identity=None):
+    data = load_command_queue(cfg)
+    if not isinstance(result, dict):
+        raise ValueError("command result JSON must be an object")
+    result_command_id = str(result.get("command_id", "")).strip()
+    if result_command_id and result_command_id != str(command_id):
+        raise ValueError(f"command result id mismatch: expected {command_id}, got {result_command_id}")
+    commands = data.get("commands", [])
+    for rec in commands:
+        if isinstance(rec, dict) and rec.get("id") == command_id:
+            if command_queue_expired(rec):
+                raise ValueError(f"command queue id expired: {command_id}")
+            target_identity = dict(target_identity or {})
+            rec_target_id = str(rec.get("target_id") or "").strip()
+            result_target_id = str(target_identity.get("target_id") or "").strip()
+            if rec_target_id and not result_target_id:
+                raise ValueError(f"command result target id required: expected {rec_target_id}")
+            if result_target_id and rec_target_id and result_target_id != rec_target_id:
+                raise ValueError(f"command result target mismatch: expected {rec_target_id}, got {result_target_id}")
+            if result_target_id and not rec_target_id:
+                rec.update(target_identity)
+            stdout_bytes = int(result.get("stdout_bytes", 0) or 0)
+            stderr_bytes = int(result.get("stderr_bytes", 0) or 0)
+            output_bytes = int(result.get("output_bytes", stdout_bytes + stderr_bytes) or 0)
+            max_output_bytes = int(rec.get("max_output_bytes", 0) or 0)
+            output_exceeded = bool(result.get("output_exceeded_limit")) or bool(max_output_bytes and output_bytes > max_output_bytes)
+            rec["status"] = "result-received"
+            rec["result_received_at"] = utc_now()
+            rec["result"] = result
+            rec["result_command_id"] = str(command_id)
+            rec["result_source_path"] = str(result_source_path)
+            rec["execution_supported"] = bool(result.get("execution_supported", rec.get("execution_supported", False)))
+            rec["executes_commands"] = bool(result.get("executes_commands", False))
+            rec["execution_decision"] = str(result.get("execution_decision") or ("executed" if rec["executes_commands"] else "rejected"))
+            rec["execution_decision_reason"] = str(result.get("reason") or "")
+            rec["result_status"] = str(result.get("status") or "")
+            rec["result_exit_code"] = result.get("exit_code", "")
+            rec["result_stdout_bytes"] = stdout_bytes
+            rec["result_stderr_bytes"] = stderr_bytes
+            rec["result_output_bytes"] = output_bytes
+            rec["result_output_limit_bytes"] = max_output_bytes
+            rec["result_output_exceeded_limit"] = output_exceeded
+            save_command_queue(cfg, data)
+            append_event(
+                cfg,
+                "command-queue",
+                "command_result_received",
+                details={
+                    "id": command_id,
+                    "command_id": command_id,
+                    "command_sha256": rec.get("command_sha256", ""),
+                    "result_source_path": str(result_source_path),
+                    "status": result.get("status", ""),
+                    "exit_code": result.get("exit_code", ""),
+                    "execution_supported": rec["execution_supported"],
+                    "executes_commands": rec["executes_commands"],
+                    "execution_decision": rec["execution_decision"],
+                    "stdout_bytes": stdout_bytes,
+                    "stderr_bytes": stderr_bytes,
+                    "output_bytes": output_bytes,
+                    "output_limit_bytes": max_output_bytes,
+                    "output_exceeded_limit": output_exceeded,
+                    "target_id": rec.get("target_id", ""),
+                    "target_label": rec.get("target_label", ""),
+                    "target_identity_source": rec.get("target_identity_source", ""),
+                    "target_identity_confidence": rec.get("target_identity_confidence", ""),
+                },
+            )
+            return rec
+    raise ValueError(f"command queue id not found: {command_id}")
+
+
+def record_command_result(cfg, command_id, result_path):
+    path = Path(result_path).expanduser()
+    if not path.is_file():
+        raise ValueError(f"command result JSON does not exist: {path}")
+    try:
+        result = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"command result JSON is invalid: {exc}") from exc
+    return record_command_result_payload(cfg, command_id, result, str(path))
 
 
 def command_queue_expired(rec, now_epoch=None):
