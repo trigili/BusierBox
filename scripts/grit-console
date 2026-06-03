@@ -119,6 +119,7 @@ from gritlib.service_status import (
     service_record_indexes, service_workflow_action_indexes,
     service_workflow_action_summary, status_summary_and_warnings,
 )
+from gritlib.shell_utils import shquote
 from gritlib.staged_files import (
     file_sha256, load_staged, reject_traversal_request_name,
     staged_file_workflow_action_indexes, staged_file_workflow_action_summary,
@@ -4793,13 +4794,6 @@ def recent_fetch_metadata(cfg, limit=8):
             rows.append(rec)
     rows.sort(key=lambda item: item.get("timestamp") or item.get("updated_at") or "", reverse=True)
     return rows[:limit]
-
-
-def shquote(value):
-    text = str(value)
-    if all(ch.isalnum() or ch in "._-/:=" for ch in text):
-        return text
-    return "'" + text.replace("'", "'\\''") + "'"
 
 
 def pager_command():
