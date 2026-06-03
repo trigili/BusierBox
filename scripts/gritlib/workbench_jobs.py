@@ -1,4 +1,4 @@
-"""Workbench job path and state helpers for grit-console."""
+"""Workbench job path, state, record, and display helpers for grit-console."""
 
 import json
 import os
@@ -7,6 +7,7 @@ from pathlib import Path
 
 from gritlib.event_log import append_event
 from gritlib.process_status import pid_alive, pid_environ_contains
+from gritlib.record_utils import format_counts
 from gritlib.session_state import (
     atomic_write_json, elapsed_seconds, read_json_file, utc_now,
 )
@@ -16,6 +17,28 @@ from gritlib.shell_utils import shquote
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
 DEFAULT_CONFIG = "local/operator-session/config.json"
 DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
+
+
+def print_workbench_job_summary(doc):
+    doc = doc or {}
+    summary = doc.get("summary") or {}
+    print(
+        "Workbench job summary: "
+        f"total={summary.get('workbench_job_count', 0)} "
+        f"running={summary.get('workbench_job_running_count', 0)} "
+        f"managed={summary.get('workbench_job_pid_managed_count', 0)} "
+        f"cancel_supported={summary.get('workbench_job_cancel_supported_count', 0)} "
+        f"logs={summary.get('workbench_job_log_exists_count', 0)} "
+        f"log_bytes={summary.get('workbench_job_log_total_size', 0)} "
+        f"tail_truncated={summary.get('workbench_job_last_output_tail_truncated_count', 0)} "
+        f"exit_status_known={summary.get('workbench_job_exit_status_known_count', 0)} "
+        f"duration_known={summary.get('workbench_job_duration_known_count', 0)} "
+        f"elapsed_known={summary.get('workbench_job_elapsed_known_count', 0)} "
+        f"background={summary.get('workbench_job_background_supported_count', 0)} "
+        f"long_running={summary.get('workbench_job_long_running_count', 0)}"
+    )
+    print(f"  states: {format_counts(summary.get('workbench_job_effective_state_counts') or {})}")
+    print(f"  outcomes: {format_counts(summary.get('workbench_job_outcome_counts') or {})}")
 
 
 def workbench_jobs_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
