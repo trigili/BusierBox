@@ -289,6 +289,10 @@ def target_scoped_command(base_command, target_id, suffix):
     return str(base_command) + target_id_arg(target_id) + str(suffix)
 
 
+def optional_target_scoped_command(base_command, target_arg, suffix):
+    return str(base_command) + str(target_arg or "") + str(suffix)
+
+
 def target_workflow_run_command(base_command, target_id, action_id, extra_args=""):
     command = (
         str(base_command)
