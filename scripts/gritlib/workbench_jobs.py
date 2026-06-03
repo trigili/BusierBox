@@ -99,6 +99,21 @@ def print_line_workbench_job_records(records, verbose=False, command_builder=Non
     ]
 
 
+def workbench_job_record_by_selector(records, selector):
+    text = str(selector or "").strip()
+    if not text:
+        return {}
+    records = list(records or [])
+    if text.isdigit():
+        idx = int(text) - 1
+        if 0 <= idx < len(records):
+            return records[idx]
+    for rec in records:
+        if str(rec.get("id") or "") == text:
+            return rec
+    return {}
+
+
 def record_workbench_refresh(cfg, reason="manual", default_config=DEFAULT_SERVER_CONFIG):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     services = state.setdefault("services", {})

@@ -308,6 +308,7 @@ from gritlib.workbench_jobs import (
     run_workbench_action_record,
     start_workbench_job_record,
     start_workbench_job_headless_command,
+    workbench_job_record_by_selector,
     workbench_job_records,
     workbench_jobs_path, workbench_jobs_state_status,
 )
@@ -7385,18 +7386,10 @@ def run_line_tui(cfg):
         return rec
 
     def line_job_record(selector):
-        text = str(selector or "").strip()
-        if not text:
-            return {}
-        jobs = workbench_snapshot(cfg).get("workbench_jobs") or []
-        if text.isdigit():
-            idx = int(text) - 1
-            if 0 <= idx < len(jobs):
-                return jobs[idx]
-        for rec in jobs:
-            if str(rec.get("id") or "") == text:
-                return rec
-        return {}
+        return workbench_job_record_by_selector(
+            workbench_snapshot(cfg).get("workbench_jobs") or [],
+            selector,
+        )
 
     def print_line_jobs(verbose=False):
         snap = workbench_snapshot(cfg)
