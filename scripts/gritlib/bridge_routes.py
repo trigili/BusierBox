@@ -1,28 +1,14 @@
 """Bridge route profile parsing, persistence, and presentation helpers."""
 
 import json
-import os
-import shlex
 from pathlib import Path
+
+from gritlib.record_utils import record_count_by_key
+from gritlib.session_state import atomic_write_json, read_json_file, state_file_path
+from gritlib.shell_utils import shquote
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
-
-
-def atomic_write_json(path, data):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + f".tmp.{os.getpid()}")
-    tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    tmp.replace(path)
-
-
-def read_json_file(path, fallback):
-    path = Path(path)
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return fallback
 
 
 def records_by_key(records, key):
@@ -33,36 +19,8 @@ def records_by_key(records, key):
     return out
 
 
-def record_count_by_key(records, key):
-    counts = {}
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        value = rec.get(key)
-        if value in (None, ""):
-            continue
-        text = str(value)
-        counts[text] = counts.get(text, 0) + 1
-    return counts
-
-
-def int_value(value):
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
-
-
-def shquote(value):
-    return shlex.quote(str(value))
-
-
 def bridge_profiles_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
     return Path(str(cfg.get("bridge_profiles_file") or Path(str(cfg.get("operator_session_dir", default_operator_session_dir))) / "bridge-profiles.json"))
-
-
-def state_file_path(cfg, default_operator_session_dir="operator-session"):
-    return Path(str(cfg.get("state_file") or Path(str(cfg.get("operator_session_dir", default_operator_session_dir))) / "server-state.json"))
 
 
 def valid_profile_name(name):
