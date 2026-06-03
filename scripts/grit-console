@@ -103,6 +103,7 @@ from gritlib.file_transfers import (
     upload_record_indexes, upload_record_summary,
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
+from gritlib.line_actions import print_line_action_records
 from gritlib.line_command_queue import print_line_command_queue_records
 from gritlib.line_files import print_line_file_records
 from gritlib.line_help import (
@@ -8722,72 +8723,14 @@ def run_line_tui(cfg):
         })
 
     def print_line_actions(filter_text="", kind_filter=""):
-        actions = line_action_records()
-        term = str(filter_text or "").strip().lower()
-        kind_text = str(kind_filter or "").strip().lower()
-        if kind_text:
-            aliases = {
-                "services": "service", "listeners": "service", "listener": "service",
-                "daemons": "daemon", "agents": "target", "targets": "target", "jobs": "workbench",
-            }
-            kind_text = aliases.get(kind_text, kind_text)
-            actions = [rec for rec in actions if str(rec.get("kind") or "").lower() == kind_text]
-        if term:
-            actions = [
-                rec for rec in actions
-                if term in (
-                    f"{rec.get('kind', '')} {rec.get('category', '')} {rec.get('workflow', '')} "
-                    f"{rec.get('id', '')} {rec.get('action_id', '')} {rec.get('label', '')} "
-                    f"{rec.get('operator_action_state', '')} {rec.get('operator_action_reason', '')} "
-                    f"{rec.get('headless_command', rec.get('run_command', rec.get('command', '')))}"
-                ).lower()
-            ]
-        shown = actions[:30]
-
-        def _detail(rec):
-            cmd = str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or "")
-            if len(cmd) > 100:
-                cmd = cmd[:97] + "…"
-            return [("run", cmd)] if cmd else []
-
-        title = "Modules"
-        if kind_text:
-            title += f"  ({kind_text})"
-        if term:
-            title += f"  filter={filter_text!r}"
-        title += f"  ({len(shown)} of {len(actions)})" if len(actions) > 30 else f"  ({len(actions)} total)"
-
-        cols = [
-            ("Kind",    "kind"),
-            ("Module",  "id"),
-            ("State",   lambda r: r.get("operator_action_state") or "-"),
-            ("Confirm", lambda r: "yes" if r.get("requires_confirmation") else "no"),
-        ]
-        _console_table(
-            title, shown, cols, detail_fn=_detail,
-            footer="use N  |  use module NAME  |  modules ? for help",
+        search_records, event_details = print_line_action_records(
+            line_action_records(),
+            filter_text=filter_text,
+            kind_filter=kind_filter,
+            quote=shquote,
         )
-        grouped = {}
-        for rec in actions:
-            grouped.setdefault(str(rec.get("kind") or "other"), []).append(rec)
-        search_records = [
-            {
-                "kind": "action",
-                "label": f"{rec.get('kind', '')}:{rec.get('id', '')}",
-                "rec": rec,
-                "command": str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or ""),
-                "use_hint": f"use module {shquote(str(rec.get('id', '')))}",
-            }
-            for rec in shown
-        ]
         cfg["_line_console_search_results"] = search_records
-        append_event(cfg, "workbench", "workbench_console_modules_listed", details={
-            "filter": str(filter_text or ""),
-            "kind": kind_text,
-            "match_count": len(actions),
-            "shown_count": len(shown),
-            "group_counts": {kind: len(items) for kind, items in grouped.items()},
-        })
+        append_event(cfg, "workbench", "workbench_console_modules_listed", details=event_details)
 
     def select_line_action(selector):
         text = str(selector or "").strip()
