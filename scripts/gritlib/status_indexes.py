@@ -22,6 +22,45 @@ def operator_state_indexes(records):
     }
 
 
+def operator_state_record(name, kind, path, exists, valid, record_count=0, error="", extra=None):
+    if exists and not valid:
+        status = "invalid"
+    elif not exists:
+        status = "missing"
+    elif error:
+        status = "error"
+    else:
+        status = "ok"
+    requires_operator_action = status in ("invalid", "error")
+    severity = "error" if requires_operator_action else ("warning" if status == "missing" else "info")
+    remediation_class = "repair_operator_state" if requires_operator_action else ("initialize_operator_state" if status == "missing" else "none")
+    suggested_action = ""
+    if status == "invalid":
+        suggested_action = "inspect, repair, archive, or remove the invalid operator state file"
+    elif status == "error":
+        suggested_action = "inspect operator state file permissions and filesystem errors"
+    elif status == "missing":
+        suggested_action = "state will be created when the related operator workflow is used"
+    rec = {
+        "name": name,
+        "kind": kind,
+        "path": str(path),
+        "exists": bool(exists),
+        "valid": bool(valid),
+        "status": status,
+        "unhealthy": status in ("missing", "invalid", "error"),
+        "severity": severity,
+        "remediation_class": remediation_class,
+        "requires_operator_action": requires_operator_action,
+        "suggested_action": suggested_action,
+        "record_count": int(record_count or 0),
+        "error": str(error or ""),
+    }
+    if extra:
+        rec.update(extra)
+    return rec
+
+
 def operator_state_health_counts(records):
     counts = record_count_by_key(records, "status")
     unhealthy = sum(int(counts.get(key, 0) or 0) for key in ("missing", "invalid", "error"))

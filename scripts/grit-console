@@ -97,7 +97,8 @@ from gritlib.staged_files import (
 )
 from gritlib.status_indexes import (
     browser_path_indexes, browser_path_summary, operator_state_health_counts,
-    operator_network_status, operator_state_indexes, warning_health_indexes,
+    operator_network_status, operator_state_indexes, operator_state_record,
+    warning_health_indexes,
 )
 from gritlib.target_activity import (
     target_activity_record_indexes, target_activity_records_from_sources,
@@ -1678,48 +1679,6 @@ def record_selected_target_activity(cfg, service, log_dir, operation, remote="",
         "remote_addr": remote or "",
     }, ctx)
     return record_target_activity(cfg, metadata, service, session_id=session_id(log_dir))
-
-
-
-
-def operator_state_record(name, kind, path, exists, valid, record_count=0, error="", extra=None):
-    if exists and not valid:
-        status = "invalid"
-    elif not exists:
-        status = "missing"
-    elif error:
-        status = "error"
-    else:
-        status = "ok"
-    requires_operator_action = status in ("invalid", "error")
-    severity = "error" if requires_operator_action else ("warning" if status == "missing" else "info")
-    remediation_class = "repair_operator_state" if requires_operator_action else ("initialize_operator_state" if status == "missing" else "none")
-    suggested_action = ""
-    if status == "invalid":
-        suggested_action = "inspect, repair, archive, or remove the invalid operator state file"
-    elif status == "error":
-        suggested_action = "inspect operator state file permissions and filesystem errors"
-    elif status == "missing":
-        suggested_action = "state will be created when the related operator workflow is used"
-    rec = {
-        "name": name,
-        "kind": kind,
-        "path": str(path),
-        "exists": bool(exists),
-        "valid": bool(valid),
-        "status": status,
-        "unhealthy": status in ("missing", "invalid", "error"),
-        "severity": severity,
-        "remediation_class": remediation_class,
-        "requires_operator_action": requires_operator_action,
-        "suggested_action": suggested_action,
-        "record_count": int(record_count or 0),
-        "error": str(error or ""),
-    }
-    if extra:
-        rec.update(extra)
-    return rec
-
 
 def operator_state_records(cfg, server_state, staged_files_state, command_queue_state,
                            command_copy, workbench_jobs_state, event_log_state,
