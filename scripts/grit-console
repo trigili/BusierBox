@@ -234,7 +234,7 @@ from gritlib.workflow_actions import (
     select_workbench_action,
     select_workflow_action,
     target_workflow_action_indexes,
-    target_workflow_action_readiness,
+    target_workflow_action_record,
     target_workflow_action_summary,
     workflow_action_count,
     workflow_enter_count,
@@ -1388,63 +1388,23 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             available=True, bridge_profile="", offline_supported=True,
             requires_target_online=False, queues_offline_work=False,
             target_phone_home_required=False):
-        target_id = str(target.get("target_id") or "")
-        if not target_id:
-            return
-        action_state, action_reason, can_run_from_curses_enter = target_workflow_action_readiness(
+        rec = target_workflow_action_record(
             target,
+            action_id,
+            category,
+            label,
+            command,
+            workflow,
             requires_input=requires_input,
             available=available,
+            bridge_profile=bridge_profile,
+            offline_supported=offline_supported,
             requires_target_online=requires_target_online,
             queues_offline_work=queues_offline_work,
             target_phone_home_required=target_phone_home_required,
         )
-        records.append({
-            "id": f"{target_id}:{action_id}",
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": str(target.get("label") or ""),
-            "target_connectivity_state": str(target.get("connectivity_state") or ""),
-            "target_last_seen": str(target.get("last_seen") or target.get("last_seen_at") or ""),
-            "target_last_seen_via": str(target.get("last_seen_via") or ""),
-            "target_offline_age_bucket": str(target.get("offline_age_bucket") or ""),
-            "target_next_expected_poll": str(target.get("next_expected_poll") or ""),
-            "target_poll_overdue": bool(target.get("poll_overdue", False)),
-            "target_poll_overdue_for_sec": target.get("poll_overdue_for_sec", ""),
-            "target_mailbox_command_count": int_value(target.get("mailbox_command_count", 0)),
-            "target_mailbox_pending_work_count": int_value(target.get("mailbox_pending_work_count", 0)),
-            "target_latest_phone_home_at": str(target.get("latest_phone_home_at") or ""),
-            "target_latest_phone_home_status": str(target.get("latest_phone_home_status") or ""),
-            "target_latest_phone_home_kind": str(target.get("latest_phone_home_kind") or ""),
-            "target_latest_phone_home_contact_path": str(target.get("latest_phone_home_contact_path") or ""),
-            "target_latest_successful_phone_home_at": str(target.get("latest_successful_phone_home_at") or ""),
-            "target_latest_successful_phone_home_status": str(target.get("latest_successful_phone_home_status") or ""),
-            "target_latest_successful_phone_home_kind": str(target.get("latest_successful_phone_home_kind") or ""),
-            "target_latest_successful_phone_home_contact_path": str(target.get("latest_successful_phone_home_contact_path") or ""),
-            "target_last_failed_phone_home_at": str(target.get("last_failed_phone_home_at") or ""),
-            "target_last_failed_phone_home_status": str(target.get("last_failed_phone_home_status") or ""),
-            "target_last_failed_phone_home_reason": str(target.get("last_failed_phone_home_reason") or ""),
-            "target_last_failed_phone_home_contact_path": str(target.get("last_failed_phone_home_contact_path") or ""),
-            "category": category,
-            "workflow": workflow,
-            "label": label,
-            "command": command,
-            "headless_command": command,
-            "requires_input": bool(requires_input),
-            "available": bool(available),
-            "bridge_profile": str(bridge_profile or ""),
-            "offline_supported": bool(offline_supported),
-            "requires_target_online": bool(requires_target_online),
-            "queues_offline_work": bool(queues_offline_work),
-            "target_phone_home_required": bool(target_phone_home_required),
-            "operator_action_state": action_state,
-            "operator_action_reason": action_reason,
-            "can_run_from_curses_enter": bool(can_run_from_curses_enter),
-            "execution_default": "show-command",
-            "target_execution": False,
-            "tui_visible": True,
-            "safety_boundary": "operator-side target workflow; target execution still requires explicit target-side command or poll",
-        })
+        if rec:
+            records.append(rec)
 
     for target in targets or []:
         if not isinstance(target, dict):
