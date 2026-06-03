@@ -1,16 +1,25 @@
 """Service status, resource, and index helpers for grit-console."""
 
 import os
+from pathlib import Path
+import sys
 import time
 
+from gritlib.command_copy import command_copy_path
+from gritlib.command_queue import command_queue_path
 from gritlib.config_utils import yes
 from gritlib.process_status import listener_endpoints, pid_alive
 from gritlib.record_utils import (
     int_value, record_count_by_key, records_by_bool, records_by_composite,
     records_by_key,
 )
+from gritlib.session_state import state_file_path
+from gritlib.shell_utils import shquote
+from gritlib.staged_files import staged_file_path
+from gritlib.target_records import targets_path
 
 
+DEFAULT_CONFIG = "local/operator-session/config.json"
 DAEMON_SERVICE_CHOICES = (
     "ssh", "tls-shell", "plain-shell", "file-service", "command-queue",
     "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns",
@@ -62,6 +71,69 @@ def configured_daemon_services(cfg, explicit=None):
         if yes(cfg.get("rshell_enable", "no")):
             services.append(resolve_transport(cfg))
     return list(dict.fromkeys(services))
+
+
+def daemon_child_command(cfg, service, executable=None, script_path=None, default_config=DEFAULT_CONFIG):
+    command = [str(executable or sys.executable), str(Path(script_path or sys.argv[0]).resolve())]
+    command.extend(["--config", str(cfg.get("_config_path", default_config))])
+    command.extend(["--state-file", str(state_file_path(cfg))])
+    command.extend(["--staged-file", str(staged_file_path(cfg))])
+    command.extend(["--command-queue-file", str(command_queue_path(cfg))])
+    command.extend(["--command-copy-file", str(command_copy_path(cfg))])
+    command.extend(["--targets-file", str(targets_path(cfg))])
+    command.extend(["--listen-host", str(cfg.get("listen_host", "0.0.0.0"))])
+    if service in ("tls-shell", "plain-shell"):
+        command.extend(["--shell-port", str(cfg.get("GRIT_RSHELL_SOCAT_PORT", 22203))])
+    if service == "ssh":
+        command.extend(["--ssh-port", str(cfg.get("ssh_listen_port", 22202))])
+        command.extend(["--forward-port", str(cfg.get("GRIT_OPERATOR_REMOTE_FORWARD_PORT", 2200))])
+    if service == "file-service":
+        command.extend(["--file-port", str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))])
+        command.extend(["--file-service-tls", str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes"))])
+    if service == "command-queue":
+        command.extend(["--command-queue-port", str(cfg.get("GRIT_COMMAND_QUEUE_PORT", 22205))])
+    if service == "bridge":
+        command.extend(["--bridge-port", str(cfg.get("bridge_listen_port", 22206))])
+        command.extend(["--bridge-dest-host", str(cfg.get("bridge_dest_host", "127.0.0.1"))])
+        command.extend(["--bridge-dest-port", str(cfg.get("bridge_dest_port", 0))])
+    if service == "probe":
+        command.extend(["--probe-port", str(cfg.get("GRIT_PROBE_PORT", 22207))])
+        command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-tftp":
+        command.extend(["--probe-tftp-port", str(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))])
+        command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-ftp":
+        command.extend(["--probe-ftp-port", str(cfg.get("GRIT_PROBE_FTP_PORT", 22209))])
+        command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-dns":
+        command.extend(["--probe-dns-port", str(cfg.get("GRIT_PROBE_DNS_PORT", 22210))])
+        command.extend(["--probe-dns-name", str(cfg.get("GRIT_PROBE_DNS_NAME", "probe.grit"))])
+        command.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    command.extend(["--transport", service])
+    command.extend(["--managed-by", "operator-daemon"])
+    return command
+
+
+def operator_daemon_headless_command(cfg, services, timeout=None, default_config=DEFAULT_CONFIG):
+    parts = [
+        "scripts/grit-console",
+        "--config",
+        str(cfg.get("_config_path", default_config)),
+        "--daemon",
+    ]
+    for service in configured_daemon_services(cfg, services):
+        parts.extend(["--daemon-service", service])
+    if timeout is not None:
+        parts.extend(["--timeout", str(timeout)])
+    return " ".join(shquote(part) for part in parts)
+
+
+def operator_stop_headless_command(cfg, default_config=DEFAULT_CONFIG):
+    return (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", default_config)))
+        + " --stop"
+    )
 
 
 def service_tls_enabled(cfg, service):
