@@ -691,6 +691,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "search Console Router\n"
                 "mailbox\n"
                 "queue\n"
+                "20\n"
                 "use 1\n"
                 "show options\n"
                 "set target.notes Rack shelf A\n"
@@ -868,6 +869,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented TUI interpreted a normal command as a stale search result", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
+    menu_queue_start = line_console_stdout.find("grit[Console Router]> 20")
+    menu_queue_end = line_console_stdout.find("grit[Console Router]> use 1", menu_queue_start + 1)
+    menu_queue_text = line_console_stdout[menu_queue_start:menu_queue_end] if menu_queue_start != -1 and menu_queue_end != -1 else ""
+    if not menu_queue_text or "Queue actions  (" not in menu_queue_text:
+        print("line-oriented TUI menu action 20 did not open command queue after search results", file=sys.stderr)
+        print(menu_queue_text or line_console_stdout, file=sys.stderr)
+        return 1
     route_start = line_console_stdout.find("saved route zz-console-added")
     route_end = line_console_stdout.find("selected route console-route", route_start + 1)
     route_text = line_console_stdout[route_start:route_end] if route_start != -1 and route_end != -1 else ""
@@ -928,7 +936,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(direct_metadata_text or line_console_stdout, file=sys.stderr)
         return 1
     mailbox_start = line_console_stdout.find("grit[Console Router]> mailbox")
-    mailbox_end = line_console_stdout.find("grit[Console Router]> use 1", mailbox_start + 1)
+    mailbox_end = line_console_stdout.find("grit[Console Router]> 20", mailbox_start + 1)
     mailbox_text = line_console_stdout[mailbox_start:mailbox_end] if mailbox_start != -1 and mailbox_end != -1 else ""
     if (not mailbox_text or "Command queue  (" not in mailbox_text or
             "allowed_commands=" in mailbox_text or "delivery_policy_counts:" in mailbox_text):

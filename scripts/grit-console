@@ -8357,6 +8357,8 @@ def run_line_tui(cfg):
         if not text.isdigit():
             raise ValueError("usage: use N")
         results = cfg.get("_line_console_search_results") or []
+        if not results:
+            raise ValueError("no numbered results active; run search, targets, listeners, sessions, files, jobs, or routes")
         idx = int(text) - 1
         if idx < 0 or idx >= len(results):
             raise ValueError(f"search result number out of range: {text}")
@@ -9284,6 +9286,7 @@ def run_line_tui(cfg):
         })
 
     def print_line_command_queue_view(detailed=False):
+        cfg["_line_console_search_results"] = []
         snap = workbench_snapshot(cfg)
         command_queue_actions = snap.get("command_queue_workflow_actions") or []
         mailbox_records = snap.get("target_mailbox_records") or []
@@ -10775,13 +10778,25 @@ def run_line_tui(cfg):
         # If a number was entered and there are active search results (e.g. from
         # `listeners`, `targets`, `search`, etc.), use those — the numbers shown
         # in any list command correspond to search result positions.
+        numeric_menu_actions = {
+            "1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
+            "11", "12", "13", "14", "15", "16", "17", "18",
+            "19", "20", "21", "22",
+        }
         if choice.isdigit() and cfg.get("_line_console_search_results"):
-            try:
-                use_line_search_result(choice)
-            except ValueError as exc:
-                print(exc)
-            compact_next_prompt = True
-            continue
+            search_results = cfg.get("_line_console_search_results") or []
+            idx = int(choice) - 1
+            if 0 <= idx < len(search_results):
+                try:
+                    use_line_search_result(choice)
+                except ValueError as exc:
+                    print(exc)
+                compact_next_prompt = True
+                continue
+            if choice not in numeric_menu_actions:
+                print(f"search result number out of range: {choice}")
+                compact_next_prompt = True
+                continue
         if choice in {"1", "2", "3", "4"}:
             service = {"1": "ssh", "2": "tls-shell", "3": "plain-shell", "4": "file-service"}[choice]
             start_line_service(service)
