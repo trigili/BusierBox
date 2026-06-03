@@ -8,7 +8,10 @@ from gritlib.command_queue import (
     command_queue_expired, command_result_output_size_bucket, load_command_queue,
 )
 from gritlib.console_display import console_table
-from gritlib.record_utils import format_counts, int_value, records_by_key
+from gritlib.record_utils import (
+    format_counts, int_value, latest_record_value, record_count_by_key,
+    records_by_key,
+)
 from gritlib.session_state import parse_utc_timestamp, utc_now
 
 
@@ -628,6 +631,47 @@ def target_activity_record_indexes(records):
         "target_activity_records_by_target_offline_age_bucket": records_by_key(records, "target_offline_age_bucket"),
         "target_activity_records_by_target_poll_overdue": records_by_key(records, "target_poll_overdue"),
         "target_activity_records_by_target_mailbox_pending_work_count": records_by_key(records, "target_mailbox_pending_work_count"),
+    }
+
+
+def target_activity_record_summary(records):
+    records = records or []
+    return {
+        "target_activity_record_count": len(records),
+        "target_activity_target_counts": record_count_by_key(records, "target_id"),
+        "target_activity_category_counts": record_count_by_key(records, "category"),
+        "target_activity_source_collection_counts": record_count_by_key(
+            records, "source_collection"
+        ),
+        "target_activity_operation_counts": record_count_by_key(records, "operation"),
+        "target_activity_status_counts": record_count_by_key(records, "status"),
+        "target_activity_pending_work_counts": record_count_by_key(
+            records, "pending_work"
+        ),
+        "target_activity_waiting_for_counts": record_count_by_key(
+            records, "waiting_for"
+        ),
+        "target_activity_route_kind_counts": record_count_by_key(
+            records, "route_kind"
+        ),
+        "target_activity_bridge_profile_counts": record_count_by_key(
+            records, "bridge_profile"
+        ),
+        "target_activity_target_connectivity_state_counts": record_count_by_key(
+            records, "target_connectivity_state"
+        ),
+        "target_activity_target_offline_age_bucket_counts": record_count_by_key(
+            records, "target_offline_age_bucket"
+        ),
+        "target_activity_target_poll_overdue_counts": record_count_by_key(
+            records, "target_poll_overdue"
+        ),
+        "target_activity_target_mailbox_pending_work_count_counts": record_count_by_key(
+            records, "target_mailbox_pending_work_count"
+        ),
+        "latest_target_activity_record_at": latest_record_value(
+            records, ("timestamp",)
+        ),
     }
 
 
