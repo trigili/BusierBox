@@ -101,3 +101,25 @@ def operator_advertised_host(cfg, host=None, fallback="OPERATOR_IP"):
         return configured
     candidates = local_ips()
     return candidates[0] if candidates else fallback
+
+
+def print_candidates(cfg, port, advertised_host=None, advertised_port=None):
+    bind_host = str(cfg.get("listen_host") or "0.0.0.0")
+    advertised = operator_advertised_host(cfg, host=advertised_host)
+    target_port = int(advertised_port or port)
+    print(f"Listening on {bind_host}:{port}")
+    print(f"Advertised target endpoint: {advertised}:{target_port}")
+    candidates = []
+    configured = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
+    if configured:
+        candidates.append(configured)
+    for ip in local_ips():
+        if ip not in candidates:
+            candidates.append(ip)
+    if candidates:
+        print("Candidate target connect-back hosts:")
+        for ip in candidates:
+            marker = "  *" if ip == advertised else "   "
+            print(f"{marker} {ip}:{target_port}")
+    else:
+        print("Candidate target connect-back hosts: unable to infer local IPs")

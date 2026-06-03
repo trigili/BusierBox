@@ -89,7 +89,9 @@ from gritlib.file_transfers import (
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.operator_io import clipboard_command, open_path_in_pager, viewable_path
-from gritlib.operator_network import local_ips, operator_advertised_host, target_visible_host
+from gritlib.operator_network import (
+    local_ips, operator_advertised_host, print_candidates, target_visible_host,
+)
 from gritlib.probe_commands import (
     render_probe_dns_command, render_probe_ftp_command, render_probe_tftp_command,
 )
@@ -4970,28 +4972,6 @@ def load_config(path):
     for key in ("ssh_listen_port", "GRIT_RSHELL_SOCAT_PORT", "GRIT_OPERATOR_REMOTE_FORWARD_PORT", "GRIT_OPERATOR_FILE_SERVICE_PORT", "bridge_listen_port", "bridge_dest_port", "GRIT_PROBE_PORT", "GRIT_PROBE_TFTP_PORT", "GRIT_PROBE_FTP_PORT", "GRIT_PROBE_DNS_PORT"):
         cfg[key] = int(cfg[key])
     return cfg
-
-
-def print_candidates(cfg, port, advertised_host=None, advertised_port=None):
-    bind_host = str(cfg.get("listen_host") or "0.0.0.0")
-    advertised = operator_advertised_host(cfg, host=advertised_host)
-    target_port = int(advertised_port or port)
-    print(f"Listening on {bind_host}:{port}")
-    print(f"Advertised target endpoint: {advertised}:{target_port}")
-    candidates = []
-    configured = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
-    if configured:
-        candidates.append(configured)
-    for ip in local_ips():
-        if ip not in candidates:
-            candidates.append(ip)
-    if candidates:
-        print("Candidate target connect-back hosts:")
-        for ip in candidates:
-            marker = "  *" if ip == advertised else "   "
-            print(f"{marker} {ip}:{target_port}")
-    else:
-        print("Candidate target connect-back hosts: unable to infer local IPs")
 
 
 class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
