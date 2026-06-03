@@ -45,3 +45,15 @@ def print_line_target_records(targets, current_target_id="", quote=None):
         }
         for rec in rows
     ]
+
+
+def print_selected_line_target(rec):
+    rec = rec or {}
+    if rec.get("selected"):
+        tid = rec.get("target_id", "")
+        label = rec.get("target_label") or ""
+        display = f"{label}  ({tid})" if label and label != tid else tid
+        print(f"  {display}")
+        print("  options / next / sessions / queue / mailbox / back")
+    else:
+        print("  target filter cleared  —  showing all targets")

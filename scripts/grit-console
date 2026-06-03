@@ -154,7 +154,7 @@ from gritlib.line_sessions import (
     line_session_record_by_selector, print_line_session_records,
     print_selected_line_session,
 )
-from gritlib.line_targets import print_line_target_records
+from gritlib.line_targets import print_line_target_records, print_selected_line_target
 from gritlib.line_target_commands import (
     copy_line_generated_command, run_line_generated_command,
 )
@@ -7038,14 +7038,7 @@ def run_line_tui(cfg):
     def select_line_target(selector, targets=None):
         targets = targets if targets is not None else print_line_targets()
         rec = set_workbench_target_filter(cfg, selector, targets=targets)
-        if rec.get("selected"):
-            tid = rec.get("target_id", "")
-            label = rec.get("target_label") or ""
-            display = f"{label}  ({tid})" if label and label != tid else tid
-            print(f"  {display}")
-            print("  options / next / sessions / queue / mailbox / back")
-        else:
-            print("  target filter cleared  —  showing all targets")
+        print_selected_line_target(rec)
         return rec
 
     def interact_line_target(selector=""):
