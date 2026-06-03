@@ -1,6 +1,6 @@
-"""Workflow action index and summary helpers for grit-console."""
+"""Workflow action index, summary, and display helpers for grit-console."""
 
-from gritlib.record_utils import record_count_by_key, record_sum_by_key, records_by_key
+from gritlib.record_utils import format_counts, record_count_by_key, record_sum_by_key, records_by_key
 
 
 def workbench_action_indexes(records):
@@ -399,3 +399,126 @@ def probe_workflow_action_summary(records):
         "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
         "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
     }
+
+
+def print_workbench_action_summary(doc):
+    doc = doc or {}
+    summary = doc.get("summary") or {}
+    print(
+        "Operator console workflow summary: "
+        f"total={summary.get('operator_console_workflow_count', 0)} "
+        f"target_scoped={summary.get('operator_console_workflow_target_scoped_count', 0)} "
+        f"multi_target={summary.get('operator_console_workflow_multi_target_count', 0)} "
+        f"offline_queue={summary.get('operator_console_workflow_offline_queue_supported_count', 0)} "
+        f"has_actions={summary.get('operator_console_workflow_has_actions_count', 0)} "
+        f"pending={summary.get('operator_console_workflow_has_pending_work_count', 0)} "
+        f"warnings={summary.get('operator_console_workflow_has_warnings_count', 0)}"
+    )
+    print(f"  workflow groups: {format_counts(summary.get('operator_console_workflow_group_counts') or {})}")
+    print(f"  workflow states: {format_counts(summary.get('operator_console_workflow_operator_action_state_counts') or {})}")
+    print(
+        "Build config field summary: "
+        f"total={summary.get('workbench_config_field_count', 0)} "
+        f"configured={summary.get('workbench_config_field_configured_count', 0)} "
+        f"fixed_options={summary.get('workbench_config_field_fixed_option_count', 0)} "
+        f"control_like={summary.get('workbench_config_field_control_like_count', 0)}"
+    )
+    print(f"  config categories: {format_counts(summary.get('workbench_config_field_category_counts') or {})}")
+    print(f"  config safety: {format_counts(summary.get('workbench_config_field_safety_boundary_counts') or {})}")
+    print(
+        "Workbench action summary: "
+        f"total={summary.get('workbench_action_count', 0)} "
+        f"background_supported={summary.get('workbench_action_background_supported_count', 0)} "
+        f"long_running={summary.get('workbench_action_long_running_count', 0)} "
+        f"writes_config={summary.get('workbench_action_writes_config_count', 0)} "
+        f"runs_build={summary.get('workbench_action_runs_build_count', 0)} "
+        f"requires_confirmation={summary.get('workbench_action_requires_confirmation_count', 0)} "
+        f"target_execution={summary.get('workbench_action_target_execution_count', 0)} "
+        f"foreground_runnable={summary.get('workbench_action_foreground_runnable_count', 0)} "
+        f"dry_run_supported={summary.get('workbench_action_dry_run_supported_count', 0)} "
+        f"enter_runnable={summary.get('workbench_action_can_run_from_curses_enter_count', 0)}"
+    )
+    print(f"  categories: {format_counts(summary.get('workbench_action_category_counts') or {})}")
+    print(f"  execution defaults: {format_counts(summary.get('workbench_action_execution_default_counts') or {})}")
+    print(f"  events: {format_counts(summary.get('workbench_action_event_counts') or {})}")
+    print(f"  action states: {format_counts(summary.get('workbench_action_operator_action_state_counts') or {})}")
+    print(
+        "Operator daemon workflow action summary: "
+        f"total={summary.get('operator_daemon_workflow_action_count', 0)} "
+        f"attached={summary.get('operator_daemon_workflow_action_attached_count', 0)} "
+        f"background_supported={summary.get('operator_daemon_workflow_action_background_supported_count', 0)} "
+        f"requires_confirmation={summary.get('operator_daemon_workflow_action_requires_confirmation_count', 0)} "
+        f"dry_run_supported={summary.get('operator_daemon_workflow_action_dry_run_supported_count', 0)} "
+        f"enter_runnable={summary.get('operator_daemon_workflow_action_can_run_from_curses_enter_count', 0)} "
+        f"fleet_pending_work={format_counts(summary.get('operator_daemon_workflow_action_fleet_mailbox_pending_work_count_counts') or {})} "
+        f"fleet_offline={format_counts(summary.get('operator_daemon_workflow_action_fleet_offline_target_count_counts') or {})} "
+        f"fleet_poll_overdue={format_counts(summary.get('operator_daemon_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
+    )
+    print(f"  daemon workflows: {format_counts(summary.get('operator_daemon_workflow_action_workflow_counts') or {})}")
+    print(f"  daemon action states: {format_counts(summary.get('operator_daemon_workflow_action_operator_action_state_counts') or {})}")
+    print(
+        "Service workflow action summary: "
+        f"total={summary.get('service_workflow_action_count', 0)} "
+        f"available={summary.get('service_workflow_action_available_count', 0)} "
+        f"requires_confirmation={summary.get('service_workflow_action_requires_confirmation_count', 0)} "
+        f"enter_runnable={summary.get('service_workflow_action_can_run_from_curses_enter_count', 0)} "
+        f"fleet_pending_work={format_counts(summary.get('service_workflow_action_fleet_mailbox_pending_work_count_counts') or {})} "
+        f"fleet_offline={format_counts(summary.get('service_workflow_action_fleet_offline_target_count_counts') or {})} "
+        f"fleet_poll_overdue={format_counts(summary.get('service_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
+    )
+    print(f"  service workflows: {format_counts(summary.get('service_workflow_action_workflow_counts') or {})}")
+    print(f"  service action states: {format_counts(summary.get('service_workflow_action_operator_action_state_counts') or {})}")
+    print(
+        "Target workflow action summary: "
+        f"total={summary.get('target_workflow_action_count', 0)} "
+        f"available={summary.get('target_workflow_action_available_count', 0)} "
+        f"requires_input={summary.get('target_workflow_action_requires_input_count', 0)} "
+        f"offline_supported={summary.get('target_workflow_action_offline_supported_count', 0)} "
+        f"requires_online={summary.get('target_workflow_action_requires_target_online_count', 0)} "
+        f"enter_runnable={summary.get('target_workflow_action_can_run_from_curses_enter_count', 0)}"
+    )
+    print(f"  target workflow categories: {format_counts(summary.get('target_workflow_action_category_counts') or {})}")
+    print(f"  target workflows: {format_counts(summary.get('target_workflow_action_workflow_counts') or {})}")
+    print(f"  offline work: {format_counts(summary.get('target_workflow_action_queues_offline_work_counts') or {})}")
+    print(f"  action states: {format_counts(summary.get('target_workflow_action_operator_action_state_counts') or {})}")
+    print(
+        "Probe workflow action summary: "
+        f"total={summary.get('probe_workflow_action_count', 0)} "
+        f"available={summary.get('probe_workflow_action_available_count', 0)} "
+        f"requires_confirmation={summary.get('probe_workflow_action_requires_confirmation_count', 0)} "
+        f"target_phone_home_required={summary.get('probe_workflow_action_target_phone_home_required_count', 0)} "
+        f"enter_runnable={summary.get('probe_workflow_action_can_run_from_curses_enter_count', 0)} "
+        f"fleet_pending_work={format_counts(summary.get('probe_workflow_action_fleet_mailbox_pending_work_count_counts') or {})} "
+        f"fleet_offline={format_counts(summary.get('probe_workflow_action_fleet_offline_target_count_counts') or {})} "
+        f"fleet_poll_overdue={format_counts(summary.get('probe_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
+    )
+    print(f"  probe routes: {format_counts(summary.get('probe_workflow_action_route_kind_counts') or {})}")
+    print(f"  probe bridges: {format_counts(summary.get('probe_workflow_action_bridge_profile_counts') or {})}")
+    print(f"  probe action states: {format_counts(summary.get('probe_workflow_action_operator_action_state_counts') or {})}")
+    print(
+        "Command queue workflow action summary: "
+        f"total={summary.get('command_queue_workflow_action_count', 0)} "
+        f"requires_input={summary.get('command_queue_workflow_action_requires_input_count', 0)} "
+        f"requires_confirmation={summary.get('command_queue_workflow_action_requires_confirmation_count', 0)} "
+        f"queues_offline_work={summary.get('command_queue_workflow_action_queues_offline_work_count', 0)} "
+        f"target_phone_home_required={summary.get('command_queue_workflow_action_target_phone_home_required_count', 0)} "
+        f"enter_runnable={summary.get('command_queue_workflow_action_can_run_from_curses_enter_count', 0)} "
+        f"fleet_pending_work={format_counts(summary.get('command_queue_workflow_action_fleet_mailbox_pending_work_count_counts') or {})} "
+        f"fleet_offline={format_counts(summary.get('command_queue_workflow_action_fleet_offline_target_count_counts') or {})} "
+        f"fleet_poll_overdue={format_counts(summary.get('command_queue_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
+    )
+    print(f"  command queue categories: {format_counts(summary.get('command_queue_workflow_action_category_counts') or {})}")
+    print(f"  command queue action states: {format_counts(summary.get('command_queue_workflow_action_operator_action_state_counts') or {})}")
+    print(
+        "File service workflow action summary: "
+        f"total={summary.get('file_service_workflow_action_count', 0)} "
+        f"available={summary.get('file_service_workflow_action_available_count', 0)} "
+        f"requires_input={summary.get('file_service_workflow_action_requires_input_count', 0)} "
+        f"requires_confirmation={summary.get('file_service_workflow_action_requires_confirmation_count', 0)} "
+        f"enter_runnable={summary.get('file_service_workflow_action_can_run_from_curses_enter_count', 0)} "
+        f"fleet_pending_work={format_counts(summary.get('file_service_workflow_action_fleet_mailbox_pending_work_count_counts') or {})} "
+        f"fleet_offline={format_counts(summary.get('file_service_workflow_action_fleet_offline_target_count_counts') or {})} "
+        f"fleet_poll_overdue={format_counts(summary.get('file_service_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
+    )
+    print(f"  file workflows: {format_counts(summary.get('file_service_workflow_action_workflow_counts') or {})}")
+    print(f"  file action states: {format_counts(summary.get('file_service_workflow_action_operator_action_state_counts') or {})}")
