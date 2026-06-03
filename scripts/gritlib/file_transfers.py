@@ -78,6 +78,44 @@ def recent_fetch_metadata(cfg, limit=8):
     return rows[:limit]
 
 
+def print_recent_uploads(records, title="Recent uploads:", include_stored_exists=False):
+    print(title)
+    if records:
+        for meta in records:
+            sha = str(meta.get("sha256_prefix") or str(meta.get("sha256", ""))[:12])
+            stored_exists = f" stored_exists={meta.get('stored_exists', False)}" if include_stored_exists else ""
+            print(f"  {meta.get('filename', '')} kind={meta.get('upload_kind', 'file')} size={meta.get('size', '')} sha256={sha} status={meta.get('transfer_status', meta.get('status', ''))}{stored_exists}")
+            print(f"    source: {meta.get('source_path', '')}")
+            print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
+            if meta.get("target_id"):
+                print(f"    target: {meta.get('target_id', '')} label={meta.get('target_label', '')} confidence={meta.get('target_identity_confidence', '')}")
+            print(f"    stored: {meta.get('stored_path', '')}")
+            print(f"    metadata: {meta.get('metadata_path', meta.get('_metadata_path', ''))}")
+            print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
+            if not include_stored_exists:
+                print(f"    stored_exists: {meta.get('stored_exists', False)}")
+    else:
+        print("  none")
+
+
+def print_recent_fetches(records, include_source_exists=False):
+    print("Recent fetches:")
+    if records:
+        for meta in records:
+            sha = str(meta.get("sha256_prefix") or str(meta.get("sha256", ""))[:12])
+            source_exists = f" source_exists={meta.get('source_exists', False)}" if include_source_exists else ""
+            print(f"  {meta.get('request_name', '')} size={meta.get('size', '')} sha256={sha} status={meta.get('status', '')} http={meta.get('http_status', '')}{source_exists}")
+            print(f"    source: {meta.get('source_path', '')}")
+            print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
+            if meta.get("target_id"):
+                print(f"    target: {meta.get('target_id', '')} label={meta.get('target_label', '')} confidence={meta.get('target_identity_confidence', '')}")
+            print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
+            if meta.get("event_log"):
+                print(f"    event_log: {meta.get('event_log', '')}")
+    else:
+        print("  none")
+
+
 def render_fetch_command(request_name, cfg, host=None, force=False):
     host = operator_advertised_host(cfg, host=host)
     route = target_route_context(

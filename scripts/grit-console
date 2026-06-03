@@ -85,7 +85,8 @@ from gritlib.file_transfers import (
     fetch_record_indexes, file_service_workflow_action_indexes,
     file_service_workflow_action_summary, read_http_body, read_http_headers,
     read_http_upload, recent_fetch_metadata, recent_upload_metadata,
-    print_staged_fetch_target_options, render_fetch_command,
+    print_recent_fetches, print_recent_uploads, print_staged_fetch_target_options,
+    render_fetch_command,
     render_file_service_command, safe_upload_name, send_http_response,
     staged_fetch_output_name, staged_fetch_target_commands,
     send_json_response, stream_fetch_response, target_file_transfer_record_indexes,
@@ -9047,33 +9048,9 @@ def print_status(cfg, json_output=False):
     print("")
     print_recent_sessions(doc["sessions"])
     print("")
-    print("Recent uploads:")
-    if doc["uploads"]:
-        for meta in doc["uploads"]:
-            print(f"  {meta.get('filename', '')} kind={meta.get('upload_kind', 'file')} size={meta.get('size', '')} sha256={meta.get('sha256_prefix', '')} status={meta.get('status', '')} stored_exists={meta.get('stored_exists', False)}")
-            print(f"    source: {meta.get('source_path', '')}")
-            print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
-            if meta.get("target_id"):
-                print(f"    target: {meta.get('target_id', '')} label={meta.get('target_label', '')} confidence={meta.get('target_identity_confidence', '')}")
-            print(f"    stored: {meta.get('stored_path', '')}")
-            print(f"    metadata: {meta.get('metadata_path', meta.get('_metadata_path', ''))}")
-            print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
-    else:
-        print("  none")
+    print_recent_uploads(doc["uploads"], include_stored_exists=True)
     print("")
-    print("Recent fetches:")
-    if doc["fetches"]:
-        for meta in doc["fetches"]:
-            print(f"  {meta.get('request_name', '')} size={meta.get('size', '')} sha256={meta.get('sha256_prefix', '')} status={meta.get('status', '')} http={meta.get('http_status', '')} source_exists={meta.get('source_exists', False)}")
-            print(f"    source: {meta.get('source_path', '')}")
-            print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
-            if meta.get("target_id"):
-                print(f"    target: {meta.get('target_id', '')} label={meta.get('target_label', '')} confidence={meta.get('target_identity_confidence', '')}")
-            print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
-            if meta.get("event_log"):
-                print(f"    event_log: {meta.get('event_log', '')}")
-    else:
-        print("  none")
+    print_recent_fetches(doc["fetches"], include_source_exists=True)
     print("")
     print("Generated target commands:")
     print_target_command_summary(doc)
@@ -9332,38 +9309,9 @@ def print_workbench(cfg, include_api_summary=True):
     else:
         print("  none")
     print("")
-    print("Received uploads:")
-    uploads = recent_upload_metadata(cfg)
-    if uploads:
-        for meta in uploads:
-            sha = str(meta.get("sha256", ""))[:12]
-            print(f"  {meta.get('filename', '')} kind={meta.get('upload_kind', 'file')} size={meta.get('size', '')} sha256={sha} status={meta.get('transfer_status', meta.get('status', ''))}")
-            print(f"    source: {meta.get('source_path', '')}")
-            print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
-            if meta.get("target_id"):
-                print(f"    target: {meta.get('target_id', '')} label={meta.get('target_label', '')} confidence={meta.get('target_identity_confidence', '')}")
-            print(f"    stored: {meta.get('stored_path', '')}")
-            print(f"    metadata: {meta.get('metadata_path', meta.get('_metadata_path', ''))}")
-            print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
-            print(f"    stored_exists: {meta.get('stored_exists', False)}")
-    else:
-        print("  none")
+    print_recent_uploads(recent_upload_metadata(cfg), title="Received uploads:")
     print("")
-    print("Recent fetches:")
-    fetches = snap.get("fetches") or []
-    if fetches:
-        for meta in fetches:
-            sha = str(meta.get("sha256", ""))[:12]
-            print(f"  {meta.get('request_name', '')} size={meta.get('size', '')} sha256={sha} status={meta.get('status', '')} http={meta.get('http_status', '')}")
-            print(f"    source: {meta.get('source_path', '')}")
-            print(f"    remote: {meta.get('remote_addr', '')} at {meta.get('timestamp', '')}")
-            if meta.get("target_id"):
-                print(f"    target: {meta.get('target_id', '')} label={meta.get('target_label', '')} confidence={meta.get('target_identity_confidence', '')}")
-            print(f"    session: {meta.get('session_id', '')} {meta.get('session_path', '')}")
-            if meta.get("event_log"):
-                print(f"    event_log: {meta.get('event_log', '')}")
-    else:
-        print("  none")
+    print_recent_fetches(snap.get("fetches") or [])
     print("")
     print_recent_sessions(snap["sessions"], updated_on_header=True)
     print("")
