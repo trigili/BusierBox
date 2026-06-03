@@ -237,6 +237,7 @@ def run_line_local_ips_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.line_network import print_line_local_ips
+    import gritlib.operator_network as operator_network
 
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -250,6 +251,17 @@ def run_line_local_ips_check():
         print("line local IP renderer did not sort and de-duplicate candidates", file=sys.stderr)
         print(text, file=sys.stderr)
         return 1
+    original_local_ips = operator_network.local_ips
+    operator_network.local_ips = lambda: ["192.168.8.2", "10.0.0.5", "127.0.0.1"]
+    try:
+        if operator_network.operator_advertised_host({}) != "10.0.0.5":
+            print("operator advertised host did not use sorted local IP candidates", file=sys.stderr)
+            return 1
+        if operator_network.target_visible_host("0.0.0.0", {}) != "10.0.0.5":
+            print("target-visible host did not use sorted local IP candidates", file=sys.stderr)
+            return 1
+    finally:
+        operator_network.local_ips = original_local_ips
     return 0
 
 

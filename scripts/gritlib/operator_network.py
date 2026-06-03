@@ -39,6 +39,11 @@ def sorted_local_ips(ips):
     return sorted(_dedupe_local_ips(ips), key=_key)
 
 
+def first_sorted_local_ip(ips=None):
+    candidates = sorted_local_ips(local_ips() if ips is None else ips)
+    return candidates[0] if candidates else ""
+
+
 def _hostname_ipv4_addrs():
     ips = []
     try:
@@ -101,8 +106,7 @@ def target_visible_host(host, cfg, fallback_host=None):
     fallback = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or fallback_host or cfg.get("listen_host") or "").strip()
     if fallback and fallback not in ("0.0.0.0", "::"):
         return fallback
-    candidates = local_ips()
-    return candidates[0] if candidates else "OPERATOR_IP"
+    return first_sorted_local_ip() or "OPERATOR_IP"
 
 
 def operator_advertised_host(cfg, host=None, fallback="OPERATOR_IP"):
@@ -112,8 +116,7 @@ def operator_advertised_host(cfg, host=None, fallback="OPERATOR_IP"):
     configured = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
     if configured:
         return configured
-    candidates = local_ips()
-    return candidates[0] if candidates else fallback
+    return first_sorted_local_ip() or fallback
 
 
 def print_candidates(cfg, port, advertised_host=None, advertised_port=None):
