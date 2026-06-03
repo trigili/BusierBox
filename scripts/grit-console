@@ -84,6 +84,7 @@ from gritlib.record_utils import (
 from gritlib.release_artifacts import (
     kernel_floor_from_release, normalized_probe_arch,
     release_artifact_matches_probe,
+    release_license_record,
     release_recommendation_records, release_recommendations,
     release_artifact_workflow_action_indexes,
     release_artifact_workflow_action_summary, release_state_record,
@@ -5509,122 +5510,6 @@ def mark_service_error(cfg, action, reason, extra=None, event_name="service_erro
         data.update(extra)
     append_event(cfg, action, event_name, "error", details=data)
     return update_server_state(cfg, action, "error", data)
-
-
-RELEASE_LICENSE_NOTICE_FILES = (
-    "LICENSE.grit",
-    "LICENSE",
-    "NOTICE",
-    "LICENSES/busybox.txt",
-    "LICENSES/buildroot.txt",
-    "LICENSES/doom-ascii.txt",
-    "LICENSES/miniz.txt",
-    "docs/licensing.md",
-    "manifests/license-policy.json",
-    "sources.lock.json",
-    "manifests/sources.lock.json",
-)
-
-
-def release_license_record(release_dir):
-    release_dir = Path(release_dir)
-    policy_rel = "manifests/license-policy.json"
-    policy_path = release_dir / policy_rel
-    notice_files = [rel for rel in RELEASE_LICENSE_NOTICE_FILES if (release_dir / rel).is_file()]
-    missing_notice_files = [rel for rel in RELEASE_LICENSE_NOTICE_FILES if rel not in notice_files]
-    rec = {
-        "schema": 1,
-        "path": str(policy_path),
-        "license_policy_path": policy_rel,
-        "exists": policy_path.is_file(),
-        "valid": False,
-        "project_license": "",
-        "combined_gplv2_compatible": False,
-        "preferred_combined_terms_with_busybox": "",
-        "source_availability_required_for_distribution": False,
-        "corresponding_source_required": False,
-        "corresponding_source_status": "",
-        "corresponding_source_summary": "",
-        "corresponding_source_release_input_count": 0,
-        "corresponding_source_reconstruction_input_count": 0,
-        "corresponding_source_requires_package_license_audit": False,
-        "corresponding_source_release_inputs": [],
-        "corresponding_source_reconstruction_inputs": [],
-        "component_count": 0,
-        "components": [],
-        "component_names": [],
-        "component_licenses": {},
-        "license_evidence_verified_at": "",
-        "license_evidence_source_count": 0,
-        "license_evidence_sources": [],
-        "license_evidence_source_names": [],
-        "license_evidence_source_licenses": {},
-        "license_evidence_source_urls": {},
-        "notice_count": len(notice_files),
-        "notice_files": notice_files,
-        "required_notice_files": list(RELEASE_LICENSE_NOTICE_FILES),
-        "missing_notice_files": missing_notice_files,
-        "missing_notice_count": len(missing_notice_files),
-    }
-    if not policy_path.is_file():
-        return rec
-    policy = read_json_file(policy_path, {})
-    if not isinstance(policy, dict):
-        return rec
-    project = policy.get("project") if isinstance(policy.get("project"), dict) else {}
-    compatibility = policy.get("compatibility") if isinstance(policy.get("compatibility"), dict) else {}
-    license_evidence = policy.get("license_evidence") if isinstance(policy.get("license_evidence"), dict) else {}
-    artifact_distribution = policy.get("artifact_distribution") if isinstance(policy.get("artifact_distribution"), dict) else {}
-    corresponding_source = artifact_distribution.get("corresponding_source_strategy") if isinstance(artifact_distribution.get("corresponding_source_strategy"), dict) else {}
-    components = [
-        item for item in (policy.get("components") or [])
-        if isinstance(item, dict) and item.get("name")
-    ]
-    evidence_sources = [
-        item for item in (license_evidence.get("sources") or [])
-        if isinstance(item, dict) and item.get("name")
-    ]
-    corresponding_source_release_inputs = [
-        str(item) for item in (corresponding_source.get("release_bundle_inputs") or [])
-    ]
-    corresponding_source_reconstruction_inputs = [
-        str(item) for item in (corresponding_source.get("source_reconstruction_inputs") or [])
-    ]
-    rec.update({
-        "valid": True,
-        "project_license": project.get("license", ""),
-        "combined_gplv2_compatible": compatibility.get("combined_gplv2_compatible") is True,
-        "preferred_combined_terms_with_busybox": compatibility.get("preferred_combined_terms_with_busybox", ""),
-        "source_availability_required_for_distribution": compatibility.get("source_availability_required_for_distribution") is True,
-        "corresponding_source_required": corresponding_source.get("status") == "required_for_distribution",
-        "corresponding_source_status": str(corresponding_source.get("status") or ""),
-        "corresponding_source_summary": str(corresponding_source.get("summary") or ""),
-        "corresponding_source_release_input_count": len(corresponding_source_release_inputs),
-        "corresponding_source_reconstruction_input_count": len(corresponding_source_reconstruction_inputs),
-        "corresponding_source_requires_package_license_audit": corresponding_source.get("requires_package_license_audit") is True,
-        "corresponding_source_release_inputs": corresponding_source_release_inputs,
-        "corresponding_source_reconstruction_inputs": corresponding_source_reconstruction_inputs,
-        "component_count": len(components),
-        "components": components,
-        "component_names": [str(item.get("name")) for item in components],
-        "component_licenses": {
-            str(item.get("name")): str(item.get("license") or "")
-            for item in components
-        },
-        "license_evidence_verified_at": str(license_evidence.get("verified_at") or ""),
-        "license_evidence_source_count": len(evidence_sources),
-        "license_evidence_sources": evidence_sources,
-        "license_evidence_source_names": [str(item.get("name")) for item in evidence_sources],
-        "license_evidence_source_licenses": {
-            str(item.get("name")): str(item.get("license") or "")
-            for item in evidence_sources
-        },
-        "license_evidence_source_urls": {
-            str(item.get("name")): str(item.get("url") or "")
-            for item in evidence_sources
-        },
-    })
-    return rec
 
 
 def release_context(cfg=None):
