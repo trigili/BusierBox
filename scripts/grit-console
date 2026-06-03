@@ -147,7 +147,8 @@ from gritlib.operator_io import (
     set_interactive_tty_raw, view_path_headless_command, viewable_path,
 )
 from gritlib.operator_network import (
-    local_ips, operator_advertised_host, print_candidates, target_visible_host,
+    local_ips, operator_advertised_host, print_candidates, sorted_local_ips,
+    target_visible_host,
 )
 from gritlib.probe_commands import (
     probe_route_context, probe_script_fn, render_probe_command,
@@ -10004,7 +10005,7 @@ def run_line_tui(cfg):
     def _print_local_ips():
         import socket
         snap = workbench_snapshot(cfg)
-        candidates = snap.get("local_ips") or []
+        candidates = sorted_local_ips(snap.get("local_ips") or [])
         print("Local IPs:")
         if candidates:
             for ip in candidates:

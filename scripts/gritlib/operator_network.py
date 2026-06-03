@@ -1,5 +1,6 @@
 """Operator network discovery helpers for grit-console."""
 
+import ipaddress
 import os
 import socket
 import threading
@@ -24,6 +25,18 @@ def _dedupe_local_ips(ips):
             seen.add(ip)
             out.append(ip)
     return out
+
+
+def sorted_local_ips(ips):
+    def _key(ip):
+        text = str(ip or "")
+        try:
+            parsed = ipaddress.ip_address(text)
+            return (parsed.version, int(parsed), text)
+        except ValueError:
+            return (9, text, text)
+
+    return sorted(_dedupe_local_ips(ips), key=_key)
 
 
 def _hostname_ipv4_addrs():
@@ -113,7 +126,7 @@ def print_candidates(cfg, port, advertised_host=None, advertised_port=None):
     configured = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
     if configured:
         candidates.append(configured)
-    for ip in local_ips():
+    for ip in sorted_local_ips(local_ips()):
         if ip not in candidates:
             candidates.append(ip)
     if candidates:

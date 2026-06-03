@@ -8,6 +8,7 @@ from gritlib.file_transfers import (
     print_recent_fetches, print_recent_uploads, recent_upload_metadata,
     render_fetch_command,
 )
+from gritlib.operator_network import sorted_local_ips
 from gritlib.release_artifacts import (
     artifact_compatibility_lines, artifact_doom_wad_lines,
     artifact_provider_status_lines, print_release_summary, release_context,
@@ -326,7 +327,7 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
     print_target_summary(snap)
     print("")
     print("Local IP candidates:")
-    candidates = snap["local_ips"]
+    candidates = sorted_local_ips(snap["local_ips"])
     if candidates:
         for ip in candidates:
             print(f"  {ip}")
