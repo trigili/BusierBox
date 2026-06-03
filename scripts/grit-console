@@ -6578,8 +6578,7 @@ def run_line_repl(cfg):
                 print(f"  job.log_exists={'yes' if rec.get('log_exists') else 'no'}")
                 print(f"  job.elapsed_sec={rec.get('elapsed_sec', '') if rec.get('elapsed_sec') != '' else '-'}")
                 print(f"  job.exit_status={rec.get('exit_status', '') if rec.get('exit_status') != '' else '-'}")
-                print(f"  job.cancel_command={cancel_workbench_job_headless_command(cfg, job_id)}")
-            print("  job.next=info, jobs, jobs -i ID, back")
+            print("  job.next=info, jobs, jobs -v, back")
         action = selected_line_action()
         if action:
             print(f"  action.kind={action.get('kind', '')}")

@@ -1413,6 +1413,29 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("verbose daemon section:", file=sys.stderr)
         print(daemon_verbose_text[:4000], file=sys.stderr)
         return 1
+    jobs_verbose_start = line_console_stdout.find("grit[all]/jobs> jobs -v")
+    jobs_verbose_end = line_console_stdout.find("grit[all]/jobs> jobs -i 1", jobs_verbose_start + 1)
+    jobs_verbose_text = line_console_stdout[jobs_verbose_start:jobs_verbose_end] if jobs_verbose_start != -1 and jobs_verbose_end != -1 else ""
+    job_info_start = line_console_stdout.find("grit[all]/job/line-console-job> info")
+    job_info_end = line_console_stdout.find("grit[all]/job/line-console-job> options", job_info_start + 1)
+    job_info_text = line_console_stdout[job_info_start:job_info_end] if job_info_start != -1 and job_info_end != -1 else ""
+    job_options_start = line_console_stdout.find("grit[all]/job/line-console-job> options")
+    job_options_end = line_console_stdout.find("grit[all]/job/line-console-job> next", job_options_start + 1)
+    job_options_text = line_console_stdout[job_options_start:job_options_end] if job_options_start != -1 and job_options_end != -1 else ""
+    if (not jobs_verbose_text or
+            "cancel: scripts/grit-console" not in jobs_verbose_text or
+            not job_info_text or
+            "cancel=scripts/grit-console" in job_info_text or
+            not job_options_text or
+            "job.cancel_command=scripts/grit-console" in job_options_text):
+        print("line-oriented selected job context exposed generated cancel command by default", file=sys.stderr)
+        print("jobs -v:", file=sys.stderr)
+        print(jobs_verbose_text or line_console_stdout, file=sys.stderr)
+        print("job info:", file=sys.stderr)
+        print(job_info_text, file=sys.stderr)
+        print("job options:", file=sys.stderr)
+        print(job_options_text, file=sys.stderr)
+        return 1
     collection_prompt_expectations = [
         "grit[all]/build> build -v",
         "grit[all]/build> listeners",

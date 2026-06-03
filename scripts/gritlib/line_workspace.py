@@ -344,8 +344,7 @@ def print_line_info(
                 print("    last_output:")
                 for line in rec.get("last_output_tail") or []:
                     print(f"      {line}")
-            print(f"    cancel={cancel_job_command_builder(job_id)}")
-        print("    next: options, jobs, jobs -i ID, back")
+        print("    next: options, jobs, jobs -v, back")
     else:
         print("  action=none")
     target_filter = (snap or {}).get("target_filter") or {}
