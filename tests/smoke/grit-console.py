@@ -1131,6 +1131,7 @@ def main(argv=None):
     release_artifacts_src = (ROOT / "scripts" / "gritlib" / "release_artifacts.py").read_text()
     service_status_src = (ROOT / "scripts" / "gritlib" / "service_status.py").read_text()
     ssh_keys_src = (ROOT / "scripts" / "gritlib" / "ssh_keys.py").read_text()
+    target_records_src = (ROOT / "scripts" / "gritlib" / "target_records.py").read_text()
     tls_io_src = (ROOT / "scripts" / "gritlib" / "tls_io.py").read_text()
     release_docs = (ROOT / "docs" / "release-bundles.md").read_text()
     for word in ("invalid_command_queue_policy",
@@ -1201,7 +1202,7 @@ def main(argv=None):
                  "Jobs", "enter cancels this job when supported", "action 12 starts jobs; action 13 cancels jobs",
                  "Workflow Actions", "enter starts background workflow job when supported", "action 11 opens full workflow action list",
                  "Operator Daemon", "enter starts/stops attached operator daemon", "TUI attaches through shared status/state files"):
-        if word not in src + operator_io_src:
+        if word not in src + operator_io_src + target_records_src:
             print(f"grit-console: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
     for word in ("stage_release_nav_item", "stage_release_selection", "by_device:", "by_tuple_path:", "enter/s stages recommended artifact when available"):
