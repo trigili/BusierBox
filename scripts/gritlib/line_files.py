@@ -129,8 +129,11 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
 
     def _detail(rec):
         name = rec["_name"]
-        details = [("fetch", fetch_command(name))]
+        details = [("next", f"fetch {quote(name)}")]
         if verbose:
+            command = fetch_command(name)
+            if command:
+                details.append(("target command", command))
             if rec.get("source_path"):
                 details.append(("source", rec["source_path"]))
             sha = str(rec.get("sha256") or "")

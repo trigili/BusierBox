@@ -1039,6 +1039,19 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented configure command exposed noisy headless command", file=sys.stderr)
         print(configure_text or line_console_stdout, file=sys.stderr)
         return 1
+    stagers_start = line_console_stdout.find("grit[Console Router]> show stagers")
+    stagers_end = line_console_stdout.find("grit[Console Router]> unstage console-upload", stagers_start + 1)
+    stagers_text = line_console_stdout[stagers_start:stagers_end] if stagers_start != -1 and stagers_end != -1 else ""
+    if (not stagers_text or
+            "Files  (" not in stagers_text or
+            "next: fetch console-upload" not in stagers_text or
+            "next: fetch grit-console" not in stagers_text or
+            "target_fetch_command=" in stagers_text or
+            "target command:" in stagers_text or
+            "headless_command:" in stagers_text):
+        print("line-oriented files view exposed noisy fetch commands", file=sys.stderr)
+        print(stagers_text or line_console_stdout, file=sys.stderr)
+        return 1
     daemon_action_start = line_console_stdout.find("grit[all]> daemon status --dry-run")
     daemon_action_end = line_console_stdout.find("grit[all]> uselistener", daemon_action_start + 1)
     daemon_action_text = line_console_stdout[daemon_action_start:daemon_action_end] if daemon_action_start != -1 and daemon_action_end != -1 else ""
