@@ -2,6 +2,8 @@
 
 import json
 import os
+import signal
+import subprocess
 import time
 from pathlib import Path
 
@@ -194,6 +196,116 @@ def next_workbench_job_id(data):
         if candidate not in existing:
             return candidate
     raise ValueError("unable to allocate unique workbench job id")
+
+
+def start_workbench_job_record(
+    cfg, actions, action_id, command_override=None, headless_command=""
+):
+    actions_by_id = {rec.get("id", ""): rec for rec in actions or [] if rec.get("id")}
+    action = actions_by_id.get(str(action_id or ""))
+    if not action:
+        raise ValueError(f"unknown workbench action: {action_id}")
+    if action.get("background_supported") is not True:
+        raise ValueError(f"workbench action is not background-capable: {action_id}")
+    command = str(command_override or action.get("command") or "").strip()
+    if not command:
+        raise ValueError("workbench action has no command")
+    if not command_override and any(token in command for token in (" NAME ", " ARTIFACT ", "KEY=VALUE")):
+        raise ValueError("workbench action command contains placeholders and must be configured before running")
+    headless_command = headless_command or start_workbench_job_headless_command(cfg, action_id, command_override=command_override)
+    data = load_workbench_jobs(cfg)
+    job_id = next_workbench_job_id(data)
+    operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
+    log_dir = operator_dir / "jobs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"{job_id}.log"
+    exit_status_path = log_dir / f"{job_id}.exit-status"
+    finished_at_path = log_dir / f"{job_id}.finished-at"
+    env = os.environ.copy()
+    env["GRIT_WORKBENCH_JOB_ID"] = job_id
+    env["GRIT_WORKBENCH_ACTION_ID"] = str(action_id)
+    env["GRIT_WORKBENCH_JOBS_FILE"] = str(workbench_jobs_path(cfg))
+    wrapped_command = (
+        "(\n"
+        f"{command}\n"
+        ")\n"
+        "_grit_status=$?\n"
+        f"printf '%s\\n' \"$_grit_status\" > {shquote(str(exit_status_path))}\n"
+        f"date -u '+%Y-%m-%dT%H:%M:%SZ' > {shquote(str(finished_at_path))}\n"
+        "exit \"$_grit_status\"\n"
+    )
+    with log_path.open("ab") as log:
+        proc = subprocess.Popen(
+            ["/bin/sh", "-c", wrapped_command],
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            env=env,
+            start_new_session=True,
+        )
+    rec = {
+        "id": job_id,
+        "action_id": str(action_id),
+        "category": action.get("category", ""),
+        "script": action.get("script", ""),
+        "command": command,
+        "state": "running",
+        "pid": proc.pid,
+        "process_group_id": proc.pid,
+        "managed_by": "grit-console-workbench",
+        "managed_by_pid": os.getpid(),
+        "started_at": utc_now(),
+        "log_path": str(log_path),
+        "exit_status_path": str(exit_status_path),
+        "finished_at_path": str(finished_at_path),
+    }
+    data["jobs"].append(rec)
+    write_workbench_jobs(cfg, data)
+    append_event(cfg, "workbench", "workbench_job_started", details={
+        "job_id": job_id,
+        "action_id": action_id,
+        "command": command,
+        "pid": proc.pid,
+        "log_path": str(log_path),
+        "headless_command": headless_command,
+    })
+    return {item.get("id"): item for item in workbench_job_records(cfg, [action])}.get(job_id, rec)
+
+
+def cancel_workbench_job_record(cfg, actions, job_id, headless_command=""):
+    data = load_workbench_jobs(cfg)
+    for rec in data.get("jobs") or []:
+        if not isinstance(rec, dict) or str(rec.get("id") or "") != str(job_id):
+            continue
+        current = {
+            item.get("id"): item
+            for item in workbench_job_records(cfg, actions)
+        }.get(str(job_id), rec)
+        if not current.get("cancel_supported"):
+            raise ValueError(f"workbench job is not cancellable with current ownership evidence: {job_id}")
+        pid = int(current.get("pid"))
+        process_group = int(current.get("process_group_id") or pid)
+        try:
+            os.killpg(process_group, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except OSError as exc:
+            raise ValueError(f"unable to cancel workbench job {job_id}: {exc}") from exc
+        rec.update({
+            "state": "cancelling",
+            "cancel_requested_at": utc_now(),
+            "cancel_signal": "SIGTERM",
+        })
+        write_workbench_jobs(cfg, data)
+        append_event(cfg, "workbench", "workbench_job_cancel_requested", details={
+            "job_id": job_id,
+            "pid": pid,
+            "process_group_id": process_group,
+            "ownership_evidence": current.get("ownership_evidence") or [],
+            "headless_command": headless_command or cancel_workbench_job_headless_command(cfg, job_id),
+        })
+        return current
+    raise ValueError(f"unknown workbench job: {job_id}")
 
 
 def read_workbench_job_exit_status(path_text):
