@@ -2,10 +2,8 @@
 
 from pathlib import Path
 
-from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
-from gritlib.shell_utils import shquote
 from gritlib.target_records import configured_target_filter, target_filter_summary_text
 
 
@@ -79,21 +77,13 @@ def current_line_target_record(cfg, snapshot_func):
 
 
 def print_line_target_interaction(
-    cfg, target_id, target, target_filter, mailbox_records, sessions,
-    quote=shquote, default_config=DEFAULT_CONFIG
+    cfg, target_id, target, target_filter, mailbox_records, sessions
 ):
     label = target.get("label") or target_filter.get("target_label") or "-"
     state = target.get("connectivity_state") or target_filter.get("connectivity_state") or "-"
     print(f"Agent interaction: {target_id} label={label} state={state}")
     print(target_filter_summary_text(target_filter, prefix="  status:"))
     print("  commands: queue COMMAND, probe --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target")
-    print(
-        "  status_command: scripts/grit-console --config "
-        + quote(str(cfg.get("_config_path", default_config)))
-        + " --target-id "
-        + quote(target_id)
-        + " --status"
-    )
     pending = [rec for rec in mailbox_records or [] if rec.get("pending_work")]
     if pending:
         print("  pending work:")

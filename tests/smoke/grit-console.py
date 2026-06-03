@@ -1178,6 +1178,29 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             print(f"line-oriented console context exposed noisy equivalent CLI command: {noisy}", file=sys.stderr)
             print(line_console_stdout, file=sys.stderr)
             return 1
+    target_interactions = []
+    target_search_pos = 0
+    while True:
+        target_interaction_start = line_console_stdout.find("grit[Console Router]/targets> interact", target_search_pos)
+        if target_interaction_start == -1:
+            break
+        target_interaction_end = line_console_stdout.find(
+            "grit[Console Router]/targets> clear target",
+            target_interaction_start + 1,
+        )
+        target_interactions.append(
+            line_console_stdout[target_interaction_start:target_interaction_end]
+            if target_interaction_end != -1 else ""
+        )
+        target_search_pos = target_interaction_start + 1
+    if (len(target_interactions) < 2 or
+            any(not text or "Agent interaction: line-console-target label=Console Router state=online" not in text
+                for text in target_interactions[:2]) or
+            any("status_command: scripts/grit-console" in text for text in target_interactions[:2]) or
+            any("pending work:" not in text or "recent sessions:" not in text for text in target_interactions[:2])):
+        print("line-oriented target interaction exposed generated status command or lost concise details", file=sys.stderr)
+        print("\n--- target interaction ---\n".join(target_interactions) or line_console_stdout, file=sys.stderr)
+        return 1
     service_modules_start = line_console_stdout.find("grit[all]/categories> show service modules")
     service_modules_end = line_console_stdout.find("grit[all]> show daemon modules", service_modules_start + 1)
     service_modules_text = line_console_stdout[service_modules_start:service_modules_end] if service_modules_start != -1 and service_modules_end != -1 else ""
