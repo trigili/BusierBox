@@ -8766,40 +8766,6 @@ def run_line_tui(cfg):
         })
         return result
 
-    def print_line_tui_actions():
-        print("Actions:")
-        print("  Services:")
-        print("    1 start ssh")
-        print("    2 start tls-shell")
-        print("    3 start plain-shell")
-        print("    4 start file-service")
-        print("    5 stop service")
-        print("    19 serve probe")
-        print("  Targets:")
-        print("    15 run target workflow action")
-        print("    16 select target filter")
-        print("    18 inspect target mailbox/activity")
-        print("    20 inspect command queue/results")
-        print("    21 inspect target activity feed")
-        print("  Bridges:")
-        print("    17 manage bridge profiles")
-        print("  Files and releases:")
-        print("    6 stage file")
-        print("    7 list staged")
-        print("    8 unstage file")
-        print("    9 open local path in pager")
-        print("    10 stage release recommendation/device/tuple")
-        print("    22 serve griTTYkit binary")
-        print("    c show/copy generated commands")
-        print("  Automation and config:")
-        print("    11 show operator workflow actions")
-        print("    12 start background workflow job")
-        print("    13 cancel background workflow job")
-        print("    14 configure griTTYkit build field")
-        print("  r refresh")
-        print("  ? help")
-        print("  q quit")
-
     if HAVE_READLINE:
         _rl_completion_cache = {"line": None, "candidates": []}
 
@@ -10372,8 +10338,6 @@ def run_line_tui(cfg):
                     })
             except ValueError as exc:
                 print(exc)
-        elif choice == "?":
-            print("Keys: 1-4 start services, 5 stop, 6 stage file, 10 stage item, 11 actions, 12 start job, 13 cancel job, 14 config, 15 target action, 16 target filter, 17 bridges, 18 target detail, 19 probe, 20 command queue, 21 target activity, 22 serve binary, 8/d unstage, 9/v view, c copy commands, r refresh, q quit.")
     for _sig, _prev in ((signal.SIGTERM, _prev_sigterm), (signal.SIGINT, _prev_sigint)):
         if _prev is not None:
             try:

@@ -590,6 +590,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             (
                 "\n"
                 "help\n"
+                "?\n"
                 "help search\n"
                 "help resource\n"
                 "help makerc\n"
