@@ -917,3 +917,97 @@ def file_service_workflow_action_summary(records):
         "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
         "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
     }
+
+
+def file_service_workflow_status_summary(records):
+    summary = file_service_workflow_action_summary(records)
+    return {
+        "file_service_workflow_action_count": summary.get("total_count", 0),
+        "file_service_workflow_action_available_count": summary.get(
+            "available_count", 0
+        ),
+        "file_service_workflow_action_requires_input_count": summary.get(
+            "requires_input_count", 0
+        ),
+        "file_service_workflow_action_requires_confirmation_count": summary.get(
+            "requires_confirmation_count", 0
+        ),
+        "file_service_workflow_action_queues_offline_work_count": summary.get(
+            "queues_offline_work_count", 0
+        ),
+        "file_service_workflow_action_can_run_from_curses_enter_count": summary.get(
+            "can_run_from_curses_enter_count", 0
+        ),
+        "file_service_workflow_action_action_counts": summary.get("action_counts") or {},
+        "file_service_workflow_action_service_counts": summary.get("service_counts") or {},
+        "file_service_workflow_action_category_counts": summary.get("category_counts") or {},
+        "file_service_workflow_action_workflow_counts": summary.get("workflow_counts") or {},
+        "file_service_workflow_action_actual_counts": summary.get("actual_counts") or {},
+        "file_service_workflow_action_configured_counts": summary.get("configured_counts") or {},
+        "file_service_workflow_action_target_filter_active_counts": summary.get(
+            "target_filter_active_counts"
+        ) or {},
+        "file_service_workflow_action_route_kind_counts": summary.get(
+            "route_kind_counts"
+        ) or {},
+        "file_service_workflow_action_bridge_profile_counts": summary.get(
+            "bridge_profile_counts"
+        ) or {},
+        "file_service_workflow_action_requires_bridge_counts": summary.get(
+            "requires_bridge_counts"
+        ) or {},
+        "file_service_workflow_action_fleet_target_count_counts": summary.get(
+            "fleet_target_count_counts"
+        ) or {},
+        "file_service_workflow_action_fleet_offline_target_count_counts": summary.get(
+            "fleet_offline_target_count_counts"
+        ) or {},
+        "file_service_workflow_action_fleet_stale_target_count_counts": summary.get(
+            "fleet_stale_target_count_counts"
+        ) or {},
+        "file_service_workflow_action_fleet_mailbox_pending_target_count_counts": summary.get(
+            "fleet_mailbox_pending_target_count_counts"
+        ) or {},
+        "file_service_workflow_action_fleet_mailbox_pending_work_count_counts": summary.get(
+            "fleet_mailbox_pending_work_count_counts"
+        ) or {},
+        "file_service_workflow_action_fleet_poll_overdue_target_count_counts": summary.get(
+            "fleet_poll_overdue_target_count_counts"
+        ) or {},
+        "file_service_workflow_action_fleet_has_offline_targets_counts": summary.get(
+            "fleet_has_offline_targets_counts"
+        ) or {},
+        "file_service_workflow_action_fleet_has_stale_targets_counts": summary.get(
+            "fleet_has_stale_targets_counts"
+        ) or {},
+        "file_service_workflow_action_fleet_has_mailbox_pending_work_counts": summary.get(
+            "fleet_has_mailbox_pending_work_counts"
+        ) or {},
+        "file_service_workflow_action_fleet_has_poll_overdue_targets_counts": summary.get(
+            "fleet_has_poll_overdue_targets_counts"
+        ) or {},
+        "file_service_workflow_action_available_counts": summary.get(
+            "available_counts"
+        ) or {},
+        "file_service_workflow_action_requires_input_counts": summary.get(
+            "requires_input_counts"
+        ) or {},
+        "file_service_workflow_action_requires_confirmation_counts": summary.get(
+            "requires_confirmation_counts"
+        ) or {},
+        "file_service_workflow_action_queues_offline_work_counts": summary.get(
+            "queues_offline_work_counts"
+        ) or {},
+        "file_service_workflow_action_operator_action_state_counts": summary.get(
+            "operator_action_state_counts"
+        ) or {},
+        "file_service_workflow_action_operator_action_reason_counts": summary.get(
+            "operator_action_reason_counts"
+        ) or {},
+        "file_service_workflow_action_can_run_from_curses_enter_counts": summary.get(
+            "can_run_from_curses_enter_counts"
+        ) or {},
+        "file_service_workflow_action_curses_enter_action_counts": summary.get(
+            "curses_enter_action_counts"
+        ) or {},
+    }
