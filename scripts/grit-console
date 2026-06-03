@@ -107,6 +107,12 @@ from gritlib.line_help import (
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
 )
+from gritlib.line_services import (
+    LINE_SERVICE_CATEGORIES,
+    line_service_display_name,
+    ordered_line_service_records as line_services_ordered_records,
+    resolve_line_service_selector as line_services_resolve_selector,
+)
 from gritlib.operator_io import (
     clipboard_command, open_path_in_pager, restore_interactive_tty,
     set_interactive_tty_raw, view_path_headless_command, viewable_path,
@@ -7350,53 +7356,11 @@ def run_line_tui(cfg):
         print(f"unsetg {rec.get('key', key)}")
         print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
 
-    LINE_SERVICE_CATEGORIES = [
-        ("Probe & discovery",  ["probe", "probe-tftp", "probe-ftp", "probe-dns", "bridge"]),
-        ("Initial access",     ["ssh", "tls-shell", "plain-shell"]),
-        ("Post-deployment",    ["file-service", "command-queue"]),
-    ]
-    LINE_SERVICE_DISPLAY_NAMES = {
-        "probe": "probe-http",
-    }
-    LINE_SERVICE_ALIASES = {
-        "probe-http": "probe",
-        "http-probe": "probe",
-        "ftp-probe": "probe-ftp",
-        "dns-probe": "probe-dns",
-    }
-
-    def line_service_display_name(name):
-        text = str(name or "").strip()
-        return LINE_SERVICE_DISPLAY_NAMES.get(text, text)
-
     def ordered_line_service_records():
-        rows = service_status_rows(cfg)
-        order = {name: i for i, name in enumerate(
-            s for _, names in LINE_SERVICE_CATEGORIES for s in names
-        )}
-        return sorted(rows, key=lambda r: order.get(str(r.get("name") or ""), 99))
+        return line_services_ordered_records(service_status_rows(cfg))
 
     def resolve_line_service_selector(selector):
-        text = str(selector or "").strip()
-        if not text:
-            return ""
-        text = LINE_SERVICE_ALIASES.get(text, text)
-        records = ordered_line_service_records()
-        if text.isdigit():
-            idx = int(text) - 1
-            if idx < 0 or idx >= len(records):
-                raise ValueError(f"service number out of range: {text}")
-            return str(records[idx].get("name") or "")
-        names = [str(rec.get("name") or "") for rec in records]
-        if text in names:
-            return text
-        display_to_name = {
-            line_service_display_name(str(rec.get("name") or "")): str(rec.get("name") or "")
-            for rec in records
-        }
-        if text in display_to_name:
-            return display_to_name[text]
-        return ""
+        return line_services_resolve_selector(selector, service_status_rows(cfg))
 
     def line_service_names():
         return [str(rec.get("name") or "") for rec in ordered_line_service_records() if str(rec.get("name") or "")]
