@@ -1,8 +1,10 @@
 """Service status, resource, and index helpers for grit-console."""
 
 import os
+import time
 
 from gritlib.config_utils import yes
+from gritlib.process_status import listener_endpoints, pid_alive
 from gritlib.record_utils import (
     int_value, record_count_by_key, records_by_bool, records_by_composite,
     records_by_key,
@@ -17,6 +19,47 @@ def service_tls_enabled(cfg, service):
     if service == "command-queue":
         return yes(str(cfg.get("GRIT_COMMAND_QUEUE_TLS", "yes")))
     return False
+
+
+def service_port(cfg, service):
+    if service == "ssh":
+        return int(cfg.get("ssh_listen_port", 22202))
+    if service in {"tls-shell", "plain-shell"}:
+        return int(cfg.get("GRIT_RSHELL_SOCAT_PORT", 22203))
+    if service == "file-service":
+        return int(cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
+    if service == "command-queue":
+        return int(cfg.get("GRIT_COMMAND_QUEUE_PORT", 22205))
+    if service == "bridge":
+        return int(cfg.get("bridge_listen_port", 22206))
+    if service == "probe":
+        return int(cfg.get("GRIT_PROBE_PORT", 22207))
+    if service == "probe-tftp":
+        return int(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
+    if service == "probe-ftp":
+        return int(cfg.get("GRIT_PROBE_FTP_PORT", 22209))
+    if service == "probe-dns":
+        return int(cfg.get("GRIT_PROBE_DNS_PORT", 22210))
+    return 0
+
+
+def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
+    port = service_port(cfg, service)
+    if not port:
+        deadline = time.time() + max(timeout, 8.0)
+        while time.time() < deadline:
+            if not pid or not pid_alive(pid):
+                return True
+            time.sleep(0.05)
+        return not pid or not pid_alive(pid)
+    deadline = time.time() + timeout
+    protocol = "udp" if service in {"probe-tftp", "probe-dns"} else "tcp"
+    while time.time() < deadline:
+        endpoints = listener_endpoints(port, protocol=protocol)
+        if not endpoints:
+            return True
+        time.sleep(0.05)
+    return not listener_endpoints(port, protocol=protocol)
 
 
 def service_manager_resource_records(snapshot):

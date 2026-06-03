@@ -128,8 +128,9 @@ from gritlib.session_state import (
 from gritlib.session_records import session_record_indexes, session_root_record
 from gritlib.service_status import (
     port_record_indexes, port_records_from_services, service_manager_status,
-    service_record_indexes, service_tls_enabled, service_workflow_action_indexes,
-    service_workflow_action_summary, status_summary_and_warnings,
+    service_port, service_record_indexes, service_tls_enabled,
+    service_workflow_action_indexes, service_workflow_action_summary,
+    status_summary_and_warnings, wait_service_port_released,
 )
 from gritlib.shell_utils import shquote
 from gritlib.ssh_keys import ensure_host_key, keys_equal, load_public_key
@@ -6856,28 +6857,6 @@ def serve_probe_dns(cfg, timeout, max_sessions=0):
     return 0
 
 
-def service_port(cfg, service):
-    if service == "ssh":
-        return int(cfg.get("ssh_listen_port", 22202))
-    if service in {"tls-shell", "plain-shell"}:
-        return int(cfg.get("GRIT_RSHELL_SOCAT_PORT", 22203))
-    if service == "file-service":
-        return int(cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
-    if service == "command-queue":
-        return int(cfg.get("GRIT_COMMAND_QUEUE_PORT", 22205))
-    if service == "bridge":
-        return int(cfg.get("bridge_listen_port", 22206))
-    if service == "probe":
-        return int(cfg.get("GRIT_PROBE_PORT", 22207))
-    if service == "probe-tftp":
-        return int(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
-    if service == "probe-ftp":
-        return int(cfg.get("GRIT_PROBE_FTP_PORT", 22209))
-    if service == "probe-dns":
-        return int(cfg.get("GRIT_PROBE_DNS_PORT", 22210))
-    return 0
-
-
 DAEMON_SERVICE_CHOICES = ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns")
 
 
@@ -7132,25 +7111,6 @@ def handle_systemd_user_action(cfg, action, services, unit_name, unit_dir=None, 
         })
         return int(result.returncode)
     raise ValueError(f"unsupported systemd user action: {action}")
-
-
-def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
-    port = service_port(cfg, service)
-    if not port:
-        deadline = time.time() + max(timeout, 8.0)
-        while time.time() < deadline:
-            if not pid or not pid_alive(pid):
-                return True
-            time.sleep(0.05)
-        return not pid or not pid_alive(pid)
-    deadline = time.time() + timeout
-    protocol = "udp" if service in {"probe-tftp", "probe-dns"} else "tcp"
-    while time.time() < deadline:
-        endpoints = listener_endpoints(port, protocol=protocol)
-        if not endpoints:
-            return True
-        time.sleep(0.05)
-    return not listener_endpoints(port, protocol=protocol)
 
 
 def raw_service_snapshot(cfg):
