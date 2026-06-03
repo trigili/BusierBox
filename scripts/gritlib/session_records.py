@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-from gritlib.record_utils import int_value, latest_record_value, records_by_key
+from gritlib.record_utils import (
+    int_value, latest_record_value, record_count_by_key, records_by_key,
+)
 
 
 def session_record_indexes(records):
@@ -112,6 +114,81 @@ def print_recent_sessions(records, updated_on_header=False):
                 )
     else:
         print("  none")
+
+
+def _index_counts(index):
+    return {key: len(value) for key, value in (index or {}).items()}
+
+
+def session_record_summary(records, root_state=None, root_state_records=None, target_attribution=None):
+    records = records or []
+    root_state = root_state or {}
+    root_state_records = root_state_records or []
+    target_attribution = target_attribution or {}
+    (
+        _sessions_by_id,
+        _sessions_by_service,
+        _sessions_by_state,
+        _sessions_by_exit_reason,
+        _sessions_by_remote,
+        sessions_by_service_state,
+        sessions_by_service_exit_reason,
+        sessions_by_service_remote,
+        _sessions_by_target_id,
+        sessions_by_has_uploads,
+        sessions_by_has_fetches,
+        sessions_by_has_events,
+        sessions_by_has_artifacts,
+        sessions_by_has_session_log,
+        sessions_by_duration_known,
+        sessions_by_metadata_exists,
+        sessions_by_event_log_exists,
+        sessions_by_session_log_exists,
+    ) = session_record_indexes(records)
+    return {
+        "session_count": len(records),
+        "session_root_exists": bool(root_state.get("exists", False)),
+        "session_root_recent_count": root_state.get("recent_session_count", 0),
+        "session_root_state_record_count": len(root_state_records),
+        "session_root_has_recent_sessions": bool(root_state.get("has_recent_sessions", False)),
+        "session_service_counts": record_count_by_key(records, "service"),
+        "session_state_counts": record_count_by_key(records, "state"),
+        "session_exit_reason_counts": record_count_by_key(records, "exit_reason"),
+        "session_remote_counts": record_count_by_key(records, "remote"),
+        "session_target_counts": record_count_by_key(records, "target_id"),
+        "session_with_target_count": target_attribution.get("session_with_target_count", 0),
+        "session_without_target_count": target_attribution.get("session_without_target_count", 0),
+        "session_service_state_counts": _index_counts(sessions_by_service_state),
+        "session_service_exit_reason_counts": _index_counts(sessions_by_service_exit_reason),
+        "session_service_remote_counts": _index_counts(sessions_by_service_remote),
+        "session_has_uploads_counts": _index_counts(sessions_by_has_uploads),
+        "session_has_fetches_counts": _index_counts(sessions_by_has_fetches),
+        "session_has_events_counts": _index_counts(sessions_by_has_events),
+        "session_has_artifacts_counts": _index_counts(sessions_by_has_artifacts),
+        "session_has_session_log_counts": _index_counts(sessions_by_has_session_log),
+        "session_duration_known_counts": _index_counts(sessions_by_duration_known),
+        "session_metadata_exists_counts": _index_counts(sessions_by_metadata_exists),
+        "session_event_log_exists_counts": _index_counts(sessions_by_event_log_exists),
+        "session_log_exists_counts": _index_counts(sessions_by_session_log_exists),
+        "session_total_upload_count": root_state.get("total_upload_count", 0),
+        "session_total_fetch_count": root_state.get("total_fetch_count", 0),
+        "session_total_event_count": root_state.get("total_event_count", 0),
+        "session_total_artifact_count": root_state.get("total_artifact_count", 0),
+        "session_total_log_size": root_state.get("total_session_log_size", 0),
+        "session_total_log_line_count": root_state.get("total_session_log_line_count", 0),
+        "session_duration_known_count": root_state.get("duration_known_count", 0),
+        "session_total_duration_sec": root_state.get("total_duration_sec", 0),
+        "session_average_duration_sec": root_state.get("average_duration_sec", 0),
+        "session_max_duration_sec": root_state.get("max_duration_sec", 0),
+        "sessions_with_uploads_count": root_state.get("sessions_with_uploads_count", 0),
+        "sessions_with_fetches_count": root_state.get("sessions_with_fetches_count", 0),
+        "sessions_with_events_count": root_state.get("sessions_with_events_count", 0),
+        "sessions_with_artifacts_count": root_state.get("sessions_with_artifacts_count", 0),
+        "sessions_with_session_logs_count": root_state.get("sessions_with_session_logs_count", 0),
+        "sessions_with_metadata_count": root_state.get("sessions_with_metadata_count", 0),
+        "sessions_with_event_logs_count": root_state.get("sessions_with_event_logs_count", 0),
+        "latest_session_updated_at": latest_record_value(records, ("updated_at", "ended_at", "started_at")),
+    }
 
 
 def session_root_record(cfg, records):
