@@ -901,6 +901,23 @@ def release_recommendation_lines(release, limit=10):
     return lines
 
 
+def release_nav_records(release, release_devices, release_tuples, limit=5):
+    release = release or {}
+    artifacts_by_path = release.get("artifacts_by_release_path") or {}
+    out = [{"kind": "index", "label": f"index {Path(release.get('release_index', '')).name if release.get('release_index') else '-'}", "path": release.get("release_index", "")}]
+    for rec in release.get("recommendation_records") or []:
+        artifact_key = rec.get("artifact") or ""
+        artifact = artifacts_by_path.get(artifact_key) or {}
+        path = artifact.get("path") or artifact_key
+        label = f"rec {rec.get('scope', '')}:{rec.get('key', '')} -> {rec.get('artifact_name') or Path(artifact_key).name}"
+        out.append({"kind": "recommendation", "label": label, "path": path, "record": rec, "artifact": artifact})
+    for d in (release_devices or [])[:limit]:
+        out.append({"kind": "device", "label": f"dev {d.get('name', '')} -> {d.get('tuple_path', '')} artifacts={d.get('artifact_count', len(d.get('artifacts') or []))}", "record": d})
+    for t in (release_tuples or [])[:limit]:
+        out.append({"kind": "tuple", "label": f"tuple {t.get('path', '')} artifacts={t.get('artifact_count', len(t.get('artifacts') or []))}", "record": t})
+    return out
+
+
 def release_artifact_workflow_action_indexes(records):
     return {
         "release_artifact_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
