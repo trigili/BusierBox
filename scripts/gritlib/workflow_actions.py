@@ -180,6 +180,26 @@ def annotate_workbench_actions(records, cfg, run_command_builder, start_job_comm
     return records
 
 
+def target_workflow_action_readiness(
+    target,
+    requires_input=False,
+    available=True,
+    requires_target_online=False,
+    queues_offline_work=False,
+    target_phone_home_required=False,
+):
+    target_state = str((target or {}).get("connectivity_state") or "")
+    if not available:
+        return "unavailable", "unavailable", False
+    if requires_target_online and target_state not in ("online", "recent"):
+        return "blocked", "target-not-online", False
+    if requires_input:
+        return "needs-input", "input-required", False
+    if queues_offline_work and target_phone_home_required:
+        return "queueable-offline", "queues-until-phone-home", True
+    return "ready", "run-now", True
+
+
 def workbench_action_indexes(records):
     return {
         "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
