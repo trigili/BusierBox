@@ -203,6 +203,22 @@ def target_mailbox_records_from_commands(commands, targets_by_id=None, now_epoch
     return records
 
 
+def record_selected_target_activity(cfg, service, operation, remote="", details=None, session_id=""):
+    from gritlib.target_records import (
+        details_with_target, record_target_activity, selected_target_context,
+    )
+
+    ctx = selected_target_context(cfg)
+    if not ctx:
+        return {}
+    metadata = details_with_target(cfg, {
+        **(details or {}),
+        "operation": operation,
+        "remote_addr": remote or "",
+    }, ctx)
+    return record_target_activity(cfg, metadata, service, session_id=session_id)
+
+
 def target_phone_home_pending_reason(kind, details):
     status = str((details or {}).get("status") or "")
     target_id = str((details or {}).get("target_id") or "")
