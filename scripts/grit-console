@@ -136,7 +136,7 @@ from gritlib.release_artifacts import (
 from gritlib.session_state import (
     SessionManager, atomic_write_json, count_file_lines, elapsed_seconds,
     mark_service_error, mark_service_stopped, parse_utc_timestamp,
-    read_json_file, server_state_record, state_file_path, update_server_state,
+    read_json_file, server_state_status, state_file_path, update_server_state,
     utc_from_epoch, utc_now, utc_now_from_mtime,
 )
 from gritlib.session_records import (
@@ -4656,18 +4656,10 @@ def status_document(cfg):
         "tls_cert": str(cfg.get("tls_cert", "")),
         "tls_key": str(cfg.get("tls_key", "")),
     }
-    server_state = server_state_record(cfg)
-    server_state["has_services"] = int(server_state.get("service_count") or 0) > 0
-    server_state["has_sessions"] = int(server_state.get("session_count") or 0) > 0
-    server_state_records = [server_state]
-    server_state_index_maps = {
-        "server_state_records_by_path": {rec.get("path", ""): rec for rec in server_state_records if rec.get("path")},
-        "server_state_records_by_exists": records_by_key(server_state_records, "exists"),
-        "server_state_records_by_valid": records_by_key(server_state_records, "valid"),
-        "server_state_records_by_has_services": records_by_key(server_state_records, "has_services"),
-        "server_state_records_by_has_sessions": records_by_key(server_state_records, "has_sessions"),
-        "server_state_records_by_schema": records_by_key(server_state_records, "schema"),
-    }
+    server_status = server_state_status(cfg)
+    server_state = server_status["state_record"]
+    server_state_records = server_status["state_records"]
+    server_state_index_maps = server_status["state_index_maps"]
     staged_files_status = staged_files_state_status(cfg)
     staged_files_state = staged_files_status["state_record"]
     staged_files_state_records = staged_files_status["state_records"]

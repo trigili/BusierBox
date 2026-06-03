@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 from gritlib.event_log import append_event
+from gritlib.record_utils import records_by_key
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
@@ -95,6 +96,32 @@ def server_state_record(cfg):
     except (OSError, json.JSONDecodeError) as exc:
         rec["error"] = str(exc)
     return rec
+
+
+def server_state_status(cfg):
+    state_record = server_state_record(cfg)
+    state_record["has_services"] = int(state_record.get("service_count") or 0) > 0
+    state_record["has_sessions"] = int(state_record.get("session_count") or 0) > 0
+    state_records = [state_record]
+    state_index_maps = {
+        "server_state_records_by_path": {
+            rec.get("path", ""): rec for rec in state_records if rec.get("path")
+        },
+        "server_state_records_by_exists": records_by_key(state_records, "exists"),
+        "server_state_records_by_valid": records_by_key(state_records, "valid"),
+        "server_state_records_by_has_services": records_by_key(
+            state_records, "has_services"
+        ),
+        "server_state_records_by_has_sessions": records_by_key(
+            state_records, "has_sessions"
+        ),
+        "server_state_records_by_schema": records_by_key(state_records, "schema"),
+    }
+    return {
+        "state_record": state_record,
+        "state_records": state_records,
+        "state_index_maps": state_index_maps,
+    }
 
 
 def update_server_state(cfg, action, status="configured", extra=None, default_config=DEFAULT_CONFIG):
