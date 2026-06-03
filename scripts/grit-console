@@ -115,7 +115,15 @@ from gritlib.line_command_queue import (
 )
 from gritlib.line_configure import parse_line_config_args, run_config_from_survey
 from gritlib.line_events import print_line_events_view
-from gritlib.line_files import line_file_records_from_staged, print_line_file_records
+from gritlib.line_files import (
+    line_file_records_from_staged,
+    parse_line_binary_args,
+    parse_line_download_args,
+    parse_line_fetch_args,
+    parse_line_file_args,
+    parse_line_release_stage_args,
+    print_line_file_records,
+)
 from gritlib.line_help import (
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
@@ -8582,21 +8590,6 @@ def run_line_tui(cfg):
             return
         queue_line_command(" ".join(args).strip())
 
-    def parse_line_download_args(args):
-        queue = False
-        start_file_service = False
-        values = []
-        for item in args:
-            lower = item.lower()
-            if lower in {"--queue", "-q"}:
-                queue = True
-            elif lower in {"--start", "--start-service"}:
-                start_file_service = True
-            else:
-                values.append(item)
-        target_path = " ".join(values).strip()
-        return target_path, queue, start_file_service
-
     def download_line_target(target_path, queue=False, start_file_service=False):
         path = str(target_path or "").strip()
         if not path:
@@ -9464,18 +9457,6 @@ def run_line_tui(cfg):
             "tuple_count": len(tuples),
         })
 
-    def parse_line_release_stage_args(args):
-        start_file_service = False
-        values = []
-        for item in args:
-            lower = item.lower()
-            if lower in {"--start", "--start-service"}:
-                start_file_service = True
-            else:
-                values.append(item)
-        selector = " ".join(values).strip()
-        return selector, start_file_service
-
     def stage_line_release(selector, start_file_service=False):
         selector = str(selector or "").strip()
         if not selector:
@@ -9523,30 +9504,6 @@ def run_line_tui(cfg):
             "direct_console": True,
         })
         return rec
-
-    def parse_line_binary_args(args):
-        selector = ""
-        request_name = ""
-        start_file_service = False
-        no_start = False
-        values = []
-        for item in args:
-            lower = item.lower()
-            if lower in {"--start", "--start-service"}:
-                start_file_service = True
-            elif lower in {"--no-start", "--no-start-service"}:
-                no_start = True
-            else:
-                values.append(item)
-        if start_file_service and no_start:
-            raise ValueError("usage: serve-binary [--start|--no-start] [PATH] [NAME]")
-        if values:
-            selector = values[0]
-        if len(values) >= 3 and values[1].lower() == "as":
-            request_name = values[2]
-        elif len(values) >= 2:
-            request_name = values[1]
-        return selector, request_name, start_file_service, no_start
 
     def stage_line_binary(selector="", request_name="", prompt_for_missing=True, prompt_start=True, start_file_service=False, show_headless=False):
         rel = release_context(cfg)
@@ -9829,23 +9786,6 @@ def run_line_tui(cfg):
         })
         return artifact
 
-    def parse_line_file_args(args):
-        start_file_service = False
-        values = []
-        for item in args:
-            lower = item.lower()
-            if lower in {"--start", "--start-service"}:
-                start_file_service = True
-            else:
-                values.append(item)
-        selector = values[0] if values else ""
-        request_name = ""
-        if len(values) >= 3 and values[1].lower() == "as":
-            request_name = values[2]
-        elif len(values) >= 2:
-            request_name = values[1]
-        return selector, request_name, start_file_service
-
     def stage_line_file(path_text="", request_name="", start_file_service=False):
         path = str(path_text or "").strip()
         if not path:
@@ -9886,22 +9826,6 @@ def run_line_tui(cfg):
             "target_label": rec.get("target_label", ""),
         })
         return rec
-
-    def parse_line_fetch_args(args, queue_default=False):
-        queue = bool(queue_default)
-        start_file_service = False
-        values = []
-        for item in args:
-            lower = item.lower()
-            if lower in {"--queue", "-q"}:
-                queue = True
-            elif lower in {"--start", "--start-service"}:
-                start_file_service = True
-            else:
-                values.append(item)
-        if len(values) > 1:
-            raise ValueError("usage: fetch [--queue] [--start] NAME")
-        return (values[0] if values else ""), queue, start_file_service
 
     def staged_line_record(request_name):
         name = str(request_name or "").strip()
