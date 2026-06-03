@@ -170,7 +170,8 @@ from gritlib.target_activity import (
 )
 from gritlib.target_commands import (
     rshell_session_policy_record, shell_listener_max_sessions,
-    target_command_display_line, target_command_record_indexes,
+    print_target_command_summary, target_command_display_line,
+    target_command_record_indexes,
     target_command_record_summary, target_command_state_status,
     target_command_route_text,
 )
@@ -9237,35 +9238,6 @@ def print_operator_state_records(doc):
             print(line)
     else:
         print("  none")
-
-
-def print_target_command_summary(doc):
-    doc = doc or {}
-    summary = doc.get("summary") or {}
-    records = doc.get("target_command_records") or []
-    total = summary.get("target_command_count", len(records))
-    print(
-        "Target command summary: "
-        f"total={total} "
-        f"network={summary.get('target_command_network_count', 0)} "
-        f"explicit_target_action={summary.get('target_command_explicit_action_count', 0)} "
-        f"operator_supplied_execution={summary.get('target_command_operator_supplied_execution_count', 0)} "
-        f"copy_supported={summary.get('target_command_copy_supported_count', 0)} "
-        f"executes_operator_supplied_commands={'yes' if summary.get('target_command_executes_operator_supplied_commands') else 'no'} "
-        f"all_require_explicit_target_action={'yes' if summary.get('target_command_all_require_explicit_target_action') else 'no'}"
-    )
-    print(f"  sides: {format_counts(summary.get('target_command_side_counts') or {})}")
-    if summary.get("target_command_route_kind_counts"):
-        print(f"  routes: {format_counts(summary.get('target_command_route_kind_counts') or {})}")
-    if summary.get("target_command_bridge_profile_counts"):
-        print(f"  bridge profiles: {format_counts(summary.get('target_command_bridge_profile_counts') or {})}")
-    if summary.get("target_command_session_policy_counts"):
-        print(f"  rshell policies: {format_counts(summary.get('target_command_session_policy_counts') or {})}")
-    if summary.get("target_command_session_policy_valid_counts"):
-        print(f"  rshell policy validity: {format_counts(summary.get('target_command_session_policy_valid_counts') or {})}")
-        print(f"  rshell policy errors: {summary.get('target_command_session_policy_error_count', 0)}")
-    if summary.get("target_command_retry_backoff_counts"):
-        print(f"  rshell retry backoff: {format_counts(summary.get('target_command_retry_backoff_counts') or {})}")
 
 
 def print_workbench_action_summary(doc):

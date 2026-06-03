@@ -1,6 +1,35 @@
-"""Target command index and summary helpers for grit-console."""
+"""Target command index, summary, and display helpers for grit-console."""
 
-from gritlib.record_utils import int_value, records_by_key
+from gritlib.record_utils import format_counts, int_value, records_by_key
+
+
+def print_target_command_summary(doc):
+    doc = doc or {}
+    summary = doc.get("summary") or {}
+    records = doc.get("target_command_records") or []
+    total = summary.get("target_command_count", len(records))
+    print(
+        "Target command summary: "
+        f"total={total} "
+        f"network={summary.get('target_command_network_count', 0)} "
+        f"explicit_target_action={summary.get('target_command_explicit_action_count', 0)} "
+        f"operator_supplied_execution={summary.get('target_command_operator_supplied_execution_count', 0)} "
+        f"copy_supported={summary.get('target_command_copy_supported_count', 0)} "
+        f"executes_operator_supplied_commands={'yes' if summary.get('target_command_executes_operator_supplied_commands') else 'no'} "
+        f"all_require_explicit_target_action={'yes' if summary.get('target_command_all_require_explicit_target_action') else 'no'}"
+    )
+    print(f"  sides: {format_counts(summary.get('target_command_side_counts') or {})}")
+    if summary.get("target_command_route_kind_counts"):
+        print(f"  routes: {format_counts(summary.get('target_command_route_kind_counts') or {})}")
+    if summary.get("target_command_bridge_profile_counts"):
+        print(f"  bridge profiles: {format_counts(summary.get('target_command_bridge_profile_counts') or {})}")
+    if summary.get("target_command_session_policy_counts"):
+        print(f"  rshell policies: {format_counts(summary.get('target_command_session_policy_counts') or {})}")
+    if summary.get("target_command_session_policy_valid_counts"):
+        print(f"  rshell policy validity: {format_counts(summary.get('target_command_session_policy_valid_counts') or {})}")
+        print(f"  rshell policy errors: {summary.get('target_command_session_policy_error_count', 0)}")
+    if summary.get("target_command_retry_backoff_counts"):
+        print(f"  rshell retry backoff: {format_counts(summary.get('target_command_retry_backoff_counts') or {})}")
 
 
 def rshell_cfg_value(cfg, lower_key, upper_key, default):
