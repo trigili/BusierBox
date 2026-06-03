@@ -22,7 +22,7 @@ from gritlib.staged_files import load_staged, staged_file_path
 from gritlib.target_records import targets_path
 
 
-DEFAULT_CONFIG = "local/operator-session/config.json"
+DEFAULT_CONFIG = Path("local/server-config.json")
 DAEMON_SERVICE_CHOICES = (
     "ssh", "tls-shell", "plain-shell", "file-service", "command-queue",
     "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns",
@@ -137,6 +137,64 @@ def operator_stop_headless_command(cfg, default_config=DEFAULT_CONFIG):
         + shquote(str(cfg.get("_config_path", default_config)))
         + " --stop"
     )
+
+
+def service_start_headless_command(cfg, service, argv_extra=None, default_config=DEFAULT_CONFIG):
+    parts = [
+        "scripts/grit-console",
+        "--config",
+        str(cfg.get("_config_path", default_config)),
+        "--transport",
+        str(service or ""),
+        "--state-file",
+        str(state_file_path(cfg)),
+        "--staged-file",
+        str(staged_file_path(cfg)),
+    ]
+    if service == "file-service":
+        parts.extend(["--file-service-tls", str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes"))])
+    if service == "probe":
+        parts.extend(["--probe-port", str(cfg.get("GRIT_PROBE_PORT", 22207))])
+        parts.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-tftp":
+        parts.extend(["--probe-tftp-port", str(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))])
+        parts.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-ftp":
+        parts.extend(["--probe-ftp-port", str(cfg.get("GRIT_PROBE_FTP_PORT", 22209))])
+        parts.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if service == "probe-dns":
+        parts.extend(["--probe-dns-port", str(cfg.get("GRIT_PROBE_DNS_PORT", 22210))])
+        parts.extend(["--probe-dns-name", str(cfg.get("GRIT_PROBE_DNS_NAME", "probe.grit"))])
+        parts.extend(["--probe-name", str(cfg.get("GRIT_PROBE_NAME", "probe.sh"))])
+    if argv_extra:
+        parts.extend(str(item) for item in argv_extra)
+    return " ".join(shquote(part) for part in parts)
+
+
+def service_stop_headless_command(cfg, service, default_config=DEFAULT_CONFIG):
+    return (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", default_config)))
+        + " --stop-service "
+        + shquote(str(service or ""))
+    )
+
+
+def run_service_workflow_action_headless_command(
+    cfg, action_id, dry_run=False, confirmed=False, default_config=DEFAULT_CONFIG
+):
+    parts = [
+        "scripts/grit-console",
+        "--config",
+        str(cfg.get("_config_path", default_config)),
+        "--run-service-workflow-action",
+        str(action_id or ""),
+    ]
+    if dry_run:
+        parts.append("--service-workflow-dry-run")
+    if confirmed:
+        parts.append("--confirm-service-workflow-action")
+    return " ".join(shquote(str(part)) for part in parts)
 
 
 def service_tls_enabled(cfg, service):
