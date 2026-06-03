@@ -66,6 +66,16 @@ Then run the printed `chmod +x ./grit... && ./grit... --help` hint. On a
 target that already has griTTYkit, use the printed `grit fetch ...` command
 instead.
 
+If `probe serve` says no release is configured, it prints the detected
+architecture/kernel tuple shape and common payload presets it expected. You do
+not need to restart the console after extracting a release bundle; point the
+current session at it and rerun the serve command:
+
+```text
+grit[all]> set release_dir /path/to/extracted-release
+grit[all]> probe serve --start
+```
+
 `probe config` converts the newest probe result into a generated config. The
 probe only captures basic platform evidence, so a later full `grit survey push`
 can refine the recommendation after a payload is deployed.

@@ -7825,6 +7825,13 @@ def run_line_tui(cfg):
         rel, checked_releases = discover_release_context(cfg)
         if not rel:
             print("No release configured.")
+            expected_floor = probe_kernel_floor or "KERNEL"
+            expected_arch = probe_arch or uname_m or "ARCH"
+            print(f"  Probe needs arch={expected_arch} kernel_floor={expected_floor} endian={endian or '-'}")
+            print(f"  Expected tuple shape: by-tuple/{expected_arch}/LIBC/{expected_floor}/CPU")
+            print(f"  Expected artifact stem: grit-{expected_arch}-linux-{expected_floor}-LIBC-PRESET")
+            print("  Common payload presets: builtin-core-shell, survey-core, default, payload-bash, socat-rescue, ssh-operator, full-debug")
+            print("")
             print("  Looked for a release bundle in:")
             for state in checked_releases[:8]:
                 markers = state.get("detection_reason") or "not-a-release"
@@ -7834,7 +7841,9 @@ def run_line_tui(cfg):
             print("")
             print("  Expected a release directory containing release.json, bin/, and scripts/.")
             print("  From a source checkout, build one with: make release-full")
-            print("  From an extracted release tarball, run this console from the release root or set release_dir.")
+            print("  From this console, point at an extracted release with:")
+            print("    set release_dir /path/to/extracted-release")
+            print("    probe serve --start")
             return
         if rel.get("release_discovery_source") == "auto":
             cfg["release_dir"] = rel.get("release_dir", "")

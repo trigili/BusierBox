@@ -932,6 +932,8 @@ def discover_release_context(cfg=None):
         state = release_state_record({"release_dir": str(path)})
         checked.append(state)
         if explicit and str(path) == str(cfg.get("release_dir")):
+            return {}, checked
+        if explicit:
             continue
         if not state.get("valid"):
             continue

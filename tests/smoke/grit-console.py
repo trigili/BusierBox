@@ -12262,6 +12262,10 @@ def main(argv=None):
             "GRIT_PROBE_DNS_PORT": free_port(),
             "GRIT_PROBE_DNS_NAME": "probe.test",
         }), encoding="utf-8")
+        no_release_cfg = Path(tmp) / "probe-no-release-config.json"
+        no_release_doc = json.loads(probe_release_cfg.read_text(encoding="utf-8"))
+        no_release_doc["release_dir"] = str(Path(tmp) / "missing-release")
+        no_release_cfg.write_text(json.dumps(no_release_doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
         probe_listener_preview = subprocess.run(
             [
                 str(server),
@@ -12354,6 +12358,80 @@ def main(argv=None):
                 probe_services.get("probe-dns", {}).get("protocol") != "udp"):
             print("probe FTP/DNS services missing from json status", file=sys.stderr)
             print(probe_status.stdout, file=sys.stderr)
+            return 1
+        probe_release_operator.mkdir(parents=True, exist_ok=True)
+        (probe_release_operator / "probe-results.json").write_text(json.dumps({
+            "schema": 1,
+            "results": [
+                {
+                    "received_at": "2026-01-01T00:00:00Z",
+                    "remote_addr": "192.0.2.11:50001",
+                    "uname_s": "Linux",
+                    "uname_m": "mips",
+                    "uname_r": "5.10.176",
+                    "word_bits": "32",
+                    "endian": "little",
+                    "status": "received",
+                }
+            ],
+        }, indent=2) + "\n", encoding="utf-8")
+        no_release_master, no_release_slave = pty.openpty()
+        try:
+            no_release_proc = subprocess.Popen(
+                [
+                    str(server),
+                    "--config", str(no_release_cfg),
+                    "--state-file", str(probe_release_state),
+                    "--staged-file", str(probe_release_staged),
+                ],
+                cwd=tmp,
+                stdin=no_release_slave,
+                stdout=no_release_slave,
+                stderr=subprocess.PIPE,
+                text=True,
+                env={**os.environ, "TERM": "dumb"},
+            )
+            os.close(no_release_slave)
+            no_release_slave = -1
+            time.sleep(0.3)
+            os.write(no_release_master, b"probe serve\nq\n")
+            no_release_output = b""
+            deadline = time.time() + 8
+            while no_release_proc.poll() is None and time.time() < deadline:
+                readable, _, _ = select.select([no_release_master], [], [], 0.1)
+                if readable:
+                    try:
+                        no_release_output += os.read(no_release_master, 65536)
+                    except OSError:
+                        break
+            if no_release_proc.poll() is None:
+                no_release_proc.terminate()
+                try:
+                    no_release_proc.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    no_release_proc.kill()
+                    no_release_proc.wait(timeout=2)
+            no_release_stderr = no_release_proc.stderr.read()
+        finally:
+            if no_release_slave != -1:
+                os.close(no_release_slave)
+            try:
+                os.close(no_release_master)
+            except OSError:
+                pass
+        no_release_text = no_release_output.decode("utf-8", errors="replace")
+        if (no_release_proc.returncode != 0 or
+                "Traceback" in (no_release_stderr or "") or
+                "No release configured." not in no_release_text or
+                "Probe needs arch=mipsel kernel_floor=current endian=little" not in no_release_text or
+                "Expected tuple shape: by-tuple/mipsel/LIBC/current/CPU" not in no_release_text or
+                "Expected artifact stem: grit-mipsel-linux-current-LIBC-PRESET" not in no_release_text or
+                "Common payload presets: builtin-core-shell, survey-core, default, payload-bash, socat-rescue, ssh-operator, full-debug" not in no_release_text or
+                "set release_dir /path/to/extracted-release" not in no_release_text or
+                "probe serve --start" not in no_release_text):
+            print("probe serve without a release did not provide actionable guidance", file=sys.stderr)
+            print(no_release_text, file=sys.stderr)
+            print(no_release_stderr or "", file=sys.stderr)
             return 1
         (probe_release_dir / "scripts").mkdir(parents=True)
         (probe_release_dir / "bin").mkdir(parents=True)
