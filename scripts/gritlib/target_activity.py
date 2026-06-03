@@ -217,6 +217,48 @@ def target_activity_record_indexes(records):
     }
 
 
+def target_mailbox_record_indexes(records):
+    return {
+        "target_mailbox_records_by_id": {
+            rec.get("id", ""): rec for rec in records or [] if rec.get("id")
+        },
+        "target_mailbox_records_by_command_id": {
+            rec.get("command_id", ""): rec for rec in records or [] if rec.get("command_id")
+        },
+        "target_mailbox_records_by_target_id": records_by_key(records, "target_id"),
+        "target_mailbox_records_by_target_label": records_by_key(records, "target_label"),
+        "target_mailbox_records_by_target_connectivity_state": records_by_key(records, "target_connectivity_state"),
+        "target_mailbox_records_by_target_last_seen_via": records_by_key(records, "target_last_seen_via"),
+        "target_mailbox_records_by_target_offline_age_bucket": records_by_key(records, "target_offline_age_bucket"),
+        "target_mailbox_records_by_has_target_next_expected_poll": records_by_key(records, "has_target_next_expected_poll"),
+        "target_mailbox_records_by_target_poll_overdue": records_by_key(records, "target_poll_overdue"),
+        "target_mailbox_records_by_status": records_by_key(records, "status"),
+        "target_mailbox_records_by_waiting_for": records_by_key(records, "waiting_for"),
+        "target_mailbox_records_by_pending_reason": records_by_key(records, "pending_reason"),
+        "target_mailbox_records_by_has_pending_reason": records_by_key(records, "has_pending_reason"),
+        "target_mailbox_records_by_work_kind": records_by_key(records, "work_kind"),
+        "target_mailbox_records_by_workflow": records_by_key(records, "workflow"),
+        "target_mailbox_records_by_request_name": records_by_key(records, "request_name"),
+        "target_mailbox_records_by_bridge_profile": records_by_key(records, "bridge_profile"),
+        "target_mailbox_records_by_bridge_requires_target_online": records_by_key(records, "bridge_requires_target_online"),
+        "target_mailbox_records_by_route_kind": records_by_key(records, "route_kind"),
+        "target_mailbox_records_by_expired": records_by_key(records, "expired"),
+        "target_mailbox_records_by_age_bucket": records_by_key(records, "age_bucket"),
+        "target_mailbox_records_by_pending_delivery_age_bucket": records_by_key(records, "pending_delivery_age_bucket"),
+        "target_mailbox_records_by_delivered_without_result_age_bucket": records_by_key(records, "delivered_without_result_age_bucket"),
+        "target_mailbox_records_by_result_latency_bucket": records_by_key(records, "result_latency_bucket"),
+        "target_mailbox_records_by_pending_work": records_by_key(records, "pending_work"),
+        "target_mailbox_records_by_pending_delivery": records_by_key(records, "pending_delivery"),
+        "target_mailbox_records_by_delivered_without_result": records_by_key(records, "delivered_without_result"),
+        "target_mailbox_records_by_has_result": records_by_key(records, "has_result"),
+        "target_mailbox_records_by_result_status": records_by_key(records, "result_status"),
+        "target_mailbox_records_by_result_exit_code": records_by_key(records, "result_exit_code"),
+        "target_mailbox_records_by_result_output_exceeded_limit": records_by_key(records, "result_output_exceeded_limit"),
+        "target_mailbox_records_by_result_output_size_bucket": records_by_key(records, "result_output_size_bucket"),
+        "target_mailbox_records_by_command_sha256": records_by_key(records, "command_sha256"),
+    }
+
+
 def target_phone_home_record_indexes(records):
     return {
         "target_phone_home_records_by_id": {
