@@ -192,8 +192,9 @@ from gritlib.target_commands import (
 from gritlib.target_records import (
     attach_target_identity, configured_target_filter, details_with_target,
     event_for_target, load_targets, records_for_target, record_target_activity,
-    selected_target_context, set_target_label, set_workbench_target_filter,
-    target_context_fields, target_filter_evidence_lines, target_filter_summary_text,
+    scoped_target_cfg, selected_target_context, set_target_label,
+    set_workbench_target_filter, target_context_fields,
+    target_filter_evidence_lines, target_filter_summary_text,
     target_identity_from_headers, target_record_indexes, target_record_summary,
     print_target_summary, target_records, targets_path,
 )
@@ -10091,14 +10092,6 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
         **fleet_details,
     })
     return rc
-
-
-def scoped_target_cfg(cfg, target_id, target_label=""):
-    scoped = dict(cfg)
-    scoped["_target_id_filter"] = str(target_id or "").strip()
-    if target_label:
-        scoped["_target_label_filter"] = str(target_label or "")
-    return scoped
 
 
 def find_target_workflow_action(cfg, selector):

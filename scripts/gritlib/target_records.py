@@ -38,6 +38,14 @@ def load_targets(cfg):
     return data
 
 
+def scoped_target_cfg(cfg, target_id, target_label=""):
+    scoped = dict(cfg)
+    scoped["_target_id_filter"] = str(target_id or "").strip()
+    if target_label:
+        scoped["_target_label_filter"] = str(target_label or "")
+    return scoped
+
+
 def print_target_summary(doc, limit=8):
     print("Targets:")
     records = doc.get("targets") or []
