@@ -1,7 +1,10 @@
 """Line-console option metadata and mutation helpers."""
 
+from gritlib.config_utils import DEFAULT_CONFIG
+from gritlib.event_log import append_event
+from gritlib.shell_utils import shquote
 from gritlib.target_records import (
-    selected_target_record_for_update, set_target_label,
+    load_targets, selected_target_record_for_update, set_target_label,
 )
 
 
@@ -77,6 +80,28 @@ GRIT_TO_CFG_KEY = {
     for entries in SERVICE_OPTIONS.values()
     for grit, cfg_key, _desc in entries
 }
+
+
+def record_line_target_metadata_update(cfg, target_id, action="", field="", default_config=DEFAULT_CONFIG):
+    rec = (load_targets(cfg).get("targets") or {}).get(target_id, {})
+    headless = (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", default_config)))
+        + " --set-target-label "
+        + shquote(target_id)
+        + " --target-label "
+        + shquote(str(rec.get("label") or ""))
+    )
+    append_event(cfg, "workbench", "workbench_target_metadata_updated", details={
+        "action": action,
+        "field": field,
+        "target_id": target_id,
+        "target_label": rec.get("label", ""),
+        "aliases": rec.get("aliases") or [],
+        "notes": rec.get("notes", ""),
+        "headless_command": headless,
+    })
+    return headless
 
 
 def unset_line_target_option(cfg, name, clear_module=None):
