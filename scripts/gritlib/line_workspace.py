@@ -74,6 +74,59 @@ def line_repl_status_bar(snap):
     )
 
 
+def _count_value(value):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def line_banner_hint(snap):
+    summary = snap.get("summary") or {}
+    warnings = snap.get("warnings") or []
+    target_filter = snap.get("target_filter") or {}
+    hints = ["? help", "next", "workspace"]
+
+    pending_work = _count_value(
+        summary.get("mailbox_pending_work_count")
+        or summary.get("target_mailbox_pending_work_count")
+    )
+    poll_overdue = _count_value(
+        summary.get("poll_overdue_count")
+        or summary.get("target_poll_overdue_count")
+    )
+    listening = _count_value(summary.get("listening_count"))
+    target_count = _count_value(summary.get("target_count"))
+    session_count = _count_value(summary.get("session_count"))
+    staged_count = _count_value(summary.get("staged_count"))
+    route_count = _count_value(summary.get("bridge_profile_count"))
+
+    if warnings:
+        hints.append("status")
+    if target_filter.get("active"):
+        hints.extend(["mailbox", "sessions", "clear target"])
+    elif target_count:
+        hints.append("targets")
+    else:
+        hints.append("probe --start")
+    if pending_work or poll_overdue:
+        hints.append("queue")
+    if staged_count:
+        hints.append("files")
+    if session_count:
+        hints.append("sessions")
+    if route_count:
+        hints.append("routes")
+    if not listening:
+        hints.append("listeners")
+
+    deduped = []
+    for hint in hints:
+        if hint not in deduped:
+            deduped.append(hint)
+    return "  next: " + "  |  ".join(deduped[:8])
+
+
 def print_line_console_banner(snap, version):
     summary = snap.get("summary") or {}
     warnings = snap.get("warnings") or []
@@ -106,7 +159,7 @@ def print_line_console_banner(snap, version):
     if len(warnings) > 3:
         print(f"  ... {len(warnings) - 3} more warning(s) — run: status")
     print("")
-    print("  ? help  workspace overview  targets/sessions/files  start ssh|tls|file-service")
+    print(line_banner_hint(snap))
 
 
 def print_line_workspace_snapshot(snap):

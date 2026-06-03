@@ -1024,6 +1024,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Target work",
         "Control plane",
         "Console",
+        "next: ? help  |  next  |  workspace",
         "Help: files",
         "Help: queue",
         "Help: events",
