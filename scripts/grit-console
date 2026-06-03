@@ -12640,7 +12640,6 @@ def run_line_tui(cfg):
         if kv:
             print("  keys=" + ", ".join(item.split("=", 1)[0] for item in kv))
         headless = " ".join(shquote(part) for part in cmd)
-        print(f"headless_command: {headless}")
         append_event(cfg, "workbench", "workbench_artifact_trailer_configured", details={
             "selector": selector,
             "request_name": request_name,

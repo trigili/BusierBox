@@ -951,6 +951,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented serve-binary command exposed noisy headless command", file=sys.stderr)
         print(binary_text or line_console_stdout, file=sys.stderr)
         return 1
+    configure_start = line_console_stdout.find("Artifact trailer configured:")
+    configure_end = line_console_stdout.find("grit[Console Router]> stop file-service", configure_start + 1)
+    configure_text = line_console_stdout[configure_start:configure_end] if configure_start != -1 and configure_end != -1 else ""
+    if (not configure_text or
+            "target_fetch_command=grit fetch grit-console" not in configure_text or
+            "keys=GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC" not in configure_text or
+            "headless_command:" in configure_text):
+        print("line-oriented configure command exposed noisy headless command", file=sys.stderr)
+        print(configure_text or line_console_stdout, file=sys.stderr)
+        return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
     daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)
     daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""
