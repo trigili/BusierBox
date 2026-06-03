@@ -14,7 +14,6 @@ Transport model:
 import argparse
 import atexit
 import base64
-import calendar
 import contextlib
 import io
 import itertools
@@ -96,7 +95,9 @@ from gritlib.release_artifacts import (
     release_artifact_workflow_action_summary, release_state_record,
 )
 from gritlib.session_state import (
-    SessionManager, server_state_record, state_file_path, utc_from_epoch,
+    SessionManager, atomic_write_json, count_file_lines, elapsed_seconds,
+    parse_utc_timestamp, read_json_file, server_state_record, state_file_path,
+    utc_from_epoch, utc_now, utc_now_from_mtime,
 )
 from gritlib.session_records import session_record_indexes, session_root_record
 from gritlib.service_status import (
@@ -265,41 +266,6 @@ DEFAULTS = {
     "GRIT_RSHELL_RETRY_BACKOFF": "none",
     "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC": "300",
 }
-
-
-def utc_now():
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-
-
-def parse_utc_timestamp(text):
-    try:
-        return calendar.timegm(time.strptime(str(text or ""), "%Y-%m-%dT%H:%M:%SZ"))
-    except (TypeError, ValueError):
-        return None
-
-
-def elapsed_seconds(started_at, ended_at):
-    start = parse_utc_timestamp(started_at)
-    end = parse_utc_timestamp(ended_at)
-    if start is None or end is None or end < start:
-        return None
-    return int(end - start)
-
-
-def atomic_write_json(path, data):
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    tmp = path.with_name(path.name + f".tmp.{os.getpid()}")
-    tmp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    tmp.replace(path)
-
-
-def read_json_file(path, fallback):
-    path = Path(path)
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return fallback
 
 
 def append_event(cfg, service, event, level="info", session=None, remote=None, details=None):
@@ -5331,20 +5297,8 @@ def recent_sessions(cfg, limit=8):
     return SESSION_MANAGER.recent_paths(cfg, limit)
 
 
-def count_file_lines(path):
-    try:
-        with Path(path).open(encoding="utf-8") as fh:
-            return sum(1 for _ in fh)
-    except OSError:
-        return 0
-
-
 def recent_session_records(cfg, limit=8):
     return SESSION_MANAGER.recent_records(cfg, limit)
-
-
-def utc_now_from_mtime(mtime):
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(mtime))
 
 
 def recent_upload_metadata(cfg, limit=8):
