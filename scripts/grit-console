@@ -151,9 +151,9 @@ from gritlib.operator_network import (
     target_visible_host,
 )
 from gritlib.probe_commands import (
-    probe_route_context, probe_script_fn, render_probe_command,
-    render_probe_dns_command, render_probe_ftp_command, render_probe_tftp_command,
-    probe_workflow_action_records,
+    probe_route_context, probe_script_fn, render_probe_base64_paste,
+    render_probe_command, render_probe_dns_command, render_probe_ftp_command,
+    render_probe_paste, render_probe_tftp_command, probe_workflow_action_records,
 )
 from gritlib.probe_results import (
     append_probe_result,
@@ -8671,38 +8671,10 @@ def run_line_tui(cfg):
         route_port = int(route.get("port", cfg.get("GRIT_PROBE_PORT", 22207)) or 22207)
         script_text = probe_script_fn(cfg, route_host, route_port).rstrip()
         if base64_mode:
-            encoded = base64.b64encode(script_text.encode("utf-8")).decode("ascii")
-            delimiter = "GRIT_PROBE_B64"
-            while delimiter in encoded:
-                delimiter += "_END"
-            print("")
-            print("Serial/manual base64 paste:")
-            print("bb_probe_b64=$(cat <<'" + delimiter + "'")
-            for idx in range(0, len(encoded), 76):
-                print(encoded[idx:idx + 76])
-            print(delimiter)
-            print(")")
-            print("if printf '' | base64 -d >/dev/null 2>&1; then")
-            print("  printf '%s' \"$bb_probe_b64\" | tr -d '\\n' | base64 -d | /bin/sh")
-            print("elif printf '' | base64 -D >/dev/null 2>&1; then")
-            print("  printf '%s' \"$bb_probe_b64\" | tr -d '\\n' | base64 -D | /bin/sh")
-            print("else")
-            print("  echo 'base64 decoder not found' >&2; exit 1")
-            print("fi")
-            print("")
-            print("After it runs, use: probe results")
+            print(render_probe_base64_paste(script_text))
             return
         if paste:
-            delimiter = "GRIT_PROBE_SCRIPT"
-            while delimiter in script_text:
-                delimiter += "_END"
-            print("")
-            print("Serial/manual paste:")
-            print(f"sh <<'{delimiter}'")
-            print(script_text)
-            print(delimiter)
-            print("")
-            print("After it runs, use: probe results")
+            print(render_probe_paste(script_text))
             return
         print(script_text)
 

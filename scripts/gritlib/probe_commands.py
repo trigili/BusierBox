@@ -1,5 +1,7 @@
 """Probe target command rendering helpers for grit-console."""
 
+import base64
+
 from .bridge_routes import attach_target_route_fields, target_route_context
 from .operator_network import operator_advertised_host
 from .shell_utils import shquote
@@ -75,6 +77,50 @@ fi
 printf '%s\\n' "probe upload failed: no usable wget, curl, or nc" >&2
 exit 1
 """
+
+
+def render_probe_paste(script_text):
+    script_text = str(script_text or "").rstrip()
+    delimiter = "GRIT_PROBE_SCRIPT"
+    while delimiter in script_text:
+        delimiter += "_END"
+    return "\n".join([
+        "",
+        "Serial/manual paste:",
+        f"sh <<'{delimiter}'",
+        script_text,
+        delimiter,
+        "",
+        "After it runs, use: probe results",
+    ])
+
+
+def render_probe_base64_paste(script_text):
+    script_text = str(script_text or "").rstrip()
+    encoded = base64.b64encode(script_text.encode("utf-8")).decode("ascii")
+    delimiter = "GRIT_PROBE_B64"
+    while delimiter in encoded:
+        delimiter += "_END"
+    lines = [
+        "",
+        "Serial/manual base64 paste:",
+        "bb_probe_b64=$(cat <<'" + delimiter + "'",
+    ]
+    lines.extend(encoded[idx:idx + 76] for idx in range(0, len(encoded), 76))
+    lines.extend([
+        delimiter,
+        ")",
+        "if printf '' | base64 -d >/dev/null 2>&1; then",
+        "  printf '%s' \"$bb_probe_b64\" | tr -d '\\n' | base64 -d | /bin/sh",
+        "elif printf '' | base64 -D >/dev/null 2>&1; then",
+        "  printf '%s' \"$bb_probe_b64\" | tr -d '\\n' | base64 -D | /bin/sh",
+        "else",
+        "  echo 'base64 decoder not found' >&2; exit 1",
+        "fi",
+        "",
+        "After it runs, use: probe results",
+    ])
+    return "\n".join(lines)
 
 
 def render_probe_command(cfg, host=None, port=None):
