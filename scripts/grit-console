@@ -41,6 +41,7 @@ from gritlib.bridge_routes import (
     attach_target_route_fields,
     bridge_hop_indexes, bridge_hop_records_from_profiles, bridge_hops_from_args,
     bridge_profile_indexes, bridge_profile_record, bridge_profile_records,
+    bridge_profile_record_by_selector,
     bridge_profile_record_summary,
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_records,
     bridge_profile_workflow_action_status_summary, bridge_profiles_path, bridge_route_path,
@@ -7098,7 +7099,7 @@ def run_line_tui(cfg):
         print(target_filter_summary_text(target_filter, prefix="  status:"))
         print("  commands: queue COMMAND, probe --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target")
         print(
-            "  headless_status: scripts/grit-console --config "
+            "  status_command: scripts/grit-console --config "
             + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
             + " --target-id "
             + shquote(target_id)
@@ -7238,17 +7239,9 @@ def run_line_tui(cfg):
         if not text:
             raise ValueError("usage: route NAME|NUMBER")
         records = records if records is not None else bridge_profile_records(cfg)
-        selected = {}
-        if text.isdigit():
-            idx = int(text) - 1
-            if idx < 0 or idx >= len(records):
-                raise ValueError(f"route number out of range: {text}")
-            selected = records[idx]
-        else:
-            for rec in records:
-                if str(rec.get("name") or "") == text:
-                    selected = rec
-                    break
+        selected = bridge_profile_record_by_selector(records, text)
+        if text.isdigit() and not selected:
+            raise ValueError(f"route number out of range: {text}")
         if not selected:
             raise ValueError(f"route not found: {text}")
         name = str(selected.get("name") or "")

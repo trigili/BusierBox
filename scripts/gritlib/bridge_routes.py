@@ -290,6 +290,22 @@ def print_bridge_route_records(records, verbose=False, command_builder=None, quo
     ]
 
 
+def bridge_profile_record_by_selector(records, selector):
+    text = str(selector or "").strip()
+    if not text:
+        return {}
+    rows = list(records or [])
+    if text.isdigit():
+        idx = int(text) - 1
+        if 0 <= idx < len(rows):
+            return rows[idx]
+        return {}
+    for rec in rows:
+        if str(rec.get("name") or "") == text:
+            return rec
+    return {}
+
+
 def bridge_hop_records_from_profiles(profiles):
     records = []
     for profile in profiles or []:
