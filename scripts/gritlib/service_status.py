@@ -10,7 +10,7 @@ from gritlib.command_queue import command_queue_path
 from gritlib.config_utils import yes
 from gritlib.process_status import (
     endpoint_matches_bind_address, listener_endpoints, managed_server_evidence,
-    pid_alive, pid_process_record,
+    matching_listener_endpoints, pid_alive, pid_process_record,
 )
 from gritlib.record_utils import (
     int_value, record_count_by_key, records_by_bool, records_by_composite,
@@ -240,12 +240,13 @@ def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
         return not pid or not pid_alive(pid)
     deadline = time.time() + timeout
     protocol = "udp" if service in {"probe-tftp", "probe-dns"} else "tcp"
+    bind_address = str(cfg.get("listen_host", ""))
     while time.time() < deadline:
-        endpoints = listener_endpoints(port, protocol=protocol)
+        endpoints = matching_listener_endpoints(bind_address, port, protocol=protocol)
         if not endpoints:
             return True
         time.sleep(0.05)
-    return not listener_endpoints(port, protocol=protocol)
+    return not matching_listener_endpoints(bind_address, port, protocol=protocol)
 
 
 def raw_service_snapshot(cfg):

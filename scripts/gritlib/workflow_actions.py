@@ -1162,6 +1162,143 @@ def operator_daemon_workflow_action_status_summary(records):
     }
 
 
+def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets=None):
+    from pathlib import Path
+
+    from gritlib.command_queue import command_queue_path, load_command_queue
+    from gritlib.config_utils import DEFAULT_CONFIG
+    from gritlib.process_status import pid_alive
+    from gritlib.service_status import configured_daemon_services
+    from gritlib.session_state import read_json_file, state_file_path
+    from gritlib.staged_files import staged_file_path
+    from gritlib.systemd_user import systemd_user_unit_name
+    from gritlib.target_records import load_targets, targets_path
+    from gritlib.workbench_jobs import workbench_jobs_path
+
+    actions = [
+        rec for rec in (workbench_actions or [])
+        if isinstance(rec, dict) and str(rec.get("category") or "") == "daemon"
+    ]
+    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+    daemon_state = (state.get("services") or {}).get("operator-daemon") or {}
+    daemon_status = str(daemon_state.get("status") or "unknown")
+    child_pids = [
+        pid for pid in (daemon_state.get("child_pids") or [])
+        if str(pid).strip()
+    ]
+    child_alive_count = len([pid for pid in child_pids if pid_alive(pid)])
+    child_services = [
+        str(service) for service in (daemon_state.get("daemon_services") or [])
+        if str(service)
+    ]
+    desired_services = configured_daemon_services(cfg, [])
+    if not desired_services:
+        desired_services = ["file-service", "command-queue"]
+    daemon_attached = daemon_status in ("starting", "listening") and bool(child_alive_count or child_pids)
+    unit_name = systemd_user_unit_name("grit-operator.service")
+    queue_data = load_command_queue(cfg)
+    queue_commands = [
+        rec for rec in queue_data.get("commands") or []
+        if isinstance(rec, dict)
+    ]
+    command_queue_status_counts = {}
+    command_queue_target_ids = set()
+    for command_rec in queue_commands:
+        status = str(command_rec.get("status") or "")
+        if status:
+            command_queue_status_counts[status] = command_queue_status_counts.get(status, 0) + 1
+        target_id = str(command_rec.get("target_id") or "")
+        if target_id:
+            command_queue_target_ids.add(target_id)
+    targets_data = load_targets(cfg)
+    targets_map = targets_data.get("targets") if isinstance(targets_data, dict) else {}
+    if not isinstance(targets_map, dict):
+        targets_map = {}
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    if not target_records:
+        target_records = [
+            rec for rec in targets_map.values()
+            if isinstance(rec, dict)
+        ]
+    fleet_metrics = workflow_fleet_metrics(target_records)
+    staged_data = read_json_file(staged_file_path(cfg), {"schema": 1, "files": {}})
+    staged_files = staged_data.get("files") if isinstance(staged_data, dict) else {}
+    if not isinstance(staged_files, dict):
+        staged_files = {}
+    workbench_jobs_data = read_json_file(workbench_jobs_path(cfg), {"schema": 1, "jobs": {}})
+    workbench_jobs = workbench_jobs_data.get("jobs") if isinstance(workbench_jobs_data, dict) else {}
+    if not isinstance(workbench_jobs, dict):
+        workbench_jobs = {}
+    shared_state = {
+        "control_state_file": str(state_file_path(cfg)),
+        "control_state_exists": Path(state_file_path(cfg)).exists(),
+        "command_queue_file": str(command_queue_path(cfg)),
+        "command_queue_file_exists": Path(command_queue_path(cfg)).exists(),
+        "command_queue_command_count": len(queue_commands),
+        "command_queue_queued_count": int(command_queue_status_counts.get("queued", 0) or 0),
+        "command_queue_delivered_count": int(command_queue_status_counts.get("delivered", 0) or 0),
+        "command_queue_result_received_count": int(command_queue_status_counts.get("result-received", 0) or 0),
+        "command_queue_status_counts": command_queue_status_counts,
+        "command_queue_target_count": len(command_queue_target_ids),
+        "targets_file": str(targets_path(cfg)),
+        "targets_file_exists": Path(targets_path(cfg)).exists(),
+        "target_count": len(target_records),
+        "target_registry_record_count": len(targets_map),
+        **fleet_metrics,
+        "staged_files_file": str(staged_file_path(cfg)),
+        "staged_files_file_exists": Path(staged_file_path(cfg)).exists(),
+        "staged_file_count": len(staged_files),
+        "workbench_jobs_file": str(workbench_jobs_path(cfg)),
+        "workbench_jobs_file_exists": Path(workbench_jobs_path(cfg)).exists(),
+        "workbench_job_count": len(workbench_jobs),
+    }
+    records = []
+
+    for action in actions:
+        action_id = str(action.get("id") or "")
+        workflow = "systemd-user-service" if action_id.startswith("systemd-user-") else "operator-daemon"
+        category = "systemd" if workflow == "systemd-user-service" else "daemon"
+        run_command = str(action.get("run_command") or "")
+        dry_run_command = str(action.get("dry_run_command") or "")
+        start_job_command = str(action.get("start_job_command") or "")
+        command = str(action.get("command") or "")
+        workflow_commands = operator_daemon_workflow_commands(
+            cfg.get("_config_path", DEFAULT_CONFIG),
+            action_id,
+        )
+        workflow_run_command = workflow_commands["run"]
+        workflow_dry_run_command = workflow_commands["dry_run"]
+        workflow_confirm_command = workflow_commands["confirm"]
+        headless = workflow_run_command or start_job_command or run_command or dry_run_command or command
+        action_state = operator_daemon_action_state(action_id, action, daemon_attached)
+        records.append(operator_daemon_workflow_action_record(
+            action,
+            action_id,
+            workflow,
+            category,
+            command,
+            headless,
+            workflow_run_command,
+            workflow_confirm_command,
+            workflow_dry_run_command,
+            shared_state,
+            desired_services,
+            child_services,
+            daemon_status,
+            daemon_attached,
+            child_pids,
+            child_alive_count,
+            daemon_state,
+            unit_name,
+            action_state,
+            run_command=run_command,
+            dry_run_command=dry_run_command,
+            start_job_command=start_job_command,
+        ))
+    records.sort(key=lambda rec: (rec.get("workflow", ""), rec.get("action_id", "")))
+    return records
+
+
 def operator_console_workflow_indexes(records):
     return {
         "operator_console_workflows_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
