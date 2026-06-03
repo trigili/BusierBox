@@ -225,6 +225,7 @@ from gritlib.workflow_actions import (
     annotate_workbench_actions,
     command_queue_listener_action_states,
     command_queue_workflow_action_record,
+    operator_daemon_action_state,
     operator_daemon_workflow_action_indexes,
     operator_daemon_workflow_action_summary,
     operator_console_headless_command,
@@ -949,41 +950,10 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets
         workflow_dry_run_command = workflow_run_command + " --operator-daemon-workflow-dry-run"
         workflow_confirm_command = workflow_run_command + " --confirm-operator-daemon-workflow-action"
         headless = workflow_run_command or start_job_command or run_command or dry_run_command or command
-        state_text = str(action.get("operator_action_state") or "")
-        reason = str(action.get("operator_action_reason") or "")
-        can_run_enter = bool(action.get("can_run_from_curses_enter", False))
-        curses_enter_action = str(action.get("curses_enter_action") or "")
+        action_state = operator_daemon_action_state(action_id, action, daemon_attached)
         requires_confirmation = bool(action.get("requires_confirmation", False))
         background_supported = bool(action.get("background_supported", False))
         dry_run_supported = bool(action.get("dry_run_supported", False))
-
-        if action_id == "operator-daemon-start":
-            if daemon_attached:
-                state_text = "already-running"
-                reason = "daemon-already-attached"
-                can_run_enter = False
-                curses_enter_action = "none"
-            else:
-                state_text = "background-ready"
-                reason = "start-background-job"
-                can_run_enter = True
-                curses_enter_action = "start-job"
-        elif action_id == "operator-daemon-status":
-            state_text = "ready"
-            reason = "run-now"
-            can_run_enter = False
-            curses_enter_action = "use-action-11"
-        elif action_id == "operator-daemon-stop":
-            if daemon_attached:
-                state_text = "confirm-required"
-                reason = "confirmation-required"
-                can_run_enter = True
-                curses_enter_action = "stop-daemon"
-            else:
-                state_text = "already-stopped"
-                reason = "daemon-not-running"
-                can_run_enter = False
-                curses_enter_action = "none"
 
         records.append({
             "id": action_id,
@@ -1022,10 +992,10 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets
             "writes_config": bool(action.get("writes_config", False)),
             "long_running": bool(action.get("long_running", False)),
             "available": True,
-            "operator_action_state": state_text,
-            "operator_action_reason": reason,
-            "can_run_from_curses_enter": bool(can_run_enter),
-            "curses_enter_action": curses_enter_action,
+            "operator_action_state": action_state["state"],
+            "operator_action_reason": action_state["reason"],
+            "can_run_from_curses_enter": bool(action_state["can_run_enter"]),
+            "curses_enter_action": action_state["curses_enter_action"],
             "execution_default": action.get("execution_default", "show-command"),
             "target_execution": False,
             "tui_visible": True,

@@ -638,6 +638,46 @@ def probe_listener_action_states(service_row):
     }
 
 
+def operator_daemon_action_state(action_id, action, daemon_attached):
+    state_text = str((action or {}).get("operator_action_state") or "")
+    reason = str((action or {}).get("operator_action_reason") or "")
+    can_run_enter = bool((action or {}).get("can_run_from_curses_enter", False))
+    curses_enter_action = str((action or {}).get("curses_enter_action") or "")
+    if action_id == "operator-daemon-start":
+        if daemon_attached:
+            state_text = "already-running"
+            reason = "daemon-already-attached"
+            can_run_enter = False
+            curses_enter_action = "none"
+        else:
+            state_text = "background-ready"
+            reason = "start-background-job"
+            can_run_enter = True
+            curses_enter_action = "start-job"
+    elif action_id == "operator-daemon-status":
+        state_text = "ready"
+        reason = "run-now"
+        can_run_enter = False
+        curses_enter_action = "use-action-11"
+    elif action_id == "operator-daemon-stop":
+        if daemon_attached:
+            state_text = "confirm-required"
+            reason = "confirmation-required"
+            can_run_enter = True
+            curses_enter_action = "stop-daemon"
+        else:
+            state_text = "already-stopped"
+            reason = "daemon-not-running"
+            can_run_enter = False
+            curses_enter_action = "none"
+    return {
+        "state": state_text,
+        "reason": reason,
+        "can_run_enter": can_run_enter,
+        "curses_enter_action": curses_enter_action,
+    }
+
+
 def workbench_action_indexes(records):
     return {
         "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
