@@ -199,7 +199,8 @@ from gritlib.target_records import (
     scoped_target_cfg, selected_target_context, set_target_label,
     set_workbench_target_filter, target_attribution_record_indexes,
     target_attribution_status, target_context_fields,
-    target_filter_evidence_lines, target_filter_record_indexes,
+    target_filter_evidence_lines, target_filter_record_from_target,
+    target_filter_record_indexes,
     target_filter_summary_text,
     target_identity_from_headers, target_record_indexes, target_record_summary,
     target_registry_state_status, print_target_summary, target_records, targets_path,
@@ -4118,13 +4119,6 @@ def status_document(cfg):
     bridge_profile_workflow_action_index_maps = bridge_profile_workflow_action_indexes(bridge_profile_workflow_actions)
     bridge_profile_workflow_action_stats = bridge_profile_workflow_action_summary(bridge_profile_workflow_actions)
     selected_target = dict(targets_by_id.get(target_filter_id) or {}) if target_filter_id else {}
-    selected_target_sources = selected_target.get("identity_sources") or []
-    selected_target_capability_summary = selected_target.get("latest_capability_summary") or {}
-    if not isinstance(selected_target_capability_summary, dict):
-        selected_target_capability_summary = {}
-    selected_target_compatibility_summary = selected_target.get("latest_compatibility_summary") or {}
-    if not isinstance(selected_target_compatibility_summary, dict):
-        selected_target_compatibility_summary = {}
     target_registry_state = target_registry_state_status(
         target_summary,
         selected_target,
@@ -4307,63 +4301,9 @@ def status_document(cfg):
     workbench_jobs = workbench_job_records(cfg, workbench_actions)
     workbench_job_index_maps = workbench_job_indexes(workbench_jobs)
     workbench_job_stats = workbench_job_summary(workbench_jobs)
-    target_filter_record = {
-        "id": target_filter_id or "all-targets",
-        "active": bool(target_filter_id),
-        "target_id": target_filter_id,
-        "selected_target_found": bool(selected_target),
-        "selected_target_label": str(selected_target.get("label") or ""),
-        "selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
-        "selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
-        "selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
-        "selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
-        "selected_target_offline_for_sec": selected_target.get("offline_for_sec", ""),
-        "selected_target_offline_age_bucket": str(selected_target.get("offline_age_bucket") or ""),
-        "selected_target_latest_phone_home_at": str(selected_target.get("latest_phone_home_at") or ""),
-        "selected_target_latest_phone_home_status": str(selected_target.get("latest_phone_home_status") or ""),
-        "selected_target_latest_phone_home_kind": str(selected_target.get("latest_phone_home_kind") or ""),
-        "selected_target_latest_phone_home_contact_path": str(selected_target.get("latest_phone_home_contact_path") or ""),
-        "selected_target_latest_successful_phone_home_at": str(selected_target.get("latest_successful_phone_home_at") or ""),
-        "selected_target_latest_successful_phone_home_status": str(selected_target.get("latest_successful_phone_home_status") or ""),
-        "selected_target_latest_successful_phone_home_kind": str(selected_target.get("latest_successful_phone_home_kind") or ""),
-        "selected_target_latest_successful_phone_home_contact_path": str(selected_target.get("latest_successful_phone_home_contact_path") or ""),
-        "selected_target_last_failed_phone_home_at": str(selected_target.get("last_failed_phone_home_at") or ""),
-        "selected_target_last_failed_phone_home_status": str(selected_target.get("last_failed_phone_home_status") or ""),
-        "selected_target_last_failed_phone_home_reason": str(selected_target.get("last_failed_phone_home_reason") or ""),
-        "selected_target_last_failed_phone_home_contact_path": str(selected_target.get("last_failed_phone_home_contact_path") or ""),
-        "selected_target_next_expected_poll": str(selected_target.get("next_expected_poll") or ""),
-        "selected_target_poll_overdue": bool(selected_target.get("poll_overdue", False)),
-        "selected_target_poll_overdue_for_sec": selected_target.get("poll_overdue_for_sec", ""),
-        "selected_target_mailbox_command_count": int_value(selected_target.get("mailbox_command_count", 0)),
-        "selected_target_mailbox_pending_work_count": int_value(selected_target.get("mailbox_pending_work_count", 0)),
-        "selected_target_identity_source_count": len(selected_target_sources),
-        "selected_target_alias_count": len(selected_target.get("aliases") or []),
-        "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
-        "selected_target_latest_activity_service": str(selected_target.get("latest_activity_service") or ""),
-        "selected_target_latest_activity_operation": str(selected_target.get("latest_activity_operation") or ""),
-        "selected_target_latest_file_transfer_operation": str(selected_target.get("latest_file_transfer_operation") or ""),
-        "selected_target_latest_file_transfer_status": str(selected_target.get("latest_file_transfer_status") or ""),
-        "selected_target_latest_file_transfer_route_kind": str(selected_target.get("latest_file_transfer_route_kind") or ""),
-        "selected_target_latest_file_transfer_bridge_profile": str(selected_target.get("latest_file_transfer_bridge_profile") or ""),
-        "selected_target_latest_survey_result_kind": str(selected_target.get("latest_survey_result_kind") or ""),
-        "selected_target_latest_survey_result_status": str(selected_target.get("latest_survey_result_status") or ""),
-        "selected_target_latest_survey_result_route_kind": str(selected_target.get("latest_survey_result_route_kind") or ""),
-        "selected_target_latest_survey_result_bridge_profile": str(selected_target.get("latest_survey_result_bridge_profile") or ""),
-        "selected_target_latest_bridge_profile": str(selected_target.get("latest_bridge_profile") or ""),
-        "selected_target_latest_bridge_status": str(selected_target.get("latest_bridge_status") or ""),
-        "selected_target_latest_bridge_route_path": str(selected_target.get("latest_bridge_route_path") or ""),
-        "selected_target_latest_bridge_failure_reason": str(selected_target.get("latest_bridge_failure_reason") or ""),
-        "selected_target_latest_capability_report_kind": str(selected_target.get("latest_capability_report_kind") or ""),
-        "selected_target_latest_capability_check_count": int_value(selected_target_capability_summary.get("check_count", 0)),
-        "selected_target_latest_capability_pass_count": int_value(selected_target_capability_summary.get("capability_pass_count", 0)),
-        "selected_target_latest_capability_fail_count": int_value(selected_target_capability_summary.get("capability_fail_count", 0)),
-        "selected_target_latest_compatibility_report_kind": str(selected_target.get("latest_compatibility_report_kind") or ""),
-        "selected_target_latest_compatibility_label": str(selected_target.get("latest_compatibility_label") or ""),
-        "selected_target_latest_compatibility_baseline_label": str(selected_target.get("latest_compatibility_baseline_label") or ""),
-        "selected_target_latest_compatibility_release_name": str(selected_target.get("latest_compatibility_release_name") or ""),
-        "selected_target_latest_compatibility_payload_preset": str(selected_target.get("latest_compatibility_payload_preset") or ""),
-        "selected_target_latest_compatibility_reason_count": int_value(selected_target_compatibility_summary.get("reason_count", 0)),
-    }
+    target_filter_record = target_filter_record_from_target(
+        target_filter_id, selected_target
+    )
     target_filter_records = [target_filter_record]
     unfiltered_target_command_records = generated_target_command_records(cfg, unfiltered_staged_raw)
     unfiltered_counts["target_command_records"] = len([
@@ -5197,10 +5137,10 @@ def status_document(cfg):
         "target_filter_target_command_record_count": target_command_summary.get("total_count", 0),
         "target_filter_target_phone_home_record_count": len(target_phone_home_records),
         "target_filter_record_count": len(target_filter_records),
-        "target_filter_selected_target_found": bool(selected_target),
-        "target_filter_selected_target_identity_source_count": len(selected_target_sources),
-        "target_filter_selected_target_alias_count": len(selected_target.get("aliases") or []),
-        "target_filter_selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
+        "target_filter_selected_target_found": bool(target_filter_record.get("selected_target_found", False)),
+        "target_filter_selected_target_identity_source_count": target_filter_record.get("selected_target_identity_source_count", 0),
+        "target_filter_selected_target_alias_count": target_filter_record.get("selected_target_alias_count", 0),
+        "target_filter_selected_target_notes_present": bool(target_filter_record.get("selected_target_notes_present", False)),
         "target_attribution_record_count": len(target_attribution_records),
         "target_attribution_scope_counts": record_count_by_key(target_attribution_records, "scope"),
         "target_attribution_legacy_scope_count": len([rec for rec in target_attribution_records if rec.get("has_legacy_activity")]),
@@ -6893,7 +6833,7 @@ def status_document(cfg):
             "selected_target_label": str(selected_target.get("label") or ""),
             "selected_target_aliases": selected_target.get("aliases") or [],
             "selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
-            "selected_target_identity_sources": selected_target_sources,
+            "selected_target_identity_sources": selected_target.get("identity_sources") or [],
             "selected_target_connectivity_state": str(selected_target.get("connectivity_state") or ""),
             "selected_target_last_seen": str(selected_target.get("last_seen") or selected_target.get("last_seen_at") or ""),
             "selected_target_last_seen_via": str(selected_target.get("last_seen_via") or ""),
@@ -6931,15 +6871,15 @@ def status_document(cfg):
             "selected_target_latest_bridge_route_path": str(selected_target.get("latest_bridge_route_path") or ""),
             "selected_target_latest_bridge_failure_reason": str(selected_target.get("latest_bridge_failure_reason") or ""),
             "selected_target_latest_capability_report_kind": str(selected_target.get("latest_capability_report_kind") or ""),
-            "selected_target_latest_capability_check_count": int_value(selected_target_capability_summary.get("check_count", 0)),
-            "selected_target_latest_capability_pass_count": int_value(selected_target_capability_summary.get("capability_pass_count", 0)),
-            "selected_target_latest_capability_fail_count": int_value(selected_target_capability_summary.get("capability_fail_count", 0)),
+            "selected_target_latest_capability_check_count": target_filter_record.get("selected_target_latest_capability_check_count", 0),
+            "selected_target_latest_capability_pass_count": target_filter_record.get("selected_target_latest_capability_pass_count", 0),
+            "selected_target_latest_capability_fail_count": target_filter_record.get("selected_target_latest_capability_fail_count", 0),
             "selected_target_latest_compatibility_report_kind": str(selected_target.get("latest_compatibility_report_kind") or ""),
             "selected_target_latest_compatibility_label": str(selected_target.get("latest_compatibility_label") or ""),
             "selected_target_latest_compatibility_baseline_label": str(selected_target.get("latest_compatibility_baseline_label") or ""),
             "selected_target_latest_compatibility_release_name": str(selected_target.get("latest_compatibility_release_name") or ""),
             "selected_target_latest_compatibility_payload_preset": str(selected_target.get("latest_compatibility_payload_preset") or ""),
-            "selected_target_latest_compatibility_reason_count": int_value(selected_target_compatibility_summary.get("reason_count", 0)),
+            "selected_target_latest_compatibility_reason_count": target_filter_record.get("selected_target_latest_compatibility_reason_count", 0),
             "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
             "applied_to": [
                 "targets", "uploads", "fetches", "sessions", "events",
