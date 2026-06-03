@@ -90,6 +90,7 @@ from gritlib.event_log import (
 )
 from gritlib.file_transfers import (
     fetch_record_indexes, fetch_record_summary, file_service_workflow_action_indexes,
+    file_service_workflow_action_records,
     file_service_workflow_status_summary, read_http_body, read_http_headers,
     read_http_upload, recent_fetch_metadata, recent_upload_metadata,
     print_recent_fetches, print_recent_uploads, print_staged_fetch_target_options,
@@ -248,7 +249,6 @@ from gritlib.workflow_actions import (
     operator_console_workflow_context,
     operator_console_workflow_indexes,
     operator_console_workflow_summary,
-    file_service_workflow_action_record,
     print_workbench_action_summary,
     probe_listener_action_states,
     probe_workflow_action_record,
@@ -1266,153 +1266,6 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
             bridge_arg,
             "stop-probe",
             " --confirm-probe-workflow-action",
-        )
-    records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
-    return records
-
-
-
-
-def file_service_workflow_action_records(cfg, service_row, staged_records=None, uploads=None, fetches=None, transfer_records=None, targets=None):
-    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    base = "scripts/grit-console --config " + shquote(config_path)
-    service_row = service_row if isinstance(service_row, dict) else {}
-    target_filter_id = configured_target_filter(cfg)
-    target_arg = optional_target_id_arg(target_filter_id)
-    route = target_route_context(
-        cfg,
-        "file-service",
-        direct_host=operator_advertised_host(cfg),
-        direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204),
-    )
-    staged_count = len([rec for rec in staged_records or [] if isinstance(rec, dict)])
-    upload_count = len([rec for rec in uploads or [] if isinstance(rec, dict)])
-    fetch_count = len([rec for rec in fetches or [] if isinstance(rec, dict)])
-    transfer_count = len([rec for rec in transfer_records or [] if isinstance(rec, dict)])
-    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
-    fleet_metrics = workflow_fleet_metrics(target_records)
-    records = []
-
-    def add(action_id, category, label, command, workflow, action_state, action_reason,
-            available=True, requires_input=False, requires_confirmation=False,
-            queues_offline_work=False, target_phone_home_required=False,
-            can_run_from_curses_enter=False, curses_enter_action=""):
-        records.append(file_service_workflow_action_record(
-            action_id,
-            category,
-            label,
-            command,
-            workflow,
-            scoped_service_workflow_run_command(base, target_arg, "file-service", action_id),
-            target_filter_id,
-            route,
-            service_row,
-            cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204),
-            cfg.get("listen_host", ""),
-            staged_count,
-            upload_count,
-            fetch_count,
-            transfer_count,
-            fleet_metrics,
-            action_state,
-            action_reason,
-            available=available,
-            requires_input=requires_input,
-            requires_confirmation=requires_confirmation,
-            queues_offline_work=queues_offline_work,
-            target_phone_home_required=target_phone_home_required,
-            can_run_from_curses_enter=can_run_from_curses_enter,
-            curses_enter_action=curses_enter_action,
-        ))
-
-    lifecycle_states = service_lifecycle_action_states(service_row)
-    add(
-        "inspect-file-workflows",
-        "inspect",
-        "Inspect file service, staged files, uploads, fetches, and target file records",
-        optional_target_scoped_command(base, target_arg, " --status"),
-        "file-service",
-        "ready",
-        "run-now",
-    )
-    add(
-        "list-staged-files",
-        "staged",
-        "List staged files and target fetch commands",
-        optional_target_scoped_command(base, target_arg, " --list-staged"),
-        "staged-files",
-        "ready",
-        "run-now",
-        can_run_from_curses_enter=True,
-        curses_enter_action="list-staged-files",
-    )
-    add(
-        "stage-file",
-        "staged",
-        "Stage a local file for target fetch",
-        optional_target_scoped_command(base, target_arg, " --serve-file LOCAL_PATH --as REQUEST_NAME --list-staged"),
-        "staged-files",
-        "needs-input",
-        "input-required",
-        requires_input=True,
-    )
-    if records:
-        records[-1]["run_command"] = scoped_service_workflow_run_command(
-            base,
-            target_arg,
-            "file-service",
-            "stage-file",
-            " --file-service-workflow-local-file LOCAL_PATH --file-service-workflow-request-name REQUEST_NAME",
-        )
-    add(
-        "show-upload-command",
-        "upload",
-        "Show target upload command for a target path",
-        optional_target_scoped_command(base, target_arg, " --status"),
-        "target-upload",
-        "needs-input",
-        "input-required",
-        requires_input=True,
-    )
-    if records:
-        records[-1]["target_command_template"] = render_file_service_command(["put", "TARGET_PATH"], cfg, host=route.get("host"))
-        records[-1]["run_command"] = scoped_service_workflow_run_command(
-            base,
-            target_arg,
-            "file-service",
-            "show-upload-command",
-            " --file-service-workflow-target-path TARGET_PATH",
-        )
-    add(
-        "start-file-service",
-        "service",
-        "Start file service listener",
-        service_start_headless_command(cfg, "file-service"),
-        "service-lifecycle",
-        lifecycle_states["start_state"],
-        lifecycle_states["start_reason"],
-        can_run_from_curses_enter=lifecycle_states["start_enter"],
-        curses_enter_action="start-file-service" if lifecycle_states["start_enter"] else "stop-file-service",
-    )
-    add(
-        "stop-file-service",
-        "service",
-        "Stop file service listener",
-        service_stop_headless_command(cfg, "file-service"),
-        "service-lifecycle",
-        lifecycle_states["stop_state"],
-        lifecycle_states["stop_reason"],
-        requires_confirmation=True,
-        can_run_from_curses_enter=lifecycle_states["stop_enter"],
-        curses_enter_action="stop-file-service" if lifecycle_states["stop_enter"] else "start-file-service",
-    )
-    if records:
-        records[-1]["run_command"] = scoped_service_workflow_run_command(
-            base,
-            target_arg,
-            "file-service",
-            "stop-file-service",
-            " --confirm-file-service-workflow-action",
         )
     records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
     return records
