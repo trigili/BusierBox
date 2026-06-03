@@ -1125,6 +1125,7 @@ def main(argv=None):
 
     # Paramiko key comparison must use get_name/get_base64, not object equality
     src = (ROOT / "scripts" / "grit-console").read_text()
+    file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
     release_docs = (ROOT / "docs" / "release-bundles.md").read_text()
     for word in ("invalid_command_queue_policy",
                  "command_queue_policy_valid",
@@ -1219,7 +1220,7 @@ def main(argv=None):
         "serves operator-staged files only when the target explicitly requests them",
         "GRIT_OPERATOR_FILE_SERVICE_PORT",
     ):
-        if word not in src:
+        if word not in src + file_transfer_src:
             print(f"grit-console: file service feature missing: {word}", file=sys.stderr)
             return 1
     for word in ("reverse_forward_active", "requested_port", "forward_host",
