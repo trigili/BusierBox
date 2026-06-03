@@ -271,6 +271,7 @@ from gritlib.workflow_actions import (
     operator_console_workflow_records,
     operator_console_workflow_indexes,
     operator_console_workflow_summary,
+    print_line_daemon_action_records,
     print_workbench_action_summary,
     probe_workflow_action_indexes,
     probe_workflow_run_command,
@@ -7883,28 +7884,7 @@ def run_line_tui(cfg):
     def print_line_daemon_actions(verbose=False):
         snap = workbench_snapshot(cfg)
         actions = snap.get("operator_daemon_workflow_actions") or []
-
-        def _detail(rec):
-            if not verbose:
-                return []
-            run_cmd = rec.get("run_command") or rec.get("headless_command") or rec.get("command") or ""
-            details = [("run", run_cmd)]
-            if rec.get("dry_run_command"):
-                details.append(("dry-run", rec["dry_run_command"]))
-            return details
-
-        cols = [
-            ("Action",   "id"),
-            ("Workflow", lambda r: r.get("workflow") or "-"),
-            ("State",    lambda r: r.get("operator_action_state") or "-"),
-            ("Attached", lambda r: "yes" if r.get("daemon_attached") else "no"),
-            ("Confirm",  lambda r: "yes" if r.get("requires_confirmation") else "no"),
-        ]
-        _console_table(
-            f"Daemon actions  ({len(actions)} total)" if actions else "Daemon actions  (none)",
-            actions, cols, detail_fn=_detail,
-            footer="daemon ACTION  |  daemon ACTION --dry-run  |  daemon -v for commands  |  daemon ? for help",
-        )
+        print_line_daemon_action_records(actions, verbose=verbose)
 
     def run_line_daemon_action(args):
         values = list(args or [])

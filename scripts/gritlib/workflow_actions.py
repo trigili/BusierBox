@@ -2,6 +2,7 @@
 
 import shlex
 
+from gritlib.console_display import console_table
 from gritlib.record_utils import (
     format_counts, int_value, record_count_by_key, record_sum_by_key, records_by_key,
 )
@@ -39,6 +40,32 @@ def select_workbench_action(records, selector):
         if text == str(rec.get("id") or ""):
             return rec
     raise ValueError(f"unknown workbench action: {text}")
+
+
+def print_line_daemon_action_records(records, verbose=False):
+    records = list(records or [])
+
+    def _detail(rec):
+        if not verbose:
+            return []
+        run_cmd = rec.get("run_command") or rec.get("headless_command") or rec.get("command") or ""
+        details = [("run", run_cmd)]
+        if rec.get("dry_run_command"):
+            details.append(("dry-run", rec["dry_run_command"]))
+        return details
+
+    cols = [
+        ("Action", "id"),
+        ("Workflow", lambda r: r.get("workflow") or "-"),
+        ("State", lambda r: r.get("operator_action_state") or "-"),
+        ("Attached", lambda r: "yes" if r.get("daemon_attached") else "no"),
+        ("Confirm", lambda r: "yes" if r.get("requires_confirmation") else "no"),
+    ]
+    console_table(
+        f"Daemon actions  ({len(records)} total)" if records else "Daemon actions  (none)",
+        records, cols, detail_fn=_detail,
+        footer="daemon ACTION  |  daemon ACTION --dry-run  |  daemon -v for commands  |  daemon ? for help",
+    )
 
 
 def workflow_action_count(records):
