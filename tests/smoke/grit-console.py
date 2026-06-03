@@ -201,6 +201,80 @@ def run_line_local_ips_check():
     return 0
 
 
+def run_line_repl_runtime_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.line_repl_runtime import read_line
+
+    reasons = []
+
+    def request_shutdown(reason):
+        reasons.append(reason)
+
+    shutdown = threading.Event()
+    if read_line(
+            "prompt> ",
+            shutdown_event=shutdown,
+            request_shutdown_func=request_shutdown,
+            have_readline=True,
+            input_func=lambda _prompt: (_ for _ in ()).throw(EOFError())) is not None:
+        print("line REPL runtime did not return None on readline EOF", file=sys.stderr)
+        return 1
+    if reasons != ["input_eof"]:
+        print(f"line REPL runtime did not preserve readline EOF reason: {reasons}", file=sys.stderr)
+        return 1
+
+    reasons.clear()
+    output = io.StringIO()
+    input_stream = io.StringIO("hello\n")
+    line = read_line(
+        "prompt> ",
+        shutdown_event=shutdown,
+        request_shutdown_func=request_shutdown,
+        have_readline=False,
+        stdin=input_stream,
+        stdout=output,
+        select_func=lambda readers, _writers, _errors, _timeout: (readers, [], []),
+    )
+    if line != "hello" or output.getvalue() != "prompt> " or reasons:
+        print("line REPL runtime fallback did not read and strip one line cleanly", file=sys.stderr)
+        return 1
+
+    reasons.clear()
+    eof_line = read_line(
+        "prompt> ",
+        shutdown_event=shutdown,
+        request_shutdown_func=request_shutdown,
+        have_readline=False,
+        stdin=io.StringIO(""),
+        stdout=io.StringIO(),
+        select_func=lambda readers, _writers, _errors, _timeout: (readers, [], []),
+    )
+    if eof_line is not None or reasons != ["input_eof"]:
+        print(f"line REPL runtime fallback did not preserve EOF reason: line={eof_line!r} reasons={reasons}", file=sys.stderr)
+        return 1
+
+    reasons.clear()
+
+    def raise_select_error(_readers, _writers, _errors, _timeout):
+        raise ValueError("closed input")
+
+    error_line = read_line(
+        "prompt> ",
+        shutdown_event=shutdown,
+        request_shutdown_func=request_shutdown,
+        have_readline=False,
+        stdin=io.StringIO("ignored\n"),
+        stdout=io.StringIO(),
+        select_func=raise_select_error,
+    )
+    if error_line is not None or reasons != ["input_error"]:
+        print(f"line REPL runtime fallback did not preserve input error reason: line={error_line!r} reasons={reasons}", file=sys.stderr)
+        return 1
+    return 0
+
+
 def request_with_retry(port, payload):
     deadline = time.time() + 5
     last = None
@@ -1595,6 +1669,8 @@ def main(argv=None):
     if run_local_ips_cache_check(server) != 0:
         return 1
     if run_line_local_ips_check() != 0:
+        return 1
+    if run_line_repl_runtime_check() != 0:
         return 1
 
     if args.section == "preflight":

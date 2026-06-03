@@ -161,6 +161,10 @@ from gritlib.line_resources import (
     print_line_history as line_resources_print_line_history,
     record_line_history, write_line_makerc,
 )
+from gritlib.line_repl_runtime import (
+    configure_readline_history, install_line_repl_signal_handlers,
+    read_line as line_repl_read_line, restore_signal_handlers,
+)
 from gritlib.line_search import print_line_search_results
 from gritlib.line_services import (
     line_service_display_name,
@@ -6315,68 +6319,16 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
 
 
 def run_line_repl(cfg):
-    if HAVE_READLINE:
-        _readline.set_history_length(500)
-
-    # Override SIGTERM for the duration of the line REPL.
-    # readline installs its own SIGTERM handler that resumes reading after calling
-    # the original handler, so setting flags or raising signals is not enough.
-    # Replacing stdin with /dev/null causes readline's next read() to get EOF,
-    # which makes input() raise EOFError and unblocks line_input().
-    def _line_repl_shutdown(reason, _signum, _frame):
-        request_shutdown(reason)
-        if reason == "SIGTERM":
-            # Give managed subprocesses a moment to exit after SIGTERM before cleanup
-            time.sleep(0.4)
-        # readline intercepts signals and resumes reading after calling the original
-        # handler, so setting flags alone doesn't unblock input().  Replace stdin
-        # with /dev/null so readline's next read() gets EOF and input() raises
-        # EOFError, letting line_input() return None and the main loop exit cleanly.
-        try:
-            null_fd = os.open(os.devnull, os.O_RDONLY)
-            os.dup2(null_fd, sys.stdin.fileno())
-            os.close(null_fd)
-        except OSError:
-            pass
-
-    _prev_sigterm = signal.getsignal(signal.SIGTERM)
-    _prev_sigint = signal.getsignal(signal.SIGINT)
-    try:
-        signal.signal(signal.SIGTERM, lambda s, f: _line_repl_shutdown("SIGTERM", s, f))
-        signal.signal(signal.SIGINT, lambda s, f: _line_repl_shutdown("keyboard_interrupt", s, f))
-    except (OSError, ValueError):
-        _prev_sigterm = None
-        _prev_sigint = None
+    configure_readline_history(_readline, HAVE_READLINE)
+    signal_handlers = install_line_repl_signal_handlers(request_shutdown)
 
     def line_input(prompt):
-        if SHUTDOWN.is_set():
-            return None
-        if HAVE_READLINE:
-            try:
-                line = input(prompt)
-            except EOFError:
-                request_shutdown("input_eof")
-                return None
-            if SHUTDOWN.is_set():
-                return None
-            return line
-        # Fallback for environments without readline (dumb terminals, pipes)
-        sys.stdout.write(prompt)
-        sys.stdout.flush()
-        while not SHUTDOWN.is_set():
-            try:
-                ready, _w, _x = select.select([sys.stdin], [], [], 0.5)
-            except (OSError, ValueError):
-                request_shutdown("input_error")
-                return None
-            if not ready:
-                continue
-            line = sys.stdin.readline()
-            if line == "":
-                request_shutdown("input_eof")
-                return None
-            return line.rstrip("\n")
-        return None
+        return line_repl_read_line(
+            prompt,
+            shutdown_event=SHUTDOWN,
+            request_shutdown_func=request_shutdown,
+            have_readline=HAVE_READLINE,
+        )
 
     def bridge_profile_headless_command(action, name="", extra=None):
         cmd = ["scripts/grit-console", "--config", str(cfg.get("_config_path", DEFAULT_CONFIG))]
@@ -10244,12 +10196,7 @@ def run_line_repl(cfg):
                     })
             except ValueError as exc:
                 print(exc)
-    for _sig, _prev in ((signal.SIGTERM, _prev_sigterm), (signal.SIGINT, _prev_sigint)):
-        if _prev is not None:
-            try:
-                signal.signal(_sig, _prev)
-            except (OSError, ValueError):
-                pass
+    restore_signal_handlers(signal_handlers)
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
