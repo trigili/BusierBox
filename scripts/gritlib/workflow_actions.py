@@ -5,6 +5,7 @@ import shlex
 from gritlib.record_utils import (
     format_counts, int_value, record_count_by_key, record_sum_by_key, records_by_key,
 )
+from gritlib.shell_utils import shquote
 
 
 def select_workflow_action(records, selector, label, extra_keys=()):
@@ -63,6 +64,35 @@ def workflow_command_prefix_count(records, prefix):
         rec for rec in records or []
         if str((rec or {}).get("command") or "").startswith(prefix)
     ])
+
+
+def render_daemon_service_args(daemon_services):
+    services = list(daemon_services or [])
+    if not services:
+        services = ["file-service", "command-queue"]
+    return " ".join("--daemon-service " + shquote(service) for service in services)
+
+
+def bringup_recommend_command(config_path, operator_host, release_dir, target_ctx=None, stage_recommended=False):
+    target_ctx = target_ctx or {}
+    parts = [
+        "scripts/grit-bringup",
+        "--recommend-only",
+        "--json",
+        "--operator-config", config_path,
+        "--operator-host", operator_host,
+    ]
+    if release_dir:
+        parts.extend(["--release-dir", release_dir])
+    if target_ctx.get("target_id"):
+        parts.extend(["--target-id", target_ctx.get("target_id", "")])
+    if target_ctx.get("target_label"):
+        parts.extend(["--target-label", target_ctx.get("target_label", "")])
+    for alias in target_ctx.get("target_aliases") or []:
+        parts.extend(["--target-alias", alias])
+    if stage_recommended:
+        parts.append("--stage-recommended-artifact")
+    return " ".join(shquote(str(part)) for part in parts)
 
 
 def operator_console_headless_command(kind, base_command):
