@@ -371,6 +371,37 @@ def service_workflow_action_record(
     }
 
 
+def service_lifecycle_action_states(service):
+    actual = str((service or {}).get("actual") or "")
+    configured = str((service or {}).get("configured") or "")
+    pid = (service or {}).get("pid", "")
+    can_stop = actual == "listening" or configured in ("listening", "starting", "error") or bool(pid)
+    if actual == "listening":
+        start_state = "already-running"
+        start_reason = "already-listening"
+        start_enter = False
+    else:
+        start_state = "ready"
+        start_reason = "start-listener"
+        start_enter = True
+    if can_stop:
+        stop_state = "ready"
+        stop_reason = "stop-listener"
+        stop_enter = True
+    else:
+        stop_state = "not-running"
+        stop_reason = "no-recorded-listener"
+        stop_enter = False
+    return {
+        "start_state": start_state,
+        "start_reason": start_reason,
+        "start_enter": start_enter,
+        "stop_state": stop_state,
+        "stop_reason": stop_reason,
+        "stop_enter": stop_enter,
+    }
+
+
 def workbench_action_indexes(records):
     return {
         "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},

@@ -233,6 +233,7 @@ from gritlib.workflow_actions import (
     probe_workflow_action_summary,
     select_workbench_action,
     select_workflow_action,
+    service_lifecycle_action_states,
     service_workflow_action_record,
     target_workflow_action_indexes,
     target_workflow_action_record,
@@ -1837,26 +1838,7 @@ def service_workflow_action_records(cfg, services, targets=None):
         name = str(service.get("name") or "")
         if not name:
             continue
-        actual = str(service.get("actual") or "")
-        configured = str(service.get("configured") or "")
-        pid = service.get("pid", "")
-        can_stop = actual == "listening" or configured in ("listening", "starting", "error") or bool(pid)
-        if actual == "listening":
-            start_state = "already-running"
-            start_reason = "already-listening"
-            start_enter = False
-        else:
-            start_state = "ready"
-            start_reason = "start-listener"
-            start_enter = True
-        if can_stop:
-            stop_state = "ready"
-            stop_reason = "stop-listener"
-            stop_enter = True
-        else:
-            stop_state = "not-running"
-            stop_reason = "no-recorded-listener"
-            stop_enter = False
+        lifecycle_states = service_lifecycle_action_states(service)
         add(
             service,
             "inspect-status",
@@ -1874,10 +1856,10 @@ def service_workflow_action_records(cfg, services, targets=None):
             "service",
             f"Start {name} service",
             service_start_headless_command(cfg, name),
-            start_state,
-            start_reason,
-            can_run_from_curses_enter=start_enter,
-            curses_enter_action="start-service" if start_enter else "stop-service",
+            lifecycle_states["start_state"],
+            lifecycle_states["start_reason"],
+            can_run_from_curses_enter=lifecycle_states["start_enter"],
+            curses_enter_action="start-service" if lifecycle_states["start_enter"] else "stop-service",
         )
         add(
             service,
@@ -1885,10 +1867,10 @@ def service_workflow_action_records(cfg, services, targets=None):
             "service",
             f"Stop {name} service",
             service_stop_headless_command(cfg, name),
-            stop_state,
-            stop_reason,
-            can_run_from_curses_enter=stop_enter,
-            curses_enter_action="stop-service" if stop_enter else "start-service",
+            lifecycle_states["stop_state"],
+            lifecycle_states["stop_reason"],
+            can_run_from_curses_enter=lifecycle_states["stop_enter"],
+            curses_enter_action="stop-service" if lifecycle_states["stop_enter"] else "start-service",
             requires_confirmation=True,
         )
     records.sort(key=lambda rec: (rec.get("service", ""), rec.get("category", ""), rec.get("action_id", "")))
