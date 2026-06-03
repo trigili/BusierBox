@@ -42,8 +42,10 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from gritlib import bridge_routes
 from gritlib.bridge_routes import (
-    bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_summary,
-    bridge_profiles_path,
+    bridge_hops_from_args, bridge_profile_workflow_action_indexes,
+    bridge_profile_workflow_action_summary, bridge_profiles_path,
+    bridge_route_path, default_bridge_hops, load_bridge_profiles,
+    parse_bridge_hop, parse_endpoint_host_port, valid_profile_name,
 )
 from gritlib.command_queue import (
     command_queue_expired,
@@ -835,34 +837,6 @@ def set_workbench_target_filter(cfg, selector, targets=None):
         "selected": True,
         "headless_command": headless,
     }
-
-
-def valid_profile_name(name):
-    return bridge_routes.valid_profile_name(name)
-
-
-def load_bridge_profiles(cfg):
-    return bridge_routes.load_bridge_profiles(cfg, DEFAULT_OPERATOR_SESSION_DIR)
-
-
-def parse_bridge_hop(text):
-    return bridge_routes.parse_bridge_hop(text)
-
-
-def default_bridge_hops(cfg, dest_port):
-    return bridge_routes.default_bridge_hops(cfg, dest_port)
-
-
-def bridge_hops_from_args(cfg, dest_port, hop_args=None):
-    return bridge_routes.bridge_hops_from_args(cfg, dest_port, hop_args=hop_args)
-
-
-def bridge_route_path(rec):
-    return bridge_routes.bridge_route_path(rec)
-
-
-def parse_endpoint_host_port(endpoint):
-    return bridge_routes.parse_endpoint_host_port(endpoint)
 
 
 def target_visible_host(host, cfg, fallback_host=None):
