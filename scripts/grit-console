@@ -180,6 +180,7 @@ from gritlib.line_target_commands import (
 from gritlib.line_workspace import (
     line_tui_prompt as line_workspace_tui_prompt,
     line_tui_status_bar, print_line_console_banner,
+    print_line_info as line_workspace_print_line_info,
     print_line_next as line_workspace_print_line_next,
     print_line_workspace_snapshot,
 )
@@ -6457,110 +6458,21 @@ def run_line_tui(cfg):
 
     def print_line_info():
         snap = workbench_snapshot(cfg)
-        print("Console context:")
-        print(f"  prompt={line_tui_prompt().strip()}")
         module = str(cfg.get("_line_console_module") or "root")
-        print(f"  module={module}")
-        action = selected_line_action()
-        if action:
-            command = action.get("headless_command", action.get("run_command", action.get("command", "")))
-            dry_run = action.get("dry_run_command", "")
-            start_job = action.get("start_job_command", "")
-            print(
-                f"  action={action.get('kind', '')}:{action.get('id', '')} "
-                f"state={action.get('operator_action_state', '') or '-'} "
-                f"reason={action.get('operator_action_reason', '') or '-'}"
-            )
-            print(f"    label={action.get('label', '') or '-'}")
-            print(f"    category={action.get('category', '') or '-'} workflow={action.get('workflow', '') or '-'}")
-            print(f"    confirm={'yes' if action.get('requires_confirmation') else 'no'} background={'yes' if action.get('background_supported') else 'no'}")
-            print(f"    command={command}")
-            if dry_run:
-                print(f"    dry_run={dry_run}")
-            if start_job:
-                print(f"    start_job={start_job}")
-            print("    next: options, check, run, run --dry-run, run --confirm, back")
-        elif module.startswith("service/"):
-            service = module.split("/", 1)[1]
-            rec = line_service_record(service_status_rows(cfg), service)
-            actual = rec.get("actual") or "-" if rec else "-"
-            port = rec.get("port") or "-" if rec else "-"
-            pid = rec.get("pid") or "-" if rec else "-"
-            print(f"  {service}  —  {actual}  |  :{port}  |  pid {pid}")
-            if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"}:
-                _print_probe_delivery()
-            else:
-                print("    options / start / stop / back")
-        elif module.startswith("route/"):
-            route_name = module.split("/", 1)[1]
-            rec = line_route_record(route_name)
-            print(f"  route={route_name}")
-            if rec:
-                print(
-                    f"    state={rec.get('current_state', '') or '-'} "
-                    f"active={'yes' if rec.get('active') else 'no'} "
-                    f"listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')} "
-                    f"dest={rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
-                )
-                print(f"    route_path={rec.get('route_path', '') or '-'}")
-                print(
-                    f"    hops={rec.get('hop_count', 0)} "
-                    f"multi_hop={'yes' if rec.get('multi_hop') else 'no'} "
-                    f"target={rec.get('target_id', '') or '-'}"
-                )
-            print(f"    inspect={bridge_profile_headless_command('inspect', route_name)}")
-            print(f"    start={bridge_profile_headless_command('start', route_name)}")
-            print(f"    stop={bridge_profile_headless_command('stop', route_name)}")
-            print("    options / start / stop / back")
-        elif module.startswith("session/"):
-            session_id = module.split("/", 1)[1]
-            rec = line_session_record(session_id)
-            print(f"  session={session_id}")
-            if rec:
-                path = str(rec.get("path") or "")
-                print(
-                    f"    service={rec.get('service', '') or '-'} "
-                    f"state={rec.get('state', '') or '-'} "
-                    f"exit={rec.get('exit_reason', '') or '-'} "
-                    f"updated={rec.get('updated_at', '') or '-'}"
-                )
-                print(f"    path={path}")
-                if rec.get("session_log"):
-                    print(f"    session_log={rec.get('session_log', '')}")
-                if rec.get("event_log"):
-                    print(f"    event_log={rec.get('event_log', '')}")
-                print(f"    view={view_path_headless_command(cfg, path)}")
-            print("    next: options, interact, sessions -v, back")
-        elif module.startswith("job/"):
-            job_id = module.split("/", 1)[1]
-            rec = line_job_record(job_id)
-            print(f"  job={job_id}")
-            if rec:
-                print(
-                    f"    action={rec.get('action_id', '') or '-'} "
-                    f"state={rec.get('effective_state', '') or rec.get('state', '') or '-'} "
-                    f"pid={rec.get('pid', '') or '-'} "
-                    f"managed={'yes' if rec.get('pid_managed') else 'no'} "
-                    f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
-                )
-                print(f"    command={rec.get('command', '') or '-'}")
-                if rec.get("log_path"):
-                    print(f"    log={rec.get('log_path', '')}")
-                if rec.get("last_output_tail"):
-                    print("    last_output:")
-                    for line in rec.get("last_output_tail") or []:
-                        print(f"      {line}")
-                print(f"    cancel={cancel_workbench_job_headless_command(cfg, job_id)}")
-            print("    next: options, jobs, jobs -i ID, back")
-        else:
-            print("  action=none")
-        target_filter = snap.get("target_filter") or {}
-        if target_filter.get("active"):
-            print(target_filter_summary_text(target_filter, prefix="  target:"))
-            for line in target_filter_evidence_lines(target_filter):
-                print(f"    {line}")
-        else:
-            print("  target=all")
+        return line_workspace_print_line_info(
+            snap,
+            module=module,
+            prompt_text=line_tui_prompt(),
+            selected_action=selected_line_action,
+            service_record=lambda service: line_service_record(service_status_rows(cfg), service),
+            route_record=line_route_record,
+            session_record=line_session_record,
+            job_record=line_job_record,
+            probe_delivery_printer=_print_probe_delivery,
+            bridge_command_builder=bridge_profile_headless_command,
+            view_command_builder=lambda path: view_path_headless_command(cfg, path),
+            cancel_job_command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
+        )
 
     def print_line_next():
         snap = workbench_snapshot(cfg)

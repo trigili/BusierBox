@@ -3,7 +3,9 @@
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
 from gritlib.record_utils import format_counts
-from gritlib.target_records import target_filter_summary_text
+from gritlib.target_records import (
+    target_filter_evidence_lines, target_filter_summary_text,
+)
 
 
 def line_tui_prompt(target_id="", module="", target_context=None):
@@ -149,6 +151,130 @@ def print_line_workspace_snapshot(snap):
 
     print("")
     print("  search TERM  |  targets  sessions  files  listeners  routes  |  ? help")
+
+
+def print_line_info(
+    snap, module="root", prompt_text="", selected_action=None,
+    service_record=None, route_record=None, session_record=None, job_record=None,
+    probe_delivery_printer=None, bridge_command_builder=None,
+    view_command_builder=None, cancel_job_command_builder=None
+):
+    selected_action = selected_action or (lambda: {})
+    service_record = service_record or (lambda _name: {})
+    route_record = route_record or (lambda _name: {})
+    session_record = session_record or (lambda _id: {})
+    job_record = job_record or (lambda _id: {})
+    bridge_command_builder = bridge_command_builder or (
+        lambda _action, _name="", extra=None: ""
+    )
+    view_command_builder = view_command_builder or (lambda _path: "")
+    cancel_job_command_builder = cancel_job_command_builder or (lambda _job_id: "")
+
+    print("Console context:")
+    print(f"  prompt={str(prompt_text or '').strip()}")
+    module = str(module or "root")
+    print(f"  module={module}")
+    action = selected_action()
+    if action:
+        command = action.get("headless_command", action.get("run_command", action.get("command", "")))
+        dry_run = action.get("dry_run_command", "")
+        start_job = action.get("start_job_command", "")
+        print(
+            f"  action={action.get('kind', '')}:{action.get('id', '')} "
+            f"state={action.get('operator_action_state', '') or '-'} "
+            f"reason={action.get('operator_action_reason', '') or '-'}"
+        )
+        print(f"    label={action.get('label', '') or '-'}")
+        print(f"    category={action.get('category', '') or '-'} workflow={action.get('workflow', '') or '-'}")
+        print(f"    confirm={'yes' if action.get('requires_confirmation') else 'no'} background={'yes' if action.get('background_supported') else 'no'}")
+        print(f"    command={command}")
+        if dry_run:
+            print(f"    dry_run={dry_run}")
+        if start_job:
+            print(f"    start_job={start_job}")
+        print("    next: options, check, run, run --dry-run, run --confirm, back")
+    elif module.startswith("service/"):
+        service = module.split("/", 1)[1]
+        rec = service_record(service)
+        actual = rec.get("actual") or "-" if rec else "-"
+        port = rec.get("port") or "-" if rec else "-"
+        pid = rec.get("pid") or "-" if rec else "-"
+        print(f"  {service}  —  {actual}  |  :{port}  |  pid {pid}")
+        if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"}:
+            if probe_delivery_printer:
+                probe_delivery_printer()
+        else:
+            print("    options / start / stop / back")
+    elif module.startswith("route/"):
+        route_name = module.split("/", 1)[1]
+        rec = route_record(route_name)
+        print(f"  route={route_name}")
+        if rec:
+            print(
+                f"    state={rec.get('current_state', '') or '-'} "
+                f"active={'yes' if rec.get('active') else 'no'} "
+                f"listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')} "
+                f"dest={rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
+            )
+            print(f"    route_path={rec.get('route_path', '') or '-'}")
+            print(
+                f"    hops={rec.get('hop_count', 0)} "
+                f"multi_hop={'yes' if rec.get('multi_hop') else 'no'} "
+                f"target={rec.get('target_id', '') or '-'}"
+            )
+        print(f"    inspect={bridge_command_builder('inspect', route_name)}")
+        print(f"    start={bridge_command_builder('start', route_name)}")
+        print(f"    stop={bridge_command_builder('stop', route_name)}")
+        print("    options / start / stop / back")
+    elif module.startswith("session/"):
+        session_id = module.split("/", 1)[1]
+        rec = session_record(session_id)
+        print(f"  session={session_id}")
+        if rec:
+            path = str(rec.get("path") or "")
+            print(
+                f"    service={rec.get('service', '') or '-'} "
+                f"state={rec.get('state', '') or '-'} "
+                f"exit={rec.get('exit_reason', '') or '-'} "
+                f"updated={rec.get('updated_at', '') or '-'}"
+            )
+            print(f"    path={path}")
+            if rec.get("session_log"):
+                print(f"    session_log={rec.get('session_log', '')}")
+            if rec.get("event_log"):
+                print(f"    event_log={rec.get('event_log', '')}")
+            print(f"    view={view_command_builder(path)}")
+        print("    next: options, interact, sessions -v, back")
+    elif module.startswith("job/"):
+        job_id = module.split("/", 1)[1]
+        rec = job_record(job_id)
+        print(f"  job={job_id}")
+        if rec:
+            print(
+                f"    action={rec.get('action_id', '') or '-'} "
+                f"state={rec.get('effective_state', '') or rec.get('state', '') or '-'} "
+                f"pid={rec.get('pid', '') or '-'} "
+                f"managed={'yes' if rec.get('pid_managed') else 'no'} "
+                f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
+            )
+            print(f"    command={rec.get('command', '') or '-'}")
+            if rec.get("log_path"):
+                print(f"    log={rec.get('log_path', '')}")
+            if rec.get("last_output_tail"):
+                print("    last_output:")
+                for line in rec.get("last_output_tail") or []:
+                    print(f"      {line}")
+            print(f"    cancel={cancel_job_command_builder(job_id)}")
+        print("    next: options, jobs, jobs -i ID, back")
+    else:
+        print("  action=none")
+    target_filter = (snap or {}).get("target_filter") or {}
+    if target_filter.get("active"):
+        print(target_filter_summary_text(target_filter, prefix="  target:"))
+        for line in target_filter_evidence_lines(target_filter):
+            print(f"    {line}")
+    else:
+        print("  target=all")
 
 
 def print_line_next(
