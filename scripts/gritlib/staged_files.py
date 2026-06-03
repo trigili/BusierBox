@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import shutil
 import urllib.parse
 from pathlib import Path
 
@@ -110,6 +111,62 @@ def staged_record_list(staged):
         item["stage_kind"] = str(item.get("stage_kind") or "file")
         records.append(item)
     return records
+
+
+def staged_record_for_configure(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        return "", {}
+    staged = load_staged(cfg).get("staged") or {}
+    if text in staged and isinstance(staged.get(text), dict):
+        return text, staged[text]
+    if text.isdigit():
+        names = sorted(str(item or "") for item in staged.keys() if str(item or ""))
+        idx = int(text) - 1
+        if 0 <= idx < len(names):
+            name = names[idx]
+            rec = staged.get(name) or {}
+            return name, rec if isinstance(rec, dict) else {}
+    return "", {}
+
+
+def configured_artifact_path_for_request(cfg, request_name, source_path):
+    out_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "configured-artifacts"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = reject_traversal_request_name(request_name)
+    suffix = Path(str(source_path or safe_name)).suffix
+    target = out_dir / safe_name
+    if suffix and not target.name.endswith(suffix):
+        target = out_dir / f"{safe_name}{suffix}"
+    return target
+
+
+def prepare_staged_artifact_for_configure(cfg, request_name, rec):
+    source = Path(str(rec.get("source_path") or "")).expanduser()
+    if not source.is_file():
+        raise ValueError(f"staged source is missing: {source}")
+    configured_source = str(rec.get("configured_source_path") or "")
+    if configured_source and Path(configured_source).is_file():
+        return Path(configured_source)
+    dest = configured_artifact_path_for_request(cfg, request_name, source)
+    if source.resolve() != dest.resolve():
+        shutil.copy2(source, dest)
+    dest.chmod(source.stat().st_mode & 0o777)
+    data = load_staged(cfg)
+    staged = data.setdefault("staged", {})
+    updated = dict(staged.get(request_name) or rec)
+    updated.update({
+        "source_path": str(dest),
+        "configured_source_path": str(dest),
+        "configured_from_source_path": str(source),
+        "configured_at": utc_now(),
+        "size": dest.stat().st_size,
+        "sha256": file_sha256(dest),
+        "mtime": int(dest.stat().st_mtime),
+    })
+    staged[request_name] = updated
+    atomic_write_json(staged_file_path(cfg), data)
+    return dest
 
 
 def enriched_staged_records(cfg, staged=None):

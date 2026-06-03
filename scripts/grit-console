@@ -113,7 +113,10 @@ from gritlib.line_actions import (
 from gritlib.line_command_queue import (
     print_line_command_queue_records, print_line_command_result_record,
 )
-from gritlib.line_configure import parse_line_config_args, run_config_from_survey
+from gritlib.line_configure import (
+    artifact_config_candidates, find_artifact_config,
+    parse_line_config_args, parse_line_configure_args, run_config_from_survey,
+)
 from gritlib.line_events import print_line_events_view
 from gritlib.line_files import (
     line_file_records_from_staged,
@@ -221,7 +224,8 @@ from gritlib.shell_utils import shquote
 from gritlib.ssh_keys import ensure_host_key, keys_equal, load_public_key
 from gritlib.staged_files import (
     enriched_staged_records, file_sha256, load_staged,
-    reject_traversal_request_name, print_staged, stage_dir, stage_file,
+    prepare_staged_artifact_for_configure, reject_traversal_request_name,
+    print_staged, stage_dir, stage_file, staged_record_for_configure,
     staged_file_workflow_action_indexes, staged_file_workflow_action_records,
     staged_file_path,
     staged_files_state_status, staged_record_indexes, staged_record_list,
@@ -9526,149 +9530,17 @@ def run_line_tui(cfg):
         return rec
 
     def artifact_config_script():
-        script_dir = Path(__file__).resolve().parent
-        candidates = [script_dir / "lib" / "artifact-config"]
-        for item in candidates:
-            if item.is_file():
-                return item
-        raise ValueError("artifact-config helper not found")
-
-    def staged_record_for_configure(selector):
-        text = str(selector or "").strip()
-        if not text:
-            return "", {}
-        staged = load_staged(cfg).get("staged") or {}
-        if text in staged and isinstance(staged.get(text), dict):
-            return text, staged[text]
-        if text.isdigit():
-            names = sorted(str(item or "") for item in staged.keys() if str(item or ""))
-            idx = int(text) - 1
-            if 0 <= idx < len(names):
-                name = names[idx]
-                rec = staged.get(name) or {}
-                return name, rec if isinstance(rec, dict) else {}
-        return "", {}
-
-    def configured_artifact_path_for_request(request_name, source_path):
-        out_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "configured-artifacts"
-        out_dir.mkdir(parents=True, exist_ok=True)
-        safe_name = reject_traversal_request_name(request_name)
-        suffix = Path(str(source_path or safe_name)).suffix
-        target = out_dir / safe_name
-        if suffix and not target.name.endswith(suffix):
-            target = out_dir / f"{safe_name}{suffix}"
-        return target
-
-    def prepare_staged_artifact_for_configure(request_name, rec):
-        source = Path(str(rec.get("source_path") or "")).expanduser()
-        if not source.is_file():
-            raise ValueError(f"staged source is missing: {source}")
-        configured_source = str(rec.get("configured_source_path") or "")
-        if configured_source and Path(configured_source).is_file():
-            return Path(configured_source)
-        dest = configured_artifact_path_for_request(request_name, source)
-        if source.resolve() != dest.resolve():
-            shutil.copy2(source, dest)
-        dest.chmod(source.stat().st_mode & 0o777)
-        data = load_staged(cfg)
-        staged = data.setdefault("staged", {})
-        updated = dict(staged.get(request_name) or rec)
-        updated.update({
-            "source_path": str(dest),
-            "configured_source_path": str(dest),
-            "configured_from_source_path": str(source),
-            "configured_at": utc_now(),
-            "size": dest.stat().st_size,
-            "sha256": file_sha256(dest),
-            "mtime": int(dest.stat().st_mtime),
-        })
-        staged[request_name] = updated
-        atomic_write_json(staged_file_path(cfg), data)
-        return dest
-
-    def parse_line_configure_args(args):
-        if not args:
-            raise ValueError("usage: configure NAME|PATH [--show|--clear|KEY=VALUE|options...]")
-        selector = str(args[0])
-        rest = list(args[1:])
-        if not rest:
-            raise ValueError("usage: configure NAME|PATH [--show|--clear|KEY=VALUE|options...]")
-        option_keys = {
-            "--operator-host": "GRIT_OPERATOR_SERVER_HOST",
-            "--operator-user": "GRIT_OPERATOR_SERVER_USER",
-            "--ssh-port": "GRIT_OPERATOR_SERVER_SSH_PORT",
-            "--shell-port": "GRIT_RSHELL_SOCAT_PORT",
-            "--remote-forward-port": "GRIT_OPERATOR_REMOTE_FORWARD_PORT",
-            "--target-bind-host": "GRIT_OPERATOR_TARGET_BIND_HOST",
-            "--transport": "GRIT_RSHELL_TRANSPORT",
-            "--encryption": "GRIT_RSHELL_ENCRYPTION",
-            "--run-mode": "GRIT_RSHELL_RUN_MODE",
-            "--session-policy": "GRIT_RSHELL_SESSION_POLICY",
-            "--shell-provider": "GRIT_RSHELL_SHELL_PROVIDER",
-            "--zero-arg-mode": "GRIT_ZERO_ARG_MODE",
-            "--zero-arg-log-mode": "GRIT_ZERO_ARG_LOG_MODE",
-            "--zero-arg-command": "GRIT_ZERO_ARG_CUSTOM_COMMAND",
-            "--runtime-mode": "GRIT_RUNTIME_MODE",
-            "--noresidue-level": "GRIT_NORESIDUE_LEVEL",
-            "--retry-count": "GRIT_RSHELL_RETRY_COUNT",
-            "--retry-interval": "GRIT_RSHELL_RETRY_INTERVAL_SEC",
-            "--retry-jitter": "GRIT_RSHELL_RETRY_JITTER_PCT",
-            "--retry-backoff": "GRIT_RSHELL_RETRY_BACKOFF",
-            "--retry-max-interval": "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC",
-            "--command-queue-enable": "GRIT_COMMAND_QUEUE_ENABLE",
-            "--command-queue-port": "GRIT_COMMAND_QUEUE_PORT",
-            "--command-queue-execution": "GRIT_COMMAND_QUEUE_EXECUTION",
-            "--command-queue-poll-interval": "GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC",
-            "--command-queue-poll-jitter": "GRIT_COMMAND_QUEUE_POLL_JITTER_PCT",
-            "--command-queue-poll-backoff": "GRIT_COMMAND_QUEUE_POLL_BACKOFF",
-            "--command-queue-poll-max-interval": "GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC",
-            "--command-queue-max-polls": "GRIT_COMMAND_QUEUE_MAX_POLLS",
-        }
-        action = "set"
-        obfuscation = "none"
-        kv = []
-        i = 0
-        while i < len(rest):
-            item = str(rest[i])
-            if item in {"--show", "show"}:
-                action = "show"
-                i += 1
-            elif item in {"--clear", "clear"}:
-                action = "clear"
-                i += 1
-            elif item == "--obfuscation":
-                if i + 1 >= len(rest):
-                    raise ValueError("configure --obfuscation requires none|xor")
-                obfuscation = str(rest[i + 1])
-                i += 2
-            elif item.startswith("--obfuscation="):
-                obfuscation = item.split("=", 1)[1]
-                i += 1
-            elif item in option_keys:
-                if i + 1 >= len(rest):
-                    raise ValueError(f"configure {item} requires a value")
-                kv.append(f"{option_keys[item]}={rest[i + 1]}")
-                i += 2
-            elif item.startswith("--") and "=" in item:
-                opt, value = item.split("=", 1)
-                if opt not in option_keys:
-                    raise ValueError(f"unknown configure option: {opt}")
-                kv.append(f"{option_keys[opt]}={value}")
-                i += 1
-            elif "=" in item:
-                kv.append(item)
-                i += 1
-            else:
-                raise ValueError(f"unknown configure argument: {item}")
-        if action == "set" and not kv:
-            raise ValueError("configure needs at least one KEY=VALUE or option")
-        return selector, action, obfuscation, kv
+        helper = find_artifact_config()
+        if helper:
+            return helper
+        searched = ", ".join(str(path) for path in artifact_config_candidates()[:6])
+        raise ValueError(f"artifact-config helper not found (searched: {searched})")
 
     def configure_line_artifact(args):
         selector, action, obfuscation, kv = parse_line_configure_args(args)
-        request_name, staged_rec = staged_record_for_configure(selector)
+        request_name, staged_rec = staged_record_for_configure(cfg, selector)
         if request_name:
-            artifact = prepare_staged_artifact_for_configure(request_name, staged_rec)
+            artifact = prepare_staged_artifact_for_configure(cfg, request_name, staged_rec)
         else:
             artifact = Path(selector).expanduser()
             if not artifact.is_file():
