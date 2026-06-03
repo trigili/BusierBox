@@ -6,6 +6,7 @@ import io
 import json
 import os
 import pty
+import re
 import runpy
 import select
 import signal
@@ -39,6 +40,17 @@ def line_console_artifact_dir():
         return Path(explicit)
     root = Path(os.environ.get("ARTIFACT_ROOT", str(ROOT / "tests" / "artifacts")))
     return root / "line-console"
+
+
+def line_console_raw_python_repr_present(text):
+    text = text or ""
+    patterns = (
+        r"<[^>\n]+ object at 0x[0-9a-fA-F]+>",
+        r"\b(?:defaultdict|OrderedDict)\(",
+        r"\{'[^'\n]+':",
+        r"\['[^'\n]+'(?:,\s*'[^'\n]+')*\]",
+    )
+    return any(re.search(pattern, text) for pattern in patterns)
 
 
 def run(*args):
@@ -103,6 +115,7 @@ def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=N
         "stderr": str(artifact_dir / "stderr.txt"),
         "prompt_count": (stdout_text or "").count("grit["),
         "traceback_present": "Traceback" in ((stdout_text or "") + (stderr_text or "")),
+        "raw_python_repr_present": line_console_raw_python_repr_present(stdout_text),
         "literal_ctrl_c_present": "^C" in (stdout_text or ""),
         "headless_command_default_spam_present": "headless_command:" in (stdout_text or ""),
         "headless_command_event_summary_present": "headless_command=" in (stdout_text or ""),
@@ -970,6 +983,24 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             not (line_console_artifact_dir_path / "stderr.txt").is_file() or
             not (line_console_artifact_dir_path / "summary.json").is_file()):
         print("line-console transcript artifacts were not written", file=sys.stderr)
+        return 1
+    line_console_artifact_summary = json.loads(
+        (line_console_artifact_dir_path / "summary.json").read_text(encoding="utf-8")
+    )
+    bad_artifact_flags = [
+        key for key in (
+            "traceback_present",
+            "raw_python_repr_present",
+            "literal_ctrl_c_present",
+            "headless_command_default_spam_present",
+            "stale_numbered_result_error_present",
+            "verbose_policy_dump_present",
+        )
+        if line_console_artifact_summary.get(key)
+    ]
+    if line_console_artifact_summary.get("returncode") != 0 or bad_artifact_flags:
+        print("line-console transcript artifact recorded UX regression flags", file=sys.stderr)
+        print(json.dumps(line_console_artifact_summary, indent=2, sort_keys=True), file=sys.stderr)
         return 1
     line_console_session_markers = [
         "selected session ",
