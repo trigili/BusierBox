@@ -1112,6 +1112,56 @@ def operator_daemon_workflow_action_summary(records):
     }
 
 
+def operator_daemon_workflow_action_status_summary(records):
+    summary = operator_daemon_workflow_action_summary(records)
+    return {
+        "operator_daemon_workflow_action_count": summary.get("total_count", 0),
+        "operator_daemon_workflow_action_attached_count": summary.get("attached_count", 0),
+        "operator_daemon_workflow_action_background_supported_count": summary.get("background_supported_count", 0),
+        "operator_daemon_workflow_action_foreground_runnable_count": summary.get("foreground_runnable_count", 0),
+        "operator_daemon_workflow_action_dry_run_supported_count": summary.get("dry_run_supported_count", 0),
+        "operator_daemon_workflow_action_requires_confirmation_count": summary.get("requires_confirmation_count", 0),
+        "operator_daemon_workflow_action_writes_config_count": summary.get("writes_config_count", 0),
+        "operator_daemon_workflow_action_can_run_from_curses_enter_count": summary.get("can_run_from_curses_enter_count", 0),
+        "operator_daemon_workflow_action_action_counts": summary.get("action_counts") or {},
+        "operator_daemon_workflow_action_category_counts": summary.get("category_counts") or {},
+        "operator_daemon_workflow_action_workflow_counts": summary.get("workflow_counts") or {},
+        "operator_daemon_workflow_action_daemon_status_counts": summary.get("daemon_status_counts") or {},
+        "operator_daemon_workflow_action_daemon_attached_counts": summary.get("daemon_attached_counts") or {},
+        "operator_daemon_workflow_action_control_state_exists_counts": summary.get("control_state_exists_counts") or {},
+        "operator_daemon_workflow_action_command_queue_file_exists_counts": summary.get("command_queue_file_exists_counts") or {},
+        "operator_daemon_workflow_action_command_queue_command_count_counts": summary.get("command_queue_command_count_counts") or {},
+        "operator_daemon_workflow_action_command_queue_queued_count_counts": summary.get("command_queue_queued_count_counts") or {},
+        "operator_daemon_workflow_action_command_queue_result_received_count_counts": summary.get("command_queue_result_received_count_counts") or {},
+        "operator_daemon_workflow_action_command_queue_target_count_counts": summary.get("command_queue_target_count_counts") or {},
+        "operator_daemon_workflow_action_targets_file_exists_counts": summary.get("targets_file_exists_counts") or {},
+        "operator_daemon_workflow_action_target_count_counts": summary.get("target_count_counts") or {},
+        "operator_daemon_workflow_action_target_registry_record_count_counts": summary.get("target_registry_record_count_counts") or {},
+        "operator_daemon_workflow_action_fleet_target_count_counts": summary.get("fleet_target_count_counts") or {},
+        "operator_daemon_workflow_action_fleet_offline_target_count_counts": summary.get("fleet_offline_target_count_counts") or {},
+        "operator_daemon_workflow_action_fleet_stale_target_count_counts": summary.get("fleet_stale_target_count_counts") or {},
+        "operator_daemon_workflow_action_fleet_mailbox_pending_target_count_counts": summary.get("fleet_mailbox_pending_target_count_counts") or {},
+        "operator_daemon_workflow_action_fleet_mailbox_pending_work_count_counts": summary.get("fleet_mailbox_pending_work_count_counts") or {},
+        "operator_daemon_workflow_action_fleet_poll_overdue_target_count_counts": summary.get("fleet_poll_overdue_target_count_counts") or {},
+        "operator_daemon_workflow_action_fleet_has_offline_targets_counts": summary.get("fleet_has_offline_targets_counts") or {},
+        "operator_daemon_workflow_action_fleet_has_stale_targets_counts": summary.get("fleet_has_stale_targets_counts") or {},
+        "operator_daemon_workflow_action_fleet_has_mailbox_pending_work_counts": summary.get("fleet_has_mailbox_pending_work_counts") or {},
+        "operator_daemon_workflow_action_fleet_has_poll_overdue_targets_counts": summary.get("fleet_has_poll_overdue_targets_counts") or {},
+        "operator_daemon_workflow_action_staged_file_count_counts": summary.get("staged_file_count_counts") or {},
+        "operator_daemon_workflow_action_workbench_job_count_counts": summary.get("workbench_job_count_counts") or {},
+        "operator_daemon_workflow_action_background_supported_counts": summary.get("background_supported_counts") or {},
+        "operator_daemon_workflow_action_foreground_runnable_counts": summary.get("foreground_runnable_counts") or {},
+        "operator_daemon_workflow_action_dry_run_supported_counts": summary.get("dry_run_supported_counts") or {},
+        "operator_daemon_workflow_action_requires_confirmation_counts": summary.get("requires_confirmation_counts") or {},
+        "operator_daemon_workflow_action_writes_config_counts": summary.get("writes_config_counts") or {},
+        "operator_daemon_workflow_action_systemd_user_action_counts": summary.get("systemd_user_action_counts") or {},
+        "operator_daemon_workflow_action_operator_action_state_counts": summary.get("operator_action_state_counts") or {},
+        "operator_daemon_workflow_action_operator_action_reason_counts": summary.get("operator_action_reason_counts") or {},
+        "operator_daemon_workflow_action_can_run_from_curses_enter_counts": summary.get("can_run_from_curses_enter_counts") or {},
+        "operator_daemon_workflow_action_curses_enter_action_counts": summary.get("curses_enter_action_counts") or {},
+    }
+
+
 def operator_console_workflow_indexes(records):
     return {
         "operator_console_workflows_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
