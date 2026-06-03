@@ -141,7 +141,8 @@ from gritlib.service_status import (
     DAEMON_SERVICE_CHOICES, configured_daemon_services, daemon_child_command,
     operator_daemon_headless_command, operator_stop_headless_command,
     port_record_indexes, port_records_from_services, service_manager_status,
-    resolve_transport, service_port, service_record_indexes, service_tls_enabled,
+    resolve_transport, service_port, service_record_indexes, service_status_rows,
+    service_tls_enabled,
     service_workflow_action_indexes, service_workflow_action_summary,
     status_summary_and_warnings, wait_service_port_released,
 )
@@ -4905,34 +4906,6 @@ def handle_systemd_user_action(cfg, action, services, unit_name, unit_dir=None, 
     raise ValueError(f"unsupported systemd user action: {action}")
 
 
-def raw_service_snapshot(cfg):
-    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
-    services = {}
-    for name in ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns"):
-        port = service_port(cfg, name)
-        bind_address = str(cfg.get("listen_host", ""))
-        protocol = "udp" if name in {"probe-tftp", "probe-dns"} else "tcp"
-        endpoints = listener_endpoints(port, protocol=protocol)
-        matching_endpoints = [
-            endpoint for endpoint in endpoints
-            if endpoint_matches_bind_address(bind_address, endpoint.get("address", ""))
-        ]
-        listener_pids = sorted({pid for endpoint in endpoints for pid in endpoint.get("pids", [])})
-        matching_listener_pids = sorted({pid for endpoint in matching_endpoints for pid in endpoint.get("pids", [])})
-        services[name] = {
-            "port": port,
-            "protocol": protocol,
-            "bind_address": bind_address,
-            "listening": bool(matching_endpoints),
-            "listener_endpoints": endpoints,
-            "matching_listener_endpoints": matching_endpoints,
-            "listener_pids": listener_pids,
-            "matching_listener_pids": matching_listener_pids,
-            "state": (state.get("services") or {}).get(name, {}),
-        }
-    return {"state": state, "staged": load_staged(cfg).get("staged", {}), "services": services}
-
-
 def workbench_snapshot(cfg):
     doc = status_document(cfg)
     services = {}
@@ -4981,55 +4954,6 @@ def record_workbench_refresh(cfg, reason="manual"):
     })
     rec["headless_command"] = headless
     return rec
-
-
-def service_status_rows(cfg):
-    snap = raw_service_snapshot(cfg)
-    rows = []
-    for name, info in snap["services"].items():
-        rec = dict(info["state"])
-        pid = rec.get("pid")
-        ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec) if pid else []
-        actual = "listening" if info["listening"] else "stopped"
-        stale = bool(rec.get("status") == "listening" and not info["listening"])
-        session_log = str(rec.get("session_log", "") or "")
-        process_log = str(rec.get("process_log", "") or "")
-        row = {
-            "name": name,
-            "port": info["port"],
-            "protocol": info.get("protocol", "tcp"),
-            "bind_address": rec.get("listen_host") or info.get("bind_address") or str(cfg.get("listen_host", "")),
-            "tls": service_tls_enabled(cfg, name),
-            "actual": actual,
-            "configured": rec.get("status", "unknown"),
-            "pid": pid or "",
-            "pid_alive": pid_alive(pid) if pid else False,
-            "pid_managed": bool(ownership_evidence),
-            "ownership_evidence": ownership_evidence,
-            "listener_pids": info.get("listener_pids", []),
-            "matching_listener_pids": info.get("matching_listener_pids", []),
-            "listener_endpoints": info.get("listener_endpoints", []),
-            "matching_listener_endpoints": info.get("matching_listener_endpoints", []),
-            "listener_processes": [pid_process_record(listener_pid) for listener_pid in info.get("listener_pids", [])],
-            "stale": stale,
-            "error": rec.get("error", ""),
-            "stopped_at": rec.get("stopped_at", ""),
-            "stopped_reason": rec.get("stopped_reason", ""),
-            "owners": rec.get("owners", []),
-            "session_log": session_log,
-            "session_log_exists": Path(session_log).exists() if session_log else False,
-            "process_log": process_log,
-            "process_log_exists": Path(process_log).exists() if process_log else False,
-            "listener_bind_mismatch": bool(info.get("listener_endpoints")) and not bool(info.get("matching_listener_endpoints")),
-        }
-        for key in (
-            "url", "target_command", "target_route", "route_kind", "route_host",
-            "route_port", "bridge_profile", "bridge_route_path", "requires_bridge",
-        ):
-            if rec.get(key) not in (None, ""):
-                row[key] = rec.get(key)
-        rows.append(row)
-    return rows
 
 
 def status_document(cfg):
