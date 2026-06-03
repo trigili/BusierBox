@@ -300,6 +300,50 @@ def bridge_hop_indexes(records):
     }
 
 
+def bridge_profile_record_summary(profiles=None, hop_records=None):
+    profiles = profiles or []
+    hop_records = hop_records or []
+    return {
+        "bridge_profile_count": len(profiles),
+        "bridge_profile_active_count": len(
+            [rec for rec in profiles if rec.get("active")]
+        ),
+        "bridge_profile_target_counts": record_count_by_key(profiles, "target_id"),
+        "bridge_profile_current_state_counts": record_count_by_key(
+            profiles, "current_state"
+        ),
+        "bridge_profile_requires_target_online_counts": record_count_by_key(
+            profiles, "requires_target_online"
+        ),
+        "bridge_profile_multi_hop_counts": record_count_by_key(profiles, "multi_hop"),
+        "bridge_profile_hop_count_counts": record_count_by_key(profiles, "hop_count"),
+        "bridge_profile_has_last_successful_relay_counts": record_count_by_key(
+            profiles, "has_last_successful_relay"
+        ),
+        "bridge_profile_has_last_failure_counts": record_count_by_key(
+            profiles, "has_last_failure"
+        ),
+        "bridge_hop_record_count": len(hop_records),
+        "bridge_hop_profile_counts": record_count_by_key(hop_records, "profile"),
+        "bridge_hop_multi_hop_counts": record_count_by_key(hop_records, "multi_hop"),
+        "bridge_hop_is_first_hop_counts": record_count_by_key(
+            hop_records, "is_first_hop"
+        ),
+        "bridge_hop_is_last_hop_counts": record_count_by_key(
+            hop_records, "is_last_hop"
+        ),
+        "bridge_hop_profile_active_counts": record_count_by_key(
+            hop_records, "profile_active"
+        ),
+        "bridge_hop_profile_has_last_successful_relay_counts": record_count_by_key(
+            hop_records, "profile_has_last_successful_relay"
+        ),
+        "bridge_hop_profile_has_last_failure_counts": record_count_by_key(
+            hop_records, "profile_has_last_failure"
+        ),
+    }
+
+
 def bridge_profile_workflow_action_indexes(records):
     return {
         "bridge_profile_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
