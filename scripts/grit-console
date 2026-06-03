@@ -103,6 +103,7 @@ from gritlib.file_transfers import (
     upload_record_indexes, upload_record_summary,
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
+from gritlib.line_files import print_line_file_records
 from gritlib.line_help import (
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
@@ -9844,66 +9845,12 @@ def run_line_tui(cfg):
                 if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
             }
         records = [{"_name": name, **rec} for name, rec in sorted(staged.items())]
-
-        def _fmt_size(rec):
-            try:
-                n = int(rec.get("size") or 0)
-                if n == 0:
-                    return "-"
-                if n < 1024:
-                    return f"{n} B"
-                if n < 1024 * 1024:
-                    return f"{n // 1024} KB"
-                return f"{n / (1024 * 1024):.1f} MB"
-            except (TypeError, ValueError):
-                return str(rec.get("size") or "-")
-
-        def _target(rec):
-            label = rec.get("target_label") or rec.get("target_id") or ""
-            return label or "-"
-
-        def _detail(rec):
-            name = rec["_name"]
-            details = [("fetch", render_fetch_command(name, cfg))]
-            if verbose:
-                if rec.get("source_path"):
-                    details.append(("source", rec["source_path"]))
-                sha = str(rec.get("sha256") or "")
-                if sha:
-                    details.append(("sha256", sha[:16] + "..."))
-                if rec.get("release_path"):
-                    details.append(("release", rec["release_path"]))
-                if rec.get("tuple_path"):
-                    details.append(("tuple", rec["tuple_path"]))
-                compat = (rec.get("compatibility") or {}).get("label") or ""
-                if compat:
-                    details.append(("compat", compat))
-            return details
-
-        has_targets = any(r.get("target_id") for r in records)
-        cols = [
-            ("Name", "_name"),
-            ("Kind", lambda r: r.get("stage_kind") or "file"),
-            ("Size", _fmt_size),
-        ]
-        if has_targets:
-            cols.append(("Target", _target))
-
-        _console_table(
-            f"Files  ({len(records)} staged)" if records else "Files  (none staged)",
-            records, cols, detail_fn=_detail,
-            footer="fetch NAME  |  upload LOCAL  |  unstage NAME  |  files ? for help",
+        search_records = print_line_file_records(
+            records,
+            verbose=verbose,
+            fetch_command=lambda name: render_fetch_command(name, cfg),
+            quote=shquote,
         )
-        search_records = [
-            {
-                "kind": "staged-file",
-                "label": f"{r['_name']} kind={r.get('stage_kind','file')}",
-                "rec": r,
-                "command": render_fetch_command(r["_name"], cfg),
-                "use_hint": f"fetch {shquote(r['_name'])}",
-            }
-            for r in records
-        ]
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_files_listed", details={
             "staged_count": len(records),
