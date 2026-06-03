@@ -502,6 +502,35 @@ def release_state_record(cfg=None, release=None):
     return rec
 
 
+def release_state_status(cfg=None, release=None):
+    state_record = release_state_record(cfg, release)
+    state_records = [state_record]
+    state_index_maps = {
+        "release_state_records_by_release_dir": records_by_key(
+            state_records, "release_dir"
+        ),
+        "release_state_records_by_present": records_by_key(state_records, "present"),
+        "release_state_records_by_valid": records_by_key(state_records, "valid"),
+        "release_state_records_by_detection_source": records_by_key(
+            state_records, "detection_source"
+        ),
+        "release_state_records_by_detection_reason": records_by_key(
+            state_records, "detection_reason"
+        ),
+        "release_state_records_by_explicit_release_dir": records_by_key(
+            state_records, "explicit_release_dir"
+        ),
+        "release_state_records_by_marker_count": records_by_key(
+            state_records, "release_marker_count"
+        ),
+    }
+    return {
+        "state_record": state_record,
+        "state_records": state_records,
+        "state_index_maps": state_index_maps,
+    }
+
+
 def release_context(cfg=None):
     here = Path(str((cfg or {}).get("release_dir") or Path.cwd()))
     release_json = here / "release.json"

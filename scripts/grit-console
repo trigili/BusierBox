@@ -131,7 +131,7 @@ from gritlib.release_artifacts import (
     stage_release_nav_item, stage_release_selection,
     release_artifact_workflow_action_records,
     release_artifact_workflow_action_indexes,
-    release_artifact_workflow_action_summary, release_state_record,
+    release_artifact_workflow_action_summary, release_state_status,
 )
 from gritlib.session_state import (
     SessionManager, atomic_write_json, count_file_lines, elapsed_seconds,
@@ -4275,17 +4275,10 @@ def status_document(cfg):
         "unfiltered_total_count", len(command_queue.get("commands") or [])
     )
     release = release_context(cfg)
-    release_state = release_state_record(cfg, release)
-    release_state_records = [release_state]
-    release_state_index_maps = {
-        "release_state_records_by_release_dir": records_by_key(release_state_records, "release_dir"),
-        "release_state_records_by_present": records_by_key(release_state_records, "present"),
-        "release_state_records_by_valid": records_by_key(release_state_records, "valid"),
-        "release_state_records_by_detection_source": records_by_key(release_state_records, "detection_source"),
-        "release_state_records_by_detection_reason": records_by_key(release_state_records, "detection_reason"),
-        "release_state_records_by_explicit_release_dir": records_by_key(release_state_records, "explicit_release_dir"),
-        "release_state_records_by_marker_count": records_by_key(release_state_records, "release_marker_count"),
-    }
+    release_status = release_state_status(cfg, release)
+    release_state = release_status["state_record"]
+    release_state_records = release_status["state_records"]
+    release_state_index_maps = release_status["state_index_maps"]
     release_artifact_workflow_actions = release_artifact_workflow_action_records(cfg, release)
     release_artifact_workflow_action_index_maps = release_artifact_workflow_action_indexes(release_artifact_workflow_actions)
     release_artifact_workflow_action_stats = release_artifact_workflow_action_summary(release_artifact_workflow_actions)
