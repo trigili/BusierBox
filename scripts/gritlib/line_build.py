@@ -79,6 +79,29 @@ def unset_line_build_config(cfg, args):
     return rec
 
 
+def set_line_global_build_option(cfg, name, value):
+    key = str(name or "").strip()
+    text = str(value or "")
+    if key.startswith("build."):
+        key = key.split(".", 1)[1]
+    build_keys = {rec.get("key") for rec in workbench_config_field_records(cfg)}
+    if key not in build_keys:
+        raise ValueError(f"setg only supports guided build/workbench options: {name}")
+    rec = set_workbench_build_config(cfg, f"{key}={text}")
+    print(f"setg {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
+    return rec
+
+
+def unset_line_global_build_option(cfg, name):
+    key = str(name or "").strip()
+    if not key:
+        raise ValueError("usage: unsetg KEY")
+    rec = unset_workbench_build_config(cfg, key)
+    print(f"unsetg {rec.get('key', key)}")
+    print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
+    return rec
+
+
 def run_line_build_command(cfg, args):
     subcmd = str(args[0] if args else "").lower()
     if not subcmd or subcmd in {"list", "show", "options"}:
