@@ -202,8 +202,8 @@ from gritlib.target_records import (
     configured_target_filter, details_with_target, event_for_target,
     load_targets, records_for_target, record_target_activity, scoped_target_cfg,
     selected_target_context, set_target_label, set_workbench_target_filter,
-    target_attribution_record_indexes, target_attribution_status,
-    target_context_fields,
+    target_attribution_record_indexes, target_attribution_record_summary,
+    target_attribution_status, target_context_fields,
     target_filter_evidence_lines, target_filter_record_from_target,
     target_filter_record_indexes,
     target_filter_summary_text,
@@ -5021,13 +5021,9 @@ def status_document(cfg):
         "target_filter_selected_target_identity_source_count": target_filter_record.get("selected_target_identity_source_count", 0),
         "target_filter_selected_target_alias_count": target_filter_record.get("selected_target_alias_count", 0),
         "target_filter_selected_target_notes_present": bool(target_filter_record.get("selected_target_notes_present", False)),
-        "target_attribution_record_count": len(target_attribution_records),
-        "target_attribution_scope_counts": record_count_by_key(target_attribution_records, "scope"),
-        "target_attribution_legacy_scope_count": len([rec for rec in target_attribution_records if rec.get("has_legacy_activity")]),
-        "target_attribution_targeted_scope_count": len([rec for rec in target_attribution_records if rec.get("has_targeted_activity")]),
-        "target_attribution_with_target_count": target_attribution["with_target_count"],
-        "target_attribution_without_target_count": target_attribution["without_target_count"],
-        "target_legacy_single_target_activity_present": target_attribution["legacy_single_target_activity_present"],
+        **target_attribution_record_summary(
+            target_attribution_records, target_attribution
+        ),
         **session_record_summary(
             sessions, session_root_state, session_root_state_records, target_attribution
         ),

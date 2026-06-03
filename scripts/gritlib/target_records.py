@@ -1672,6 +1672,28 @@ def target_attribution_record_indexes(records):
     }
 
 
+def target_attribution_record_summary(records, attribution=None):
+    records = records or []
+    attribution = attribution or {}
+    return {
+        "target_attribution_record_count": len(records),
+        "target_attribution_scope_counts": record_count_by_key(records, "scope"),
+        "target_attribution_legacy_scope_count": len([
+            rec for rec in records if rec.get("has_legacy_activity")
+        ]),
+        "target_attribution_targeted_scope_count": len([
+            rec for rec in records if rec.get("has_targeted_activity")
+        ]),
+        "target_attribution_with_target_count": attribution.get("with_target_count", 0),
+        "target_attribution_without_target_count": attribution.get(
+            "without_target_count", 0
+        ),
+        "target_legacy_single_target_activity_present": attribution.get(
+            "legacy_single_target_activity_present", False
+        ),
+    }
+
+
 def target_attribution_status(uploads=None, fetches=None, sessions=None):
     uploads = uploads or []
     fetches = fetches or []
