@@ -9,7 +9,7 @@ from gritlib.event_log import append_event
 from gritlib.process_status import pid_alive, pid_environ_contains
 from gritlib.record_utils import format_counts
 from gritlib.session_state import (
-    atomic_write_json, elapsed_seconds, read_json_file, utc_now,
+    atomic_write_json, elapsed_seconds, read_json_file, state_file_path, utc_now,
 )
 from gritlib.shell_utils import shquote
 
@@ -55,6 +55,28 @@ def print_workbench_job_ownership(rec):
         print("    cancel: disabled; process is not alive")
     else:
         print("    cancel: disabled; no pid")
+
+
+def record_workbench_refresh(cfg, reason="manual", default_config=DEFAULT_SERVER_CONFIG):
+    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+    services = state.setdefault("services", {})
+    rec = services.setdefault("workbench", {})
+    count = int(rec.get("refresh_count", 0) or 0) + 1
+    now = utc_now()
+    headless = "scripts/grit-console --config " + shquote(str(cfg.get("_config_path", default_config))) + " --status"
+    rec.update({
+        "status": rec.get("status") or "open",
+        "last_refresh_at": now,
+        "refresh_count": count,
+    })
+    atomic_write_json(state_file_path(cfg), state)
+    append_event(cfg, "workbench", "workbench_refreshed", details={
+        "reason": reason,
+        "refresh_count": count,
+        "headless_command": headless,
+    })
+    rec["headless_command"] = headless
+    return rec
 
 
 def workbench_jobs_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):

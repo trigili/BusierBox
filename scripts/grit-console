@@ -207,8 +207,9 @@ from gritlib.workbench_jobs import (
     cancel_workbench_job_headless_command, load_workbench_jobs,
     next_workbench_job_id, reconcile_workbench_job_completion_events,
     print_workbench_job_ownership, print_workbench_job_summary,
-    run_workbench_action_headless_command, start_workbench_job_headless_command,
-    workbench_action_command_for_run, workbench_job_records,
+    record_workbench_refresh, run_workbench_action_headless_command,
+    start_workbench_job_headless_command, workbench_action_command_for_run,
+    workbench_job_records,
     workbench_jobs_path, workbench_jobs_state_record, write_workbench_jobs,
 )
 from gritlib.workflow_actions import (
@@ -4848,28 +4849,6 @@ def workbench_snapshot(cfg):
             "selected_target_at": workbench_state.get("selected_target_at", ""),
         },
     }
-
-
-def record_workbench_refresh(cfg, reason="manual"):
-    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
-    services = state.setdefault("services", {})
-    rec = services.setdefault("workbench", {})
-    count = int(rec.get("refresh_count", 0) or 0) + 1
-    now = utc_now()
-    headless = "scripts/grit-console --config " + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG))) + " --status"
-    rec.update({
-        "status": rec.get("status") or "open",
-        "last_refresh_at": now,
-        "refresh_count": count,
-    })
-    atomic_write_json(state_file_path(cfg), state)
-    append_event(cfg, "workbench", "workbench_refreshed", details={
-        "reason": reason,
-        "refresh_count": count,
-        "headless_command": headless,
-    })
-    rec["headless_command"] = headless
-    return rec
 
 
 def status_document(cfg):
