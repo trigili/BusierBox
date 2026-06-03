@@ -119,8 +119,9 @@ from gritlib.release_artifacts import (
     artifact_provider_status_lines, discover_release_context,
     kernel_floor_from_release, normalized_probe_arch, release_context,
     release_artifact_matches_probe, release_recommendation_lines,
-    release_nav_records, stage_release_artifact, stage_release_nav_item,
-    stage_release_selection, release_artifact_workflow_action_records,
+    release_nav_records, print_release_summary, stage_release_artifact,
+    stage_release_nav_item, stage_release_selection,
+    release_artifact_workflow_action_records,
     release_artifact_workflow_action_indexes,
     release_artifact_workflow_action_summary, release_state_record,
 )
@@ -9359,68 +9360,6 @@ def print_workbench_job_ownership(rec):
         print("    cancel: disabled; process is not alive")
     else:
         print("    cancel: disabled; no pid")
-
-
-def print_release_summary(doc):
-    doc = doc or {}
-    release_state = doc.get("release_state") or {}
-    summary = doc.get("summary") or {}
-    release = doc.get("release") or {}
-    print("Release summary:")
-    print(
-        f"  present={'yes' if release_state.get('present') else 'no'} "
-        f"valid={'yes' if release_state.get('valid') else 'no'} "
-        f"release_json_valid={'yes' if release_state.get('release_json_valid') else 'no'} "
-        f"release_index_valid={'yes' if release_state.get('release_index_valid') else 'no'}"
-    )
-    print(
-        f"  detection_source={release_state.get('detection_source', '') or '-'} "
-        f"detection_reason={release_state.get('detection_reason', '') or '-'} "
-        f"explicit_release_dir={'yes' if release_state.get('explicit_release_dir') else 'no'} "
-        f"markers={release_state.get('release_marker_count', 0)}"
-    )
-    print(
-        f"  artifacts={summary.get('release_artifact_count', len(release.get('artifacts') or []))} "
-        f"devices={summary.get('release_device_count', len(release.get('devices') or []))} "
-        f"tuples={summary.get('release_tuple_count', len(release.get('tuples') or []))} "
-        f"total_size={summary.get('release_artifact_total_size', (release.get('artifact_stats') or {}).get('total_size', 0))}"
-    )
-    print(
-        "  artifact workflow actions: "
-        f"total={summary.get('release_artifact_workflow_action_count', 0)} "
-        f"available={summary.get('release_artifact_workflow_action_available_count', 0)} "
-        f"stage={summary.get('release_artifact_workflow_action_writes_staged_files_count', 0)} "
-        f"enter_runnable={summary.get('release_artifact_workflow_action_can_run_from_curses_enter_count', 0)} "
-        f"selectors={format_counts(summary.get('release_artifact_workflow_action_selector_kind_counts') or {})}"
-    )
-    if release_state.get("release_dir") or release.get("release_dir"):
-        print(f"  release_dir: {release_state.get('release_dir') or release.get('release_dir', '')}")
-    if release_state.get("release_name") or release.get("release_name"):
-        print(f"  release_name: {release_state.get('release_name') or release.get('release_name', '')}")
-    release_license = release.get("release_license") or {}
-    if release_license:
-        print(
-            f"  license: project={release_license.get('project_license', '') or '-'} "
-            f"gplv2_compatible={'yes' if release_license.get('combined_gplv2_compatible') else 'no'} "
-            f"valid={'yes' if release_license.get('valid') else 'no'} "
-            f"notices={release_license.get('notice_count', 0)} "
-            f"missing_notices={release_license.get('missing_notice_count', 0)}"
-        )
-        print(
-            "  corresponding_source: "
-            f"required={'yes' if release_license.get('corresponding_source_required') else 'no'} "
-            f"status={release_license.get('corresponding_source_status', '') or '-'} "
-            f"release_inputs={release_license.get('corresponding_source_release_input_count', 0)} "
-            f"reconstruction_inputs={release_license.get('corresponding_source_reconstruction_input_count', 0)} "
-            f"package_license_audit={'yes' if release_license.get('corresponding_source_requires_package_license_audit') else 'no'}"
-        )
-        print(
-            "  license_evidence: "
-            f"verified_at={release_license.get('license_evidence_verified_at', '') or '-'} "
-            f"sources={release_license.get('license_evidence_source_count', 0)}"
-        )
-    for error in release_state.get("errors") or []:
-        print(f"  error: {error}")
 
 
 def generated_target_command_records(cfg, staged=None):
