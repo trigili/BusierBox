@@ -1657,8 +1657,6 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)
     service_row = service_row if isinstance(service_row, dict) else {}
-    actual = str(service_row.get("actual") or "unknown")
-    configured = str(service_row.get("configured") or "")
     target_filter_id = configured_target_filter(cfg)
     target_arg = (" --target-id " + shquote(target_filter_id)) if target_filter_id else ""
     route = target_route_context(
@@ -1707,8 +1705,7 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
             curses_enter_action=curses_enter_action,
         ))
 
-    start_ready = actual != "listening"
-    stop_ready = actual == "listening" or configured in ("listening", "starting", "error") or bool(service_row.get("pid"))
+    lifecycle_states = service_lifecycle_action_states(service_row)
     add(
         "inspect-file-workflows",
         "inspect",
@@ -1760,10 +1757,10 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
         "Start file service listener",
         service_start_headless_command(cfg, "file-service"),
         "service-lifecycle",
-        "ready" if start_ready else "already-running",
-        "start-listener" if start_ready else "already-listening",
-        can_run_from_curses_enter=start_ready,
-        curses_enter_action="start-file-service" if start_ready else "stop-file-service",
+        lifecycle_states["start_state"],
+        lifecycle_states["start_reason"],
+        can_run_from_curses_enter=lifecycle_states["start_enter"],
+        curses_enter_action="start-file-service" if lifecycle_states["start_enter"] else "stop-file-service",
     )
     add(
         "stop-file-service",
@@ -1771,11 +1768,11 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
         "Stop file service listener",
         service_stop_headless_command(cfg, "file-service"),
         "service-lifecycle",
-        "ready" if stop_ready else "not-running",
-        "stop-listener" if stop_ready else "no-recorded-listener",
+        lifecycle_states["stop_state"],
+        lifecycle_states["stop_reason"],
         requires_confirmation=True,
-        can_run_from_curses_enter=stop_ready,
-        curses_enter_action="stop-file-service" if stop_ready else "start-file-service",
+        can_run_from_curses_enter=lifecycle_states["stop_enter"],
+        curses_enter_action="stop-file-service" if lifecycle_states["stop_enter"] else "start-file-service",
     )
     if records:
         records[-1]["run_command"] = base + target_arg + " --run-file-service-workflow-action file-service:stop-file-service --confirm-file-service-workflow-action"
