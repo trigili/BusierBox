@@ -198,6 +198,29 @@ def command_queue_state_record(cfg):
     return rec
 
 
+def command_queue_state_status(cfg):
+    state_record = command_queue_state_record(cfg)
+    state_record["has_commands"] = int(state_record.get("command_count") or 0) > 0
+    state_records = [state_record]
+    state_index_maps = {
+        "command_queue_state_records_by_path": {
+            rec.get("path", ""): rec for rec in state_records if rec.get("path")
+        },
+        "command_queue_state_records_by_exists": records_by_key(
+            state_records, "exists"
+        ),
+        "command_queue_state_records_by_valid": records_by_key(state_records, "valid"),
+        "command_queue_state_records_by_has_commands": records_by_key(
+            state_records, "has_commands"
+        ),
+    }
+    return {
+        "state_record": state_record,
+        "state_records": state_records,
+        "state_index_maps": state_index_maps,
+    }
+
+
 def load_command_queue(cfg):
     data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
     if not isinstance(data, dict):
