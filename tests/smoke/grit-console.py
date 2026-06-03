@@ -2440,9 +2440,8 @@ def main(argv=None):
         if (copy_tui_proc.returncode != 0 or
                 "Traceback" in (copy_tui_stderr or "") or
                 "copied command to " not in copy_tui_text or
-                "headless_command: scripts/grit-console --config" not in copy_tui_text or
-                "--copy-target-command 1" not in copy_tui_text):
-            print("line TUI generated-command copy did not expose headless command", file=sys.stderr)
+                "headless_command:" in copy_tui_text):
+            print("line TUI generated-command copy exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(copy_tui_text, file=sys.stderr)
             print(copy_tui_stderr or "", file=sys.stderr)
             return 1

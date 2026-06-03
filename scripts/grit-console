@@ -14112,7 +14112,6 @@ def run_line_tui(cfg):
                 try:
                     rec = copy_generated_command(cfg, chosen)
                     print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
-                    print(f"headless_command: {rec.get('headless_command', '')}")
                 except ValueError as exc:
                     print(exc)
         elif choice == "17":
