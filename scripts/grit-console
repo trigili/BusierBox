@@ -14101,7 +14101,6 @@ def run_line_tui(cfg):
         elif choice == "r":
             rec = record_workbench_refresh(cfg)
             print(f"refreshed workbench at {rec.get('last_refresh_at', '')}")
-            print(f"headless_command: {rec.get('headless_command', '')}")
             render_full = True
         elif choice == "c":
             commands = generated_target_commands(cfg)

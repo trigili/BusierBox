@@ -2600,9 +2600,8 @@ def main(argv=None):
         if (refresh_tui_proc.returncode != 0 or
                 "Traceback" in (refresh_tui_stderr or "") or
                 "refreshed workbench at " not in refresh_tui_text or
-                "headless_command: scripts/grit-console --config" not in refresh_tui_text or
-                "--status" not in refresh_tui_text):
-            print("line TUI refresh did not expose headless status command", file=sys.stderr)
+                "headless_command:" in refresh_tui_text):
+            print("line TUI refresh exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(refresh_tui_text, file=sys.stderr)
             print(refresh_tui_stderr or "", file=sys.stderr)
             return 1
