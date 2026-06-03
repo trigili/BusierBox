@@ -89,6 +89,20 @@ def _event_fields(rec):
     return fields
 
 
+def compact_event_details(event):
+    details = event.get("details") if isinstance(event, dict) else {}
+    if not isinstance(details, dict):
+        return ""
+    pieces = []
+    for key in ("operation", "status", "http_status", "request_name", "filename", "sha256", "reason", "command_id", "command_sha256"):
+        value = details.get(key)
+        if value in (None, ""):
+            continue
+        label = "http" if key == "http_status" else key
+        pieces.append(f"{label}={value}")
+    return " ".join(pieces)
+
+
 class EventLog:
     """Structured JSONL event log shared by status, TUI, and future frontends."""
 
