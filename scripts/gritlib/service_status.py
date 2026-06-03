@@ -2,10 +2,22 @@
 
 import os
 
+from gritlib.config_utils import yes
 from gritlib.record_utils import (
     int_value, record_count_by_key, records_by_bool, records_by_composite,
     records_by_key,
 )
+
+
+def service_tls_enabled(cfg, service):
+    if service == "tls-shell":
+        return True
+    if service == "file-service":
+        return yes(str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes")))
+    if service == "command-queue":
+        return yes(str(cfg.get("GRIT_COMMAND_QUEUE_TLS", "yes")))
+    return False
+
 
 def service_manager_resource_records(snapshot):
     records = []

@@ -130,7 +130,7 @@ from gritlib.session_state import (
 from gritlib.session_records import session_record_indexes, session_root_record
 from gritlib.service_status import (
     port_record_indexes, port_records_from_services, service_manager_status,
-    service_record_indexes, service_workflow_action_indexes,
+    service_record_indexes, service_tls_enabled, service_workflow_action_indexes,
     service_workflow_action_summary, status_summary_and_warnings,
 )
 from gritlib.shell_utils import shquote
@@ -7181,16 +7181,6 @@ def handle_systemd_user_action(cfg, action, services, unit_name, unit_dir=None, 
         })
         return int(result.returncode)
     raise ValueError(f"unsupported systemd user action: {action}")
-
-
-def service_tls_enabled(cfg, service):
-    if service == "tls-shell":
-        return True
-    if service == "file-service":
-        return yes(str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes")))
-    if service == "command-queue":
-        return yes(str(cfg.get("GRIT_COMMAND_QUEUE_TLS", "yes")))
-    return False
 
 
 def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
