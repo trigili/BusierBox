@@ -7440,7 +7440,7 @@ def run_line_repl(cfg):
             print(f"  label={label}")
         print(f"  target_upload_path={path}")
         print(f"  target_command={command}")
-        print(f"  file_service_started={'yes' if started else 'no'}")
+        print(f"  file service: {'started' if started else 'not started'}")
         queued = {}
         if queue:
             queued = queue_command(cfg, command, metadata={
@@ -8324,7 +8324,7 @@ def run_line_repl(cfg):
             output_name=rec.get("request_name", ""),
             executable=True,
         )
-        print(f"  file_service_started={'yes' if started else 'no'}")
+        print(f"  file service: {'started' if started else 'not started'}")
         append_event(cfg, "workbench", "workbench_release_artifact_staged", details={
             "selector": selector,
             "headless_command": headless,
@@ -8406,7 +8406,7 @@ def run_line_repl(cfg):
             started = start_line is not None and start_line.strip().lower() in ("y", "yes")
             if started:
                 start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
-        print(f"file_service_started={'yes' if started else 'no'}")
+        print(f"  file service: {'started' if started else 'not started'}")
         append_event(cfg, "workbench", "workbench_binary_served", details={
             "headless_command": headless,
             "request_name": rec.get("request_name", ""),
@@ -8516,7 +8516,7 @@ def run_line_repl(cfg):
         if start_file_service:
             start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
             started = True
-        print(f"file_service_started={'yes' if started else 'no'}")
+        print(f"  file service: {'started' if started else 'not started'}")
         append_event(cfg, "workbench", "workbench_file_uploaded", details={
             "headless_command": headless,
             "request_name": rec.get("request_name", ""),
@@ -8589,7 +8589,7 @@ def run_line_repl(cfg):
             print(f"  target={target_id} label={label}")
         print(f"  target_fetch_command={fetch_command}")
         print_staged_fetch_target_options(name, scoped)
-        print(f"  file_service_started={'yes' if started else 'no'}")
+        print(f"  file service: {'started' if started else 'not started'}")
         queued = {}
         if queue:
             queued = queue_command(scoped, fetch_command, metadata={

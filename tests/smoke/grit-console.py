@@ -1385,6 +1385,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("unstage section:", file=sys.stderr)
         print(unstage_text or line_console_stdout, file=sys.stderr)
         return 1
+    if ("file_service_started=" in upload_text or "file_service_started=" in fetch_text):
+        print("line-oriented file transfer output exposed raw file-service status field", file=sys.stderr)
+        print("upload section:", file=sys.stderr)
+        print(upload_text or line_console_stdout, file=sys.stderr)
+        print("fetch section:", file=sys.stderr)
+        print(fetch_text, file=sys.stderr)
+        return 1
     download_start = line_console_stdout.find("Target download command:")
     download_end = line_console_stdout.find("grit[Console Router]/files> show mailbox", download_start + 1)
     download_text = line_console_stdout[download_start:download_end] if download_start != -1 and download_end != -1 else ""
@@ -1392,11 +1399,19 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented download command exposed noisy headless command", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
+    if "file_service_started=" in download_text:
+        print("line-oriented download output exposed raw file-service status field", file=sys.stderr)
+        print(download_text or line_console_stdout, file=sys.stderr)
+        return 1
     binary_end = line_console_stdout.find("Artifact trailer configured:")
     binary_start = line_console_stdout.rfind("griTTYkit binary staged for target fetch:", 0, binary_end)
     binary_text = line_console_stdout[binary_start:binary_end] if binary_start != -1 and binary_end != -1 else ""
     if not binary_text or "target_run_hint=chmod +x ./grit-console && ./grit-console --help" not in binary_text or "headless_command:" in binary_text:
         print("line-oriented serve-binary command exposed noisy headless command", file=sys.stderr)
+        print(binary_text or line_console_stdout, file=sys.stderr)
+        return 1
+    if "file_service_started=" in binary_text:
+        print("line-oriented serve-binary output exposed raw file-service status field", file=sys.stderr)
         print(binary_text or line_console_stdout, file=sys.stderr)
         return 1
     configure_start = line_console_stdout.find("Artifact trailer configured:")
