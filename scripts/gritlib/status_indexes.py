@@ -1,5 +1,8 @@
 """Status index and health summary helpers for grit-console."""
 
+import os
+from pathlib import Path
+
 from gritlib.record_utils import (
     int_value, record_count_by_key, records_by_bool, records_by_composite,
     records_by_key,
@@ -75,6 +78,81 @@ def operator_state_health_counts(records):
         "remediation_class_counts": record_count_by_key(records, "remediation_class"),
         "requires_operator_action_counts": record_count_by_key(records, "requires_operator_action"),
     }
+
+
+def status_path_record_indexes(records):
+    return {
+        "path_status_by_name": {rec.get("name", ""): rec for rec in records or [] if rec.get("name")},
+        "path_status_by_path": records_by_key(records, "path"),
+        "path_status_by_expected_kind": records_by_key(records, "expected_kind"),
+        "path_status_by_exists": records_by_bool(records, "exists"),
+        "path_status_by_parent_exists": records_by_bool(records, "parent_exists"),
+        "path_status_by_writable": records_by_bool(records, "writable"),
+        "path_status_by_expected_kind_mismatch": records_by_bool(records, "expected_kind_mismatch"),
+    }
+
+
+def browser_path_status(path_text, expected_kind="file"):
+    rec = {
+        "path": str(path_text or ""),
+        "expected_kind": expected_kind,
+        "expected_kind_matches": False,
+        "expected_kind_mismatch": False,
+        "exists": False,
+        "is_file": False,
+        "is_dir": False,
+        "parent": "",
+        "parent_exists": False,
+        "readable": False,
+        "writable": False,
+        "error": "",
+    }
+    if not rec["path"]:
+        return rec
+    path = Path(rec["path"])
+    parent = path.parent
+    rec["parent"] = str(parent)
+    try:
+        rec["exists"] = path.exists()
+        rec["is_file"] = path.is_file()
+        rec["is_dir"] = path.is_dir()
+        rec["parent_exists"] = parent.exists()
+        rec["readable"] = bool(rec["exists"] and os.access(path, os.R_OK))
+        if rec["exists"]:
+            rec["writable"] = os.access(path, os.W_OK)
+        else:
+            rec["writable"] = bool(rec["parent_exists"] and os.access(parent, os.W_OK))
+        if rec["exists"]:
+            if rec["expected_kind"] == "dir":
+                rec["expected_kind_matches"] = bool(rec["is_dir"])
+            elif rec["expected_kind"] == "file":
+                rec["expected_kind_matches"] = bool(rec["is_file"])
+            else:
+                rec["expected_kind_matches"] = True
+            rec["expected_kind_mismatch"] = not rec["expected_kind_matches"]
+    except OSError as exc:
+        rec["error"] = str(exc)
+    return rec
+
+
+def add_browser_path(records, kind, label, path_text, expected_kind="file", source_id="", description="", metadata=None):
+    path_text = str(path_text or "")
+    if not path_text:
+        return
+    rec = {
+        "id": f"{kind}:{len(records) + 1}",
+        "kind": kind,
+        "label": str(label or kind),
+        "path": path_text,
+        "source_id": str(source_id or ""),
+        "description": str(description or ""),
+    }
+    if isinstance(metadata, dict):
+        for key, value in metadata.items():
+            if value not in (None, ""):
+                rec[key] = value
+    rec.update(browser_path_status(path_text, expected_kind=expected_kind))
+    records.append(rec)
 
 
 def browser_path_indexes(records):
