@@ -115,6 +115,7 @@ from gritlib.line_help import (
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
 )
+from gritlib.line_search import print_line_search_results
 from gritlib.line_services import (
     line_service_display_name,
     ordered_line_service_records as line_services_ordered_records,
@@ -8305,104 +8306,22 @@ def run_line_tui(cfg):
             "candidate_count": len(candidates),
         })
 
-    def searchable_text(rec):
-        parts = []
-        if isinstance(rec, dict):
-            for key, value in sorted(rec.items()):
-                if isinstance(value, (str, int, float, bool)):
-                    parts.append(f"{key}={value}")
-                elif isinstance(value, list):
-                    parts.append(f"{key}=" + ",".join(str(item) for item in value[:8]))
-        return " ".join(parts).lower()
-
     def search_line_resources(query):
-        term = str(query or "").strip().lower()
-        if not term:
-            raise ValueError("usage: search TERM")
         snap = workbench_snapshot(cfg)
-        matches = []
-
-        def add(kind, label, rec, command=""):
-            if len(matches) >= 30:
-                return
-            haystack = f"{kind} {label} {command} {searchable_text(rec)}".lower()
-            if term in haystack:
-                matches.append((kind, label, rec, command))
-
-        for rec in snap.get("targets") or []:
-            add("target", f"{rec.get('target_id', '')} label={rec.get('label', '') or '-'} state={rec.get('connectivity_state', '') or '-'}", rec)
-        for rec in service_status_rows(cfg):
-            add("service", f"{rec.get('name', '')} actual={rec.get('actual', '') or '-'} port={rec.get('port', '') or '-'}", rec)
-        for rec in bridge_profile_records(cfg):
-            route_name = str(rec.get("name") or "")
-            add(
-                "route",
-                f"{route_name} state={rec.get('current_state', '') or '-'} path={rec.get('route_path', '')}",
-                rec,
-                bridge_profile_headless_command("inspect", route_name),
-            )
-        for rec in line_action_records():
-            add(
-                "action",
-                f"{rec.get('kind', '')}:{rec.get('id', '')} state={rec.get('operator_action_state', '') or '-'}",
-                rec,
-                str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or ""),
-            )
-        for rec in snap.get("sessions") or []:
-            session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
-            add("session", f"{session_id} service={rec.get('service', '') or '-'} state={rec.get('state', '') or '-'}", rec)
-        for rec in snap.get("workbench_jobs") or []:
-            add(
-                "job",
-                f"{rec.get('id', '')} action={rec.get('action_id', '') or '-'} state={rec.get('effective_state', '') or rec.get('state', '') or '-'}",
-                rec,
-                cancel_workbench_job_headless_command(cfg, str(rec.get("id") or "")),
-            )
-        for name, rec in sorted((snap.get("staged") or {}).items()):
-            item = dict(rec) if isinstance(rec, dict) else {}
-            item["request_name"] = name
-            add("file", f"{name} kind={item.get('stage_kind', 'file')} source={item.get('source_path', '')}", item)
-        for rec in (snap.get("command_queue") or {}).get("commands") or []:
-            add("queue", f"{rec.get('id', '')} status={rec.get('status', '') or '-'} command={rec.get('command', '')}", rec)
-
-        print(f"Search results for {query}:")
-        if not matches:
-            print("  none")
-        search_records = []
-        for idx, (kind, label, rec, command) in enumerate(matches, 1):
-            print(f"  {idx}: {kind} {label}")
-            use_hint = ""
-            if command:
-                if len(command) > 140:
-                    command = command[:137] + "..."
-                print(f"     command: {command}")
-            if kind == "target":
-                use_hint = f"use target {shquote(str(rec.get('target_id', '')))}"
-            elif kind == "service":
-                use_hint = f"use service {shquote(str(rec.get('name', '')))}"
-            elif kind == "route":
-                use_hint = f"use route {shquote(str(rec.get('name', '')))}"
-            elif kind == "action":
-                use_hint = f"use action {shquote(str(rec.get('id', '')))}"
-            elif kind == "session":
-                session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
-                use_hint = f"use session {shquote(str(session_id))}"
-            elif kind == "job":
-                use_hint = f"use job {shquote(str(rec.get('id', '')))}"
-            if use_hint:
-                print(f"     use: use {idx}")
-                print(f"     command: {use_hint}")
-            search_records.append({
-                "kind": kind,
-                "label": label,
-                "rec": rec,
-                "command": command,
-                "use_hint": use_hint,
-            })
+        search_records = print_line_search_results(
+            query,
+            snap=snap,
+            service_records=service_status_rows(cfg),
+            route_records=bridge_profile_records(cfg),
+            action_records=line_action_records(),
+            route_command_builder=bridge_profile_headless_command,
+            job_cancel_command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
+            quote=shquote,
+        )
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_console_searched", details={
             "query": str(query or ""),
-            "match_count": len(matches),
+            "match_count": len(search_records),
         })
 
     def print_line_events(args):
