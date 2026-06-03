@@ -98,7 +98,7 @@ from gritlib.service_status import (
     service_workflow_action_summary,
 )
 from gritlib.staged_files import (
-    load_staged,
+    file_sha256, load_staged, reject_traversal_request_name,
     staged_file_workflow_action_indexes, staged_file_workflow_action_summary,
     staged_file_path, staged_files_state_record, staged_record_indexes,
     staged_record_list, staged_record_summary,
@@ -5363,24 +5363,6 @@ def print_command_queue(cfg, json_output=False):
         if rec.get("result_received_at"):
             print(f"  result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
             print(f"  result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
-
-
-def reject_traversal_request_name(name):
-    text = urllib.parse.unquote(str(name or "")).strip()
-    if not text:
-        raise ValueError("staged request name must not be empty")
-    parts = [part for part in text.replace("\\", "/").split("/") if part not in ("", ".")]
-    if any(part == ".." for part in parts):
-        raise ValueError("staged request name must not contain path traversal")
-    return text
-
-
-def file_sha256(path):
-    h = hashlib.sha256()
-    with Path(path).open("rb") as fh:
-        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def stage_file(cfg, path, request_name, metadata=None):

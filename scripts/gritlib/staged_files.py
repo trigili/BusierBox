@@ -1,6 +1,8 @@
 """Staged file state, index, and summary helpers for grit-console."""
 
+import hashlib
 import json
+import urllib.parse
 from pathlib import Path
 
 from gritlib.record_utils import record_count_by_key, records_by_key
@@ -73,6 +75,24 @@ def staged_record_list(staged):
         item["stage_kind"] = str(item.get("stage_kind") or "file")
         records.append(item)
     return records
+
+
+def reject_traversal_request_name(name):
+    text = urllib.parse.unquote(str(name or "")).strip()
+    if not text:
+        raise ValueError("staged request name must not be empty")
+    parts = [part for part in text.replace("\\", "/").split("/") if part not in ("", ".")]
+    if any(part == ".." for part in parts):
+        raise ValueError("staged request name must not contain path traversal")
+    return text
+
+
+def file_sha256(path):
+    h = hashlib.sha256()
+    with Path(path).open("rb") as fh:
+        for chunk in iter(lambda: fh.read(1024 * 1024), b""):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def staged_record_indexes(records):
