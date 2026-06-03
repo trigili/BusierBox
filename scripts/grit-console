@@ -7213,11 +7213,7 @@ def run_line_tui(cfg):
         stop_recorded_service(cfg, service, headless_command=headless)
 
     def line_route_record(name):
-        text = str(name or "").strip()
-        for rec in bridge_profile_records(cfg):
-            if str(rec.get("name") or "") == text:
-                return rec
-        return {}
+        return bridge_profile_record_by_selector(bridge_profile_records(cfg), name)
 
     def print_line_routes(verbose=False):
         records = bridge_profile_records(cfg)
@@ -7317,8 +7313,10 @@ def run_line_tui(cfg):
         name = str(route_name or "").strip()
         if not name:
             raise ValueError("usage: start ROUTE")
-        if not line_route_record(name):
+        rec = line_route_record(name)
+        if not rec:
             raise ValueError(f"route not found: {name}")
+        name = str(rec.get("name") or name)
         headless = bridge_profile_headless_command("start", name)
         start_service_process(
             cfg,
@@ -7340,8 +7338,10 @@ def run_line_tui(cfg):
                 name = module.split("/", 1)[1]
         if not name:
             raise ValueError("usage: stop ROUTE")
-        if not line_route_record(name):
+        rec = line_route_record(name)
+        if not rec:
             raise ValueError(f"route not found: {name}")
+        name = str(rec.get("name") or name)
         headless = bridge_profile_headless_command("stop", name)
         stop_recorded_service(cfg, "bridge", headless_command=headless)
         print(f"stopped route {name}")
@@ -7358,8 +7358,10 @@ def run_line_tui(cfg):
                 name = module.split("/", 1)[1]
         if not name:
             raise ValueError("usage: route delete ROUTE")
-        if not line_route_record(name):
+        rec = line_route_record(name)
+        if not rec:
             raise ValueError(f"route not found: {name}")
+        name = str(rec.get("name") or name)
         headless = bridge_profile_headless_command("delete", name)
         rec = delete_bridge_profile(cfg, name)
         if str(cfg.get("_line_console_module") or "") == f"route/{name}":
