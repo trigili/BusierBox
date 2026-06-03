@@ -7812,7 +7812,6 @@ def run_line_tui(cfg):
                 hop_args=hop_args,
             )
             print(f"saved bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
-            print(f"headless_command: {bridge_profile_headless_command('save', extra=extra)}")
             append_event(cfg, "workbench", "workbench_bridge_profile_saved", details={
                 "name": rec.get("name", ""),
                 "route_path": rec.get("route_path", ""),
@@ -14156,7 +14155,6 @@ def run_line_tui(cfg):
                             f"offline_targets={action_rec.get('fleet_offline_target_count', 0)} "
                             f"poll_overdue={action_rec.get('fleet_poll_overdue_target_count', 0)}"
                         )
-                        print(f"    command: {action_rec.get('headless_command', action_rec.get('command', ''))}")
                 action_line = line_input("bridge action inspect/start/stop/delete, or blank> ")
                 action = action_line.strip().lower() if action_line is not None else ""
                 if action == "inspect":
@@ -14170,7 +14168,6 @@ def run_line_tui(cfg):
                 elif action == "start":
                     action_rec = profile_actions_by_id.get("start-profile") or {}
                     headless = action_rec.get("headless_command", bridge_profile_headless_command("start", name))
-                    print(f"headless_command: {headless}")
                     start_service_process(
                         cfg,
                         "bridge",
@@ -14180,13 +14177,11 @@ def run_line_tui(cfg):
                 elif action == "stop":
                     action_rec = profile_actions_by_id.get("stop-profile") or {}
                     headless = action_rec.get("headless_command", bridge_profile_headless_command("stop", name))
-                    print(f"headless_command: {headless}")
                     stop_recorded_service(cfg, "bridge", headless_command=headless)
                 elif action == "delete":
                     action_rec = profile_actions_by_id.get("delete-profile") or {}
                     deleted = delete_bridge_profile(cfg, name)
                     print(f"deleted bridge profile {deleted.get('name', '')}: {deleted.get('route_path', '')}")
-                    print(f"headless_command: {action_rec.get('headless_command', bridge_profile_headless_command('delete', name))}")
                     append_event(cfg, "workbench", "workbench_bridge_profile_deleted", details={
                         "name": name,
                         "route_path": deleted.get("route_path", ""),

@@ -1567,11 +1567,10 @@ def main(argv=None):
                 "selected bridge profile chain-http" not in bridge_tui_text or
                 "bridge_profile_workflow_actions: 4" not in bridge_tui_text or
                 "start-profile: state=ready" not in bridge_tui_text or
-                "headless_command:" not in bridge_tui_text or
-                "--stop --transport bridge" not in bridge_tui_text or
+                "headless_command:" in bridge_tui_text or
                 "saved bridge profile tui-http" not in bridge_tui_text or
                 "deleted bridge profile tui-http" not in bridge_tui_text):
-            print("line TUI bridge profile management failed", file=sys.stderr)
+            print("line TUI bridge profile management exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(bridge_tui_text, file=sys.stderr)
             print(bridge_tui_stderr or "", file=sys.stderr)
             return 1
