@@ -54,6 +54,7 @@ Discovery:
   show categories               summarize runnable module kinds
   show service|daemon modules   browse modules by operator category
   show modules [FILTER]         browse modules by kind, id, workflow, or text
+  show modules -v [FILTER]      include generated run commands
   show stagers|loot|sessions    inspect files and sessions
   help COMMAND                  focused help inside the console
 
@@ -100,7 +101,8 @@ Operations:
   unstage NAME                  remove a staged file request
   view PATH, cat PATH           view a local session/artifact path
   listeners [-v]                list listener services and start/stop commands
-  routes [-v], route print      list bridge routes and hop details
+  routes, route print           list bridge routes
+  routes -v                     include hop details and generated start commands
   route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]
                                 create a reusable bridge route profile
                                 model: target connects to operator LISTEN_PORT; operator forwards to DEST_HOST:DEST_PORT

@@ -1129,6 +1129,23 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(line_console_stdout, file=sys.stderr)
         print(line_console_stderr or "", file=sys.stderr)
         return 1
+    help_modules_start = line_console_stdout.find("grit[all]> help modules")
+    help_modules_end = line_console_stdout.find("grit[all]> help routes", help_modules_start + 1)
+    help_modules_text = line_console_stdout[help_modules_start:help_modules_end] if help_modules_start != -1 and help_modules_end != -1 else ""
+    help_routes_start = line_console_stdout.find("grit[all]> help routes")
+    help_routes_end = line_console_stdout.find("grit[all]> help next", help_routes_start + 1)
+    help_routes_text = line_console_stdout[help_routes_start:help_routes_end] if help_routes_start != -1 and help_routes_end != -1 else ""
+    if (not help_modules_text or
+            "show modules -v [FILTER]" not in help_modules_text or
+            not help_routes_text or
+            "routes -v" not in help_routes_text or
+            "show selected route context and headless commands" in help_routes_text):
+        print("line-oriented help text is stale for verbose command/detail views", file=sys.stderr)
+        print("help modules:", file=sys.stderr)
+        print(help_modules_text or line_console_stdout, file=sys.stderr)
+        print("help routes:", file=sys.stderr)
+        print(help_routes_text, file=sys.stderr)
+        return 1
     line_console_config = json.loads(upload_cfg.read_text(encoding="utf-8"))
     if (line_console_config.get("GRIT_OPERATOR_FILE_SERVICE_PORT") != 22231 or
             line_console_config.get("GRIT_OPERATOR_FILE_SERVICE_TLS") != "no"):

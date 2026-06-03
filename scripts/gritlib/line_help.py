@@ -95,6 +95,7 @@ def print_line_command_help(topic):
                 ("search TERM", "search targets, services, actions, sessions, jobs, files, queue"),
                 ("show targets|services|files|sessions|activity|modules", "show a resource list"),
                 ("show modules [FILTER]", "browse runnable action/service modules"),
+                ("show modules -v [FILTER]", "include generated run commands"),
                 ("show categories", "summarize runnable module kinds"),
                 ("refresh", "redraw full workbench (verbose)"),
                 ("reload", "reload config file without restarting"),
@@ -272,7 +273,8 @@ def print_line_command_help(topic):
                 ("route start NAME / route stop NAME", "start or stop a route"),
                 ("route delete NAME", "remove a route profile"),
                 ("start NAME / stop NAME", "shorthand start/stop when in route context"),
-                ("info, options", "show selected route context and headless commands"),
+                ("info, options", "show selected route context"),
+                ("routes -v", "show route hop details and generated start commands"),
             ],
             "notes": [
                 *ROUTE_HELP_LINES,
