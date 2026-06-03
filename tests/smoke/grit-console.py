@@ -1289,6 +1289,8 @@ def main(argv=None):
     src = (ROOT / "scripts" / "grit-console").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
     line_command_queue_src = (ROOT / "scripts" / "gritlib" / "line_command_queue.py").read_text()
+    line_events_src = (ROOT / "scripts" / "gritlib" / "line_events.py").read_text()
+    line_module_src = "\n".join(path.read_text() for path in sorted((ROOT / "scripts" / "gritlib").glob("line_*.py")))
     operator_io_src = (ROOT / "scripts" / "gritlib" / "operator_io.py").read_text()
     process_status_src = (ROOT / "scripts" / "gritlib" / "process_status.py").read_text()
     release_artifacts_src = (ROOT / "scripts" / "gritlib" / "release_artifacts.py").read_text()
@@ -1322,31 +1324,31 @@ def main(argv=None):
     if "sys.stdin.isatty()" not in src or "--no-stdin" not in src or "--log-only" not in src:
         print("grit-console: stdin EOF/log-only handling not found", file=sys.stderr)
         return 1
-    for word in ("open_path_in_pager", "view_path_headless_command", "workbench_path_viewed", "pager_command", 'ord("v")', "v opens", "copy_generated_command", "clipboard_command",
-                 "event_id:", "details_json:", "v opens operator event log in pager", "record_workbench_refresh",
-                 "workbench_refreshed", 'ord("r")', 'ord("R")', "operator_state_unhealthy",
-                 "operator state health:", "legacy_without_id=", "legacy_single_target=",
-                 "target_id:", "target_label:", "target_confidence:", "target_filter_summary_text",
-                 "observed_seen=", "tail_status:", "Event Log |", "selected target evidence:",
-                 "Connectivity: ", "online={connectivity_counts.get('online', 0)}", "pending_work={summary.get('target_mailbox_pending_work_count', 0)}",
-                 "last_phone_home={summary.get('latest_target_seen_at', '') or '-'}",
-                 "Groups: [t]argets [a]ctions [m]ailbox [b]ridges [o]daemon [f]iles [w]orkflows [e]vents [g]activity",
-                 "active={active_group}/{active_pane_title}", "pane_shortcuts",
+    for word in ("open_path_in_pager", "view_path_headless_command", "workbench_path_viewed", "pager_command", "view_line_path", "view PATH", "copy_generated_command", "clipboard_command",
+                 "print_line_events_view", "line_event_summary", "Raw JSONL: view", "record_workbench_refresh",
+                 "workbench_refreshed", 'cmd == "refresh"', "operator_state_unhealthy",
+                 "operator_state_unhealthy_count", "target_legacy_single_target_activity_present",
+                 "target_id:", "target_label:", "target_filter_summary_text",
+                 "observed_seen=", "Events  (", "target_filter_evidence_lines",
+                 "Status bar: ", "states={state_text}", "mailbox_pending_work={pending_work}",
+                 "poll_overdue={poll_overdue}",
+                 "Console help topics:",
+                 "refreshed workbench at",
                  "Operator console workflow summary:", "operator_console_workflows_by_group",
                  "operator_console_workflows", "operator_console_workflow_count",
                  "release_artifact_workflow_actions", "release_artifact_workflow_actions_by_selector_kind",
                  "release_artifact_workflow_action_selected", "release_artifact_workflow_action_completed",
-                 "capability=", "compatibility=", "event_tail_availability_text(snap)",
-                 "Target Fleet", "enter selects this target filter", "set_workbench_target_filter(cfg",
-                 "Target Files", "target_file_transfer:", "source_collection=", "v opens metadata, stored file, or source in pager",
-                 "target_activity_records", "target_activity_records_by_target_id", "recent target activity:",
-                 "Target Activity", "target_activity_record:", "g opens target activity feed", "action 21 opens line-mode activity feed",
-                 "Target Actions", "enter runs no-input target workflow actions", "action 15 opens prompted target workflow list",
-                 "operator_action_state:", "operator_action_reason:", "can_run_from_curses_enter:",
-                 "service_workflow_actions:", "service_workflow_actions_by_service", "enter follows service workflow action readiness",
-                 "action 11 includes service workflow actions",
+                 "capability=", "compatibility=", "event_tail_availability_text",
+                 "Targets:", "select_line_target", "set_workbench_target_filter",
+                 "Files", "target_file_transfer_records", "target_file_transfer_record_summary", "view_line_path",
+                 "target_activity_records", "target_activity_records_by_target_id", "show activity",
+                 "target_activity_record_summary", "target_activity_record_indexes",
+                 "Target workflow actions:", "run_line_selected_action", "select_line_action",
+                 "operator_action_state", "operator_action_reason", "can_run_from_curses_enter",
+                 "service_workflow_actions", "service_workflow_actions_by_service", "line_action_records_from_snapshot",
+                 "run_line_selected_action",
                  "Operator daemon workflow action summary:", "operator_daemon_workflow_actions_by_workflow",
-                 "operator_daemon_workflow_actions:",
+                 "operator_daemon_workflow_actions",
                  "operator_daemon_workflow_action_selected", "operator_daemon_workflow_action_completed",
                  "Probe workflow action summary:", "probe_workflow_actions_by_route_kind",
                  "probe_workflow_actions:",
@@ -1357,21 +1359,21 @@ def main(argv=None):
                  "File service workflow action summary:", "file_service_workflow_actions_by_action_id",
                  "file_service_workflow_action_selected", "file_service_workflow_action_completed",
                  "File service workflow actions:",
-                 "staged_file_workflow_actions:", "staged_file_workflow_actions_by_request_name",
+                 "staged_file_workflow_actions", "staged_file_workflow_actions_by_request_name",
                  "staged_file_workflow_action_selected", "staged_file_workflow_action_completed",
-                 "enter shows staged fetch command", "action 7 lists staged workflow actions",
+                 "show-fetch-command", "list-staged-files",
                  "Bridge Routes", "bridge_profile_workflow_actions:", "bridge_profile_workflow_actions_by_bridge_profile",
                  "bridge_profile_workflow_action_selected", "bridge_profile_workflow_action_completed",
-                 "enter starts/stops this bridge profile", "--bridge-profile",
-                 "Mailbox", "mailbox_command:", "pending_reason:", "action 20 opens command queue/results",
-                 "Build Config", "enter sets this build config field", "action 14 opens guided build config",
-                 "Jobs", "enter cancels this job when supported", "action 12 starts jobs; action 13 cancels jobs",
-                 "Workflow Actions", "enter starts background workflow job when supported", "action 11 opens full workflow action list",
-                 "Operator Daemon", "enter starts/stops attached operator daemon", "TUI attaches through shared status/state files"):
-        if word not in src + line_command_queue_src + operator_io_src + target_records_src + workbench_jobs_src + workflow_actions_src:
+                 "start_line_route", "--bridge-profile",
+                 "Mailbox", "pending_reason", "print_line_command_queue_view",
+                 "Build Config", "workbench_config_field_records", "set_workbench_build_config",
+                 "Jobs", "cancel_line_job", "start_line_job",
+                 "line_action_records", "start_workbench_job_record", "run_workbench_action_record",
+                 "Operator Daemon", "run_line_daemon_action", "operator_daemon_workflow_actions"):
+        if word not in src + line_command_queue_src + line_events_src + line_module_src + operator_io_src + target_records_src + workbench_jobs_src + workflow_actions_src:
             print(f"grit-console: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
-    for word in ("stage_release_nav_item", "stage_release_selection", "by_device:", "by_tuple_path:", "enter/s stages recommended artifact when available"):
+    for word in ("stage_release_nav_item", "stage_release_selection", "stage_line_release", "by_device:", "by_tuple_path:", "stage-release"):
         if word not in src + release_artifacts_src:
             print(f"grit-console: release device/tuple staging missing: {word}", file=sys.stderr)
             return 1

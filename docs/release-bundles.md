@@ -801,16 +801,15 @@ artifact size, release directory, and release name before listing release
 browser entries. They also print compact release recommendation rows such as
 `by_device:lab-router -> bin/grit-target-full`, keeping the same safety
 boundary: staging remains explicit through `--stage-release-artifact`, the
-curses action, or the line-oriented fallback release staging action, and
-nothing is pushed to or executed on the target automatically. The line-oriented
-release staging action prints the equivalent `--stage-release-artifact`
-headless command and records `workbench_release_artifact_staged` with the
-selector, staged request name, release path, tuple path, and payload preset.
-The curses workbench mirrors those rows in the release devices/tuples pane.
-Pressing `Enter` or `s` on a release artifact, recommendation, device alias, or
-tuple row stages the selected/recommended artifact for target-side
-`grit fetch`; `v` inspects the selected local path. Staging still does not
-push the artifact or run it on the target.
+line-oriented release staging action, or a release workflow action, and nothing
+is pushed to or executed on the target automatically. The line-oriented release
+staging action prints the equivalent `--stage-release-artifact` headless command
+and records `workbench_release_artifact_staged` with the selector, staged
+request name, release path, tuple path, and payload preset. Selecting a release
+artifact, recommendation, device alias, or tuple row stages the
+selected/recommended artifact for target-side `grit fetch`; local paths remain
+inspectable through `view` or `--view-path`. Staging still does not push the
+artifact or run it on the target.
 Release artifact aggregates are exposed as
 `release.artifact_stats` and mirrored into `summary`
 as `release_artifact_total_size`, `release_artifact_compatibility_counts`,
@@ -1149,25 +1148,22 @@ transports, threads, and child processes like other status collections. Human
 `--stage-release-artifact` stages the selected artifact for explicit
 target-side `grit fetch`; it accepts an artifact basename, release path,
 local path, or recommendation id such as `by_device:lab-router`, and does not
-push the artifact or run it. In the curses workbench, the Event Log pane can be
-selected like the other browser
-panes; the details pane shows the event id, session correlation fields, remote,
-compact outcome details from the structured event record, and event-tail
-availability flags matching `--status` output. When the event tail is empty
-because `--event-limit 0` was requested, the pane still exposes that as
-tail-status metadata instead of looking like an empty log. When a target filter
-has selected-target capability or compatibility evidence, the curses details
-pane appends the same selected-target evidence lines exposed by `--status` and
-the line-oriented fallback workbench. The fallback workbench's compact refresh
-summary also repeats event-tail availability and active target-filter context,
-so a non-curses operator does not lose those cues after refreshes. `v` opens the
-selected local metadata/log/artifact/event-log path in the operator's pager when
-one is available. The line-oriented fallback and `--view-path PATH` share the
-same local-path viewer behavior and record `workbench_path_viewed` with the
-equivalent headless command, path, result, and viewability state. `c` copies the
-selected generated target command to the local clipboard when possible plus
-`local/operator-session/last-command.txt`. The line-oriented fallback prints the
-equivalent `--copy-target-command N` command after copying, and
+push the artifact or run it. The line console's `events` and `view` commands
+show event ids, session correlation fields, remote endpoints, compact outcome
+details from structured event records, and event-tail availability flags
+matching `--status` output. When the event tail is empty because
+`--event-limit 0` was requested, status still exposes that as tail-status
+metadata instead of looking like an empty log. When a target filter has
+selected-target capability or compatibility evidence, status and the line
+console append the same selected-target evidence lines. The compact refresh
+summary repeats event-tail availability and active target-filter context, so
+operators do not lose those cues after refreshes. `view PATH` and
+`--view-path PATH` share the same local-path viewer behavior and record
+`workbench_path_viewed` with the equivalent headless command, path, result, and
+viewability state. `copy N` copies the selected generated target command to the
+local clipboard when possible plus `local/operator-session/last-command.txt`.
+The line console prints the equivalent `--copy-target-command N` command after
+copying, and
 `target_command_copied` events include that headless command, ordinal, and
 command hash for auditability. Status JSON exposes that file as a
 bounded `command_copy` record plus `command_copy_records_by_has_command` and
@@ -1175,12 +1171,12 @@ related lookup maps, so clients can show the last copied target command without
 opening the file separately. The `r` refresh action updates
 workbench refresh counters and records a structured `workbench_refreshed` event
 instead of being only an incidental redraw; the line-oriented fallback also
-prints and records the equivalent `--status` command for the refresh. The
-curses workbench top area also
-badges normalized operator-state health as `operator_state_unhealthy=N` and
-prints a compact target line with `count`, `with_id`, `legacy_without_id`, and
-`legacy_single_target` so multi-target and legacy no-target activity are visible
-without opening JSON status. Curses details for staged files, uploads, and
+prints and records the equivalent `--status` command for the refresh. Status and
+the compact console banner badge normalized operator-state health as
+`operator_state_unhealthy=N` and print a compact target line with `count`,
+`with_id`, `legacy_without_id`, and `legacy_single_target` so multi-target and
+legacy no-target activity are visible without opening JSON status. Details for
+staged files, uploads, and
 sessions include target id, label, and upload identity confidence when present.
 The generic details view lists missing, invalid, or error state records when no
 selected pane item has more specific details. Status JSON and both workbench views
@@ -1199,10 +1195,10 @@ future TUI/web clients can render workflow screens and verify that default
 workbench actions do not execute on the target without inventing a second
 configuration format. Target workflow action selection and completion events
 carry the same headless command metadata, so interrupted target-specific flows
-still leave an auditable CLI command. Workbench state records
-also keep `workbench_mode` (`curses`, `line`, or `noninteractive`) so status
-consumers can distinguish the active operator surface after shutdown. The same
-status output also exposes `workbench_config_fields` for guided edits of the existing
+still leave an auditable CLI command. Workbench state records keep
+`workbench_mode` (`line` or `noninteractive`) so status consumers can
+distinguish the active operator surface after shutdown. The same status output
+also exposes `workbench_config_fields` for guided edits of the existing
 `configs/grit.conf` shell assignment file, grouped by target, payload,
 build/static policy, runtime/trailer defaults, recovery, reverse shell policy,
 command queue policy, command queue transport/token settings, command queue
@@ -1259,8 +1255,8 @@ background job management remains teachable, scriptable, and auditable. The line
 fallback exposes the same operator path health, normalized operator state
 records, compact service and activity summaries, recent upload/fetch activity,
 event aggregate counts, refresh state, and compact event outcome details so
-non-curses or non-TTY runs still show whether listener state, logs, staged
-files, session roots, transfer activity, and recent event outcomes are usable.
+non-TTY runs still show whether listener state, logs, staged files, session
+roots, transfer activity, and recent event outcomes are usable.
 To keep interactive pty sessions responsive, the line menu prints that full
 dashboard on entry and explicit refresh, then uses a compact workbench summary
 between actions. It can also list the same operator
@@ -1268,7 +1264,7 @@ workflow actions and their exact underlying commands, start background-capable
 jobs, and request cancellation for owned jobs. Its release staging action accepts
 a displayed release row number, recommendation id, artifact path,
 `by_device:NAME`, or `by_tuple_path:PATH` and stages the same explicit
-target-side fetch record as the curses browser.
+target-side fetch record as the release artifact workflow.
 
 Inspect and clean griTTYkit-controlled runtime state:
 

@@ -383,11 +383,10 @@ from curses Enter. Indexes such as
 `command_queue_workflow_actions_by_requires_input`,
 `command_queue_workflow_actions_by_requires_confirmation`,
 `command_queue_workflow_actions_by_queues_offline_work`, and
-`command_queue_workflow_actions_by_can_run_from_curses_enter` let the TUI,
+`command_queue_workflow_actions_by_can_run_from_curses_enter` let the console,
 scripts, and future API clients render command-queue controls from the same
-contract. Line-mode action `20` and the curses Mailbox pane use these records
-to show what can be run now, what needs input, and what will wait for a later
-phone-home window.
+contract. Line-mode queue and mailbox views use these records to show what can
+be run now, what needs input, and what will wait for a later phone-home window.
 
 For file workflows, status JSON exposes `target_file_transfer_records`, a
 unified target-scoped collection spanning staged target fetches, received
@@ -416,9 +415,9 @@ staged fetches queue mailbox work for the next phone-home window. Indexes such a
 `staged_file_workflow_actions_by_request_name`,
 `staged_file_workflow_actions_by_target_id`,
 `staged_file_workflow_actions_by_queues_offline_work`, and
-`staged_file_workflow_actions_by_can_run_from_curses_enter` let the TUI render
-the staged-files pane and Enter behavior from the same API contract used by
-headless operators.
+`staged_file_workflow_actions_by_can_run_from_curses_enter` let console and API
+clients render staged-file controls from the same API contract used by headless
+operators.
 
 The file-service workflow itself is exposed as `file_service_workflow_actions`.
 Those top-level records cover inspecting file workflow state, listing staged
@@ -552,31 +551,25 @@ selected-target, and event counts. Its menu is grouped into Services, Targets,
 Bridges, Files and releases, and Automation/config sections so multi-device
 workflows stay centered on target selection, target detail, and mailbox actions
 without hiding the existing numeric shortcuts.
-The curses TUI keeps the same fleet context visible through a `Target Fleet`
-pane. It lists known targets with connectivity state, pending mailbox work,
-poll-overdue state, and last-seen time; selecting a target and pressing Enter
-sets the current target filter, while the details pane shows heartbeat, mailbox,
-latest result, latest survey/file activity, and bridge context for that device.
-The target detail also shows recent `target_activity_records`, and the dedicated
-`Target Activity` pane lists the same combined feed so the operator can scan
-mailbox, phone-home, file, survey, bridge, and session events without switching
-panes for each source collection.
-The adjacent `Target Files` pane is backed by `target_file_transfer_records`, so
-staged fetches, received uploads, and fetch attempts appear together with their
-target id, operation, status, route, digest, session metadata, and local paths.
-It keeps a persistent group navigation row above the main panes, with shortcuts
-for targets, target actions, mailbox, bridges, daemon, files, workflows, events,
-and activity; the files shortcut opens the unified `Target Files` view and the
-activity shortcut opens the unified `Target Activity` feed. This makes the
-curses view behave more like target/workflow submenus
-while keeping all panes backed by the same status JSON records.
-The header also keeps fleet connectivity visible across panes: online, recent,
-stale, offline, and unknown target counts, pending mailbox work, overdue polls,
-and the latest phone-home timestamp.
-The adjacent `Target Actions` pane lists the per-target workflow actions exposed
-by status JSON, including whether each action queues offline work, requires
-input, can run from curses Enter, or needs a later phone-home. Pressing Enter
-runs no-input actions whose `operator_action_state` is ready or
+The line-oriented console keeps the same fleet context visible through `targets`,
+`mailbox`, `show activity`, `files`, `actions`, and `next`. Target listings show
+connectivity state, pending mailbox work, poll-overdue state, and last-seen time;
+selecting a target scopes the later mailbox, activity, file, and action views to
+that device. The target detail also shows recent `target_activity_records`, and
+`show activity` lists the same combined feed so the operator can scan mailbox,
+phone-home, file, survey, bridge, and session events without opening each source
+collection separately.
+The `files` view is backed by `target_file_transfer_records`, so staged fetches,
+received uploads, and fetch attempts appear together with their target id,
+operation, status, route, digest, session metadata, and local paths. These views
+are backed by the same status JSON records used by noninteractive `--json-status`.
+The compact console banner keeps fleet connectivity visible across commands:
+online, recent, stale, offline, and unknown target counts, pending mailbox work,
+overdue polls, and the latest phone-home timestamp.
+The target action view lists the per-target workflow actions exposed by status
+JSON, including whether each action queues offline work, requires input, can run
+from the compatibility Enter metadata, or needs a later phone-home. Running an
+action executes no-input actions whose `operator_action_state` is ready or
 queueable-offline, such as queueing probe bootstrap work or starting
 target-scoped services; actions that need operator input keep pointing at
 line-mode action `15` and the shown headless command.

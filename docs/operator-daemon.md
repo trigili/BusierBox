@@ -68,9 +68,9 @@ previews use `--operator-daemon-workflow-dry-run`.
 Indexes such as `operator_daemon_workflow_actions_by_workflow`,
 `operator_daemon_workflow_actions_by_daemon_attached`,
 `operator_daemon_workflow_actions_by_systemd_user_action`, and
-`operator_daemon_workflow_actions_by_operator_action_state` let the curses
-daemon pane and API clients render daemon lifecycle controls without
-special-casing the broader `workbench_actions` list.
+`operator_daemon_workflow_actions_by_operator_action_state` let console and API
+clients render daemon lifecycle controls without special-casing the broader
+`workbench_actions` list.
 Individual listener controls are also exposed through `service_workflow_actions`.
 Each service has `inspect-status`, `start-service`, and `stop-service` records
 with the generated headless command, current listener state, confirmation
@@ -97,29 +97,28 @@ Line-mode TUI action `11` lists the same actions and can preview or run
 foreground actions after explicit selection. Long-running/background-capable
 actions continue to use TUI action `12` or `--start-workbench-job`.
 
-The curses workbench keeps build and operator configuration visible in a
-`Build Config` pane. It lists guided build fields, current values, category,
-safety boundary, fixed options, examples, and the equivalent `--set-build-config`
-command. Pressing Enter on a field prompts for a new value and applies the same
-validated config update used by line-mode action `14`.
-It also keeps managed background workflow state visible in a `Jobs` pane. The
-pane lists job ids, effective state, action id, and cancel support; the details
-view shows process ownership, outcome, exit status, timestamps, log path, output
-tail, and command. Pressing Enter cancels a selected managed job when the same
-ownership checks used by line-mode action `13` say cancellation is supported.
+The line-oriented console keeps build and operator configuration visible through
+`options`, `show options`, and build/config actions. These list guided build
+fields, current values, category, safety boundary, fixed options, examples, and
+the equivalent `--set-build-config` command. Setting a field applies the same
+validated config update used by noninteractive build-config commands.
+It also keeps managed background workflow state visible through `jobs` and
+`jobs -v`. These list job ids, effective state, action id, cancel support,
+process ownership, outcome, exit status, timestamps, log path, output tail, and
+command. `job cancel ID|N` cancels a selected managed job when the same ownership
+checks used by noninteractive job cancellation say cancellation is supported.
 
-The curses workbench also has a `Workflow Actions` pane for the operator action
-catalog. It shows action ids, categories, background support, confirmation
-requirements, and the equivalent dry-run/run/start-job commands in the details
-view. Pressing Enter starts actions that are already background-safe as managed
+The line-oriented console action catalog shows action ids, categories,
+background support, confirmation requirements, and the equivalent
+dry-run/run/start-job commands. Background-safe actions can be started as managed
 jobs; foreground or confirmation-sensitive actions remain routed through
-line-mode action `11` for explicit preview and confirmation.
+explicit preview and confirmation commands.
 
-An `Operator Daemon` pane makes attach-style operation visible in curses. It
-reads daemon and daemon-owned child listener state from the same status files as
-headless `--json-status`, shows the equivalent daemon start/status/stop
-commands, and pressing Enter starts the daemon as a managed job or stops the
-currently attached daemon when it is already running.
+Operator daemon commands make attach-style operation visible in the line console.
+They read daemon and daemon-owned child listener state from the same status files
+as headless `--json-status`, show the equivalent daemon start/status/stop
+commands, and can start the daemon as a managed job or stop the currently
+attached daemon when it is already running.
 
 ## Systemd User Service
 

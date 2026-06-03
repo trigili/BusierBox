@@ -62,8 +62,8 @@ documentation, and safety tests were implemented first.
   old single-target traffic stays valid but auditable. Target-filter records now
   distinguish generated command activity from observed target activity, mirror
   selected-target capability and compatibility evidence, and expose the same
-  compact selected-target summary in JSON/API status, `--status`, fallback
-  workbench output, and the curses workbench banner.
+  compact selected-target summary in JSON/API status, `--status`, and
+  line-oriented workbench output.
 - Event-log status distinguishes invalid logs, truncated tails, omitted records,
   and intentionally suppressed tails. JSON/API status, `--status`, and fallback
   workbench output expose whether the event tail has records, has omitted
@@ -229,8 +229,8 @@ Result:
   with filtered/unfiltered activity counts, observed-activity counts that
   exclude generated target commands, selected-target capability/compatibility
   evidence, and lookup indexes for future API clients.
-- The server smoke test passed after `--status`, fallback workbench output, and
-  the curses workbench banner were aligned on the same target-filter summary,
+- The server smoke test passed after `--status` and line-oriented workbench
+  output were aligned on the same target-filter summary,
   including observed target activity and selected-target evidence.
 - The server smoke test passed after event-log state records gained
   `tail_has_records`, `tail_has_omitted_records`, and

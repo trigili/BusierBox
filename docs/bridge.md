@@ -87,13 +87,13 @@ profiles, can create or update a profile from prompts, inspect a profile, start
 or stop the bridge listener, and delete a profile. Each TUI path prints the
 equivalent `scripts/grit-console ...` command before or after applying the
 action.
-The curses TUI also includes a persistent `Bridge Routes` pane. It lists saved
-profiles/chains with state, target association, hop count, and failure state;
-the details pane shows route path, listen/destination endpoints, last relay
-success, byte counters, last failure reason, and the equivalent start/stop
-commands from `bridge_profile_workflow_actions`. Pressing Enter on a bridge
-profile starts it when inactive and stops the active bridge listener when that
-profile is running.
+The line-oriented console's route views list saved profiles/chains with state,
+target association, hop count, and failure state. Route detail shows route path,
+listen/destination endpoints, last relay success, byte counters, last failure
+reason, and the equivalent start/stop commands from
+`bridge_profile_workflow_actions`. `route start NAME|N` starts an inactive
+profile, and `route stop NAME|N` stops the active bridge listener for that
+profile.
 
 Profiles live in `bridge-profiles.json` under the operator session directory by
 default. Each record includes the listen endpoint, destination endpoint,
