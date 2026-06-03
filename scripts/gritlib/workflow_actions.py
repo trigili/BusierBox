@@ -188,6 +188,335 @@ def annotate_operator_console_workflows(records, target_records, overdue_targets
     return records
 
 
+def operator_console_workflow_records(
+    cfg,
+    targets=None,
+    target_workflow_actions=None,
+    target_mailbox_records=None,
+    bridge_profiles=None,
+    bridge_profile_workflow_actions=None,
+    staged_records=None,
+    staged_file_workflow_actions=None,
+    file_service_workflow_actions=None,
+    probe_workflow_actions=None,
+    command_queue_workflow_actions=None,
+    service_workflow_actions=None,
+    operator_daemon_workflow_actions=None,
+    workbench_actions=None,
+    workbench_config_fields=None,
+    workbench_jobs=None,
+    target_activity_records=None,
+    release_artifact_workflow_actions=None,
+    release=None,
+    warnings=None,
+):
+    from gritlib.config_utils import DEFAULT_CONFIG
+
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    base = "scripts/grit-console --config " + shquote(config_path)
+    release = release or {}
+
+    context = operator_console_workflow_context(targets, target_mailbox_records, release, warnings)
+    target_records = context["target_records"]
+    mailbox_records = context["mailbox_records"]
+    pending_mailbox = context["pending_mailbox"]
+    overdue_targets = context["overdue_targets"]
+    stale_or_offline_targets = context["stale_or_offline_targets"]
+    warning_records = context["warning_records"]
+    release_artifacts = context["release_artifacts"]
+    release_recommendations = context["release_recommendations"]
+    release_devices = context["release_devices"]
+    release_tuples = context["release_tuples"]
+
+    records = [
+        {
+            "id": "targets",
+            "workflow": "targets",
+            "group": "fleet",
+            "label": "Target Fleet",
+            "description": "Select targets and inspect connectivity, identity, and last phone-home state.",
+            "primary_collection": "targets",
+            "source_collections": ["targets", "target_registry_state_records", "target_filter_records"],
+            "action_collections": ["target_workflow_actions"],
+            "record_count": len(target_records),
+            "action_count": workflow_action_count(target_workflow_actions),
+            "enter_runnable_action_count": workflow_enter_count(target_workflow_actions),
+            "pending_work_count": len(pending_mailbox),
+            "warning_count": len(overdue_targets),
+            "headless_command": operator_console_headless_command("targets", base),
+            "tui_shortcut": "t",
+            "line_mode_action": "15",
+            "target_scoped": True,
+            "multi_target": True,
+            "offline_queue_supported": True,
+        },
+        {
+            "id": "target-actions",
+            "workflow": "target-actions",
+            "group": "fleet",
+            "label": "Target Actions",
+            "description": "Run target-scoped workflows such as queueing commands, staging files, and selecting release artifacts.",
+            "primary_collection": "target_workflow_actions",
+            "source_collections": ["target_workflow_actions", "targets"],
+            "action_collections": ["target_workflow_actions"],
+            "record_count": workflow_action_count(target_workflow_actions),
+            "action_count": workflow_action_count(target_workflow_actions),
+            "enter_runnable_action_count": workflow_enter_count(target_workflow_actions),
+            "queueable_offline_action_count": workflow_queue_count(target_workflow_actions),
+            "pending_work_count": len(pending_mailbox),
+            "warning_count": 0,
+            "headless_command": operator_console_headless_command("target-actions", base),
+            "tui_shortcut": "a",
+            "line_mode_action": "15",
+            "target_scoped": True,
+            "multi_target": True,
+            "offline_queue_supported": True,
+        },
+        {
+            "id": "mailbox",
+            "workflow": "mailbox",
+            "group": "work",
+            "label": "Mailbox",
+            "description": "Queue offline work and inspect delivered, completed, failed, expired, and pending target commands.",
+            "primary_collection": "target_mailbox_records",
+            "source_collections": ["target_mailbox_records", "command_queue.commands", "target_phone_home_records"],
+            "action_collections": ["command_queue_workflow_actions"],
+            "record_count": len(mailbox_records),
+            "action_count": workflow_action_count(command_queue_workflow_actions),
+            "enter_runnable_action_count": workflow_enter_count(command_queue_workflow_actions),
+            "queueable_offline_action_count": workflow_queue_count(command_queue_workflow_actions),
+            "pending_work_count": len(pending_mailbox),
+            "warning_count": len([rec for rec in mailbox_records if rec.get("expired") is True]),
+            "headless_command": operator_console_headless_command("mailbox", base),
+            "tui_shortcut": "m",
+            "line_mode_action": "20",
+            "target_scoped": True,
+            "multi_target": True,
+            "offline_queue_supported": True,
+        },
+        {
+            "id": "bridges",
+            "workflow": "bridges",
+            "group": "routes",
+            "label": "Bridge Routes",
+            "description": "Inspect, start, stop, and audit one-hop or multi-hop bridge profiles.",
+            "primary_collection": "bridge_profiles",
+            "source_collections": ["bridge_profiles", "bridge_hop_records", "target_workflow_actions"],
+            "action_collections": ["bridge_profile_workflow_actions", "target_workflow_actions"],
+            "record_count": len(bridge_profiles or []),
+            "action_count": workflow_action_count(bridge_profile_workflow_actions),
+            "enter_runnable_action_count": workflow_enter_count(bridge_profile_workflow_actions),
+            "queueable_offline_action_count": workflow_queue_count(target_workflow_actions),
+            "pending_work_count": workflow_command_prefix_count(pending_mailbox, "bridge:"),
+            "warning_count": len([
+                rec for rec in bridge_profiles or []
+                if rec.get("has_last_failure") is True
+            ]),
+            "headless_command": operator_console_headless_command("bridges", base),
+            "tui_shortcut": "b",
+            "line_mode_action": "19",
+            "target_scoped": True,
+            "multi_target": True,
+            "offline_queue_supported": True,
+        },
+        {
+            "id": "files",
+            "workflow": "files",
+            "group": "work",
+            "label": "Files",
+            "description": "Stage files, show fetch/upload commands, and queue target file-transfer requests.",
+            "primary_collection": "staged_records",
+            "source_collections": ["staged_records", "target_file_transfer_records", "uploads", "fetches"],
+            "action_collections": ["file_service_workflow_actions", "staged_file_workflow_actions"],
+            "record_count": len(staged_records or []),
+            "action_count": workflow_action_count(file_service_workflow_actions) + workflow_action_count(staged_file_workflow_actions),
+            "enter_runnable_action_count": workflow_enter_count(file_service_workflow_actions) + workflow_enter_count(staged_file_workflow_actions),
+            "queueable_offline_action_count": workflow_queue_count(staged_file_workflow_actions),
+            "pending_work_count": workflow_command_prefix_count(pending_mailbox, "fetch:"),
+            "warning_count": len([
+                rec for rec in staged_records or []
+                if rec.get("source_exists") is False
+            ]),
+            "headless_command": operator_console_headless_command("files", base),
+            "tui_shortcut": "f",
+            "line_mode_action": "7",
+            "target_scoped": True,
+            "multi_target": True,
+            "offline_queue_supported": True,
+        },
+        {
+            "id": "survey",
+            "workflow": "survey",
+            "group": "work",
+            "label": "Survey",
+            "description": "Serve direct or bridged probe commands and queue probe requests.",
+            "primary_collection": "probe_workflow_actions",
+            "source_collections": ["probe_workflow_actions", "target_command_records"],
+            "action_collections": ["probe_workflow_actions", "target_workflow_actions"],
+            "record_count": workflow_action_count(probe_workflow_actions),
+            "action_count": workflow_action_count(probe_workflow_actions),
+            "enter_runnable_action_count": workflow_enter_count(probe_workflow_actions),
+            "queueable_offline_action_count": workflow_queue_count(target_workflow_actions),
+            "pending_work_count": workflow_command_prefix_count(pending_mailbox, "survey:"),
+            "warning_count": 0,
+            "headless_command": operator_console_headless_command("survey", base),
+            "tui_shortcut": "w",
+            "line_mode_action": "18",
+            "target_scoped": True,
+            "multi_target": True,
+            "offline_queue_supported": True,
+        },
+        {
+            "id": "daemon",
+            "workflow": "daemon",
+            "group": "control-plane",
+            "label": "Operator Daemon",
+            "description": "Start, stop, inspect, and install the optional systemd user service for daemon-owned workflows.",
+            "primary_collection": "operator_daemon_workflow_actions",
+            "source_collections": ["operator_daemon_workflow_actions", "service_workflow_actions", "services"],
+            "action_collections": ["operator_daemon_workflow_actions", "service_workflow_actions"],
+            "record_count": workflow_action_count(operator_daemon_workflow_actions),
+            "action_count": workflow_action_count(operator_daemon_workflow_actions) + workflow_action_count(service_workflow_actions),
+            "enter_runnable_action_count": workflow_enter_count(operator_daemon_workflow_actions) + workflow_enter_count(service_workflow_actions),
+            "pending_work_count": 0,
+            "warning_count": len(warning_records),
+            "headless_command": operator_console_headless_command("daemon", base),
+            "tui_shortcut": "o",
+            "line_mode_action": "11",
+            "target_scoped": False,
+            "multi_target": True,
+            "offline_queue_supported": True,
+        },
+        {
+            "id": "release",
+            "workflow": "release",
+            "group": "artifacts",
+            "label": "Release Artifacts",
+            "description": "Inspect release artifacts, devices, tuples, compatibility recommendations, and staging choices.",
+            "primary_collection": "release_artifacts",
+            "source_collections": ["release_artifacts", "release_recommendations", "release_devices", "release_tuples"],
+            "action_collections": ["release_artifact_workflow_actions", "workbench_actions", "target_workflow_actions"],
+            "record_count": len(release_artifacts),
+            "action_count": workflow_action_count(release_artifact_workflow_actions),
+            "enter_runnable_action_count": workflow_enter_count(release_artifact_workflow_actions),
+            "recommendation_count": len(release_recommendations),
+            "device_count": len(release_devices),
+            "tuple_count": len(release_tuples),
+            "pending_work_count": 0,
+            "warning_count": 0 if release.get("valid") or not release else 1,
+            "headless_command": operator_console_headless_command("release", base),
+            "tui_shortcut": "6",
+            "line_mode_action": "6",
+            "target_scoped": False,
+            "multi_target": True,
+            "offline_queue_supported": False,
+        },
+        {
+            "id": "build-config",
+            "workflow": "build-config",
+            "group": "artifacts",
+            "label": "Build Config",
+            "description": "Configure compiled binary and payload options with equivalent headless commands.",
+            "primary_collection": "workbench_config_fields",
+            "source_collections": ["workbench_config_fields", "workbench_actions"],
+            "action_collections": ["workbench_actions"],
+            "record_count": len(workbench_config_fields or []),
+            "action_count": len([
+                rec for rec in workbench_actions or []
+                if str(rec.get("category") or "") in ("configuration", "build", "trailer")
+            ]),
+            "enter_runnable_action_count": 0,
+            "pending_work_count": 0,
+            "warning_count": 0,
+            "headless_command": operator_console_headless_command("build-config", base),
+            "tui_shortcut": "3",
+            "line_mode_action": "14",
+            "target_scoped": False,
+            "multi_target": False,
+            "offline_queue_supported": False,
+        },
+        {
+            "id": "jobs",
+            "workflow": "jobs",
+            "group": "control-plane",
+            "label": "Jobs",
+            "description": "Inspect and cancel background workbench jobs.",
+            "primary_collection": "workbench_jobs",
+            "source_collections": ["workbench_jobs", "workbench_jobs_state_records"],
+            "action_collections": ["workbench_actions"],
+            "record_count": len(workbench_jobs or []),
+            "action_count": len([
+                rec for rec in workbench_actions or []
+                if rec.get("background_supported") is True
+            ]),
+            "enter_runnable_action_count": len([
+                rec for rec in workbench_jobs or []
+                if rec.get("cancel_supported") is True
+            ]),
+            "pending_work_count": len([
+                rec for rec in workbench_jobs or []
+                if str(rec.get("effective_state") or rec.get("state") or "") in ("running", "starting")
+            ]),
+            "warning_count": len([
+                rec for rec in workbench_jobs or []
+                if str(rec.get("effective_state") or rec.get("state") or "") in ("failed", "error")
+            ]),
+            "headless_command": operator_console_headless_command("jobs", base),
+            "tui_shortcut": "9",
+            "line_mode_action": "12",
+            "target_scoped": False,
+            "multi_target": False,
+            "offline_queue_supported": False,
+        },
+        {
+            "id": "events",
+            "workflow": "events",
+            "group": "observability",
+            "label": "Events",
+            "description": "Inspect operator events and warning context.",
+            "primary_collection": "events",
+            "source_collections": ["events", "event_log_state_records", "warnings"],
+            "action_collections": [],
+            "record_count": 0,
+            "action_count": 0,
+            "enter_runnable_action_count": 0,
+            "pending_work_count": 0,
+            "warning_count": len(warning_records),
+            "headless_command": operator_console_headless_command("events", base),
+            "tui_shortcut": "e",
+            "line_mode_action": "1",
+            "target_scoped": False,
+            "multi_target": True,
+            "offline_queue_supported": False,
+        },
+        {
+            "id": "activity",
+            "workflow": "activity",
+            "group": "observability",
+            "label": "Target Activity",
+            "description": "Review combined per-target mailbox, phone-home, file, bridge, and session activity.",
+            "primary_collection": "target_activity_records",
+            "source_collections": ["target_activity_records", "targets"],
+            "action_collections": [],
+            "record_count": len(target_activity_records or []),
+            "action_count": 0,
+            "enter_runnable_action_count": 0,
+            "pending_work_count": len([
+                rec for rec in target_activity_records or []
+                if rec.get("pending_work") is True
+            ]),
+            "warning_count": len(stale_or_offline_targets),
+            "headless_command": operator_console_headless_command("activity", base),
+            "tui_shortcut": "g",
+            "line_mode_action": "21",
+            "target_scoped": True,
+            "multi_target": True,
+            "offline_queue_supported": True,
+        },
+    ]
+    return annotate_operator_console_workflows(records, target_records, overdue_targets)
+
+
 def workbench_action_records(cfg):
     from gritlib.build_config import build_config_path
     from gritlib.config_utils import DEFAULT_CONFIG
