@@ -1,7 +1,11 @@
 """Target activity record helpers for grit-console."""
 
+import hashlib
 from pathlib import Path
 
+from gritlib.command_queue import (
+    command_queue_expired, command_result_output_size_bucket,
+)
 from gritlib.record_utils import int_value, records_by_key
 from gritlib.session_state import parse_utc_timestamp
 
@@ -28,6 +32,148 @@ def mailbox_elapsed_seconds(start, end):
     if start_epoch is None or end_epoch is None:
         return ""
     return max(int(end_epoch - start_epoch), 0)
+
+
+def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
+    if not isinstance(rec, dict):
+        return None
+    target_id = str(rec.get("target_id") or "")
+    if not target_id:
+        return None
+    target_rec = (targets_by_id or {}).get(target_id) or {}
+    command_id = str(rec.get("id") or "")
+    status = str(rec.get("status") or "")
+    expired = status == "expired" or command_queue_expired(rec, now_epoch=now_epoch)
+    if expired:
+        status = "expired"
+    result = rec.get("result") if isinstance(rec.get("result"), dict) else {}
+    result_status = str(result.get("status") or "")
+    result_exit_code = result.get("exit_code")
+    command_text = str(rec.get("command") or "")
+    command_sha256 = str(rec.get("command_sha256") or "")
+    if command_text and not command_sha256:
+        command_sha256 = hashlib.sha256(command_text.encode("utf-8")).hexdigest()
+    has_result = bool(str(rec.get("result_received_at") or "") or status == "result-received")
+    pending_work = status == "queued"
+    created_at = str(rec.get("created_at") or "")
+    delivered_at = str(rec.get("delivered_at") or "")
+    result_received_at = str(rec.get("result_received_at") or "")
+    expires_at = str(rec.get("expires_at") or "")
+    age_sec = ""
+    created_epoch = parse_utc_timestamp(created_at)
+    if created_epoch is not None and now_epoch is not None:
+        age_sec = max(int(now_epoch - created_epoch), 0)
+    pending_delivery_for_sec = age_sec if pending_work else ""
+    delivered_without_result = status == "delivered" and not has_result
+    delivered_without_result_for_sec = ""
+    if delivered_without_result and now_epoch is not None:
+        delivered_epoch = parse_utc_timestamp(delivered_at)
+        if delivered_epoch is not None:
+            delivered_without_result_for_sec = max(int(now_epoch - delivered_epoch), 0)
+    result_latency_sec = mailbox_elapsed_seconds(delivered_at, result_received_at)
+    if pending_work:
+        waiting_for = "target-poll"
+    elif expired:
+        waiting_for = "none"
+    elif delivered_without_result:
+        waiting_for = "result-upload"
+    elif has_result:
+        waiting_for = "none"
+    else:
+        waiting_for = "unknown"
+    if pending_work:
+        target_state = str(target_rec.get("connectivity_state") or "")
+        if not target_rec:
+            pending_reason = "target-not-registered"
+        elif target_rec.get("poll_overdue") is True:
+            pending_reason = "target-poll-overdue"
+        elif target_state == "offline":
+            pending_reason = "target-offline"
+        elif target_state == "stale":
+            pending_reason = "target-stale"
+        elif target_state == "unknown":
+            pending_reason = "target-not-seen"
+        else:
+            pending_reason = "waiting-for-next-poll"
+    elif delivered_without_result:
+        pending_reason = "awaiting-result-upload"
+    elif expired:
+        pending_reason = "expired"
+    elif has_result:
+        pending_reason = ""
+    else:
+        pending_reason = "unknown"
+    output_bytes = rec.get("result_output_bytes")
+    output_bucket = command_result_output_size_bucket(output_bytes) if has_result else ""
+    return {
+        "id": command_id,
+        "command_id": command_id,
+        "target_id": target_id,
+        "target_label": str(target_rec.get("label") or ""),
+        "target_last_seen": str(target_rec.get("last_seen") or target_rec.get("last_seen_at") or ""),
+        "target_last_seen_via": str(target_rec.get("last_seen_via") or ""),
+        "target_offline_for_sec": target_rec.get("offline_for_sec", ""),
+        "target_offline_age_bucket": str(target_rec.get("offline_age_bucket") or ""),
+        "target_connectivity_state": str(target_rec.get("connectivity_state") or ""),
+        "target_next_expected_poll": str(target_rec.get("next_expected_poll") or ""),
+        "has_target_next_expected_poll": bool(str(target_rec.get("next_expected_poll") or "")),
+        "target_poll_overdue": bool(target_rec.get("poll_overdue") is True),
+        "target_poll_overdue_for_sec": target_rec.get("poll_overdue_for_sec", ""),
+        "status": status,
+        "waiting_for": waiting_for,
+        "pending_reason": pending_reason,
+        "has_pending_reason": bool(pending_reason),
+        "work_kind": str(rec.get("work_kind") or ""),
+        "workflow": str(rec.get("workflow") or ""),
+        "request_name": str(rec.get("request_name") or ""),
+        "bridge_profile": str(rec.get("bridge_profile") or ""),
+        "bridge_route_path": str(rec.get("bridge_route_path") or ""),
+        "bridge_requires_target_online": bool(rec.get("bridge_requires_target_online") is True),
+        "route_kind": str(rec.get("route_kind") or ""),
+        "command": command_text,
+        "command_sha256": command_sha256,
+        "created_at": created_at,
+        "delivered_at": delivered_at,
+        "result_received_at": result_received_at,
+        "expires_at": expires_at,
+        "expired": expired,
+        "age_sec": age_sec,
+        "age_bucket": mailbox_wait_bucket(age_sec),
+        "pending_delivery_for_sec": pending_delivery_for_sec,
+        "pending_delivery_age_bucket": mailbox_wait_bucket(pending_delivery_for_sec),
+        "delivered_without_result_for_sec": delivered_without_result_for_sec,
+        "delivered_without_result_age_bucket": mailbox_wait_bucket(delivered_without_result_for_sec),
+        "result_latency_sec": result_latency_sec,
+        "result_latency_bucket": mailbox_wait_bucket(result_latency_sec),
+        "result_status": result_status,
+        "result_exit_code": result_exit_code if result_exit_code not in (None, "") else "",
+        "result_source_path": str(rec.get("result_source_path") or ""),
+        "result_output_bytes": int_value(output_bytes),
+        "result_output_size_bucket": output_bucket,
+        "result_output_exceeded_limit": rec.get("result_output_exceeded_limit") is True,
+        "max_output_bytes": rec.get("max_output_bytes", ""),
+        "timeout_sec": rec.get("timeout_sec", ""),
+        "pending_work": pending_work,
+        "pending_delivery": pending_work,
+        "delivered_without_result": delivered_without_result,
+        "has_result": has_result,
+    }
+
+
+def target_mailbox_records_from_commands(commands, targets_by_id=None, now_epoch=None):
+    records = []
+    for rec in commands or []:
+        item = target_mailbox_record_from_command(rec, targets_by_id, now_epoch=now_epoch)
+        if item:
+            records.append(item)
+    records.sort(
+        key=lambda rec: (
+            str(rec.get("created_at") or ""),
+            str(rec.get("command_id") or ""),
+        ),
+        reverse=True,
+    )
+    return records
 
 
 def target_activity_records_from_sources(targets, mailbox_records, phone_home_records, file_transfer_records, bridge_profiles, sessions):
