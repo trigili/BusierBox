@@ -117,7 +117,7 @@ from gritlib.process_status import (
     port_listener_pids, port_listening,
 )
 from gritlib.record_utils import (
-    count_records_with_key, format_counts, int_value, latest_record_value,
+    format_counts, int_value, latest_record_value,
     record_bool_counts, record_count_by_key, record_count_by_nested_key,
     record_sum_by_key, records_by_bool, records_by_composite, records_by_key,
     records_by_list_item, records_by_nested_key, records_by_session,
@@ -198,7 +198,7 @@ from gritlib.target_records import (
     event_for_target, load_targets, records_for_target, record_target_activity,
     scoped_target_cfg, selected_target_context, set_target_label,
     set_workbench_target_filter, target_attribution_record_indexes,
-    target_context_fields,
+    target_attribution_status, target_context_fields,
     target_filter_evidence_lines, target_filter_record_indexes,
     target_filter_summary_text,
     target_identity_from_headers, target_record_indexes, target_record_summary,
@@ -4594,47 +4594,13 @@ def status_document(cfg):
      services_by_stopped_reason) = service_record_indexes(services)
     ports = port_records_from_services(services)
     ports_by_number, ports_by_service, ports_by_actual = port_record_indexes(ports)
-    upload_with_target_count = count_records_with_key(uploads, "target_id")
-    fetch_with_target_count = count_records_with_key(fetches, "target_id")
-    session_with_target_count = count_records_with_key(sessions, "target_id")
-    target_attribution = {
-        "upload_with_target_count": upload_with_target_count,
-        "upload_without_target_count": max(len(uploads) - upload_with_target_count, 0),
-        "fetch_with_target_count": fetch_with_target_count,
-        "fetch_without_target_count": max(len(fetches) - fetch_with_target_count, 0),
-        "session_with_target_count": session_with_target_count,
-        "session_without_target_count": max(len(sessions) - session_with_target_count, 0),
-    }
-    target_attribution["with_target_count"] = (
-        target_attribution["upload_with_target_count"] +
-        target_attribution["fetch_with_target_count"] +
-        target_attribution["session_with_target_count"]
+    target_attribution_status_doc = target_attribution_status(
+        uploads, fetches, sessions
     )
-    target_attribution["without_target_count"] = (
-        target_attribution["upload_without_target_count"] +
-        target_attribution["fetch_without_target_count"] +
-        target_attribution["session_without_target_count"]
-    )
-    target_attribution["legacy_single_target_activity_present"] = target_attribution["without_target_count"] > 0
-    target_attribution_records = []
-    for scope, with_count, without_count in (
-        ("uploads", target_attribution["upload_with_target_count"], target_attribution["upload_without_target_count"]),
-        ("fetches", target_attribution["fetch_with_target_count"], target_attribution["fetch_without_target_count"]),
-        ("sessions", target_attribution["session_with_target_count"], target_attribution["session_without_target_count"]),
-        ("all", target_attribution["with_target_count"], target_attribution["without_target_count"]),
-    ):
-        total = with_count + without_count
-        target_attribution_records.append({
-            "scope": scope,
-            "with_target_count": with_count,
-            "without_target_count": without_count,
-            "total_count": total,
-            "has_targeted_activity": with_count > 0,
-            "has_legacy_activity": without_count > 0,
-            "legacy_single_target_activity_present": without_count > 0,
-            "all_activity_has_target_id": total > 0 and without_count == 0,
-            "no_activity": total == 0,
-        })
+    target_attribution = target_attribution_status_doc["target_attribution"]
+    target_attribution_records = target_attribution_status_doc[
+        "target_attribution_records"
+    ]
     target_attribution_index_maps = target_attribution_record_indexes(
         target_attribution_records
     )
