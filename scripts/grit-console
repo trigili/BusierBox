@@ -319,15 +319,17 @@ from gritlib.warnings import (
 )
 from gritlib.workbench_jobs import (
     cancel_workbench_job_headless_command, cancel_workbench_job_record,
+    cancel_line_job as workbench_jobs_cancel_line_job,
+    line_job_record as workbench_jobs_line_job_record,
     load_workbench_jobs,
     reconcile_workbench_job_completion_events,
-    print_line_workbench_job_records,
+    print_line_jobs as workbench_jobs_print_line_jobs,
     print_workbench_job_ownership, print_workbench_job_summary,
     record_workbench_refresh, run_workbench_action_headless_command,
     run_workbench_action_record,
+    select_line_job as workbench_jobs_select_line_job,
     start_workbench_job_record,
     start_workbench_job_headless_command,
-    workbench_job_record_by_selector,
     workbench_job_records,
     workbench_jobs_path, workbench_jobs_state_status,
 )
@@ -7146,67 +7148,28 @@ def run_line_tui(cfg):
         return rec
 
     def line_job_record(selector):
-        return workbench_job_record_by_selector(
-            workbench_snapshot(cfg).get("workbench_jobs") or [],
-            selector,
-        )
+        return workbench_jobs_line_job_record(workbench_snapshot(cfg), selector)
 
     def print_line_jobs(verbose=False):
-        snap = workbench_snapshot(cfg)
-        jobs = snap.get("workbench_jobs") or []
-        search_records = print_line_workbench_job_records(
-            jobs,
+        return workbench_jobs_print_line_jobs(
+            cfg,
+            workbench_snapshot(cfg),
             verbose=verbose,
             command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
             quote=shquote,
         )
-        cfg["_line_console_search_results"] = search_records
-        append_event(cfg, "workbench", "workbench_jobs_listed", details={
-            "job_count": len(jobs),
-            "verbose": bool(verbose),
-        })
 
     def select_line_job(selector):
-        text = str(selector or "").strip()
-        if not text:
-            raise ValueError("usage: use job ID")
-        rec = line_job_record(text)
-        if rec:
-            job_id = str(rec.get("id") or "")
-            cfg["_line_console_module"] = f"job/{job_id}"
-            cfg.pop("_line_console_action_kind", None)
-            cfg.pop("_line_console_action_id", None)
-            state = rec.get("effective_state") or rec.get("state") or "?"
-            action = rec.get("action_id") or "-"
-            cancel = "  |  cancellable" if rec.get("cancel_supported") else ""
-            print(f"  {job_id}  —  {state}  |  {action}{cancel}")
-            print("  info / options / jobs / back")
-            append_event(cfg, "workbench", "workbench_job_selected", details={
-                "job_id": job_id,
-                "action_id": rec.get("action_id", ""),
-                "effective_state": rec.get("effective_state", ""),
-            })
-            return rec
-        raise ValueError(f"unknown workbench job: {text}")
+        return workbench_jobs_select_line_job(cfg, workbench_snapshot(cfg), selector)
 
     def cancel_line_job(selector):
-        text = str(selector or "").strip()
-        if not text:
-            module = str(cfg.get("_line_console_module") or "")
-            if module.startswith("job/"):
-                text = module.split("/", 1)[1]
-        rec = line_job_record(text)
-        if not rec:
-            raise ValueError(f"unknown workbench job: {text}")
-        job_id = str(rec.get("id") or text)
-        headless = cancel_workbench_job_headless_command(cfg, job_id)
-        cancelled = cancel_workbench_job_record(
+        return workbench_jobs_cancel_line_job(
             cfg,
+            workbench_snapshot(cfg),
             workbench_action_records(cfg),
-            job_id,
-            headless_command=headless,
+            selector,
+            command_builder=cancel_workbench_job_headless_command,
         )
-        print(f"cancel requested for {cancelled.get('id', job_id)}")
 
     def start_line_job(action_selector=""):
         selector = str(action_selector or "").strip()

@@ -114,6 +114,79 @@ def workbench_job_record_by_selector(records, selector):
     return {}
 
 
+def line_job_record(snapshot, selector):
+    return workbench_job_record_by_selector(
+        (snapshot or {}).get("workbench_jobs") or [],
+        selector,
+    )
+
+
+def print_line_jobs(
+    cfg, snapshot, verbose=False, command_builder=None, quote=shquote
+):
+    jobs = (snapshot or {}).get("workbench_jobs") or []
+    search_records = print_line_workbench_job_records(
+        jobs,
+        verbose=verbose,
+        command_builder=command_builder,
+        quote=quote,
+    )
+    cfg["_line_console_search_results"] = search_records
+    append_event(cfg, "workbench", "workbench_jobs_listed", details={
+        "job_count": len(jobs),
+        "verbose": bool(verbose),
+    })
+    return jobs
+
+
+def select_line_job(cfg, snapshot, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("usage: use job ID")
+    rec = line_job_record(snapshot, text)
+    if not rec:
+        raise ValueError(f"unknown workbench job: {text}")
+    job_id = str(rec.get("id") or "")
+    cfg["_line_console_module"] = f"job/{job_id}"
+    cfg.pop("_line_console_action_kind", None)
+    cfg.pop("_line_console_action_id", None)
+    state = rec.get("effective_state") or rec.get("state") or "?"
+    action = rec.get("action_id") or "-"
+    cancel = "  |  cancellable" if rec.get("cancel_supported") else ""
+    print(f"  {job_id}  —  {state}  |  {action}{cancel}")
+    print("  info / options / jobs / back")
+    append_event(cfg, "workbench", "workbench_job_selected", details={
+        "job_id": job_id,
+        "action_id": rec.get("action_id", ""),
+        "effective_state": rec.get("effective_state", ""),
+    })
+    return rec
+
+
+def cancel_line_job(
+    cfg, snapshot, actions, selector, command_builder=None
+):
+    text = str(selector or "").strip()
+    if not text:
+        module = str(cfg.get("_line_console_module") or "")
+        if module.startswith("job/"):
+            text = module.split("/", 1)[1]
+    rec = line_job_record(snapshot, text)
+    if not rec:
+        raise ValueError(f"unknown workbench job: {text}")
+    job_id = str(rec.get("id") or text)
+    command_builder = command_builder or cancel_workbench_job_headless_command
+    headless = command_builder(cfg, job_id)
+    cancelled = cancel_workbench_job_record(
+        cfg,
+        actions,
+        job_id,
+        headless_command=headless,
+    )
+    print(f"cancel requested for {cancelled.get('id', job_id)}")
+    return cancelled
+
+
 def record_workbench_refresh(cfg, reason="manual", default_config=DEFAULT_SERVER_CONFIG):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     services = state.setdefault("services", {})
