@@ -1178,7 +1178,7 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     tui_result = run_line_tui(cfg, "20\n18\ntarget-workflow\nq\n")
     assert_condition(tui_result["returncode"] == 0, "offline workflow line TUI failed", tui_result)
     tui_text = tui_result["stdout"]
-    assert_condition("headless_command: scripts/grit-console --config" in tui_text, "offline workflow TUI missing headless command", tui_text)
+    assert_condition("headless_command" not in tui_text, "offline workflow TUI should not show headless commands by default", tui_text)
     assert_condition("queue COMMAND  |  queue list  |  queue ? for help" in tui_text, "offline workflow TUI missing command queue controls", tui_text)
     assert_condition("Mailbox  (2 records)" in tui_text, "offline workflow TUI missing mailbox section", tui_text)
     assert_condition("target-workflow" in tui_text, "offline workflow TUI missing target-scoped mailbox records", tui_text)

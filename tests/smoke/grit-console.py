@@ -1863,7 +1863,9 @@ def main(argv=None):
         if (bridge_action_dry_run.returncode != 0 or
                 "bridge profile workflow action: lab-http:start-profile" not in bridge_action_dry_run.stdout or
                 "dry_run=yes" not in bridge_action_dry_run.stdout or
-                "--run-bridge-profile-workflow-action lab-http:start-profile" not in bridge_action_dry_run.stdout):
+                "command=scripts/grit-console --config" not in bridge_action_dry_run.stdout or
+                "--transport bridge --bridge-profile lab-http" not in bridge_action_dry_run.stdout or
+                "headless_command=" in bridge_action_dry_run.stdout):
             print("headless bridge profile workflow dry-run action failed", file=sys.stderr)
             print(bridge_action_dry_run.stdout, file=sys.stderr)
             print(bridge_action_dry_run.stderr, file=sys.stderr)
@@ -2343,7 +2345,7 @@ def main(argv=None):
                 "probe_workflow_actions: 4" not in survey_line_text or
                 "start_action_state=ready reason=run-now" not in survey_line_text or
                 "details: events service=probe -n 3" not in survey_line_text or
-                "--transport probe" not in survey_line_text or
+                "headless_command" in survey_line_text or
                 "bridge_profile=survey-route" not in survey_line_text):
             print("line TUI probe action did not show bridged command", file=sys.stderr)
             print(survey_line_text, file=sys.stderr)
@@ -2358,7 +2360,8 @@ def main(argv=None):
         if (survey_action_show.returncode != 0 or
                 "probe workflow action: probe:show-target-command" not in survey_action_show.stdout or
                 f"target_command={expected_survey_command}" not in survey_action_show.stdout or
-                "--run-probe-workflow-action probe:show-target-command" not in survey_action_show.stdout):
+                "command=scripts/grit-console --config" not in survey_action_show.stdout or
+                "headless_command=" in survey_action_show.stdout):
             print("headless probe workflow show action failed", file=sys.stderr)
             print(survey_action_show.stdout, file=sys.stderr)
             print(survey_action_show.stderr, file=sys.stderr)
@@ -3043,8 +3046,8 @@ def main(argv=None):
         )
         if (started_job.returncode != 0 or
                 "started workbench job" not in started_job.stdout or
-                "--start-workbench-job package-artifact" not in started_job.stdout or
-                "--job-command " not in started_job.stdout):
+                "command=printf 'job ready\\n'; sleep 30" not in started_job.stdout or
+                "headless_command=" in started_job.stdout):
             print("workbench background job did not start", file=sys.stderr)
             print(started_job.stdout, file=sys.stderr)
             print(started_job.stderr, file=sys.stderr)
@@ -5183,7 +5186,9 @@ def main(argv=None):
             if (daemon_action_dry_run.returncode != 0 or
                     "operator daemon workflow action: operator-daemon-start" not in daemon_action_dry_run.stdout or
                     "dry_run=yes" not in daemon_action_dry_run.stdout or
-                    "--run-operator-daemon-workflow-action operator-daemon-start" not in daemon_action_dry_run.stdout):
+                    "command=scripts/grit-console --config" not in daemon_action_dry_run.stdout or
+                    "--daemon --daemon-service file-service" not in daemon_action_dry_run.stdout or
+                    "headless_command=" in daemon_action_dry_run.stdout):
                 print("headless operator daemon workflow dry-run action failed", file=sys.stderr)
                 print(daemon_action_dry_run.stdout, file=sys.stderr)
                 print(daemon_action_dry_run.stderr, file=sys.stderr)
@@ -5423,8 +5428,10 @@ def main(argv=None):
         )
         if (systemd_workbench_action.returncode != 0 or
                 "workbench action: systemd-user-status" not in systemd_workbench_action.stdout or
-                "--run-workbench-action systemd-user-status --workbench-action-dry-run" not in systemd_workbench_action.stdout or
-                "systemctl --user status grit-operator.service" not in systemd_workbench_action.stdout):
+                "command=scripts/grit-console --config" not in systemd_workbench_action.stdout or
+                "--systemd-user-action status --systemd-user-dry-run" not in systemd_workbench_action.stdout or
+                "systemctl --user status grit-operator.service" not in systemd_workbench_action.stdout or
+                "headless_command=" in systemd_workbench_action.stdout):
             print("workbench action dry-run did not execute systemd user status preview", file=sys.stderr)
             print(systemd_workbench_action.stdout, file=sys.stderr)
             print(systemd_workbench_action.stderr, file=sys.stderr)
@@ -6473,9 +6480,10 @@ def main(argv=None):
         )
         if (service_action_dry_run.returncode != 0 or
                 "service workflow action: file-service:start-service" not in service_action_dry_run.stdout or
-                "--run-service-workflow-action file-service:start-service --service-workflow-dry-run" not in service_action_dry_run.stdout or
+                "command=scripts/grit-console --config" not in service_action_dry_run.stdout or
                 "dry_run=yes" not in service_action_dry_run.stdout or
-                "--transport file-service" not in service_action_dry_run.stdout):
+                "--transport file-service" not in service_action_dry_run.stdout or
+                "headless_command=" in service_action_dry_run.stdout):
             print("service workflow action dry-run did not expose generated start command", file=sys.stderr)
             print(service_action_dry_run.stdout, file=sys.stderr)
             print(service_action_dry_run.stderr, file=sys.stderr)
@@ -6487,7 +6495,9 @@ def main(argv=None):
         )
         if (service_action_status.returncode != 0 or
                 "service workflow action: file-service:inspect-status" not in service_action_status.stdout or
-                "--run-service-workflow-action file-service:inspect-status" not in service_action_status.stdout or
+                "command=scripts/grit-console --config" not in service_action_status.stdout or
+                "--status" not in service_action_status.stdout or
+                "headless_command=" in service_action_status.stdout or
                 "Services:" not in service_action_status.stdout):
             print("service workflow action inspect-status did not run status view", file=sys.stderr)
             print(service_action_status.stdout, file=sys.stderr)
@@ -9052,7 +9062,8 @@ def main(argv=None):
         )
         if (action_stage.returncode != 0 or
                 "target workflow action: target-action:stage-file-fetch" not in action_stage.stdout or
-                "headless_command=" not in action_stage.stdout or
+                "headless_command=" in action_stage.stdout or
+                "command=scripts/grit-console --config" not in action_stage.stdout or
                 "target=target-action label=Action Router" not in action_stage.stdout or
                 "action-staged.txt" not in action_stage.stdout):
             print("headless target workflow stage action failed", file=sys.stderr)

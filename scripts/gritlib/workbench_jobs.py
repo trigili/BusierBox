@@ -284,7 +284,6 @@ def run_workbench_action_record(cfg, actions, selector, dry_run=False, confirmed
     )
     print(f"workbench action: {action_id}")
     if show_commands:
-        print(f"headless_command={headless}")
         print(f"command={command}")
     append_event(cfg, "workbench", "workbench_action_run_requested", details={
         "action_id": action_id,

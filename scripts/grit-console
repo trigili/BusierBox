@@ -5104,6 +5104,14 @@ def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="
     )
 
 
+def print_workflow_action_header(label, rec_id, command="", headless_command="", show_headless=False, show_command=True):
+    print(f"{label} workflow action: {rec_id}")
+    if show_headless and headless_command:
+        print(f"headless_command={headless_command}")
+    if show_command and command:
+        print(f"command={command}")
+
+
 def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
     snap = workbench_snapshot(cfg)
     rec = select_workflow_action(snap.get("service_workflow_actions") or [], selector, "service")
@@ -5119,9 +5127,7 @@ def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
         confirmed=confirmed,
     )
     command = str(rec.get("headless_command") or rec.get("command") or "")
-    print(f"service workflow action: {rec_id}")
-    print(f"headless_command={headless}")
-    print(f"command={command}")
+    print_workflow_action_header("service", rec_id, command=command, headless_command=headless)
     fleet_details = {
         "fleet_target_count": rec.get("fleet_target_count", 0),
         "fleet_offline_target_count": rec.get("fleet_offline_target_count", 0),
@@ -5207,10 +5213,13 @@ def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=
     workbench_action_id = str(rec.get("workbench_action_id") or action_id)
     command = str(rec.get("command") or "")
     run_command = str(rec.get("run_command") or "")
-    print(f"operator daemon workflow action: {rec_id}")
-    if show_commands:
-        print(f"headless_command={run_command or rec.get('headless_command', '') or command}")
-        print(f"command={command}")
+    print_workflow_action_header(
+        "operator daemon",
+        rec_id,
+        command=command,
+        headless_command=run_command or rec.get("headless_command", "") or command,
+        show_command=show_commands,
+    )
     fleet_details = {
         "fleet_target_count": rec.get("fleet_target_count", 0),
         "fleet_offline_target_count": rec.get("fleet_offline_target_count", 0),
@@ -5314,9 +5323,7 @@ def run_release_artifact_workflow_action(cfg, selector, dry_run=False):
     selector_value = str(rec.get("selector") or "")
     command = str(rec.get("command") or rec.get("headless_command") or "")
     run_command = str(rec.get("run_command") or "")
-    print(f"release artifact workflow action: {rec_id}")
-    print(f"headless_command={run_command or command}")
-    print(f"command={command}")
+    print_workflow_action_header("release artifact", rec_id, command=command, headless_command=run_command or command)
     append_event(cfg, "workbench", "release_artifact_workflow_action_selected", details={
         "id": rec_id,
         "action_id": action_id,
@@ -5395,9 +5402,7 @@ def run_command_queue_workflow_action(cfg, selector, command_input="", dry_run=F
     action_id = str(rec.get("action_id") or "")
     command = str(rec.get("command") or rec.get("headless_command") or "")
     run_command = str(rec.get("run_command") or "")
-    print(f"command queue workflow action: {rec_id}")
-    print(f"headless_command={run_command or command}")
-    print(f"command={command}")
+    print_workflow_action_header("command queue", rec_id, command=command, headless_command=run_command or command)
     append_event(cfg, "workbench", "command_queue_workflow_action_selected", details={
         "id": rec_id,
         "action_id": action_id,
@@ -5495,9 +5500,7 @@ def run_file_service_workflow_action(cfg, selector, local_file="", request_name=
     action_id = str(rec.get("action_id") or "")
     command = str(rec.get("command") or rec.get("headless_command") or "")
     run_command = str(rec.get("run_command") or "")
-    print(f"file service workflow action: {rec_id}")
-    print(f"headless_command={run_command or command}")
-    print(f"command={command}")
+    print_workflow_action_header("file service", rec_id, command=command, headless_command=run_command or command)
     append_event(cfg, "workbench", "file_service_workflow_action_selected", details={
         "id": rec_id,
         "action_id": action_id,
@@ -5602,9 +5605,7 @@ def run_probe_workflow_action(cfg, selector, dry_run=False, confirmed=False):
     command = str(rec.get("command") or rec.get("headless_command") or "")
     run_command = str(rec.get("run_command") or "")
     target_command = str(rec.get("target_command") or render_probe_command(cfg))
-    print(f"probe workflow action: {rec_id}")
-    print(f"headless_command={run_command or command}")
-    print(f"command={command}")
+    print_workflow_action_header("probe", rec_id, command=command, headless_command=run_command or command)
     print(f"target_command={target_command}")
     append_event(cfg, "workbench", "probe_workflow_action_selected", details={
         "id": rec_id,
@@ -5684,9 +5685,7 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
     profile = str(rec.get("bridge_profile") or "")
     command = str(rec.get("command") or rec.get("headless_command") or "")
     run_command = str(rec.get("run_command") or "")
-    print(f"bridge profile workflow action: {rec_id}")
-    print(f"headless_command={run_command or command}")
-    print(f"command={command}")
+    print_workflow_action_header("bridge profile", rec_id, command=command, headless_command=run_command or command)
     print(f"bridge_profile={profile} route={rec.get('route_path', '')}")
     fleet_details = {
         "fleet_target_count": rec.get("fleet_target_count", 0),
@@ -5792,9 +5791,7 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
     request = str(rec.get("request_name") or "")
     command = str(rec.get("command") or rec.get("headless_command") or "")
     run_command = str(rec.get("run_command") or "")
-    print(f"staged file workflow action: {rec_id}")
-    print(f"headless_command={run_command or command}")
-    print(f"command={command}")
+    print_workflow_action_header("staged file", rec_id, command=command, headless_command=run_command or command)
     target_details = {
         "target_connectivity_state": rec.get("target_connectivity_state", ""),
         "target_offline_age_bucket": rec.get("target_offline_age_bucket", ""),
@@ -5954,7 +5951,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
     })
     print(f"target workflow action: {rec.get('id', '')}")
     if show_commands:
-        print(f"headless_command={rec.get('headless_command', rec.get('command', ''))}")
+        print(f"command={rec.get('command') or rec.get('headless_command') or ''}")
 
     if action_id == "inspect-status":
         return print_status(scoped, json_output=False)
@@ -11420,7 +11417,6 @@ def run_line_tui(cfg):
                 print(f"  start_action_state={start_action.get('operator_action_state', '') or '-'} reason={start_action.get('operator_action_reason', '') or '-'}")
             else:
                 print("  target_command: unavailable")
-            print(f"  headless_command: {headless}")
             start_line = line_input("start probe listener now? [y/N]> ")
             if start_line is not None and start_line.strip().lower() in ("y", "yes"):
                 append_event(cfg, "workbench", "workbench_probe_started", details={
@@ -13247,7 +13243,6 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             )
             print(f"started workbench job {rec.get('id', '')}: pid={rec.get('pid', '')}")
             print(f"log={rec.get('log_path', '')}")
-            print(f"headless_command={headless}")
             print(f"command={rec.get('command', '')}")
             return 0
         if args.cancel_workbench_job:
@@ -13260,7 +13255,6 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             )
             print(f"cancel requested for workbench job {rec.get('id', args.cancel_workbench_job)}")
             print(f"pid={rec.get('pid', '')}")
-            print(f"headless_command={headless}")
             return 0
         if args.run_workbench_action:
             return run_workbench_action_record(
