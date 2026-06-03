@@ -244,6 +244,7 @@ from gritlib.workflow_actions import (
     probe_listener_action_states,
     probe_workflow_action_record,
     probe_workflow_action_indexes,
+    probe_workflow_run_command,
     probe_workflow_action_summary,
     scoped_service_workflow_run_command,
     select_workbench_action,
@@ -1496,7 +1497,7 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
             category,
             label,
             command,
-            base + bridge_arg + " --run-probe-workflow-action " + shquote(f"probe:{action_id}"),
+            probe_workflow_run_command(base, bridge_arg, action_id),
             service_row,
             target_command,
             cfg.get("GRIT_PROBE_NAME", "probe.sh"),
@@ -1551,7 +1552,12 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
         curses_enter_action="stop-probe" if lifecycle_states["stop_enter"] else "start-probe",
     )
     if records:
-        records[-1]["run_command"] = base + bridge_arg + " --run-probe-workflow-action probe:stop-probe --confirm-probe-workflow-action"
+        records[-1]["run_command"] = probe_workflow_run_command(
+            base,
+            bridge_arg,
+            "stop-probe",
+            " --confirm-probe-workflow-action",
+        )
     records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
     return records
 

@@ -318,6 +318,18 @@ def scoped_service_workflow_run_command(base_command, target_arg, service_name, 
     return command
 
 
+def probe_workflow_run_command(base_command, bridge_arg, action_id, extra_args=""):
+    command = (
+        str(base_command)
+        + str(bridge_arg or "")
+        + " --run-probe-workflow-action "
+        + shquote(f"probe:{action_id}")
+    )
+    if extra_args:
+        command += str(extra_args)
+    return command
+
+
 def bridge_profile_action_context(profile):
     profile = profile or {}
     profile_name = str(profile.get("name") or "")
