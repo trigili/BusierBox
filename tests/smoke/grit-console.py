@@ -937,6 +937,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("unstage section:", file=sys.stderr)
         print(unstage_text or line_console_stdout, file=sys.stderr)
         return 1
+    download_start = line_console_stdout.find("Target download command:")
+    download_end = line_console_stdout.find("grit[Console Router]> show mailbox", download_start + 1)
+    download_text = line_console_stdout[download_start:download_end] if download_start != -1 and download_end != -1 else ""
+    if not download_text or "target_upload_path=/etc/config/network" not in download_text or "headless_command:" in download_text:
+        print("line-oriented download command exposed noisy headless command", file=sys.stderr)
+        print(download_text or line_console_stdout, file=sys.stderr)
+        return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
     daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)
     daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""

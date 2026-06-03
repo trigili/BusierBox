@@ -11057,7 +11057,6 @@ def run_line_tui(cfg):
             })
             print(f"queued {queued['id']}: {queued['command']}")
             print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        print(f"headless_command: {headless}")
         append_event(cfg, "workbench", "workbench_target_download_command_shown", details={
             "headless_command": headless,
             "target_id": target_id,
