@@ -113,6 +113,7 @@ from gritlib.line_services import (
     print_line_service_records,
     resolve_line_service_selector as line_services_resolve_selector,
 )
+from gritlib.line_sessions import print_line_session_records
 from gritlib.line_workspace import print_line_workspace_snapshot
 from gritlib.operator_io import (
     clipboard_command, open_path_in_pager, restore_interactive_tty,
@@ -9820,89 +9821,17 @@ def run_line_tui(cfg):
 
     def print_line_sessions(verbose=False):
         all_sessions = workbench_snapshot(cfg).get("sessions") or []
-        shown = all_sessions[:12]
         total = len(all_sessions)
-
-        def _fmt_time(iso):
-            if iso and len(iso) >= 16 and "T" in iso:
-                date, rest = iso.split("T", 1)
-                return f"{date[5:]} {rest[:5]}"
-            return iso or "-"
-
-        def _state(rec):
-            state = rec.get("state") or "-"
-            exit_r = rec.get("exit_reason") or ""
-            if exit_r and exit_r != state:
-                return f"{state}/{exit_r}"
-            return state
-
-        def _transfers(rec):
-            parts = []
-            if rec.get("upload_count"):
-                parts.append(f"up={rec['upload_count']}")
-            if rec.get("fetch_count"):
-                parts.append(f"fetch={rec['fetch_count']}")
-            if rec.get("artifact_count"):
-                parts.append(f"art={rec['artifact_count']}")
-            return "  ".join(parts) or "-"
-
-        def _detail(rec):
-            if not verbose:
-                return []
-            sid = rec.get("session_id") or Path(str(rec.get("path", ""))).name
-            path = str(rec.get("path") or "")
-            details = [("id", sid), ("path", path)]
-            if rec.get("session_log"):
-                details.append(("log", Path(rec["session_log"]).name))
-            if rec.get("event_log"):
-                n = rec.get("event_count", "")
-                suffix = f"  ({n} events)" if n else ""
-                details.append(("events", Path(rec["event_log"]).name + suffix))
-            if rec.get("target_id"):
-                label = rec.get("target_label") or ""
-                details.append(("target", rec["target_id"] + (f"  ({label})" if label else "")))
-            transfers = _transfers(rec)
-            if transfers != "-":
-                details.append(("transfers", transfers))
-            return details
-
-        transfers_any = any(
-            (r.get("upload_count") or r.get("fetch_count") or r.get("artifact_count"))
-            for r in shown
+        search_records = print_line_session_records(
+            all_sessions,
+            verbose=verbose,
+            view_command=lambda path: view_path_headless_command(cfg, path),
+            quote=shquote,
         )
-        cols = [
-            ("Service",  lambda r: r.get("service") or "-"),
-            ("State",    _state),
-            ("Updated",  lambda r: _fmt_time(r.get("updated_at"))),
-        ]
-        if transfers_any and not verbose:
-            cols.append(("Transfers", _transfers))
-
-        footer = "use N to select  |  sessions -v for details  |  sessions ? for help"
-        if total > 12:
-            footer = f"showing 12 of {total}  —  " + footer
-        _console_table(
-            f"Sessions  ({total} total)" if total else "Sessions  (none)",
-            shown, cols, detail_fn=_detail, footer=footer,
-        )
-
-        search_records = [
-            {
-                "kind": "session",
-                "label": (
-                    f"{rec.get('session_id') or Path(str(rec.get('path',''))).name}"
-                    f" service={rec.get('service') or '-'} state={_state(rec)}"
-                ),
-                "rec": rec,
-                "command": view_path_headless_command(cfg, str(rec.get("path") or "")),
-                "use_hint": f"use session {shquote(str(rec.get('session_id') or Path(str(rec.get('path',''))).name))}",
-            }
-            for rec in shown
-        ]
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_sessions_listed", details={
             "session_count": total,
-            "shown_count": len(shown),
+            "shown_count": len(search_records),
             "verbose": bool(verbose),
         })
 
