@@ -572,6 +572,59 @@ def command_queue_listener_action_states(service_row):
     }
 
 
+def probe_workflow_action_record(
+    action_id,
+    category,
+    label,
+    command,
+    run_command,
+    service_row,
+    target_command,
+    script_name,
+    listen_host,
+    listen_port,
+    fleet_metrics,
+    action_state,
+    action_reason,
+    available=True,
+    requires_confirmation=False,
+    can_run_from_curses_enter=False,
+    curses_enter_action="",
+):
+    service_row = service_row or {}
+    return {
+        "id": f"probe:{action_id}",
+        "action_id": action_id,
+        "service": "probe",
+        "actual": str(service_row.get("actual") or "unknown"),
+        "category": category,
+        "workflow": "probe",
+        "label": label,
+        "command": command,
+        "headless_command": command,
+        "run_command": run_command,
+        "target_command": target_command,
+        "script_name": str(script_name or "probe.sh").lstrip("/") or "probe.sh",
+        "listen_host": str(listen_host or ""),
+        "listen_port": listen_port,
+        **(fleet_metrics or {}),
+        "available": bool(available),
+        "requires_input": False,
+        "requires_confirmation": bool(requires_confirmation),
+        "requires_target_online": False,
+        "queues_offline_work": False,
+        "target_phone_home_required": True,
+        "operator_action_state": action_state,
+        "operator_action_reason": action_reason,
+        "can_run_from_curses_enter": bool(can_run_from_curses_enter),
+        "curses_enter_action": curses_enter_action,
+        "execution_default": "show-command",
+        "target_execution": False,
+        "tui_visible": True,
+        "safety_boundary": "operator-side probe service; target execution still requires explicit target-side wget pipe",
+    }
+
+
 def workbench_action_indexes(records):
     return {
         "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
