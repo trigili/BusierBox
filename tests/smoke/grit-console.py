@@ -33,6 +33,14 @@ SECTION_DESCRIPTIONS = {
 SECTIONS = tuple(SECTION_DESCRIPTIONS)
 
 
+def line_console_artifact_dir():
+    explicit = os.environ.get("LINE_CONSOLE_ARTIFACT_DIR")
+    if explicit:
+        return Path(explicit)
+    root = Path(os.environ.get("ARTIFACT_ROOT", str(ROOT / "tests" / "artifacts")))
+    return root / "line-console"
+
+
 def run(*args):
     return subprocess.run(args, cwd=ROOT, text=True, capture_output=True)
 
@@ -80,6 +88,37 @@ def run_pty_script(proc, master_fd, input_bytes, timeout=8):
                 break
             output.extend(chunk)
     return bytes(output), stderr
+
+
+def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=None):
+    artifact_dir = line_console_artifact_dir()
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    (artifact_dir / "transcript.txt").write_text(stdout_text or "", encoding="utf-8")
+    (artifact_dir / "stderr.txt").write_text(stderr_text or "", encoding="utf-8")
+    summary_doc = {
+        "kind": "line-console-transcript",
+        "returncode": returncode,
+        "artifact_dir": str(artifact_dir),
+        "transcript": str(artifact_dir / "transcript.txt"),
+        "stderr": str(artifact_dir / "stderr.txt"),
+        "prompt_count": (stdout_text or "").count("grit["),
+        "traceback_present": "Traceback" in ((stdout_text or "") + (stderr_text or "")),
+        "literal_ctrl_c_present": "^C" in (stdout_text or ""),
+        "headless_command_default_spam_present": "headless_command:" in (stdout_text or ""),
+        "headless_command_event_summary_present": "headless_command=" in (stdout_text or ""),
+        "stale_numbered_result_error_present": "search result number out of range" in (stdout_text or ""),
+        "verbose_policy_dump_present": any(
+            marker in (stdout_text or "")
+            for marker in ("allowed_commands=", "delivery_policy_counts:", "mode status:")
+        ),
+    }
+    if summary:
+        summary_doc.update(summary)
+    (artifact_dir / "summary.json").write_text(
+        json.dumps(summary_doc, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return artifact_dir
 
 
 def free_port():
@@ -915,6 +954,23 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             os.close(line_console_master)
         except OSError:
             pass
+    line_console_artifact_dir_path = write_line_console_artifacts(
+        line_console_stdout,
+        line_console_stderr,
+        line_console_proc.returncode,
+        summary={
+            "section": "line-console",
+            "config": str(upload_cfg),
+            "state_file": str(line_console_state),
+            "staged_file": str(line_console_staged),
+            "bridge_profiles_file": str(line_console_routes),
+        },
+    )
+    if (not (line_console_artifact_dir_path / "transcript.txt").is_file() or
+            not (line_console_artifact_dir_path / "stderr.txt").is_file() or
+            not (line_console_artifact_dir_path / "summary.json").is_file()):
+        print("line-console transcript artifacts were not written", file=sys.stderr)
+        return 1
     line_console_session_markers = [
         "selected session ",
         "grit[all]/session/",
