@@ -117,6 +117,31 @@ def print_command_queue(cfg, json_output=False):
             print(f"  result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
 
 
+def print_workbench_command_queue_summary(queue):
+    print("Command queue:")
+    print(f"  path: {queue.get('path', '')}")
+    print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')} token_configured={'yes' if queue.get('token_configured') else 'no'} token_source={queue.get('token_source', '')}")
+    print(f"  allowed_commands={queue.get('allowed_commands', '')} execution_mode={queue.get('execution_mode', 'metadata-only')} allow_arbitrary={queue.get('allow_arbitrary', '')} active_control_channel={command_queue_policy_yes_no(queue, 'active_control_channel')}")
+    print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={command_queue_policy_yes_no(queue, 'configured_for_polling')} arbitrary_policy_requested={command_queue_policy_yes_no(queue, 'arbitrary_policy_requested')} arbitrary_execution_allowed={command_queue_policy_yes_no(queue, 'arbitrary_execution_allowed')}")
+    print(f"  policy_flags: operator_queue_records_only={command_queue_policy_yes_no(queue, 'operator_queue_records_only')} metadata_only_default={command_queue_policy_yes_no(queue, 'metadata_only_default')} safe_disabled_default={command_queue_policy_yes_no(queue, 'safe_disabled_default')}")
+    print(f"  transport_support: poll={command_queue_policy_yes_no(queue, 'poll_transport_supported')} live_polling={command_queue_policy_yes_no(queue, 'live_polling_supported')}")
+    for error in queue.get("policy_errors") or []:
+        print(f"  policy_error={error}")
+    print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported={command_queue_policy_yes_no(queue, 'execution_supported')} delivery_supported={command_queue_policy_yes_no(queue, 'delivery_supported')} result_upload_supported={command_queue_policy_yes_no(queue, 'result_upload_supported')}")
+    print(f"  command_limits: timeouts={format_counts(queue.get('timeout_sec_counts') or {})} max_output={format_counts(queue.get('max_output_bytes_counts') or {})} expire_sec={format_counts(queue.get('expire_sec_counts') or {})}")
+    print(f"  targets: {format_counts(queue.get('target_counts') or {})}")
+    print(f"  result_size_buckets: {format_counts(queue.get('result_output_size_bucket_counts') or {})}")
+    print(f"  latest_created={queue.get('latest_created_at', '') or '-'} latest_result={queue.get('latest_result_received_at', '') or '-'}")
+    print_command_queue_mode_lines(queue)
+    for rec in (queue.get("commands") or [])[:8]:
+        print(f"  {rec.get('id', '')} {rec.get('status', '')} {rec.get('command', '')}")
+        if rec.get("target_id"):
+            print(f"    target: {rec.get('target_id', '')} label={rec.get('target_label', '')}")
+        if rec.get("result_received_at"):
+            print(f"    result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
+            print(f"    result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
+
+
 def command_queue_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
     return Path(str(
         cfg.get("command_queue_file") or
