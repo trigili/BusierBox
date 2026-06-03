@@ -9,7 +9,10 @@ from pathlib import Path
 from gritlib.bridge_routes import target_route_context
 from gritlib.config_utils import yes
 from gritlib.operator_network import operator_advertised_host
-from gritlib.record_utils import record_count_by_key, records_by_bool, records_by_key
+from gritlib.record_utils import (
+    latest_record_value, record_bool_counts, record_count_by_key, record_sum_by_key,
+    records_by_bool, records_by_key,
+)
 from gritlib.session_state import read_json_file
 from gritlib.shell_utils import shquote
 from gritlib.target_records import (
@@ -604,6 +607,93 @@ def fetch_record_indexes(records):
     )
 
 
+def _index_counts(index):
+    return {key: len(value) for key, value in (index or {}).items()}
+
+
+def upload_record_summary(records, target_attribution=None):
+    records = records or []
+    target_attribution = target_attribution or {}
+    (
+        _uploads_by_filename,
+        _uploads_by_kind,
+        _uploads_by_sha256,
+        _uploads_by_target_id,
+        _uploads_by_source_path,
+        _uploads_by_stored_path,
+        _uploads_by_stored_exists,
+        uploads_by_metadata_exists,
+        uploads_by_event_log_exists,
+        _uploads_by_remote_addr,
+        _uploads_by_status,
+        uploads_by_kind_status,
+        uploads_by_filename_status,
+        uploads_by_status_stored_exists,
+        uploads_by_status_remote_addr,
+    ) = upload_record_indexes(records)
+    stored_exists_count, stored_missing_count = record_bool_counts(records, "stored_exists")
+    return {
+        "upload_count": len(records),
+        "upload_total_size": record_sum_by_key(records, "size"),
+        "upload_stored_exists_count": stored_exists_count,
+        "upload_stored_missing_count": stored_missing_count,
+        "upload_metadata_exists_counts": _index_counts(uploads_by_metadata_exists),
+        "upload_event_log_exists_counts": _index_counts(uploads_by_event_log_exists),
+        "upload_kind_counts": record_count_by_key(records, "upload_kind"),
+        "upload_status_counts": record_count_by_key(records, "status"),
+        "upload_remote_counts": record_count_by_key(records, "remote_addr"),
+        "upload_target_counts": record_count_by_key(records, "target_id"),
+        "upload_with_target_count": target_attribution.get("upload_with_target_count", 0),
+        "upload_without_target_count": target_attribution.get("upload_without_target_count", 0),
+        "upload_kind_status_counts": _index_counts(uploads_by_kind_status),
+        "upload_filename_status_counts": _index_counts(uploads_by_filename_status),
+        "upload_status_stored_exists_counts": _index_counts(uploads_by_status_stored_exists),
+        "upload_status_remote_counts": _index_counts(uploads_by_status_remote_addr),
+        "latest_upload_at": latest_record_value(records, ("timestamp", "updated_at")),
+    }
+
+
+def fetch_record_summary(records, target_attribution=None):
+    records = records or []
+    target_attribution = target_attribution or {}
+    (
+        _fetches_by_request,
+        _fetches_by_sha256,
+        _fetches_by_target_id,
+        _fetches_by_source_path,
+        _fetches_by_source_exists,
+        fetches_by_metadata_exists,
+        fetches_by_event_log_exists,
+        _fetches_by_status,
+        _fetches_by_http_status,
+        _fetches_by_remote_addr,
+        fetches_by_request_status,
+        fetches_by_status_source_exists,
+        fetches_by_status_remote_addr,
+        fetches_by_http_status_remote_addr,
+    ) = fetch_record_indexes(records)
+    source_exists_count, source_missing_count = record_bool_counts(records, "source_exists")
+    return {
+        "fetch_count": len(records),
+        "fetch_total_size": record_sum_by_key(records, "size"),
+        "fetch_source_exists_count": source_exists_count,
+        "fetch_source_missing_count": source_missing_count,
+        "fetch_metadata_exists_counts": _index_counts(fetches_by_metadata_exists),
+        "fetch_event_log_exists_counts": _index_counts(fetches_by_event_log_exists),
+        "fetch_status_counts": record_count_by_key(records, "status"),
+        "fetch_http_status_counts": record_count_by_key(records, "http_status"),
+        "fetch_remote_counts": record_count_by_key(records, "remote_addr"),
+        "fetch_target_counts": record_count_by_key(records, "target_id"),
+        "fetch_with_target_count": target_attribution.get("fetch_with_target_count", 0),
+        "fetch_without_target_count": target_attribution.get("fetch_without_target_count", 0),
+        "fetch_request_status_counts": _index_counts(fetches_by_request_status),
+        "fetch_status_source_exists_counts": _index_counts(fetches_by_status_source_exists),
+        "fetch_status_remote_counts": _index_counts(fetches_by_status_remote_addr),
+        "fetch_http_status_remote_counts": _index_counts(fetches_by_http_status_remote_addr),
+        "latest_fetch_at": latest_record_value(records, ("timestamp", "updated_at")),
+    }
+
+
 def target_file_transfer_records_from_sources(staged_records, uploads, fetches):
     records = []
     for rec in staged_records or []:
@@ -739,6 +829,20 @@ def target_file_transfer_record_indexes(records):
         "target_file_transfer_records_by_filename": records_by_key(records, "filename"),
         "target_file_transfer_records_by_sha256": records_by_key(records, "sha256"),
         "target_file_transfer_records_by_session_id": records_by_key(records, "session_id"),
+    }
+
+
+def target_file_transfer_record_summary(records):
+    records = records or []
+    return {
+        "target_file_transfer_record_count": len(records),
+        "target_file_transfer_operation_counts": record_count_by_key(records, "operation"),
+        "target_file_transfer_source_collection_counts": record_count_by_key(records, "source_collection"),
+        "target_file_transfer_status_counts": record_count_by_key(records, "status"),
+        "target_file_transfer_target_counts": record_count_by_key(records, "target_id"),
+        "target_file_transfer_route_kind_counts": record_count_by_key(records, "route_kind"),
+        "target_file_transfer_bridge_profile_counts": record_count_by_key(records, "bridge_profile"),
+        "latest_target_file_transfer_at": latest_record_value(records, ("timestamp", "updated_at", "created_at")),
     }
 
 

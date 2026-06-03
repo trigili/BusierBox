@@ -88,7 +88,7 @@ from gritlib.event_log import (
     print_event_log_summary,
 )
 from gritlib.file_transfers import (
-    fetch_record_indexes, file_service_workflow_action_indexes,
+    fetch_record_indexes, fetch_record_summary, file_service_workflow_action_indexes,
     file_service_workflow_action_summary, read_http_body, read_http_headers,
     read_http_upload, recent_fetch_metadata, recent_upload_metadata,
     print_recent_fetches, print_recent_uploads, print_staged_fetch_target_options,
@@ -96,7 +96,8 @@ from gritlib.file_transfers import (
     render_file_service_command, safe_upload_name, send_http_response,
     staged_fetch_output_name, staged_fetch_target_commands,
     send_json_response, stream_fetch_response, target_file_transfer_record_indexes,
-    target_file_transfer_records_from_sources, upload_record_indexes,
+    target_file_transfer_record_summary, target_file_transfer_records_from_sources,
+    upload_record_indexes, upload_record_summary,
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.operator_io import (
@@ -119,8 +120,8 @@ from gritlib.process_status import (
 )
 from gritlib.record_utils import (
     format_counts, int_value, latest_record_value,
-    record_bool_counts, record_count_by_key, record_count_by_nested_key,
-    record_sum_by_key, records_by_bool, records_by_composite, records_by_key,
+    record_count_by_key, record_count_by_nested_key, record_sum_by_key,
+    records_by_bool, records_by_composite, records_by_key,
     records_by_list_item, records_by_nested_key, records_by_session,
 )
 from gritlib.release_artifacts import (
@@ -4770,8 +4771,6 @@ def status_document(cfg):
     warning_summary = warning_stats(warnings)
     command_queue_policy_summary = command_queue.get("policy_summary") or {}
     command_queue_mode_summary = command_queue.get("mode_summary") or {}
-    upload_stored_exists_count, upload_stored_missing_count = record_bool_counts(uploads, "stored_exists")
-    fetch_source_exists_count, fetch_source_missing_count = record_bool_counts(fetches, "source_exists")
     summary.update({
         "path_status_count": path_summary.get("path_status_count", 0),
         "path_missing_count": path_summary.get("path_missing_count", 0),
@@ -4945,48 +4944,9 @@ def status_document(cfg):
         "port_warning_count": len(ports_by_has_warnings.get("yes") or []),
         "port_without_warning_count": len(ports_by_has_warnings.get("no") or []),
         "port_warning_type_counts": {key: len(value) for key, value in ports_by_warning_type.items()},
-        "upload_count": len(uploads),
-        "upload_total_size": record_sum_by_key(uploads, "size"),
-        "upload_stored_exists_count": upload_stored_exists_count,
-        "upload_stored_missing_count": upload_stored_missing_count,
-        "upload_metadata_exists_counts": {key: len(value) for key, value in uploads_by_metadata_exists.items()},
-        "upload_event_log_exists_counts": {key: len(value) for key, value in uploads_by_event_log_exists.items()},
-        "upload_kind_counts": record_count_by_key(uploads, "upload_kind"),
-        "upload_status_counts": record_count_by_key(uploads, "status"),
-        "upload_remote_counts": record_count_by_key(uploads, "remote_addr"),
-        "upload_target_counts": record_count_by_key(uploads, "target_id"),
-        "upload_with_target_count": target_attribution["upload_with_target_count"],
-        "upload_without_target_count": target_attribution["upload_without_target_count"],
-        "upload_kind_status_counts": {key: len(value) for key, value in uploads_by_kind_status.items()},
-        "upload_filename_status_counts": {key: len(value) for key, value in uploads_by_filename_status.items()},
-        "upload_status_stored_exists_counts": {key: len(value) for key, value in uploads_by_status_stored_exists.items()},
-        "upload_status_remote_counts": {key: len(value) for key, value in uploads_by_status_remote_addr.items()},
-        "latest_upload_at": latest_record_value(uploads, ("timestamp", "updated_at")),
-        "fetch_count": len(fetches),
-        "fetch_total_size": record_sum_by_key(fetches, "size"),
-        "fetch_source_exists_count": fetch_source_exists_count,
-        "fetch_source_missing_count": fetch_source_missing_count,
-        "fetch_metadata_exists_counts": {key: len(value) for key, value in fetches_by_metadata_exists.items()},
-        "fetch_event_log_exists_counts": {key: len(value) for key, value in fetches_by_event_log_exists.items()},
-        "fetch_status_counts": record_count_by_key(fetches, "status"),
-        "fetch_http_status_counts": record_count_by_key(fetches, "http_status"),
-        "fetch_remote_counts": record_count_by_key(fetches, "remote_addr"),
-        "fetch_target_counts": record_count_by_key(fetches, "target_id"),
-        "fetch_with_target_count": target_attribution["fetch_with_target_count"],
-        "fetch_without_target_count": target_attribution["fetch_without_target_count"],
-        "fetch_request_status_counts": {key: len(value) for key, value in fetches_by_request_status.items()},
-        "fetch_status_source_exists_counts": {key: len(value) for key, value in fetches_by_status_source_exists.items()},
-        "fetch_status_remote_counts": {key: len(value) for key, value in fetches_by_status_remote_addr.items()},
-        "fetch_http_status_remote_counts": {key: len(value) for key, value in fetches_by_http_status_remote_addr.items()},
-        "latest_fetch_at": latest_record_value(fetches, ("timestamp", "updated_at")),
-        "target_file_transfer_record_count": len(target_file_transfer_records),
-        "target_file_transfer_operation_counts": record_count_by_key(target_file_transfer_records, "operation"),
-        "target_file_transfer_source_collection_counts": record_count_by_key(target_file_transfer_records, "source_collection"),
-        "target_file_transfer_status_counts": record_count_by_key(target_file_transfer_records, "status"),
-        "target_file_transfer_target_counts": record_count_by_key(target_file_transfer_records, "target_id"),
-        "target_file_transfer_route_kind_counts": record_count_by_key(target_file_transfer_records, "route_kind"),
-        "target_file_transfer_bridge_profile_counts": record_count_by_key(target_file_transfer_records, "bridge_profile"),
-        "latest_target_file_transfer_at": latest_record_value(target_file_transfer_records, ("timestamp", "updated_at", "created_at")),
+        **upload_record_summary(uploads, target_attribution),
+        **fetch_record_summary(fetches, target_attribution),
+        **target_file_transfer_record_summary(target_file_transfer_records),
         "file_service_workflow_action_count": file_service_workflow_action_stats.get("total_count", 0),
         "file_service_workflow_action_available_count": file_service_workflow_action_stats.get("available_count", 0),
         "file_service_workflow_action_requires_input_count": file_service_workflow_action_stats.get("requires_input_count", 0),
