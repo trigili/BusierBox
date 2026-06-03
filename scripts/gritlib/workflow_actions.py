@@ -1244,6 +1244,38 @@ def target_workflow_action_summary(records):
     }
 
 
+def target_workflow_action_status_summary(records):
+    summary = target_workflow_action_summary(records)
+    return {
+        "target_workflow_action_count": summary.get("total_count", 0),
+        "target_workflow_action_available_count": summary.get("available_count", 0),
+        "target_workflow_action_requires_input_count": summary.get("requires_input_count", 0),
+        "target_workflow_action_offline_supported_count": summary.get("offline_supported_count", 0),
+        "target_workflow_action_requires_target_online_count": summary.get("requires_target_online_count", 0),
+        "target_workflow_action_queues_offline_work_count": summary.get("queues_offline_work_count", 0),
+        "target_workflow_action_target_phone_home_required_count": summary.get("target_phone_home_required_count", 0),
+        "target_workflow_action_can_run_from_curses_enter_count": summary.get("can_run_from_curses_enter_count", 0),
+        "target_workflow_action_target_counts": summary.get("target_counts") or {},
+        "target_workflow_action_category_counts": summary.get("category_counts") or {},
+        "target_workflow_action_workflow_counts": summary.get("workflow_counts") or {},
+        "target_workflow_action_bridge_profile_counts": summary.get("bridge_profile_counts") or {},
+        "target_workflow_action_connectivity_state_counts": summary.get("target_connectivity_state_counts") or {},
+        "target_workflow_action_target_offline_age_bucket_counts": summary.get("target_offline_age_bucket_counts") or {},
+        "target_workflow_action_target_poll_overdue_counts": summary.get("target_poll_overdue_counts") or {},
+        "target_workflow_action_target_mailbox_pending_work_count_counts": summary.get("target_mailbox_pending_work_count_counts") or {},
+        "target_workflow_action_target_latest_phone_home_status_counts": summary.get("target_latest_phone_home_status_counts") or {},
+        "target_workflow_action_target_latest_successful_phone_home_status_counts": summary.get("target_latest_successful_phone_home_status_counts") or {},
+        "target_workflow_action_target_last_failed_phone_home_status_counts": summary.get("target_last_failed_phone_home_status_counts") or {},
+        "target_workflow_action_operator_action_state_counts": summary.get("operator_action_state_counts") or {},
+        "target_workflow_action_operator_action_reason_counts": summary.get("operator_action_reason_counts") or {},
+        "target_workflow_action_offline_supported_counts": summary.get("offline_supported_counts") or {},
+        "target_workflow_action_requires_target_online_counts": summary.get("requires_target_online_counts") or {},
+        "target_workflow_action_queues_offline_work_counts": summary.get("queues_offline_work_counts") or {},
+        "target_workflow_action_target_phone_home_required_counts": summary.get("target_phone_home_required_counts") or {},
+        "target_workflow_action_can_run_from_curses_enter_counts": summary.get("can_run_from_curses_enter_counts") or {},
+    }
+
+
 def probe_workflow_action_indexes(records):
     return {
         "probe_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},

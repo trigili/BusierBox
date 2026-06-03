@@ -268,7 +268,7 @@ from gritlib.workflow_actions import (
     target_scoped_command,
     target_workflow_action_record,
     target_workflow_run_command,
-    target_workflow_action_summary,
+    target_workflow_action_status_summary,
     workflow_action_count,
     workflow_command_prefix_count,
     workflow_enter_count,
@@ -4302,7 +4302,6 @@ def status_document(cfg):
     operator_daemon_workflow_action_stats = operator_daemon_workflow_action_summary(operator_daemon_workflow_actions)
     target_workflow_actions = target_workflow_action_records(cfg, targets, bridge_profiles)
     target_workflow_action_index_maps = target_workflow_action_indexes(target_workflow_actions)
-    target_workflow_action_stats = target_workflow_action_summary(target_workflow_actions)
     workbench_jobs = workbench_job_records(cfg, workbench_actions)
     workbench_job_index_maps = workbench_job_indexes(workbench_jobs)
     workbench_job_stats = workbench_job_summary(workbench_jobs)
@@ -4908,32 +4907,7 @@ def status_document(cfg):
             rshell_session_policy_record_item,
             rshell_session_policy_records,
         ),
-        "target_workflow_action_count": target_workflow_action_stats.get("total_count", 0),
-        "target_workflow_action_available_count": target_workflow_action_stats.get("available_count", 0),
-        "target_workflow_action_requires_input_count": target_workflow_action_stats.get("requires_input_count", 0),
-        "target_workflow_action_offline_supported_count": target_workflow_action_stats.get("offline_supported_count", 0),
-        "target_workflow_action_requires_target_online_count": target_workflow_action_stats.get("requires_target_online_count", 0),
-        "target_workflow_action_queues_offline_work_count": target_workflow_action_stats.get("queues_offline_work_count", 0),
-        "target_workflow_action_target_phone_home_required_count": target_workflow_action_stats.get("target_phone_home_required_count", 0),
-        "target_workflow_action_can_run_from_curses_enter_count": target_workflow_action_stats.get("can_run_from_curses_enter_count", 0),
-        "target_workflow_action_target_counts": target_workflow_action_stats.get("target_counts") or {},
-        "target_workflow_action_category_counts": target_workflow_action_stats.get("category_counts") or {},
-        "target_workflow_action_workflow_counts": target_workflow_action_stats.get("workflow_counts") or {},
-        "target_workflow_action_bridge_profile_counts": target_workflow_action_stats.get("bridge_profile_counts") or {},
-        "target_workflow_action_connectivity_state_counts": target_workflow_action_stats.get("target_connectivity_state_counts") or {},
-        "target_workflow_action_target_offline_age_bucket_counts": target_workflow_action_stats.get("target_offline_age_bucket_counts") or {},
-        "target_workflow_action_target_poll_overdue_counts": target_workflow_action_stats.get("target_poll_overdue_counts") or {},
-        "target_workflow_action_target_mailbox_pending_work_count_counts": target_workflow_action_stats.get("target_mailbox_pending_work_count_counts") or {},
-        "target_workflow_action_target_latest_phone_home_status_counts": target_workflow_action_stats.get("target_latest_phone_home_status_counts") or {},
-        "target_workflow_action_target_latest_successful_phone_home_status_counts": target_workflow_action_stats.get("target_latest_successful_phone_home_status_counts") or {},
-        "target_workflow_action_target_last_failed_phone_home_status_counts": target_workflow_action_stats.get("target_last_failed_phone_home_status_counts") or {},
-        "target_workflow_action_operator_action_state_counts": target_workflow_action_stats.get("operator_action_state_counts") or {},
-        "target_workflow_action_operator_action_reason_counts": target_workflow_action_stats.get("operator_action_reason_counts") or {},
-        "target_workflow_action_offline_supported_counts": target_workflow_action_stats.get("offline_supported_counts") or {},
-        "target_workflow_action_requires_target_online_counts": target_workflow_action_stats.get("requires_target_online_counts") or {},
-        "target_workflow_action_queues_offline_work_counts": target_workflow_action_stats.get("queues_offline_work_counts") or {},
-        "target_workflow_action_target_phone_home_required_counts": target_workflow_action_stats.get("target_phone_home_required_counts") or {},
-        "target_workflow_action_can_run_from_curses_enter_counts": target_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
+        **target_workflow_action_status_summary(target_workflow_actions),
         **event_status_summary(
             event_stats, event_log_state, event_log_state_records,
             events, event_summary_stats,
