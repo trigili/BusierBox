@@ -1337,6 +1337,38 @@ def probe_workflow_action_summary(records):
     }
 
 
+def probe_workflow_action_status_summary(records):
+    summary = probe_workflow_action_summary(records)
+    return {
+        "probe_workflow_action_count": summary.get("total_count", 0),
+        "probe_workflow_action_available_count": summary.get("available_count", 0),
+        "probe_workflow_action_requires_confirmation_count": summary.get("requires_confirmation_count", 0),
+        "probe_workflow_action_target_phone_home_required_count": summary.get("target_phone_home_required_count", 0),
+        "probe_workflow_action_can_run_from_curses_enter_count": summary.get("can_run_from_curses_enter_count", 0),
+        "probe_workflow_action_action_counts": summary.get("action_counts") or {},
+        "probe_workflow_action_category_counts": summary.get("category_counts") or {},
+        "probe_workflow_action_workflow_counts": summary.get("workflow_counts") or {},
+        "probe_workflow_action_actual_counts": summary.get("actual_counts") or {},
+        "probe_workflow_action_route_kind_counts": summary.get("route_kind_counts") or {},
+        "probe_workflow_action_bridge_profile_counts": summary.get("bridge_profile_counts") or {},
+        "probe_workflow_action_requires_bridge_counts": summary.get("requires_bridge_counts") or {},
+        "probe_workflow_action_fleet_target_count_counts": summary.get("fleet_target_count_counts") or {},
+        "probe_workflow_action_fleet_offline_target_count_counts": summary.get("fleet_offline_target_count_counts") or {},
+        "probe_workflow_action_fleet_stale_target_count_counts": summary.get("fleet_stale_target_count_counts") or {},
+        "probe_workflow_action_fleet_mailbox_pending_target_count_counts": summary.get("fleet_mailbox_pending_target_count_counts") or {},
+        "probe_workflow_action_fleet_mailbox_pending_work_count_counts": summary.get("fleet_mailbox_pending_work_count_counts") or {},
+        "probe_workflow_action_fleet_poll_overdue_target_count_counts": summary.get("fleet_poll_overdue_target_count_counts") or {},
+        "probe_workflow_action_fleet_has_offline_targets_counts": summary.get("fleet_has_offline_targets_counts") or {},
+        "probe_workflow_action_fleet_has_stale_targets_counts": summary.get("fleet_has_stale_targets_counts") or {},
+        "probe_workflow_action_fleet_has_mailbox_pending_work_counts": summary.get("fleet_has_mailbox_pending_work_counts") or {},
+        "probe_workflow_action_fleet_has_poll_overdue_targets_counts": summary.get("fleet_has_poll_overdue_targets_counts") or {},
+        "probe_workflow_action_operator_action_state_counts": summary.get("operator_action_state_counts") or {},
+        "probe_workflow_action_operator_action_reason_counts": summary.get("operator_action_reason_counts") or {},
+        "probe_workflow_action_can_run_from_curses_enter_counts": summary.get("can_run_from_curses_enter_counts") or {},
+        "probe_workflow_action_curses_enter_action_counts": summary.get("curses_enter_action_counts") or {},
+    }
+
+
 def print_workbench_action_summary(doc):
     doc = doc or {}
     summary = doc.get("summary") or {}
