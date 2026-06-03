@@ -83,8 +83,9 @@ from gritlib.file_transfers import (
     fetch_record_indexes, file_service_workflow_action_indexes,
     file_service_workflow_action_summary, read_http_body, read_http_headers,
     read_http_upload, recent_fetch_metadata, recent_upload_metadata,
-    render_fetch_command, render_file_service_command, safe_upload_name,
-    send_http_response, staged_fetch_output_name, staged_fetch_target_commands,
+    print_staged_fetch_target_options, render_fetch_command,
+    render_file_service_command, safe_upload_name, send_http_response,
+    staged_fetch_output_name, staged_fetch_target_commands,
     send_json_response, stream_fetch_response, target_file_transfer_record_indexes,
     target_file_transfer_records_from_sources, upload_record_indexes,
 )
@@ -4369,22 +4370,6 @@ def stage_release_selection(cfg, selector):
         return stage_release_artifact(cfg, selector)
     return stage_release_artifact(cfg, selector)
 
-
-
-def print_staged_fetch_target_options(request_name, cfg, output_name=None, executable=False):
-    commands = staged_fetch_target_commands(request_name, cfg, output_name=output_name, executable=executable)
-    print("  Target fetch options:")
-    print(f"    url:   {commands['url']}")
-    print(f"    wget:  {commands['wget']}")
-    print(f"    curl:  {commands['curl']}")
-    if commands.get("nc"):
-        print(f"    nc:    {commands['nc']}")
-    elif commands.get("nc_note"):
-        print(f"    nc:    {commands['nc_note']}")
-    print(f"    grit:  {commands['grit']}")
-    if executable:
-        print(f"    run:   {commands['run']}")
-    return commands
 
 
 def print_staged(cfg):

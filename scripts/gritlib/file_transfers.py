@@ -174,6 +174,27 @@ def staged_fetch_target_commands(request_name, cfg, output_name=None, executable
     return commands
 
 
+def print_staged_fetch_target_options(request_name, cfg, output_name=None, executable=False):
+    commands = staged_fetch_target_commands(
+        request_name,
+        cfg,
+        output_name=output_name,
+        executable=executable,
+    )
+    print("  Target fetch options:")
+    print(f"    url:   {commands['url']}")
+    print(f"    wget:  {commands['wget']}")
+    print(f"    curl:  {commands['curl']}")
+    if commands.get("nc"):
+        print(f"    nc:    {commands['nc']}")
+    elif commands.get("nc_note"):
+        print(f"    nc:    {commands['nc_note']}")
+    print(f"    grit:  {commands['grit']}")
+    if executable:
+        print(f"    run:   {commands['run']}")
+    return commands
+
+
 def render_file_service_command(parts, cfg, host=None):
     host = operator_advertised_host(cfg, host=host)
     route = target_route_context(
