@@ -412,6 +412,42 @@ def bridge_profile_workflow_action_summary(records):
     }
 
 
+def bridge_profile_workflow_action_status_summary(records):
+    summary = bridge_profile_workflow_action_summary(records)
+    return {
+        "bridge_profile_workflow_action_count": summary.get("total_count", 0),
+        "bridge_profile_workflow_action_available_count": summary.get("available_count", 0),
+        "bridge_profile_workflow_action_requires_input_count": summary.get("requires_input_count", 0),
+        "bridge_profile_workflow_action_requires_confirmation_count": summary.get("requires_confirmation_count", 0),
+        "bridge_profile_workflow_action_requires_target_online_count": summary.get("requires_target_online_count", 0),
+        "bridge_profile_workflow_action_multi_hop_count": summary.get("multi_hop_count", 0),
+        "bridge_profile_workflow_action_can_run_from_curses_enter_count": summary.get("can_run_from_curses_enter_count", 0),
+        "bridge_profile_workflow_action_bridge_profile_counts": summary.get("bridge_profile_counts") or {},
+        "bridge_profile_workflow_action_target_counts": summary.get("target_counts") or {},
+        "bridge_profile_workflow_action_action_counts": summary.get("action_counts") or {},
+        "bridge_profile_workflow_action_category_counts": summary.get("category_counts") or {},
+        "bridge_profile_workflow_action_workflow_counts": summary.get("workflow_counts") or {},
+        "bridge_profile_workflow_action_current_state_counts": summary.get("current_state_counts") or {},
+        "bridge_profile_workflow_action_active_counts": summary.get("active_counts") or {},
+        "bridge_profile_workflow_action_fleet_target_count_counts": summary.get("fleet_target_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_offline_target_count_counts": summary.get("fleet_offline_target_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_stale_target_count_counts": summary.get("fleet_stale_target_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_mailbox_pending_target_count_counts": summary.get("fleet_mailbox_pending_target_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_mailbox_pending_work_count_counts": summary.get("fleet_mailbox_pending_work_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_poll_overdue_target_count_counts": summary.get("fleet_poll_overdue_target_count_counts") or {},
+        "bridge_profile_workflow_action_fleet_has_offline_targets_counts": summary.get("fleet_has_offline_targets_counts") or {},
+        "bridge_profile_workflow_action_fleet_has_stale_targets_counts": summary.get("fleet_has_stale_targets_counts") or {},
+        "bridge_profile_workflow_action_fleet_has_mailbox_pending_work_counts": summary.get("fleet_has_mailbox_pending_work_counts") or {},
+        "bridge_profile_workflow_action_fleet_has_poll_overdue_targets_counts": summary.get("fleet_has_poll_overdue_targets_counts") or {},
+        "bridge_profile_workflow_action_operator_action_state_counts": summary.get("operator_action_state_counts") or {},
+        "bridge_profile_workflow_action_operator_action_reason_counts": summary.get("operator_action_reason_counts") or {},
+        "bridge_profile_workflow_action_can_run_from_curses_enter_counts": summary.get("can_run_from_curses_enter_counts") or {},
+        "bridge_profile_workflow_action_curses_enter_action_counts": summary.get("curses_enter_action_counts") or {},
+        "bridge_profile_workflow_action_has_last_successful_relay_counts": summary.get("has_last_successful_relay_counts") or {},
+        "bridge_profile_workflow_action_has_last_failure_counts": summary.get("has_last_failure_counts") or {},
+    }
+
+
 def bridge_profile_workflow_fleet_metrics(target_records):
     target_records = [rec for rec in target_records or [] if isinstance(rec, dict)]
     fleet_mailbox_pending_work_count = sum(
