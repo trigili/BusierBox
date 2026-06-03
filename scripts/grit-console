@@ -81,7 +81,7 @@ from gritlib.file_transfers import (
     fetch_record_indexes, file_service_workflow_action_indexes,
     file_service_workflow_action_summary, read_http_body, read_http_headers,
     read_http_upload, safe_upload_name, send_http_response,
-    stream_fetch_response, target_file_transfer_record_indexes,
+    send_json_response, stream_fetch_response, target_file_transfer_record_indexes,
     target_file_transfer_records_from_sources, upload_record_indexes,
 )
 from gritlib.probe_results import append_probe_result, probe_results_path
@@ -6215,26 +6215,6 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "result_upload_supported": True,
         **poll_context,
     }, target_identity)
-
-
-def send_json_response(conn, status_code, payload):
-    reason = {
-        200: "OK",
-        400: "Bad Request",
-        403: "Forbidden",
-        405: "Method Not Allowed",
-        411: "Length Required",
-        500: "Internal Server Error",
-    }.get(status_code, "OK")
-    body = json.dumps(payload, sort_keys=True).encode("utf-8") + b"\n"
-    headers = (
-        f"HTTP/1.1 {status_code} {reason}\r\n"
-        "Content-Type: application/json\r\n"
-        f"Content-Length: {len(body)}\r\n"
-        "Connection: close\r\n"
-        "\r\n"
-    ).encode("ascii")
-    conn.sendall(headers + body)
 
 
 def serve_command_queue(cfg, timeout, max_sessions=0):

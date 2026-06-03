@@ -203,6 +203,26 @@ def stream_fetch_response(conn, src, status_code=200, content_type="application/
             conn.sendall(chunk)
 
 
+def send_json_response(conn, status_code, payload):
+    reason = {
+        200: "OK",
+        400: "Bad Request",
+        403: "Forbidden",
+        405: "Method Not Allowed",
+        411: "Length Required",
+        500: "Internal Server Error",
+    }.get(status_code, "OK")
+    body = json.dumps(payload, sort_keys=True).encode("utf-8") + b"\n"
+    headers = (
+        f"HTTP/1.1 {status_code} {reason}\r\n"
+        "Content-Type: application/json\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ).encode("ascii")
+    conn.sendall(headers + body)
+
+
 def upload_record_indexes(records):
     by_filename = {}
     by_kind = {}
