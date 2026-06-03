@@ -347,3 +347,28 @@ def target_command_state_status(summary):
         "state_records": state_records,
         "state_index_maps": state_index_maps,
     }
+
+
+def target_command_route_text(rec):
+    route_kind = str(rec.get("route_kind") or "direct")
+    host = str(rec.get("route_host") or "")
+    port = rec.get("route_port", "")
+    endpoint = f"{host}:{port}" if host and port not in (None, "") else ""
+    if route_kind == "bridge":
+        profile = str(rec.get("bridge_profile") or "-")
+        path = str(rec.get("bridge_route_path") or "")
+        suffix = f" path={path}" if path else ""
+        return f"route=bridge bridge_profile={profile}{suffix}"
+    if endpoint:
+        return f"route=direct endpoint={endpoint}"
+    return f"route={route_kind}"
+
+
+def target_command_display_line(rec, prefix=""):
+    command = str(rec.get("command") or "")
+    service = str(rec.get("service") or "")
+    ordinal = rec.get("ordinal", "")
+    route = target_command_route_text(rec)
+    ordinal_text = f"{ordinal}: " if ordinal not in (None, "") else ""
+    service_text = f" service={service}" if service else ""
+    return f"{prefix}{ordinal_text}{route}{service_text} command={command}"
