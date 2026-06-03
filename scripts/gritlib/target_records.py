@@ -1,11 +1,12 @@
 """Target record index and summary helpers for grit-console."""
 
 import json
+import time
 from pathlib import Path
 
 from gritlib.record_utils import list_merge_unique, record_count_by_key
-from gritlib.session_state import parse_utc_timestamp, read_json_file, utc_from_epoch
-from gritlib.target_activity import mailbox_wait_bucket
+from gritlib.session_state import parse_utc_timestamp, read_json_file, utc_from_epoch, utc_now
+from gritlib.target_activity import mailbox_wait_bucket, target_mailbox_counts
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
@@ -269,6 +270,16 @@ def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     rec["latest_command_result_at"] = str(latest_result_rec.get("result_received_at") or "")
     rec["latest_command_result_id"] = str(latest_result_rec.get("id") or "")
     return rec
+
+
+def target_records(cfg):
+    targets = load_targets(cfg).get("targets") or {}
+    now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
+    mailbox_counts, latest_result = target_mailbox_counts(cfg)
+    records = [dict(rec) for rec in targets.values() if isinstance(rec, dict)]
+    records = [enrich_target_record(rec, now_epoch, mailbox_counts, latest_result) for rec in records]
+    records.sort(key=lambda rec: (str(rec.get("last_seen_at") or ""), str(rec.get("target_id") or "")), reverse=True)
+    return records
 
 
 def target_record_indexes(records):

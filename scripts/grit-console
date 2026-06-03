@@ -125,8 +125,8 @@ from gritlib.status_indexes import (
 from gritlib.target_activity import (
     apply_target_phone_home_summary, mailbox_wait_bucket,
     target_activity_record_indexes, target_activity_records_from_sources,
-    target_mailbox_counts, target_mailbox_record_indexes,
-    target_mailbox_records_from_commands, target_phone_home_record_indexes,
+    target_mailbox_record_indexes, target_mailbox_records_from_commands,
+    target_phone_home_record_indexes,
     target_phone_home_records_from_events,
 )
 from gritlib.target_commands import (
@@ -136,9 +136,9 @@ from gritlib.target_commands import (
 from gritlib.target_records import (
     attach_target_identity, capability_report_summary,
     compatibility_report_summary, configured_target_filter, event_for_target,
-    enrich_target_record, load_targets, records_for_target, selected_target_context,
+    load_targets, records_for_target, selected_target_context,
     target_context_fields, target_identity_from_headers, target_record_indexes,
-    target_record_summary, targets_path,
+    target_record_summary, target_records, targets_path,
 )
 from gritlib.warnings import (
     annotate_path_records_with_warnings, annotate_service_port_records_with_warnings,
@@ -491,18 +491,6 @@ def set_target_label(cfg, target_id, label, aliases=None, notes=None):
         "aliases": rec.get("aliases") or [],
     })
     return rec
-
-
-def target_records(cfg):
-    targets = load_targets(cfg).get("targets") or {}
-    now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
-    mailbox_counts, latest_result = target_mailbox_counts(cfg)
-    records = [dict(rec) for rec in targets.values() if isinstance(rec, dict)]
-    records = [enrich_target_record(rec, now_epoch, mailbox_counts, latest_result) for rec in records]
-    records.sort(key=lambda rec: (str(rec.get("last_seen_at") or ""), str(rec.get("target_id") or "")), reverse=True)
-    return records
-
-
 
 
 def set_workbench_target_filter(cfg, selector, targets=None):
