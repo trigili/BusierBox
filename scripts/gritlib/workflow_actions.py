@@ -313,6 +313,64 @@ def workflow_fleet_metrics(target_records):
     }
 
 
+def service_workflow_action_record(
+    service,
+    action_id,
+    category,
+    label,
+    command,
+    run_command,
+    dry_run_command,
+    fleet_metrics,
+    action_state,
+    action_reason,
+    can_run_from_curses_enter=False,
+    curses_enter_action="",
+    requires_confirmation=False,
+):
+    name = str((service or {}).get("name") or "")
+    if not name:
+        return None
+    actual = str(service.get("actual") or "")
+    configured = str(service.get("configured") or "")
+    return {
+        "id": f"{name}:{action_id}",
+        "action_id": action_id,
+        "service": name,
+        "category": category,
+        "workflow": "service-lifecycle",
+        "label": label,
+        "command": command,
+        "headless_command": command,
+        "run_command": run_command,
+        "dry_run_command": dry_run_command,
+        "actual": actual,
+        "configured": configured,
+        "port": service.get("port", ""),
+        "bind_address": str(service.get("bind_address") or ""),
+        "tls": bool(service.get("tls", False)),
+        "pid": service.get("pid", ""),
+        "pid_alive": bool(service.get("pid_alive", False)),
+        "pid_managed": bool(service.get("pid_managed", False)),
+        "listener_pids": service.get("listener_pids") or [],
+        "stale": bool(service.get("stale", False)),
+        "has_error": bool(service.get("error")),
+        "has_warnings": bool(service.get("warning_count", 0)),
+        **(fleet_metrics or {}),
+        "available": True,
+        "requires_input": False,
+        "requires_confirmation": bool(requires_confirmation),
+        "operator_action_state": action_state,
+        "operator_action_reason": action_reason,
+        "can_run_from_curses_enter": bool(can_run_from_curses_enter),
+        "curses_enter_action": curses_enter_action,
+        "execution_default": "show-command",
+        "target_execution": False,
+        "tui_visible": True,
+        "safety_boundary": "operator-side service lifecycle; starts/stops local griTTYkit listener processes only",
+    }
+
+
 def workbench_action_indexes(records):
     return {
         "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
