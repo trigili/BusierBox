@@ -10910,7 +10910,12 @@ def run_line_tui(cfg):
         if rec.get("target_id"):
             print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
         print(f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} delivery_supported=no")
-        print(f"headless_command: {headless}")
+        append_event(cfg, "workbench", "workbench_command_queued", details={
+            "command_id": rec.get("id", ""),
+            "target_id": rec.get("target_id", ""),
+            "target_label": rec.get("target_label", ""),
+            "headless_command": headless,
+        })
 
     def line_command_queue_record(selector):
         text = str(selector or "").strip()
@@ -10983,7 +10988,6 @@ def run_line_tui(cfg):
                 + " --clear-command-queue --list-command-queue"
             )
             print(f"cleared {count} queued command record(s)")
-            print(f"headless_command: {headless}")
             append_event(cfg, "workbench", "workbench_command_queue_cleared", details={
                 "count": count,
                 "headless_command": headless,

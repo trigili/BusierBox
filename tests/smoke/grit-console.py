@@ -871,6 +871,21 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented route commands exposed noisy headless commands", file=sys.stderr)
         print(route_text or line_console_stdout, file=sys.stderr)
         return 1
+    queue_start = line_console_stdout.find("queued cq-")
+    queue_end = line_console_stdout.find("Command result:", queue_start + 1)
+    queue_text = line_console_stdout[queue_start:queue_end] if queue_start != -1 and queue_end != -1 else ""
+    clear_command_start = line_console_stdout.rfind("queue clear --confirm")
+    clear_start = line_console_stdout.find("cleared ", clear_command_start + 1)
+    clear_end = line_console_stdout.find("no queued commands", clear_start + 1)
+    clear_text = line_console_stdout[clear_start:clear_end] if clear_start != -1 and clear_end != -1 else ""
+    if (not queue_text or "queued cq-" not in queue_text or "headless_command:" in queue_text or
+            not clear_text or "cleared " not in clear_text or "headless_command:" in clear_text):
+        print("line-oriented queue commands exposed noisy headless commands", file=sys.stderr)
+        print("queue section:", file=sys.stderr)
+        print(queue_text or line_console_stdout, file=sys.stderr)
+        print("clear section:", file=sys.stderr)
+        print(clear_text or line_console_stdout, file=sys.stderr)
+        return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
     daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)
     daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""
@@ -969,6 +984,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             not any(event.get("event") == "workbench_console_searched" and (event.get("details") or {}).get("query") == "Console Router" for event in line_console_events) or
             not any(event.get("event") == "target_label_set" and (event.get("details") or {}).get("target_id") == "line-console-target" and "console-alias" in ((event.get("details") or {}).get("aliases") or []) for event in line_console_events) or
             not any(event.get("event") == "command_queue_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" for event in line_console_events) or
+            not any(event.get("event") == "workbench_command_queued" and (event.get("details") or {}).get("target_id") == "line-console-target" and "--queue-command" in ((event.get("details") or {}).get("headless_command") or "") for event in line_console_events) or
             not any(event.get("event") == "workbench_command_result_inspected" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("has_result") is False for event in line_console_events) or
             not any(event.get("event") == "workbench_command_queue_cleared" and (event.get("details") or {}).get("count", 0) >= 1 for event in line_console_events) or
             not any(event.get("event") == "workbench_probe_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
