@@ -4,10 +4,14 @@ import json
 from pathlib import Path
 
 from gritlib.record_utils import list_merge_unique, record_count_by_key
-from gritlib.session_state import read_json_file
+from gritlib.session_state import parse_utc_timestamp, read_json_file, utc_from_epoch
+from gritlib.target_activity import mailbox_wait_bucket
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
+TARGET_ONLINE_WINDOW_SEC = 300
+TARGET_RECENT_WINDOW_SEC = 3600
+TARGET_STALE_WINDOW_SEC = 86400
 
 
 def targets_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
@@ -193,6 +197,78 @@ def target_context_fields(cfg, target_id):
 
 def selected_target_context(cfg):
     return target_context_fields(cfg, configured_target_filter(cfg))
+
+
+def target_connectivity_state(offline_for_sec):
+    if offline_for_sec is None:
+        return "unknown"
+    if offline_for_sec <= TARGET_ONLINE_WINDOW_SEC:
+        return "online"
+    if offline_for_sec <= TARGET_RECENT_WINDOW_SEC:
+        return "recent"
+    if offline_for_sec <= TARGET_STALE_WINDOW_SEC:
+        return "stale"
+    return "offline"
+
+
+def target_last_seen_via(rec):
+    service = str((rec or {}).get("latest_activity_service") or "")
+    operation = str((rec or {}).get("latest_activity_operation") or "")
+    if service and operation:
+        return f"{service}:{operation}"
+    return service or operation
+
+
+def target_next_expected_poll_epoch(rec):
+    if str((rec or {}).get("latest_activity_operation") or "") != "command_queue_poll":
+        return None
+    interval = str((rec or {}).get("latest_command_queue_poll_interval_sec") or "")
+    if not interval.isdigit() or int(interval) <= 0:
+        return None
+    last_seen_epoch = parse_utc_timestamp((rec or {}).get("last_seen_at") or (rec or {}).get("latest_activity_at"))
+    if last_seen_epoch is None:
+        return None
+    return last_seen_epoch + int(interval)
+
+
+def target_next_expected_poll(rec):
+    epoch = target_next_expected_poll_epoch(rec)
+    if epoch is None:
+        return ""
+    return utc_from_epoch(epoch)
+
+
+def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
+    last_seen = str(rec.get("last_seen_at") or rec.get("latest_activity_at") or "")
+    last_seen_epoch = parse_utc_timestamp(last_seen)
+    offline_for_sec = None if last_seen_epoch is None else max(int(now_epoch - last_seen_epoch), 0)
+    next_expected_poll_epoch = target_next_expected_poll_epoch(rec)
+    poll_overdue_for_sec = (
+        None if next_expected_poll_epoch is None
+        else max(int(now_epoch - next_expected_poll_epoch), 0)
+    )
+    counts = mailbox_counts.get(str(rec.get("target_id") or ""), {})
+    latest_result_rec = latest_result.get(str(rec.get("target_id") or ""), {})
+    rec["last_seen"] = last_seen
+    rec["last_seen_via"] = target_last_seen_via(rec)
+    rec["offline_for_sec"] = offline_for_sec if offline_for_sec is not None else ""
+    rec["offline_age_bucket"] = mailbox_wait_bucket(rec["offline_for_sec"])
+    rec["connectivity_state"] = target_connectivity_state(offline_for_sec)
+    rec["connectivity_online_window_sec"] = TARGET_ONLINE_WINDOW_SEC
+    rec["connectivity_recent_window_sec"] = TARGET_RECENT_WINDOW_SEC
+    rec["connectivity_stale_window_sec"] = TARGET_STALE_WINDOW_SEC
+    rec["next_expected_poll"] = "" if next_expected_poll_epoch is None else utc_from_epoch(next_expected_poll_epoch)
+    rec["poll_overdue"] = bool(poll_overdue_for_sec and poll_overdue_for_sec > 0)
+    rec["poll_overdue_for_sec"] = poll_overdue_for_sec if poll_overdue_for_sec is not None else ""
+    rec["mailbox_queued_command_count"] = int(counts.get("queued", 0) or 0)
+    rec["mailbox_delivered_command_count"] = int(counts.get("delivered", 0) or 0)
+    rec["mailbox_result_received_command_count"] = int(counts.get("result-received", 0) or 0)
+    rec["mailbox_expired_command_count"] = int(counts.get("expired", 0) or 0)
+    rec["mailbox_command_count"] = int(counts.get("total", 0) or 0)
+    rec["mailbox_pending_work_count"] = rec["mailbox_queued_command_count"]
+    rec["latest_command_result_at"] = str(latest_result_rec.get("result_received_at") or "")
+    rec["latest_command_result_id"] = str(latest_result_rec.get("id") or "")
+    return rec
 
 
 def target_record_indexes(records):
