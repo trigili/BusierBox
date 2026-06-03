@@ -42,10 +42,12 @@ if str(SCRIPT_DIR) not in sys.path:
 
 from gritlib import bridge_routes
 from gritlib.bridge_routes import (
-    bridge_hops_from_args, bridge_profile_workflow_action_indexes,
-    bridge_profile_workflow_action_summary, bridge_profiles_path,
-    bridge_route_path, default_bridge_hops, load_bridge_profiles,
-    parse_bridge_hop, parse_endpoint_host_port, valid_profile_name,
+    bridge_hop_indexes, bridge_hop_records_from_profiles, bridge_hops_from_args,
+    bridge_profile_indexes, bridge_profile_record, bridge_profile_records,
+    bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_summary,
+    bridge_profiles_path, bridge_route_path, default_bridge_hops,
+    load_bridge_profiles, parse_bridge_hop, parse_endpoint_host_port,
+    valid_profile_name,
 )
 from gritlib.command_queue import (
     command_queue_expired,
@@ -780,18 +782,6 @@ def target_route_context(cfg, service, direct_host=None, direct_port=None):
     return direct
 
 
-def bridge_profile_record(cfg, name, rec, service_state=None):
-    return bridge_routes.bridge_profile_record(cfg, name, rec, service_state=service_state)
-
-
-def bridge_profile_records(cfg):
-    return bridge_routes.bridge_profile_records(cfg)
-
-
-def bridge_profile_indexes(records):
-    return bridge_routes.bridge_profile_indexes(records)
-
-
 def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)
@@ -953,14 +943,6 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None):
     return records
 
 
-
-
-def bridge_hop_records_from_profiles(profiles):
-    return bridge_routes.bridge_hop_records_from_profiles(profiles)
-
-
-def bridge_hop_indexes(records):
-    return bridge_routes.bridge_hop_indexes(records)
 
 
 def save_bridge_profile(cfg, name, purpose="", notes="", hop_args=None):
