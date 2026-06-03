@@ -275,6 +275,13 @@ def run_line_local_ips_check():
             return 1
     finally:
         operator_network.local_ips = original_local_ips
+    candidates = operator_network.local_ip_choice_candidates([
+        "192.168.8.2", "10.0.0.5", "127.0.0.1", "10.0.0.5",
+    ])
+    if candidates != ["10.0.0.5", "192.168.8.2"]:
+        print("operator local IP choice candidates were not sorted for interactive prompts", file=sys.stderr)
+        print(candidates, file=sys.stderr)
+        return 1
     return 0
 
 

@@ -203,7 +203,8 @@ from gritlib.operator_io import (
     set_interactive_tty_raw, view_path_headless_command, viewable_path,
 )
 from gritlib.operator_network import (
-    local_ips, operator_advertised_host, print_candidates, target_visible_host,
+    local_ip_choice_candidates, local_ips, operator_advertised_host, print_candidates,
+    target_visible_host,
 )
 from gritlib.probe_commands import (
     parse_line_probe_args,
@@ -7485,7 +7486,7 @@ def run_line_repl(cfg):
         # If operator host isn't pinned and we have an interactive terminal,
         # let the user pick from local IPs rather than auto-selecting blindly.
         if not str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip() and sys.stdin.isatty():
-            candidates = local_ips()
+            candidates = local_ip_choice_candidates()
             if len(candidates) > 1:
                 print("Multiple local IPs — which should the target use to POST results back?")
                 print("")

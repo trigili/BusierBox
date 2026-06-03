@@ -44,6 +44,10 @@ def first_sorted_local_ip(ips=None):
     return candidates[0] if candidates else ""
 
 
+def local_ip_choice_candidates(ips=None):
+    return sorted_local_ips(local_ips() if ips is None else ips)
+
+
 def _hostname_ipv4_addrs():
     ips = []
     try:
