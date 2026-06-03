@@ -1,6 +1,6 @@
 """Probe target command rendering helpers for grit-console."""
 
-from .bridge_routes import target_route_context
+from .bridge_routes import attach_target_route_fields, target_route_context
 from .operator_network import operator_advertised_host
 from .shell_utils import shquote
 
@@ -108,3 +108,103 @@ def render_probe_dns_command(cfg, host=None, port=None):
     if direct_port == 53:
         return f"nslookup -type=TXT {shquote(dns_name)} {shquote(direct_host)} | sed -n 's/.*\"\\(.*\\)\".*/\\1/p' | tr -d '\\n' | base64 -d | /bin/sh"
     return f"dig @{shquote(direct_host)} -p {shquote(str(direct_port))} +short TXT {shquote(dns_name)} | tr -d '\" \\n' | base64 -d | /bin/sh"
+
+
+def probe_workflow_action_records(cfg, service_row=None, targets=None):
+    from gritlib.config_utils import DEFAULT_CONFIG
+    from gritlib.workflow_actions import (
+        probe_listener_action_states,
+        probe_workflow_action_record,
+        probe_workflow_run_command,
+        workflow_fleet_metrics,
+    )
+
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    base = "scripts/grit-console --config " + shquote(config_path)
+    bridge_arg = (" --bridge-profile " + shquote(str(cfg.get("bridge_profile")))) if cfg.get("bridge_profile") else ""
+    service_row = service_row if isinstance(service_row, dict) else {}
+    port = int(cfg.get("GRIT_PROBE_PORT", service_row.get("port", 22207)) or 22207)
+    host = operator_advertised_host(cfg)
+    route = probe_route_context(cfg, host=host, port=port)
+    target_command = render_probe_command(cfg, host=host, port=port)
+    start_parts = ["scripts/grit-console", "--config", config_path, "--transport", "probe"]
+    if cfg.get("bridge_profile"):
+        start_parts.extend(["--bridge-profile", str(cfg.get("bridge_profile"))])
+    start_command = " ".join(shquote(str(item)) for item in start_parts)
+    stop_command = base + " --stop"
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    fleet_metrics = workflow_fleet_metrics(target_records)
+    lifecycle_states = probe_listener_action_states(service_row)
+    records = []
+
+    def add(action_id, category, label, command, action_state, action_reason,
+            available=True, requires_confirmation=False, can_run_from_curses_enter=False,
+            curses_enter_action=""):
+        records.append(attach_target_route_fields(probe_workflow_action_record(
+            action_id,
+            category,
+            label,
+            command,
+            probe_workflow_run_command(base, bridge_arg, action_id),
+            service_row,
+            target_command,
+            cfg.get("GRIT_PROBE_NAME", "probe.sh"),
+            cfg.get("listen_host") or service_row.get("bind_address") or "",
+            port,
+            fleet_metrics,
+            action_state,
+            action_reason,
+            available=available,
+            requires_confirmation=requires_confirmation,
+            can_run_from_curses_enter=can_run_from_curses_enter,
+            curses_enter_action=curses_enter_action,
+        ), route))
+
+    add(
+        "inspect-probe",
+        "inspect",
+        "Inspect probe route and target command",
+        base + " --status",
+        "ready",
+        "run-now",
+    )
+    add(
+        "show-target-command",
+        "survey",
+        "Show target-side probe command",
+        base + " --status",
+        "ready",
+        "show-command",
+        can_run_from_curses_enter=True,
+        curses_enter_action="show-target-command",
+    )
+    add(
+        "start-probe",
+        "survey",
+        "Start probe listener",
+        start_command,
+        lifecycle_states["start_state"],
+        lifecycle_states["start_reason"],
+        can_run_from_curses_enter=lifecycle_states["start_enter"],
+        curses_enter_action="start-probe" if lifecycle_states["start_enter"] else "stop-probe",
+    )
+    add(
+        "stop-probe",
+        "survey",
+        "Stop probe listener",
+        stop_command,
+        lifecycle_states["stop_state"],
+        lifecycle_states["stop_reason"],
+        requires_confirmation=True,
+        can_run_from_curses_enter=lifecycle_states["stop_enter"],
+        curses_enter_action="stop-probe" if lifecycle_states["stop_enter"] else "start-probe",
+    )
+    if records:
+        records[-1]["run_command"] = probe_workflow_run_command(
+            base,
+            bridge_arg,
+            "stop-probe",
+            " --confirm-probe-workflow-action",
+        )
+    records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
+    return records
