@@ -1,6 +1,79 @@
 """Line-console workspace rendering for grit-console."""
 
 from gritlib.console_display import console_table
+from gritlib.record_utils import format_counts
+
+
+def line_tui_status_bar(snap):
+    summary = snap.get("summary") or {}
+    target_filter = snap.get("target_filter") or {}
+    counts = summary.get("connectivity_state_counts") or summary.get("target_connectivity_state_counts") or {}
+    state_text = format_counts(counts) if counts else "none"
+    selected = "-"
+    if target_filter.get("active"):
+        selected = str(target_filter.get("target_id") or target_filter.get("selected_target_id") or "-")
+    pending_targets = (
+        summary.get("mailbox_pending_target_count", "")
+        if summary.get("mailbox_pending_target_count", "") != ""
+        else summary.get("target_mailbox_pending_target_count", 0)
+    )
+    pending_work = (
+        summary.get("mailbox_pending_work_count", "")
+        if summary.get("mailbox_pending_work_count", "") != ""
+        else summary.get("target_mailbox_pending_work_count", 0)
+    )
+    poll_overdue = (
+        summary.get("poll_overdue_count", "")
+        if summary.get("poll_overdue_count", "") != ""
+        else summary.get("target_poll_overdue_count", 0)
+    )
+    return (
+        "Status bar: "
+        f"services={summary.get('listening_count', 0)} "
+        f"warnings={len(snap.get('warnings') or [])} "
+        f"targets={summary.get('target_count', 0)} "
+        f"states={state_text} "
+        f"mailbox_pending_targets={pending_targets} "
+        f"mailbox_pending_work={pending_work} "
+        f"poll_overdue={poll_overdue} "
+        f"selected_target={selected} "
+        f"events={summary.get('event_count', 0)}"
+    )
+
+
+def print_line_console_banner(snap, version):
+    summary = snap.get("summary") or {}
+    warnings = snap.get("warnings") or []
+    target_filter = snap.get("target_filter") or {}
+    parts = [f"{summary.get('listening_count', 0)} listening"]
+    targets = summary.get("target_count", 0)
+    if targets:
+        parts.append(f"{targets} target{'s' if targets != 1 else ''}")
+    sessions = summary.get("session_count", 0)
+    if sessions:
+        parts.append(f"{sessions} session{'s' if sessions != 1 else ''}")
+    staged = summary.get("staged_count", 0)
+    if staged:
+        parts.append(f"{staged} staged")
+    if warnings:
+        parts.append(f"{len(warnings)} warning{'s' if len(warnings) != 1 else ''}")
+    events = summary.get("event_count", 0)
+    if events:
+        parts.append(f"{events} events")
+    print(f"griTTYkit v{version}  " + "  |  ".join(parts))
+    if target_filter.get("active"):
+        label = target_filter.get("selected_target_label") or target_filter.get("target_id", "")
+        state = target_filter.get("selected_target_connectivity_state") or "-"
+        print(f"  selected: {label} ({state})")
+    for w in warnings[:3]:
+        svc = f" {w.get('service')}" if w.get("service") else ""
+        msg = w.get("message") or ""
+        hint = f"  -> {w.get('suggested_action')}" if w.get("suggested_action") else ""
+        print(f"  [!]{svc}: {msg}{hint}")
+    if len(warnings) > 3:
+        print(f"  ... {len(warnings) - 3} more warning(s) — run: status")
+    print("")
+    print("  ? help  workspace overview  targets/sessions/files  start ssh|tls|file-service")
 
 
 def print_line_workspace_snapshot(snap):
