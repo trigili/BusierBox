@@ -247,6 +247,7 @@ from gritlib.workflow_actions import (
     service_lifecycle_action_states,
     service_workflow_action_record,
     target_workflow_action_indexes,
+    target_id_arg,
     target_workflow_action_record,
     target_workflow_action_summary,
     workflow_action_count,
@@ -1328,7 +1329,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
         target_id = str(target.get("target_id") or "")
         if not target_id:
             continue
-        target_arg = " --target-id " + shquote(target_id)
+        target_arg = target_id_arg(target_id)
         add(
             target,
             "inspect-status",

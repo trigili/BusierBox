@@ -277,6 +277,10 @@ def bridge_profiles_by_target_id(bridge_profiles):
     return bridge_by_target
 
 
+def target_id_arg(target_id):
+    return " --target-id " + shquote(target_id)
+
+
 def target_workflow_action_record(
     target,
     action_id,
