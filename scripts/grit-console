@@ -80,7 +80,7 @@ from gritlib.release_artifacts import (
     release_artifact_workflow_action_indexes,
     release_artifact_workflow_action_summary,
 )
-from gritlib.session_state import SessionManager
+from gritlib.session_state import SessionManager, server_state_record, state_file_path
 from gritlib.session_records import session_record_indexes, session_root_record
 from gritlib.service_status import (
     port_record_indexes, port_records_from_services, service_manager_status,
@@ -384,10 +384,6 @@ def bridge_profiles_path(cfg):
     return Path(str(cfg.get("bridge_profiles_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "bridge-profiles.json"))
 
 
-def state_file_path(cfg):
-    return Path(str(cfg.get("server_state") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "server-state.json"))
-
-
 def apply_operator_session_path_defaults(cfg, explicit_keys):
     operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
     if str(operator_dir) == str(DEFAULT_OPERATOR_SESSION_DIR):
@@ -419,45 +415,6 @@ def load_staged(cfg):
         data["staged"] = {}
     data.setdefault("schema", 1)
     return data
-
-
-
-def server_state_record(cfg):
-    path = state_file_path(cfg)
-    rec = {
-        "path": str(path),
-        "exists": False,
-        "valid": False,
-        "schema": None,
-        "services": {},
-        "sessions": [],
-        "service_count": 0,
-        "session_count": 0,
-        "error": "",
-    }
-    try:
-        rec["exists"] = path.exists()
-        if not rec["exists"]:
-            return rec
-        data = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(data, dict):
-            rec["error"] = "server-state JSON is not an object"
-            return rec
-        services = data.get("services") if isinstance(data.get("services"), dict) else {}
-        sessions = data.get("sessions") if isinstance(data.get("sessions"), list) else []
-        rec.update({
-            "valid": True,
-            "schema": data.get("schema"),
-            "services": services,
-            "sessions": sessions,
-            "service_count": len(services),
-            "session_count": len(sessions),
-            "updated_at": data.get("updated_at", ""),
-        })
-    except (OSError, json.JSONDecodeError) as exc:
-        rec["error"] = str(exc)
-    return rec
-
 
 def enriched_staged_records(cfg, staged=None):
     staged = staged if staged is not None else load_staged(cfg).get("staged", {})

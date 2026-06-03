@@ -8,6 +8,9 @@ import time
 from pathlib import Path
 
 
+DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
+
+
 def utc_now():
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -43,8 +46,48 @@ def read_json_file(path, fallback):
         return fallback
 
 
-def state_file_path(cfg):
-    return Path(str(cfg.get("server_state", "local/operator-session/server-state.json")))
+def state_file_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
+    return Path(str(
+        cfg.get("server_state") or
+        Path(str(cfg.get("operator_session_dir", default_operator_session_dir))) / "server-state.json"
+    ))
+
+
+def server_state_record(cfg):
+    path = state_file_path(cfg)
+    rec = {
+        "path": str(path),
+        "exists": False,
+        "valid": False,
+        "schema": None,
+        "services": {},
+        "sessions": [],
+        "service_count": 0,
+        "session_count": 0,
+        "error": "",
+    }
+    try:
+        rec["exists"] = path.exists()
+        if not rec["exists"]:
+            return rec
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict):
+            rec["error"] = "server-state JSON is not an object"
+            return rec
+        services = data.get("services") if isinstance(data.get("services"), dict) else {}
+        sessions = data.get("sessions") if isinstance(data.get("sessions"), list) else []
+        rec.update({
+            "valid": True,
+            "schema": data.get("schema"),
+            "services": services,
+            "sessions": sessions,
+            "service_count": len(services),
+            "session_count": len(sessions),
+            "updated_at": data.get("updated_at", ""),
+        })
+    except (OSError, json.JSONDecodeError) as exc:
+        rec["error"] = str(exc)
+    return rec
 
 
 def count_file_lines(path):
