@@ -6652,26 +6652,8 @@ def run_line_tui(cfg):
         if fields:
             print(f"  Build options: {len(fields)} configured  (run: build to view/edit)")
 
-    def set_line_option(name, value):
-        return line_options_set_line_option(cfg, name, value)
-
-    def rename_line_target(label):
-        line_options_rename_line_target(cfg, label)
-
-    def note_line_target(notes):
-        line_options_note_line_target(cfg, notes)
-
-    def alias_line_target(alias):
-        line_options_alias_line_target(cfg, alias)
-
-    def set_line_global_option(name, value):
-        set_line_global_build_option(cfg, name, value)
-
     def unset_line_option(name):
         unset_line_target_option(cfg, name, clear_module=clear_line_module)
-
-    def unset_line_global_option(name):
-        unset_line_global_build_option(cfg, name)
 
     def select_line_service(selector):
         return line_services_select_line_service(
@@ -8871,25 +8853,25 @@ def run_line_tui(cfg):
                     else:
                         opt_key = console_args[1] if len(console_args) >= 2 else ""
                         opt_value = " ".join(console_args[2:]).strip()
-                    set_line_option(opt_key, opt_value)
+                    line_options_set_line_option(cfg, opt_key, opt_value)
                 except (IndexError, ValueError) as exc:
                     print(exc)
                 continue
             elif cmd == "rename":
                 try:
-                    rename_line_target(" ".join(console_args[1:]).strip())
+                    line_options_rename_line_target(cfg, " ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue
             elif cmd in {"note", "notes"}:
                 try:
-                    note_line_target(" ".join(console_args[1:]).strip())
+                    line_options_note_line_target(cfg, " ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue
             elif cmd == "alias":
                 try:
-                    alias_line_target(" ".join(console_args[1:]).strip())
+                    line_options_alias_line_target(cfg, " ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -8902,7 +8884,7 @@ def run_line_tui(cfg):
                     else:
                         opt_key = console_args[1] if len(console_args) >= 2 else ""
                         opt_value = " ".join(console_args[2:]).strip()
-                    set_line_global_option(opt_key, opt_value)
+                    set_line_global_build_option(cfg, opt_key, opt_value)
                 except (IndexError, ValueError) as exc:
                     print(exc)
                 continue
@@ -8914,7 +8896,7 @@ def run_line_tui(cfg):
                 continue
             elif cmd == "unsetg":
                 try:
-                    unset_line_global_option(console_args[1] if len(console_args) >= 2 else "")
+                    unset_line_global_build_option(cfg, console_args[1] if len(console_args) >= 2 else "")
                 except ValueError as exc:
                     print(exc)
                 continue
