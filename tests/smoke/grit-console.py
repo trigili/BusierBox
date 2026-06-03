@@ -1279,6 +1279,7 @@ def main(argv=None):
     operator_io_src = (ROOT / "scripts" / "gritlib" / "operator_io.py").read_text()
     process_status_src = (ROOT / "scripts" / "gritlib" / "process_status.py").read_text()
     release_artifacts_src = (ROOT / "scripts" / "gritlib" / "release_artifacts.py").read_text()
+    service_lifecycle_src = (ROOT / "scripts" / "gritlib" / "service_lifecycle.py").read_text()
     service_status_src = (ROOT / "scripts" / "gritlib" / "service_status.py").read_text()
     ssh_keys_src = (ROOT / "scripts" / "gritlib" / "ssh_keys.py").read_text()
     target_records_src = (ROOT / "scripts" / "gritlib" / "target_records.py").read_text()
@@ -1411,7 +1412,7 @@ def main(argv=None):
     if "proc = subprocess.Popen(cmd" in src:
         print("grit-console: workbench child process bypasses ServiceManager", file=sys.stderr)
         return 1
-    stop_helper = src[src.find("def stop_recorded_service"):src.find("def run_line_tui")]
+    stop_helper = service_lifecycle_src[service_lifecycle_src.find("def stop_recorded_service"):]
     if ("managed_server_evidence(pid, cfg=cfg, rec=rec)" not in stop_helper or
             "service_stop_skipped" not in stop_helper or
             "unmanaged-pid" not in stop_helper or
