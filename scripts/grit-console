@@ -109,7 +109,7 @@ from gritlib.probe_commands import (
     render_probe_dns_command, render_probe_ftp_command, render_probe_tftp_command,
 )
 from gritlib.probe_results import append_probe_result, probe_results_path
-from gritlib.runtime import Service, ServiceManager, Session
+from gritlib.runtime import Service, ServiceManager, Session, relay_pipe
 from gritlib.process_status import (
     endpoint_matches_bind_address, listener_endpoints, managed_server_evidence,
     matching_listener_endpoints, pid_alive, pid_process_record,
@@ -262,6 +262,10 @@ EVENT_COUNTER = itertools.count(1)
 
 SERVICE_MANAGER = ServiceManager(SHUTDOWN, OWNED_SOCKETS, OWNED_TRANSPORTS, shutdown_reason=lambda: SHUTDOWN_REASON)
 SESSION_MANAGER = SessionManager()
+
+
+def pipe(src, dst):
+    return relay_pipe(src, dst, SERVICE_MANAGER)
 
 
 def workbench_action_records(cfg):
@@ -2660,34 +2664,6 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
 
         self._listener_thread = register_thread(threading.Thread(target=run, name="grit-reverse-forward"))
         self._listener_thread.start()
-
-
-def pipe(src, dst):
-    """Relay data bidirectionally between two socket-like objects."""
-    try:
-        while True:
-            try:
-                data = src.recv(65536)
-            except Exception:
-                break
-            if not data:
-                break
-            try:
-                dst.sendall(data)
-            except Exception:
-                break
-    finally:
-        for obj in (src, dst):
-            unregister_socket(obj)
-            unregister_transport(obj)
-            try:
-                obj.shutdown(socket.SHUT_WR)
-            except Exception:
-                pass
-            try:
-                obj.close()
-            except Exception:
-                pass
 
 
 class _KexGuess2CompatTransport(paramiko.Transport if HAVE_PARAMIKO else object):

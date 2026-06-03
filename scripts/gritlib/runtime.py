@@ -1,5 +1,6 @@
 """Runtime ownership primitives for grit-console services and sessions."""
 
+import socket
 import subprocess
 import threading
 
@@ -202,3 +203,31 @@ class ServiceManager:
             "threads": thread_records,
             "child_processes": child_records,
         }
+
+
+def relay_pipe(src, dst, service_manager):
+    """Relay data from src to dst and unregister both ends when done."""
+    try:
+        while True:
+            try:
+                data = src.recv(65536)
+            except Exception:
+                break
+            if not data:
+                break
+            try:
+                dst.sendall(data)
+            except Exception:
+                break
+    finally:
+        for obj in (src, dst):
+            service_manager.unregister_socket(obj)
+            service_manager.unregister_transport(obj)
+            try:
+                obj.shutdown(socket.SHUT_WR)
+            except Exception:
+                pass
+            try:
+                obj.close()
+            except Exception:
+                pass
