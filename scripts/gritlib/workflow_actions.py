@@ -1,6 +1,119 @@
 """Workflow action index and summary helpers for grit-console."""
 
-from gritlib.record_utils import record_count_by_key, records_by_key
+from gritlib.record_utils import record_count_by_key, record_sum_by_key, records_by_key
+
+
+def workbench_action_indexes(records):
+    return {
+        "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "workbench_actions_by_category": records_by_key(records, "category"),
+        "workbench_actions_by_script": records_by_key(records, "script"),
+        "workbench_actions_by_background_supported": records_by_key(records, "background_supported"),
+        "workbench_actions_by_long_running": records_by_key(records, "long_running"),
+        "workbench_actions_by_writes_config": records_by_key(records, "writes_config"),
+        "workbench_actions_by_runs_build": records_by_key(records, "runs_build"),
+        "workbench_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
+        "workbench_actions_by_execution_default": records_by_key(records, "execution_default"),
+        "workbench_actions_by_target_execution": records_by_key(records, "target_execution"),
+        "workbench_actions_by_event": records_by_key(records, "event"),
+        "workbench_actions_by_config_path": records_by_key(records, "config_path"),
+        "workbench_actions_by_foreground_runnable": records_by_key(records, "foreground_runnable"),
+        "workbench_actions_by_dry_run_supported": records_by_key(records, "dry_run_supported"),
+        "workbench_actions_by_has_placeholder": records_by_key(records, "has_placeholder"),
+        "workbench_actions_by_has_run_command": records_by_key(records, "has_run_command"),
+        "workbench_actions_by_has_dry_run_command": records_by_key(records, "has_dry_run_command"),
+        "workbench_actions_by_has_start_job_command": records_by_key(records, "has_start_job_command"),
+        "workbench_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "workbench_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "workbench_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
+        "workbench_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
+    }
+
+
+def workbench_action_summary(records):
+    return {
+        "total_count": len(records or []),
+        "background_supported_count": len([rec for rec in records or [] if rec.get("background_supported") is True]),
+        "long_running_count": len([rec for rec in records or [] if rec.get("long_running") is True]),
+        "writes_config_count": len([rec for rec in records or [] if rec.get("writes_config") is True]),
+        "runs_build_count": len([rec for rec in records or [] if rec.get("runs_build") is True]),
+        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
+        "target_execution_count": len([rec for rec in records or [] if rec.get("target_execution") is True]),
+        "foreground_runnable_count": len([rec for rec in records or [] if rec.get("foreground_runnable") is True]),
+        "dry_run_supported_count": len([rec for rec in records or [] if rec.get("dry_run_supported") is True]),
+        "has_placeholder_count": len([rec for rec in records or [] if rec.get("has_placeholder") is True]),
+        "has_run_command_count": len([rec for rec in records or [] if rec.get("has_run_command") is True]),
+        "has_dry_run_command_count": len([rec for rec in records or [] if rec.get("has_dry_run_command") is True]),
+        "has_start_job_command_count": len([rec for rec in records or [] if rec.get("has_start_job_command") is True]),
+        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
+        "category_counts": record_count_by_key(records, "category"),
+        "script_counts": record_count_by_key(records, "script"),
+        "execution_default_counts": record_count_by_key(records, "execution_default"),
+        "event_counts": record_count_by_key(records, "event"),
+        "config_path_counts": record_count_by_key(records, "config_path"),
+        "foreground_runnable_counts": record_count_by_key(records, "foreground_runnable"),
+        "dry_run_supported_counts": record_count_by_key(records, "dry_run_supported"),
+        "has_placeholder_counts": record_count_by_key(records, "has_placeholder"),
+        "has_run_command_counts": record_count_by_key(records, "has_run_command"),
+        "has_dry_run_command_counts": record_count_by_key(records, "has_dry_run_command"),
+        "has_start_job_command_counts": record_count_by_key(records, "has_start_job_command"),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
+        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
+    }
+
+
+def workbench_job_indexes(records):
+    return {
+        "workbench_jobs_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "workbench_jobs_by_action": records_by_key(records, "action_id"),
+        "workbench_jobs_by_state": records_by_key(records, "state"),
+        "workbench_jobs_by_effective_state": records_by_key(records, "effective_state"),
+        "workbench_jobs_by_category": records_by_key(records, "category"),
+        "workbench_jobs_by_script": records_by_key(records, "script"),
+        "workbench_jobs_by_pid": records_by_key(records, "pid"),
+        "workbench_jobs_by_pid_managed": records_by_key(records, "pid_managed"),
+        "workbench_jobs_by_cancel_supported": records_by_key(records, "cancel_supported"),
+        "workbench_jobs_by_log_exists": records_by_key(records, "log_exists"),
+        "workbench_jobs_by_exit_status_known": records_by_key(records, "exit_status_known"),
+        "workbench_jobs_by_started_at_known": records_by_key(records, "started_at_known"),
+        "workbench_jobs_by_finished_at_known": records_by_key(records, "finished_at_known"),
+        "workbench_jobs_by_duration_known": records_by_key(records, "duration_known"),
+        "workbench_jobs_by_elapsed_known": records_by_key(records, "elapsed_known"),
+        "workbench_jobs_by_background_supported": records_by_key(records, "background_supported"),
+        "workbench_jobs_by_long_running": records_by_key(records, "long_running"),
+        "workbench_jobs_by_outcome": records_by_key(records, "outcome"),
+        "workbench_jobs_by_exit_status": records_by_key(records, "exit_status"),
+        "workbench_jobs_by_last_output_tail_truncated": records_by_key(records, "last_output_tail_truncated"),
+    }
+
+
+def workbench_job_summary(records):
+    return {
+        "total_count": len(records or []),
+        "running_count": len([rec for rec in records or [] if rec.get("effective_state") in ("starting", "running")]),
+        "pid_managed_count": len([rec for rec in records or [] if rec.get("pid_managed") is True]),
+        "cancel_supported_count": len([rec for rec in records or [] if rec.get("cancel_supported") is True]),
+        "log_exists_count": len([rec for rec in records or [] if rec.get("log_exists") is True]),
+        "log_total_size": record_sum_by_key(records, "log_size"),
+        "last_output_tail_truncated_count": len([rec for rec in records or [] if rec.get("last_output_tail_truncated") is True]),
+        "exit_status_known_count": len([rec for rec in records or [] if rec.get("exit_status_known") is True]),
+        "started_at_known_count": len([rec for rec in records or [] if rec.get("started_at_known") is True]),
+        "finished_at_known_count": len([rec for rec in records or [] if rec.get("finished_at_known") is True]),
+        "duration_known_count": len([rec for rec in records or [] if rec.get("duration_known") is True]),
+        "elapsed_known_count": len([rec for rec in records or [] if rec.get("elapsed_known") is True]),
+        "duration_total_sec": record_sum_by_key(records, "duration_sec"),
+        "elapsed_total_sec": record_sum_by_key(records, "elapsed_sec"),
+        "background_supported_count": len([rec for rec in records or [] if rec.get("background_supported") is True]),
+        "long_running_count": len([rec for rec in records or [] if rec.get("long_running") is True]),
+        "state_counts": record_count_by_key(records, "state"),
+        "effective_state_counts": record_count_by_key(records, "effective_state"),
+        "outcome_counts": record_count_by_key(records, "outcome"),
+        "exit_status_counts": record_count_by_key(records, "exit_status"),
+        "action_counts": record_count_by_key(records, "action_id"),
+        "category_counts": record_count_by_key(records, "category"),
+    }
 
 
 def operator_daemon_workflow_action_indexes(records):
@@ -92,6 +205,80 @@ def operator_daemon_workflow_action_summary(records):
         "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
         "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
         "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
+    }
+
+
+def operator_console_workflow_indexes(records):
+    return {
+        "operator_console_workflows_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
+        "operator_console_workflows_by_workflow": records_by_key(records, "workflow"),
+        "operator_console_workflows_by_group": records_by_key(records, "group"),
+        "operator_console_workflows_by_primary_collection": records_by_key(records, "primary_collection"),
+        "operator_console_workflows_by_target_scoped": records_by_key(records, "target_scoped"),
+        "operator_console_workflows_by_multi_target": records_by_key(records, "multi_target"),
+        "operator_console_workflows_by_offline_queue_supported": records_by_key(records, "offline_queue_supported"),
+        "operator_console_workflows_by_has_records": records_by_key(records, "has_records"),
+        "operator_console_workflows_by_has_actions": records_by_key(records, "has_actions"),
+        "operator_console_workflows_by_has_enter_runnable_actions": records_by_key(records, "has_enter_runnable_actions"),
+        "operator_console_workflows_by_has_pending_work": records_by_key(records, "has_pending_work"),
+        "operator_console_workflows_by_has_warnings": records_by_key(records, "has_warnings"),
+        "operator_console_workflows_by_fleet_target_count": records_by_key(records, "fleet_target_count"),
+        "operator_console_workflows_by_fleet_offline_target_count": records_by_key(records, "fleet_offline_target_count"),
+        "operator_console_workflows_by_fleet_stale_target_count": records_by_key(records, "fleet_stale_target_count"),
+        "operator_console_workflows_by_fleet_mailbox_pending_target_count": records_by_key(records, "fleet_mailbox_pending_target_count"),
+        "operator_console_workflows_by_fleet_mailbox_pending_work_count": records_by_key(records, "fleet_mailbox_pending_work_count"),
+        "operator_console_workflows_by_fleet_poll_overdue_target_count": records_by_key(records, "fleet_poll_overdue_target_count"),
+        "operator_console_workflows_by_fleet_has_offline_targets": records_by_key(records, "fleet_has_offline_targets"),
+        "operator_console_workflows_by_fleet_has_stale_targets": records_by_key(records, "fleet_has_stale_targets"),
+        "operator_console_workflows_by_fleet_has_mailbox_pending_work": records_by_key(records, "fleet_has_mailbox_pending_work"),
+        "operator_console_workflows_by_fleet_has_poll_overdue_targets": records_by_key(records, "fleet_has_poll_overdue_targets"),
+        "operator_console_workflows_by_operator_action_state": records_by_key(records, "operator_action_state"),
+        "operator_console_workflows_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
+        "operator_console_workflows_by_tui_shortcut": records_by_key(records, "tui_shortcut"),
+        "operator_console_workflows_by_line_mode_action": records_by_key(records, "line_mode_action"),
+    }
+
+
+def operator_console_workflow_summary(records):
+    return {
+        "total_count": len(records or []),
+        "target_scoped_count": len([rec for rec in records or [] if rec.get("target_scoped") is True]),
+        "multi_target_count": len([rec for rec in records or [] if rec.get("multi_target") is True]),
+        "offline_queue_supported_count": len([rec for rec in records or [] if rec.get("offline_queue_supported") is True]),
+        "has_records_count": len([rec for rec in records or [] if rec.get("has_records") is True]),
+        "has_actions_count": len([rec for rec in records or [] if rec.get("has_actions") is True]),
+        "has_enter_runnable_actions_count": len([rec for rec in records or [] if rec.get("has_enter_runnable_actions") is True]),
+        "has_pending_work_count": len([rec for rec in records or [] if rec.get("has_pending_work") is True]),
+        "has_warnings_count": len([rec for rec in records or [] if rec.get("has_warnings") is True]),
+        "action_total_count": sum(int(rec.get("action_count") or 0) for rec in records or []),
+        "enter_runnable_action_total_count": sum(int(rec.get("enter_runnable_action_count") or 0) for rec in records or []),
+        "pending_work_total_count": sum(int(rec.get("pending_work_count") or 0) for rec in records or []),
+        "warning_total_count": sum(int(rec.get("warning_count") or 0) for rec in records or []),
+        "group_counts": record_count_by_key(records, "group"),
+        "workflow_counts": record_count_by_key(records, "workflow"),
+        "primary_collection_counts": record_count_by_key(records, "primary_collection"),
+        "target_scoped_counts": record_count_by_key(records, "target_scoped"),
+        "multi_target_counts": record_count_by_key(records, "multi_target"),
+        "offline_queue_supported_counts": record_count_by_key(records, "offline_queue_supported"),
+        "has_records_counts": record_count_by_key(records, "has_records"),
+        "has_actions_counts": record_count_by_key(records, "has_actions"),
+        "has_enter_runnable_actions_counts": record_count_by_key(records, "has_enter_runnable_actions"),
+        "has_pending_work_counts": record_count_by_key(records, "has_pending_work"),
+        "has_warnings_counts": record_count_by_key(records, "has_warnings"),
+        "fleet_target_count_counts": record_count_by_key(records, "fleet_target_count"),
+        "fleet_offline_target_count_counts": record_count_by_key(records, "fleet_offline_target_count"),
+        "fleet_stale_target_count_counts": record_count_by_key(records, "fleet_stale_target_count"),
+        "fleet_mailbox_pending_target_count_counts": record_count_by_key(records, "fleet_mailbox_pending_target_count"),
+        "fleet_mailbox_pending_work_count_counts": record_count_by_key(records, "fleet_mailbox_pending_work_count"),
+        "fleet_poll_overdue_target_count_counts": record_count_by_key(records, "fleet_poll_overdue_target_count"),
+        "fleet_has_offline_targets_counts": record_count_by_key(records, "fleet_has_offline_targets"),
+        "fleet_has_stale_targets_counts": record_count_by_key(records, "fleet_has_stale_targets"),
+        "fleet_has_mailbox_pending_work_counts": record_count_by_key(records, "fleet_has_mailbox_pending_work"),
+        "fleet_has_poll_overdue_targets_counts": record_count_by_key(records, "fleet_has_poll_overdue_targets"),
+        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
+        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
+        "tui_shortcut_counts": record_count_by_key(records, "tui_shortcut"),
+        "line_mode_action_counts": record_count_by_key(records, "line_mode_action"),
     }
 
 
