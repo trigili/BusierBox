@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import argparse
+import contextlib
 import hashlib
+import io
 import json
 import os
 import pty
@@ -319,6 +321,23 @@ def run_probe_delivery_section(server):
 
 
 def run_line_console_smoke(server, tmp, upload_cfg, session_root):
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from gritlib.line_workspace import print_line_workspace_snapshot
+
+    workspace_empty_buf = io.StringIO()
+    with contextlib.redirect_stdout(workspace_empty_buf):
+        print_line_workspace_snapshot({"summary": {}, "targets": [], "sessions": [], "warnings": []})
+    workspace_empty_text = workspace_empty_buf.getvalue()
+    if (
+        "No active workspace items yet." not in workspace_empty_text or
+        "probe --start        serve the shell probe and print target commands" not in workspace_empty_text or
+        "listeners            see services you can start" not in workspace_empty_text or
+        "upload --start FILE  stage a file for target fetch" not in workspace_empty_text
+    ):
+        print("line-oriented workspace empty state did not expose getting-started guidance", file=sys.stderr)
+        print(workspace_empty_text, file=sys.stderr)
+        return 1
+
     line_console_binary = Path(tmp) / "grit-line-console"
     line_console_binary.write_text("#!/bin/sh\necho grit console binary\n", encoding="utf-8")
     line_console_upload = Path(tmp) / "line-console-upload.txt"

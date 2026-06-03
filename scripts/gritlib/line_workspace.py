@@ -115,6 +115,9 @@ def print_line_workspace_snapshot(snap):
     staged = summary.get("staged_count", 0)
     if staged:
         parts.append(f"{staged} staged")
+    routes = summary.get("bridge_profile_count", 0)
+    if routes:
+        parts.append(f"{routes} route{'s' if routes != 1 else ''}")
     pending = summary.get("mailbox_pending_work_count") or summary.get("target_mailbox_pending_work_count") or 0
     if pending:
         parts.append(f"{pending} pending")
@@ -148,6 +151,22 @@ def print_line_workspace_snapshot(snap):
     for warning in warnings[:3]:
         svc = f" {warning.get('service')}" if warning.get("service") else ""
         print(f"  [!]{svc}: {warning.get('message', '')}")
+
+    if (
+        not targets
+        and not sessions
+        and not staged
+        and not routes
+        and not warnings
+        and int(summary.get("listening_count", 0) or 0) == 0
+    ):
+        print("")
+        print("  No active workspace items yet.")
+        print("  Start here:")
+        print("    probe --start        serve the shell probe and print target commands")
+        print("    listeners            see services you can start")
+        print("    upload --start FILE  stage a file for target fetch")
+        print("    help workflow        see the probe-to-payload flow")
 
     print("")
     print("  search TERM  |  targets  sessions  files  listeners  routes  |  ? help")
