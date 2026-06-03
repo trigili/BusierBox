@@ -3,6 +3,7 @@
 import shlex
 
 from gritlib.console_display import console_table
+from gritlib.line_command_queue import line_command_queue_state_text
 from gritlib.record_utils import (
     format_counts, int_value, record_count_by_key, record_sum_by_key, records_by_key,
 )
@@ -85,7 +86,7 @@ def print_line_daemon_action_records(records, verbose=False):
         ("Action", line_daemon_action_label),
         ("Use", line_daemon_action_alias),
         ("Workflow", lambda r: r.get("workflow") or "-"),
-        ("State", lambda r: r.get("operator_action_state") or "-"),
+        ("State", line_command_queue_state_text),
         ("Attached", lambda r: "yes" if r.get("daemon_attached") else "no"),
         ("Confirm", lambda r: "yes" if r.get("requires_confirmation") else "no"),
     ]

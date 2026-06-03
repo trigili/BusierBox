@@ -2,6 +2,7 @@
 
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
+from gritlib.line_command_queue import line_command_queue_state_text
 
 
 def normalize_line_action_kind(kind):
@@ -92,7 +93,7 @@ def select_line_action(cfg, actions, selector):
     cfg["_line_console_action_id"] = action_id
     cfg["_line_console_module"] = f"action/{action_id}"
     kind = selected.get("kind") or ""
-    state = selected.get("operator_action_state") or "-"
+    state = line_command_queue_state_text(selected)
     label = selected.get("label") or action_id
     flags = []
     if selected.get("requires_confirmation"):
@@ -235,7 +236,7 @@ def print_line_action_records(actions, filter_text="", kind_filter="", quote=Non
     cols = [
         ("Kind", "kind"),
         ("Module", "id"),
-        ("State", lambda r: r.get("operator_action_state") or "-"),
+        ("State", line_command_queue_state_text),
         ("Confirm", lambda r: "yes" if r.get("requires_confirmation") else "no"),
     ]
     console_table(
@@ -293,7 +294,7 @@ def print_line_module_category_records(actions):
         items = grouped[kind]
         states = {}
         for rec in items:
-            state = rec.get("operator_action_state") or "unknown"
+            state = line_command_queue_state_text(rec)
             states[state] = states.get(state, 0) + 1
         state_summary = "  ".join(f"{state}={count}" for state, count in sorted(states.items()))
         print(f"  {kind:{col}}{len(items)} modules   {state_summary}")
