@@ -3079,9 +3079,8 @@ def main(argv=None):
         if (job_cancel_proc.returncode != 0 or
                 "Traceback" in (job_cancel_stderr or "") or
                 f"cancel requested for {job_id}" not in job_cancel_text or
-                "headless_command: scripts/grit-console --config" not in job_cancel_text or
-                f"--cancel-workbench-job {job_id}" not in job_cancel_text):
-            print("line TUI workbench background job did not cancel with headless command", file=sys.stderr)
+                "headless_command:" in job_cancel_text):
+            print("line TUI workbench background job cancel exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(job_cancel_text, file=sys.stderr)
             print(job_cancel_stderr or "", file=sys.stderr)
             return 1

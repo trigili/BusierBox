@@ -14063,7 +14063,6 @@ def run_line_tui(cfg):
                         headless_command=headless,
                     )
                     print(f"cancel requested for {rec.get('id', job_id)}")
-                    print(f"headless_command: {headless}")
                 except ValueError as exc:
                     print(exc)
         elif choice == "14":
