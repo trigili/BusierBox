@@ -4,6 +4,7 @@ import json
 import os
 import signal
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from gritlib.session_state import (
     atomic_write_json, elapsed_seconds, read_json_file, state_file_path, utc_now,
 )
 from gritlib.shell_utils import shquote
+from gritlib.workflow_actions import select_workbench_action
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
@@ -196,6 +198,72 @@ def next_workbench_job_id(data):
         if candidate not in existing:
             return candidate
     raise ValueError("unable to allocate unique workbench job id")
+
+
+def run_workbench_action_record(cfg, actions, selector, dry_run=False, confirmed=False):
+    action = select_workbench_action(actions, selector)
+    action_id = str(action.get("id") or "")
+    command = workbench_action_command_for_run(action, dry_run=dry_run)
+    if not command:
+        raise ValueError("workbench action has no command")
+    if action.get("background_supported") is True:
+        raise ValueError(f"workbench action is background-capable; use --start-workbench-job for {action_id}")
+    if not dry_run and action.get("requires_confirmation") is True and not confirmed:
+        raise ValueError(f"workbench action requires --confirm-workbench-action: {action_id}")
+    if any(token in command for token in (" NAME ", " ARTIFACT ", "KEY=VALUE", "VALUE")):
+        raise ValueError("workbench action command contains placeholders and must be configured before running")
+
+    headless = run_workbench_action_headless_command(
+        cfg,
+        action_id,
+        dry_run=dry_run,
+        confirmed=confirmed,
+    )
+    print(f"workbench action: {action_id}")
+    print(f"headless_command={headless}")
+    print(f"command={command}")
+    append_event(cfg, "workbench", "workbench_action_run_requested", details={
+        "action_id": action_id,
+        "category": action.get("category", ""),
+        "script": action.get("script", ""),
+        "command": command,
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "headless_command": headless,
+    })
+
+    if dry_run and "--systemd-user-action" not in command:
+        print("dry_run=yes")
+        append_event(cfg, "workbench", "workbench_action_dry_run", details={
+            "action_id": action_id,
+            "category": action.get("category", ""),
+            "script": action.get("script", ""),
+            "command": command,
+            "headless_command": headless,
+        })
+        return 0
+
+    result = subprocess.run(
+        ["/bin/sh", "-c", command],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if result.stdout:
+        print(result.stdout, end="" if result.stdout.endswith("\n") else "\n")
+    if result.stderr:
+        print(result.stderr, end="" if result.stderr.endswith("\n") else "\n", file=sys.stderr)
+    append_event(cfg, "workbench", "workbench_action_run_completed", details={
+        "action_id": action_id,
+        "category": action.get("category", ""),
+        "script": action.get("script", ""),
+        "command": command,
+        "dry_run": bool(dry_run),
+        "confirmed": bool(confirmed),
+        "returncode": int(result.returncode),
+        "headless_command": headless,
+    })
+    return int(result.returncode)
 
 
 def start_workbench_job_record(
