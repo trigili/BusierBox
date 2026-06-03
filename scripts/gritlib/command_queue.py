@@ -957,6 +957,24 @@ def command_queue_result_outcome_event(status):
     }.get(str(status or ""))
 
 
+def append_command_queue_poll_events(cfg, session_manager, service, log_dir, remote, metadata):
+    session_manager.append_list_item(log_dir, "command_queue_polls", metadata)
+    append_event(cfg, service, "command_queue_poll", session=str(log_dir), remote=remote, details=metadata)
+    poll_event = command_queue_poll_outcome_event(metadata.get("status"))
+    if poll_event:
+        level = "error" if poll_event == "command_queue_poll_error" else "info"
+        append_event(cfg, service, poll_event, level, session=str(log_dir), remote=remote, details=metadata)
+
+
+def append_command_queue_result_events(cfg, session_manager, service, log_dir, remote, metadata):
+    session_manager.append_list_item(log_dir, "command_queue_results", metadata)
+    append_event(cfg, service, "command_queue_result_upload", session=str(log_dir), remote=remote, details=metadata)
+    result_event = command_queue_result_outcome_event(metadata.get("status"))
+    if result_event:
+        level = "error" if result_event == "command_queue_result_upload_error" else "info"
+        append_event(cfg, service, result_event, level, session=str(log_dir), remote=remote, details=metadata)
+
+
 def command_queue_mode_semantics(live_transport_supported=True, execution_supported=False):
     modes = {
         "status": {
