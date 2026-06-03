@@ -281,6 +281,17 @@ def target_id_arg(target_id):
     return " --target-id " + shquote(target_id)
 
 
+def target_workflow_run_command(base_command, target_id, action_id, extra_args=""):
+    command = (
+        str(base_command)
+        + " --run-target-workflow-action "
+        + shquote(f"{target_id}:{action_id}")
+    )
+    if extra_args:
+        command += str(extra_args)
+    return command
+
+
 def bridge_profile_action_context(profile):
     profile = profile or {}
     profile_name = str(profile.get("name") or "")
