@@ -4867,7 +4867,8 @@ def main(argv=None):
         queue_tui_text = queue_tui_output.decode("utf-8", errors="replace")
         if (queue_tui_proc.returncode != 0 or
                 "Traceback" in (queue_tui_stderr or "") or
-                "headless_command: scripts/grit-console --config" not in queue_tui_text or
+                "headless_command:" in queue_tui_text or
+                "headless_command=" in queue_tui_text or
                 "Command queue:" not in queue_tui_text or
                 "queue COMMAND  |  queue list" not in queue_tui_text or
                 "command-queue:list-command-queue" not in queue_tui_text or
@@ -4892,7 +4893,7 @@ def main(argv=None):
                 "target-bravo" not in queue_tui_text or
                 "poll_overdue=yes" not in queue_tui_text or
                 "created=" not in queue_tui_text):
-            print("line TUI command queue inspection missing result/mailbox state", file=sys.stderr)
+            print("line TUI command queue inspection exposed noisy headless command or missed result/mailbox state", file=sys.stderr)
             print(queue_tui_text, file=sys.stderr)
             print(queue_tui_stderr or "", file=sys.stderr)
             return 1
@@ -9057,9 +9058,8 @@ def main(argv=None):
                 "? help" not in line_text or
                 "workspace overview" not in line_text or
                 "Target detail: target-action label=Action Router" not in line_text or
-                "headless_command: scripts/grit-console --config" not in line_text or
-                "--target-id target-action --status" not in line_text or
-                " --status" not in line_text or
+                "headless_command:" in line_text or
+                "headless_command=" in line_text or
                 "queues_offline_work=yes" not in line_text or
                 "offline=yes requires_online=no" not in line_text or
                 "state=needs-input reason=input-required enter=no" not in line_text or
@@ -9074,7 +9074,7 @@ def main(argv=None):
                 "mailbox_pending=1 poll_overdue=no" not in line_text or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in line_text or
                 "Target workflow actions:" not in line_text):
-            print("line TUI target detail did not show mailbox/activity and headless command", file=sys.stderr)
+            print("line TUI target detail exposed noisy headless command or missed mailbox/activity state", file=sys.stderr)
             print(line_text, file=sys.stderr)
             return 1
         activity_master, activity_slave = pty.openpty()
@@ -12142,9 +12142,8 @@ def main(argv=None):
                 "curl -fL -o ./grit-test " not in _line_stdout or
                 "nc:    printf 'GET /fetch?name=grit-test HTTP/1.0" not in _line_stdout or
                 "/fetch?name=grit-test" not in _line_stdout or
-                "headless_command: scripts/grit-console --config" not in _line_stdout or
-                "--stage-release-artifact by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout):
-            print("line-oriented TUI did not expose direct release staging", file=sys.stderr)
+                "headless_command:" in _line_stdout):
+            print("line-oriented TUI direct release staging exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(_line_stdout, file=sys.stderr)
             print(line_stderr or "", file=sys.stderr)
             return 1

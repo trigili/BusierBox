@@ -7358,7 +7358,7 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
     return rc
 
 
-def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None):
+def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None, show_commands=True):
     snap = workbench_snapshot(cfg)
     rec = select_workflow_action(snap.get("target_workflow_actions") or [], selector, "target")
     action_id = str(rec.get("action_id") or "")
@@ -7380,7 +7380,8 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         "target_phone_home_required": bool(rec.get("target_phone_home_required")),
     })
     print(f"target workflow action: {rec.get('id', '')}")
-    print(f"headless_command={rec.get('headless_command', rec.get('command', ''))}")
+    if show_commands:
+        print(f"headless_command={rec.get('headless_command', rec.get('command', ''))}")
 
     if action_id == "inspect-status":
         return print_status(scoped, json_output=False)
@@ -10880,7 +10881,6 @@ def run_line_tui(cfg):
             if dry_run:
                 print(f"target workflow action: {rec_id}")
                 print("dry_run=yes")
-                print(f"headless_command={rec.get('headless_command', rec.get('command', ''))}")
                 append_event(cfg, "workbench", "target_workflow_action_dry_run", details={
                     "id": rec_id,
                     "action_id": rec.get("action_id", ""),
@@ -10890,7 +10890,7 @@ def run_line_tui(cfg):
                 })
                 print("action_returncode=0")
                 return 0
-            rc = run_target_workflow_action(cfg, rec_id, input_func=line_input)
+            rc = run_target_workflow_action(cfg, rec_id, input_func=line_input, show_commands=False)
             print(f"action_returncode={rc}")
             return rc
         raise ValueError(f"unsupported selected action kind: {kind}")
@@ -13966,14 +13966,13 @@ def run_line_tui(cfg):
             actions = snap.get("target_workflow_actions") or []
             for idx, rec in enumerate(actions, 1):
                 print(f"{idx}: {rec.get('id', '')} {rec.get('label', '')}")
-                print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
                 print(f"   target={rec.get('target_id', '')} workflow={rec.get('workflow', '')} input={'yes' if rec.get('requires_input') else 'no'}")
             selected_line = line_input("target workflow action id or number> ")
             selected = selected_line.strip() if selected_line is not None else ""
             if selected:
                 try:
                     rec = select_workflow_action(actions, selected, "target")
-                    rc = run_target_workflow_action(cfg, rec.get("id", selected), input_func=line_input)
+                    rc = run_target_workflow_action(cfg, rec.get("id", selected), input_func=line_input, show_commands=False)
                     print(f"target_workflow_action_returncode={rc}")
                     target_id = str(rec.get("target_id") or "")
                     if target_id:
@@ -14012,7 +14011,6 @@ def run_line_tui(cfg):
                         print(f"selected target {rec.get('target_id', '')} label={rec.get('target_label', '') or '-'}")
                     else:
                         print("target filter cleared")
-                    print(f"headless_command: {rec.get('headless_command', '')}")
                 except ValueError as exc:
                     print(exc)
         elif choice == "12":
@@ -14239,7 +14237,6 @@ def run_line_tui(cfg):
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                         + " --status"
                     )
-                    print(f"headless_command: {headless}")
                     print_target_summary(snap)
                     activity_count = len(snap.get("target_activity_records") or [])
                     append_event(cfg, "workbench", "workbench_targets_inspected", details={
@@ -14277,7 +14274,6 @@ def run_line_tui(cfg):
                     + " --status"
                 )
                 print(f"Target detail: {target_id} label={target_label or '-'}")
-                print(f"headless_command: {headless}")
                 print_target_summary(scoped_snap, limit=3)
                 target_activity_count = len(scoped_snap.get("target_activity_records") or [])
                 print_target_activity_records(scoped_snap, target_id=target_id, limit=5)
@@ -14286,7 +14282,6 @@ def run_line_tui(cfg):
                     print("Target workflow actions:")
                     for idx, rec in enumerate(actions[:8], 1):
                         print(f"  {idx}: {rec.get('id', '')} {rec.get('label', '')}")
-                        print(f"     command: {rec.get('headless_command', rec.get('command', ''))}")
                         print(
                             f"     offline={'yes' if rec.get('offline_supported') else 'no'} "
                             f"requires_online={'yes' if rec.get('requires_target_online') else 'no'} "
