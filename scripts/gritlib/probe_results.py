@@ -23,6 +23,43 @@ def append_probe_result(cfg, result):
     return path
 
 
+def clear_probe_results(cfg, selector=""):
+    path = probe_results_path(cfg)
+    data = read_json_file(path, {"schema": 1, "results": []})
+    results = data.get("results") if isinstance(data.get("results"), list) else []
+    text = str(selector or "").strip()
+    if not results:
+        return {
+            "count": 0,
+            "selector": text,
+            "remaining_count": 0,
+            "removed": {},
+            "had_results": False,
+        }
+    if not text or text in {"--all", "all"}:
+        count = len(results)
+        removed = {}
+        data["results"] = []
+    elif text.isdigit() and int(text) > 0:
+        ordinal = int(text)
+        if ordinal > len(results):
+            raise ValueError(f"probe result number out of range: {text}")
+        original_idx = len(results) - ordinal
+        removed = results.pop(original_idx)
+        count = 1
+        data["results"] = results
+    else:
+        raise ValueError("usage: probe clear [N|--all]")
+    atomic_write_json(path, data)
+    return {
+        "count": count,
+        "selector": text or "--all",
+        "remaining_count": len(data.get("results") or []),
+        "removed": removed,
+        "had_results": True,
+    }
+
+
 def probe_all_results(cfg):
     path = probe_results_path(cfg)
     if not path.is_file():

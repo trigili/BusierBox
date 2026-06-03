@@ -142,12 +142,12 @@ from gritlib.probe_commands import (
 )
 from gritlib.probe_results import (
     append_probe_result,
+    clear_probe_results,
     probe_all_results,
     probe_effective_arch,
     probe_latest_result,
     print_probe_result_records,
     probe_result_by_ordinal,
-    probe_results_path,
     probe_synthetic_survey,
 )
 from gritlib.runtime import Service, ServiceManager, Session, relay_pipe
@@ -8857,33 +8857,20 @@ def run_line_tui(cfg):
         return survey_path, write_config_path, extra_args
 
     def clear_line_probe_results(args):
-        results_path = probe_results_path(cfg)
-        data = read_json_file(results_path, {"schema": 1, "results": []})
-        results = data.get("results") if isinstance(data.get("results"), list) else []
-        if not results:
+        text = " ".join(str(arg or "") for arg in args).strip()
+        details = clear_probe_results(cfg, text)
+        if not details.get("had_results"):
             print("no probe results to clear")
             return 0
-        text = " ".join(str(arg or "") for arg in args).strip()
-        if not text or text in {"--all", "all"}:
-            count = len(results)
-            data["results"] = []
-        elif text.isdigit() and int(text) > 0:
-            ordinal = int(text)
-            if ordinal > len(results):
-                raise ValueError(f"probe result number out of range: {text}")
-            original_idx = len(results) - ordinal
-            removed = results.pop(original_idx)
-            count = 1
-            data["results"] = results
-            print(f"removed probe result {ordinal}: {removed.get('received_at', '') or '-'} {removed.get('remote_addr', '') or '-'}")
-        else:
-            raise ValueError("usage: probe clear [N|--all]")
-        atomic_write_json(results_path, data)
+        count = int(details.get("count") or 0)
+        removed = details.get("removed") if isinstance(details.get("removed"), dict) else {}
+        if removed:
+            print(f"removed probe result {details.get('selector')}: {removed.get('received_at', '') or '-'} {removed.get('remote_addr', '') or '-'}")
         print(f"cleared {count} probe result(s)")
         append_event(cfg, "workbench", "workbench_probe_results_cleared", details={
             "count": count,
-            "selector": text or "--all",
-            "remaining_count": len(data.get("results") or []),
+            "selector": details.get("selector") or "--all",
+            "remaining_count": details.get("remaining_count", 0),
         })
         return count
 
