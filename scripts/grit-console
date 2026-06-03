@@ -7414,7 +7414,7 @@ def run_line_tui(cfg):
             raise ValueError("usage: use N")
         results = cfg.get("_line_console_search_results") or []
         if not results:
-            raise ValueError("no numbered results active; run search, targets, listeners, sessions, files, jobs, or routes")
+            raise ValueError("no numbered results active; run search, targets, listeners, sessions, files, jobs, routes, or probe results")
         idx = int(text) - 1
         if idx < 0 or idx >= len(results):
             raise ValueError(f"search result number out of range: {text}")
@@ -7437,6 +7437,8 @@ def run_line_tui(cfg):
             return select_line_session(str(session_id))
         if kind == "job":
             return select_line_job(str(rec.get("id") or ""))
+        if kind == "probe-result":
+            return run_line_probe_config([str(item.get("ordinal") or text)])
         raise ValueError(f"search result {text} is not directly selectable")
 
     def print_line_module_categories():
@@ -7727,6 +7729,20 @@ def run_line_tui(cfg):
     def print_line_probe_results():
         bootstrap_results = probe_all_results(cfg)
         print_probe_result_records(bootstrap_results)
+        cfg["_line_console_search_results"] = [
+            {
+                "kind": "probe-result",
+                "label": (
+                    f"{idx} arch={rec.get('uname_m') or rec.get('architecture') or '-'} "
+                    f"kernel={rec.get('uname_r') or rec.get('kernel') or '-'} "
+                    f"remote={rec.get('remote_addr') or '-'}"
+                ),
+                "rec": rec,
+                "ordinal": idx,
+                "use_hint": f"probe config {idx}",
+            }
+            for idx, rec in enumerate(bootstrap_results, 1)
+        ]
         append_event(cfg, "workbench", "workbench_probe_results_viewed", details={
             "result_count": len(bootstrap_results),
         })

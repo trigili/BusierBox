@@ -12548,7 +12548,7 @@ def main(argv=None):
             os.close(probe_slave)
             probe_slave = -1
             time.sleep(0.3)
-            os.write(probe_master, b"probe results\nprobe config 1\nprobe clear 2\nprobe results\nprobe serve\n1\nq\n")
+            os.write(probe_master, b"probe results\n2\nprobe config 1\nprobe clear 2\nprobe results\nprobe serve\n1\nq\n")
             probe_output = b""
             deadline = time.time() + 8
             while probe_proc.poll() is None and time.time() < deadline:
@@ -12577,6 +12577,8 @@ def main(argv=None):
         if (probe_proc.returncode != 0 or
                 "Traceback" in (probe_stderr or "") or
                 "Probe results  (2 received)" not in probe_text or
+                "Using probe result 2 (2025-12-31T23:59:00Z)" not in probe_text or
+                "GRIT_TARGET_ARCH=x86_64" not in probe_text or
                 "Using probe result 1 (2026-01-01T00:00:00Z)" not in probe_text or
                 "GRIT_TARGET_ARCH=mipsel" not in probe_text or
                 "GRIT_KERNEL_FLOOR=current" not in probe_text or
