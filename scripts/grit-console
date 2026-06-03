@@ -108,9 +108,9 @@ from gritlib.line_help import (
     print_line_console_help as line_help_print_line_console_help,
 )
 from gritlib.line_services import (
-    LINE_SERVICE_CATEGORIES,
     line_service_display_name,
     ordered_line_service_records as line_services_ordered_records,
+    print_line_service_records,
     resolve_line_service_selector as line_services_resolve_selector,
 )
 from gritlib.line_workspace import print_line_workspace_snapshot
@@ -7501,105 +7501,13 @@ def run_line_tui(cfg):
 
     def print_line_services(verbose=False):
         rows = ordered_line_service_records()
-
-        def _bind(rec):
-            host = rec.get("bind_address") or ""
-            port = rec.get("port") or "-"
-            proto = str(rec.get("protocol") or "tcp").upper()
-            bind = f"{host}:{port}" if host else str(port)
-            return f"{bind}/{proto}" if proto != "TCP" else bind
-
-        def _status(rec):
-            actual = rec.get("actual") or "-"
-            configured = rec.get("configured") or "-"
-            if actual == configured:
-                return actual
-            return f"{actual} (want {configured})"
-
-        def _detail(rec):
-            if not verbose:
-                return []
-            name = str(rec.get("name") or "")
-            details = [
-                ("start", service_start_headless_command(cfg, name)),
-                ("stop",  service_stop_headless_command(cfg, name)),
-            ]
-            if rec.get("error"):
-                details.append(("error", rec["error"]))
-            if rec.get("session_log"):
-                details.append(("log", rec["session_log"]))
-            return details
-
-        cols = [
-            ("Service", "name"),
-            ("Status",  _status),
-            ("Bind",    _bind),
-            ("TLS",     lambda r: "yes" if r.get("tls") else "no"),
-            ("PID",     lambda r: str(r.get("pid") or "-")),
-        ]
-
-        by_name = {str(r.get("name") or ""): r for r in rows}
-        num_w = len(str(len(rows)))
-        w = [max(len(h), max((len(c) for r in rows for c in [
-            [line_service_display_name(str(r.get("name") or "")), _status(r), _bind(r),
-             "yes" if r.get("tls") else "no", str(r.get("pid") or "-")][i]
-        ]), default=0)) for i, (h, _) in enumerate(cols)]
-
-        def _row_line(n, rec):
-            cells = [line_service_display_name(str(rec.get("name") or "")), _status(rec), _bind(rec),
-                     "yes" if rec.get("tls") else "no", str(rec.get("pid") or "-")]
-            return (f"  {n:{num_w}}  " + "  ".join(f"{c:{w[i]}}" for i, c in enumerate(cells))).rstrip()
-
-        header = "  " + " " * num_w + "  " + "  ".join(f"{h:{w[i]}}" for i, (h, _) in enumerate(cols))
-        sep    = "  " + "─" * num_w + "  " + "  ".join("─" * ww for ww in w)
-
-        if not rows:
-            print("Listeners  (none)")
-        else:
-            print(f"Listeners  ({len(rows)} total)")
-            print("")
-            print(header)
-            print(sep)
-            n = 1
-            cat_all = {name for _, names in LINE_SERVICE_CATEGORIES for name in names}
-            printed_any = False
-            for cat_title, cat_names in LINE_SERVICE_CATEGORIES:
-                cat_rows = [by_name[name] for name in cat_names if name in by_name]
-                if not cat_rows:
-                    continue
-                # Thin blank line + italic-style label between categories
-                if printed_any:
-                    print("")
-                print(f"  {cat_title}")
-                for rec in cat_rows:
-                    print(_row_line(n, rec))
-                    if verbose:
-                        indent = " " * (2 + num_w + 2)
-                        for label, value in (_detail(rec) or []):
-                            if value:
-                                print(f"{indent}{label}: {value}")
-                    n += 1
-                printed_any = True
-            extras = [r for r in rows if str(r.get("name") or "") not in cat_all]
-            if extras:
-                if printed_any:
-                    print("")
-                print("  Other")
-                for rec in extras:
-                    print(_row_line(n, rec))
-                    n += 1
-        print("")
-        print("  use N or listener NAME to select  |  start/stop N or NAME  |  listeners ? for help")
-        search_records = [
-            {
-                "kind": "service",
-                "label": f"{line_service_display_name(str(rec.get('name') or ''))} status={_status(rec)} bind={_bind(rec)}",
-                "rec": rec,
-                "command": service_start_headless_command(cfg, str(rec.get("name") or "")),
-                "use_hint": f"use listener {shquote(line_service_display_name(str(rec.get('name') or '')))}",
-            }
-            for rec in rows
-        ]
+        search_records = print_line_service_records(
+            rows,
+            verbose=verbose,
+            start_command=lambda name: service_start_headless_command(cfg, name),
+            stop_command=lambda name: service_stop_headless_command(cfg, name),
+            quote=shquote,
+        )
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_listeners_listed", details={
             "listener_count": len(rows),
