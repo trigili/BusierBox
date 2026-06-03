@@ -66,6 +66,7 @@ from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
     command_copy_state_status,
 )
+from gritlib.config_utils import yes
 from gritlib.crypto import generate_tls_cert
 from gritlib.dns import dns_parse_qname, dns_txt_answer_packet
 from gritlib.build_config import (
@@ -5627,10 +5628,6 @@ def relay_stdio(conn, log_dir=None, use_stdin=True, script_bytes=None, expect=No
         if log_dir is not None:
             (Path(log_dir) / "exit-reason").write_text(reason + "\n", encoding="utf-8")
     return reason
-
-
-def yes(value):
-    return str(value).lower() in {"1", "true", "yes", "on"}
 
 
 def handle_staged_fetch(cfg, conn, method, target, headers, addr):
