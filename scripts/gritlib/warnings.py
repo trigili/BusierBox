@@ -59,6 +59,42 @@ def warning_stats(warnings):
     }
 
 
+def _index_counts(index):
+    return {key: len(value) for key, value in (index or {}).items()}
+
+
+def warning_status_summary(
+    warning_summary,
+    services_by_has_warnings=None,
+    services_by_warning_type=None,
+    ports_by_has_warnings=None,
+    ports_by_warning_type=None,
+):
+    warning_summary = warning_summary or {}
+    return {
+        "warning_count": warning_summary.get("total_count", 0),
+        "warning_type_counts": warning_summary.get("by_type") or {},
+        "warning_severity_counts": warning_summary.get("by_severity") or {},
+        "warning_remediation_class_counts": warning_summary.get("by_remediation_class") or {},
+        "warning_type_severity_counts": warning_summary.get("by_type_severity") or {},
+        "warning_service_counts": warning_summary.get("by_service") or {},
+        "warning_port_counts": warning_summary.get("by_port") or {},
+        "warning_pid_counts": warning_summary.get("by_pid") or {},
+        "warning_listener_pid_counts": warning_summary.get("by_listener_pid") or {},
+        "warning_owner_pid_counts": warning_summary.get("by_owner_pid") or {},
+        "warning_path_counts": warning_summary.get("by_path") or {},
+        "warning_type_path_counts": warning_summary.get("by_type_path") or {},
+        "warning_service_port_counts": warning_summary.get("by_service_port") or {},
+        "warning_type_service_port_counts": warning_summary.get("by_type_service_port") or {},
+        "service_warning_count": len((services_by_has_warnings or {}).get("yes") or []),
+        "service_without_warning_count": len((services_by_has_warnings or {}).get("no") or []),
+        "service_warning_type_counts": _index_counts(services_by_warning_type),
+        "port_warning_count": len((ports_by_has_warnings or {}).get("yes") or []),
+        "port_without_warning_count": len((ports_by_has_warnings or {}).get("no") or []),
+        "port_warning_type_counts": _index_counts(ports_by_warning_type),
+    }
+
+
 def warning_record_paths(item):
     paths = []
     for key in ("path", "release_json", "release_index", "process_log", "session_log"):
