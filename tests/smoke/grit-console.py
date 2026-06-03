@@ -1196,6 +1196,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented back/q command printed noisy module-clear status", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
+    if "Status bar:" in line_console_stdout:
+        print("line-oriented status command exposed raw status-bar fields", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
     for noisy in ("route.inspect_command=scripts/grit-console", "route.start_command=scripts/grit-console",
                   "route.stop_command=scripts/grit-console", "action.command=scripts/grit-console",
                   "action.dry_run_command=scripts/grit-console", "action.start_job_command=scripts/grit-console"):
@@ -1889,8 +1893,7 @@ def main(argv=None):
                  "operator_state_unhealthy_count", "target_legacy_single_target_activity_present",
                  "target_id:", "target_label:", "target_filter_summary_text",
                  "observed_seen=", "Events  (", "target_filter_evidence_lines",
-                 "Status bar: ", "states={state_text}", "mailbox_pending_work={pending_work}",
-                 "poll_overdue={poll_overdue}",
+                 "Status: ", "mailbox clear", "line_banner_hint(snap)",
                  "Console help topics:",
                  "refreshed workbench at",
                  "Operator console workflow summary:", "operator_console_workflows_by_group",

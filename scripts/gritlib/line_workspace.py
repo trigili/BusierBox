@@ -60,18 +60,26 @@ def line_repl_status_bar(snap):
         if summary.get("poll_overdue_count", "") != ""
         else summary.get("target_poll_overdue_count", 0)
     )
-    return (
-        "Status bar: "
-        f"services={summary.get('listening_count', 0)} "
-        f"warnings={len(snap.get('warnings') or [])} "
-        f"targets={summary.get('target_count', 0)} "
-        f"states={state_text} "
-        f"mailbox_pending_targets={pending_targets} "
-        f"mailbox_pending_work={pending_work} "
-        f"poll_overdue={poll_overdue} "
-        f"selected_target={selected} "
-        f"events={summary.get('event_count', 0)}"
-    )
+    parts = [
+        f"{summary.get('listening_count', 0)} listening",
+        f"{summary.get('target_count', 0)} targets",
+        f"states {state_text}",
+    ]
+    warnings = len(snap.get("warnings") or [])
+    if warnings:
+        parts.append(f"{warnings} warnings")
+    if _count_value(pending_work):
+        parts.append(f"{pending_work} mailbox work")
+    elif _count_value(pending_targets):
+        parts.append(f"{pending_targets} mailbox targets")
+    else:
+        parts.append("mailbox clear")
+    if _count_value(poll_overdue):
+        parts.append(f"{poll_overdue} poll overdue")
+    if selected != "-":
+        parts.append(f"selected {selected}")
+    parts.append(f"{summary.get('event_count', 0)} events")
+    return "Status: " + "  |  ".join(parts) + "\n" + line_banner_hint(snap)
 
 
 def _count_value(value):
