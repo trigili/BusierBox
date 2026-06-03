@@ -2,7 +2,9 @@
 
 import shlex
 
-from gritlib.record_utils import format_counts, record_count_by_key, record_sum_by_key, records_by_key
+from gritlib.record_utils import (
+    format_counts, int_value, record_count_by_key, record_sum_by_key, records_by_key,
+)
 
 
 def select_workflow_action(records, selector, label, extra_keys=()):
@@ -198,6 +200,43 @@ def target_workflow_action_readiness(
     if queues_offline_work and target_phone_home_required:
         return "queueable-offline", "queues-until-phone-home", True
     return "ready", "run-now", True
+
+
+def workflow_fleet_metrics(target_records):
+    target_records = [rec for rec in target_records or [] if isinstance(rec, dict)]
+    fleet_mailbox_pending_work_count = sum(
+        int_value(rec.get("mailbox_pending_work_count", 0))
+        for rec in target_records
+    )
+    fleet_offline_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "offline"
+    ])
+    fleet_stale_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "stale"
+    ])
+    fleet_mailbox_pending_target_count = len([
+        rec for rec in target_records
+        if int_value(rec.get("mailbox_pending_work_count", 0)) > 0
+    ])
+    fleet_poll_overdue_target_count = len([
+        rec for rec in target_records
+        if rec.get("poll_overdue") is True
+    ])
+    return {
+        "fleet_target_count": len(target_records),
+        "fleet_connectivity_state_counts": record_count_by_key(target_records, "connectivity_state"),
+        "fleet_offline_target_count": fleet_offline_target_count,
+        "fleet_stale_target_count": fleet_stale_target_count,
+        "fleet_mailbox_pending_target_count": fleet_mailbox_pending_target_count,
+        "fleet_mailbox_pending_work_count": fleet_mailbox_pending_work_count,
+        "fleet_poll_overdue_target_count": fleet_poll_overdue_target_count,
+        "fleet_has_offline_targets": fleet_offline_target_count > 0,
+        "fleet_has_stale_targets": fleet_stale_target_count > 0,
+        "fleet_has_mailbox_pending_work": fleet_mailbox_pending_work_count > 0,
+        "fleet_has_poll_overdue_targets": fleet_poll_overdue_target_count > 0,
+    }
 
 
 def workbench_action_indexes(records):
