@@ -3,6 +3,7 @@
 import hashlib
 
 from gritlib.bridge_routes import attach_target_route_fields, target_route_context
+from gritlib.command_copy import copy_text_for_operator
 from gritlib.file_transfers import render_fetch_command, render_file_service_command
 from gritlib.operator_network import operator_advertised_host
 from gritlib.probe_commands import probe_route_context, render_probe_command
@@ -43,6 +44,33 @@ def print_target_command_summary(doc):
 
 def generated_target_commands(cfg, staged=None):
     return [rec["command"] for rec in generated_target_command_records(cfg, staged)]
+
+
+def copy_generated_command(cfg, index, default_config="local/operator-session/config.json"):
+    try:
+        pos = int(index) - 1
+    except (TypeError, ValueError):
+        raise ValueError("target command index must be a positive integer")
+    records = generated_target_command_records(cfg)
+    if pos < 0 or pos >= len(records):
+        raise ValueError(f"target command index out of range: {index}")
+    rec = records[pos]
+    command = str(rec.get("command") or "")
+    headless_parts = [
+        "scripts/grit-console",
+        "--config",
+        str(cfg.get("_config_path", default_config)),
+    ]
+    if configured_target_filter(cfg):
+        headless_parts.extend(["--target-id", configured_target_filter(cfg)])
+    headless_parts.extend(["--copy-target-command", str(index)])
+    return copy_text_for_operator(cfg, command, label=f"target_command_{index}", details={
+        "headless_command": " ".join(shquote(part) for part in headless_parts),
+        "ordinal": pos + 1,
+        "command_sha256": str(rec.get("command_sha256") or ""),
+        "service": str(rec.get("service") or ""),
+        "route_kind": str(rec.get("route_kind") or ""),
+    })
 
 
 def generated_target_command_records(cfg, staged=None):

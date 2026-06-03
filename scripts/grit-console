@@ -177,6 +177,7 @@ from gritlib.target_activity import (
     target_phone_home_records_from_events,
 )
 from gritlib.target_commands import (
+    copy_generated_command,
     generated_target_command_records, generated_target_commands,
     rshell_session_policy_record, shell_listener_max_sessions,
     print_target_command_summary, target_command_display_line,
@@ -2658,33 +2659,6 @@ ROUTE_HELP_LINES = [
     "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
     "  Meaning: target reaches jump:9001, jump reaches operator:8080, bridge delivers to 192.168.1.1:80.",
 ]
-
-
-def copy_generated_command(cfg, index):
-    try:
-        pos = int(index) - 1
-    except (TypeError, ValueError):
-        raise ValueError("target command index must be a positive integer")
-    records = generated_target_command_records(cfg)
-    if pos < 0 or pos >= len(records):
-        raise ValueError(f"target command index out of range: {index}")
-    rec = records[pos]
-    command = str(rec.get("command") or "")
-    headless_parts = [
-        "scripts/grit-console",
-        "--config",
-        str(cfg.get("_config_path", DEFAULT_CONFIG)),
-    ]
-    if configured_target_filter(cfg):
-        headless_parts.extend(["--target-id", configured_target_filter(cfg)])
-    headless_parts.extend(["--copy-target-command", str(index)])
-    return copy_text_for_operator(cfg, command, label=f"target_command_{index}", details={
-        "headless_command": " ".join(shquote(part) for part in headless_parts),
-        "ordinal": pos + 1,
-        "command_sha256": str(rec.get("command_sha256") or ""),
-        "service": str(rec.get("service") or ""),
-        "route_kind": str(rec.get("route_kind") or ""),
-    })
 
 
 def register_socket(sock):
