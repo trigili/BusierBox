@@ -880,6 +880,24 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented route commands exposed noisy headless commands", file=sys.stderr)
         print(route_text or line_console_stdout, file=sys.stderr)
         return 1
+    generated_copy_start = line_console_stdout.find("grit[all]> copy 1")
+    generated_copy_end = line_console_stdout.find("grit[all]> build", generated_copy_start + 1)
+    generated_copy_text = line_console_stdout[generated_copy_start:generated_copy_end] if generated_copy_start != -1 and generated_copy_end != -1 else ""
+    if (not generated_copy_text or "copied command to " not in generated_copy_text or
+            "headless_command:" in generated_copy_text):
+        print("line-oriented generated command copy exposed noisy headless command", file=sys.stderr)
+        print(generated_copy_text or line_console_stdout, file=sys.stderr)
+        return 1
+    build_set_start = line_console_stdout.find("grit[all]> build set GRIT_RUNTIME_ROOT /tmp/grit-build")
+    build_set_end = line_console_stdout.find("grit[all]> listeners", build_set_start + 1)
+    build_set_text = line_console_stdout[build_set_start:build_set_end] if build_set_start != -1 and build_set_end != -1 else ""
+    if (not build_set_text or
+            "set build.GRIT_RUNTIME_ROOT=\"/tmp/grit-build\"" not in build_set_text or
+            "setg GRIT_RUNTIME_ROOT=\"/tmp/grit-global\"" not in build_set_text or
+            "headless_command:" in build_set_text):
+        print("line-oriented build config commands exposed noisy headless commands", file=sys.stderr)
+        print(build_set_text or line_console_stdout, file=sys.stderr)
+        return 1
     queue_start = line_console_stdout.find("queued cq-")
     queue_end = line_console_stdout.find("Command result:", queue_start + 1)
     queue_text = line_console_stdout[queue_start:queue_end] if queue_start != -1 and queue_end != -1 else ""
@@ -960,6 +978,33 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "headless_command:" in configure_text):
         print("line-oriented configure command exposed noisy headless command", file=sys.stderr)
         print(configure_text or line_console_stdout, file=sys.stderr)
+        return 1
+    daemon_action_start = line_console_stdout.find("grit[all]> daemon status --dry-run")
+    daemon_action_end = line_console_stdout.find("grit[all]> uselistener", daemon_action_start + 1)
+    daemon_action_text = line_console_stdout[daemon_action_start:daemon_action_end] if daemon_action_start != -1 and daemon_action_end != -1 else ""
+    if (not daemon_action_text or
+            "operator daemon workflow action: operator-daemon-status" not in daemon_action_text or
+            "headless_command:" in daemon_action_text or
+            "headless_command=" in daemon_action_text):
+        print("line-oriented daemon action commands exposed noisy headless commands", file=sys.stderr)
+        print(daemon_action_text or line_console_stdout, file=sys.stderr)
+        return 1
+    module_action_start = line_console_stdout.find("grit[all]/action/operator-daemon-status> check")
+    module_action_end = line_console_stdout.find("grit[all]> run -j", module_action_start + 1)
+    module_action_text = line_console_stdout[module_action_start:module_action_end] if module_action_start != -1 and module_action_end != -1 else ""
+    if (not module_action_text or
+            "operator daemon workflow action: operator-daemon-status" not in module_action_text or
+            "headless_command:" in module_action_text or
+            "headless_command=" in module_action_text):
+        print("line-oriented selected daemon action commands exposed noisy headless commands", file=sys.stderr)
+        print(module_action_text or line_console_stdout, file=sys.stderr)
+        return 1
+    path_view_start = line_console_stdout.find("grit[all]> interact 1")
+    path_view_end = line_console_stdout.find("grit[all]> use session 1", path_view_start + 1)
+    path_view_text = line_console_stdout[path_view_start:path_view_end] if path_view_start != -1 and path_view_end != -1 else ""
+    if not path_view_text or "session_log=" not in path_view_text or "headless_command:" in path_view_text:
+        print("line-oriented direct path view exposed noisy headless command", file=sys.stderr)
+        print(path_view_text or line_console_stdout, file=sys.stderr)
         return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
     daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)

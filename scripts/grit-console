@@ -6622,7 +6622,7 @@ def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
     return rc
 
 
-def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=False):
+def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=False, show_commands=True):
     snap = workbench_snapshot(cfg)
     rec = select_workflow_action(
         snap.get("operator_daemon_workflow_actions") or [],
@@ -6636,8 +6636,9 @@ def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=
     command = str(rec.get("command") or "")
     run_command = str(rec.get("run_command") or "")
     print(f"operator daemon workflow action: {rec_id}")
-    print(f"headless_command={run_command or rec.get('headless_command', '') or command}")
-    print(f"command={command}")
+    if show_commands:
+        print(f"headless_command={run_command or rec.get('headless_command', '') or command}")
+        print(f"command={command}")
     fleet_details = {
         "fleet_target_count": rec.get("fleet_target_count", 0),
         "fleet_offline_target_count": rec.get("fleet_offline_target_count", 0),
@@ -8843,7 +8844,6 @@ def run_line_tui(cfg):
         rec = set_workbench_build_config(cfg, f"{key}={value}")
         print(f"set build.{rec.get('key', key)}={shell_double_quote(rec.get('value', value))}")
         print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
-        print(f"headless_command: {rec.get('set_command', '')}")
         return rec
 
     def unset_line_build_config(args):
@@ -8916,7 +8916,6 @@ def run_line_tui(cfg):
         rec = copy_generated_command(cfg, text)
         print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
         print(f"command={rec.get('text', '')}")
-        print(f"headless_command: {rec.get('headless_command', '')}")
         return rec
 
     def run_line_generated_command(args):
@@ -9115,7 +9114,6 @@ def run_line_tui(cfg):
             raise ValueError(f"setg only supports guided build/workbench options: {name}")
         rec = set_workbench_build_config(cfg, f"{key}={text}")
         print(f"setg {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
-        print(f"headless_command: {rec.get('set_command', '')}")
 
     def unset_line_option(name):
         key = str(name or "").strip()
@@ -9587,7 +9585,6 @@ def run_line_tui(cfg):
         headless = service_stop_headless_command(cfg, service)
         cfg["_service_stop_command"] = headless
         stop_recorded_service(cfg, service, headless_command=headless)
-        print(f"headless_command: {headless}")
 
     def line_route_record(name):
         text = str(name or "").strip()
@@ -9897,7 +9894,6 @@ def run_line_tui(cfg):
             headless_command=headless,
         )
         print(f"cancel requested for {cancelled.get('id', job_id)}")
-        print(f"headless_command: {headless}")
 
     def start_line_job(action_selector=""):
         selector = str(action_selector or "").strip()
@@ -9919,8 +9915,6 @@ def run_line_tui(cfg):
             headless_command=headless,
         )
         print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
-        print(f"headless_command: {headless}")
-        print(f"command: {rec.get('command', '')}")
 
     def print_line_daemon_actions(verbose=False):
         snap = workbench_snapshot(cfg)
@@ -9979,7 +9973,7 @@ def run_line_tui(cfg):
             "systemd-status": "systemd-user-status",
         }
         selector = aliases.get(action, action)
-        rc = run_operator_daemon_workflow_action(cfg, selector, dry_run=dry_run, confirmed=confirmed)
+        rc = run_operator_daemon_workflow_action(cfg, selector, dry_run=dry_run, confirmed=confirmed, show_commands=False)
         print(f"daemon_workflow_returncode={rc}")
 
     def line_action_records():
@@ -10862,7 +10856,7 @@ def run_line_tui(cfg):
             print(f"action_returncode={rc}")
             return rc
         if kind == "daemon":
-            rc = run_operator_daemon_workflow_action(cfg, rec_id, dry_run=dry_run, confirmed=confirmed)
+            rc = run_operator_daemon_workflow_action(cfg, rec_id, dry_run=dry_run, confirmed=confirmed, show_commands=False)
             print(f"action_returncode={rc}")
             return rc
         if kind == "workbench":
@@ -12835,7 +12829,6 @@ def run_line_tui(cfg):
         if not path:
             raise ValueError("usage: view PATH")
         headless = view_path_headless_command(cfg, path)
-        print(f"headless_command: {headless}")
         result = open_path_in_pager(path)
         print(result)
         append_event(cfg, "workbench", "workbench_path_viewed", details={
@@ -13824,7 +13817,6 @@ def run_line_tui(cfg):
                     )
                     rec = stage_release_selection(cfg, selector)
                     print(f"staged {rec['request_name']}")
-                    print(f"headless_command: {headless}")
                     print(render_fetch_command(rec["request_name"], cfg))
                     append_event(cfg, "workbench", "workbench_release_artifact_staged", details={
                         "selector": selector,
@@ -14035,8 +14027,6 @@ def run_line_tui(cfg):
                         headless_command=headless,
                     )
                     print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
-                    print(f"headless_command: {headless}")
-                    print(f"command: {rec.get('command', '')}")
                 except (ValueError, IndexError) as exc:
                     print(exc)
         elif choice == "13":
