@@ -104,6 +104,44 @@ def record_line_target_metadata_update(cfg, target_id, action="", field="", defa
     return headless
 
 
+def set_line_target_option(cfg, name, value):
+    key = str(name or "").strip()
+    text = str(value or "")
+    target_id, rec = selected_target_record_for_update(cfg)
+    if key in ("label", "target.label"):
+        updated = set_target_label(
+            cfg,
+            target_id,
+            text,
+            aliases=rec.get("aliases") or [],
+            notes=rec.get("notes", ""),
+        )
+        cfg["_target_label_filter"] = str(updated.get("label") or "")
+        print(f"set target.label={updated.get('label', '') or '-'}")
+    elif key in ("notes", "target.notes"):
+        updated = set_target_label(
+            cfg,
+            target_id,
+            rec.get("label", ""),
+            aliases=rec.get("aliases") or [],
+            notes=text,
+        )
+        print(f"set target.notes={str(updated.get('notes') or '') or '-'}")
+    elif key in ("alias", "target.alias", "target.aliases"):
+        updated = set_target_label(
+            cfg,
+            target_id,
+            rec.get("label", ""),
+            aliases=[text],
+            notes=rec.get("notes", ""),
+        )
+        print(f"set target.aliases={','.join(str(item) for item in updated.get('aliases') or []) or '-'}")
+    else:
+        raise ValueError(f"unknown option: {name}")
+    record_line_target_metadata_update(cfg, target_id, action="set-option", field=key)
+    return updated
+
+
 def unset_line_target_option(cfg, name, clear_module=None):
     key = str(name or "").strip()
     if key in ("module", "action"):

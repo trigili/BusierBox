@@ -139,7 +139,7 @@ from gritlib.line_help import (
 )
 from gritlib.line_options import (
     GRIT_TO_CFG_KEY, SERVICE_OPTIONS, record_line_target_metadata_update,
-    unset_line_target_option,
+    set_line_target_option, unset_line_target_option,
 )
 from gritlib.line_resources import (
     line_history_command, load_line_resource,
@@ -6831,32 +6831,7 @@ def run_line_tui(cfg):
             except OSError as exc:
                 print(f"set {key}={shell_double_quote(str(typed_val))}  (warning: could not save: {exc})")
             return
-        target_id, rec = selected_target_record_for_update(cfg)
-        if key in ("label", "target.label"):
-            updated = set_target_label(
-                cfg, target_id, text,
-                aliases=rec.get("aliases") or [],
-                notes=rec.get("notes", ""),
-            )
-            cfg["_target_label_filter"] = str(updated.get("label") or "")
-            print(f"set target.label={updated.get('label', '') or '-'}")
-        elif key in ("notes", "target.notes"):
-            updated = set_target_label(
-                cfg, target_id, rec.get("label", ""),
-                aliases=rec.get("aliases") or [],
-                notes=text,
-            )
-            print(f"set target.notes={str(updated.get('notes') or '') or '-'}")
-        elif key in ("alias", "target.alias", "target.aliases"):
-            updated = set_target_label(
-                cfg, target_id, rec.get("label", ""),
-                aliases=[text],
-                notes=rec.get("notes", ""),
-            )
-            print(f"set target.aliases={','.join(str(item) for item in updated.get('aliases') or []) or '-'}")
-        else:
-            raise ValueError(f"unknown option: {name}")
-        record_line_target_metadata_update(cfg, target_id, action="set-option", field=key)
+        set_line_target_option(cfg, key, text)
 
     def rename_line_target(label):
         text = str(label or "").strip()
