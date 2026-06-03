@@ -183,7 +183,7 @@ def wait_proc(proc, name):
     return out, err
 
 
-def run_line_tui(cfg, script, timeout=8):
+def run_line_console(cfg, script, timeout=8):
     master, slave = pty.openpty()
     proc = None
     try:
@@ -769,7 +769,7 @@ def write_offline_workflow_artifact(artifact_dir, doc):
     })
 
 
-def write_offline_workflow_tui_artifact(artifact_dir, doc, tui_result):
+def write_offline_workflow_line_console_artifact(artifact_dir, doc, line_console_result):
     events = [
         rec for rec in (doc.get("events") or [])
         if rec.get("event") in ("workbench_command_queue_inspected", "workbench_target_inspected")
@@ -777,9 +777,9 @@ def write_offline_workflow_tui_artifact(artifact_dir, doc, tui_result):
     write_json(artifact_dir / "offline-workflow-tui.json", {
         "schema": 1,
         "kind": "offline-workflow-tui-artifact",
-        "returncode": tui_result.get("returncode"),
-        "stderr": tui_result.get("stderr", ""),
-        "stdout": tui_result.get("stdout", ""),
+        "returncode": line_console_result.get("returncode"),
+        "stderr": line_console_result.get("stderr", ""),
+        "stdout": line_console_result.get("stdout", ""),
         "summary": {
             "target_mailbox_pending_work_count": doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
             "target_mailbox_waiting_for_counts": doc.get("summary", {}).get("target_mailbox_waiting_for_counts", {}),
@@ -788,7 +788,7 @@ def write_offline_workflow_tui_artifact(artifact_dir, doc, tui_result):
     })
 
 
-def write_offline_workflow_drain_tui_artifact(artifact_dir, doc, tui_result):
+def write_offline_workflow_drain_line_console_artifact(artifact_dir, doc, line_console_result):
     target = (doc.get("targets_by_id") or {}).get("target-workflow") or {}
     records = [
         rec for rec in (doc.get("target_mailbox_records") or [])
@@ -801,9 +801,9 @@ def write_offline_workflow_drain_tui_artifact(artifact_dir, doc, tui_result):
     write_json(artifact_dir / "offline-workflow-drain-tui.json", {
         "schema": 1,
         "kind": "offline-workflow-drain-tui-artifact",
-        "returncode": tui_result.get("returncode"),
-        "stderr": tui_result.get("stderr", ""),
-        "stdout": tui_result.get("stdout", ""),
+        "returncode": line_console_result.get("returncode"),
+        "stderr": line_console_result.get("stderr", ""),
+        "stdout": line_console_result.get("stdout", ""),
         "target": target,
         "target_mailbox_records": records,
         "summary": {
@@ -910,7 +910,7 @@ def write_systemd_user_service_artifact(artifact_dir, doc, unit_name, unit_dir, 
     })
 
 
-def write_tui_offline_queue_artifact(artifact_dir, before_doc, after_doc, tui_result):
+def write_line_console_offline_queue_artifact(artifact_dir, before_doc, after_doc, line_console_result):
     target = (after_doc.get("targets_by_id") or {}).get("target-tui") or {}
     records = [
         rec for rec in (after_doc.get("target_mailbox_records") or [])
@@ -924,9 +924,9 @@ def write_tui_offline_queue_artifact(artifact_dir, before_doc, after_doc, tui_re
     write_json(artifact_dir / "tui-offline-queue.json", {
         "schema": 1,
         "kind": "tui-offline-queue-artifact",
-        "returncode": tui_result.get("returncode"),
-        "stderr": tui_result.get("stderr", ""),
-        "stdout": tui_result.get("stdout", ""),
+        "returncode": line_console_result.get("returncode"),
+        "stderr": line_console_result.get("stderr", ""),
+        "stdout": line_console_result.get("stdout", ""),
         "before": {
             "target_mailbox_pending_work_count": before_doc.get("summary", {}).get("target_mailbox_pending_work_count", 0),
         },
@@ -943,7 +943,7 @@ def write_tui_offline_queue_artifact(artifact_dir, before_doc, after_doc, tui_re
     })
 
 
-def write_tui_offline_queue_drain_artifact(artifact_dir, doc, command_ids, responses):
+def write_line_console_offline_queue_drain_artifact(artifact_dir, doc, command_ids, responses):
     target = (doc.get("targets_by_id") or {}).get("target-tui") or {}
     by_command = doc.get("target_mailbox_records_by_command_id") or {}
     records = [
@@ -1169,28 +1169,32 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition(completed_by_action.get("queue-probe", {}).get("result") == "queued-probe", "queue-probe event missing", completed_by_action)
     assert_condition(staged_completed_by_action.get("queue-staged-fetch", {}).get("result") == "queued-staged-fetch", "staged-file queue-staged-fetch event missing", staged_completed_by_action)
     assert_condition(staged_completed_by_action.get("queue-staged-fetch", {}).get("queues_offline_work") is True, "staged-file queue action should be offline queueable", staged_completed_by_action)
-    assert_condition("--run-staged-file-workflow-action workflow-payload.txt:queue-staged-fetch" in staged_queue_result.stdout, "staged-file workflow runner did not expose run command", staged_queue_result.stdout)
+    assert_condition(
+        "--run-target-workflow-action queue-staged-fetch --target-workflow-request-name workflow-payload.txt" in staged_queue_result.stdout,
+        "staged-file workflow runner did not expose target workflow queue command",
+        staged_queue_result.stdout,
+    )
     assert_condition(staged_file_action.get("run_command", "").find("--run-staged-file-workflow-action workflow-payload.txt:queue-staged-fetch") >= 0, "staged-file workflow action missing stable run command", staged_file_action)
     assert_condition(staged_file_action.get("target_id") == "target-workflow", "staged-file workflow action lost target context", staged_file_action)
     assert_condition("wget -O-" in mailbox_commands and "probe.sh" in mailbox_commands, "queued probe bootstrap command missing", mailbox_commands)
     assert_condition("grit fetch workflow-payload.txt" in mailbox_commands, "queued staged fetch command missing", mailbox_commands)
     write_offline_workflow_artifact(artifact_dir, doc)
-    tui_result = run_line_tui(cfg, "20\n18\ntarget-workflow\nq\n")
-    assert_condition(tui_result["returncode"] == 0, "offline workflow line TUI failed", tui_result)
-    tui_text = tui_result["stdout"]
-    assert_condition("headless_command" not in tui_text, "offline workflow TUI should not show headless commands by default", tui_text)
-    assert_condition("queue COMMAND  |  queue list  |  queue ? for help" in tui_text, "offline workflow TUI missing command queue controls", tui_text)
-    assert_condition("Mailbox  (2 records)" in tui_text, "offline workflow TUI missing mailbox section", tui_text)
-    assert_condition("target-workflow" in tui_text, "offline workflow TUI missing target-scoped mailbox records", tui_text)
-    assert_condition("waiting_for=target-poll" in tui_text and "pending=2" in tui_text, "offline workflow TUI missing pending mailbox state", tui_text)
-    assert_condition("Target detail: target-workflow label=Workflow Target" in tui_text, "offline workflow TUI missing target detail", tui_text)
-    assert_condition("mailbox queued=2" in tui_text and "pending=2" in tui_text, "offline workflow TUI missing target mailbox counts", tui_text)
-    assert_condition("queue-probe" in tui_text and "queue-staged-fetch" in tui_text, "offline workflow TUI missing offline workflow actions", tui_text)
-    tui_doc = status(cfg, artifact_dir, "offline-workflow-tui-status")
-    tui_events = tui_doc.get("events_by_event") or {}
-    assert_condition(tui_events.get("workbench_command_queue_inspected"), "offline workflow TUI command queue event missing")
-    assert_condition(tui_events.get("workbench_target_inspected"), "offline workflow TUI target detail event missing")
-    write_offline_workflow_tui_artifact(artifact_dir, tui_doc, tui_result)
+    line_console_result = run_line_console(cfg, "20\n18\ntarget-workflow\nq\n")
+    assert_condition(line_console_result["returncode"] == 0, "offline workflow line console failed", line_console_result)
+    line_console_text = line_console_result["stdout"]
+    assert_condition("headless_command" not in line_console_text, "offline workflow line console should not show headless commands by default", line_console_text)
+    assert_condition("queue COMMAND  |  queue list  |  queue ? for help" in line_console_text, "offline workflow line console missing command queue controls", line_console_text)
+    assert_condition("Mailbox  (2 records)" in line_console_text, "offline workflow line console missing mailbox section", line_console_text)
+    assert_condition("target-workflow" in line_console_text, "offline workflow line console missing target-scoped mailbox records", line_console_text)
+    assert_condition("waiting_for=target-poll" in line_console_text and "pending=2" in line_console_text, "offline workflow line console missing pending mailbox state", line_console_text)
+    assert_condition("Target detail: target-workflow label=Workflow Target" in line_console_text, "offline workflow line console missing target detail", line_console_text)
+    assert_condition("mailbox queued=2" in line_console_text and "pending=2" in line_console_text, "offline workflow line console missing target mailbox counts", line_console_text)
+    assert_condition("queue-probe" in line_console_text and "queue-staged-fetch" in line_console_text, "offline workflow line console missing offline workflow actions", line_console_text)
+    line_console_doc = status(cfg, artifact_dir, "offline-workflow-tui-status")
+    line_console_events = line_console_doc.get("events_by_event") or {}
+    assert_condition(line_console_events.get("workbench_command_queue_inspected"), "offline workflow line console command queue event missing")
+    assert_condition(line_console_events.get("workbench_target_inspected"), "offline workflow line console target detail event missing")
+    write_offline_workflow_line_console_artifact(artifact_dir, line_console_doc, line_console_result)
     delivered_ids = []
     responses = []
     for idx in (1, 2):
@@ -1234,21 +1238,21 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition(any(rec.get("pending_work_remaining") is True for rec in drain_phone_home), "offline workflow drain should record remaining queued work after first poll", drain_phone_home)
     assert_condition(any(rec.get("pending_work_remaining") is False for rec in drain_phone_home), "offline workflow drain should record empty mailbox after final poll", drain_phone_home)
     write_offline_workflow_drain_artifact(artifact_dir, drain_doc, delivered_ids, responses)
-    drain_tui_result = run_line_tui(cfg, "20\n18\ntarget-workflow\nq\n")
-    assert_condition(drain_tui_result["returncode"] == 0, "offline workflow drain line TUI failed", drain_tui_result)
-    drain_tui_text = drain_tui_result["stdout"]
-    assert_condition("Mailbox  (2 records)" in drain_tui_text, "offline workflow drain TUI missing mailbox section", drain_tui_text)
-    assert_condition("target-workflow" in drain_tui_text, "offline workflow drain TUI missing target-scoped mailbox records", drain_tui_text)
-    assert_condition("status=delivered" in drain_tui_text and "pending=0" in drain_tui_text, "offline workflow drain TUI missing delivered mailbox state", drain_tui_text)
-    assert_condition("last_seen=" in drain_tui_text and "via=command-queue:command_queue_poll" in drain_tui_text, "offline workflow drain TUI missing heartbeat context", drain_tui_text)
-    assert_condition("next_expected_poll=" in drain_tui_text and "poll_overdue=no" in drain_tui_text, "offline workflow drain TUI missing next poll context", drain_tui_text)
-    assert_condition("phone_home_latest=" in drain_tui_text and "status=delivered" in drain_tui_text, "offline workflow drain TUI missing phone-home status", drain_tui_text)
-    assert_condition("Target detail: target-workflow label=Workflow Target" in drain_tui_text, "offline workflow drain TUI missing target detail", drain_tui_text)
-    drain_tui_doc = status(cfg, artifact_dir, "offline-workflow-drain-tui-status")
-    drain_tui_events = drain_tui_doc.get("events_by_event") or {}
-    assert_condition(drain_tui_events.get("workbench_command_queue_inspected"), "offline workflow drain TUI command queue event missing")
-    assert_condition(drain_tui_events.get("workbench_target_inspected"), "offline workflow drain TUI target detail event missing")
-    write_offline_workflow_drain_tui_artifact(artifact_dir, drain_tui_doc, drain_tui_result)
+    drain_line_console_result = run_line_console(cfg, "20\n18\ntarget-workflow\nq\n")
+    assert_condition(drain_line_console_result["returncode"] == 0, "offline workflow drain line console failed", drain_line_console_result)
+    drain_line_console_text = drain_line_console_result["stdout"]
+    assert_condition("Mailbox  (2 records)" in drain_line_console_text, "offline workflow drain line console missing mailbox section", drain_line_console_text)
+    assert_condition("target-workflow" in drain_line_console_text, "offline workflow drain line console missing target-scoped mailbox records", drain_line_console_text)
+    assert_condition("status=delivered" in drain_line_console_text and "pending=0" in drain_line_console_text, "offline workflow drain line console missing delivered mailbox state", drain_line_console_text)
+    assert_condition("last_seen=" in drain_line_console_text and "via=command-queue:command_queue_poll" in drain_line_console_text, "offline workflow drain line console missing heartbeat context", drain_line_console_text)
+    assert_condition("next_expected_poll=" in drain_line_console_text and "poll_overdue=no" in drain_line_console_text, "offline workflow drain line console missing next poll context", drain_line_console_text)
+    assert_condition("phone_home_latest=" in drain_line_console_text and "status=delivered" in drain_line_console_text, "offline workflow drain line console missing phone-home status", drain_line_console_text)
+    assert_condition("Target detail: target-workflow label=Workflow Target" in drain_line_console_text, "offline workflow drain line console missing target detail", drain_line_console_text)
+    drain_line_console_doc = status(cfg, artifact_dir, "offline-workflow-drain-tui-status")
+    drain_line_console_events = drain_line_console_doc.get("events_by_event") or {}
+    assert_condition(drain_line_console_events.get("workbench_command_queue_inspected"), "offline workflow drain line console command queue event missing")
+    assert_condition(drain_line_console_events.get("workbench_target_inspected"), "offline workflow drain line console target detail event missing")
+    write_offline_workflow_drain_line_console_artifact(artifact_dir, drain_line_console_doc, drain_line_console_result)
     return {"name": "offline-workflow-queue", "status": "pass", "artifact": "offline-workflow-status.json"}
 
 
@@ -1527,7 +1531,7 @@ def run_console_offline_queue_scenario(artifact_dir):
     queue_file = scenario_dir / "command-queue.json"
     source = scenario_dir / "tui-payload.txt"
     source.parent.mkdir(parents=True, exist_ok=True)
-    source.write_text("payload queued from TUI while offline\n", encoding="utf-8")
+    source.write_text("payload queued from line console while offline\n", encoding="utf-8")
     write_json(cfg, {
         "listen_host": "127.0.0.1",
         "operator_session_dir": str(scenario_dir),
@@ -1557,7 +1561,7 @@ def run_console_offline_queue_scenario(artifact_dir):
         "--target-label", "TUI Target",
     )
     if label_result.returncode != 0:
-        raise RuntimeError(f"TUI target label setup failed: {label_result.stderr}")
+        raise RuntimeError(f"line console target label setup failed: {label_result.stderr}")
     bridge_profile_result = run(
         str(SERVER), "--config", str(cfg),
         "--target-id", "target-tui",
@@ -1566,128 +1570,128 @@ def run_console_offline_queue_scenario(artifact_dir):
         "--bridge-dest-host", "127.0.0.1",
         "--bridge-dest-port", str(bridge_dest_port),
         "--bridge-profile-purpose", "tui-offline-bridge-work",
-        "--bridge-profile-notes", "queued from TUI while target is offline",
+        "--bridge-profile-notes", "queued from line console while target is offline",
     )
     if bridge_profile_result.returncode != 0:
-        raise RuntimeError(f"TUI bridge profile setup failed: {bridge_profile_result.stderr}")
+        raise RuntimeError(f"line console bridge profile setup failed: {bridge_profile_result.stderr}")
 
     before_doc = status(cfg, artifact_dir, "tui-offline-queue-before")
-    tui_results = [
-        run_line_tui(cfg, "15\ntarget-tui:queue-command\ngrit survey --json\nq\n"),
-        run_line_tui(cfg, "15\ntarget-tui:queue-probe\nq\n"),
-        run_line_tui(cfg, f"15\ntarget-tui:stage-file-fetch\n{source}\ntui-payload.txt\nq\n"),
-        run_line_tui(cfg, "15\ntarget-tui:queue-staged-fetch\ntui-payload.txt\nq\n"),
-        run_line_tui(cfg, "15\ntarget-tui:queue-bridge-start:tui-bridge\nq\n"),
+    line_console_results = [
+        run_line_console(cfg, "15\ntarget-tui:queue-command\ngrit survey --json\nq\n"),
+        run_line_console(cfg, "15\ntarget-tui:queue-probe\nq\n"),
+        run_line_console(cfg, f"15\ntarget-tui:stage-file-fetch\n{source}\ntui-payload.txt\nq\n"),
+        run_line_console(cfg, "15\ntarget-tui:queue-staged-fetch\ntui-payload.txt\nq\n"),
+        run_line_console(cfg, "15\ntarget-tui:queue-bridge-start:tui-bridge\nq\n"),
     ]
-    tui_result = {
-        "returncode": 0 if all(item.get("returncode") == 0 for item in tui_results) else 1,
-        "stderr": "\n".join(item.get("stderr", "") for item in tui_results if item.get("stderr")),
-        "stdout": "\n".join(item.get("stdout", "") for item in tui_results),
+    line_console_result = {
+        "returncode": 0 if all(item.get("returncode") == 0 for item in line_console_results) else 1,
+        "stderr": "\n".join(item.get("stderr", "") for item in line_console_results if item.get("stderr")),
+        "stdout": "\n".join(item.get("stdout", "") for item in line_console_results),
     }
-    assert_condition(tui_result["returncode"] == 0, "TUI offline queue action failed", tui_result)
-    tui_text = tui_result["stdout"]
-    assert_condition("target workflow action: target-tui:queue-command" in tui_text, "TUI offline queue action was not selected", tui_text)
-    assert_condition("target workflow action: target-tui:queue-probe" in tui_text, "TUI offline probe queue action was not selected", tui_text)
-    assert_condition("target workflow action: target-tui:stage-file-fetch" in tui_text, "TUI offline stage-file action was not selected", tui_text)
-    assert_condition("target workflow action: target-tui:queue-staged-fetch" in tui_text, "TUI offline staged-fetch queue action was not selected", tui_text)
-    assert_condition("target workflow action: target-tui:queue-bridge-start:tui-bridge" in tui_text, "TUI offline bridge queue action was not selected", tui_text)
-    assert_condition("command to queue>" in tui_text, "TUI offline queue action did not prompt for command", tui_text)
-    assert_condition("staged tui-payload.txt" in tui_text, "TUI offline file stage action did not stage file", tui_text)
-    assert_condition("queued " in tui_text and "grit survey --json" in tui_text, "TUI offline queue action did not queue command", tui_text)
-    assert_condition("probe.sh" in tui_text, "TUI offline survey queue action did not queue survey command", tui_text)
-    assert_condition("grit fetch tui-payload.txt" in tui_text, "TUI offline staged-fetch action did not queue fetch command", tui_text)
-    assert_condition("bridge_profile=tui-bridge" in tui_text and "grit rshell start" in tui_text, "TUI offline bridge action did not queue bridge work", tui_text)
+    assert_condition(line_console_result["returncode"] == 0, "line console offline queue action failed", line_console_result)
+    line_console_text = line_console_result["stdout"]
+    assert_condition("target workflow action: target-tui:queue-command" in line_console_text, "line console offline queue action was not selected", line_console_text)
+    assert_condition("target workflow action: target-tui:queue-probe" in line_console_text, "line console offline probe queue action was not selected", line_console_text)
+    assert_condition("target workflow action: target-tui:stage-file-fetch" in line_console_text, "line console offline stage-file action was not selected", line_console_text)
+    assert_condition("target workflow action: target-tui:queue-staged-fetch" in line_console_text, "line console offline staged-fetch queue action was not selected", line_console_text)
+    assert_condition("target workflow action: target-tui:queue-bridge-start:tui-bridge" in line_console_text, "line console offline bridge queue action was not selected", line_console_text)
+    assert_condition("command to queue>" in line_console_text, "line console offline queue action did not prompt for command", line_console_text)
+    assert_condition("staged tui-payload.txt" in line_console_text, "line console offline file stage action did not stage file", line_console_text)
+    assert_condition("queued " in line_console_text and "grit survey --json" in line_console_text, "line console offline queue action did not queue command", line_console_text)
+    assert_condition("probe.sh" in line_console_text, "line console offline survey queue action did not queue survey command", line_console_text)
+    assert_condition("grit fetch tui-payload.txt" in line_console_text, "line console offline staged-fetch action did not queue fetch command", line_console_text)
+    assert_condition("bridge_profile=tui-bridge" in line_console_text and "grit rshell start" in line_console_text, "line console offline bridge action did not queue bridge work", line_console_text)
 
     after_doc = status(cfg, artifact_dir, "tui-offline-queue-after", "--event-limit", "128")
     records = [
         rec for rec in (after_doc.get("target_mailbox_records") or [])
         if rec.get("target_id") == "target-tui"
     ]
-    assert_condition(len(records) == 4, "TUI offline queue should create four mailbox records", records)
+    assert_condition(len(records) == 4, "line console offline queue should create four mailbox records", records)
     command_ids_to_drain = [rec.get("command_id") or rec.get("id") or "" for rec in records]
-    assert_condition(all(command_ids_to_drain), "TUI offline queue command ids missing", records)
+    assert_condition(all(command_ids_to_drain), "line console offline queue command ids missing", records)
     queued_commands = "\n".join(rec.get("command") or "" for rec in records)
     survey_mailbox = next((rec for rec in records if "probe.sh" in str(rec.get("command") or "")), {})
     fetch_mailbox = next((rec for rec in records if "grit fetch tui-payload.txt" in str(rec.get("command") or "")), {})
     bridge_mailbox = next((rec for rec in records if rec.get("command") == "grit rshell start"), {})
-    assert_condition("grit survey --json" in queued_commands, "TUI offline queue command missing", queued_commands)
-    assert_condition("probe.sh" in queued_commands, "TUI offline queued survey command missing", queued_commands)
-    assert_condition("grit fetch tui-payload.txt" in queued_commands, "TUI offline queued fetch command missing", queued_commands)
-    assert_condition("grit rshell start" in queued_commands, "TUI offline queued bridge command missing", queued_commands)
-    assert_condition(survey_mailbox.get("work_kind") == "probe", "TUI offline probe mailbox work kind missing", survey_mailbox)
-    assert_condition(survey_mailbox.get("workflow") == "probe", "TUI offline probe mailbox workflow missing", survey_mailbox)
-    assert_condition(survey_mailbox.get("request_name") == "probe.sh", "TUI offline survey mailbox request name missing", survey_mailbox)
-    assert_condition(fetch_mailbox.get("work_kind") == "staged-fetch", "TUI offline fetch mailbox work kind missing", fetch_mailbox)
-    assert_condition(fetch_mailbox.get("workflow") == "file-service", "TUI offline fetch mailbox workflow missing", fetch_mailbox)
-    assert_condition(fetch_mailbox.get("request_name") == "tui-payload.txt", "TUI offline fetch mailbox request name missing", fetch_mailbox)
-    assert_condition(bridge_mailbox.get("work_kind") == "bridge-start", "TUI offline bridge mailbox work kind missing", bridge_mailbox)
-    assert_condition(bridge_mailbox.get("workflow") == "bridge", "TUI offline bridge mailbox workflow missing", bridge_mailbox)
-    assert_condition(bridge_mailbox.get("bridge_profile") == "tui-bridge", "TUI offline bridge mailbox profile missing", bridge_mailbox)
-    assert_condition(bridge_mailbox.get("bridge_route_path"), "TUI offline bridge mailbox route missing", bridge_mailbox)
-    assert_condition(bridge_mailbox.get("route_kind") == "bridge", "TUI offline bridge mailbox route kind missing", bridge_mailbox)
-    assert_condition(after_doc["summary"]["target_mailbox_bridge_profile_counts"].get("tui-bridge") == 1, "TUI offline bridge mailbox profile summary missing")
-    assert_condition(after_doc["summary"]["target_mailbox_work_kind_counts"].get("probe") == 1, "TUI offline probe mailbox work-kind summary missing")
-    assert_condition(after_doc["summary"]["target_mailbox_work_kind_counts"].get("staged-fetch") == 1, "TUI offline staged-fetch mailbox work-kind summary missing")
-    assert_condition(after_doc["summary"]["target_mailbox_work_kind_counts"].get("bridge-start") == 1, "TUI offline bridge mailbox work-kind summary missing")
-    assert_condition(after_doc["summary"]["target_mailbox_request_name_counts"].get("probe.sh") == 1, "TUI offline survey mailbox request-name summary missing")
-    assert_condition(after_doc["summary"]["target_mailbox_request_name_counts"].get("tui-payload.txt") == 1, "TUI offline staged-fetch mailbox request-name summary missing")
+    assert_condition("grit survey --json" in queued_commands, "line console offline queue command missing", queued_commands)
+    assert_condition("probe.sh" in queued_commands, "line console offline queued survey command missing", queued_commands)
+    assert_condition("grit fetch tui-payload.txt" in queued_commands, "line console offline queued fetch command missing", queued_commands)
+    assert_condition("grit rshell start" in queued_commands, "line console offline queued bridge command missing", queued_commands)
+    assert_condition(survey_mailbox.get("work_kind") == "probe", "line console offline probe mailbox work kind missing", survey_mailbox)
+    assert_condition(survey_mailbox.get("workflow") == "probe", "line console offline probe mailbox workflow missing", survey_mailbox)
+    assert_condition(survey_mailbox.get("request_name") == "probe.sh", "line console offline survey mailbox request name missing", survey_mailbox)
+    assert_condition(fetch_mailbox.get("work_kind") == "staged-fetch", "line console offline fetch mailbox work kind missing", fetch_mailbox)
+    assert_condition(fetch_mailbox.get("workflow") == "file-service", "line console offline fetch mailbox workflow missing", fetch_mailbox)
+    assert_condition(fetch_mailbox.get("request_name") == "tui-payload.txt", "line console offline fetch mailbox request name missing", fetch_mailbox)
+    assert_condition(bridge_mailbox.get("work_kind") == "bridge-start", "line console offline bridge mailbox work kind missing", bridge_mailbox)
+    assert_condition(bridge_mailbox.get("workflow") == "bridge", "line console offline bridge mailbox workflow missing", bridge_mailbox)
+    assert_condition(bridge_mailbox.get("bridge_profile") == "tui-bridge", "line console offline bridge mailbox profile missing", bridge_mailbox)
+    assert_condition(bridge_mailbox.get("bridge_route_path"), "line console offline bridge mailbox route missing", bridge_mailbox)
+    assert_condition(bridge_mailbox.get("route_kind") == "bridge", "line console offline bridge mailbox route kind missing", bridge_mailbox)
+    assert_condition(after_doc["summary"]["target_mailbox_bridge_profile_counts"].get("tui-bridge") == 1, "line console offline bridge mailbox profile summary missing")
+    assert_condition(after_doc["summary"]["target_mailbox_work_kind_counts"].get("probe") == 1, "line console offline probe mailbox work-kind summary missing")
+    assert_condition(after_doc["summary"]["target_mailbox_work_kind_counts"].get("staged-fetch") == 1, "line console offline staged-fetch mailbox work-kind summary missing")
+    assert_condition(after_doc["summary"]["target_mailbox_work_kind_counts"].get("bridge-start") == 1, "line console offline bridge mailbox work-kind summary missing")
+    assert_condition(after_doc["summary"]["target_mailbox_request_name_counts"].get("probe.sh") == 1, "line console offline survey mailbox request-name summary missing")
+    assert_condition(after_doc["summary"]["target_mailbox_request_name_counts"].get("tui-payload.txt") == 1, "line console offline staged-fetch mailbox request-name summary missing")
     assert_condition(
         ((after_doc.get("target_mailbox_records_by_bridge_profile") or {}).get("tui-bridge") or [{}])[0].get("command_id") == bridge_mailbox.get("command_id"),
-        "TUI offline bridge mailbox profile index missing",
+        "line console offline bridge mailbox profile index missing",
     )
     assert_condition(
         "target_mailbox_records_by_bridge_profile" in (((after_doc.get("api_collections") or {}).get("target_mailbox_records") or {}).get("indexes") or []),
-        "TUI offline bridge mailbox API index missing",
+        "line console offline bridge mailbox API index missing",
     )
-    assert_condition(all(rec.get("status") == "queued" for rec in records), "TUI offline queue mailbox status mismatch", records)
-    assert_condition(all(rec.get("pending_work") is True for rec in records), "TUI offline queue should remain pending while target is offline", records)
-    assert_condition(all(rec.get("waiting_for") == "target-poll" for rec in records), "TUI offline queue waiting_for mismatch", records)
-    assert_condition(after_doc["targets_by_id"]["target-tui"]["mailbox_pending_work_count"] == 4, "TUI target pending mailbox count mismatch")
+    assert_condition(all(rec.get("status") == "queued" for rec in records), "line console offline queue mailbox status mismatch", records)
+    assert_condition(all(rec.get("pending_work") is True for rec in records), "line console offline queue should remain pending while target is offline", records)
+    assert_condition(all(rec.get("waiting_for") == "target-poll" for rec in records), "line console offline queue waiting_for mismatch", records)
+    assert_condition(after_doc["targets_by_id"]["target-tui"]["mailbox_pending_work_count"] == 4, "line console target pending mailbox count mismatch")
     assert_condition(any(
         rec.get("event") == "target_workflow_action_completed"
         and (rec.get("details") or {}).get("action_id") == "queue-command"
         and (rec.get("details") or {}).get("queues_offline_work") is True
         for rec in (after_doc.get("events") or [])
-    ), "TUI offline queue completion event missing")
+    ), "line console offline queue completion event missing")
     assert_condition(any(
         rec.get("event") == "target_workflow_action_completed"
         and (rec.get("details") or {}).get("action_id") == "queue-probe"
         and (rec.get("details") or {}).get("queues_offline_work") is True
         for rec in (after_doc.get("events") or [])
-    ), "TUI offline survey queue completion event missing")
+    ), "line console offline survey queue completion event missing")
     assert_condition(any(
         rec.get("event") == "target_workflow_action_completed"
         and (rec.get("details") or {}).get("action_id") == "stage-file-fetch"
         for rec in (after_doc.get("events") or [])
-    ), "TUI offline stage-file completion event missing")
+    ), "line console offline stage-file completion event missing")
     assert_condition(any(
         rec.get("event") == "target_workflow_action_completed"
         and (rec.get("details") or {}).get("action_id") == "queue-staged-fetch"
         and (rec.get("details") or {}).get("queues_offline_work") is True
         for rec in (after_doc.get("events") or [])
-    ), "TUI offline staged-fetch queue completion event missing")
+    ), "line console offline staged-fetch queue completion event missing")
     assert_condition(any(
         rec.get("event") == "target_workflow_action_completed"
         and (rec.get("details") or {}).get("action_id") == "queue-bridge-start:tui-bridge"
         and (rec.get("details") or {}).get("bridge_profile") == "tui-bridge"
         and (rec.get("details") or {}).get("queues_offline_work") is True
         for rec in (after_doc.get("events") or [])
-    ), "TUI offline bridge queue completion event missing")
-    write_tui_offline_queue_artifact(artifact_dir, before_doc, after_doc, tui_result)
+    ), "line console offline bridge queue completion event missing")
+    write_line_console_offline_queue_artifact(artifact_dir, before_doc, after_doc, line_console_result)
 
     responses = []
     delivered_ids = []
     for idx in range(1, 5):
         proc = start_one_shot(cfg, "command-queue")
         response = connect_with_retry(queue_port, poll_request("target-tui", "TUI Target"))
-        wait_proc(proc, f"TUI offline queued target poll {idx}")
+        wait_proc(proc, f"line console offline queued target poll {idx}")
         save_response(artifact_dir, f"tui-offline-queue-poll-{idx}", response)
         body = json_body(response)
-        assert_condition(b"HTTP/1.1 200 OK" in response, "TUI offline queued command was not delivered", response)
-        assert_condition(body.get("id"), "TUI offline queued poll response missing command id", body)
+        assert_condition(b"HTTP/1.1 200 OK" in response, "line console offline queued command was not delivered", response)
+        assert_condition(body.get("id"), "line console offline queued poll response missing command id", body)
         responses.append(response)
         delivered_ids.append(body.get("id"))
-    assert_condition(set(delivered_ids) == set(command_ids_to_drain), "TUI offline queue drain delivered wrong command ids", delivered_ids)
+    assert_condition(set(delivered_ids) == set(command_ids_to_drain), "line console offline queue drain delivered wrong command ids", delivered_ids)
 
     drain_doc = status(cfg, artifact_dir, "tui-offline-queue-drain-status")
     drained_records = [
@@ -1698,16 +1702,16 @@ def run_console_offline_queue_scenario(artifact_dir):
     drained_survey = next((rec for rec in drained_records if "probe.sh" in str(rec.get("command") or "")), {})
     drained_fetch = next((rec for rec in drained_records if "grit fetch tui-payload.txt" in str(rec.get("command") or "")), {})
     drained_bridge = next((rec for rec in drained_records if rec.get("command") == "grit rshell start"), {})
-    assert_condition(len(drained_records) == 4, "TUI offline queue drain records missing", drained_records)
-    assert_condition(all(rec.get("status") == "delivered" for rec in drained_records), "TUI offline queued work did not become delivered", drained_records)
-    assert_condition(all(rec.get("pending_work") is False for rec in drained_records), "TUI offline queued work should no longer be pending", drained_records)
-    assert_condition(drained_bridge.get("bridge_profile") == "tui-bridge", "TUI offline drained bridge mailbox profile missing", drained_bridge)
-    assert_condition(drained_bridge.get("work_kind") == "bridge-start", "TUI offline drained bridge mailbox work kind missing", drained_bridge)
-    assert_condition(drained_survey.get("work_kind") == "probe", "TUI offline drained probe mailbox work kind missing", drained_survey)
-    assert_condition(drained_fetch.get("work_kind") == "staged-fetch", "TUI offline drained fetch mailbox work kind missing", drained_fetch)
-    assert_condition(target.get("last_seen_via") == "command-queue:command_queue_poll", "TUI offline queue drain last_seen_via mismatch", target)
-    assert_condition(target.get("mailbox_pending_work_count") == 0, "TUI offline queue drain left pending work", target)
-    assert_condition(target.get("latest_phone_home_status") == "delivered", "TUI offline queue drain phone-home status mismatch", target)
+    assert_condition(len(drained_records) == 4, "line console offline queue drain records missing", drained_records)
+    assert_condition(all(rec.get("status") == "delivered" for rec in drained_records), "line console offline queued work did not become delivered", drained_records)
+    assert_condition(all(rec.get("pending_work") is False for rec in drained_records), "line console offline queued work should no longer be pending", drained_records)
+    assert_condition(drained_bridge.get("bridge_profile") == "tui-bridge", "line console offline drained bridge mailbox profile missing", drained_bridge)
+    assert_condition(drained_bridge.get("work_kind") == "bridge-start", "line console offline drained bridge mailbox work kind missing", drained_bridge)
+    assert_condition(drained_survey.get("work_kind") == "probe", "line console offline drained probe mailbox work kind missing", drained_survey)
+    assert_condition(drained_fetch.get("work_kind") == "staged-fetch", "line console offline drained fetch mailbox work kind missing", drained_fetch)
+    assert_condition(target.get("last_seen_via") == "command-queue:command_queue_poll", "line console offline queue drain last_seen_via mismatch", target)
+    assert_condition(target.get("mailbox_pending_work_count") == 0, "line console offline queue drain left pending work", target)
+    assert_condition(target.get("latest_phone_home_status") == "delivered", "line console offline queue drain phone-home status mismatch", target)
     delivered_phone_home = [
         rec for rec in (drain_doc.get("target_phone_home_records") or [])
         if rec.get("target_id") == "target-tui" and rec.get("status") == "delivered"
@@ -1716,20 +1720,20 @@ def run_console_offline_queue_scenario(artifact_dir):
         rec.get("work_kind"): rec for rec in delivered_phone_home
         if rec.get("work_kind")
     }
-    assert_condition(phone_home_by_work_kind.get("probe"), "TUI offline probe delivery phone-home work metadata missing", delivered_phone_home)
-    assert_condition(phone_home_by_work_kind.get("staged-fetch"), "TUI offline fetch delivery phone-home work metadata missing", delivered_phone_home)
-    assert_condition(phone_home_by_work_kind.get("bridge-start"), "TUI offline bridge delivery phone-home work metadata missing", delivered_phone_home)
-    assert_condition(phone_home_by_work_kind["probe"].get("request_name") == "probe.sh", "TUI offline probe delivery request name missing", phone_home_by_work_kind["probe"])
-    assert_condition(phone_home_by_work_kind["staged-fetch"].get("request_name") == "tui-payload.txt", "TUI offline fetch delivery request name missing", phone_home_by_work_kind["staged-fetch"])
-    assert_condition(phone_home_by_work_kind["bridge-start"].get("bridge_profile") == "tui-bridge", "TUI offline bridge delivery phone-home profile missing", phone_home_by_work_kind["bridge-start"])
-    assert_condition(phone_home_by_work_kind["bridge-start"].get("route_kind") == "bridge", "TUI offline bridge delivery route kind missing", phone_home_by_work_kind["bridge-start"])
-    assert_condition(drain_doc["summary"]["target_phone_home_work_kind_counts"].get("probe") == 1, "TUI offline probe phone-home work-kind summary missing")
-    assert_condition(drain_doc["summary"]["target_phone_home_work_kind_counts"].get("staged-fetch") == 1, "TUI offline fetch phone-home work-kind summary missing")
-    assert_condition(drain_doc["summary"]["target_phone_home_work_kind_counts"].get("bridge-start") == 1, "TUI offline bridge phone-home work-kind summary missing")
-    assert_condition(drain_doc["summary"]["target_phone_home_bridge_profile_counts"].get("tui-bridge") == 1, "TUI offline bridge phone-home profile summary missing")
+    assert_condition(phone_home_by_work_kind.get("probe"), "line console offline probe delivery phone-home work metadata missing", delivered_phone_home)
+    assert_condition(phone_home_by_work_kind.get("staged-fetch"), "line console offline fetch delivery phone-home work metadata missing", delivered_phone_home)
+    assert_condition(phone_home_by_work_kind.get("bridge-start"), "line console offline bridge delivery phone-home work metadata missing", delivered_phone_home)
+    assert_condition(phone_home_by_work_kind["probe"].get("request_name") == "probe.sh", "line console offline probe delivery request name missing", phone_home_by_work_kind["probe"])
+    assert_condition(phone_home_by_work_kind["staged-fetch"].get("request_name") == "tui-payload.txt", "line console offline fetch delivery request name missing", phone_home_by_work_kind["staged-fetch"])
+    assert_condition(phone_home_by_work_kind["bridge-start"].get("bridge_profile") == "tui-bridge", "line console offline bridge delivery phone-home profile missing", phone_home_by_work_kind["bridge-start"])
+    assert_condition(phone_home_by_work_kind["bridge-start"].get("route_kind") == "bridge", "line console offline bridge delivery route kind missing", phone_home_by_work_kind["bridge-start"])
+    assert_condition(drain_doc["summary"]["target_phone_home_work_kind_counts"].get("probe") == 1, "line console offline probe phone-home work-kind summary missing")
+    assert_condition(drain_doc["summary"]["target_phone_home_work_kind_counts"].get("staged-fetch") == 1, "line console offline fetch phone-home work-kind summary missing")
+    assert_condition(drain_doc["summary"]["target_phone_home_work_kind_counts"].get("bridge-start") == 1, "line console offline bridge phone-home work-kind summary missing")
+    assert_condition(drain_doc["summary"]["target_phone_home_bridge_profile_counts"].get("tui-bridge") == 1, "line console offline bridge phone-home profile summary missing")
     assert_condition("target_phone_home_records_by_work_kind" in (((drain_doc.get("api_collections") or {}).get("target_phone_home_records") or {}).get("indexes") or []), "target phone-home work-kind index missing")
     assert_condition(((drain_doc.get("target_phone_home_records_by_bridge_profile") or {}).get("tui-bridge") or [{}])[0].get("command_id") == drained_bridge.get("command_id"), "target phone-home bridge-profile index missing")
-    write_tui_offline_queue_drain_artifact(artifact_dir, drain_doc, command_ids_to_drain, responses)
+    write_line_console_offline_queue_drain_artifact(artifact_dir, drain_doc, command_ids_to_drain, responses)
     return {"name": "tui-offline-queue", "status": "pass", "artifact": "tui-offline-queue-after.json"}
 
 
