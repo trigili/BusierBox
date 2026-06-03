@@ -1,5 +1,7 @@
 """Workflow action index, summary, and display helpers for grit-console."""
 
+import shlex
+
 from gritlib.record_utils import format_counts, record_count_by_key, record_sum_by_key, records_by_key
 
 
@@ -117,6 +119,64 @@ def annotate_operator_console_workflows(records, target_records, overdue_targets
         rec["operator_action_reason"] = "warnings-present" if warning_count else ("pending-work" if pending else "workflow-ready")
         rec["api_resource_key"] = "api_collections." + str(rec.get("primary_collection") or "")
         rec["status_command"] = rec.get("headless_command", "")
+    return records
+
+
+def annotate_workbench_actions(records, cfg, run_command_builder, start_job_command_builder):
+    placeholder_tokens = {
+        "NAME", "ARTIFACT", "KEY=VALUE", "VALUE", "LOCAL_PATH",
+        "REQUEST_NAME", "RELEASE_SELECTOR", "FIND_ARGS", "TOOL",
+        "PATH", "MIRROR_DIR", "SOURCE", "ARCHIVE",
+    }
+    for rec in records or []:
+        action_id = str(rec.get("id") or "")
+        command = str(rec.get("command") or "")
+        try:
+            command_tokens = shlex.split(command)
+        except ValueError:
+            command_tokens = command.split()
+        has_placeholder = any(token in placeholder_tokens for token in command_tokens)
+        background = rec.get("background_supported") is True
+        foreground_runnable = bool(command and not background and not has_placeholder)
+        requires_confirmation = rec.get("requires_confirmation") is True
+        if has_placeholder:
+            operator_action_state = "needs-input"
+            operator_action_reason = "input-placeholder"
+            can_run_from_curses_enter = False
+            curses_enter_action = "use-action-11"
+        elif background:
+            operator_action_state = "background-ready"
+            operator_action_reason = "start-background-job"
+            can_run_from_curses_enter = True
+            curses_enter_action = "start-job"
+        elif requires_confirmation:
+            operator_action_state = "confirm-required"
+            operator_action_reason = "confirmation-required"
+            can_run_from_curses_enter = False
+            curses_enter_action = "use-action-11"
+        elif foreground_runnable:
+            operator_action_state = "ready"
+            operator_action_reason = "run-now"
+            can_run_from_curses_enter = False
+            curses_enter_action = "use-action-11"
+        else:
+            operator_action_state = "unavailable"
+            operator_action_reason = "no-runnable-command"
+            can_run_from_curses_enter = False
+            curses_enter_action = "none"
+        rec["has_placeholder"] = bool(has_placeholder)
+        rec["foreground_runnable"] = foreground_runnable
+        rec["dry_run_supported"] = foreground_runnable
+        rec["has_run_command"] = foreground_runnable
+        rec["has_dry_run_command"] = foreground_runnable
+        rec["has_start_job_command"] = background
+        rec["operator_action_state"] = operator_action_state
+        rec["operator_action_reason"] = operator_action_reason
+        rec["can_run_from_curses_enter"] = bool(can_run_from_curses_enter)
+        rec["curses_enter_action"] = curses_enter_action
+        rec["run_command"] = run_command_builder(cfg, action_id) if foreground_runnable else ""
+        rec["dry_run_command"] = run_command_builder(cfg, action_id, dry_run=True) if foreground_runnable else ""
+        rec["start_job_command"] = start_job_command_builder(cfg, action_id) if background else ""
     return records
 
 
