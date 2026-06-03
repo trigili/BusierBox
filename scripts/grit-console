@@ -44,6 +44,8 @@ from gritlib.bridge_routes import (
     bridge_profile_record_summary,
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_records,
     bridge_profile_workflow_action_status_summary, bridge_profiles_path, bridge_route_path,
+    add_line_route as bridge_routes_add_line_route,
+    delete_line_route as bridge_routes_delete_line_route,
     line_route_record as bridge_routes_line_route_record,
     print_line_routes as bridge_routes_print_line_routes,
     select_line_route as bridge_routes_select_line_route,
@@ -7006,55 +7008,11 @@ def run_line_tui(cfg):
         )
 
     def add_line_route(args):
-        values = list(args or [])
-        if len(values) < 5:
-            raise ValueError(
-                "usage: route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]\n"
-                + "\n".join(f"  {line}" for line in ROUTE_HELP_LINES)
-            )
-        name = values[1]
-        try:
-            listen_port = int(values[2])
-            dest_port = int(values[4])
-        except (TypeError, ValueError) as exc:
-            raise ValueError("route add requires numeric LISTEN_PORT and DEST_PORT") from exc
-        if listen_port <= 0 or dest_port <= 0:
-            raise ValueError("route add requires positive LISTEN_PORT and DEST_PORT")
-        dest_host = values[3]
-        hop_args = values[5:]
-        save_cfg = dict(cfg)
-        save_cfg["bridge_listen_port"] = listen_port
-        save_cfg["bridge_dest_host"] = dest_host
-        save_cfg["bridge_dest_port"] = dest_port
-        extra = [
-            "--save-bridge-profile", name,
-            "--bridge-port", str(listen_port),
-            "--bridge-dest-host", dest_host,
-            "--bridge-dest-port", str(dest_port),
-        ]
-        for hop in hop_args:
-            extra.extend(["--bridge-hop", hop])
-        rec = save_bridge_profile(save_cfg, name, purpose="line-console", hop_args=hop_args)
-        headless = bridge_profile_headless_command("save", extra=extra)
-        print(f"saved route {rec.get('name', '')}: {rec.get('route_path', '')}")
-        print(
-            f"  listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')} "
-            f"dest={rec.get('dest_host', '')}:{rec.get('dest_port', '')} "
-            f"hops={rec.get('hop_count', 0)} "
-            f"multi_hop={'yes' if rec.get('multi_hop') else 'no'}"
+        return bridge_routes_add_line_route(
+            cfg,
+            args,
+            headless_command_builder=bridge_profile_headless_command,
         )
-        print(f"next: route {rec.get('name', '')}, use route {rec.get('name', '')}, route start {rec.get('name', '')}, route delete {rec.get('name', '')}")
-        append_event(cfg, "workbench", "workbench_bridge_profile_saved", details={
-            "name": rec.get("name", ""),
-            "route_path": rec.get("route_path", ""),
-            "listen_port": rec.get("listen_port", ""),
-            "dest_host": rec.get("dest_host", ""),
-            "dest_port": rec.get("dest_port", ""),
-            "hop_count": rec.get("hop_count", 0),
-            "multi_hop": bool(rec.get("multi_hop")),
-            "headless_command": headless,
-        })
-        return rec
 
     def start_line_route(route_name):
         name = str(route_name or "").strip()
@@ -7098,28 +7056,12 @@ def run_line_tui(cfg):
         })
 
     def delete_line_route(route_name):
-        name = str(route_name or "").strip()
-        if not name:
-            module = str(cfg.get("_line_console_module") or "")
-            if module.startswith("route/"):
-                name = module.split("/", 1)[1]
-        if not name:
-            raise ValueError("usage: route delete ROUTE")
-        rec = line_route_record(name)
-        if not rec:
-            raise ValueError(f"route not found: {name}")
-        name = str(rec.get("name") or name)
-        headless = bridge_profile_headless_command("delete", name)
-        rec = delete_bridge_profile(cfg, name)
-        if str(cfg.get("_line_console_module") or "") == f"route/{name}":
-            cfg.pop("_line_console_module", None)
-        print(f"deleted route {name}: {rec.get('route_path', '')}")
-        append_event(cfg, "workbench", "workbench_route_deleted", details={
-            "name": name,
-            "route_path": rec.get("route_path", ""),
-            "headless_command": headless,
-        })
-        return rec
+        return bridge_routes_delete_line_route(
+            cfg,
+            route_name,
+            bridge_profile_records(cfg),
+            headless_command_builder=bridge_profile_headless_command,
+        )
 
     def line_job_record(selector):
         return workbench_jobs_line_job_record(workbench_snapshot(cfg), selector)
