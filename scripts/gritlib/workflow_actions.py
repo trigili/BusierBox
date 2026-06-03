@@ -36,6 +36,42 @@ def select_workbench_action(records, selector):
     raise ValueError(f"unknown workbench action: {text}")
 
 
+def workflow_action_count(records):
+    return len([rec for rec in records or [] if isinstance(rec, dict)])
+
+
+def workflow_enter_count(records):
+    return len([
+        rec for rec in records or []
+        if isinstance(rec, dict) and rec.get("can_run_from_curses_enter") is True
+    ])
+
+
+def workflow_queue_count(records):
+    return len([
+        rec for rec in records or []
+        if isinstance(rec, dict) and rec.get("queues_offline_work") is True
+    ])
+
+
+def operator_console_headless_command(kind, base_command):
+    commands = {
+        "targets": base_command + " --status",
+        "target-actions": base_command + " --status",
+        "mailbox": base_command + " --list-command-queue",
+        "bridges": base_command + " --status",
+        "files": base_command + " --status",
+        "survey": base_command + " --status",
+        "daemon": base_command + " --status",
+        "release": base_command + " --status",
+        "build-config": base_command + " --status",
+        "jobs": base_command + " --status",
+        "events": base_command + " --status",
+        "activity": base_command + " --status",
+    }
+    return commands.get(kind, base_command + " --status")
+
+
 def workbench_action_indexes(records):
     return {
         "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
