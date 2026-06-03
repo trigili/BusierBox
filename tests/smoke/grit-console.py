@@ -53,6 +53,18 @@ def line_console_raw_python_repr_present(text):
     return any(re.search(pattern, text) for pattern in patterns)
 
 
+def line_console_raw_action_state_present(text):
+    text = text or ""
+    raw_states = (
+        "needs-input",
+        "queueable-offline",
+        "background-ready",
+        "confirm-required",
+        "already-stopped",
+    )
+    return any(state in text for state in raw_states)
+
+
 def run(*args):
     return subprocess.run(args, cwd=ROOT, text=True, capture_output=True)
 
@@ -116,6 +128,7 @@ def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=N
         "prompt_count": (stdout_text or "").count("grit["),
         "traceback_present": "Traceback" in ((stdout_text or "") + (stderr_text or "")),
         "raw_python_repr_present": line_console_raw_python_repr_present(stdout_text),
+        "raw_action_state_present": line_console_raw_action_state_present(stdout_text),
         "literal_ctrl_c_present": "^C" in (stdout_text or ""),
         "headless_command_default_spam_present": "headless_command:" in (stdout_text or ""),
         "headless_command_event_summary_present": "headless_command=" in (stdout_text or ""),
@@ -1008,6 +1021,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         key for key in (
             "traceback_present",
             "raw_python_repr_present",
+            "raw_action_state_present",
             "literal_ctrl_c_present",
             "headless_command_default_spam_present",
             "stale_numbered_result_error_present",
