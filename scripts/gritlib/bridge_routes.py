@@ -368,10 +368,8 @@ def bridge_profile_workflow_action_summary(records):
     }
 
 
-def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None, default_config=DEFAULT_SERVER_CONFIG):
-    config_path = str(cfg.get("_config_path", default_config))
-    base = "scripts/grit-console --config " + shquote(config_path)
-    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+def bridge_profile_workflow_fleet_metrics(target_records):
+    target_records = [rec for rec in target_records or [] if isinstance(rec, dict)]
     fleet_mailbox_pending_work_count = sum(
         int_value(rec.get("mailbox_pending_work_count", 0))
         for rec in target_records
@@ -392,6 +390,26 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None, d
         rec for rec in target_records
         if rec.get("poll_overdue") is True
     ])
+    return {
+        "fleet_target_count": len(target_records),
+        "fleet_connectivity_state_counts": record_count_by_key(target_records, "connectivity_state"),
+        "fleet_offline_target_count": fleet_offline_target_count,
+        "fleet_stale_target_count": fleet_stale_target_count,
+        "fleet_mailbox_pending_target_count": fleet_mailbox_pending_target_count,
+        "fleet_mailbox_pending_work_count": fleet_mailbox_pending_work_count,
+        "fleet_poll_overdue_target_count": fleet_poll_overdue_target_count,
+        "fleet_has_offline_targets": fleet_offline_target_count > 0,
+        "fleet_has_stale_targets": fleet_stale_target_count > 0,
+        "fleet_has_mailbox_pending_work": fleet_mailbox_pending_work_count > 0,
+        "fleet_has_poll_overdue_targets": fleet_poll_overdue_target_count > 0,
+    }
+
+
+def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None, default_config=DEFAULT_SERVER_CONFIG):
+    config_path = str(cfg.get("_config_path", default_config))
+    base = "scripts/grit-console --config " + shquote(config_path)
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    fleet_metrics = bridge_profile_workflow_fleet_metrics(target_records)
     records = []
 
     def workflow_command(name, action_id, dry_run=False, confirmed=False):
@@ -449,17 +467,7 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None, d
             "has_last_successful_relay": bool(profile.get("has_last_successful_relay")),
             "has_last_failure": bool(profile.get("has_last_failure")),
             "last_failure_reason": str(profile.get("last_failure_reason") or ""),
-            "fleet_target_count": len(target_records),
-            "fleet_connectivity_state_counts": record_count_by_key(target_records, "connectivity_state"),
-            "fleet_offline_target_count": fleet_offline_target_count,
-            "fleet_stale_target_count": fleet_stale_target_count,
-            "fleet_mailbox_pending_target_count": fleet_mailbox_pending_target_count,
-            "fleet_mailbox_pending_work_count": fleet_mailbox_pending_work_count,
-            "fleet_poll_overdue_target_count": fleet_poll_overdue_target_count,
-            "fleet_has_offline_targets": fleet_offline_target_count > 0,
-            "fleet_has_stale_targets": fleet_stale_target_count > 0,
-            "fleet_has_mailbox_pending_work": fleet_mailbox_pending_work_count > 0,
-            "fleet_has_poll_overdue_targets": fleet_poll_overdue_target_count > 0,
+            **fleet_metrics,
             "available": True,
             "requires_input": False,
             "requires_confirmation": bool(requires_confirmation),
