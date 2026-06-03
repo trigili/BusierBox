@@ -717,6 +717,69 @@ def target_mailbox_record_indexes(records):
     }
 
 
+def target_mailbox_record_summary(records):
+    records = records or []
+    return {
+        "target_mailbox_record_count": len(records),
+        "target_mailbox_status_counts": record_count_by_key(records, "status"),
+        "target_mailbox_waiting_for_counts": record_count_by_key(records, "waiting_for"),
+        "target_mailbox_pending_reason_counts": record_count_by_key(
+            records, "pending_reason"
+        ),
+        "target_mailbox_has_pending_reason_counts": record_count_by_key(
+            records, "has_pending_reason"
+        ),
+        "target_mailbox_work_kind_counts": record_count_by_key(records, "work_kind"),
+        "target_mailbox_workflow_counts": record_count_by_key(records, "workflow"),
+        "target_mailbox_request_name_counts": record_count_by_key(
+            records, "request_name"
+        ),
+        "target_mailbox_bridge_profile_counts": record_count_by_key(
+            records, "bridge_profile"
+        ),
+        "target_mailbox_bridge_requires_target_online_counts": record_count_by_key(
+            records, "bridge_requires_target_online"
+        ),
+        "target_mailbox_route_kind_counts": record_count_by_key(records, "route_kind"),
+        "target_mailbox_expired_counts": record_count_by_key(records, "expired"),
+        "target_mailbox_age_bucket_counts": record_count_by_key(records, "age_bucket"),
+        "target_mailbox_pending_delivery_age_bucket_counts": record_count_by_key(
+            records, "pending_delivery_age_bucket"
+        ),
+        "target_mailbox_delivered_without_result_age_bucket_counts": record_count_by_key(
+            records, "delivered_without_result_age_bucket"
+        ),
+        "target_mailbox_result_latency_bucket_counts": record_count_by_key(
+            records, "result_latency_bucket"
+        ),
+        "target_mailbox_pending_work_counts": record_count_by_key(
+            records, "pending_work"
+        ),
+        "target_mailbox_has_result_counts": record_count_by_key(records, "has_result"),
+        "target_mailbox_result_status_counts": record_count_by_key(
+            records, "result_status"
+        ),
+        "target_mailbox_result_exit_code_counts": record_count_by_key(
+            records, "result_exit_code"
+        ),
+        "target_mailbox_target_connectivity_state_counts": record_count_by_key(
+            records, "target_connectivity_state"
+        ),
+        "target_mailbox_target_last_seen_via_counts": record_count_by_key(
+            records, "target_last_seen_via"
+        ),
+        "target_mailbox_target_offline_age_bucket_counts": record_count_by_key(
+            records, "target_offline_age_bucket"
+        ),
+        "target_mailbox_has_target_next_expected_poll_counts": record_count_by_key(
+            records, "has_target_next_expected_poll"
+        ),
+        "target_mailbox_target_poll_overdue_counts": record_count_by_key(
+            records, "target_poll_overdue"
+        ),
+    }
+
+
 def target_phone_home_record_indexes(records):
     return {
         "target_phone_home_records_by_id": {
@@ -756,6 +819,64 @@ def target_phone_home_record_indexes(records):
         "target_phone_home_records_by_route_kind": records_by_key(records, "route_kind"),
         "target_phone_home_records_by_poll_mode": records_by_key(records, "poll_mode"),
         "target_phone_home_records_by_poll_interval_sec": records_by_key(records, "poll_interval_sec"),
+    }
+
+
+def target_phone_home_record_summary(records):
+    records = records or []
+    return {
+        "target_phone_home_record_count": len(records),
+        "target_phone_home_kind_counts": record_count_by_key(records, "kind"),
+        "target_phone_home_status_counts": record_count_by_key(records, "status"),
+        "target_phone_home_successful_counts": record_count_by_key(
+            records, "successful"
+        ),
+        "target_phone_home_failed_counts": record_count_by_key(records, "failed"),
+        "target_phone_home_target_counts": record_count_by_key(records, "target_id"),
+        "target_phone_home_anonymous_counts": record_count_by_key(
+            records, "anonymous"
+        ),
+        "target_phone_home_target_connectivity_state_counts": record_count_by_key(
+            records, "target_connectivity_state"
+        ),
+        "target_phone_home_target_offline_age_bucket_counts": record_count_by_key(
+            records, "target_offline_age_bucket"
+        ),
+        "target_phone_home_target_poll_overdue_counts": record_count_by_key(
+            records, "target_poll_overdue"
+        ),
+        "target_phone_home_target_mailbox_pending_work_count_counts": record_count_by_key(
+            records, "target_mailbox_pending_work_count"
+        ),
+        "target_phone_home_pending_reason_counts": record_count_by_key(
+            records, "pending_reason"
+        ),
+        "target_phone_home_queued_remaining_count_counts": record_count_by_key(
+            records, "queued_remaining_count"
+        ),
+        "target_phone_home_pending_work_remaining_counts": record_count_by_key(
+            records, "pending_work_remaining"
+        ),
+        "target_phone_home_http_status_counts": record_count_by_key(
+            records, "http_status"
+        ),
+        "target_phone_home_work_kind_counts": record_count_by_key(
+            records, "work_kind"
+        ),
+        "target_phone_home_workflow_counts": record_count_by_key(records, "workflow"),
+        "target_phone_home_request_name_counts": record_count_by_key(
+            records, "request_name"
+        ),
+        "target_phone_home_bridge_profile_counts": record_count_by_key(
+            records, "bridge_profile"
+        ),
+        "target_phone_home_bridge_requires_target_online_counts": record_count_by_key(
+            records, "bridge_requires_target_online"
+        ),
+        "target_phone_home_route_kind_counts": record_count_by_key(
+            records, "route_kind"
+        ),
+        "target_phone_home_latest_at": latest_record_value(records, ("timestamp",)),
     }
 
 
