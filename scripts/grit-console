@@ -138,8 +138,9 @@ from gritlib.session_records import (
     print_recent_sessions, session_record_indexes, session_root_record,
 )
 from gritlib.service_status import (
+    DAEMON_SERVICE_CHOICES, configured_daemon_services,
     port_record_indexes, port_records_from_services, service_manager_status,
-    service_port, service_record_indexes, service_tls_enabled,
+    resolve_transport, service_port, service_record_indexes, service_tls_enabled,
     service_workflow_action_indexes, service_workflow_action_summary,
     status_summary_and_warnings, wait_service_port_released,
 )
@@ -4737,35 +4738,6 @@ def serve_probe_dns(cfg, timeout, max_sessions=0):
             record_shutdown_event(cfg, service, session=log_dir)
             append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "protocol": "udp", "reason": stop_reason})
     return 0
-
-
-DAEMON_SERVICE_CHOICES = ("ssh", "tls-shell", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns")
-
-
-def configured_daemon_services(cfg, explicit=None):
-    services = []
-    for service in explicit or []:
-        if service not in DAEMON_SERVICE_CHOICES:
-            raise ValueError(f"unsupported daemon service: {service}")
-        services.append(service)
-    if not services:
-        if yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_ENABLE", "no")):
-            services.append("file-service")
-        if yes(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no")):
-            services.append("command-queue")
-        if yes(cfg.get("bridge_enable", "no")):
-            services.append("bridge")
-        if yes(cfg.get("probe_enable", "no")):
-            services.append("probe")
-        if yes(cfg.get("probe_tftp_enable", "no")):
-            services.append("probe-tftp")
-        if yes(cfg.get("probe_ftp_enable", "no")):
-            services.append("probe-ftp")
-        if yes(cfg.get("probe_dns_enable", "no")):
-            services.append("probe-dns")
-        if yes(cfg.get("rshell_enable", "no")):
-            services.append(_resolve_transport(cfg, None))
-    return list(dict.fromkeys(services))
 
 
 def daemon_child_command(cfg, service):
@@ -18877,31 +18849,6 @@ def run_tui(cfg):
         append_event(cfg, "workbench", "shutdown", details={"reason": SHUTDOWN_REASON or "quit"})
 
 
-def _resolve_transport(cfg, args_transport):
-    """Map --transport flag and config fields to a canonical action."""
-    if args_transport:
-        t = args_transport
-        # Aliases
-        if t == "ssh-reverse":
-            t = "ssh"
-        elif t == "socat-tls":
-            t = "tls-shell"
-        elif t == "builtin-tls":
-            t = "tls-shell"
-        return t
-
-    # Derive from config transport + encryption
-    if yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_ENABLE", "no")):
-        return "file-service"
-    t = cfg.get("GRIT_RSHELL_TRANSPORT", "ssh")
-    enc = cfg.get("GRIT_RSHELL_ENCRYPTION", "tls")
-    if t == "ssh":
-        return "ssh"
-    if enc == "tls":
-        return "tls-shell"
-    return "plain-shell"
-
-
 def print_concise_help():
     print("""\
 usage: grit-console [--config CONFIG] [mode] [options]
@@ -19649,7 +19596,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         except ValueError as exc:
             print(f"grit-console: {exc}", file=sys.stderr)
             return 2
-    action = "file-service" if args.file_service else _resolve_transport(cfg, args.transport)
+    action = "file-service" if args.file_service else resolve_transport(cfg, args.transport)
     script_bytes = None
     if args.script:
         script_bytes = Path(args.script).read_bytes()

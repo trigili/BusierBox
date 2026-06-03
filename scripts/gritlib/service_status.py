@@ -11,6 +11,59 @@ from gritlib.record_utils import (
 )
 
 
+DAEMON_SERVICE_CHOICES = (
+    "ssh", "tls-shell", "plain-shell", "file-service", "command-queue",
+    "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns",
+)
+
+
+def resolve_transport(cfg, args_transport=None):
+    """Map --transport flag and config fields to a canonical service action."""
+    if args_transport:
+        transport = args_transport
+        if transport == "ssh-reverse":
+            transport = "ssh"
+        elif transport in {"socat-tls", "builtin-tls"}:
+            transport = "tls-shell"
+        return transport
+
+    if yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_ENABLE", "no")):
+        return "file-service"
+    transport = cfg.get("GRIT_RSHELL_TRANSPORT", "ssh")
+    encryption = cfg.get("GRIT_RSHELL_ENCRYPTION", "tls")
+    if transport == "ssh":
+        return "ssh"
+    if encryption == "tls":
+        return "tls-shell"
+    return "plain-shell"
+
+
+def configured_daemon_services(cfg, explicit=None):
+    services = []
+    for service in explicit or []:
+        if service not in DAEMON_SERVICE_CHOICES:
+            raise ValueError(f"unsupported daemon service: {service}")
+        services.append(service)
+    if not services:
+        if yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_ENABLE", "no")):
+            services.append("file-service")
+        if yes(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no")):
+            services.append("command-queue")
+        if yes(cfg.get("bridge_enable", "no")):
+            services.append("bridge")
+        if yes(cfg.get("probe_enable", "no")):
+            services.append("probe")
+        if yes(cfg.get("probe_tftp_enable", "no")):
+            services.append("probe-tftp")
+        if yes(cfg.get("probe_ftp_enable", "no")):
+            services.append("probe-ftp")
+        if yes(cfg.get("probe_dns_enable", "no")):
+            services.append("probe-dns")
+        if yes(cfg.get("rshell_enable", "no")):
+            services.append(resolve_transport(cfg))
+    return list(dict.fromkeys(services))
+
+
 def service_tls_enabled(cfg, service):
     if service == "tls-shell":
         return True
