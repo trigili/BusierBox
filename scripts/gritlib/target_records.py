@@ -3,7 +3,7 @@
 import json
 from pathlib import Path
 
-from gritlib.record_utils import record_count_by_key
+from gritlib.record_utils import list_merge_unique, record_count_by_key
 from gritlib.session_state import read_json_file
 
 
@@ -146,6 +146,53 @@ def compatibility_report_summary(metadata):
         "tuple_path": str(selected.get("tuple_path") or report.get("tuple_path") or ""),
         "payload_preset": str(selected.get("payload_preset") or report.get("payload_preset") or ""),
     }
+
+
+def configured_target_filter(cfg):
+    return str(cfg.get("_target_id_filter") or "").strip()
+
+
+def records_for_target(records, target_id):
+    if not target_id:
+        return list(records or [])
+    return [
+        rec for rec in records or []
+        if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_id
+    ]
+
+
+def event_for_target(event, target_id, session_ids=None):
+    if not target_id or not isinstance(event, dict):
+        return True
+    details = event.get("details") if isinstance(event.get("details"), dict) else {}
+    if str(details.get("target_id") or "") == target_id:
+        return True
+    session_id = str(event.get("session") or details.get("session_id") or "")
+    return bool(session_id and session_id in (session_ids or set()))
+
+
+def target_context_fields(cfg, target_id):
+    target_id = str(target_id or "").strip()
+    if not target_id:
+        return {}
+    rec = (load_targets(cfg).get("targets") or {}).get(target_id)
+    if not isinstance(rec, dict):
+        rec = {}
+    aliases = list_merge_unique(rec.get("aliases") or [], cfg.get("_target_alias_filter") or [])
+    return {
+        "target_id": target_id,
+        "target_label": str(cfg.get("_target_label_filter") or rec.get("label") or ""),
+        "target_aliases": [
+            str(item) for item in aliases
+            if str(item or "")
+        ],
+        "target_identity_source": "operator-selection",
+        "target_identity_confidence": "operator-assigned",
+    }
+
+
+def selected_target_context(cfg):
+    return target_context_fields(cfg, configured_target_filter(cfg))
 
 
 def target_record_indexes(records):

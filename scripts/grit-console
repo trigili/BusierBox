@@ -120,8 +120,10 @@ from gritlib.target_commands import (
 )
 from gritlib.target_records import (
     attach_target_identity, capability_report_summary,
-    compatibility_report_summary, target_identity_from_headers,
-    load_targets, target_record_indexes, target_record_summary, targets_path,
+    compatibility_report_summary, configured_target_filter, event_for_target,
+    load_targets, records_for_target, selected_target_context,
+    target_context_fields, target_identity_from_headers, target_record_indexes,
+    target_record_summary, targets_path,
 )
 from gritlib.warnings import (
     annotate_path_records_with_warnings, annotate_service_port_records_with_warnings,
@@ -753,53 +755,6 @@ def target_records(cfg):
     return records
 
 
-
-
-def configured_target_filter(cfg):
-    return str(cfg.get("_target_id_filter") or "").strip()
-
-
-def records_for_target(records, target_id):
-    if not target_id:
-        return list(records or [])
-    return [
-        rec for rec in records or []
-        if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_id
-    ]
-
-
-def event_for_target(event, target_id, session_ids=None):
-    if not target_id or not isinstance(event, dict):
-        return True
-    details = event.get("details") if isinstance(event.get("details"), dict) else {}
-    if str(details.get("target_id") or "") == target_id:
-        return True
-    session_id = str(event.get("session") or details.get("session_id") or "")
-    return bool(session_id and session_id in (session_ids or set()))
-
-
-def target_context_fields(cfg, target_id):
-    target_id = str(target_id or "").strip()
-    if not target_id:
-        return {}
-    rec = (load_targets(cfg).get("targets") or {}).get(target_id)
-    if not isinstance(rec, dict):
-        rec = {}
-    aliases = list_merge_unique(rec.get("aliases") or [], cfg.get("_target_alias_filter") or [])
-    return {
-        "target_id": target_id,
-        "target_label": str(cfg.get("_target_label_filter") or rec.get("label") or ""),
-        "target_aliases": [
-            str(item) for item in aliases
-            if str(item or "")
-        ],
-        "target_identity_source": "operator-selection",
-        "target_identity_confidence": "operator-assigned",
-    }
-
-
-def selected_target_context(cfg):
-    return target_context_fields(cfg, configured_target_filter(cfg))
 
 
 def set_workbench_target_filter(cfg, selector, targets=None):
