@@ -1151,8 +1151,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented console interpreted a normal command as a stale search result", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
-    if re.search(r"grit\[[^\n]+> q\r?\nmodule context cleared", line_console_stdout):
-        print("line-oriented q command printed noisy module-clear status", file=sys.stderr)
+    if "module context cleared" in line_console_stdout:
+        print("line-oriented back/q command printed noisy module-clear status", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
     for noisy in ("route.inspect_command=scripts/grit-console", "route.start_command=scripts/grit-console",

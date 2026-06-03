@@ -9185,7 +9185,7 @@ def run_line_repl(cfg):
                 clear_line_context()
                 continue
             elif cmd in {"back", "background", "bg", "unset"}:
-                clear_line_module()
+                clear_line_module(quiet=True)
                 continue
             elif cmd == "start":
                 try:
