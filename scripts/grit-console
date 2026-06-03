@@ -114,7 +114,7 @@ from gritlib.target_activity import (
     apply_target_phone_home_summary, mailbox_wait_bucket,
     target_activity_record_indexes, target_activity_records_from_sources,
     target_mailbox_record_indexes, target_mailbox_records_from_commands,
-    target_phone_home_record_indexes,
+    target_phone_home_record_indexes, target_phone_home_records_from_events,
 )
 from gritlib.target_commands import (
     target_command_record_indexes, target_command_record_summary,
@@ -586,132 +586,6 @@ def target_mailbox_counts(cfg):
             latest_result_at[target_id] = result_received_at
             latest_result[target_id] = rec
     return counts, latest_result
-
-
-def target_phone_home_pending_reason(kind, details):
-    status = str((details or {}).get("status") or "")
-    target_id = str((details or {}).get("target_id") or "")
-    reason = str((details or {}).get("reason") or "")
-    if reason:
-        return reason
-    if kind == "poll":
-        queued_count = int_value((details or {}).get("queued_count"))
-        queued_before = int_value((details or {}).get("queued_count_before"))
-        delivered_count = int_value((details or {}).get("delivered_count"))
-        if status == "delivered":
-            remaining = max(queued_before - delivered_count, 0)
-            return "more queued work remains" if remaining > 0 else ""
-        if status == "no-command" and queued_count > 0:
-            if target_id:
-                return "queued work remains for another target or this target has no matching pending command"
-            return "queued work requires a target identity"
-    if kind == "result" and status == "result-received":
-        return ""
-    if status:
-        return status
-    return ""
-
-
-def target_phone_home_record_from_event(event, targets_by_id=None):
-    if not isinstance(event, dict):
-        return None
-    event_name = str(event.get("event") or "")
-    if event_name == "command_queue_poll":
-        kind = "poll"
-    elif event_name == "command_queue_result_upload":
-        kind = "result"
-    else:
-        return None
-    details = event.get("details") if isinstance(event.get("details"), dict) else {}
-    status = str(details.get("status") or "")
-    target_id = str(details.get("target_id") or "")
-    target_rec = (targets_by_id or {}).get(target_id) or {}
-    remote = str(event.get("remote") or details.get("remote_addr") or "")
-    success = status in ("delivered", "no-command", "result-received")
-    failed = status in ("rejected", "error")
-    pending_reason = target_phone_home_pending_reason(kind, details)
-    queued_remaining_count = ""
-    if kind == "poll" and status == "delivered":
-        queued_remaining_count = max(
-            int_value(details.get("queued_count_before")) - int_value(details.get("delivered_count")),
-            0,
-        )
-    elif kind == "poll" and status == "no-command":
-        queued_remaining_count = int_value(details.get("queued_count"))
-    rec = {
-        "id": str(event.get("id") or ""),
-        "event_id": str(event.get("id") or ""),
-        "kind": kind,
-        "operation": str(details.get("operation") or ""),
-        "status": status,
-        "successful": success,
-        "failed": failed,
-        "timestamp": str(event.get("ts") or ""),
-        "service": str(event.get("service") or ""),
-        "event": event_name,
-        "level": str(event.get("level") or ""),
-        "session_id": str(event.get("session") or ""),
-        "session_path": str(event.get("session_path") or ""),
-        "remote_addr": remote,
-        "contact_path": f"{event.get('service', '')}:{remote}" if remote else str(event.get("service") or ""),
-        "target_id": target_id,
-        "target_label": str(details.get("target_label") or ""),
-        "target_connectivity_state": str(target_rec.get("connectivity_state") or ""),
-        "target_last_seen": str(target_rec.get("last_seen") or target_rec.get("last_seen_at") or ""),
-        "target_last_seen_via": str(target_rec.get("last_seen_via") or ""),
-        "target_offline_for_sec": target_rec.get("offline_for_sec", ""),
-        "target_offline_age_bucket": str(target_rec.get("offline_age_bucket") or ""),
-        "target_next_expected_poll": str(target_rec.get("next_expected_poll") or ""),
-        "target_poll_overdue": bool(target_rec.get("poll_overdue") is True),
-        "target_poll_overdue_for_sec": target_rec.get("poll_overdue_for_sec", ""),
-        "target_mailbox_pending_work_count": int_value(target_rec.get("mailbox_pending_work_count", 0)),
-        "has_target_identity": bool(target_id),
-        "target_identity_source": str(details.get("target_identity_source") or ""),
-        "target_identity_confidence": str(details.get("target_identity_confidence") or ""),
-        "http_status": str(details.get("http_status") or ""),
-        "method": str(details.get("method") or ""),
-        "reason": str(details.get("reason") or ""),
-        "pending_reason": pending_reason,
-        "has_pending_reason": bool(pending_reason),
-        "command_id": str(details.get("command_id") or ""),
-        "command_sha256": str(details.get("command_sha256") or ""),
-        "delivered_command": kind == "poll" and status == "delivered",
-        "delivered_count": int_value(details.get("delivered_count")),
-        "queued_count": int_value(details.get("queued_count")),
-        "queued_count_before": int_value(details.get("queued_count_before")),
-        "queued_remaining_count": queued_remaining_count,
-        "has_queued_remaining_count": queued_remaining_count != "",
-        "pending_work_remaining": queued_remaining_count != "" and int_value(queued_remaining_count) > 0,
-        "result_status": str(details.get("result_status") or ""),
-        "result_exit_code": str(details.get("result_exit_code") or ""),
-        "result_output_exceeded_limit": bool(details.get("result_output_exceeded_limit", False)),
-        "work_kind": str(details.get("work_kind") or ""),
-        "workflow": str(details.get("workflow") or ""),
-        "request_name": str(details.get("request_name") or ""),
-        "bridge_profile": str(details.get("bridge_profile") or ""),
-        "bridge_route_path": str(details.get("bridge_route_path") or ""),
-        "bridge_requires_target_online": bool(details.get("bridge_requires_target_online", False)),
-        "route_kind": str(details.get("route_kind") or ""),
-        "poll_mode": str(details.get("poll_mode") or ""),
-        "poll_interval_sec": str(details.get("poll_interval_sec") or ""),
-        "poll_jitter_pct": str(details.get("poll_jitter_pct") or ""),
-        "poll_backoff": str(details.get("poll_backoff") or ""),
-        "poll_max_interval_sec": str(details.get("poll_max_interval_sec") or ""),
-        "max_polls": str(details.get("max_polls") or ""),
-    }
-    rec["uploaded_result"] = kind == "result" and status == "result-received"
-    rec["anonymous"] = not rec["has_target_identity"]
-    return rec
-
-
-def target_phone_home_records_from_events(events, targets_by_id=None):
-    records = []
-    for event in events or []:
-        rec = target_phone_home_record_from_event(event, targets_by_id=targets_by_id)
-        if rec:
-            records.append(rec)
-    records.sort(key=lambda rec: (str(rec.get("timestamp") or ""), str(rec.get("id") or "")), reverse=True)
-    return records
 
 
 def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
