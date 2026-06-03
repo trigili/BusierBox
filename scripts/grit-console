@@ -151,6 +151,9 @@ from gritlib.line_sessions import (
     line_session_record_by_selector, print_line_session_records,
     print_selected_line_session,
 )
+from gritlib.line_target_commands import (
+    copy_line_generated_command, run_line_generated_command,
+)
 from gritlib.line_workspace import (
     line_tui_status_bar, print_line_console_banner, print_line_workspace_snapshot,
 )
@@ -6749,66 +6752,6 @@ def run_line_tui(cfg):
         if fields:
             print(f"  Build options: {len(fields)} configured  (run: build to view/edit)")
 
-    def print_line_generated_commands():
-        records = generated_target_command_records(cfg)
-
-        def _cmd(rec):
-            cmd = str(rec.get("command") or "")
-            return cmd[:90] + "…" if len(cmd) > 90 else cmd
-
-        def _detail(rec):
-            cmd = str(rec.get("command") or "")
-            details = []
-            if len(cmd) > 90:
-                details.append(("full", cmd))
-            details.append(("copy", f"copy {rec.get('ordinal', '')}"))
-            return details
-
-        cols = [
-            ("Service", lambda r: r.get("service") or "-"),
-            ("Transport", lambda r: target_command_route_text(r) or "-"),
-            ("Command", _cmd),
-        ]
-        _console_table(
-            f"Generated commands  ({len(records)} total)" if records else "Generated commands  (none)",
-            records, cols, detail_fn=_detail,
-            footer=f"copy N  |  copy file: {command_copy_path(cfg)}  |  commands ? for help",
-        )
-        search_records = []
-        for rec in records:
-            search_records.append({
-                "kind": "target-command",
-                "label": f"{rec.get('ordinal', '')}: {rec.get('service', '') or 'target'}",
-                "rec": rec,
-                "command": str(rec.get("command") or ""),
-                "use_hint": f"copy {rec.get('ordinal', '')}",
-            })
-        cfg["_line_console_search_results"] = search_records
-        append_event(cfg, "workbench", "workbench_generated_commands_listed", details={
-            "command_count": len(records),
-            "copy_supported_count": len([rec for rec in records if rec.get("copy_supported")]),
-            "command_copy_file": str(command_copy_path(cfg)),
-        })
-
-    def copy_line_generated_command(selector):
-        text = str(selector or "").strip()
-        if not text:
-            raise ValueError("usage: copy N")
-        rec = copy_generated_command(cfg, text)
-        print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
-        print(f"command={rec.get('text', '')}")
-        return rec
-
-    def run_line_generated_command(args):
-        subcmd = str(args[0] if args else "").lower()
-        if not subcmd or subcmd in {"list", "show"}:
-            print_line_generated_commands()
-            return
-        if subcmd == "copy":
-            copy_line_generated_command(" ".join(args[1:]).strip())
-            return
-        raise ValueError("usage: commands [list|copy N]")
-
     def selected_target_record_for_update():
         target_id = configured_target_filter(cfg)
         if not target_id:
@@ -9714,7 +9657,7 @@ def run_line_tui(cfg):
                 continue
             elif cmd in {"commands", "target-commands"}:
                 try:
-                    run_line_generated_command(console_args[1:])
+                    run_line_generated_command(cfg, console_args[1:])
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -9739,7 +9682,7 @@ def run_line_tui(cfg):
                         print(f"  {command}")
                 else:
                     try:
-                        copy_line_generated_command(" ".join(console_args[1:]).strip())
+                        copy_line_generated_command(cfg, " ".join(console_args[1:]).strip())
                     except ValueError as exc:
                         print(exc)
                 continue
