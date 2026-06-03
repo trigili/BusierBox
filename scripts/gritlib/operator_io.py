@@ -6,6 +6,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from .shell_utils import shquote
+
 
 def pager_command():
     configured = os.environ.get("PAGER", "").strip()
@@ -58,3 +60,12 @@ def clipboard_command():
         if shutil.which(cmd[0]):
             return cmd
     return None
+
+
+def view_path_headless_command(cfg, path, default_config=Path("local/server-config.json")):
+    return (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", default_config)))
+        + " --view-path "
+        + shquote(str(path or ""))
+    )

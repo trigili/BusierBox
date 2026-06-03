@@ -88,7 +88,10 @@ from gritlib.file_transfers import (
     target_file_transfer_records_from_sources, upload_record_indexes,
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
-from gritlib.operator_io import clipboard_command, open_path_in_pager, viewable_path
+from gritlib.operator_io import (
+    clipboard_command, open_path_in_pager, view_path_headless_command,
+    viewable_path,
+)
 from gritlib.operator_network import (
     local_ips, operator_advertised_host, print_candidates, target_visible_host,
 )
@@ -4781,15 +4784,6 @@ def recent_fetch_metadata(cfg, limit=8):
             rows.append(rec)
     rows.sort(key=lambda item: item.get("timestamp") or item.get("updated_at") or "", reverse=True)
     return rows[:limit]
-
-
-def view_path_headless_command(cfg, path):
-    return (
-        "scripts/grit-console --config "
-        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-        + " --view-path "
-        + shquote(str(path or ""))
-    )
 
 
 def copy_text_for_operator(cfg, text, label="command", details=None):
