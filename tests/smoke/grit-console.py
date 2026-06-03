@@ -1126,6 +1126,7 @@ def main(argv=None):
     # Paramiko key comparison must use get_name/get_base64, not object equality
     src = (ROOT / "scripts" / "grit-console").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
+    process_status_src = (ROOT / "scripts" / "gritlib" / "process_status.py").read_text()
     release_docs = (ROOT / "docs" / "release-bundles.md").read_text()
     for word in ("invalid_command_queue_policy",
                  "command_queue_policy_valid",
@@ -1259,7 +1260,7 @@ def main(argv=None):
             "workbench-stop" not in stop_helper):
         print("grit-console: workbench stop path lacks managed-PID safety guard", file=sys.stderr)
         return 1
-    if ("cmdline_option_matches_path" not in src or
+    if ("cmdline_option_matches_path" not in process_status_src or
             "ownership_evidence" not in src or
             "unmanaged_recorded_pid" not in src):
         print("grit-console: PID ownership evidence reporting missing", file=sys.stderr)
