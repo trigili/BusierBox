@@ -125,7 +125,8 @@ from gritlib.release_artifacts import (
 )
 from gritlib.session_state import (
     SessionManager, atomic_write_json, count_file_lines, elapsed_seconds,
-    parse_utc_timestamp, read_json_file, server_state_record, state_file_path,
+    mark_service_error, mark_service_stopped, parse_utc_timestamp,
+    read_json_file, server_state_record, state_file_path, update_server_state,
     utc_from_epoch, utc_now, utc_now_from_mtime,
 )
 from gritlib.session_records import session_record_indexes, session_root_record
@@ -4300,64 +4301,8 @@ def stage_dir(cfg, path):
     return records
 
 
-def update_server_state(cfg, action, status="configured", extra=None):
-    data = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}, "sessions": []})
-    if not isinstance(data, dict):
-        data = {"schema": 1, "services": {}, "sessions": []}
-    data.setdefault("schema", 1)
-    data.setdefault("services", {})
-    data.setdefault("sessions", [])
-    previous = data.get("services", {}).get(action, {})
-    if not isinstance(previous, dict):
-        previous = {}
-    service = {
-        "status": status,
-        "listen_host": str(cfg.get("listen_host", "")),
-        "ssh_port": int(cfg.get("ssh_listen_port", 0)),
-        "shell_port": int(cfg.get("GRIT_RSHELL_SOCAT_PORT", 0)),
-        "GRIT_OPERATOR_FILE_SERVICE_PORT": int(cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 0)),
-        "GRIT_OPERATOR_FILE_SERVICE_TLS": str(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes")),
-        "pid": os.getpid(),
-        "config_path": str(cfg.get("_config_path", DEFAULT_CONFIG)),
-        "state_file": str(state_file_path(cfg)),
-        "updated_at": utc_now(),
-    }
-    for key in (
-        "managed_by", "process_log", "session_log", "staged_file", "workbench_mode",
-        "url", "target_command", "target_route", "route_kind", "route_host",
-        "route_port", "bridge_profile", "bridge_route_path", "requires_bridge",
-        "selected_target_id", "selected_target_label", "selected_target_at",
-    ):
-        if previous.get(key):
-            service[key] = previous[key]
-    if cfg.get("_managed_by"):
-        service["managed_by"] = str(cfg.get("_managed_by"))
-    if cfg.get("_process_log"):
-        service["process_log"] = str(cfg.get("_process_log"))
-    if extra:
-        service.update(extra)
-    data["services"][action] = service
-    atomic_write_json(state_file_path(cfg), data)
-    return data
-
-
-def mark_service_stopped(cfg, action, reason=""):
-    extra = {"pid": "", "managed_by": "", "stopped_at": utc_now()}
-    if reason:
-        extra["stopped_reason"] = str(reason)
-    return update_server_state(cfg, action, "stopped", extra)
-
-
 def current_stop_reason(default="complete"):
     return SHUTDOWN_REASON or default
-
-
-def mark_service_error(cfg, action, reason, extra=None, event_name="service_error"):
-    data = {"error": str(reason)}
-    if extra:
-        data.update(extra)
-    append_event(cfg, action, event_name, "error", details=data)
-    return update_server_state(cfg, action, "error", data)
 
 
 ROUTE_HELP_LINES = [
