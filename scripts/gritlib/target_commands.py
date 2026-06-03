@@ -288,6 +288,74 @@ def rshell_session_policy_record(cfg):
     }
 
 
+def rshell_session_policy_status(cfg):
+    policy = rshell_session_policy_record(cfg)
+    policy_summary = policy.get("session_policy_summary") or {}
+    retry = policy.get("retry") or {}
+    policy_record = {
+        "id": "rshell",
+        "session_policy": policy.get("session_policy", ""),
+        "session_policy_valid": bool(policy.get("session_policy_valid", False)),
+        "session_policy_errors": policy.get("session_policy_errors") or [],
+        "retry_scope": policy_summary.get("retry_scope", ""),
+        "pre_connect_retry_count": policy_summary.get("pre_connect_retry_count", ""),
+        "post_disconnect_retry_count": policy_summary.get(
+            "post_disconnect_retry_count", ""
+        ),
+        "retry_backoff": retry.get("backoff", ""),
+        "retry_interval_sec": retry.get("interval_sec", ""),
+        "retry_jitter_pct": retry.get("jitter_pct", ""),
+        "retry_max_interval_sec": retry.get("max_interval_sec", ""),
+        "stops_after_success": bool(policy_summary.get("stops_after_success", False)),
+        "reconnects_after_disconnect": bool(
+            policy_summary.get("reconnects_after_disconnect", False)
+        ),
+        "persistent_lifecycle": bool(
+            policy_summary.get("persistent_lifecycle", False)
+        ),
+        "fresh_session_on_reconnect": bool(
+            policy_summary.get("fresh_session_on_reconnect", False)
+        ),
+        "session_resume_supported": bool(
+            policy_summary.get("session_resume_supported", False)
+        ),
+        "session_semantics": policy.get("session_semantics") or {},
+        "session_policy_summary": policy_summary,
+        "retry": retry,
+        "retry_timing": policy.get("retry_timing") or {},
+    }
+    policy_records = [policy_record]
+    policy_index_maps = {
+        "rshell_session_policy_records_by_id": {
+            rec.get("id", ""): rec for rec in policy_records if rec.get("id")
+        },
+        "rshell_session_policy_records_by_session_policy": records_by_key(
+            policy_records, "session_policy"
+        ),
+        "rshell_session_policy_records_by_session_policy_valid": records_by_key(
+            policy_records, "session_policy_valid"
+        ),
+        "rshell_session_policy_records_by_retry_scope": records_by_key(
+            policy_records, "retry_scope"
+        ),
+        "rshell_session_policy_records_by_retry_backoff": records_by_key(
+            policy_records, "retry_backoff"
+        ),
+        "rshell_session_policy_records_by_reconnects_after_disconnect": records_by_key(
+            policy_records, "reconnects_after_disconnect"
+        ),
+        "rshell_session_policy_records_by_persistent_lifecycle": records_by_key(
+            policy_records, "persistent_lifecycle"
+        ),
+    }
+    return {
+        "policy": policy,
+        "policy_record": policy_record,
+        "policy_records": policy_records,
+        "policy_index_maps": policy_index_maps,
+    }
+
+
 def shell_listener_max_sessions(cfg, explicit_one_shot=False, scripted=False):
     if explicit_one_shot or scripted:
         return 1
