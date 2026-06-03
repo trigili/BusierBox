@@ -436,6 +436,56 @@ def release_state_record(cfg=None, release=None):
     return rec
 
 
+def artifact_compatibility_lines(artifact):
+    compatibility = artifact.get("compatibility") or {}
+    label = compatibility.get("label") or ""
+    lines = []
+    if label:
+        lines.append(f"compatibility: {label}")
+    for reason in compatibility.get("reasons") or []:
+        lines.append(f"compatibility_reason: {reason}")
+    if compatibility.get("note"):
+        lines.append(f"compatibility_note: {compatibility.get('note')}")
+    return lines
+
+
+def artifact_provider_status_lines(artifact):
+    lines = []
+    for tool, status in sorted((artifact.get("tool_provider_status") or {}).items()):
+        if not isinstance(status, dict):
+            continue
+        overall = status.get("overall") or status.get("status") or "unknown"
+        lines.append(f"provider_status_{tool}: {overall}")
+    return lines
+
+
+def artifact_doom_wad_lines(artifact):
+    lines = []
+    for wad in artifact.get("doom_wads") or []:
+        if not isinstance(wad, dict):
+            continue
+        filename = wad.get("filename")
+        if not filename:
+            continue
+        lines.append(f"doom_wad: {filename} size={wad.get('size', '')} sha256={wad.get('sha256', '')}")
+    return lines
+
+
+def release_recommendation_lines(release, limit=10):
+    lines = []
+    records = release.get("recommendation_records") or []
+    for rec in records[:limit]:
+        artifact = rec.get("artifact") or rec.get("artifact_name") or ""
+        compat = (rec.get("compatibility") or {}).get("label") or ""
+        suffix = f" compatibility={compat}" if compat else ""
+        preset = rec.get("payload_preset") or ""
+        preset_text = f" preset={preset}" if preset else ""
+        lines.append(f"{rec.get('scope', '')}:{rec.get('key', '')} -> {artifact}{preset_text}{suffix}")
+    if records and len(records) > limit:
+        lines.append(f"... {len(records) - limit} more recommendation(s)")
+    return lines
+
+
 def release_artifact_workflow_action_indexes(records):
     return {
         "release_artifact_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
