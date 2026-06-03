@@ -125,8 +125,9 @@ from gritlib.status_indexes import (
 from gritlib.target_activity import (
     apply_target_phone_home_summary, mailbox_wait_bucket,
     target_activity_record_indexes, target_activity_records_from_sources,
-    target_mailbox_record_indexes, target_mailbox_records_from_commands,
-    target_phone_home_record_indexes, target_phone_home_records_from_events,
+    target_mailbox_counts, target_mailbox_record_indexes,
+    target_mailbox_records_from_commands, target_phone_home_record_indexes,
+    target_phone_home_records_from_events,
 )
 from gritlib.target_commands import (
     target_command_record_indexes, target_command_record_summary,
@@ -490,31 +491,6 @@ def set_target_label(cfg, target_id, label, aliases=None, notes=None):
         "aliases": rec.get("aliases") or [],
     })
     return rec
-
-
-def target_mailbox_counts(cfg):
-    counts = {}
-    latest_result = {}
-    latest_result_at = {}
-    now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
-    for rec in (load_command_queue(cfg).get("commands") or []):
-        if not isinstance(rec, dict):
-            continue
-        target_id = str(rec.get("target_id") or "")
-        if not target_id:
-            continue
-        target_counts = counts.setdefault(target_id, {"queued": 0, "delivered": 0, "result-received": 0, "expired": 0, "total": 0})
-        status = str(rec.get("status") or "")
-        if command_queue_expired(rec, now_epoch=now_epoch):
-            status = "expired"
-        target_counts["total"] = target_counts.get("total", 0) + 1
-        if status in target_counts:
-            target_counts[status] = target_counts.get(status, 0) + 1
-        result_received_at = str(rec.get("result_received_at") or "")
-        if result_received_at and result_received_at >= latest_result_at.get(target_id, ""):
-            latest_result_at[target_id] = result_received_at
-            latest_result[target_id] = rec
-    return counts, latest_result
 
 
 def target_records(cfg):
