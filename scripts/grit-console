@@ -115,7 +115,7 @@ from gritlib.session_records import session_record_indexes, session_root_record
 from gritlib.service_status import (
     port_record_indexes, port_records_from_services, service_manager_status,
     service_record_indexes, service_workflow_action_indexes,
-    service_workflow_action_summary,
+    service_workflow_action_summary, status_summary_and_warnings,
 )
 from gritlib.staged_files import (
     file_sha256, load_staged, reject_traversal_request_name,
@@ -7894,82 +7894,6 @@ def service_status_rows(cfg):
                 row[key] = rec.get(key)
         rows.append(row)
     return rows
-
-
-def status_summary_and_warnings(services):
-    summary = {
-        "service_count": len(services),
-        "listening_count": 0,
-        "configured_listening_count": 0,
-        "error_count": 0,
-        "stale_count": 0,
-        "listener_pid_count": 0,
-    }
-    warnings = []
-
-    def warning_context(row):
-        return {
-            "service": row.get("name", ""),
-            "port": row.get("port", 0),
-            "bind_address": row.get("bind_address", ""),
-            "configured": row.get("configured", ""),
-            "actual": row.get("actual", ""),
-            "pid": row.get("pid", ""),
-            "pid_alive": row.get("pid_alive", False),
-            "pid_managed": row.get("pid_managed", False),
-            "ownership_evidence": row.get("ownership_evidence") or [],
-            "listener_pids": row.get("listener_pids") or [],
-            "matching_listener_pids": row.get("matching_listener_pids") or [],
-            "listener_endpoints": row.get("listener_endpoints") or [],
-            "matching_listener_endpoints": row.get("matching_listener_endpoints") or [],
-            "process_log": row.get("process_log", ""),
-            "session_log": row.get("session_log", ""),
-            "error": row.get("error", ""),
-            "owners": row.get("owners") or [],
-        }
-
-    for row in services:
-        if row.get("actual") == "listening":
-            summary["listening_count"] += 1
-            if row.get("configured") not in ("listening", "starting"):
-                warnings.append({**warning_context(row),
-                    "type": "unexpected_listener",
-                    "message": "actual listener was found but configured state does not say the service is listening",
-                    "suggested_action": "inspect the listener PID and run scripts/grit-console --stop if it is managed",
-                })
-        if row.get("listener_bind_mismatch"):
-            warnings.append({**warning_context(row),
-                "type": "listener_bind_mismatch",
-                "message": "a listener was found on the configured port, but not on the configured bind address",
-                "suggested_action": "inspect listener address/PID ownership before treating the service as active",
-            })
-        if row.get("configured") == "listening":
-            summary["configured_listening_count"] += 1
-        if row.get("configured") == "error" or row.get("error"):
-            summary["error_count"] += 1
-            message = row.get("error", "service is marked error")
-            if row.get("owners"):
-                message = f"unable to bind/listen: {message}"
-            warnings.append({**warning_context(row),
-                "type": "service_error",
-                "message": message,
-                "suggested_action": "scripts/grit-console --status or scripts/grit-console --stop",
-            })
-        if row.get("stale"):
-            summary["stale_count"] += 1
-            warnings.append({**warning_context(row),
-                "type": "stale_state",
-                "message": "configured state says listening, but no actual listener was found",
-                "suggested_action": "scripts/grit-console --stop",
-            })
-        if row.get("pid") and row.get("pid_alive") and not row.get("pid_managed"):
-            warnings.append({**warning_context(row),
-                "type": "unmanaged_recorded_pid",
-                "message": "recorded PID is alive but does not have matching griTTYkit ownership evidence",
-                "suggested_action": "inspect the PID before editing server-state.json or stopping it manually",
-            })
-        summary["listener_pid_count"] += len(row.get("listener_pids") or [])
-    return summary, warnings
 
 
 def status_document(cfg):
