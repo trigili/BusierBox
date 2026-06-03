@@ -15,6 +15,31 @@ def targets_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR)
     ))
 
 
+def target_identity_from_headers(headers):
+    headers = headers or {}
+    target_id = str(headers.get("x-grit-target-id") or headers.get("x-grittykit-target-id") or headers.get("x-grit-target") or "").strip()
+    if not target_id:
+        return {}
+    aliases = [
+        item.strip()
+        for item in str(headers.get("x-grit-target-alias") or headers.get("x-grittykit-target-alias") or "").split(",")
+        if item.strip()
+    ]
+    return {
+        "target_id": target_id,
+        "target_label": str(headers.get("x-grit-target-label") or headers.get("x-grittykit-target-label") or "").strip(),
+        "target_aliases": aliases,
+        "target_identity_source": "http-header",
+        "target_identity_confidence": "explicit",
+    }
+
+
+def attach_target_identity(metadata, headers):
+    metadata = dict(metadata or {})
+    metadata.update(target_identity_from_headers(headers))
+    return metadata
+
+
 def target_record_indexes(records):
     by_id = {}
     by_label = {}
