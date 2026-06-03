@@ -6,6 +6,116 @@ from pathlib import Path
 from gritlib.record_utils import record_count_by_key, records_by_key
 
 
+def release_artifact_compatibility_rank(rec):
+    label = str((rec.get("compatibility") or {}).get("label") or "exact")
+    return {"exact": 0, "likely": 1, "heuristic": 2, "unsafe": 3, "incompatible": 4}.get(label, 5)
+
+
+def release_artifact_recommendation_key(rec):
+    metadata_rank = 0 if rec.get("tuple_path") and rec.get("payload_preset") else 1
+    return (
+        metadata_rank,
+        release_artifact_compatibility_rank(rec),
+        str(rec.get("payload_preset") or ""),
+        str(rec.get("release_path") or rec.get("path") or rec.get("name") or ""),
+    )
+
+
+def best_release_artifact(records):
+    records = [rec for rec in (records or []) if isinstance(rec, dict)]
+    if not records:
+        return None
+    return sorted(records, key=release_artifact_recommendation_key)[0]
+
+
+def release_recommendations(devices, artifact_indexes):
+    artifacts = artifact_indexes.get("artifacts") or []
+    by_device = {}
+    for device in devices or []:
+        if not isinstance(device, dict):
+            continue
+        name = str(device.get("name") or "")
+        if not name:
+            continue
+        refs = {str(item) for item in (device.get("artifacts") or []) if str(item)}
+        ref_names = {Path(item).name for item in refs}
+        tuple_path = str(device.get("tuple_path") or "")
+        selected = best_release_artifact(
+            rec for rec in artifacts
+            if (str(rec.get("release_path") or "") in refs or
+                str(rec.get("name") or "") in ref_names or
+                (tuple_path and str(rec.get("tuple_path") or "") == tuple_path))
+        )
+        if selected:
+            by_device[name] = selected
+
+    return {
+        "schema": 1,
+        "selection_policy": [
+            "lowest compatibility risk label",
+            "payload preset name",
+            "artifact path",
+        ],
+        "by_device": by_device,
+        "by_tuple_path": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_tuple_path"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_tuple_path") or {})
+        },
+        "by_tool": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_tool"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_tool") or {})
+        },
+        "by_payload_preset": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_payload_preset"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_payload_preset") or {})
+        },
+        "by_feature": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_feature"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_feature") or {})
+        },
+        "by_tool_payload_preset": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_tool_payload_preset"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_tool_payload_preset") or {})
+        },
+        "by_device_payload_preset": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_device_payload_preset"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_device_payload_preset") or {})
+        },
+        "by_feature_payload_preset": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_feature_payload_preset"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_feature_payload_preset") or {})
+        },
+        "by_tuple_payload_preset": {
+            key: best_release_artifact(artifact_indexes["artifacts_by_tuple_payload_preset"][key])
+            for key in sorted(artifact_indexes.get("artifacts_by_tuple_payload_preset") or {})
+        },
+    }
+
+
+def release_recommendation_records(recommendations):
+    records = []
+    for scope in (
+        "by_device", "by_tuple_path", "by_tool", "by_payload_preset", "by_feature",
+        "by_tool_payload_preset", "by_device_payload_preset",
+        "by_feature_payload_preset", "by_tuple_payload_preset",
+    ):
+        for key, artifact in sorted((recommendations.get(scope) or {}).items()):
+            if not isinstance(artifact, dict):
+                continue
+            records.append({
+                "scope": scope,
+                "key": key,
+                "id": f"{scope}:{key}",
+                "artifact": artifact.get("release_path") or artifact.get("path") or artifact.get("name") or "",
+                "artifact_name": artifact.get("name") or "",
+                "tuple_path": artifact.get("tuple_path") or "",
+                "payload_preset": artifact.get("payload_preset") or "",
+                "compatibility": artifact.get("compatibility") or {},
+                "sha256": artifact.get("sha256") or "",
+            })
+    return records
+
+
 def release_state_record(cfg=None, release=None):
     cfg = cfg or {}
     explicit_release_dir = bool(cfg.get("release_dir"))
