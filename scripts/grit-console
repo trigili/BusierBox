@@ -223,6 +223,7 @@ from gritlib.workflow_actions import (
     print_workbench_action_summary,
     probe_workflow_action_indexes,
     probe_workflow_action_summary,
+    select_workbench_action,
     select_workflow_action,
     target_workflow_action_indexes,
     target_workflow_action_summary,
@@ -1936,19 +1937,7 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
 
 
 def workbench_action_by_selector(cfg, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("workbench action is required")
-    actions = workbench_action_records(cfg)
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"workbench action number out of range: {text}")
-        return actions[idx]
-    for rec in actions:
-        if text == str(rec.get("id") or ""):
-            return rec
-    raise ValueError(f"unknown workbench action: {text}")
+    return select_workbench_action(workbench_action_records(cfg), selector)
 
 
 def run_workbench_action(cfg, selector, dry_run=False, confirmed=False):

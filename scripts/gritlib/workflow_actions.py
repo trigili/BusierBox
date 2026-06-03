@@ -20,6 +20,22 @@ def select_workflow_action(records, selector, label, extra_keys=()):
     raise ValueError(f"{label} workflow action not found: {text}")
 
 
+def select_workbench_action(records, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("workbench action is required")
+    records = records or []
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(records):
+            raise ValueError(f"workbench action number out of range: {text}")
+        return records[idx]
+    for rec in records:
+        if text == str(rec.get("id") or ""):
+            return rec
+    raise ValueError(f"unknown workbench action: {text}")
+
+
 def workbench_action_indexes(records):
     return {
         "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
