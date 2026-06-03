@@ -140,7 +140,7 @@ from gritlib.session_state import (
     utc_from_epoch, utc_now, utc_now_from_mtime,
 )
 from gritlib.session_records import (
-    print_recent_sessions, session_record_indexes, session_root_record,
+    print_recent_sessions, session_record_indexes, session_root_state_status,
 )
 from gritlib.service_status import (
     DAEMON_SERVICE_CHOICES, configured_daemon_services, daemon_child_command,
@@ -4140,20 +4140,10 @@ def status_document(cfg):
         for rec in sessions or []
         if isinstance(rec, dict) and (rec.get("session_id") or rec.get("path"))
     }
-    session_root_state = session_root_record(cfg, sessions)
-    session_root_state["has_recent_sessions"] = int(session_root_state.get("recent_session_count") or 0) > 0
-    session_root_state["has_uploads"] = int(session_root_state.get("total_upload_count") or 0) > 0
-    session_root_state["has_fetches"] = int(session_root_state.get("total_fetch_count") or 0) > 0
-    session_root_state["has_events"] = int(session_root_state.get("total_event_count") or 0) > 0
-    session_root_state_records = [session_root_state]
-    session_root_state_index_maps = {
-        "session_root_state_records_by_path": {rec.get("path", ""): rec for rec in session_root_state_records if rec.get("path")},
-        "session_root_state_records_by_exists": records_by_key(session_root_state_records, "exists"),
-        "session_root_state_records_by_has_recent_sessions": records_by_key(session_root_state_records, "has_recent_sessions"),
-        "session_root_state_records_by_has_uploads": records_by_key(session_root_state_records, "has_uploads"),
-        "session_root_state_records_by_has_fetches": records_by_key(session_root_state_records, "has_fetches"),
-        "session_root_state_records_by_has_events": records_by_key(session_root_state_records, "has_events"),
-    }
+    session_root_status = session_root_state_status(cfg, sessions)
+    session_root_state = session_root_status["state_record"]
+    session_root_state_records = session_root_status["state_records"]
+    session_root_state_index_maps = session_root_status["state_index_maps"]
     reconcile_workbench_job_completion_events(cfg)
     (sessions_by_id,
      sessions_by_service,

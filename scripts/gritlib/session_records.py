@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from gritlib.record_utils import int_value, latest_record_value
+from gritlib.record_utils import int_value, latest_record_value, records_by_key
 
 
 def session_record_indexes(records):
@@ -203,4 +203,30 @@ def session_root_record(cfg, records):
         "sessions_with_metadata_count": sessions_with_metadata,
         "sessions_with_event_logs_count": sessions_with_event_logs,
         "latest_session_updated_at": latest_record_value(records, ("updated_at", "ended_at", "started_at")),
+    }
+
+
+def session_root_state_status(cfg, records):
+    state_record = session_root_record(cfg, records)
+    state_record["has_recent_sessions"] = int(state_record.get("recent_session_count") or 0) > 0
+    state_record["has_uploads"] = int(state_record.get("total_upload_count") or 0) > 0
+    state_record["has_fetches"] = int(state_record.get("total_fetch_count") or 0) > 0
+    state_record["has_events"] = int(state_record.get("total_event_count") or 0) > 0
+    state_records = [state_record]
+    state_index_maps = {
+        "session_root_state_records_by_path": {
+            rec.get("path", ""): rec for rec in state_records if rec.get("path")
+        },
+        "session_root_state_records_by_exists": records_by_key(state_records, "exists"),
+        "session_root_state_records_by_has_recent_sessions": records_by_key(
+            state_records, "has_recent_sessions"
+        ),
+        "session_root_state_records_by_has_uploads": records_by_key(state_records, "has_uploads"),
+        "session_root_state_records_by_has_fetches": records_by_key(state_records, "has_fetches"),
+        "session_root_state_records_by_has_events": records_by_key(state_records, "has_events"),
+    }
+    return {
+        "state_record": state_record,
+        "state_records": state_records,
+        "state_index_maps": state_index_maps,
     }
