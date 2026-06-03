@@ -168,6 +168,26 @@ def render_probe_delivery(cfg):
     ])
 
 
+def parse_line_probe_args(args):
+    queue = False
+    start_service = False
+    for item in args:
+        lower = str(item).lower()
+        if lower in {"--queue", "-q"}:
+            queue = True
+        elif lower in {"--start", "--start-service", "start"}:
+            start_service = True
+        elif lower in {"show", "command"}:
+            continue
+        else:
+            raise ValueError("usage: probe [--start] [--queue]")
+    return queue, start_service
+
+
+def parse_line_survey_args(args):
+    return parse_line_probe_args(args)
+
+
 def render_probe_command(cfg, host=None, port=None):
     script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
     route = probe_route_context(cfg, host=host, port=port)

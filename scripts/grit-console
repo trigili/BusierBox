@@ -151,6 +151,7 @@ from gritlib.operator_network import (
     target_visible_host,
 )
 from gritlib.probe_commands import (
+    parse_line_probe_args,
     probe_route_context, probe_script_fn, render_probe_base64_paste,
     render_probe_command, render_probe_delivery, render_probe_dns_command, render_probe_ftp_command,
     render_probe_paste, render_probe_tftp_command, probe_workflow_action_records,
@@ -8605,25 +8606,6 @@ def run_line_tui(cfg):
         return command
 
     # ── probe commands ──────────────────────────────────────────────────────
-
-    def parse_line_probe_args(args):
-        queue = False
-        start_service = False
-        for item in args:
-            lower = item.lower()
-            if lower in {"--queue", "-q"}:
-                queue = True
-            elif lower in {"--start", "--start-service", "start"}:
-                start_service = True
-            elif lower in {"show", "command"}:
-                continue
-            else:
-                raise ValueError("usage: probe [--start] [--queue]")
-        return queue, start_service
-
-    # keep old name as alias for backward compat with any direct callers
-    def parse_line_survey_args(args):
-        return parse_line_probe_args(args)
 
     def print_line_probe_script(paste=False, base64_mode=False):
         route = probe_route_context(cfg)
