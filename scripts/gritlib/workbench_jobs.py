@@ -15,6 +15,7 @@ from gritlib.shell_utils import shquote
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
 DEFAULT_CONFIG = "local/operator-session/config.json"
+DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 
 
 def workbench_jobs_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
@@ -315,3 +316,27 @@ def cancel_workbench_job_headless_command(cfg, job_id, default_config=DEFAULT_CO
         + " --cancel-workbench-job "
         + shquote(str(job_id or ""))
     )
+
+
+def run_workbench_action_headless_command(
+    cfg, action_id, dry_run=False, confirmed=False, default_config=DEFAULT_SERVER_CONFIG
+):
+    parts = [
+        "scripts/grit-console",
+        "--config",
+        str(cfg.get("_config_path", default_config)),
+        "--run-workbench-action",
+        str(action_id or ""),
+    ]
+    if dry_run:
+        parts.append("--workbench-action-dry-run")
+    if confirmed:
+        parts.append("--confirm-workbench-action")
+    return " ".join(shquote(str(part)) for part in parts)
+
+
+def workbench_action_command_for_run(action, dry_run=False):
+    command = str(action.get("command") or "").strip()
+    if dry_run and "--systemd-user-action" in command and "--systemd-user-dry-run" not in command:
+        command = command + " --systemd-user-dry-run"
+    return command

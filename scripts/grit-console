@@ -187,8 +187,9 @@ from gritlib.warnings import (
 from gritlib.workbench_jobs import (
     cancel_workbench_job_headless_command, load_workbench_jobs,
     next_workbench_job_id, reconcile_workbench_job_completion_events,
-    start_workbench_job_headless_command, workbench_job_records,
-    workbench_jobs_path, workbench_jobs_state_record, write_workbench_jobs,
+    run_workbench_action_headless_command, start_workbench_job_headless_command,
+    workbench_action_command_for_run, workbench_job_records, workbench_jobs_path,
+    workbench_jobs_state_record, write_workbench_jobs,
 )
 from gritlib.workflow_actions import (
     operator_daemon_workflow_action_indexes,
@@ -1950,28 +1951,6 @@ def workbench_action_by_selector(cfg, selector):
         if text == str(rec.get("id") or ""):
             return rec
     raise ValueError(f"unknown workbench action: {text}")
-
-
-def run_workbench_action_headless_command(cfg, action_id, dry_run=False, confirmed=False):
-    parts = [
-        "scripts/grit-console",
-        "--config",
-        str(cfg.get("_config_path", DEFAULT_CONFIG)),
-        "--run-workbench-action",
-        str(action_id or ""),
-    ]
-    if dry_run:
-        parts.append("--workbench-action-dry-run")
-    if confirmed:
-        parts.append("--confirm-workbench-action")
-    return " ".join(shquote(str(part)) for part in parts)
-
-
-def workbench_action_command_for_run(action, dry_run=False):
-    command = str(action.get("command") or "").strip()
-    if dry_run and "--systemd-user-action" in command and "--systemd-user-dry-run" not in command:
-        command = command + " --systemd-user-dry-run"
-    return command
 
 
 def run_workbench_action(cfg, selector, dry_run=False, confirmed=False):
