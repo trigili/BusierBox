@@ -11853,7 +11853,7 @@ def run_curses_tui(cfg):
                     f"sha256: {rec.get('sha256', '')}",
                     f"release_artifact_workflow_actions: {len(artifact_actions)}",
                     f"stage_action_state: {stage_action.get('operator_action_state', '') or '-'} reason={stage_action.get('operator_action_reason', '') or '-'}",
-                    f"stage_headless_command: {stage_action.get('headless_command', '') or '-'}",
+                    f"stage_command: {stage_action.get('headless_command', '') or stage_action.get('command', '') or '-'}",
                 ]
                 detail_lines.extend(artifact_compatibility_lines(rec))
                 detail_lines.extend([
@@ -11968,7 +11968,7 @@ def run_curses_tui(cfg):
                     f"requires_input: {'yes' if rec.get('requires_input') else 'no'}",
                     f"bridge_profile: {rec.get('bridge_profile', '') or '-'}",
                     f"command: {rec.get('command', '') or '-'}",
-                    f"headless_command: {rec.get('headless_command', '') or '-'}",
+                    f"run_command: {rec.get('headless_command', '') or rec.get('command', '') or '-'}",
                     "enter runs no-input target workflow actions",
                     "action 15 opens prompted target workflow list",
                 ]
