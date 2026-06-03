@@ -221,6 +221,7 @@ from gritlib.workflow_actions import (
     print_workbench_action_summary,
     probe_workflow_action_indexes,
     probe_workflow_action_summary,
+    select_workflow_action,
     target_workflow_action_indexes,
     target_workflow_action_summary,
     workbench_action_indexes,
@@ -9248,20 +9249,8 @@ def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="
 
 
 def find_service_workflow_action(cfg, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("service workflow action is required")
     snap = workbench_snapshot(cfg)
-    actions = snap.get("service_workflow_actions") or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"service workflow action number out of range: {text}")
-        return actions[idx]
-    for rec in actions:
-        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
-            return rec
-    raise ValueError(f"service workflow action not found: {text}")
+    return select_workflow_action(snap.get("service_workflow_actions") or [], selector, "service")
 
 
 def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
@@ -9354,25 +9343,13 @@ def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
 
 
 def find_operator_daemon_workflow_action(cfg, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("operator daemon workflow action is required")
     snap = workbench_snapshot(cfg)
-    actions = snap.get("operator_daemon_workflow_actions") or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"operator daemon workflow action number out of range: {text}")
-        return actions[idx]
-    for rec in actions:
-        if text in (
-            str(rec.get("id") or ""),
-            str(rec.get("action_id") or ""),
-            str(rec.get("workbench_action_id") or ""),
-            str(rec.get("systemd_user_action") or ""),
-        ):
-            return rec
-    raise ValueError(f"operator daemon workflow action not found: {text}")
+    return select_workflow_action(
+        snap.get("operator_daemon_workflow_actions") or [],
+        selector,
+        "operator daemon",
+        extra_keys=("workbench_action_id", "systemd_user_action"),
+    )
 
 
 def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=False):
@@ -9463,26 +9440,13 @@ def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=
 
 
 def find_release_artifact_workflow_action(cfg, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("release artifact workflow action is required")
     snap = workbench_snapshot(cfg)
-    actions = snap.get("release_artifact_workflow_actions") or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"release artifact workflow action number out of range: {text}")
-        return actions[idx]
-    for rec in actions:
-        if text in (
-            str(rec.get("id") or ""),
-            str(rec.get("action_id") or ""),
-            str(rec.get("selector") or ""),
-            str(rec.get("release_path") or ""),
-            str(rec.get("recommendation_id") or ""),
-        ):
-            return rec
-    raise ValueError(f"release artifact workflow action not found: {text}")
+    return select_workflow_action(
+        snap.get("release_artifact_workflow_actions") or [],
+        selector,
+        "release artifact",
+        extra_keys=("selector", "release_path", "recommendation_id"),
+    )
 
 
 def run_release_artifact_workflow_action(cfg, selector, dry_run=False):
@@ -9567,20 +9531,8 @@ def run_release_artifact_workflow_action(cfg, selector, dry_run=False):
 
 
 def find_command_queue_workflow_action(cfg, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("command queue workflow action is required")
     snap = workbench_snapshot(cfg)
-    actions = snap.get("command_queue_workflow_actions") or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"command queue workflow action number out of range: {text}")
-        return actions[idx]
-    for rec in actions:
-        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
-            return rec
-    raise ValueError(f"command queue workflow action not found: {text}")
+    return select_workflow_action(snap.get("command_queue_workflow_actions") or [], selector, "command queue")
 
 
 def run_command_queue_workflow_action(cfg, selector, command_input="", dry_run=False, confirmed=False):
@@ -9683,20 +9635,8 @@ def run_command_queue_workflow_action(cfg, selector, command_input="", dry_run=F
 
 
 def find_file_service_workflow_action(cfg, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("file service workflow action is required")
     snap = workbench_snapshot(cfg)
-    actions = snap.get("file_service_workflow_actions") or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"file service workflow action number out of range: {text}")
-        return actions[idx]
-    for rec in actions:
-        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
-            return rec
-    raise ValueError(f"file service workflow action not found: {text}")
+    return select_workflow_action(snap.get("file_service_workflow_actions") or [], selector, "file service")
 
 
 def run_file_service_workflow_action(cfg, selector, local_file="", request_name="", target_path="", dry_run=False, confirmed=False):
@@ -9805,20 +9745,8 @@ def run_file_service_workflow_action(cfg, selector, local_file="", request_name=
 
 
 def find_probe_workflow_action(cfg, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("probe workflow action is required")
     snap = workbench_snapshot(cfg)
-    actions = snap.get("probe_workflow_actions") or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"probe workflow action number out of range: {text}")
-        return actions[idx]
-    for rec in actions:
-        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
-            return rec
-    raise ValueError(f"probe workflow action not found: {text}")
+    return select_workflow_action(snap.get("probe_workflow_actions") or [], selector, "probe")
 
 
 def run_probe_workflow_action(cfg, selector, dry_run=False, confirmed=False):
@@ -9898,24 +9826,13 @@ def run_probe_workflow_action(cfg, selector, dry_run=False, confirmed=False):
 
 
 def find_bridge_profile_workflow_action(cfg, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("bridge profile workflow action is required")
     snap = workbench_snapshot(cfg)
-    actions = snap.get("bridge_profile_workflow_actions") or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"bridge profile workflow action number out of range: {text}")
-        return actions[idx]
-    for rec in actions:
-        if text in (
-            str(rec.get("id") or ""),
-            str(rec.get("action_id") or ""),
-            str(rec.get("bridge_profile") or ""),
-        ):
-            return rec
-    raise ValueError(f"bridge profile workflow action not found: {text}")
+    return select_workflow_action(
+        snap.get("bridge_profile_workflow_actions") or [],
+        selector,
+        "bridge profile",
+        extra_keys=("bridge_profile",),
+    )
 
 
 def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=False):
@@ -10021,24 +9938,13 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
 
 
 def find_staged_file_workflow_action(cfg, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("staged file workflow action is required")
     snap = workbench_snapshot(cfg)
-    actions = snap.get("staged_file_workflow_actions") or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"staged file workflow action number out of range: {text}")
-        return actions[idx]
-    for rec in actions:
-        if text in (
-            str(rec.get("id") or ""),
-            str(rec.get("action_id") or ""),
-            str(rec.get("request_name") or ""),
-        ):
-            return rec
-    raise ValueError(f"staged file workflow action not found: {text}")
+    return select_workflow_action(
+        snap.get("staged_file_workflow_actions") or [],
+        selector,
+        "staged file",
+        extra_keys=("request_name",),
+    )
 
 
 def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=False):
@@ -10196,20 +10102,8 @@ def scoped_target_cfg(cfg, target_id, target_label=""):
 
 
 def find_target_workflow_action(cfg, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("target workflow action is required")
     snap = workbench_snapshot(cfg)
-    actions = snap.get("target_workflow_actions") or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"target workflow action number out of range: {text}")
-        return actions[idx]
-    for rec in actions:
-        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
-            return rec
-    raise ValueError(f"target workflow action not found: {text}")
+    return select_workflow_action(snap.get("target_workflow_actions") or [], selector, "target")
 
 
 def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None):

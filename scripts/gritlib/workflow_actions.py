@@ -3,6 +3,23 @@
 from gritlib.record_utils import format_counts, record_count_by_key, record_sum_by_key, records_by_key
 
 
+def select_workflow_action(records, selector, label, extra_keys=()):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError(f"{label} workflow action is required")
+    records = records or []
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(records):
+            raise ValueError(f"{label} workflow action number out of range: {text}")
+        return records[idx]
+    keys = ("id", "action_id", *tuple(extra_keys or ()))
+    for rec in records:
+        if text in tuple(str(rec.get(key) or "") for key in keys):
+            return rec
+    raise ValueError(f"{label} workflow action not found: {text}")
+
+
 def workbench_action_indexes(records):
     return {
         "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
