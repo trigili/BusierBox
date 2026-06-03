@@ -7,34 +7,57 @@ from gritlib.build_config import (
     unset_workbench_build_config,
     workbench_config_field_records,
 )
-from gritlib.console_display import console_table
 from gritlib.event_log import append_event
 
 
-def print_line_build_config(cfg):
+def _group_build_fields(fields):
+    groups = []
+    by_category = {}
+    for idx, rec in enumerate(fields, 1):
+        category = str(rec.get("category") or "build-config")
+        if category not in by_category:
+            by_category[category] = []
+            groups.append((category, by_category[category]))
+        by_category[category].append((idx, rec))
+    return groups
+
+
+def print_line_build_config(cfg, verbose=False):
     fields = workbench_config_field_records(cfg)
+    configured_count = len([rec for rec in fields if rec.get("configured")])
+    num_w = len(str(len(fields))) if fields else 1
+    key_w = max([len("Key")] + [len(str(rec.get("key") or "")) for rec in fields])
+    value_w = max([len("Value")] + [
+        len(shell_double_quote(str(rec.get("value") or ""))) for rec in fields
+    ])
+    label_w = max([len("Purpose")] + [len(str(rec.get("label") or "")) for rec in fields])
 
-    def _detail(rec):
-        details = []
-        if rec.get("label"):
-            details.append(("note", rec["label"]))
-        if rec.get("options"):
-            details.append(("options", "  ".join(str(o) for o in rec["options"])))
-        details.append(("set", f"build set {rec.get('key', '')} VALUE"))
-        return details
-
-    cols = [
-        ("Key", "key"),
-        ("Value", lambda r: shell_double_quote(str(r.get("value") or ""))),
-        ("Category", lambda r: r.get("category") or "-"),
-    ]
-    console_table(
-        f"Build config  ({build_config_path(cfg)})",
-        fields,
-        cols,
-        detail_fn=_detail,
-        footer="build set KEY VALUE  |  build unset KEY  |  build ? for help",
-    )
+    print(f"Build config  ({build_config_path(cfg)})")
+    print(f"  configured: {configured_count}/{len(fields)}")
+    print("")
+    for category, records in _group_build_fields(fields):
+        print(f"  {category} ({len(records)})")
+        print("  " + " " * num_w + "  "
+              + f"{'Key':{key_w}}  {'Value':{value_w}}  {'Purpose':{label_w}}")
+        print("  " + "-" * num_w + "  "
+              + f"{'-' * key_w}  {'-' * value_w}  {'-' * label_w}")
+        for idx, rec in records:
+            value = shell_double_quote(str(rec.get("value") or ""))
+            label = str(rec.get("label") or "")
+            print(f"  {idx:{num_w}}  {str(rec.get('key') or ''):{key_w}}  {value:{value_w}}  {label:{label_w}}".rstrip())
+            if verbose:
+                options = [str(o) for o in rec.get("options") or []]
+                examples = [str(o) for o in rec.get("examples") or []]
+                if options:
+                    print("      options: " + "  ".join(options))
+                elif examples:
+                    print("      examples: " + "  ".join(examples))
+                print(f"      set: build set {rec.get('key', '')} VALUE")
+        print("")
+    hint = "build set KEY VALUE  |  build unset KEY  |  build -v for options  |  build ? for help"
+    if verbose:
+        hint = "build set KEY VALUE  |  build unset KEY  |  build ? for help"
+    print(f"  {hint}")
     cfg["_line_console_search_results"] = [
         {
             "kind": "build-config",
@@ -48,6 +71,7 @@ def print_line_build_config(cfg):
     append_event(cfg, "workbench", "workbench_build_config_listed", details={
         "config_path": str(build_config_path(cfg)),
         "field_count": len(fields),
+        "verbose": bool(verbose),
     })
 
 
@@ -103,9 +127,11 @@ def unset_line_global_build_option(cfg, name):
 
 
 def run_line_build_command(cfg, args):
+    verbose = any(str(arg).lower() in {"-v", "--verbose", "verbose"} for arg in args)
+    args = [arg for arg in args if str(arg).lower() not in {"-v", "--verbose", "verbose"}]
     subcmd = str(args[0] if args else "").lower()
     if not subcmd or subcmd in {"list", "show", "options"}:
-        print_line_build_config(cfg)
+        print_line_build_config(cfg, verbose=verbose)
         return
     if subcmd == "set":
         set_line_build_config(cfg, args[1:])
@@ -113,4 +139,4 @@ def run_line_build_command(cfg, args):
     if subcmd in {"unset", "clear"}:
         unset_line_build_config(cfg, args[1:])
         return
-    raise ValueError("usage: build [list|set KEY VALUE|unset KEY]")
+    raise ValueError("usage: build [-v|list|set KEY VALUE|unset KEY]")

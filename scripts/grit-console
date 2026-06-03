@@ -10008,10 +10008,24 @@ def run_line_tui(cfg):
                     print(exc)
         elif choice == "14":
             fields = workbench_config_field_records(cfg)
+            num_w = len(str(len(fields))) if fields else 1
+            key_w = max([len("Key")] + [len(str(rec.get("key") or "")) for rec in fields])
+            value_w = max([len("Value")] + [
+                len(shell_double_quote(str(rec.get("value", "")))) for rec in fields
+            ])
+            current_category = None
             for idx, rec in enumerate(fields, 1):
-                print(f"{idx}: {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} category={rec.get('category', '')}")
-                print(f"   {rec.get('label', '')}")
-                print(f"   command: {rec.get('set_command', '')}")
+                category = str(rec.get("category") or "build-config")
+                if category != current_category:
+                    current_category = category
+                    print(f"{category}:")
+                    print("  " + " " * num_w + "  "
+                          + f"{'Key':{key_w}}  {'Value':{value_w}}  Purpose")
+                    print("  " + "-" * num_w + "  "
+                          + f"{'-' * key_w}  {'-' * value_w}  -------")
+                print(f"  {idx:{num_w}}  {str(rec.get('key') or ''):{key_w}}  "
+                      f"{shell_double_quote(str(rec.get('value', ''))):{value_w}}  "
+                      f"{rec.get('label', '')}".rstrip())
             selected_line = line_input("build config key or number> ")
             selected = selected_line.strip() if selected_line is not None else ""
             if selected:
@@ -10021,7 +10035,10 @@ def run_line_tui(cfg):
                     if not key:
                         raise ValueError(f"unknown build config field: {selected}")
                     print(f"current {key}={shell_double_quote(rec.get('value', ''))}")
-                    print(f"underlying command: scripts/grit-console --build-config {shquote(str(build_config_path(cfg)))} --set-build-config {shquote(key + '=VALUE')}")
+                    if rec.get("options"):
+                        print("options: " + "  ".join(str(opt) for opt in rec.get("options") or []))
+                    else:
+                        print("example: build set " + key + " VALUE")
                     value_line = line_input("new value> ")
                     value = value_line if value_line is not None else ""
                     headless = (

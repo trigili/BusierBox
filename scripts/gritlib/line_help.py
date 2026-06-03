@@ -281,6 +281,7 @@ def print_line_command_help(topic):
             "title": "build — griTTYkit binary build configuration",
             "entries": [
                 ("build", "show current guided build config"),
+                ("build -v", "show build config options and examples"),
                 ("build set KEY VALUE", "set a build config field"),
                 ("build unset KEY", "clear a build config field"),
                 ("set KEY VALUE", "set a target or guided build option"),
