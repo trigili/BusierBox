@@ -72,6 +72,54 @@ def operator_console_headless_command(kind, base_command):
     return commands.get(kind, base_command + " --status")
 
 
+def annotate_operator_console_workflows(records, target_records, overdue_targets):
+    target_records = list(target_records or [])
+    overdue_targets = list(overdue_targets or [])
+    fleet_connectivity_state_counts = record_count_by_key(target_records, "connectivity_state")
+    fleet_offline_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "offline"
+    ])
+    fleet_stale_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "stale"
+    ])
+    fleet_mailbox_pending_target_count = len([
+        rec for rec in target_records
+        if int(rec.get("mailbox_pending_work_count") or 0) > 0
+    ])
+    fleet_mailbox_pending_work_count = sum(
+        int(rec.get("mailbox_pending_work_count") or 0)
+        for rec in target_records
+    )
+    fleet_poll_overdue_target_count = len(overdue_targets)
+    for idx, rec in enumerate(records or []):
+        pending = int(rec.get("pending_work_count") or 0)
+        warning_count = int(rec.get("warning_count") or 0)
+        rec["ordinal"] = idx
+        rec["fleet_target_count"] = len(target_records)
+        rec["fleet_connectivity_state_counts"] = fleet_connectivity_state_counts
+        rec["fleet_offline_target_count"] = fleet_offline_target_count
+        rec["fleet_stale_target_count"] = fleet_stale_target_count
+        rec["fleet_mailbox_pending_target_count"] = fleet_mailbox_pending_target_count
+        rec["fleet_mailbox_pending_work_count"] = fleet_mailbox_pending_work_count
+        rec["fleet_poll_overdue_target_count"] = fleet_poll_overdue_target_count
+        rec["fleet_has_offline_targets"] = fleet_offline_target_count > 0
+        rec["fleet_has_stale_targets"] = fleet_stale_target_count > 0
+        rec["fleet_has_mailbox_pending_work"] = fleet_mailbox_pending_work_count > 0
+        rec["fleet_has_poll_overdue_targets"] = fleet_poll_overdue_target_count > 0
+        rec["has_records"] = int(rec.get("record_count") or 0) > 0
+        rec["has_actions"] = int(rec.get("action_count") or 0) > 0
+        rec["has_enter_runnable_actions"] = int(rec.get("enter_runnable_action_count") or 0) > 0
+        rec["has_pending_work"] = pending > 0
+        rec["has_warnings"] = warning_count > 0
+        rec["operator_action_state"] = "needs-attention" if warning_count else ("pending-work" if pending else "ready")
+        rec["operator_action_reason"] = "warnings-present" if warning_count else ("pending-work" if pending else "workflow-ready")
+        rec["api_resource_key"] = "api_collections." + str(rec.get("primary_collection") or "")
+        rec["status_command"] = rec.get("headless_command", "")
+    return records
+
+
 def workbench_action_indexes(records):
     return {
         "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
