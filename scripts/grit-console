@@ -83,7 +83,8 @@ from gritlib.build_config import (
 from gritlib.event_log import (
     EventLog, append_event, compact_event_details, event_log_state_record,
     event_log_stats, event_record_indexes, event_tail,
-    event_tail_availability_text, print_event_log_summary,
+    event_summary_stats_for_records, event_tail_availability_text,
+    print_event_log_summary,
 )
 from gritlib.file_transfers import (
     fetch_record_indexes, file_service_workflow_action_indexes,
@@ -4265,100 +4266,10 @@ def status_document(cfg):
      events_by_event_detail_target_identity_source,
      events_by_service_detail_target_identity_source,
      events_by_event_detail_target_identity_confidence,
-     events_by_service_detail_target_identity_confidence) = event_record_indexes(events)
+    events_by_service_detail_target_identity_confidence) = event_record_indexes(events)
     event_summary_stats = event_stats
     if target_filter_id:
-        first_filtered_event_at = ""
-        latest_filtered_event_at = ""
-        for rec in events or []:
-            if not isinstance(rec, dict):
-                continue
-            ts = str(rec.get("ts") or "")
-            if ts and (not first_filtered_event_at or ts < first_filtered_event_at):
-                first_filtered_event_at = ts
-            if ts > latest_filtered_event_at:
-                latest_filtered_event_at = ts
-        count_index = lambda index: {key: len(value) for key, value in (index or {}).items()}
-        event_summary_stats = {
-            "total_count": len(events),
-            "tail_count": len(events),
-            "tail_truncated": bool(event_stats.get("tail_truncated", False)),
-            "tail_omitted_count": event_stats.get("tail_omitted_count", 0),
-            "invalid_count": event_stats.get("invalid_count", 0),
-            "first_event_at": first_filtered_event_at,
-            "latest_event_at": latest_filtered_event_at,
-            "by_service": count_index(events_by_service),
-            "by_event": count_index(events_by_event),
-            "by_level": count_index(events_by_level),
-            "by_remote": count_index(events_by_remote),
-            "by_service_event": count_index(events_by_service_event),
-            "by_session_event": count_index(events_by_session_event),
-            "by_service_level": count_index(events_by_service_level),
-            "by_session_level": count_index(events_by_session_level),
-            "by_event_level": count_index(events_by_event_level),
-            "by_remote_event": count_index(events_by_remote_event),
-            "by_remote_level": count_index(events_by_remote_level),
-            "by_detail_status": count_index(events_by_detail_status),
-            "by_detail_operation": count_index(events_by_detail_operation),
-            "by_detail_http_status": count_index(events_by_detail_http_status),
-            "by_detail_request_name": count_index(events_by_detail_request_name),
-            "by_detail_filename": count_index(events_by_detail_filename),
-            "by_detail_reason": count_index(events_by_detail_reason),
-            "by_detail_sha256": count_index(events_by_detail_sha256),
-            "by_detail_command_id": count_index(events_by_detail_command_id),
-            "by_detail_command_sha256": count_index(events_by_detail_command_sha256),
-            "by_detail_job_id": count_index(events_by_detail_job_id),
-            "by_detail_action_id": count_index(events_by_detail_action_id),
-            "by_detail_key": count_index(events_by_detail_key),
-            "by_detail_config_path": count_index(events_by_detail_config_path),
-            "by_detail_target_id": count_index(events_by_detail_target_id),
-            "by_detail_target_label": count_index(events_by_detail_target_label),
-            "by_detail_expected_target_id": count_index(events_by_detail_expected_target_id),
-            "by_detail_target_identity_source": count_index(events_by_detail_target_identity_source),
-            "by_detail_target_identity_confidence": count_index(events_by_detail_target_identity_confidence),
-            "by_detail_poll_mode": count_index(events_by_detail_poll_mode),
-            "by_detail_poll_interval_sec": count_index(events_by_detail_poll_interval_sec),
-            "by_detail_poll_jitter_pct": count_index(events_by_detail_poll_jitter_pct),
-            "by_detail_poll_backoff": count_index(events_by_detail_poll_backoff),
-            "by_detail_poll_max_interval_sec": count_index(events_by_detail_poll_max_interval_sec),
-            "by_detail_max_polls": count_index(events_by_detail_max_polls),
-            "by_event_detail_status": count_index(events_by_event_detail_status),
-            "by_service_detail_status": count_index(events_by_service_detail_status),
-            "by_event_detail_operation": count_index(events_by_event_detail_operation),
-            "by_service_detail_operation": count_index(events_by_service_detail_operation),
-            "by_event_detail_http_status": count_index(events_by_event_detail_http_status),
-            "by_service_detail_http_status": count_index(events_by_service_detail_http_status),
-            "by_event_detail_request_name": count_index(events_by_event_detail_request_name),
-            "by_service_detail_request_name": count_index(events_by_service_detail_request_name),
-            "by_event_detail_filename": count_index(events_by_event_detail_filename),
-            "by_service_detail_filename": count_index(events_by_service_detail_filename),
-            "by_event_detail_reason": count_index(events_by_event_detail_reason),
-            "by_service_detail_reason": count_index(events_by_service_detail_reason),
-            "by_event_detail_sha256": count_index(events_by_event_detail_sha256),
-            "by_service_detail_sha256": count_index(events_by_service_detail_sha256),
-            "by_event_detail_command_id": count_index(events_by_event_detail_command_id),
-            "by_service_detail_command_id": count_index(events_by_service_detail_command_id),
-            "by_event_detail_command_sha256": count_index(events_by_event_detail_command_sha256),
-            "by_service_detail_command_sha256": count_index(events_by_service_detail_command_sha256),
-            "by_event_detail_job_id": count_index(events_by_event_detail_job_id),
-            "by_service_detail_job_id": count_index(events_by_service_detail_job_id),
-            "by_event_detail_action_id": count_index(events_by_event_detail_action_id),
-            "by_service_detail_action_id": count_index(events_by_service_detail_action_id),
-            "by_event_detail_key": count_index(events_by_event_detail_key),
-            "by_service_detail_key": count_index(events_by_service_detail_key),
-            "by_event_detail_config_path": count_index(events_by_event_detail_config_path),
-            "by_service_detail_config_path": count_index(events_by_service_detail_config_path),
-            "by_event_detail_target_id": count_index(events_by_event_detail_target_id),
-            "by_service_detail_target_id": count_index(events_by_service_detail_target_id),
-            "by_event_detail_target_label": count_index(events_by_event_detail_target_label),
-            "by_service_detail_target_label": count_index(events_by_service_detail_target_label),
-            "by_event_detail_expected_target_id": count_index(events_by_event_detail_expected_target_id),
-            "by_service_detail_expected_target_id": count_index(events_by_service_detail_expected_target_id),
-            "by_event_detail_target_identity_source": count_index(events_by_event_detail_target_identity_source),
-            "by_service_detail_target_identity_source": count_index(events_by_service_detail_target_identity_source),
-            "by_event_detail_target_identity_confidence": count_index(events_by_event_detail_target_identity_confidence),
-            "by_service_detail_target_identity_confidence": count_index(events_by_service_detail_target_identity_confidence),
-        }
+        event_summary_stats = event_summary_stats_for_records(event_stats, events)
     command_queue = command_queue_summary(cfg)
     target_mailbox_now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
     target_mailbox_records = target_mailbox_records_from_commands(

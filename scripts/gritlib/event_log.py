@@ -295,31 +295,7 @@ def event_tail_availability_text(doc):
 
 
 def event_record_indexes(records):
-    indexes = {name: {} for name in ("id", "session") + TOP_INDEXES + DETAIL_INDEXES + EVENT_DETAIL_INDEXES + SERVICE_DETAIL_INDEXES}
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        fields = _event_fields(rec)
-        if fields["id"]:
-            indexes["id"][fields["id"]] = rec
-        _append(indexes, "session", fields["session"], rec)
-        _append(indexes, "service", fields["service"], rec)
-        _append(indexes, "event", fields["event"], rec)
-        _append(indexes, "level", fields["level"], rec)
-        _append(indexes, "remote", fields["remote"], rec)
-        _append(indexes, "service_event", f"{fields['service']}:{fields['event']}" if fields["service"] and fields["event"] else "", rec)
-        _append(indexes, "session_event", f"{fields['session']}:{fields['event']}" if fields["session"] and fields["event"] else "", rec)
-        _append(indexes, "service_level", f"{fields['service']}:{fields['level']}" if fields["service"] and fields["level"] else "", rec)
-        _append(indexes, "session_level", f"{fields['session']}:{fields['level']}" if fields["session"] and fields["level"] else "", rec)
-        _append(indexes, "event_level", f"{fields['event']}:{fields['level']}" if fields["event"] and fields["level"] else "", rec)
-        _append(indexes, "remote_event", f"{fields['remote']}:{fields['event']}" if fields["remote"] and fields["event"] else "", rec)
-        _append(indexes, "remote_level", f"{fields['remote']}:{fields['level']}" if fields["remote"] and fields["level"] else "", rec)
-        for key in DETAIL_KEYS:
-            value = fields[f"detail_{key}"]
-            _append(indexes, f"detail_{key}", value, rec)
-            if key in DETAIL_KEYS[:18]:
-                _append(indexes, f"event_detail_{key}", f"{fields['event']}:{value}" if fields["event"] and value else "", rec)
-                _append(indexes, f"service_detail_{key}", f"{fields['service']}:{value}" if fields["service"] and value else "", rec)
+    indexes = event_record_index_maps(records)
     return (
         indexes["id"], indexes["session"], indexes["service"], indexes["event"], indexes["level"], indexes["remote"],
         indexes["service_event"], indexes["session_event"], indexes["service_level"], indexes["event_level"],
@@ -352,3 +328,62 @@ def event_record_indexes(records):
         indexes["event_detail_target_identity_source"], indexes["service_detail_target_identity_source"],
         indexes["event_detail_target_identity_confidence"], indexes["service_detail_target_identity_confidence"],
     )
+
+
+def event_record_index_maps(records):
+    indexes = {name: {} for name in ("id", "session") + TOP_INDEXES + DETAIL_INDEXES + EVENT_DETAIL_INDEXES + SERVICE_DETAIL_INDEXES}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        fields = _event_fields(rec)
+        if fields["id"]:
+            indexes["id"][fields["id"]] = rec
+        _append(indexes, "session", fields["session"], rec)
+        _append(indexes, "service", fields["service"], rec)
+        _append(indexes, "event", fields["event"], rec)
+        _append(indexes, "level", fields["level"], rec)
+        _append(indexes, "remote", fields["remote"], rec)
+        _append(indexes, "service_event", f"{fields['service']}:{fields['event']}" if fields["service"] and fields["event"] else "", rec)
+        _append(indexes, "session_event", f"{fields['session']}:{fields['event']}" if fields["session"] and fields["event"] else "", rec)
+        _append(indexes, "service_level", f"{fields['service']}:{fields['level']}" if fields["service"] and fields["level"] else "", rec)
+        _append(indexes, "session_level", f"{fields['session']}:{fields['level']}" if fields["session"] and fields["level"] else "", rec)
+        _append(indexes, "event_level", f"{fields['event']}:{fields['level']}" if fields["event"] and fields["level"] else "", rec)
+        _append(indexes, "remote_event", f"{fields['remote']}:{fields['event']}" if fields["remote"] and fields["event"] else "", rec)
+        _append(indexes, "remote_level", f"{fields['remote']}:{fields['level']}" if fields["remote"] and fields["level"] else "", rec)
+        for key in DETAIL_KEYS:
+            value = fields[f"detail_{key}"]
+            _append(indexes, f"detail_{key}", value, rec)
+            if key in DETAIL_KEYS[:18]:
+                _append(indexes, f"event_detail_{key}", f"{fields['event']}:{value}" if fields["event"] and value else "", rec)
+                _append(indexes, f"service_detail_{key}", f"{fields['service']}:{value}" if fields["service"] and value else "", rec)
+    return indexes
+
+
+def event_summary_stats_for_records(event_stats, records):
+    event_stats = event_stats if isinstance(event_stats, dict) else {}
+    records = [rec for rec in records or [] if isinstance(rec, dict)]
+    first_event_at = ""
+    latest_event_at = ""
+    for rec in records:
+        ts = str(rec.get("ts") or "")
+        if ts and (not first_event_at or ts < first_event_at):
+            first_event_at = ts
+        if ts > latest_event_at:
+            latest_event_at = ts
+    indexes = event_record_index_maps(records)
+
+    def count_index(name):
+        return {key: len(value) for key, value in (indexes.get(name) or {}).items()}
+
+    summary = {
+        "total_count": len(records),
+        "tail_count": len(records),
+        "tail_truncated": bool(event_stats.get("tail_truncated", False)),
+        "tail_omitted_count": event_stats.get("tail_omitted_count", 0),
+        "invalid_count": event_stats.get("invalid_count", 0),
+        "first_event_at": first_event_at,
+        "latest_event_at": latest_event_at,
+    }
+    for name in TOP_INDEXES + DETAIL_INDEXES + EVENT_DETAIL_INDEXES + SERVICE_DETAIL_INDEXES:
+        summary[f"by_{name}"] = count_index(name)
+    return summary
