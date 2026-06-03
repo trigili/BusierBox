@@ -670,6 +670,88 @@ def status_summary_and_warnings(services):
     return summary, warnings
 
 
+def service_workflow_action_records(cfg, services, targets=None):
+    from gritlib.config_utils import DEFAULT_CONFIG
+    from gritlib.workflow_actions import (
+        service_lifecycle_action_states,
+        service_workflow_action_record,
+        workflow_fleet_metrics,
+    )
+
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    status_command = "scripts/grit-console --config " + shquote(config_path) + " --status"
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    fleet_metrics = workflow_fleet_metrics(target_records)
+    records = []
+
+    def add(service, action_id, category, label, command, action_state, action_reason,
+            can_run_from_curses_enter=False, curses_enter_action="", requires_confirmation=False):
+        name = str(service.get("name") or "")
+        if not name:
+            return
+        rec = service_workflow_action_record(
+            service,
+            action_id,
+            category,
+            label,
+            command,
+            run_service_workflow_action_headless_command(cfg, f"{name}:{action_id}"),
+            run_service_workflow_action_headless_command(cfg, f"{name}:{action_id}", dry_run=True),
+            fleet_metrics,
+            action_state,
+            action_reason,
+            can_run_from_curses_enter=can_run_from_curses_enter,
+            curses_enter_action=curses_enter_action,
+            requires_confirmation=requires_confirmation,
+        )
+        if rec:
+            records.append(rec)
+
+    for service in services or []:
+        if not isinstance(service, dict):
+            continue
+        name = str(service.get("name") or "")
+        if not name:
+            continue
+        lifecycle_states = service_lifecycle_action_states(service)
+        add(
+            service,
+            "inspect-status",
+            "inspect",
+            f"Inspect {name} service status",
+            status_command,
+            "ready",
+            "run-now",
+            can_run_from_curses_enter=False,
+            curses_enter_action="show-details",
+        )
+        add(
+            service,
+            "start-service",
+            "service",
+            f"Start {name} service",
+            service_start_headless_command(cfg, name),
+            lifecycle_states["start_state"],
+            lifecycle_states["start_reason"],
+            can_run_from_curses_enter=lifecycle_states["start_enter"],
+            curses_enter_action="start-service" if lifecycle_states["start_enter"] else "stop-service",
+        )
+        add(
+            service,
+            "stop-service",
+            "service",
+            f"Stop {name} service",
+            service_stop_headless_command(cfg, name),
+            lifecycle_states["stop_state"],
+            lifecycle_states["stop_reason"],
+            can_run_from_curses_enter=lifecycle_states["stop_enter"],
+            curses_enter_action="stop-service" if lifecycle_states["stop_enter"] else "start-service",
+            requires_confirmation=True,
+        )
+    records.sort(key=lambda rec: (rec.get("service", ""), rec.get("category", ""), rec.get("action_id", "")))
+    return records
+
+
 def service_workflow_action_indexes(records):
     return {
         "service_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
