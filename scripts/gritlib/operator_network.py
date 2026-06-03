@@ -79,3 +79,25 @@ def local_ips():
         return _dedupe_local_ips(ips)
     _store_hostname_ips(result, slow=False)
     return _dedupe_local_ips(ips + result)
+
+
+def target_visible_host(host, cfg, fallback_host=None):
+    text = str(host or "").strip()
+    if text and text.lower() not in ("operator", "localhost", "0.0.0.0", "::"):
+        return text
+    fallback = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or fallback_host or cfg.get("listen_host") or "").strip()
+    if fallback and fallback not in ("0.0.0.0", "::"):
+        return fallback
+    candidates = local_ips()
+    return candidates[0] if candidates else "OPERATOR_IP"
+
+
+def operator_advertised_host(cfg, host=None, fallback="OPERATOR_IP"):
+    text = str(host or "").strip()
+    if text:
+        return text
+    configured = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
+    if configured:
+        return configured
+    candidates = local_ips()
+    return candidates[0] if candidates else fallback

@@ -89,7 +89,7 @@ from gritlib.file_transfers import (
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.operator_io import clipboard_command, open_path_in_pager, viewable_path
-from gritlib.operator_network import local_ips
+from gritlib.operator_network import local_ips, operator_advertised_host, target_visible_host
 from gritlib.probe_results import append_probe_result, probe_results_path
 from gritlib.runtime import Service, ServiceManager, Session
 from gritlib.process_status import (
@@ -594,28 +594,6 @@ def set_workbench_target_filter(cfg, selector, targets=None):
         "selected": True,
         "headless_command": headless,
     }
-
-
-def target_visible_host(host, cfg, fallback_host=None):
-    text = str(host or "").strip()
-    if text and text.lower() not in ("operator", "localhost", "0.0.0.0", "::"):
-        return text
-    fallback = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or fallback_host or cfg.get("listen_host") or "").strip()
-    if fallback and fallback not in ("0.0.0.0", "::"):
-        return fallback
-    candidates = local_ips()
-    return candidates[0] if candidates else "OPERATOR_IP"
-
-
-def operator_advertised_host(cfg, host=None, fallback="OPERATOR_IP"):
-    text = str(host or "").strip()
-    if text:
-        return text
-    configured = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
-    if configured:
-        return configured
-    candidates = local_ips()
-    return candidates[0] if candidates else fallback
 
 
 def selected_bridge_profile_record(cfg):
