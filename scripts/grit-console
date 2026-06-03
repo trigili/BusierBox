@@ -105,6 +105,7 @@ from gritlib.file_transfers import (
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.line_actions import (
+    line_action_records_from_snapshot,
     print_line_action_records, print_line_module_category_records,
 )
 from gritlib.line_command_queue import print_line_command_queue_records
@@ -7921,22 +7922,7 @@ def run_line_tui(cfg):
         print(f"daemon_workflow_returncode={rc}")
 
     def line_action_records():
-        snap = workbench_snapshot(cfg)
-        records = []
-        for kind, collection in (
-            ("service", snap.get("service_workflow_actions") or []),
-            ("daemon", snap.get("operator_daemon_workflow_actions") or []),
-            ("target", snap.get("target_workflow_actions") or []),
-            ("workbench", snap.get("workbench_actions") or []),
-        ):
-            for rec in collection:
-                if not isinstance(rec, dict):
-                    continue
-                item = dict(rec)
-                item["kind"] = kind
-                item["id"] = str(item.get("id") or item.get("action_id") or "")
-                records.append(item)
-        return records
+        return line_action_records_from_snapshot(workbench_snapshot(cfg))
 
     def line_completion_candidates(prefix=""):
         text = str(prefix or "")

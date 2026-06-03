@@ -17,6 +17,25 @@ def normalize_line_action_kind(kind):
     return aliases.get(text, text)
 
 
+def line_action_records_from_snapshot(snap):
+    snap = snap or {}
+    records = []
+    for kind, collection in (
+        ("service", snap.get("service_workflow_actions") or []),
+        ("daemon", snap.get("operator_daemon_workflow_actions") or []),
+        ("target", snap.get("target_workflow_actions") or []),
+        ("workbench", snap.get("workbench_actions") or []),
+    ):
+        for rec in collection:
+            if not isinstance(rec, dict):
+                continue
+            item = dict(rec)
+            item["kind"] = kind
+            item["id"] = str(item.get("id") or item.get("action_id") or "")
+            records.append(item)
+    return records
+
+
 def line_action_matches_term(rec, term):
     text = str(term or "").strip().lower()
     if not text:
