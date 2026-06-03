@@ -7,8 +7,8 @@ from gritlib.command_copy import command_copy_path
 from gritlib.command_queue import command_queue_path
 from gritlib.event_log import EventLog
 from gritlib.record_utils import (
-    int_value, record_count_by_key, records_by_bool, records_by_composite,
-    records_by_key,
+    format_counts, int_value, record_count_by_key, records_by_bool,
+    records_by_composite, records_by_key,
 )
 from gritlib.session_state import state_file_path
 from gritlib.staged_files import staged_file_path
@@ -29,6 +29,66 @@ def operator_state_indexes(records):
         "operator_state_records_by_path": {rec.get("path", ""): rec for rec in records or [] if rec.get("path")},
         "operator_state_records_by_kind_status": records_by_composite(records, ("kind", "status")),
     }
+
+
+def print_activity_summary(summary):
+    summary = summary or {}
+    print(
+        "Activity summary: "
+        f"staged={summary.get('staged_count', 0)} "
+        f"uploads={summary.get('upload_count', 0)} "
+        f"fetches={summary.get('fetch_count', 0)} "
+        f"targets={summary.get('target_count', 0)} "
+        f"sessions={summary.get('session_count', 0)} "
+        f"events={summary.get('event_count', 0)}"
+    )
+    print(
+        "  session durations: "
+        f"known={summary.get('session_duration_known_count', 0)} "
+        f"total_sec={summary.get('session_total_duration_sec', 0)} "
+        f"avg_sec={summary.get('session_average_duration_sec', 0)} "
+        f"max_sec={summary.get('session_max_duration_sec', 0)}"
+    )
+    print(
+        "  session logs: "
+        f"with_logs={summary.get('sessions_with_session_logs_count', 0)} "
+        f"exists={format_counts(summary.get('session_log_exists_counts') or {})} "
+        f"bytes={summary.get('session_total_log_size', 0)} "
+        f"lines={summary.get('session_total_log_line_count', 0)}"
+    )
+    print(
+        "  latest: "
+        f"staged={summary.get('latest_staged_at') or '-'} "
+        f"upload={summary.get('latest_upload_at') or '-'} "
+        f"fetch={summary.get('latest_fetch_at') or '-'} "
+        f"target={summary.get('latest_target_seen_at') or '-'} "
+        f"session={summary.get('latest_session_updated_at') or '-'}"
+    )
+    print(
+        "  targets: "
+        f"latest={summary.get('latest_target_id') or '-'} "
+        f"confidence={format_counts(summary.get('target_identity_confidence_counts') or {})} "
+        f"services={format_counts(summary.get('target_service_counts') or {})}"
+    )
+    print(
+        "  target attribution: "
+        f"with={summary.get('target_attribution_with_target_count', 0)} "
+        f"without={summary.get('target_attribution_without_target_count', 0)} "
+        f"uploads_without={summary.get('upload_without_target_count', 0)} "
+        f"fetches_without={summary.get('fetch_without_target_count', 0)} "
+        f"sessions_without={summary.get('session_without_target_count', 0)} "
+        f"legacy_single_target={'yes' if summary.get('target_legacy_single_target_activity_present') else 'no'}"
+    )
+    print(
+        "  service lifecycle: "
+        f"actual={format_counts(summary.get('service_actual_counts') or {})} "
+        f"configured={format_counts(summary.get('service_configured_counts') or {})} "
+        f"stale={format_counts(summary.get('service_stale_counts') or {})} "
+        f"errors={format_counts(summary.get('service_has_error_counts') or {})} "
+        f"session_logs={format_counts(summary.get('service_session_log_exists_counts') or {})} "
+        f"process_logs={format_counts(summary.get('service_process_log_exists_counts') or {})} "
+        f"stopped_reasons={format_counts(summary.get('service_stopped_reason_counts') or {})}"
+    )
 
 
 def operator_state_record(name, kind, path, exists, valid, record_count=0, error="", extra=None):
