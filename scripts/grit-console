@@ -134,7 +134,7 @@ from gritlib.release_artifacts import (
     stage_release_nav_item, stage_release_selection,
     release_artifact_workflow_action_records,
     release_artifact_workflow_action_indexes,
-    release_artifact_workflow_action_summary, release_state_status,
+    release_artifact_workflow_action_status_summary, release_state_status,
 )
 from gritlib.session_state import (
     SessionManager, atomic_write_json, count_file_lines, elapsed_seconds,
@@ -4282,7 +4282,6 @@ def status_document(cfg):
     release_state_index_maps = release_status["state_index_maps"]
     release_artifact_workflow_actions = release_artifact_workflow_action_records(cfg, release)
     release_artifact_workflow_action_index_maps = release_artifact_workflow_action_indexes(release_artifact_workflow_actions)
-    release_artifact_workflow_action_stats = release_artifact_workflow_action_summary(release_artifact_workflow_actions)
     rshell_session_policy_status_doc = rshell_session_policy_status(cfg)
     rshell_session_policy = rshell_session_policy_status_doc["policy"]
     rshell_session_policy_record_item = rshell_session_policy_status_doc["policy_record"]
@@ -4963,29 +4962,7 @@ def status_document(cfg):
         "release_recommendation_scope_counts": record_count_by_key(release.get("recommendation_records") or [], "scope"),
         "release_recommendation_payload_preset_counts": record_count_by_key(release.get("recommendation_records") or [], "payload_preset"),
         "release_recommendation_compatibility_counts": record_count_by_nested_key(release.get("recommendation_records") or [], "compatibility", "label"),
-        "release_artifact_workflow_action_count": release_artifact_workflow_action_stats.get("total_count", 0),
-        "release_artifact_workflow_action_available_count": release_artifact_workflow_action_stats.get("available_count", 0),
-        "release_artifact_workflow_action_requires_input_count": release_artifact_workflow_action_stats.get("requires_input_count", 0),
-        "release_artifact_workflow_action_requires_confirmation_count": release_artifact_workflow_action_stats.get("requires_confirmation_count", 0),
-        "release_artifact_workflow_action_writes_staged_files_count": release_artifact_workflow_action_stats.get("writes_staged_files_count", 0),
-        "release_artifact_workflow_action_can_run_from_curses_enter_count": release_artifact_workflow_action_stats.get("can_run_from_curses_enter_count", 0),
-        "release_artifact_workflow_action_action_counts": release_artifact_workflow_action_stats.get("action_counts") or {},
-        "release_artifact_workflow_action_category_counts": release_artifact_workflow_action_stats.get("category_counts") or {},
-        "release_artifact_workflow_action_workflow_counts": release_artifact_workflow_action_stats.get("workflow_counts") or {},
-        "release_artifact_workflow_action_selector_kind_counts": release_artifact_workflow_action_stats.get("selector_kind_counts") or {},
-        "release_artifact_workflow_action_release_present_counts": release_artifact_workflow_action_stats.get("release_present_counts") or {},
-        "release_artifact_workflow_action_release_valid_counts": release_artifact_workflow_action_stats.get("release_valid_counts") or {},
-        "release_artifact_workflow_action_payload_preset_counts": release_artifact_workflow_action_stats.get("payload_preset_counts") or {},
-        "release_artifact_workflow_action_compatibility_label_counts": release_artifact_workflow_action_stats.get("compatibility_label_counts") or {},
-        "release_artifact_workflow_action_recommendation_scope_counts": release_artifact_workflow_action_stats.get("recommendation_scope_counts") or {},
-        "release_artifact_workflow_action_writes_staged_files_counts": release_artifact_workflow_action_stats.get("writes_staged_files_counts") or {},
-        "release_artifact_workflow_action_available_counts": release_artifact_workflow_action_stats.get("available_counts") or {},
-        "release_artifact_workflow_action_requires_input_counts": release_artifact_workflow_action_stats.get("requires_input_counts") or {},
-        "release_artifact_workflow_action_requires_confirmation_counts": release_artifact_workflow_action_stats.get("requires_confirmation_counts") or {},
-        "release_artifact_workflow_action_operator_action_state_counts": release_artifact_workflow_action_stats.get("operator_action_state_counts") or {},
-        "release_artifact_workflow_action_operator_action_reason_counts": release_artifact_workflow_action_stats.get("operator_action_reason_counts") or {},
-        "release_artifact_workflow_action_can_run_from_curses_enter_counts": release_artifact_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
-        "release_artifact_workflow_action_curses_enter_action_counts": release_artifact_workflow_action_stats.get("curses_enter_action_counts") or {},
+        **release_artifact_workflow_action_status_summary(release_artifact_workflow_actions),
         "operator_console_workflow_count": operator_console_workflow_stats.get("total_count", 0),
         "operator_console_workflow_target_scoped_count": operator_console_workflow_stats.get("target_scoped_count", 0),
         "operator_console_workflow_multi_target_count": operator_console_workflow_stats.get("multi_target_count", 0),

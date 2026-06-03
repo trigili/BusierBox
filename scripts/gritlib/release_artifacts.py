@@ -1322,3 +1322,32 @@ def release_artifact_workflow_action_summary(records):
         "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
         "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
     }
+
+
+def release_artifact_workflow_action_status_summary(records):
+    summary = release_artifact_workflow_action_summary(records)
+    return {
+        "release_artifact_workflow_action_count": summary.get("total_count", 0),
+        "release_artifact_workflow_action_available_count": summary.get("available_count", 0),
+        "release_artifact_workflow_action_requires_input_count": summary.get("requires_input_count", 0),
+        "release_artifact_workflow_action_requires_confirmation_count": summary.get("requires_confirmation_count", 0),
+        "release_artifact_workflow_action_writes_staged_files_count": summary.get("writes_staged_files_count", 0),
+        "release_artifact_workflow_action_can_run_from_curses_enter_count": summary.get("can_run_from_curses_enter_count", 0),
+        "release_artifact_workflow_action_action_counts": summary.get("action_counts") or {},
+        "release_artifact_workflow_action_category_counts": summary.get("category_counts") or {},
+        "release_artifact_workflow_action_workflow_counts": summary.get("workflow_counts") or {},
+        "release_artifact_workflow_action_selector_kind_counts": summary.get("selector_kind_counts") or {},
+        "release_artifact_workflow_action_release_present_counts": summary.get("release_present_counts") or {},
+        "release_artifact_workflow_action_release_valid_counts": summary.get("release_valid_counts") or {},
+        "release_artifact_workflow_action_payload_preset_counts": summary.get("payload_preset_counts") or {},
+        "release_artifact_workflow_action_compatibility_label_counts": summary.get("compatibility_label_counts") or {},
+        "release_artifact_workflow_action_recommendation_scope_counts": summary.get("recommendation_scope_counts") or {},
+        "release_artifact_workflow_action_writes_staged_files_counts": summary.get("writes_staged_files_counts") or {},
+        "release_artifact_workflow_action_available_counts": summary.get("available_counts") or {},
+        "release_artifact_workflow_action_requires_input_counts": summary.get("requires_input_counts") or {},
+        "release_artifact_workflow_action_requires_confirmation_counts": summary.get("requires_confirmation_counts") or {},
+        "release_artifact_workflow_action_operator_action_state_counts": summary.get("operator_action_state_counts") or {},
+        "release_artifact_workflow_action_operator_action_reason_counts": summary.get("operator_action_reason_counts") or {},
+        "release_artifact_workflow_action_can_run_from_curses_enter_counts": summary.get("can_run_from_curses_enter_counts") or {},
+        "release_artifact_workflow_action_curses_enter_action_counts": summary.get("curses_enter_action_counts") or {},
+    }
