@@ -4,7 +4,7 @@ from gritlib.event_log import append_event
 from gritlib.target_records import configured_target_filter, set_workbench_target_filter
 
 
-def clear_line_module_context(cfg, quiet=False):
+def clear_line_module_context(cfg, quiet=True):
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
     if cfg.pop("_line_console_module", None):
