@@ -651,20 +651,24 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             os.close(numeric_master)
         except OSError:
             pass
-    numeric_options_start = numeric_stdout.find("grit[all]/service/probe> options")
-    numeric_options_end = numeric_stdout.find("grit[all]/service/probe> back", numeric_options_start + 1)
+    numeric_options_start = numeric_stdout.find("grit[all]/listener/probe> options")
+    numeric_options_end = numeric_stdout.find("grit[all]/listener/probe> back", numeric_options_start + 1)
+    if "grit[all]/service/probe>" in numeric_stdout:
+        print("line console listener selection still used service/probe prompt", file=sys.stderr)
+        print(numeric_stdout, file=sys.stderr)
+        return 1
     numeric_options_text = (
         numeric_stdout[numeric_options_start:numeric_options_end]
         if numeric_options_start != -1 and numeric_options_end != -1 else ""
     )
-    numeric_started_options_start = numeric_stdout.find("grit[all]/service/probe> options", numeric_options_end + 1)
-    numeric_started_options_end = numeric_stdout.find("grit[all]/service/probe> back", numeric_started_options_start + 1)
+    numeric_started_options_start = numeric_stdout.find("grit[all]/listener/probe> options", numeric_options_end + 1)
+    numeric_started_options_end = numeric_stdout.find("grit[all]/listener/probe> back", numeric_started_options_start + 1)
     numeric_started_options_text = (
         numeric_stdout[numeric_started_options_start:numeric_started_options_end]
         if numeric_started_options_start != -1 and numeric_started_options_end != -1 else ""
     )
-    numeric_stopped_options_start = numeric_stdout.find("grit[all]/service/probe> options", numeric_started_options_end + 1)
-    numeric_stopped_options_end = numeric_stdout.find("grit[all]/service/probe> back", numeric_stopped_options_start + 1)
+    numeric_stopped_options_start = numeric_stdout.find("grit[all]/listener/probe> options", numeric_started_options_end + 1)
+    numeric_stopped_options_end = numeric_stdout.find("grit[all]/listener/probe> back", numeric_stopped_options_start + 1)
     numeric_stopped_options_text = (
         numeric_stdout[numeric_stopped_options_start:numeric_stopped_options_end]
         if numeric_stopped_options_start != -1 and numeric_stopped_options_end != -1 else ""

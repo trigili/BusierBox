@@ -203,7 +203,7 @@ def select_line_service(cfg, selector, rows, start_command=None, stop_command=No
     service = resolve_line_service_selector(text, rows)
     if not service:
         raise ValueError(f"service not found: {text}")
-    cfg["_line_console_module"] = f"service/{service}"
+    cfg["_line_console_module"] = f"listener/{service}"
     start_command = start_command or (lambda _name: "")
     stop_command = stop_command or (lambda _name: "")
     cfg["_service_start_command"] = start_command(service)

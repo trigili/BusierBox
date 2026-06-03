@@ -6454,7 +6454,7 @@ def run_line_repl(cfg):
         target_id = configured_target_filter(cfg)
         all_fields = {r.get("key", ""): r for r in workbench_config_field_records(cfg)}
 
-        if module.startswith("service/"):
+        if module.startswith(("listener/", "service/")):
             service = module.split("/", 1)[1]
             rec = line_service_record(service_status_rows(cfg), service)
             status = f"{rec.get('actual','?')}"
@@ -6675,7 +6675,7 @@ def run_line_repl(cfg):
         service = str(service or "").strip()
         if not service:
             module = str(cfg.get("_line_console_module") or "")
-            if module.startswith("service/"):
+            if module.startswith(("listener/", "service/")):
                 service = module.split("/", 1)[1]
             elif module.startswith("route/"):
                 return start_line_route(module.split("/", 1)[1])
@@ -6706,7 +6706,7 @@ def run_line_repl(cfg):
         service = str(service or "").strip()
         if not service:
             module = str(cfg.get("_line_console_module") or "")
-            if module.startswith("service/"):
+            if module.startswith(("listener/", "service/")):
                 service = module.split("/", 1)[1]
             elif module.startswith("route/"):
                 return stop_line_route(module.split("/", 1)[1])
@@ -8865,15 +8865,14 @@ def run_line_repl(cfg):
                     key = f"_service_{subcmd}_command"
                     command = str(cfg.get(key) or "")
                     if not command:
-                        # derive on demand from current service context
                         module = str(cfg.get("_line_console_module") or "")
-                        if module.startswith("service/"):
+                        if module.startswith(("listener/", "service/")):
                             svc = module.split("/", 1)[1]
                             command = (service_start_headless_command(cfg, svc)
                                        if subcmd == "start"
                                        else service_stop_headless_command(cfg, svc))
                     if not command:
-                        print(f"no {subcmd} command available — select a service first")
+                        print(f"no {subcmd} command available - select a listener first")
                     else:
                         rec = copy_text_for_operator(cfg, command, label=f"{subcmd} command")
                         print(f"copied {subcmd} command  clipboard={'yes' if rec.get('clipboard') else 'no'}")
@@ -8884,6 +8883,7 @@ def run_line_repl(cfg):
                     except ValueError as exc:
                         print(exc)
                 continue
+
             elif cmd in {"categories", "category", "module-categories"}:
                 print_line_module_categories()
                 continue

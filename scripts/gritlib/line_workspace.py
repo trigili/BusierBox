@@ -8,9 +8,24 @@ from gritlib.target_records import (
 )
 
 
+def line_listener_module_name(module):
+    module = str(module or "").strip()
+    if module.startswith("listener/") or module.startswith("service/"):
+        return module.split("/", 1)[1]
+    return ""
+
+
+def line_display_module(module):
+    module = str(module or "").strip()
+    listener = line_listener_module_name(module)
+    if listener:
+        return f"listener/{listener}"
+    return module
+
+
 def line_repl_prompt(target_id="", module="", target_context=None):
     target_id = str(target_id or "").strip()
-    module = str(module or "").strip()
+    module = line_display_module(module)
     module_suffix = f"/{module}" if module else ""
     if not target_id:
         return f"grit[all]{module_suffix}> "
@@ -207,8 +222,8 @@ def print_line_info(
         if action.get("background_supported"):
             print("    background: run -j")
         print("    next: options, check, run, back")
-    elif module.startswith("service/"):
-        service = module.split("/", 1)[1]
+    elif line_listener_module_name(module):
+        service = line_listener_module_name(module)
         rec = service_record(service)
         actual = rec.get("actual") or "-" if rec else "-"
         port = rec.get("port") or "-" if rec else "-"
@@ -308,8 +323,8 @@ def print_line_next(
                 print("  background_job: run -j")
         else:
             print("  selected module is stale; commands: show modules, search TERM, back")
-    elif module.startswith("service/"):
-        service = module.split("/", 1)[1]
+    elif line_listener_module_name(module):
+        service = line_listener_module_name(module)
         print(f"  selected listener={service}")
         print("  options / start / stop / listeners -v / back")
     elif module.startswith("route/"):
