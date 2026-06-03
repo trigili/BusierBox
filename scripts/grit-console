@@ -142,7 +142,7 @@ from gritlib.shell_utils import shquote
 from gritlib.ssh_keys import ensure_host_key, keys_equal, load_public_key
 from gritlib.staged_files import (
     file_sha256, load_staged, reject_traversal_request_name,
-    stage_dir, stage_file, staged_file_workflow_action_indexes,
+    print_staged, stage_dir, stage_file, staged_file_workflow_action_indexes,
     staged_file_workflow_action_summary, staged_file_path,
     staged_files_state_record, staged_record_indexes, staged_record_list,
     staged_record_summary, unstage_file,
@@ -4269,35 +4269,6 @@ ROUTE_HELP_LINES = [
     "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
     "  Meaning: target reaches jump:9001, jump reaches operator:8080, bridge delivers to 192.168.1.1:80.",
 ]
-
-
-def print_staged(cfg):
-    staged = load_staged(cfg).get("staged", {})
-    target_filter_id = configured_target_filter(cfg)
-    if target_filter_id and isinstance(staged, dict):
-        staged = {
-            name: rec for name, rec in staged.items()
-            if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
-        }
-    if not staged:
-        print("No staged files.")
-        return
-    for name in sorted(staged):
-        rec = staged[name]
-        print(f"{name}\t{rec.get('stage_kind', 'file')}\t{rec.get('source_path', '')}\t{rec.get('size', '')}\t{rec.get('sha256', '')}")
-        if rec.get("release_path") or rec.get("tuple_path"):
-            compatibility = rec.get("compatibility") if isinstance(rec.get("compatibility"), dict) else {}
-            compat_label = compatibility.get("label", "")
-            compat_text = f" compatibility={compat_label}" if compat_label else ""
-            print(f"  release={rec.get('release_path', '')} tuple={rec.get('tuple_path', '')} preset={rec.get('payload_preset', '')}{compat_text}")
-        if rec.get("target_id"):
-            print(f"  target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
-        print_staged_fetch_target_options(
-            name,
-            cfg,
-            output_name=Path(str(rec.get("source_path") or name)).name,
-            executable=bool(str(rec.get("stage_kind") or "") in {"release-artifact", "operator-binary"}),
-        )
 
 
 def copy_generated_command(cfg, index):

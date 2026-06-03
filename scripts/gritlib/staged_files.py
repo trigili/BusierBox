@@ -7,6 +7,7 @@ from pathlib import Path
 
 from gritlib.bridge_routes import attach_target_route_fields, target_route_context
 from gritlib.event_log import append_event
+from gritlib.file_transfers import print_staged_fetch_target_options
 from gritlib.operator_network import operator_advertised_host
 from gritlib.record_utils import record_count_by_key, records_by_key
 from gritlib.session_state import atomic_write_json, read_json_file, utc_now
@@ -165,6 +166,35 @@ def unstage_file(cfg, request_name):
         details={"request_name": request, "existed": existed},
     )
     return existed
+
+
+def print_staged(cfg):
+    staged = load_staged(cfg).get("staged", {})
+    target_filter_id = configured_target_filter(cfg)
+    if target_filter_id and isinstance(staged, dict):
+        staged = {
+            name: rec for name, rec in staged.items()
+            if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
+        }
+    if not staged:
+        print("No staged files.")
+        return
+    for name in sorted(staged):
+        rec = staged[name]
+        print(f"{name}\t{rec.get('stage_kind', 'file')}\t{rec.get('source_path', '')}\t{rec.get('size', '')}\t{rec.get('sha256', '')}")
+        if rec.get("release_path") or rec.get("tuple_path"):
+            compatibility = rec.get("compatibility") if isinstance(rec.get("compatibility"), dict) else {}
+            compat_label = compatibility.get("label", "")
+            compat_text = f" compatibility={compat_label}" if compat_label else ""
+            print(f"  release={rec.get('release_path', '')} tuple={rec.get('tuple_path', '')} preset={rec.get('payload_preset', '')}{compat_text}")
+        if rec.get("target_id"):
+            print(f"  target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
+        print_staged_fetch_target_options(
+            name,
+            cfg,
+            output_name=Path(str(rec.get("source_path") or name)).name,
+            executable=bool(str(rec.get("stage_kind") or "") in {"release-artifact", "operator-binary"}),
+        )
 
 
 def staged_record_indexes(records):
