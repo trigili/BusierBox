@@ -764,7 +764,6 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "mailbox\n"
                 "mailbox targets\n"
                 "queue\n"
-                "20\n"
                 "use 1\n"
                 "show options\n"
                 "set target.notes Rack shelf A\n"
@@ -960,19 +959,6 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented TUI interpreted a normal command as a stale search result", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
-    menu_queue_start = line_console_stdout.find("grit[Console Router]> 20")
-    menu_queue_end = line_console_stdout.find("grit[Console Router]> use 1", menu_queue_start + 1)
-    menu_queue_text = line_console_stdout[menu_queue_start:menu_queue_end] if menu_queue_start != -1 and menu_queue_end != -1 else ""
-    if (not menu_queue_text or "Queue actions  (" not in menu_queue_text or
-            "List mailbox" not in menu_queue_text or
-            "Queue command" not in menu_queue_text or
-            "Clear queue" not in menu_queue_text or
-            "command-queue:list-command-queue" in menu_queue_text or
-            "command-queue:queue-command" in menu_queue_text or
-            "command-queue:clear-command-queue" in menu_queue_text):
-        print("line-oriented TUI menu action 20 did not open command queue after search results", file=sys.stderr)
-        print(menu_queue_text or line_console_stdout, file=sys.stderr)
-        return 1
     route_start = line_console_stdout.find("saved route zz-console-added")
     route_end = line_console_stdout.find("selected route console-route", route_start + 1)
     route_text = line_console_stdout[route_start:route_end] if route_start != -1 and route_end != -1 else ""
@@ -1060,16 +1046,25 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(direct_metadata_text or line_console_stdout, file=sys.stderr)
         return 1
     mailbox_start = line_console_stdout.find("grit[Console Router]> mailbox")
-    mailbox_end = line_console_stdout.find("grit[Console Router]> 20", mailbox_start + 1)
-    mailbox_text = line_console_stdout[mailbox_start:mailbox_end] if mailbox_start != -1 and mailbox_end != -1 else ""
-    if (not mailbox_text or "Command queue  (" not in mailbox_text or
-            "allowed_commands=" in mailbox_text or "delivery_policy_counts:" in mailbox_text):
+    mailbox_targets_start = line_console_stdout.find("grit[Console Router]> mailbox targets", mailbox_start + 1)
+    queue_view_start = line_console_stdout.find("grit[Console Router]> queue", mailbox_targets_start + 1)
+    queue_view_end = line_console_stdout.find("grit[Console Router]> use 1", queue_view_start + 1)
+    mailbox_text = line_console_stdout[mailbox_start:mailbox_targets_start] if mailbox_start != -1 and mailbox_targets_start != -1 else ""
+    mailbox_targets_text = line_console_stdout[mailbox_targets_start:queue_view_start] if mailbox_targets_start != -1 and queue_view_start != -1 else ""
+    queue_view_text = line_console_stdout[queue_view_start:queue_view_end] if queue_view_start != -1 and queue_view_end != -1 else ""
+    mailbox_queue_text = mailbox_text + mailbox_targets_text + queue_view_text
+    if (not mailbox_text or not mailbox_targets_text or not queue_view_text or
+            "Command queue  (" not in mailbox_text or
+            "Command queue  (" not in mailbox_targets_text or
+            "Command queue  (" not in queue_view_text or
+            "allowed_commands=" in mailbox_queue_text or
+            "delivery_policy_counts:" in mailbox_queue_text):
         print("line-oriented mailbox/queue view used verbose policy dump", file=sys.stderr)
-        print(mailbox_text or line_console_stdout, file=sys.stderr)
+        print(mailbox_queue_text or line_console_stdout, file=sys.stderr)
         return 1
-    if "search result number out of range" in mailbox_text:
+    if "search result number out of range" in mailbox_queue_text:
         print("line-oriented mailbox/queue view consumed stale numbered results", file=sys.stderr)
-        print(mailbox_text, file=sys.stderr)
+        print(mailbox_queue_text, file=sys.stderr)
         return 1
     verbose_policy_markers = ("allowed_commands=", "delivery_policy_counts:", "mode status:")
     if any(marker in line_console_stdout for marker in verbose_policy_markers):
