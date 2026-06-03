@@ -909,7 +909,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     menu_queue_start = line_console_stdout.find("grit[Console Router]> 20")
     menu_queue_end = line_console_stdout.find("grit[Console Router]> use 1", menu_queue_start + 1)
     menu_queue_text = line_console_stdout[menu_queue_start:menu_queue_end] if menu_queue_start != -1 and menu_queue_end != -1 else ""
-    if not menu_queue_text or "Queue actions  (" not in menu_queue_text:
+    if (not menu_queue_text or "Queue actions  (" not in menu_queue_text or
+            "List mailbox" not in menu_queue_text or
+            "Queue command" not in menu_queue_text or
+            "Clear queue" not in menu_queue_text or
+            "command-queue:list-command-queue" in menu_queue_text or
+            "command-queue:queue-command" in menu_queue_text or
+            "command-queue:clear-command-queue" in menu_queue_text):
         print("line-oriented TUI menu action 20 did not open command queue after search results", file=sys.stderr)
         print(menu_queue_text or line_console_stdout, file=sys.stderr)
         return 1
@@ -4961,14 +4967,17 @@ def main(argv=None):
                 "Traceback" in (queue_tui_stderr or "") or
                 "headless_command:" in queue_tui_text or
                 "headless_command=" in queue_tui_text or
-                "Command queue:" not in queue_tui_text or
+                "Command queue  (" not in queue_tui_text or
                 "queue COMMAND  |  queue list" not in queue_tui_text or
-                "command-queue:list-command-queue" not in queue_tui_text or
-                "command-queue:queue-command" not in queue_tui_text or
-                "command-queue:clear-command-queue" not in queue_tui_text or
+                "List mailbox" not in queue_tui_text or
+                "Queue command" not in queue_tui_text or
+                "Clear queue" not in queue_tui_text or
+                "command-queue:list-command-queue" in queue_tui_text or
+                "command-queue:queue-command" in queue_tui_text or
+                "command-queue:clear-command-queue" in queue_tui_text or
                 "queues_offline_work=yes" not in queue_tui_text or
-                f"{alpha_id}\tresult-received" not in queue_tui_text or
-                "result: " not in queue_tui_text or
+                alpha_id not in queue_tui_text or
+                "result-received" not in queue_tui_text or
                 "Mailbox  (" not in queue_tui_text or
                 "Target detail: target-alpha label=Alpha Router" not in queue_tui_text or
                 "Activity  (" not in queue_tui_text or

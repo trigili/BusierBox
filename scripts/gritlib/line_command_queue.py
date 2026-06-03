@@ -21,6 +21,22 @@ def line_command_queue_result_text(rec):
     return status or "-"
 
 
+def line_command_queue_action_text(rec):
+    action_id = str((rec or {}).get("action_id") or "")
+    labels = {
+        "inspect-command-queue": "Inspect queue",
+        "list-command-queue": "List mailbox",
+        "queue-command": "Queue command",
+        "clear-command-queue": "Clear queue",
+        "start-command-queue-listener": "Start listener",
+        "stop-command-queue-listener": "Stop listener",
+    }
+    if action_id in labels:
+        return labels[action_id]
+    label = str((rec or {}).get("label") or "").strip()
+    return label or str((rec or {}).get("id") or "-")
+
+
 def print_line_command_queue_records(queue_summary, mailbox_records, command_queue_actions, include_queue_summary=True, detailed=False):
     queue_summary = queue_summary or {}
     mailbox_records = list(mailbox_records or [])
@@ -103,7 +119,7 @@ def print_line_command_queue_records(queue_summary, mailbox_records, command_que
 
     if command_queue_actions:
         action_cols = [
-            ("Action", "id"),
+            ("Action", line_command_queue_action_text),
             ("State", lambda r: r.get("operator_action_state") or "-"),
             ("Pending", lambda r: str(r.get("target_mailbox_pending_work_count", 0))),
             ("Offline", lambda r: str(r.get("fleet_offline_target_count", 0))),
