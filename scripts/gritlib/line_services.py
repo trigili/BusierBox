@@ -1,5 +1,7 @@
 """Line-console service display and selector helpers."""
 
+from gritlib.event_log import append_event
+
 
 LINE_SERVICE_CATEGORIES = [
     ("Probe & discovery", ["probe", "probe-tftp", "probe-ftp", "probe-dns", "bridge"]),
@@ -194,3 +196,48 @@ def print_line_service_records(rows, verbose=False, start_command=None, stop_com
         }
         for rec in rows
     ]
+
+
+def select_line_service(cfg, selector, rows, start_command=None, stop_command=None):
+    text = str(selector or "").strip()
+    service = resolve_line_service_selector(text, rows)
+    if not service:
+        raise ValueError(f"service not found: {text}")
+    cfg["_line_console_module"] = f"service/{service}"
+    start_command = start_command or (lambda _name: "")
+    stop_command = stop_command or (lambda _name: "")
+    cfg["_service_start_command"] = start_command(service)
+    cfg["_service_stop_command"] = stop_command(service)
+    rec = line_service_record(rows, service)
+    if rec:
+        actual = rec.get("actual") or "?"
+        port = rec.get("port") or "-"
+        tls = "TLS: yes" if rec.get("tls") else "TLS: no"
+        pid = rec.get("pid")
+        pid_str = f"  |  pid {pid}" if pid else ""
+        print(f"  {line_service_display_name(service)}  —  {actual}  |  :{port}  |  {tls}{pid_str}")
+        if line_service_display_name(service) != service:
+            print(f"  transport: {service}")
+    else:
+        print(f"  {line_service_display_name(service)}  —  (no status)")
+    print("  options / info / start / stop / copy start / back")
+    return service
+
+
+def print_line_services(
+    cfg, rows, verbose=False, start_command=None, stop_command=None, quote=None
+):
+    rows = ordered_line_service_records(rows)
+    search_records = print_line_service_records(
+        rows,
+        verbose=verbose,
+        start_command=start_command,
+        stop_command=stop_command,
+        quote=quote,
+    )
+    cfg["_line_console_search_results"] = search_records
+    append_event(cfg, "workbench", "workbench_listeners_listed", details={
+        "listener_count": len(rows),
+        "verbose": bool(verbose),
+    })
+    return rows
