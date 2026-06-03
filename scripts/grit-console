@@ -98,9 +98,10 @@ from gritlib.service_status import (
     service_workflow_action_summary,
 )
 from gritlib.staged_files import (
+    load_staged,
     staged_file_workflow_action_indexes, staged_file_workflow_action_summary,
     staged_file_path, staged_files_state_record, staged_record_indexes,
-    staged_record_summary,
+    staged_record_list, staged_record_summary,
 )
 from gritlib.status_indexes import (
     add_browser_path, browser_path_indexes, browser_path_summary,
@@ -369,15 +370,6 @@ def apply_operator_session_path_defaults(cfg, explicit_keys):
     return cfg
 
 
-def load_staged(cfg):
-    data = read_json_file(staged_file_path(cfg), {"schema": 1, "staged": {}})
-    if not isinstance(data, dict):
-        data = {"schema": 1, "staged": {}}
-    if not isinstance(data.get("staged"), dict):
-        data["staged"] = {}
-    data.setdefault("schema", 1)
-    return data
-
 def enriched_staged_records(cfg, staged=None):
     staged = staged if staged is not None else load_staged(cfg).get("staged", {})
     host = operator_advertised_host(cfg)
@@ -401,20 +393,6 @@ def enriched_staged_records(cfg, staged=None):
         item["source_path"] = str(source_path)
         out[name] = item
     return out
-
-
-def staged_record_list(staged):
-    records = []
-    for name, rec in sorted((staged or {}).items()):
-        if not isinstance(rec, dict):
-            continue
-        item = dict(rec)
-        item["name"] = name
-        item["request_name"] = item.get("request_name") or name
-        item["stage_kind"] = str(item.get("stage_kind") or "file")
-        records.append(item)
-    return records
-
 
 
 def target_identity_from_headers(headers):

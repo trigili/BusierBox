@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from gritlib.record_utils import record_count_by_key, records_by_key
+from gritlib.session_state import read_json_file
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
@@ -49,6 +50,29 @@ def staged_files_state_record(cfg):
     except (OSError, json.JSONDecodeError) as exc:
         rec["error"] = str(exc)
     return rec
+
+
+def load_staged(cfg):
+    data = read_json_file(staged_file_path(cfg), {"schema": 1, "staged": {}})
+    if not isinstance(data, dict):
+        data = {"schema": 1, "staged": {}}
+    if not isinstance(data.get("staged"), dict):
+        data["staged"] = {}
+    data.setdefault("schema", 1)
+    return data
+
+
+def staged_record_list(staged):
+    records = []
+    for name, rec in sorted((staged or {}).items()):
+        if not isinstance(rec, dict):
+            continue
+        item = dict(rec)
+        item["name"] = name
+        item["request_name"] = item.get("request_name") or name
+        item["stage_kind"] = str(item.get("stage_kind") or "file")
+        records.append(item)
+    return records
 
 
 def staged_record_indexes(records):
