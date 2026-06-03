@@ -2667,10 +2667,9 @@ def main(argv=None):
         view_tui_text = view_tui_output.decode("utf-8", errors="replace")
         if (view_tui_proc.returncode != 0 or
                 "Traceback" in (view_tui_stderr or "") or
-                "headless_command: scripts/grit-console --config" not in view_tui_text or
-                "--view-path " not in view_tui_text or
+                "headless_command:" in view_tui_text or
                 f"no viewable local file: {missing_view_path}" not in view_tui_text):
-            print("line TUI path view did not expose headless view-path command", file=sys.stderr)
+            print("line TUI path view exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(view_tui_text, file=sys.stderr)
             print(view_tui_stderr or "", file=sys.stderr)
             return 1

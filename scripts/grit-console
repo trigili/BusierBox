@@ -13793,7 +13793,6 @@ def run_line_tui(cfg):
             path = path_line.strip() if path_line is not None else ""
             if path:
                 headless = view_path_headless_command(cfg, path)
-                print(f"headless_command: {headless}")
                 result = open_path_in_pager(path)
                 print(result)
                 append_event(cfg, "workbench", "workbench_path_viewed", details={
