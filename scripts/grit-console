@@ -128,6 +128,7 @@ from gritlib.line_services import (
     resolve_line_service_selector as line_services_resolve_selector,
 )
 from gritlib.line_sessions import (
+    print_line_session_interaction,
     line_session_record_by_selector, print_line_session_records,
     print_selected_line_session,
 )
@@ -9297,16 +9298,7 @@ def run_line_tui(cfg):
             raise ValueError(f"session not found: {text}")
         path = str(selected.get("path") or "")
         headless = view_path_headless_command(cfg, path)
-        print(f"Session interaction: {selected.get('session_id') or Path(path).name}")
-        print(f"  service={selected.get('service', '') or '-'} state={selected.get('state', '') or '-'} path={path}")
-        print(f"  view: {headless}")
-        print(f"  next: view {path}, sessions -l, sessions -v")
-        if selected.get("session_log"):
-            print(f"  session_log={selected.get('session_log', '')}")
-            print(f"  tail: tail -n 40 {shquote(str(selected.get('session_log', '')))}")
-        if selected.get("event_log"):
-            print(f"  event_log={selected.get('event_log', '')}")
-            print(f"  events: tail -n 40 {shquote(str(selected.get('event_log', '')))}")
+        print_line_session_interaction(selected, headless)
         append_event(cfg, "workbench", "workbench_session_interaction_viewed", details={
             "session_id": selected.get("session_id") or Path(path).name,
             "session_path": path,

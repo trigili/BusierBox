@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from gritlib.console_display import console_table
+from gritlib.shell_utils import shquote
 
 
 def line_session_state_text(rec):
@@ -55,6 +56,20 @@ def print_selected_line_session(rec):
         state_str = "?"
     print(f"  {session_id}  —  {service}  |  {state_str}")
     print("  info / interact / view / sessions -v / back")
+
+
+def print_line_session_interaction(rec, headless):
+    path = str(rec.get("path") or "")
+    print(f"Session interaction: {rec.get('session_id') or Path(path).name}")
+    print(f"  service={rec.get('service', '') or '-'} state={rec.get('state', '') or '-'} path={path}")
+    print(f"  view: {headless}")
+    print(f"  next: view {path}, sessions -l, sessions -v")
+    if rec.get("session_log"):
+        print(f"  session_log={rec.get('session_log', '')}")
+        print(f"  tail: tail -n 40 {shquote(str(rec.get('session_log', '')))}")
+    if rec.get("event_log"):
+        print(f"  event_log={rec.get('event_log', '')}")
+        print(f"  events: tail -n 40 {shquote(str(rec.get('event_log', '')))}")
 
 
 def print_line_session_records(sessions, verbose=False, view_command=None, quote=None):
