@@ -6538,11 +6538,8 @@ def run_line_repl(cfg):
                 print(f"  route.target_id={rec.get('target_id', '') or '-'}")
                 print(f"  route.last_success={rec.get('last_successful_relay_at', '') or '-'}")
                 print(f"  route.last_failure={rec.get('last_failure_reason', '') or '-'}")
-            print(f"  route.inspect_command={bridge_profile_headless_command('inspect', route_name)}")
-            print(f"  route.start_command={bridge_profile_headless_command('start', route_name)}")
-            print(f"  route.stop_command={bridge_profile_headless_command('stop', route_name)}")
-            print(f"  route.delete_command={bridge_profile_headless_command('delete', route_name)}")
-            print("  options / start / stop / route delete NAME / back")
+            print(f"  route.commands=route {route_name}, route start {route_name}, route stop {route_name}, route delete {route_name}")
+            print("  route.next=options, start, stop, routes -v, back")
         elif module.startswith("session/"):
             session_id = module.split("/", 1)[1]
             rec = line_session_record(session_id)
@@ -6582,7 +6579,6 @@ def run_line_repl(cfg):
             print("  job.next=info, jobs, jobs -i ID, back")
         action = selected_line_action()
         if action:
-            command = action.get("headless_command", action.get("run_command", action.get("command", "")))
             print(f"  action.kind={action.get('kind', '')}")
             print(f"  action.id={action.get('id', '')}")
             print(f"  action.label={action.get('label', '') or '-'}")
@@ -6592,12 +6588,10 @@ def run_line_repl(cfg):
             print(f"  action.reason={action.get('operator_action_reason', '') or '-'}")
             print(f"  action.requires_confirmation={'yes' if action.get('requires_confirmation') else 'no'}")
             print(f"  action.background_supported={'yes' if action.get('background_supported') else 'no'}")
-            print(f"  action.command={command}")
-            if action.get("dry_run_command"):
-                print(f"  action.dry_run_command={action.get('dry_run_command', '')}")
-            if action.get("start_job_command"):
-                print(f"  action.start_job_command={action.get('start_job_command', '')}")
-            print("  action.next=info, check, run, run --dry-run, run --confirm, back")
+            print("  action.commands=check, run, run --dry-run, run --confirm")
+            if action.get("background_supported"):
+                print("  action.background=run -j")
+            print("  action.next=info, check, run, back")
         else:
             print("  action.id=none")
         fields = workbench_config_field_records(cfg)

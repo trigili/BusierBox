@@ -1033,6 +1033,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented console interpreted a normal command as a stale search result", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
+    for noisy in ("route.inspect_command=scripts/grit-console", "route.start_command=scripts/grit-console",
+                  "route.stop_command=scripts/grit-console", "action.command=scripts/grit-console",
+                  "action.dry_run_command=scripts/grit-console", "action.start_job_command=scripts/grit-console"):
+        if noisy in line_console_stdout:
+            print(f"line-oriented console context exposed noisy equivalent CLI command: {noisy}", file=sys.stderr)
+            print(line_console_stdout, file=sys.stderr)
+            return 1
     route_start = line_console_stdout.find("saved route zz-console-added")
     route_end = line_console_stdout.find("selected route console-route", route_start + 1)
     route_text = line_console_stdout[route_start:route_end] if route_start != -1 and route_end != -1 else ""

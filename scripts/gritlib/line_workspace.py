@@ -195,9 +195,6 @@ def print_line_info(
     print(f"  module={module}")
     action = selected_action()
     if action:
-        command = action.get("headless_command", action.get("run_command", action.get("command", "")))
-        dry_run = action.get("dry_run_command", "")
-        start_job = action.get("start_job_command", "")
         print(
             f"  action={action.get('kind', '')}:{action.get('id', '')} "
             f"state={action.get('operator_action_state', '') or '-'} "
@@ -206,12 +203,10 @@ def print_line_info(
         print(f"    label={action.get('label', '') or '-'}")
         print(f"    category={action.get('category', '') or '-'} workflow={action.get('workflow', '') or '-'}")
         print(f"    confirm={'yes' if action.get('requires_confirmation') else 'no'} background={'yes' if action.get('background_supported') else 'no'}")
-        print(f"    command={command}")
-        if dry_run:
-            print(f"    dry_run={dry_run}")
-        if start_job:
-            print(f"    start_job={start_job}")
-        print("    next: options, check, run, run --dry-run, run --confirm, back")
+        print("    commands: check, run, run --dry-run, run --confirm")
+        if action.get("background_supported"):
+            print("    background: run -j")
+        print("    next: options, check, run, back")
     elif module.startswith("service/"):
         service = module.split("/", 1)[1]
         rec = service_record(service)
@@ -241,10 +236,8 @@ def print_line_info(
                 f"multi_hop={'yes' if rec.get('multi_hop') else 'no'} "
                 f"target={rec.get('target_id', '') or '-'}"
             )
-        print(f"    inspect={bridge_command_builder('inspect', route_name)}")
-        print(f"    start={bridge_command_builder('start', route_name)}")
-        print(f"    stop={bridge_command_builder('stop', route_name)}")
-        print("    options / start / stop / back")
+        print(f"    commands: route {route_name}, route start {route_name}, route stop {route_name}")
+        print("    next: options, start, stop, routes -v, back")
     elif module.startswith("session/"):
         session_id = module.split("/", 1)[1]
         rec = session_record(session_id)
