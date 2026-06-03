@@ -12953,6 +12953,7 @@ def run_line_tui(cfg):
             break
         choice = line.strip()
         if not choice:
+            compact_next_prompt = True
             continue
         try:
             if choice == "!!" or (choice.startswith("!") and choice[1:].isdigit()):

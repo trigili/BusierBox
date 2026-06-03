@@ -521,6 +521,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         os.write(
             line_console_master,
             (
+                "\n"
                 "help\n"
                 "help search\n"
                 "help resource\n"
@@ -851,6 +852,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(f"missing line console markers: {line_console_missing_required}", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         print(line_console_stderr or "", file=sys.stderr)
+        return 1
+    first_prompt = line_console_stdout.find("grit[all]>")
+    help_prompt = line_console_stdout.find("grit[all]> help", first_prompt + 1)
+    blank_enter_text = line_console_stdout[first_prompt:help_prompt] if first_prompt != -1 and help_prompt != -1 else ""
+    if not blank_enter_text or blank_enter_text.count("griTTYkit v") != 0 or blank_enter_text.count("grit[all]>") < 1:
+        print("line-oriented blank enter redrew the dashboard instead of only printing a prompt", file=sys.stderr)
+        print(blank_enter_text or line_console_stdout, file=sys.stderr)
         return 1
     if "service or route not found: 1" in line_console_stdout:
         print("line-oriented TUI did not accept numbered start/stop listener rows", file=sys.stderr)
