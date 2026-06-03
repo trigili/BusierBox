@@ -154,6 +154,7 @@ from gritlib.line_sessions import (
     line_session_record_by_selector, print_line_session_records,
     print_selected_line_session,
 )
+from gritlib.line_targets import print_line_target_records
 from gritlib.line_target_commands import (
     copy_line_generated_command, run_line_generated_command,
 )
@@ -7018,43 +7019,7 @@ def run_line_tui(cfg):
         snap = workbench_snapshot(unfiltered_cfg)
         targets = snap.get("targets") or []
         current = configured_target_filter(cfg)
-
-        def _fmt_seen(rec):
-            iso = rec.get("last_seen") or rec.get("last_seen_at") or ""
-            if iso and len(iso) >= 16 and "T" in iso:
-                date, rest = iso.split("T", 1)
-                return f"{date[5:]} {rest[:5]}"
-            return iso or "-"
-
-        def _label(rec):
-            sel = "*" if str(rec.get("target_id") or "") == current else " "
-            return sel + (rec.get("label") or rec.get("target_id") or "-")
-
-        cols = [
-            ("Target",  _label),
-            ("State",   lambda r: r.get("connectivity_state") or "-"),
-            ("Pending", lambda r: str(r.get("mailbox_pending_work_count") or 0)),
-            ("Overdue", lambda r: "yes" if r.get("poll_overdue") else "no"),
-            ("Seen",    _fmt_seen),
-        ]
-        _console_table(
-            f"Targets  ({len(targets)} total)" if targets else "Targets  (none)",
-            targets, cols,
-            footer="use N or agent ID to select  |  * = currently selected  |  targets ? for help",
-        )
-        search_records = [
-            {
-                "kind": "target",
-                "label": (
-                    f"{rec.get('target_id','')} label={rec.get('label','') or '-'} "
-                    f"state={rec.get('connectivity_state','') or '-'}"
-                ),
-                "rec": rec,
-                "command": "",
-                "use_hint": f"use target {shquote(str(rec.get('target_id', '')))}",
-            }
-            for rec in targets
-        ]
+        search_records = print_line_target_records(targets, current_target_id=current, quote=shquote)
         cfg["_line_console_search_results"] = search_records
         return targets
 
