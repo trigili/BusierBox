@@ -28,7 +28,7 @@ SECTION_DESCRIPTIONS = {
     "integration-bridge-probe": "integration checkpoint through bridge profiles and probe workflows",
     "integration-command-queue": "integration checkpoint through command queue workflows",
     "integration-daemon-status": "integration checkpoint through daemon, service, status, and event workflows",
-    "line-console": "isolated line-oriented TUI command workflow smoke",
+    "line-console": "isolated line-oriented console command workflow smoke",
 }
 SECTIONS = tuple(SECTION_DESCRIPTIONS)
 
@@ -933,7 +933,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         if marker not in line_console_stdout
     ]
     if ("Traceback" in (line_console_stderr or "") or line_console_missing_required):
-        print("line-oriented TUI console commands did not expose expected UX", file=sys.stderr)
+        print("line-oriented console commands did not expose expected UX", file=sys.stderr)
         print(f"missing line console markers: {line_console_missing_required}", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         print(line_console_stderr or "", file=sys.stderr)
@@ -952,11 +952,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(blank_enter_text or line_console_stdout, file=sys.stderr)
         return 1
     if "service or route not found: 1" in line_console_stdout:
-        print("line-oriented TUI did not accept numbered start/stop listener rows", file=sys.stderr)
+        print("line-oriented console did not accept numbered start/stop listener rows", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
     if "search result number out of range" in line_console_stdout:
-        print("line-oriented TUI interpreted a normal command as a stale search result", file=sys.stderr)
+        print("line-oriented console interpreted a normal command as a stale search result", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
     route_start = line_console_stdout.find("saved route zz-console-added")
@@ -1166,7 +1166,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "daemon -v for commands" not in daemon_plain_text or
             "\n     run: scripts/grit-console" not in daemon_verbose_text or
             "\n     dry-run: scripts/grit-console" not in daemon_verbose_text):
-        print("line-oriented TUI daemon output did not stay concise by default", file=sys.stderr)
+        print("line-oriented console daemon output did not stay concise by default", file=sys.stderr)
         print("plain daemon section:", file=sys.stderr)
         print(daemon_plain_text, file=sys.stderr)
         print("verbose daemon section:", file=sys.stderr)
@@ -1176,7 +1176,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     if (not line_console_makerc.is_file() or
             f"resource {line_console_resource}" not in line_console_makerc_text or
             "makerc " in line_console_makerc_text):
-        print("line-oriented TUI makerc did not save a replayable resource script", file=sys.stderr)
+        print("line-oriented console makerc did not save a replayable resource script", file=sys.stderr)
         print(line_console_makerc_text or "missing", file=sys.stderr)
         return 1
     line_console_status = subprocess.run(
@@ -1285,7 +1285,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "GRIT_OPERATOR_SERVER_HOST" in ((event.get("details") or {}).get("keys") or []) and
                 "GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC" in ((event.get("details") or {}).get("keys") or [])
                 for event in line_console_events)):
-        print("line-oriented TUI console commands did not record expected events", file=sys.stderr)
+        print("line-oriented console commands did not record expected events", file=sys.stderr)
         print(json.dumps(line_console_status_doc, indent=2, sort_keys=True), file=sys.stderr)
         return 1
 
@@ -1297,7 +1297,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "configured-artifacts" not in str(configured_path) or
             configured_from != str(line_console_binary) or
             not configured_path.is_file()):
-        print("line-oriented TUI did not keep a configured staged binary copy", file=sys.stderr)
+        print("line-oriented console did not keep a configured staged binary copy", file=sys.stderr)
         print(json.dumps(configured_binary, indent=2, sort_keys=True), file=sys.stderr)
         return 1
     configured_show = run("scripts/lib/artifact-config", "show", str(configured_path))
@@ -1785,7 +1785,7 @@ def main(argv=None):
                 "headless_command:" in bridge_tui_text or
                 "saved bridge profile tui-http" not in bridge_tui_text or
                 "deleted bridge profile tui-http" not in bridge_tui_text):
-            print("line TUI bridge profile management exposed noisy headless command or missed expected summary", file=sys.stderr)
+            print("line console bridge profile management exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(bridge_tui_text, file=sys.stderr)
             print(bridge_tui_stderr or "", file=sys.stderr)
             return 1
@@ -2513,7 +2513,7 @@ def main(argv=None):
                 "details: events service=probe -n 3" not in survey_line_text or
                 "headless_command" in survey_line_text or
                 "bridge_profile=survey-route" not in survey_line_text):
-            print("line TUI probe action did not show bridged command", file=sys.stderr)
+            print("line console probe action did not show bridged command", file=sys.stderr)
             print(survey_line_text, file=sys.stderr)
             print(survey_line_stderr or "", file=sys.stderr)
             return 1
@@ -2555,7 +2555,7 @@ def main(argv=None):
                     for event in (survey_tui_status.get("events_by_event") or {}).get("workbench_probe_started", [])
                 ) or
                 not (survey_tui_status.get("events_by_event") or {}).get("service_stop")):
-            print("line TUI probe listener was not workbench-owned/stopped", file=sys.stderr)
+            print("line console probe listener was not workbench-owned/stopped", file=sys.stderr)
             print(json.dumps(survey_tui_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
@@ -2655,7 +2655,7 @@ def main(argv=None):
                 "Traceback" in (copy_tui_stderr or "") or
                 "copied command to " not in copy_tui_text or
                 "headless_command:" in copy_tui_text):
-            print("line TUI generated-command copy exposed noisy headless command or missed expected summary", file=sys.stderr)
+            print("line console generated-command copy exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(copy_tui_text, file=sys.stderr)
             print(copy_tui_stderr or "", file=sys.stderr)
             return 1
@@ -2710,7 +2710,7 @@ def main(argv=None):
                 "workbench action: systemd-user-status" not in actions_tui_text or
                 "systemctl --user status grit-operator.service" not in actions_tui_text or
                 "workbench_action_returncode=0" not in actions_tui_text):
-            print("line TUI workflow-action view/run exposed noisy headless commands or missed expected summaries", file=sys.stderr)
+            print("line console workflow-action view/run exposed noisy headless commands or missed expected summaries", file=sys.stderr)
             print(actions_tui_text, file=sys.stderr)
             print(actions_tui_stderr or "", file=sys.stderr)
             return 1
@@ -2725,7 +2725,7 @@ def main(argv=None):
                 (event.get("details") or {}).get("action_count", 0) > 0 and
                 (event.get("details") or {}).get("service_workflow_action_count", 0) > 0
                 for event in actions_tui_events):
-            print("line TUI workflow-action view did not record headless command event", file=sys.stderr)
+            print("line console workflow-action view did not record headless command event", file=sys.stderr)
             print(json.dumps(actions_tui_events[-8:], indent=2, sort_keys=True), file=sys.stderr)
             return 1
         if not any(
@@ -2734,7 +2734,7 @@ def main(argv=None):
                 (event.get("details") or {}).get("dry_run") is True and
                 "--run-workbench-action systemd-user-status --workbench-action-dry-run" in ((event.get("details") or {}).get("headless_command") or "")
                 for event in actions_tui_events):
-            print("line TUI workflow-action run did not record dry-run event", file=sys.stderr)
+            print("line console workflow-action run did not record dry-run event", file=sys.stderr)
             print(json.dumps(actions_tui_events[-12:], indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
@@ -2812,7 +2812,7 @@ def main(argv=None):
                 "Traceback" in (refresh_tui_stderr or "") or
                 "refreshed workbench at " not in refresh_tui_text or
                 "headless_command:" in refresh_tui_text):
-            print("line TUI refresh exposed noisy headless command or missed expected summary", file=sys.stderr)
+            print("line console refresh exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(refresh_tui_text, file=sys.stderr)
             print(refresh_tui_stderr or "", file=sys.stderr)
             return 1
@@ -2825,7 +2825,7 @@ def main(argv=None):
                 event.get("event") == "workbench_refreshed" and
                 "--status" in ((event.get("details") or {}).get("headless_command") or "")
                 for event in refresh_tui_events):
-            print("line TUI refresh did not record headless command event", file=sys.stderr)
+            print("line console refresh did not record headless command event", file=sys.stderr)
             print(json.dumps(refresh_tui_events[-8:], indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
@@ -2880,7 +2880,7 @@ def main(argv=None):
                 "Traceback" in (view_tui_stderr or "") or
                 "headless_command:" in view_tui_text or
                 f"no viewable local file: {missing_view_path}" not in view_tui_text):
-            print("line TUI path view exposed noisy headless command or missed expected summary", file=sys.stderr)
+            print("line console path view exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(view_tui_text, file=sys.stderr)
             print(view_tui_stderr or "", file=sys.stderr)
             return 1
@@ -2952,7 +2952,7 @@ def main(argv=None):
         if (stop_tui_proc.returncode != 0 or
                 "Traceback" in (stop_tui_stderr or "") or
                 "file-service: no recorded pid" not in stop_tui_text):
-            print("line TUI service stop did not report stop outcome", file=sys.stderr)
+            print("line console service stop did not report stop outcome", file=sys.stderr)
             print(stop_tui_text, file=sys.stderr)
             print(stop_tui_stderr or "", file=sys.stderr)
             return 1
@@ -3175,7 +3175,7 @@ def main(argv=None):
                 "command-queue:" not in build_config_tui_text or
                 "underlying command:" in build_config_tui_text or
                 "headless_command:" in build_config_tui_text):
-            print("line TUI build config edit exposed noisy headless command or missed expected summary", file=sys.stderr)
+            print("line console build config edit exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(build_config_tui_text, file=sys.stderr)
             print(build_config_tui_stderr or "", file=sys.stderr)
             return 1
@@ -3189,7 +3189,7 @@ def main(argv=None):
         if (build_config_tui_status.get("workbench_config_fields_by_key", {}).get("GRIT_COMMAND_QUEUE_ENABLE", {}).get("value") != "yes" or
                 tui_config_event.get("details", {}).get("new_value") != "yes" or
                 "--set-build-config GRIT_COMMAND_QUEUE_ENABLE=yes" not in tui_config_event.get("details", {}).get("headless_command", "")):
-            print("line TUI build config edit was not reflected in status/event records", file=sys.stderr)
+            print("line console build config edit was not reflected in status/event records", file=sys.stderr)
             print(json.dumps(build_config_tui_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
 
@@ -3290,7 +3290,7 @@ def main(argv=None):
                 "Traceback" in (job_cancel_stderr or "") or
                 f"cancel requested for {job_id}" not in job_cancel_text or
                 "headless_command:" in job_cancel_text):
-            print("line TUI workbench background job cancel exposed noisy headless command or missed expected summary", file=sys.stderr)
+            print("line console workbench background job cancel exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(job_cancel_text, file=sys.stderr)
             print(job_cancel_stderr or "", file=sys.stderr)
             return 1
@@ -4141,7 +4141,7 @@ def main(argv=None):
                 "target-failed" not in lifecycle_tui_text or
                 "result-received" not in lifecycle_tui_text or
                 "failed/23" not in lifecycle_tui_text):
-            print("line TUI command queue inspection missing failed/expired lifecycle state", file=sys.stderr)
+            print("line console command queue inspection missing failed/expired lifecycle state", file=sys.stderr)
             print(lifecycle_tui_text, file=sys.stderr)
             print(lifecycle_tui_stderr or "", file=sys.stderr)
             return 1
@@ -5103,7 +5103,7 @@ def main(argv=None):
                 "target-bravo" not in queue_tui_text or
                 "poll_overdue=yes" not in queue_tui_text or
                 "created=" not in queue_tui_text):
-            print("line TUI command queue inspection exposed noisy headless command or missed result/mailbox state", file=sys.stderr)
+            print("line console command queue inspection exposed noisy headless command or missed result/mailbox state", file=sys.stderr)
             print(queue_tui_text, file=sys.stderr)
             print(queue_tui_stderr or "", file=sys.stderr)
             return 1
@@ -5155,7 +5155,7 @@ def main(argv=None):
                     (event.get("details") or {}).get("target_activity_record_count", 0) >= 3
                     for event in queue_target_events
                 )):
-            print("line TUI command queue inspection did not record event", file=sys.stderr)
+            print("line console command queue inspection did not record event", file=sys.stderr)
             print(json.dumps(queue_tui_status, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         queue_action_run = run(
@@ -7640,7 +7640,7 @@ def main(argv=None):
                         break
                 time.sleep(0.05)
             else:
-                print("line TUI did not start managed file-service", file=sys.stderr)
+                print("line console did not start managed file-service", file=sys.stderr)
                 tui_owned_proc.terminate()
                 tui_owned_proc.communicate(timeout=2)
                 return 1
@@ -7663,18 +7663,18 @@ def main(argv=None):
             except OSError:
                 pass
         if tui_owned_proc.returncode != 0 or "Traceback" in (tui_owned_stderr or ""):
-            print("line TUI did not quit cleanly after starting managed service", file=sys.stderr)
+            print("line console did not quit cleanly after starting managed service", file=sys.stderr)
             print(tui_owned_stderr or "", file=sys.stderr)
             return 1
         tui_owned_text = tui_owned_output.decode("utf-8", errors="replace")
         if "griTTYkit v" not in tui_owned_text or " events" not in tui_owned_text:
-            print("line TUI summary did not report populated event counts", file=sys.stderr)
+            print("line console summary did not report populated event counts", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
             return 1
         if ("copy start" not in tui_owned_text or
                 "copy the headless start command" not in tui_owned_text or
                 "details: events service=file-service -n 3" not in tui_owned_text):
-            print("line TUI service start did not expose transport command", file=sys.stderr)
+            print("line console service start did not expose transport command", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
             return 1
         tui_after = run(
@@ -7688,12 +7688,12 @@ def main(argv=None):
         if (tui_after_rows["file-service"]["actual"] == "listening" or
                 tui_after_doc.get("server_state", {}).get("services", {}).get("file-service", {}).get("status") != "stopped" or
                 tui_after_doc.get("server_state", {}).get("services", {}).get("workbench", {}).get("status") != "stopped"):
-            print("line TUI quit did not stop services it started", file=sys.stderr)
+            print("line console quit did not stop services it started", file=sys.stderr)
             print(tui_after.stdout, file=sys.stderr)
             return 1
         try:
             with socket.create_connection(("127.0.0.1", tui_owned_port), timeout=0.2):
-                print("line TUI-owned file-service port still listening after quit", file=sys.stderr)
+                print("line console-owned file-service port still listening after quit", file=sys.stderr)
                 return 1
         except (ConnectionRefusedError, TimeoutError, OSError):
             pass
@@ -7705,10 +7705,10 @@ def main(argv=None):
             "--file-service-tls no" in event.get("details", {}).get("headless_command", "")
             for event in tui_owned_events
         ):
-            print("line TUI service start did not log headless transport command", file=sys.stderr)
+            print("line console service start did not log headless transport command", file=sys.stderr)
             return 1
         if not any(event.get("service") == "file-service" and event.get("event") == "service_stop" and event.get("details", {}).get("via") == "workbench-stop" for event in tui_owned_events):
-            print("line TUI quit did not log workbench-owned service stop", file=sys.stderr)
+            print("line console quit did not log workbench-owned service stop", file=sys.stderr)
             return 1
 
         tui_sigterm_owned_port = free_port()
@@ -7760,7 +7760,7 @@ def main(argv=None):
                         break
                 time.sleep(0.05)
             else:
-                print("line TUI SIGTERM fixture did not start managed file-service", file=sys.stderr)
+                print("line console SIGTERM fixture did not start managed file-service", file=sys.stderr)
                 tui_sigterm_owned_proc.terminate()
                 tui_sigterm_owned_proc.communicate(timeout=2)
                 return 1
@@ -7774,7 +7774,7 @@ def main(argv=None):
             except OSError:
                 pass
         if tui_sigterm_owned_proc.returncode not in (0, 130, 143, -signal.SIGTERM) or "Traceback" in (tui_sigterm_owned_stderr or ""):
-            print("line TUI SIGTERM did not exit cleanly after starting managed service", file=sys.stderr)
+            print("line console SIGTERM did not exit cleanly after starting managed service", file=sys.stderr)
             print(tui_sigterm_owned_stderr or "", file=sys.stderr)
             return 1
         tui_sigterm_owned_after = run(
@@ -7790,12 +7790,12 @@ def main(argv=None):
                 tui_sigterm_owned_services.get("file-service", {}).get("status") != "stopped" or
                 tui_sigterm_owned_services.get("file-service", {}).get("stopped_reason") != "workbench-stop:SIGTERM" or
                 tui_sigterm_owned_services.get("workbench", {}).get("stopped_reason") != "SIGTERM"):
-            print("line TUI SIGTERM did not stop services it started with SIGTERM state", file=sys.stderr)
+            print("line console SIGTERM did not stop services it started with SIGTERM state", file=sys.stderr)
             print(tui_sigterm_owned_after.stdout, file=sys.stderr)
             return 1
         try:
             with socket.create_connection(("127.0.0.1", tui_sigterm_owned_port), timeout=0.2):
-                print("line TUI SIGTERM-owned file-service port still listening", file=sys.stderr)
+                print("line console SIGTERM-owned file-service port still listening", file=sys.stderr)
                 return 1
         except (ConnectionRefusedError, TimeoutError, OSError):
             pass
@@ -7809,7 +7809,7 @@ def main(argv=None):
                 event.get("details", {}).get("reason") == "SIGTERM" and
                 event.get("details", {}).get("port_released") is True
                 for event in tui_sigterm_owned_events):
-            print("line TUI SIGTERM did not log workbench-owned service stop with port release", file=sys.stderr)
+            print("line console SIGTERM did not log workbench-owned service stop with port release", file=sys.stderr)
             return 1
 
         tui_sigterm_operator_dir = Path(tmp) / "operator-session-tui-sigterm"
@@ -7857,7 +7857,7 @@ def main(argv=None):
                         break
                 time.sleep(0.05)
             else:
-                print("line TUI SIGTERM fixture did not reach open state", file=sys.stderr)
+                print("line console SIGTERM fixture did not reach open state", file=sys.stderr)
                 tui_sigterm_proc.terminate()
                 tui_sigterm_proc.communicate(timeout=2)
                 return 1
@@ -7871,7 +7871,7 @@ def main(argv=None):
             except OSError:
                 pass
         if tui_sigterm_proc.returncode not in (0, 130, 143, -signal.SIGTERM) or "Traceback" in (tui_sigterm_stderr or ""):
-            print("line TUI did not exit cleanly on SIGTERM while waiting for input", file=sys.stderr)
+            print("line console did not exit cleanly on SIGTERM while waiting for input", file=sys.stderr)
             print(tui_sigterm_stderr or "", file=sys.stderr)
             return 1
         tui_sigterm_after = run(
@@ -7883,14 +7883,14 @@ def main(argv=None):
         tui_sigterm_doc = json.loads(tui_sigterm_after.stdout)
         tui_sigterm_workbench = tui_sigterm_doc.get("server_state", {}).get("services", {}).get("workbench") or {}
         if tui_sigterm_workbench.get("status") != "stopped" or tui_sigterm_workbench.get("stopped_reason") != "SIGTERM":
-            print("line TUI SIGTERM did not mark workbench stopped with SIGTERM reason", file=sys.stderr)
+            print("line console SIGTERM did not mark workbench stopped with SIGTERM reason", file=sys.stderr)
             print(tui_sigterm_after.stdout, file=sys.stderr)
             return 1
         tui_sigterm_events = [
             json.loads(line) for line in (tui_sigterm_operator_dir / "events.jsonl").read_text(encoding="utf-8").splitlines()
         ]
         if not any(event.get("service") == "workbench" and event.get("event") == "shutdown" and event.get("details", {}).get("reason") == "SIGTERM" for event in tui_sigterm_events):
-            print("line TUI SIGTERM did not write structured workbench shutdown event", file=sys.stderr)
+            print("line console SIGTERM did not write structured workbench shutdown event", file=sys.stderr)
             return 1
 
         bind_fail_port = free_port()
@@ -9259,7 +9259,7 @@ def main(argv=None):
             except OSError:
                 pass
         if line_proc.returncode != 0 or "Traceback" in (line_stderr or ""):
-            print("line TUI target workflow action did not exit cleanly", file=sys.stderr)
+            print("line console target workflow action did not exit cleanly", file=sys.stderr)
             print(line_stderr or "", file=sys.stderr)
             return 1
         line_text = line_output.decode("utf-8", errors="replace")
@@ -9286,7 +9286,7 @@ def main(argv=None):
                 "mailbox_pending=1 poll_overdue=no" not in line_text or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in line_text or
                 "Target workflow actions:" not in line_text):
-            print("line TUI target detail exposed noisy headless command or missed mailbox/activity state", file=sys.stderr)
+            print("line console target detail exposed noisy headless command or missed mailbox/activity state", file=sys.stderr)
             print(line_text, file=sys.stderr)
             return 1
         activity_master, activity_slave = pty.openpty()
@@ -9330,7 +9330,7 @@ def main(argv=None):
                 "target-poll" not in activity_text or
                 "queued" not in activity_text or
                 "headless_command:" in activity_text):
-            print("line TUI target activity feed exposed noisy headless command or missed scoped activity records", file=sys.stderr)
+            print("line console target activity feed exposed noisy headless command or missed scoped activity records", file=sys.stderr)
             print(activity_text, file=sys.stderr)
             print(activity_stderr or "", file=sys.stderr)
             return 1
@@ -11059,16 +11059,16 @@ def main(argv=None):
             except OSError:
                 pass
         if tui_proc.returncode not in (0, 130) or "Traceback" in (tui_stderr or ""):
-            print("interactive TUI SIGINT did not exit cleanly", file=sys.stderr)
+            print("interactive console SIGINT did not exit cleanly", file=sys.stderr)
             print(tui_stderr or "", file=sys.stderr)
             return 1
         tui_sigint_doc = json.loads(tui_sigint_state.read_text(encoding="utf-8"))
         if tui_sigint_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
-            print("interactive TUI SIGINT did not mark workbench stopped", file=sys.stderr)
+            print("interactive console SIGINT did not mark workbench stopped", file=sys.stderr)
             print(json.dumps(tui_sigint_doc, indent=2), file=sys.stderr)
             return 1
         if tui_sigint_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "line":
-            print("interactive TUI SIGINT did not preserve line workbench mode", file=sys.stderr)
+            print("interactive console SIGINT did not preserve line workbench mode", file=sys.stderr)
             print(json.dumps(tui_sigint_doc, indent=2), file=sys.stderr)
             return 1
 
@@ -11102,16 +11102,16 @@ def main(argv=None):
             except OSError:
                 pass
         if dumb_proc.returncode != 0 or "Traceback" in (dumb_stderr or ""):
-            print("TERM=dumb line-oriented TUI fallback did not exit cleanly", file=sys.stderr)
+            print("TERM=dumb line-oriented console fallback did not exit cleanly", file=sys.stderr)
             print(dumb_stderr or "", file=sys.stderr)
             return 1
         dumb_tui_doc = json.loads(dumb_tui_state.read_text(encoding="utf-8"))
         if dumb_tui_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
-            print("TERM=dumb line-oriented TUI fallback did not mark workbench stopped", file=sys.stderr)
+            print("TERM=dumb line-oriented console fallback did not mark workbench stopped", file=sys.stderr)
             print(json.dumps(dumb_tui_doc, indent=2), file=sys.stderr)
             return 1
         if dumb_tui_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "line":
-            print("TERM=dumb line-oriented TUI fallback did not preserve line workbench mode", file=sys.stderr)
+            print("TERM=dumb line-oriented console fallback did not preserve line workbench mode", file=sys.stderr)
             print(json.dumps(dumb_tui_doc, indent=2), file=sys.stderr)
             return 1
         dumb_invalid_state = Path(tmp) / "operator-session" / "tui-dumb-invalid-state.json"
@@ -11155,7 +11155,7 @@ def main(argv=None):
             except OSError:
                 pass
         if dumb_invalid_proc.returncode != 0 or "Traceback" in (dumb_invalid_stderr or ""):
-            print("TERM=dumb line-oriented TUI fallback did not handle invalid stage/unstage input cleanly", file=sys.stderr)
+            print("TERM=dumb line-oriented console fallback did not handle invalid stage/unstage input cleanly", file=sys.stderr)
             print(dumb_invalid_stderr or "", file=sys.stderr)
             return 1
         dumb_invalid_doc = json.loads(dumb_invalid_state.read_text(encoding="utf-8"))
@@ -11238,7 +11238,7 @@ def main(argv=None):
                 "Staged file workflow actions:" not in line_stage_stdout or
                 "/tmp/line-stage:show-fetch-command" not in line_stage_stdout or
                 "/tmp/line-stage:queue-staged-fetch state=needs-target reason=target-required" not in line_stage_stdout):
-            print("line-oriented TUI stage/unstage exposed noisy headless commands or missed expected summaries", file=sys.stderr)
+            print("line-oriented console stage/unstage exposed noisy headless commands or missed expected summaries", file=sys.stderr)
             print(line_stage_stdout, file=sys.stderr)
             print(line_stage_stderr or "", file=sys.stderr)
             return 1
@@ -11256,7 +11256,7 @@ def main(argv=None):
             capture_output=True,
         )
         if line_stage_status.returncode != 0:
-            print("line-oriented TUI stage status failed", file=sys.stderr)
+            print("line-oriented console stage status failed", file=sys.stderr)
             print(line_stage_status.stdout, file=sys.stderr)
             print(line_stage_status.stderr, file=sys.stderr)
             return 1
@@ -11270,7 +11270,7 @@ def main(argv=None):
                 line_stage_status_doc.get("summary", {}).get("file_service_workflow_action_count") != 6 or
                 line_stage_status_doc.get("summary", {}).get("file_service_workflow_action_requires_input_count") != 2 or
                 "file_service_workflow_actions_by_operator_action_state" not in ((line_stage_status_doc.get("api_collections") or {}).get("file_service_workflow_actions") or {}).get("indexes", [])):
-            print("line-oriented TUI file-service workflow actions missing status/API contract", file=sys.stderr)
+            print("line-oriented console file-service workflow actions missing status/API contract", file=sys.stderr)
             print(json.dumps(line_stage_status_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         line_stage_events = [
@@ -11315,12 +11315,12 @@ def main(argv=None):
                     (event.get("details") or {}).get("request_name") == "/tmp/line-stage" and
                     "--unstage /tmp/line-stage --list-staged" in ((event.get("details") or {}).get("headless_command") or "")
                     for event in file_unstage_events)):
-            print("line-oriented TUI stage/unstage did not record workbench events", file=sys.stderr)
+            print("line-oriented console stage/unstage did not record workbench events", file=sys.stderr)
             print(json.dumps(line_stage_status_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         if (line_stage_doc.get("services", {}).get("workbench", {}).get("status") != "stopped" or
                 (json.loads(line_stage_staged.read_text(encoding="utf-8")).get("staged") or {}).get("/tmp/line-stage")):
-            print("line-oriented TUI stage/unstage final state was incorrect", file=sys.stderr)
+            print("line-oriented console stage/unstage final state was incorrect", file=sys.stderr)
             print(json.dumps(line_stage_doc, indent=2), file=sys.stderr)
             print(line_stage_staged.read_text(encoding="utf-8"), file=sys.stderr)
             return 1
@@ -11464,7 +11464,7 @@ def main(argv=None):
             "--staged-file", str(staged_file),
         )
         if tui.returncode != 0 or "griTTYkit Operator Workbench" not in tui.stdout:
-            print("noninteractive TUI/workbench failed:", file=sys.stderr)
+            print("noninteractive console/workbench failed:", file=sys.stderr)
             print(tui.stdout, file=sys.stderr)
             print(tui.stderr, file=sys.stderr)
             return 1
@@ -11488,7 +11488,7 @@ def main(argv=None):
                 "make package" not in tui.stdout or
                 "scripts/grit-bringup --recommend-only --json --operator-config" not in tui.stdout or
                 "--stage-recommended-artifact" not in tui.stdout):
-            print("noninteractive TUI/workbench missing operator path details", file=sys.stderr)
+            print("noninteractive console/workbench missing operator path details", file=sys.stderr)
             print(tui.stdout, file=sys.stderr)
             return 1
         tui_status = run(
@@ -11505,7 +11505,7 @@ def main(argv=None):
                 tui_operator_counts.get("operator_state_invalid_count", 0) +
                 tui_operator_counts.get("operator_state_error_count", 0)) or
                 tui_operator_counts.get("operator_state_count") != len(tui_doc.get("operator_state_records") or [])):
-            print("noninteractive TUI/workbench missing operator state summary counters", file=sys.stderr)
+            print("noninteractive console/workbench missing operator state summary counters", file=sys.stderr)
             print(tui_status.stdout, file=sys.stderr)
             return 1
 
@@ -12339,14 +12339,14 @@ def main(argv=None):
                 "nc:    printf 'GET /fetch?name=grit-test HTTP/1.0" not in _line_stdout or
                 "/fetch?name=grit-test" not in _line_stdout or
                 "headless_command:" in _line_stdout):
-            print("line-oriented TUI direct release staging exposed noisy headless command or missed expected summary", file=sys.stderr)
+            print("line-oriented console direct release staging exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(_line_stdout, file=sys.stderr)
             print(line_stderr or "", file=sys.stderr)
             return 1
         line_staged = json.loads(line_release_staged_file.read_text(encoding="utf-8"))
         if ((line_staged.get("staged") or {}).get("grit-test", {}).get("tuple_path") !=
                 "by-tuple/native/host/host/host"):
-            print("line-oriented TUI staged release metadata incorrectly", file=sys.stderr)
+            print("line-oriented console staged release metadata incorrectly", file=sys.stderr)
             print(json.dumps(line_staged, indent=2), file=sys.stderr)
             return 1
         line_release_status = subprocess.run(
@@ -12362,7 +12362,7 @@ def main(argv=None):
             capture_output=True,
         )
         if line_release_status.returncode != 0:
-            print("line-oriented TUI release status failed", file=sys.stderr)
+            print("line-oriented console release status failed", file=sys.stderr)
             print(line_release_status.stdout, file=sys.stderr)
             print(line_release_status.stderr, file=sys.stderr)
             return 1
@@ -12374,7 +12374,7 @@ def main(argv=None):
                 (release_stage_events[-1].get("details") or {}).get("direct_console") is not True or
                 not release_view_events or
                 "--stage-release-artifact by_tuple_path:by-tuple/native/host/host/host" not in ((release_stage_events[-1].get("details") or {}).get("headless_command") or "")):
-            print("line-oriented TUI did not record release staging event", file=sys.stderr)
+            print("line-oriented console did not record release staging event", file=sys.stderr)
             print(json.dumps(line_release_doc, indent=2, sort_keys=True), file=sys.stderr)
             return 1
         probe_release_dir = Path(tmp) / "dist/releases/probe-release"

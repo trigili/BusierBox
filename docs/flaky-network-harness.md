@@ -9,8 +9,8 @@ virtual network boundaries:
 - queued target mailbox work survives operator-daemon stop/start boundaries
 - queued probe bootstrap and staged-file fetch work can be prepared before any
   target reconnect, including the staged-file workflow runner path used by the
-  TUI and headless API
-- the line-mode TUI can inspect the same queued offline workflow mailbox state
+  console and headless API
+- the line-mode console can inspect the same queued offline workflow mailbox state
   and target detail that headless status exposes
 - queued probe bootstrap and staged-file fetch work drains when the workflow
   target later reconnects for a short window
@@ -89,7 +89,7 @@ The plan artifacts include `topology.json`, `link-transitions.json`,
 They record the operator node, target nodes, controllable links, phase names,
 expected per-phase artifacts, QEMU command template, and the exact operator and
 target commands to run once a real image/kernel/tap setup is available. The
-plan deliberately names the deterministic harness evidence files, including TUI
+plan deliberately names the deterministic harness evidence files, including console
 parity, systemd dry-run, multi-target isolation, target-mismatch rejection,
 duplicate-poll, malformed-result-upload, dropped-result-upload, and
 bridge-interruption artifacts, so a live QEMU implementation has the same

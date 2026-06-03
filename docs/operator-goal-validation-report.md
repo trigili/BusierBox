@@ -208,7 +208,7 @@ Fresh result:
   upload, command queue, zero-arg autorun, manifest metadata, support tokens,
   doctor JSON, reality-test, and core extraction.
 - The focused server smoke also passed directly, covering lifecycle, status,
-  `--stop`, bind failure, stale state, TUI fallback, API catalogs, multi-target
+  `--stop`, bind failure, stale state, console fallback, API catalogs, multi-target
   records, release browsing, selected-target capability/compatibility evidence,
   command queue status, and failure paths.
 - The focused licensing, command-queue, recovery, and reality-test smokes passed
@@ -246,7 +246,7 @@ Result:
   listener names such as `tls-shell` and `plain-shell`.
 - The server smoke test passed after the release summary text was extended to
   expose corresponding-source posture.
-- `scripts/grit-console --status` and the TUI release browser now render
+- `scripts/grit-console --status` and the console release browser now render
   `corresponding_source` with required/status/input-count/package-audit fields
   alongside the existing release license summary.
 - JSON/API status already exposes the same fields in `release.release_license`,
@@ -403,7 +403,7 @@ Earlier result:
 
 Recent full smoke coverage included:
 
-- server lifecycle, status, stop, bind failure, stale state, TUI fallback, and
+- server lifecycle, status, stop, bind failure, stale state, console fallback, and
   workbench status checks
 - event log writing and API indexes
 - rshell policy validation and single/reconnect/persistent behavior

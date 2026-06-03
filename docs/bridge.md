@@ -33,7 +33,7 @@ Status and audit behavior:
 - Named profiles persist the latest successful relay timestamp and byte counts,
   and failed upstream connections persist `last_failure_at`,
   `last_failure_reason`, destination endpoint, and remote client address so the
-  TUI/status views can explain why a bridge path is not currently usable.
+  console/status views can explain why a bridge path is not currently usable.
 - `--one-shot` exits after one bridged connection, matching other listener
   workflows.
 
@@ -87,9 +87,9 @@ Use `--delete-bridge-profile NAME` to remove a stored profile. Deletion records
 a `bridge_profile_deleted` event and does not kill an already-running bridge
 listener; stop listeners explicitly with `--stop --transport bridge`.
 
-In line-mode TUI, action `17` opens bridge profile management. It lists saved
+In line-mode console, action `17` opens bridge profile management. It lists saved
 profiles, can create or update a profile from prompts, inspect a profile, start
-or stop the bridge listener, and delete a profile. Each TUI path prints the
+or stop the bridge listener, and delete a profile. Each console path prints the
 equivalent `scripts/grit-console ...` command before or after applying the
 action.
 The line-oriented console's route views list saved profiles/chains with state,
@@ -108,7 +108,7 @@ a target to be online. `--json-status` exposes `bridge_profiles` plus indexes
 such as `bridge_profiles_by_name`, `bridge_profiles_by_target_id`,
 `bridge_profiles_by_current_state`, `bridge_profiles_by_active`,
 `bridge_profiles_by_multi_hop`, `bridge_profiles_by_hop_count`, and
-`bridge_profiles_by_route_path` for TUI and automation clients. Successful and
+`bridge_profiles_by_route_path` for console and automation clients. Successful and
 failed relay lifecycle is indexed with
 `bridge_profiles_by_has_last_successful_relay` and
 `bridge_profiles_by_has_last_failure`, and the text list/inspect commands show
@@ -140,5 +140,5 @@ When `--bridge-profile` is selected for other operator workflows, generated
 target commands are route-aware. File fetch/upload commands and probe bootstrap
 commands use the profile's target-visible first hop, while their status records
 carry `route_kind`, `bridge_profile`, `bridge_route_path`, and `target_route`
-metadata so a TUI can show whether the operator is using a direct or bridged
+metadata so a console can show whether the operator is using a direct or bridged
 route.

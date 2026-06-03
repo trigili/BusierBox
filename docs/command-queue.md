@@ -56,7 +56,7 @@ opt in:
   mirror the structured `policy_summary` token posture, mode lifecycle,
   transport support, and execution flags so operators do not need JSON
   tooling to distinguish default dry-run planning from explicit `--live` metadata polling.
-  In line-mode TUI, action `20` prints the equivalent `--list-command-queue`
+  In line-mode console, action `20` prints the equivalent `--list-command-queue`
   output plus target mailbox result records for completed and pending
   target-scoped work.
 - `grit plan command-queue --json` and `manifest --json` expose the same
@@ -177,7 +177,7 @@ Safety boundary:
   active-control-channel posture.
 
 Operator `scripts/grit-console --json-status` mirrors the mode records for
-future TUI/web clients. The `command_queue_modes` API collection includes
+future console/web clients. The `command_queue_modes` API collection includes
 indexes by lifecycle, polling posture, live support, delivery support,
 result-upload support, execution support, active-control-channel posture, and
 operator-supplied-command execution posture.
@@ -350,7 +350,7 @@ metadata such as `waiting_for`, `age_sec`, `pending_delivery_for_sec`,
 `delivered_without_result_for_sec`, `result_latency_sec`, and corresponding
 age buckets. `pending_reason` gives an operator-facing reason such as
 `target-poll-overdue`, `target-offline`, `awaiting-result-upload`, or
-`waiting-for-next-poll`, so headless clients and the TUI can explain why work is
+`waiting-for-next-poll`, so headless clients and the console can explain why work is
 still waiting. Expired records expose `expired=true`, `status=expired`, and
 `waiting_for=none`. Indexes such as
 `target_mailbox_records_by_target_id`,
@@ -360,7 +360,7 @@ still waiting. Expired records expose `expired=true`, `status=expired`, and
 `target_mailbox_records_by_expired`,
 `target_mailbox_records_by_age_bucket`,
 `target_mailbox_records_by_pending_work`, and
-`target_mailbox_records_by_has_result` let TUI or API clients build per-target
+`target_mailbox_records_by_has_result` let console or API clients build per-target
 mailbox panes without scraping the raw command queue.
 
 Status JSON also exposes `command_queue_workflow_actions`, a small action
@@ -397,7 +397,7 @@ fields. Indexes such as `target_file_transfer_records_by_target_id`,
 `target_file_transfer_records_by_operation`,
 `target_file_transfer_records_by_status`,
 `target_file_transfer_records_by_route_kind`, and
-`target_file_transfer_records_by_request_name` let the TUI render a per-target
+`target_file_transfer_records_by_request_name` let the console render a per-target
 files pane without stitching together `staged_records`, `uploads`, and
 `fetches` itself.
 
@@ -435,7 +435,7 @@ run these records with `--run-file-service-workflow-action ACTION_OR_NUMBER`;
 `file_service_workflow_actions_by_action_id`,
 `file_service_workflow_actions_by_route_kind`,
 `file_service_workflow_actions_by_requires_input`, and
-`file_service_workflow_actions_by_operator_action_state` let the TUI and API
+`file_service_workflow_actions_by_operator_action_state` let the console and API
 clients render file-service controls without scraping `staged_records`,
 `uploads`, or `fetches`.
 
@@ -444,7 +444,7 @@ derived from heartbeat target records, mailbox records, phone-home attempts,
 file transfers, bridge records, sessions, and latest survey results. The feed is
 indexed by target id, category, source collection, operation, status, pending
 work, waiting reason, command id, request name, filename, route, bridge profile,
-and session id. This gives TUI and API clients one stable target-detail activity
+and session id. This gives console and API clients one stable target-detail activity
 source while preserving the more detailed source collections.
 
 Target status also exposes `targets_by_connectivity_state`,
@@ -465,19 +465,19 @@ poll, and confirm delivery when the target reconnects.
 
 For target-centered operator UX, status JSON also includes
 `target_workflow_actions`. These records are generated per target and expose the
-same workflows a TUI should offer: inspect scoped status, open a scoped
+same workflows a console should offer: inspect scoped status, open a scoped
 workbench, queue mailbox work, queue a probe bootstrap command, serve probe
 bootstrap, stage a file for target fetch, stage a release artifact for target
 fetch when a release bundle is available, queue a staged fetch command, show a
 target upload command, start the file service, start any bridge profile tied to
 that target, and queue a bridge-related reverse-access start command for the
 target mailbox.
-Each action carries a `headless_command` so the TUI can show the exact CLI path
+Each action carries a `headless_command` so the console can show the exact CLI path
 instead of hiding automation behind an interactive-only flow. Action records
 also expose `offline_supported`, `requires_target_online`,
 `queues_offline_work`, `target_phone_home_required`, `operator_action_state`,
 `operator_action_reason`, and `can_run_from_curses_enter`, with matching status
-summary counts and lookup maps. TUI and API clients can use those fields to show
+summary counts and lookup maps. Console and API clients can use those fields to show
 which target workflows can be prepared while a target is offline, which actions
 need prompted input, which bridge actions need the target online now, and which
 actions leave mailbox work waiting for the next phone-home window.
@@ -487,13 +487,13 @@ frontends that want the console organized around workflows instead of raw
 collections. Each record groups the related source/action collections for target
 fleet, target actions, mailbox, bridges, files, survey, daemon, release
 artifacts, build config, jobs, events, and target activity. Records include the
-primary collection, matching TUI shortcut and line-mode action, `headless_command`,
+primary collection, matching console shortcut and line-mode action, `headless_command`,
 target-scoping flags, multi-target/offline-queue support, action counts,
 enter-runnable counts, pending-work counts, warning counts, and an
 `operator_action_state`. Indexes such as `operator_console_workflows_by_group`,
 `operator_console_workflows_by_primary_collection`,
 `operator_console_workflows_by_offline_queue_supported`, and
-`operator_console_workflows_by_operator_action_state` let TUI, API, and future
+`operator_console_workflows_by_operator_action_state` let console, API, and future
 web clients render the same operator workflow map without reverse-engineering
 the lower-level action catalogs.
 
@@ -503,7 +503,7 @@ staging, and per-recommendation staging actions with stable selectors and
 headless commands such as `--stage-release-artifact by_device:NAME`. Action
 records include selector kind, artifact/recommendation metadata, payload preset,
 compatibility label, whether the action writes staged-file state, and whether
-Enter can run it from the TUI. Indexes such as
+Enter can run it from the console. Indexes such as
 `release_artifact_workflow_actions_by_selector_kind`,
 `release_artifact_workflow_actions_by_release_path`, and
 `release_artifact_workflow_actions_by_recommendation_scope` let clients render a
@@ -513,7 +513,7 @@ The same records can also be executed through the stable action runner
 `--release-artifact-workflow-dry-run` available for previewing the selected
 action without staging files or running release self-tests.
 
-The same actions can be run headlessly or from the line-oriented TUI. For
+The same actions can be run headlessly or from the line-oriented console. For
 automation, use the stable action id:
 
 ```sh
@@ -538,14 +538,14 @@ scripts/grit-console --run-target-workflow-action target-alpha:show-upload-comma
 scripts/grit-console --run-target-workflow-action target-alpha:queue-bridge-start:lab-http
 ```
 
-In line-mode TUI, action `15` lists the target workflow actions and prompts for
+In line-mode console, action `15` lists the target workflow actions and prompts for
 the required command/path fields before applying the same target-scoped queue or
-staging operation. After a target action runs, the TUI prints the action return
+staging operation. After a target action runs, the console prints the action return
 code and a refreshed target activity summary so the operator can immediately see
 queued mailbox work and last-contact state. No action changes the safety
 boundary: target execution still requires an explicit target-side fetch, upload,
 poll, or bridge connection.
-The line-mode TUI also keeps a persistent status bar above its action menu with
+The line-mode console also keeps a persistent status bar above its action menu with
 service, warning, target, connectivity-state, pending-mailbox, poll-overdue,
 selected-target, and event counts. Its menu is grouped into Services, Targets,
 Bridges, Files and releases, and Automation/config sections so multi-device
@@ -581,7 +581,7 @@ path, next expected poll, pending reason, and the queued command. Use line-mode
 action `20` for the full command queue and result listing.
 Mutating target workflow actions record `target_workflow_action_completed`
 events with the target id, action id, headless command, and result-specific
-metadata such as queued command id or staged request name, so headless and TUI
+metadata such as queued command id or staged request name, so headless and console
 runs leave the same operator audit trail.
 Action `16` selects the current target filter for the workbench session by
 target number, id, label, or alias; enter `all` to clear the filter and return
@@ -609,7 +609,7 @@ valid result, accepts the matching target result, and verifies status JSON plus 
 `next_expected_poll`, mailbox pending counts, and latest command result
 metadata. Phone-home records include `queued_remaining_count` and
 `pending_work_remaining` for poll attempts, with matching status indexes and
-summary counts for dashboards and TUI panes.
+summary counts for dashboards and console panes.
 The harness also writes `topology.json` alongside its status and HTTP
 transcript artifacts. That topology artifact records operator service ports,
 known target ids, scripted link states such as short reconnect windows and

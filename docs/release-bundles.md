@@ -232,7 +232,7 @@ such as `tools_present`, `payload_presets`, and `features`, and also provides
 full artifact-record maps named `artifacts_by_tool`,
 `artifacts_by_device_alias`, `artifacts_by_payload_preset`,
 `artifacts_by_feature`, and
-`artifacts_by_compatibility` for TUI/web clients that need to render details
+`artifacts_by_compatibility` for console/web clients that need to render details
 without rescanning every artifact. `compatibility_counts` gives compact badge
 counts for exact/likely/heuristic/unsafe/incompatible buckets. The `dedupe`
 map keeps the legacy sha256 lookup, while `dedupe_records` adds UI-friendly
@@ -284,7 +284,7 @@ also publishes normalized
 maps, plus `api_collections` metadata for artifacts, release self-test records,
 release license records, dedupe records, devices, tuples, and precomputed
 recommendations. Each collection descriptor includes `count`, `summary_key`,
-`count_summary_key`, `primary_key`, and index names. Future TUI/web clients can
+`count_summary_key`, `primary_key`, and index names. Future console/web clients can
 use those fields to discover record counts and lookup maps without hard-coding
 the JSON shape. It does not download or rebuild anything.
 Release license records are normalized from `manifests/license-policy.json` in
@@ -529,7 +529,7 @@ actually been seen. The compact summary mirrors the same distinction with
 `target_filter_has_unfiltered_observed_activity`, and
 `target_filter_reduced_observed_activity`.
 The top-level `api` catalog mirrors the selected target label/confidence and
-whether the target was found, so future TUI/web clients can render filter
+whether the target was found, so future console/web clients can render filter
 context without joining `targets_by_id` first. If the filter does not match a
 known target, status output keeps the empty filtered collections visible and
 adds an `unknown_target_filter` warning with the requested target id and
@@ -541,7 +541,7 @@ from headless automation. The line-oriented target mailbox/activity inspector
 does the same for both per-target detail and all-target summaries, so offline
 mailbox review leaves a reproducible headless status command in the audit log.
 Target mailbox records also mirror target heartbeat fields such as connectivity
-state, last-seen time/source, offline age, and next expected poll; the line TUI
+state, last-seen time/source, offline age, and next expected poll; the line console
 command queue view prints those fields beside queued/delivered/result state, so
 operators can distinguish pending work for an offline target from work that was
 recently polled but not completed. Mailbox records also expose `waiting_for`,
@@ -645,14 +645,14 @@ prints the same normalized operator state records as an `Operator state:`
 section, including status, kind, existence, validity, record count, path, and
 any parse/read error. `browser_paths`
 provides a normalized operator file
-browser list for future TUI/web clients, covering operator ledgers, session
+browser list for future console/web clients, covering operator ledgers, session
 directories, upload/fetch metadata, staged sources, event logs, TLS files,
 release bundle files, and release recommendation artifact targets. The same records are grouped in `browser_paths_by_kind`,
 `browser_paths_by_path`, `browser_paths_by_source_id`, and
 `browser_paths_by_kind_source_id`, with direct health lookups in
 `browser_paths_by_exists`, `browser_paths_by_readable`,
 `browser_paths_by_writable`, and `browser_paths_by_expected_kind_mismatch`.
-The composite kind/source map lets TUI and
+The composite kind/source map lets console and
 future web clients jump directly to records such as
 `upload-metadata:<session-id>`, `release-artifact:<release-path>`, or
 `release-recommendation-artifact:<scope:key>` without
@@ -697,7 +697,7 @@ In the line-oriented workbench, plain file stage, list, and unstage actions
 print the equivalent `--serve-file ... --as ... --list-staged`,
 `--list-staged`, or `--unstage ... --list-staged` command and record
 `workbench_file_staged`, `workbench_staged_files_viewed`, and
-`workbench_file_unstaged` events. That keeps manual TUI use aligned with the
+`workbench_file_unstaged` events. That keeps manual console use aligned with the
 same headless staged-file ledger and audit stream used by automation.
 `summary` includes `staged_total_size`, `staged_source_exists_count`, and
 `staged_source_missing_count` for staged-file health, generated fetch-command
@@ -784,7 +784,7 @@ tuple browser lists plus `artifacts_by_release_path`, `artifacts_by_name`,
 `devices_by_name`, and `tuples_by_path` lookup maps. It also includes
 `recommendations`, flattened `recommendation_records`, and recommendation
 lookup maps by id, scope, artifact, payload preset, and compatibility label so
-TUI/API clients can present the best current artifact for a device, tuple path,
+console/API clients can present the best current artifact for a device, tuple path,
 tool, payload preset, feature, or combined key without rerunning release search
 logic. Release artifact
 state is exposed separately as `release_state` with release directory,
@@ -857,7 +857,7 @@ line-oriented probe action prints and records the same `--transport probe`
 command, including any selected bridge profile, on both the workbench action
 event and the underlying service-start event. The target workflow action
 `queue-probe` records the generated `wget -O- ... | /bin/sh` probe command as
-target-scoped mailbox work, giving offline targets the same headless/TUI queue
+target-scoped mailbox work, giving offline targets the same headless/console queue
 path as generic queued commands.
 Likewise, `queue-staged-fetch` records the generated `grit fetch` command
 for an existing staged request as mailbox work, so file-transfer requests can be
@@ -1127,7 +1127,7 @@ warning records. Service-related
 warnings include the configured and actual states, bind address, port, PID,
 PID ownership evidence, listener PIDs, possible bind owners with process name,
 executable path, and command line, error text, and process/session log paths
-when those fields are available. This lets a TUI, future web UI, or
+when those fields are available. This lets a console, future web UI, or
 automation client show actionable cleanup guidance without scraping the
 human-readable `--status` output. Actual service state is bind-address aware:
 a listener on the same port but a different address is reported as listener
@@ -1191,7 +1191,7 @@ background-job, and target-execution flags, and are indexed through
 `workbench_actions_by_execution_default`, and
 `workbench_actions_by_target_execution`, plus audit/config lookups
 `workbench_actions_by_event` and `workbench_actions_by_config_path`, so
-future TUI/web clients can render workflow screens and verify that default
+future console/web clients can render workflow screens and verify that default
 workbench actions do not execute on the target without inventing a second
 configuration format. Target workflow action selection and completion events
 carry the same headless command metadata, so interrupted target-specific flows
@@ -1214,14 +1214,14 @@ command, badge control-like settings, and verify those edits only update the
 shared shell assignment config.
 The line-oriented workbench workflow-action view prints the equivalent
 `--status` command and records it on `workbench_actions_viewed`, so operators
-can inspect the same workflow/action catalog through either the TUI or a
+can inspect the same workflow/action catalog through either the console or a
 headless status call.
 Operators can update supported keys with `--set-build-config KEY=VALUE`; fixed
 choice values are validated before writing. The line-oriented workbench shows
 the exact underlying command before writing the same config file that
 `scripts/menuconfig` and noninteractive builds consume, then prints the exact
 equivalent headless `--config ... --build-config ... --set-build-config ...`
-command after a guided TUI edit succeeds. The matching `workbench_config_updated`
+command after a guided console edit succeeds. The matching `workbench_config_updated`
 event records both the direct build-config command and the full headless command
 for audit logs and future operator frontends. Background-capable
 workflow tasks are represented in `workbench_jobs` with start time, command, PID
