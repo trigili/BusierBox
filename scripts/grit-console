@@ -121,7 +121,7 @@ from gritlib.target_commands import (
 from gritlib.target_records import (
     attach_target_identity, capability_report_summary,
     compatibility_report_summary, target_identity_from_headers,
-    target_record_indexes, target_record_summary, targets_path,
+    load_targets, target_record_indexes, target_record_summary, targets_path,
 )
 from gritlib.warnings import (
     annotate_path_records_with_warnings, annotate_service_port_records_with_warnings,
@@ -395,17 +395,6 @@ def enriched_staged_records(cfg, staged=None):
         item["source_path"] = str(source_path)
         out[name] = item
     return out
-
-
-def load_targets(cfg):
-    data = read_json_file(targets_path(cfg), {"schema": 1, "targets": {}})
-    if not isinstance(data, dict):
-        data = {"schema": 1, "targets": {}}
-    if not isinstance(data.get("targets"), dict):
-        data["targets"] = {}
-    data.setdefault("schema", 1)
-    return data
-
 
 
 def record_target_activity(cfg, metadata, service, session_id=""):
