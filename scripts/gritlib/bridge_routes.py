@@ -412,6 +412,63 @@ def add_line_route(cfg, args, headless_command_builder=None):
     return rec
 
 
+def start_line_route(
+    cfg, route_name, records, headless_command_builder=None, start_service=None
+):
+    name = str(route_name or "").strip()
+    if not name:
+        raise ValueError("usage: start ROUTE")
+    rec = line_route_record(records, name)
+    if not rec:
+        raise ValueError(f"route not found: {name}")
+    name = str(rec.get("name") or name)
+    headless_command_builder = headless_command_builder or (
+        lambda _action, _name="", extra=None: ""
+    )
+    headless = headless_command_builder("start", name)
+    if start_service is None:
+        raise ValueError("route start requires a service starter")
+    start_service(
+        cfg,
+        "bridge",
+        argv_extra=["--bridge-profile", name],
+        headless_command=headless,
+    )
+    print(f"started route {name}")
+    append_event(cfg, "workbench", "workbench_route_started", details={
+        "name": name,
+        "headless_command": headless,
+    })
+
+
+def stop_line_route(
+    cfg, route_name, records, headless_command_builder=None, stop_service=None
+):
+    name = str(route_name or "").strip()
+    if not name:
+        module = str(cfg.get("_line_console_module") or "")
+        if module.startswith("route/"):
+            name = module.split("/", 1)[1]
+    if not name:
+        raise ValueError("usage: stop ROUTE")
+    rec = line_route_record(records, name)
+    if not rec:
+        raise ValueError(f"route not found: {name}")
+    name = str(rec.get("name") or name)
+    headless_command_builder = headless_command_builder or (
+        lambda _action, _name="", extra=None: ""
+    )
+    headless = headless_command_builder("stop", name)
+    if stop_service is None:
+        raise ValueError("route stop requires a service stopper")
+    stop_service(cfg, "bridge", headless_command=headless)
+    print(f"stopped route {name}")
+    append_event(cfg, "workbench", "workbench_route_stopped", details={
+        "name": name,
+        "headless_command": headless,
+    })
+
+
 def delete_line_route(cfg, route_name, records, headless_command_builder=None):
     name = str(route_name or "").strip()
     if not name:
