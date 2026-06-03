@@ -547,8 +547,6 @@ validate_build_config() {
     fi
 }
 
-validate_build_config
-
 if [ "$target" = --config ] || [ "$target" = config ]; then
     resolved=$(scripts/lib/resolve-target --config 2>&1) || die "$resolved"
 else
@@ -573,6 +571,7 @@ manifest_target_preset=${GRIT_TARGET_PRESET:-$requested_target}
 
 [ "$TARGET_STATUS" = blank ] && die "${TARGET_NOTES:-default is a blank target configuration; choose native or a concrete target before building.}"
 [ "$TARGET_STATUS" = supported ] || die "target ${target:-$requested_target} is $TARGET_STATUS: $TARGET_NOTES"
+validate_build_config
 
 mkdir -p dist dist/internal
 rm -f "dist/grit-$target-stager" "dist/grit-$target-stager.sha256"

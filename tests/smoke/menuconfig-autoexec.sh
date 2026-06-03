@@ -29,6 +29,16 @@ grep -q 'Applet configuration' "$menu"
 grep -q 'Reverse access' "$menu"
 grep -q 'Dotfiles by app' "$menu"
 grep -q 'griTTYkit default initial config' "$menu"
+if awk '
+    /payload_preset_description\(\)/ { in_fn=1 }
+    in_fn && /risk=/ { found=1 }
+    in_fn && /size=/ { found=1 }
+    in_fn && /^}/ { in_fn=0 }
+    END { exit found ? 0 : 1 }
+' "$menu"; then
+    printf '%s\n' "menuconfig-autoexec: payload preset menu rows append clipping-prone risk/size text" >&2
+    exit 1
+fi
 if grep -q 'default-comfort\\|default-operator\\|default-minimal' "$menu"; then
     printf '%s\n' "menuconfig-autoexec: old global dotfile profiles are still in menuconfig" >&2
     exit 1

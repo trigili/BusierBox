@@ -131,7 +131,7 @@ if {"survey-core", "ssh-operator"} - payloads:
     raise SystemExit(f"payload_presets matrix did not expand: {payloads!r}")
 PY
 
-make source-mirror DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-mirror" >"$tmp/make-source-mirror.out"
+make --no-print-directory source-mirror DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-mirror" >"$tmp/make-source-mirror.out"
 python3 - <<'PY'
 from pathlib import Path
 
@@ -177,7 +177,7 @@ if payloads != expected_payloads:
 if device_specific:
     raise SystemExit(f"release-full source mirror should not build device-specific targets: {sorted(device_specific)}")
 PY
-make source-release DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-release" SOURCE_RELEASE_DIR="$tmp/releases" SOURCE_RELEASE_NAME=smoke-source >"$tmp/make-source-release.out"
+make --no-print-directory source-release DRY_RUN=1 SOURCE_MIRROR_DIR="$tmp/make-source-release" SOURCE_RELEASE_DIR="$tmp/releases" SOURCE_RELEASE_NAME=smoke-source >"$tmp/make-source-release.out"
 grep -q 'would create' "$tmp/make-source-release.out"
 grep -q 'make source-mirror' docs/offline-enclave.md
 grep -q 'make source-release' docs/offline-enclave.md

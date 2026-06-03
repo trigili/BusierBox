@@ -369,15 +369,7 @@ import sys
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-desc = data.get("menu_label") or data.get("description") or "payload preset"
-risk = data.get("risk_level")
-size = data.get("size_hint")
-parts = [desc]
-if risk:
-    parts.append(f"risk={risk}")
-if size:
-    parts.append(f"size={size}")
-print("; ".join(parts))
+print(data.get("menu_label") or data.get("description") or "payload preset")
 PY
     fi
     printf '%s\n' "payload preset"
