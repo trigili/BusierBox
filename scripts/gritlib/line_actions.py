@@ -127,6 +127,17 @@ def split_line_run_args(values):
     return " ".join(selector_parts).strip(), flags
 
 
+def print_line_action_result(rc):
+    try:
+        code = int(rc)
+    except (TypeError, ValueError):
+        code = 1
+    if code == 0:
+        print("action complete: ok")
+    else:
+        print(f"action failed: rc={code}")
+
+
 def run_line_selected_action(
     cfg, rec, args=None, dry_run_default=False,
     service_runner=None, daemon_runner=None, workbench_runner=None,
@@ -148,7 +159,7 @@ def run_line_selected_action(
         if service_runner is None:
             raise ValueError("service action runner is unavailable")
         rc = service_runner(cfg, rec_id, dry_run=dry_run, confirmed=confirmed)
-        print(f"action_returncode={rc}")
+        print_line_action_result(rc)
         return rc
     if kind == "daemon":
         if daemon_runner is None:
@@ -160,7 +171,7 @@ def run_line_selected_action(
             confirmed=confirmed,
             show_commands=False,
         )
-        print(f"action_returncode={rc}")
+        print_line_action_result(rc)
         return rc
     if kind == "workbench":
         if workbench_runner is None:
@@ -173,7 +184,7 @@ def run_line_selected_action(
             confirmed=confirmed,
             show_commands=False,
         )
-        print(f"action_returncode={rc}")
+        print_line_action_result(rc)
         return rc
     if kind == "target":
         if dry_run:
@@ -186,7 +197,7 @@ def run_line_selected_action(
                 "target_label": rec.get("target_label", ""),
                 "headless_command": rec.get("headless_command", rec.get("command", "")),
             })
-            print("action_returncode=0")
+            print_line_action_result(0)
             return 0
         if target_runner is None:
             raise ValueError("target action runner is unavailable")
@@ -196,7 +207,7 @@ def run_line_selected_action(
             input_func=target_input_func,
             show_commands=False,
         )
-        print(f"action_returncode={rc}")
+        print_line_action_result(rc)
         return rc
     raise ValueError(f"unsupported selected action kind: {kind}")
 

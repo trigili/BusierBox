@@ -6863,7 +6863,14 @@ def run_line_repl(cfg):
         }
         selector = aliases.get(action, action)
         rc = run_operator_daemon_workflow_action(cfg, selector, dry_run=dry_run, confirmed=confirmed, show_commands=False)
-        print(f"daemon_workflow_returncode={rc}")
+        try:
+            rc_code = int(rc)
+        except (TypeError, ValueError):
+            rc_code = 1
+        if rc_code == 0:
+            print("daemon action complete: ok")
+        else:
+            print(f"daemon action failed: rc={rc_code}")
 
     def line_action_records():
         return line_action_records_from_snapshot(workbench_snapshot(cfg))

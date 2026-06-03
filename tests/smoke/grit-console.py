@@ -1369,6 +1369,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     daemon_action_text = line_console_stdout[daemon_action_start:daemon_action_end] if daemon_action_start != -1 and daemon_action_end != -1 else ""
     if (not daemon_action_text or
             "operator daemon workflow action: operator-daemon-status" not in daemon_action_text or
+            "daemon action complete: ok" not in daemon_action_text or
+            "daemon_workflow_returncode=" in daemon_action_text or
             "headless_command:" in daemon_action_text or
             "headless_command=" in daemon_action_text):
         print("line-oriented daemon action commands exposed noisy headless commands", file=sys.stderr)
@@ -1379,6 +1381,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     module_action_text = line_console_stdout[module_action_start:module_action_end] if module_action_start != -1 and module_action_end != -1 else ""
     if (not module_action_text or
             "operator daemon workflow action: operator-daemon-status" not in module_action_text or
+            "action complete: ok" not in module_action_text or
+            "action_returncode=" in module_action_text or
             "headless_command:" in module_action_text or
             "headless_command=" in module_action_text):
         print("line-oriented selected daemon action commands exposed noisy headless commands", file=sys.stderr)
