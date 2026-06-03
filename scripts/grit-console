@@ -114,7 +114,8 @@ from gritlib.line_actions import (
     line_action_records_from_snapshot,
     print_line_actions as line_actions_print_line_actions,
     print_line_module_categories as line_actions_print_line_module_categories,
-    select_line_action_record,
+    select_line_action as line_actions_select_line_action,
+    selected_line_action as line_actions_selected_line_action,
     split_line_run_args,
 )
 from gritlib.line_build import (
@@ -7452,36 +7453,10 @@ def run_line_tui(cfg):
         )
 
     def select_line_action(selector):
-        text = str(selector or "").strip()
-        if not text:
-            raise ValueError("usage: use action ACTION")
-        selected = select_line_action_record(line_action_records(), text)
-        action_id = str(selected.get("id") or "")
-        cfg["_line_console_action_kind"] = str(selected.get("kind") or "")
-        cfg["_line_console_action_id"] = action_id
-        cfg["_line_console_module"] = f"action/{action_id}"
-        kind = selected.get("kind") or ""
-        state = selected.get("operator_action_state") or "-"
-        label = selected.get("label") or action_id
-        flags = []
-        if selected.get("requires_confirmation"):
-            flags.append("confirm required")
-        if selected.get("background_supported"):
-            flags.append("background ok")
-        flag_str = f"  |  {', '.join(flags)}" if flags else ""
-        print(f"  {kind}:{action_id}  —  {state}  |  {label}{flag_str}")
-        print("  options / check / run / run --dry-run / back")
-        return selected
+        return line_actions_select_line_action(cfg, line_action_records(), selector)
 
     def selected_line_action():
-        kind = str(cfg.get("_line_console_action_kind") or "")
-        action_id = str(cfg.get("_line_console_action_id") or "")
-        if not kind or not action_id:
-            return {}
-        for rec in line_action_records():
-            if str(rec.get("kind") or "") == kind and str(rec.get("id") or "") == action_id:
-                return rec
-        return {}
+        return line_actions_selected_line_action(cfg, line_action_records())
 
     def run_line_module_or_service(values=None, dry_run_default=False):
         selector, flags = split_line_run_args(values or [])

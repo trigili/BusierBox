@@ -82,6 +82,40 @@ def select_line_action_record(actions, selector):
     raise ValueError(f"action not found: {text}")
 
 
+def select_line_action(cfg, actions, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("usage: use action ACTION")
+    selected = select_line_action_record(actions, text)
+    action_id = str(selected.get("id") or "")
+    cfg["_line_console_action_kind"] = str(selected.get("kind") or "")
+    cfg["_line_console_action_id"] = action_id
+    cfg["_line_console_module"] = f"action/{action_id}"
+    kind = selected.get("kind") or ""
+    state = selected.get("operator_action_state") or "-"
+    label = selected.get("label") or action_id
+    flags = []
+    if selected.get("requires_confirmation"):
+        flags.append("confirm required")
+    if selected.get("background_supported"):
+        flags.append("background ok")
+    flag_str = f"  |  {', '.join(flags)}" if flags else ""
+    print(f"  {kind}:{action_id}  —  {state}  |  {label}{flag_str}")
+    print("  options / check / run / run --dry-run / back")
+    return selected
+
+
+def selected_line_action(cfg, actions):
+    kind = str(cfg.get("_line_console_action_kind") or "")
+    action_id = str(cfg.get("_line_console_action_id") or "")
+    if not kind or not action_id:
+        return {}
+    for rec in actions or []:
+        if str(rec.get("kind") or "") == kind and str(rec.get("id") or "") == action_id:
+            return rec
+    return {}
+
+
 def split_line_run_args(values):
     flags = []
     selector_parts = []
