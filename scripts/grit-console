@@ -159,7 +159,7 @@ from gritlib.staged_files import (
     reject_traversal_request_name, print_staged, stage_dir, stage_file,
     staged_file_workflow_action_indexes, staged_file_workflow_action_summary,
     staged_file_workflow_action_records, staged_file_path,
-    staged_files_state_record, staged_record_indexes, staged_record_list,
+    staged_files_state_status, staged_record_indexes, staged_record_list,
     staged_record_summary, unstage_file,
 )
 from gritlib.systemd_user import (
@@ -4668,16 +4668,10 @@ def status_document(cfg):
         "server_state_records_by_has_sessions": records_by_key(server_state_records, "has_sessions"),
         "server_state_records_by_schema": records_by_key(server_state_records, "schema"),
     }
-    staged_files_state = staged_files_state_record(cfg)
-    staged_files_state["has_staged"] = int(staged_files_state.get("staged_count") or 0) > 0
-    staged_files_state_records = [staged_files_state]
-    staged_files_state_index_maps = {
-        "staged_files_state_records_by_path": {rec.get("path", ""): rec for rec in staged_files_state_records if rec.get("path")},
-        "staged_files_state_records_by_exists": records_by_key(staged_files_state_records, "exists"),
-        "staged_files_state_records_by_valid": records_by_key(staged_files_state_records, "valid"),
-        "staged_files_state_records_by_has_staged": records_by_key(staged_files_state_records, "has_staged"),
-        "staged_files_state_records_by_schema": records_by_key(staged_files_state_records, "schema"),
-    }
+    staged_files_status = staged_files_state_status(cfg)
+    staged_files_state = staged_files_status["state_record"]
+    staged_files_state_records = staged_files_status["state_records"]
+    staged_files_state_index_maps = staged_files_status["state_index_maps"]
     command_queue_state = command_queue_state_record(cfg)
     command_queue_state["has_commands"] = int(command_queue_state.get("command_count") or 0) > 0
     command_queue_state_records = [command_queue_state]

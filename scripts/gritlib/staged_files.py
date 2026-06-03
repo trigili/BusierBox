@@ -61,6 +61,32 @@ def staged_files_state_record(cfg):
     return rec
 
 
+def staged_files_state_status(cfg):
+    state_record = staged_files_state_record(cfg)
+    state_record["has_staged"] = int(state_record.get("staged_count") or 0) > 0
+    state_records = [state_record]
+    state_index_maps = {
+        "staged_files_state_records_by_path": {
+            rec.get("path", ""): rec for rec in state_records if rec.get("path")
+        },
+        "staged_files_state_records_by_exists": records_by_key(
+            state_records, "exists"
+        ),
+        "staged_files_state_records_by_valid": records_by_key(state_records, "valid"),
+        "staged_files_state_records_by_has_staged": records_by_key(
+            state_records, "has_staged"
+        ),
+        "staged_files_state_records_by_schema": records_by_key(
+            state_records, "schema"
+        ),
+    }
+    return {
+        "state_record": state_record,
+        "state_records": state_records,
+        "state_index_maps": state_index_maps,
+    }
+
+
 def load_staged(cfg):
     data = read_json_file(staged_file_path(cfg), {"schema": 1, "staged": {}})
     if not isinstance(data, dict):
