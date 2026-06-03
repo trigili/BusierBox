@@ -5,8 +5,12 @@ import json
 import urllib.parse
 from pathlib import Path
 
+from gritlib.bridge_routes import attach_target_route_fields, target_route_context
+from gritlib.event_log import append_event
+from gritlib.operator_network import operator_advertised_host
 from gritlib.record_utils import record_count_by_key, records_by_key
-from gritlib.session_state import read_json_file
+from gritlib.session_state import atomic_write_json, read_json_file, utc_now
+from gritlib.target_records import configured_target_filter, target_context_fields
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
@@ -93,6 +97,74 @@ def file_sha256(path):
         for chunk in iter(lambda: fh.read(1024 * 1024), b""):
             h.update(chunk)
     return h.hexdigest()
+
+
+def stage_file(cfg, path, request_name, metadata=None):
+    src = Path(path).expanduser()
+    if not src.is_file():
+        raise ValueError(f"staged file does not exist or is not a regular file: {src}")
+    request = reject_traversal_request_name(request_name)
+    stat = src.stat()
+    data = load_staged(cfg)
+    record = {
+        "request_name": request,
+        "stage_kind": "file",
+        "source_path": str(src),
+        "size": stat.st_size,
+        "sha256": file_sha256(src),
+        "mtime": int(stat.st_mtime),
+        "staged_at": utc_now(),
+    }
+    if metadata:
+        record.update(metadata)
+        record["request_name"] = request
+        record["source_path"] = str(src)
+        record["size"] = stat.st_size
+        record["sha256"] = record.get("sha256") or file_sha256(src)
+        record["mtime"] = int(stat.st_mtime)
+        record["staged_at"] = record.get("staged_at") or utc_now()
+        record["stage_kind"] = str(record.get("stage_kind") or "file")
+    if configured_target_filter(cfg) and not record.get("target_id"):
+        record.update(target_context_fields(cfg, configured_target_filter(cfg)))
+    if "route_kind" not in record:
+        host = operator_advertised_host(cfg)
+        route = target_route_context(
+            cfg,
+            "file-service",
+            direct_host=host,
+            direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204),
+        )
+        record.update(attach_target_route_fields({}, route))
+    data["staged"][request] = record
+    atomic_write_json(staged_file_path(cfg), data)
+    append_event(cfg, "file-service", "staged_file_add", details=data["staged"][request])
+    return data["staged"][request]
+
+
+def stage_dir(cfg, path):
+    root = Path(path).expanduser()
+    if not root.is_dir():
+        raise ValueError(f"staged directory does not exist: {root}")
+    records = []
+    for child in sorted(root.iterdir()):
+        if child.is_file():
+            records.append(stage_file(cfg, child, child.name))
+    return records
+
+
+def unstage_file(cfg, request_name):
+    request = reject_traversal_request_name(request_name)
+    data = load_staged(cfg)
+    existed = request in data.get("staged", {})
+    data.get("staged", {}).pop(request, None)
+    atomic_write_json(staged_file_path(cfg), data)
+    append_event(
+        cfg,
+        "file-service",
+        "staged_file_remove",
+        details={"request_name": request, "existed": existed},
+    )
+    return existed
 
 
 def staged_record_indexes(records):
