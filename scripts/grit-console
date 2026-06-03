@@ -10872,6 +10872,7 @@ def run_line_tui(cfg):
                 rec_id,
                 dry_run=dry_run,
                 confirmed=confirmed,
+                show_commands=False,
             )
             print(f"action_returncode={rc}")
             return rc
@@ -13867,7 +13868,6 @@ def run_line_tui(cfg):
                 f"fleet_offline={format_counts(summary.get('operator_daemon_workflow_action_fleet_offline_target_count_counts') or {})} "
                 f"fleet_poll_overdue={format_counts(summary.get('operator_daemon_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
             )
-            print(f"headless_command: {headless}")
             action_preview = []
             seen_action_ids = set()
             for rec in snap.get("workbench_actions") or []:
@@ -13885,7 +13885,6 @@ def run_line_tui(cfg):
                     break
             for idx, rec in enumerate(action_preview, 1):
                 print(f"{idx}: {rec.get('id', '')} {rec.get('label', '')}")
-                print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
                 print(
                     f"   category={rec.get('category', '')} background_supported={'yes' if rec.get('background_supported') else 'no'} "
                     f"confirm={'yes' if rec.get('requires_confirmation') else 'no'} "
@@ -13898,12 +13897,6 @@ def run_line_tui(cfg):
                     f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
                     f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
                 )
-                if rec.get("dry_run_command"):
-                    print(f"   dry_run: {rec.get('dry_run_command', '')}")
-                if rec.get("run_command"):
-                    print(f"   run: {rec.get('run_command', '')}")
-                if rec.get("start_job_command"):
-                    print(f"   start_job: {rec.get('start_job_command', '')}")
             service_actions = snap.get("service_workflow_actions") or []
             service_action_preview = []
             seen_service_action_ids = set()
@@ -13919,11 +13912,10 @@ def run_line_tui(cfg):
                 print(
                     "Service workflow actions: "
                     f"total={len(service_actions)} preview={len(service_action_preview)} "
-                    f"headless commands shown for runnable/file-service actions"
+                    f"runnable/file-service actions shown"
                 )
             for idx, rec in enumerate(service_action_preview, 1):
                 print(f"service {idx}: {rec.get('id', '')} {rec.get('label', '')}")
-                print(f"   command: {rec.get('headless_command', rec.get('command', ''))}")
                 print(
                     f"   service={rec.get('service', '')} category={rec.get('category', '')} "
                     f"actual={rec.get('actual', '') or '-'} configured={rec.get('configured', '') or '-'} "
@@ -13965,6 +13957,7 @@ def run_line_tui(cfg):
                         action.get("id", selected),
                         dry_run=dry_run,
                         confirmed=confirmed,
+                        show_commands=False,
                     )
                     print(f"workbench_action_returncode={rc}")
                 except (ValueError, IndexError) as exc:

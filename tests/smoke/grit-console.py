@@ -2487,21 +2487,18 @@ def main(argv=None):
         if (actions_tui_proc.returncode != 0 or
                 "Traceback" in (actions_tui_stderr or "") or
                 "Workbench action summary:" not in actions_tui_text or
-                "headless_command: scripts/grit-console --config" not in actions_tui_text or
-                "--status" not in actions_tui_text or
+                "headless_command:" in actions_tui_text or
+                "headless_command=" in actions_tui_text or
                 "operator-daemon-status" not in actions_tui_text or
                 "operator action id/number to run" not in actions_tui_text or
                 "foreground_runnable=yes" not in actions_tui_text or
-                "dry_run: scripts/grit-console --config" not in actions_tui_text or
-                "start_job: scripts/grit-console --config" not in actions_tui_text or
                 "service 1:" not in actions_tui_text or
                 "file-service:start-service" not in actions_tui_text or
                 "enter_action=start-service" not in actions_tui_text or
                 "workbench action: systemd-user-status" not in actions_tui_text or
-                "--run-workbench-action systemd-user-status --workbench-action-dry-run" not in actions_tui_text or
                 "systemctl --user status grit-operator.service" not in actions_tui_text or
                 "workbench_action_returncode=0" not in actions_tui_text):
-            print("line TUI workflow-action view/run did not expose headless status command", file=sys.stderr)
+            print("line TUI workflow-action view/run exposed noisy headless commands or missed expected summaries", file=sys.stderr)
             print(actions_tui_text, file=sys.stderr)
             print(actions_tui_stderr or "", file=sys.stderr)
             return 1

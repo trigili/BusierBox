@@ -225,7 +225,7 @@ def next_workbench_job_id(data):
     raise ValueError("unable to allocate unique workbench job id")
 
 
-def run_workbench_action_record(cfg, actions, selector, dry_run=False, confirmed=False):
+def run_workbench_action_record(cfg, actions, selector, dry_run=False, confirmed=False, show_commands=True):
     action = select_workbench_action(actions, selector)
     action_id = str(action.get("id") or "")
     command = workbench_action_command_for_run(action, dry_run=dry_run)
@@ -245,8 +245,9 @@ def run_workbench_action_record(cfg, actions, selector, dry_run=False, confirmed
         confirmed=confirmed,
     )
     print(f"workbench action: {action_id}")
-    print(f"headless_command={headless}")
-    print(f"command={command}")
+    if show_commands:
+        print(f"headless_command={headless}")
+        print(f"command={command}")
     append_event(cfg, "workbench", "workbench_action_run_requested", details={
         "action_id": action_id,
         "category": action.get("category", ""),
