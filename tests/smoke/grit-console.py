@@ -1062,10 +1062,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     ]
     line_console_required_markers = [
         "Console help topics:",
+        "Usage:",
+        "  help <topic>",
+        "Topics:",
         "Operator workspace",
         "Target work",
         "Control plane",
         "Console",
+        "Tip: use `search TERM` to find agents, listeners, modules, sessions, jobs, files, and queue records.",
         "next: ? help  |  next  |  workspace",
         "Help: files",
         "Help: queue",

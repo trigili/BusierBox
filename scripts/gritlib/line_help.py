@@ -6,6 +6,11 @@ from gritlib.bridge_routes import ROUTE_HELP_LINES
 def print_line_console_help():
     print("Console help topics:")
     print("")
+    print("Usage:")
+    print("  help <topic>")
+    print("  <topic> ?")
+    print("")
+    print("Topics:")
     groups = [
         (
             "Operator workspace",
@@ -47,8 +52,7 @@ def print_line_console_help():
         for topic, desc in entries:
             print(f"  {topic:<10} {desc}")
         print("")
-    print("")
-    print("  help <topic>  or  <topic> ?   get detailed help on a topic")
+    print("Tip: use `search TERM` to find agents, listeners, modules, sessions, jobs, files, and queue records.")
 
 
 def print_line_command_help(topic):
