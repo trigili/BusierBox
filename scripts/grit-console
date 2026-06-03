@@ -64,7 +64,7 @@ from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
     command_copy_state_status,
 )
-from gritlib.config_utils import yes
+from gritlib.config_utils import apply_operator_session_path_defaults, yes
 from gritlib.crypto import generate_tls_cert
 from gritlib.dns import dns_parse_qname, dns_txt_answer_packet
 from gritlib.build_config import (
@@ -314,29 +314,6 @@ def append_event(cfg, service, event, level="info", session=None, remote=None, d
 
 def event_tail(cfg, limit=12):
     return EventLog(cfg).tail(limit)
-
-
-def apply_operator_session_path_defaults(cfg, explicit_keys):
-    operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
-    if str(operator_dir) == str(DEFAULT_OPERATOR_SESSION_DIR):
-        return cfg
-    derived_paths = {
-        "server_state": operator_dir / "server-state.json",
-        "staged_files": operator_dir / "staged-files.json",
-        "command_queue_file": operator_dir / "command-queue.json",
-        "command_copy_file": operator_dir / "last-command.txt",
-        "workbench_jobs_file": operator_dir / "workbench-jobs.json",
-        "targets_file": operator_dir / "targets.json",
-        "bridge_profiles_file": operator_dir / "bridge-profiles.json",
-        "authorized_dbclient_pubkey": operator_dir / "id_dbclient.pub",
-        "operator_host_key": operator_dir / "operator_ssh_host_key",
-        "tls_cert": operator_dir / "shell-server.crt",
-        "tls_key": operator_dir / "shell-server.key",
-    }
-    for key, value in derived_paths.items():
-        if key not in explicit_keys:
-            cfg[key] = str(value)
-    return cfg
 
 
 def enriched_staged_records(cfg, staged=None):
