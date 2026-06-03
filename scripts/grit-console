@@ -12040,10 +12040,12 @@ def run_line_tui(cfg):
             "headless_command": headless,
         })
 
-    def print_line_command_queue_view():
+    def print_line_command_queue_view(detailed=False):
         snap = workbench_snapshot(cfg)
         command_queue_actions = snap.get("command_queue_workflow_actions") or []
         mailbox_records = snap.get("target_mailbox_records") or []
+        queue_summary = command_queue_summary(cfg)
+        command_records = queue_summary.get("commands") or []
 
         def _fmt_time(iso):
             if iso and len(iso) >= 16 and "T" in iso:
@@ -12070,7 +12072,38 @@ def run_line_tui(cfg):
                 details.append(("created", created))
             return details
 
-        print_command_queue(cfg, json_output=False)
+        if detailed:
+            print_command_queue(cfg, json_output=False)
+        else:
+            status_bits = [
+                f"enabled={queue_summary.get('enabled', 'no')}",
+                f"queued={len(command_records)}",
+                f"results={queue_summary.get('result_count', 0)}",
+                f"pending_mailbox={len([rec for rec in mailbox_records if rec.get('pending_work')])}",
+            ]
+            print(f"Command queue  ({'  '.join(status_bits)})")
+            policy_errors = queue_summary.get("policy_errors") or []
+            if policy_errors:
+                print(f"  policy: invalid  errors={len(policy_errors)}")
+            elif queue_summary.get("policy_valid"):
+                print("  policy: valid")
+            else:
+                print("  policy: not configured")
+            if command_records:
+                command_cols = [
+                    ("Command", lambda r: str(r.get("id") or "-")[:20]),
+                    ("Status",  lambda r: r.get("status") or "-"),
+                    ("Target",  lambda r: r.get("target_id") or "-"),
+                    ("Result",  _result),
+                    ("Created", lambda r: _fmt_time(r.get("created_at"))),
+                ]
+                _console_table(
+                    f"Queued commands  ({len(command_records)} total)",
+                    command_records[:8], command_cols,
+                    footer="queue result N  |  queue clear --confirm  |  queue ? for help",
+                )
+            else:
+                print("  no queued commands")
 
         if mailbox_records:
             mb_cols = [
@@ -12134,7 +12167,7 @@ def run_line_tui(cfg):
         elif key in ("route", "routes"):
             print_line_routes(verbose=filter_text in ("-v", "--verbose", "verbose"))
         elif key in ("queue", "mailbox", "commands"):
-            print_line_command_queue_view()
+            print_line_command_queue_view(detailed=filter_text in ("-v", "--verbose", "verbose", "details"))
         elif key in ("activity", "events"):
             snap = workbench_snapshot(cfg)
             print_target_activity_records(snap, target_id=configured_target_filter(cfg), limit=12)
@@ -14336,7 +14369,7 @@ def run_line_tui(cfg):
                     headless_command=headless,
                 )
         elif choice == "20":
-            print_line_command_queue_view()
+            print_line_command_queue_view(detailed=True)
         elif choice == "21":
             unfiltered_cfg = dict(cfg)
             unfiltered_cfg.pop("_target_id_filter", None)

@@ -820,11 +820,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "renamed target line-console-target label=Console Router",
         "noted target line-console-target notes=Console quick note",
         "aliased target line-console-target aliases=console-alias",
+        "Command queue  (",
         "queued cq-",
         "Command result:",
         "result_status=none",
         "Probe  ",
-        "command: wget -O- ",
+        "wget:  wget -O- ",
         "Target download command:",
         "target_upload_path=/etc/config/network",
         "File staged for target fetch:",
@@ -899,6 +900,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(metadata_text or line_console_stdout, file=sys.stderr)
         print("direct metadata section:", file=sys.stderr)
         print(direct_metadata_text or line_console_stdout, file=sys.stderr)
+        return 1
+    mailbox_start = line_console_stdout.find("grit[Console Router]> mailbox")
+    mailbox_end = line_console_stdout.find("grit[Console Router]> use 1", mailbox_start + 1)
+    mailbox_text = line_console_stdout[mailbox_start:mailbox_end] if mailbox_start != -1 and mailbox_end != -1 else ""
+    if (not mailbox_text or "Command queue  (" not in mailbox_text or
+            "allowed_commands=" in mailbox_text or "delivery_policy_counts:" in mailbox_text):
+        print("line-oriented mailbox/queue view used verbose policy dump", file=sys.stderr)
+        print(mailbox_text or line_console_stdout, file=sys.stderr)
         return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
     daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)
