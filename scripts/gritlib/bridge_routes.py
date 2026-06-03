@@ -3,10 +3,12 @@
 import json
 from pathlib import Path
 
+from gritlib.event_log import append_event
 from gritlib.operator_network import target_visible_host
 from gritlib.record_utils import record_count_by_key
-from gritlib.session_state import atomic_write_json, read_json_file, state_file_path
+from gritlib.session_state import atomic_write_json, read_json_file, state_file_path, utc_now
 from gritlib.shell_utils import shquote
+from gritlib.target_records import selected_target_context
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
@@ -371,8 +373,8 @@ def save_bridge_profile(cfg, name, purpose="", notes="", hop_args=None, target=N
     dest_port = int(cfg.get("bridge_dest_port", 0) or 0)
     if dest_port <= 0:
         raise ValueError("--save-bridge-profile requires --bridge-dest-port")
-    target = target or {}
-    now = str(cfg.get("_now") or "")
+    target = selected_target_context(cfg) if target is None else (target or {})
+    now = str(cfg.get("_now") or utc_now())
     rec = {
         "schema": 1,
         "name": name,
@@ -394,7 +396,9 @@ def save_bridge_profile(cfg, name, purpose="", notes="", hop_args=None, target=N
         rec["created_at"] = existing.get("created_at")
     data["profiles"][name] = rec
     atomic_write_json(bridge_profiles_path(cfg), data)
-    return bridge_profile_record(cfg, name, rec)
+    out = bridge_profile_record(cfg, name, rec)
+    append_event(cfg, "bridge", "bridge_profile_saved", details=out)
+    return out
 
 
 def delete_bridge_profile(cfg, name):
@@ -409,6 +413,7 @@ def delete_bridge_profile(cfg, name):
     out = bridge_profile_record(cfg, name, rec)
     del profiles[name]
     atomic_write_json(bridge_profiles_path(cfg), data)
+    append_event(cfg, "bridge", "bridge_profile_deleted", details=out)
     return out
 
 

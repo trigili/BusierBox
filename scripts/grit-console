@@ -37,7 +37,6 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 if str(SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPT_DIR))
 
-from gritlib import bridge_routes
 from gritlib.bridge_routes import (
     attach_target_route_fields,
     bridge_hop_indexes, bridge_hop_records_from_profiles, bridge_hops_from_args,
@@ -45,7 +44,8 @@ from gritlib.bridge_routes import (
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_summary,
     bridge_profiles_path, bridge_route_path, default_bridge_hops,
     load_bridge_profiles, parse_bridge_hop, target_route_context,
-    valid_profile_name,
+    save_bridge_profile, delete_bridge_profile, apply_bridge_profile,
+    print_bridge_profile, print_bridge_profiles, valid_profile_name,
 )
 from gritlib.command_queue import (
     COMMAND_QUEUE_WORK_METADATA_FIELDS, command_queue_delivery_policy_snapshot,
@@ -720,39 +720,6 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None):
     return records
 
 
-
-
-def save_bridge_profile(cfg, name, purpose="", notes="", hop_args=None):
-    route_cfg = dict(cfg)
-    route_cfg["_now"] = utc_now()
-    rec = bridge_routes.save_bridge_profile(
-        route_cfg,
-        name,
-        purpose=purpose,
-        notes=notes,
-        hop_args=hop_args,
-        target=selected_target_context(cfg),
-    )
-    append_event(cfg, "bridge", "bridge_profile_saved", details=rec)
-    return rec
-
-
-def delete_bridge_profile(cfg, name):
-    rec = bridge_routes.delete_bridge_profile(cfg, name)
-    append_event(cfg, "bridge", "bridge_profile_deleted", details=rec)
-    return rec
-
-
-def apply_bridge_profile(cfg, name):
-    return bridge_routes.apply_bridge_profile(cfg, name)
-
-
-def print_bridge_profile(cfg, name, json_output=False):
-    return bridge_routes.print_bridge_profile(cfg, name, json_output=json_output)
-
-
-def print_bridge_profiles(cfg, json_output=False):
-    return bridge_routes.print_bridge_profiles(cfg, json_output=json_output)
 
 
 def record_selected_target_activity(cfg, service, log_dir, operation, remote="", details=None):
