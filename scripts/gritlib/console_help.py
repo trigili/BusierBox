@@ -28,8 +28,8 @@ Common operator workflows:
   --transport probe-dns
 
 Interactive console:
-  --tui opens the full-screen curses workbench for targets, mailbox work, files, bridges,
-  daemon/service lifecycle, generated commands, and build config.
+  --tui opens the line-oriented operator console for targets, mailbox work,
+  files, bridges, daemon/service lifecycle, generated commands, and build config.
 
 Reference:
   --help-console prints interactive console commands and examples.

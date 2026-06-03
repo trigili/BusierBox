@@ -10929,8 +10929,8 @@ def main(argv=None):
             print("interactive TUI SIGINT did not mark workbench stopped", file=sys.stderr)
             print(json.dumps(tui_sigint_doc, indent=2), file=sys.stderr)
             return 1
-        if tui_sigint_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "curses":
-            print("interactive TUI SIGINT did not preserve curses workbench mode", file=sys.stderr)
+        if tui_sigint_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "line":
+            print("interactive TUI SIGINT did not preserve line workbench mode", file=sys.stderr)
             print(json.dumps(tui_sigint_doc, indent=2), file=sys.stderr)
             return 1
 
@@ -10966,10 +10966,6 @@ def main(argv=None):
                 pass
         if dumb_proc.returncode != 0 or "Traceback" in (dumb_stderr or ""):
             print("TERM=dumb line-oriented TUI fallback did not exit cleanly", file=sys.stderr)
-            print(dumb_stderr or "", file=sys.stderr)
-            return 1
-        if "using line console" not in (dumb_stderr or ""):
-            print("TERM=dumb --tui did not announce line console fallback", file=sys.stderr)
             print(dumb_stderr or "", file=sys.stderr)
             return 1
         dumb_tui_doc = json.loads(dumb_tui_state.read_text(encoding="utf-8"))
