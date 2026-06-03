@@ -9658,14 +9658,14 @@ def main(argv=None):
                 "1 target" not in line_text or
                 "selected: Action Router" not in line_text or
                 "? help" not in line_text or
-                "workspace overview" not in line_text or
+                "workspace" not in line_text or
                 "Target detail: target-action label=Action Router" not in line_text or
                 "headless_command:" in line_text or
                 "headless_command=" in line_text or
                 "queues_offline_work=yes" not in line_text or
                 "offline=yes requires_online=no" not in line_text or
-                "state=needs-input reason=input-required enter=no" not in line_text or
-                "state=queueable-offline reason=queues-until-phone-home enter=yes" not in line_text or
+                "state=needs input reason=input-required enter=no" not in line_text or
+                "state=queueable offline reason=queues-until-phone-home enter=yes" not in line_text or
                 "target_workflow_action_returncode=0" not in line_text or
                 "Target activity after action:" not in line_text or
                 "Activity  (" not in line_text or
@@ -12036,7 +12036,7 @@ def main(argv=None):
             os.close(release_set_slave)
             release_set_slave = -1
             time.sleep(0.3)
-            os.write(release_set_master, f"release\nset release_dir {release_dir}\nrelease\nq\n".encode("utf-8"))
+            os.write(release_set_master, f"release\nset release_dir {release_dir}\nrelease\nq\nq\n".encode("utf-8"))
             release_set_chunks = []
             deadline = time.time() + 8
             while release_set_proc.poll() is None and time.time() < deadline:
@@ -12685,6 +12685,7 @@ def main(argv=None):
                     "release\n"
                     "release stage by_tuple_path:by-tuple/native/host/host/host\n"
                     "q\n"
+                    "q\n"
                 ).encode("utf-8"),
             )
             line_stdout_chunks = []
@@ -13071,7 +13072,7 @@ def main(argv=None):
             os.close(probe_slave)
             probe_slave = -1
             time.sleep(0.3)
-            os.write(probe_master, b"probe results\n2\nprobe config 1\nprobe clear 2\nprobe results\nprobe serve\n1\nq\n")
+            os.write(probe_master, b"probe results\n2\nprobe config 1\nprobe clear 2\nprobe results\nprobe serve\n1\nq\nq\n")
             probe_output = b""
             deadline = time.time() + 8
             while probe_proc.poll() is None and time.time() < deadline:

@@ -105,6 +105,9 @@ def print_target_summary(doc, limit=8):
                 command_text = str(item.get("command") or "").replace("\n", "\\n")
                 if len(command_text) > 96:
                     command_text = f"{command_text[:93]}..."
+                result_status = item.get("result_status", "") or "-"
+                result_exit = item.get("result_exit_code", "")
+                result_exit_text = result_exit if result_exit != "" else "-"
                 print(
                     f"      mailbox_command {item.get('command_id', '')} "
                     f"status={item.get('status', '') or '-'} "
@@ -120,6 +123,11 @@ def print_target_summary(doc, limit=8):
                     f"result_at={item.get('result_received_at', '') or '-'} "
                     f"command={command_text}"
                 )
+                if item.get("status") == "result-received":
+                    print(
+                        f"      summary: status={item.get('status', '') or '-'} "
+                        f"result={result_status} exit={result_exit_text}"
+                    )
         if rec.get("latest_activity_operation") or rec.get("latest_activity_service"):
             print(
                 f"    latest_activity={rec.get('latest_activity_operation', '') or '-'} "
@@ -183,7 +191,25 @@ def print_target_summary(doc, limit=8):
                 f"at={item.get('timestamp', '') or '-'} "
                 f"name={label} route={transfer_route}"
             )
-        for item in (activity_by_target.get(target_id) or [])[:4]:
+        activity_items = list(activity_by_target.get(target_id) or [])
+        representative_activity = []
+        seen_categories = set()
+        preferred_categories = ("mailbox", "phone-home", "heartbeat", "file-transfer", "session")
+        for category in preferred_categories:
+            for item in activity_items:
+                if item.get("category") == category and category not in seen_categories:
+                    representative_activity.append(item)
+                    seen_categories.add(category)
+                    break
+            if len(representative_activity) >= 4:
+                break
+        for item in activity_items:
+            if len(representative_activity) >= 4:
+                break
+            if item in representative_activity:
+                continue
+            representative_activity.append(item)
+        for item in representative_activity:
             print(
                 f"      activity {item.get('category', '') or '-'} "
                 f"{item.get('operation', '') or '-'} status={item.get('status', '') or '-'} "
