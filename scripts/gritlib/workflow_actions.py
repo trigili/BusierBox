@@ -281,6 +281,10 @@ def target_id_arg(target_id):
     return " --target-id " + shquote(target_id)
 
 
+def target_scoped_command(base_command, target_id, suffix):
+    return str(base_command) + target_id_arg(target_id) + str(suffix)
+
+
 def target_workflow_run_command(base_command, target_id, action_id, extra_args=""):
     command = (
         str(base_command)

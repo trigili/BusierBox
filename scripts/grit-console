@@ -248,7 +248,7 @@ from gritlib.workflow_actions import (
     service_lifecycle_action_states,
     service_workflow_action_record,
     target_workflow_action_indexes,
-    target_id_arg,
+    target_scoped_command,
     target_workflow_action_record,
     target_workflow_run_command,
     target_workflow_action_summary,
@@ -1331,13 +1331,12 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
         target_id = str(target.get("target_id") or "")
         if not target_id:
             continue
-        target_arg = target_id_arg(target_id)
         add(
             target,
             "inspect-status",
             "inspect",
             "Inspect this target's status and activity",
-            base + target_arg + " --status",
+            target_scoped_command(base, target_id, " --status"),
             "status",
         )
         add(
@@ -1345,7 +1344,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "open-workbench",
             "inspect",
             "Open the workbench scoped to this target",
-            base + target_arg + " --tui",
+            target_scoped_command(base, target_id, " --tui"),
             "workbench",
         )
         add(
@@ -1353,7 +1352,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "queue-command",
             "mailbox",
             "Queue command for this target mailbox",
-            base + target_arg + " --queue-command COMMAND",
+            target_scoped_command(base, target_id, " --queue-command COMMAND"),
             "command-queue",
             requires_input=True,
             queues_offline_work=True,
@@ -1364,7 +1363,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "serve-probe",
             "survey",
             "Serve probe for this target",
-            base + target_arg + " --transport probe",
+            target_scoped_command(base, target_id, " --transport probe"),
             "probe",
             target_phone_home_required=True,
         )
@@ -1383,7 +1382,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "stage-file-fetch",
             "file-transfer",
             "Stage a local file for this target to fetch",
-            base + target_arg + " --serve-file LOCAL_PATH --serve-as REQUEST_NAME",
+            target_scoped_command(base, target_id, " --serve-file LOCAL_PATH --serve-as REQUEST_NAME"),
             "file-service",
             requires_input=True,
             queues_offline_work=True,
@@ -1417,7 +1416,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "queue-staged-fetch",
             "file-transfer",
             "Queue a staged file fetch command for this target mailbox",
-            base + target_arg + " --run-target-workflow-action queue-staged-fetch --target-workflow-request-name REQUEST_NAME",
+            target_scoped_command(base, target_id, " --run-target-workflow-action queue-staged-fetch --target-workflow-request-name REQUEST_NAME"),
             "file-service",
             requires_input=True,
             queues_offline_work=True,
@@ -1428,7 +1427,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "start-file-service",
             "file-transfer",
             "Start file service for target uploads/downloads",
-            base + target_arg + " --file-service",
+            target_scoped_command(base, target_id, " --file-service"),
             "file-service",
         )
         for profile in bridge_by_target.get(target_id) or []:
