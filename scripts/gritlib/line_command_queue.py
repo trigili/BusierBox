@@ -99,6 +99,22 @@ def print_line_command_queue_records(queue_summary, mailbox_records, command_que
         print("\n  queue COMMAND  |  queue list  |  queue ? for help")
 
 
+def line_command_queue_record_by_selector(commands, selector):
+    text = str(selector or "").strip()
+    if not text:
+        return {}
+    rows = list(commands or [])
+    if text.isdigit():
+        idx = int(text) - 1
+        if 0 <= idx < len(rows):
+            return rows[idx]
+        return {}
+    for rec in rows:
+        if text == str(rec.get("id") or ""):
+            return rec
+    return {}
+
+
 def print_line_command_result_record(rec):
     rec = rec or {}
     result = rec.get("result") if isinstance(rec.get("result"), dict) else {}

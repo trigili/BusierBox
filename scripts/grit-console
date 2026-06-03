@@ -113,6 +113,7 @@ from gritlib.line_actions import (
 )
 from gritlib.line_build import run_line_build_command
 from gritlib.line_command_queue import (
+    line_command_queue_record_by_selector,
     print_line_command_queue_records, print_line_command_result_record,
 )
 from gritlib.line_configure import (
@@ -8071,18 +8072,10 @@ def run_line_tui(cfg):
         })
 
     def line_command_queue_record(selector):
-        text = str(selector or "").strip()
-        commands = command_queue_summary(cfg).get("commands") or []
-        if not text:
-            return {}
-        if text.isdigit():
-            idx = int(text) - 1
-            if 0 <= idx < len(commands):
-                return commands[idx]
-        for rec in commands:
-            if text == str(rec.get("id") or ""):
-                return rec
-        return {}
+        return line_command_queue_record_by_selector(
+            command_queue_summary(cfg).get("commands") or [],
+            selector,
+        )
 
     def print_line_command_result(selector):
         text = str(selector or "").strip()
