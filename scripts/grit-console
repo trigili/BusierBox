@@ -9729,7 +9729,6 @@ def run_line_tui(cfg):
             f"hops={rec.get('hop_count', 0)} "
             f"multi_hop={'yes' if rec.get('multi_hop') else 'no'}"
         )
-        print(f"headless_command: {headless}")
         print(f"next: route {rec.get('name', '')}, use route {rec.get('name', '')}, route start {rec.get('name', '')}, route delete {rec.get('name', '')}")
         append_event(cfg, "workbench", "workbench_bridge_profile_saved", details={
             "name": rec.get("name", ""),
@@ -9750,7 +9749,6 @@ def run_line_tui(cfg):
         if not line_route_record(name):
             raise ValueError(f"route not found: {name}")
         headless = bridge_profile_headless_command("start", name)
-        print(f"headless_command: {headless}")
         start_service_process(
             cfg,
             "bridge",
@@ -9774,7 +9772,6 @@ def run_line_tui(cfg):
         if not line_route_record(name):
             raise ValueError(f"route not found: {name}")
         headless = bridge_profile_headless_command("stop", name)
-        print(f"headless_command: {headless}")
         stop_recorded_service(cfg, "bridge", headless_command=headless)
         print(f"stopped route {name}")
         append_event(cfg, "workbench", "workbench_route_stopped", details={
@@ -9797,7 +9794,6 @@ def run_line_tui(cfg):
         if str(cfg.get("_line_console_module") or "") == f"route/{name}":
             cfg.pop("_line_console_module", None)
         print(f"deleted route {name}: {rec.get('route_path', '')}")
-        print(f"headless_command: {headless}")
         append_event(cfg, "workbench", "workbench_route_deleted", details={
             "name": name,
             "route_path": rec.get("route_path", ""),
