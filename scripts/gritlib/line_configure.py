@@ -1,6 +1,8 @@
 """Line-console config generation helpers."""
 
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 from gritlib.shell_utils import shquote
@@ -43,14 +45,51 @@ def parse_line_config_args(args, cmd_name):
     return survey_path, write_config_path, extra_args
 
 
-def run_config_from_survey(survey_path, write_config_path, extra_args):
+def _config_from_survey_candidates(search_roots=None):
+    seen = set()
+
+    def _add(path):
+        path = Path(path)
+        text = str(path)
+        if text in seen:
+            return
+        seen.add(text)
+        candidates.append(path)
+
+    candidates = []
+    override = os.environ.get("GRIT_CONFIG_FROM_SURVEY")
+    if override:
+        _add(override)
+    module_dir = Path(__file__).resolve().parent
+    argv_dir = Path(sys.argv[0]).resolve().parent if sys.argv and sys.argv[0] else Path.cwd()
+    roots = [
+        *(Path(root) for root in (search_roots or [])),
+        module_dir.parent,
+        module_dir.parent.parent,
+        argv_dir,
+        argv_dir.parent,
+        Path.cwd(),
+    ]
+    for root in roots:
+        _add(root / "lib" / "config-from-survey")
+        _add(root / "scripts" / "lib" / "config-from-survey")
+        _add(root / "config-from-survey")
+    return candidates
+
+
+def find_config_from_survey(search_roots=None):
+    for candidate in _config_from_survey_candidates(search_roots):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def run_config_from_survey(survey_path, write_config_path, extra_args, search_roots=None):
     """Run config-from-survey script and return the subprocess result."""
-    scripts_dir = Path(__file__).resolve().parents[1]
-    script = scripts_dir / "lib" / "config-from-survey"
-    if not script.is_file():
-        script = Path("scripts/lib/config-from-survey")
-    if not script.is_file():
-        raise ValueError("config-from-survey script not found")
+    script = find_config_from_survey(search_roots)
+    if not script:
+        searched = ", ".join(str(path) for path in _config_from_survey_candidates(search_roots)[:6])
+        raise ValueError(f"config-from-survey script not found (searched: {searched})")
     cmd = [str(script), "--format", "shell"] + list(extra_args or [])
     if write_config_path:
         cmd.extend(["--write-config", write_config_path])
