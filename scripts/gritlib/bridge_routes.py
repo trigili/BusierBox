@@ -13,6 +13,15 @@ from gritlib.target_records import selected_target_context
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
 DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
+ROUTE_HELP_LINES = [
+    "Route model: the operator listens on LPORT; bridge traffic is delivered to DEST_HOST:DEST_PORT from the target side.",
+    "Use hops to document the path a target must traverse to reach that operator listener.",
+    "HOP syntax: FROM=TO, FROM->TO, or FROM,TO; use endpoint labels such as target:PORT, jump:PORT, operator:PORT.",
+    "Direct target-to-operator SSH: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222",
+    "  Meaning: connect to operator:2222, bridge to 127.0.0.1:22 as seen from the target.",
+    "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
+    "  Meaning: target reaches jump:9001, jump reaches operator:8080, bridge delivers to 192.168.1.1:80.",
+]
 
 
 def records_by_key(records, key):

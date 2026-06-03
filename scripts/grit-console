@@ -43,7 +43,8 @@ from gritlib.bridge_routes import (
     bridge_profile_indexes, bridge_profile_record, bridge_profile_records,
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_records,
     bridge_profile_workflow_action_summary, bridge_profiles_path, bridge_route_path,
-    default_bridge_hops, load_bridge_profiles, parse_bridge_hop, target_route_context,
+    default_bridge_hops, load_bridge_profiles, parse_bridge_hop, ROUTE_HELP_LINES,
+    target_route_context,
     save_bridge_profile, delete_bridge_profile, apply_bridge_profile,
     print_bridge_profile, print_bridge_profiles, valid_profile_name,
 )
@@ -2416,17 +2417,6 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
 
 def current_stop_reason(default="complete"):
     return SHUTDOWN_REASON or default
-
-
-ROUTE_HELP_LINES = [
-    "Route model: the operator listens on LPORT; bridge traffic is delivered to DEST_HOST:DEST_PORT from the target side.",
-    "Use hops to document the path a target must traverse to reach that operator listener.",
-    "HOP syntax: FROM=TO, FROM->TO, or FROM,TO; use endpoint labels such as target:PORT, jump:PORT, operator:PORT.",
-    "Direct target-to-operator SSH: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222",
-    "  Meaning: connect to operator:2222, bridge to 127.0.0.1:22 as seen from the target.",
-    "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
-    "  Meaning: target reaches jump:9001, jump reaches operator:8080, bridge delivers to 192.168.1.1:80.",
-]
 
 
 def register_socket(sock):
