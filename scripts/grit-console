@@ -14403,7 +14403,6 @@ def run_line_tui(cfg):
                     )
                     activity_doc = snap
                     print("Target activity feed: all")
-                    print(f"headless_command: {headless}")
                     print_target_activity_records(activity_doc, limit=12)
                     activity_count = len(activity_doc.get("target_activity_records") or [])
                     append_event(cfg, "workbench", "workbench_target_activity_inspected", details={
@@ -14424,7 +14423,6 @@ def run_line_tui(cfg):
                         + " --json-status"
                     )
                     print(f"Target activity feed: {target_id} label={target_label or '-'}")
-                    print(f"headless_command: {headless}")
                     print_target_activity_records(activity_doc, target_id=target_id, limit=12)
                     activity_count = len(activity_doc.get("target_activity_records") or [])
                     append_event(cfg, "workbench", "workbench_target_activity_inspected", details={

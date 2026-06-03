@@ -9117,8 +9117,8 @@ def main(argv=None):
                 "mailbox" not in activity_text or
                 "target-poll" not in activity_text or
                 "queued" not in activity_text or
-                "--target-id target-action --json-status" not in activity_text):
-            print("line TUI target activity feed did not show scoped activity records", file=sys.stderr)
+                "headless_command:" in activity_text):
+            print("line TUI target activity feed exposed noisy headless command or missed scoped activity records", file=sys.stderr)
             print(activity_text, file=sys.stderr)
             print(activity_stderr or "", file=sys.stderr)
             return 1
