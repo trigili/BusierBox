@@ -180,6 +180,27 @@ def run_local_ips_cache_check(server):
     return 0
 
 
+def run_line_local_ips_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.line_network import print_line_local_ips
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        print_line_local_ips({"local_ips": ["192.168.8.2", "10.0.0.5", "127.0.0.1", "10.0.0.5"]})
+    text = buf.getvalue()
+    if ("Local IPs:" not in text or
+            text.find("  10.0.0.5") > text.find("  192.168.8.2") or
+            text.count("10.0.0.5") != 1 or
+            "127.0.0.1" in text or
+            "set GRIT_OPERATOR_SERVER_HOST" not in text):
+        print("line local IP renderer did not sort and de-duplicate candidates", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+    return 0
+
+
 def request_with_retry(port, payload):
     deadline = time.time() + 5
     last = None
@@ -1566,6 +1587,8 @@ def main(argv=None):
         print("grit-console: PID ownership evidence reporting missing", file=sys.stderr)
         return 1
     if run_local_ips_cache_check(server) != 0:
+        return 1
+    if run_line_local_ips_check() != 0:
         return 1
 
     if args.section == "preflight":

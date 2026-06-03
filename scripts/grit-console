@@ -154,6 +154,7 @@ from gritlib.line_options import (
     rename_line_target as line_options_rename_line_target,
     set_line_target_option, unset_line_target_option,
 )
+from gritlib.line_network import print_line_local_ips
 from gritlib.line_resources import (
     line_history_command, load_line_resource,
     print_line_history as line_resources_print_line_history,
@@ -193,8 +194,7 @@ from gritlib.operator_io import (
     set_interactive_tty_raw, view_path_headless_command, viewable_path,
 )
 from gritlib.operator_network import (
-    local_ips, operator_advertised_host, print_candidates, sorted_local_ips,
-    target_visible_host,
+    local_ips, operator_advertised_host, print_candidates, target_visible_host,
 )
 from gritlib.probe_commands import (
     parse_line_probe_args,
@@ -8820,28 +8820,6 @@ def run_line_tui(cfg):
         _readline.set_completer_delims("\t\n")
         _readline.parse_and_bind("tab: complete")
 
-    def _print_local_ips():
-        import socket
-        snap = workbench_snapshot(cfg)
-        candidates = sorted_local_ips(snap.get("local_ips") or [])
-        print("Local IPs:")
-        if candidates:
-            for ip in candidates:
-                print(f"  {ip}")
-        else:
-            # fallback: enumerate directly
-            try:
-                addrs = set()
-                for info in socket.getaddrinfo(socket.gethostname(), None):
-                    addr = info[4][0]
-                    if not addr.startswith("127.") and addr != "::1":
-                        addrs.add(addr)
-                for addr in sorted(addrs):
-                    print(f"  {addr}")
-            except Exception:
-                print("  (could not determine local IPs)")
-        print("  use: set GRIT_OPERATOR_SERVER_HOST <IP>  to configure")
-
     render_full = False
     compact_next_prompt = False
     pending_console_lines = []
@@ -8966,7 +8944,7 @@ def run_line_tui(cfg):
                     print(f"reload failed: {exc}")
                 continue
             elif cmd in {"ips", "local-ips", "list-local-ips"}:
-                _print_local_ips()
+                print_line_local_ips(workbench_snapshot(cfg))
                 continue
             elif cmd in {"workspace", "overview", "dashboard"}:
                 print_line_workspace()
