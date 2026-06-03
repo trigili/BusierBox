@@ -142,6 +142,59 @@ def set_line_target_option(cfg, name, value):
     return updated
 
 
+def rename_line_target(cfg, label):
+    text = str(label or "").strip()
+    if not text:
+        raise ValueError("usage: rename LABEL")
+    target_id, rec = selected_target_record_for_update(cfg)
+    updated = set_target_label(
+        cfg,
+        target_id,
+        text,
+        aliases=rec.get("aliases") or [],
+        notes=rec.get("notes", ""),
+    )
+    cfg["_target_label_filter"] = str(updated.get("label") or "")
+    print(f"renamed target {target_id} label={updated.get('label', '') or '-'}")
+    record_line_target_metadata_update(cfg, target_id, action="rename", field="target.label")
+    return updated
+
+
+def note_line_target(cfg, notes):
+    text = str(notes or "").strip()
+    target_id, rec = selected_target_record_for_update(cfg)
+    if not text:
+        print(f"target.notes={str(rec.get('notes') or '') or '-'}")
+        return rec
+    updated = set_target_label(
+        cfg,
+        target_id,
+        rec.get("label", ""),
+        aliases=rec.get("aliases") or [],
+        notes=text,
+    )
+    print(f"noted target {target_id} notes={str(updated.get('notes') or '') or '-'}")
+    record_line_target_metadata_update(cfg, target_id, action="note", field="target.notes")
+    return updated
+
+
+def alias_line_target(cfg, alias):
+    text = str(alias or "").strip()
+    if not text:
+        raise ValueError("usage: alias NAME")
+    target_id, rec = selected_target_record_for_update(cfg)
+    updated = set_target_label(
+        cfg,
+        target_id,
+        rec.get("label", ""),
+        aliases=[text],
+        notes=rec.get("notes", ""),
+    )
+    print(f"aliased target {target_id} aliases={','.join(str(item) for item in updated.get('aliases') or []) or '-'}")
+    record_line_target_metadata_update(cfg, target_id, action="alias", field="target.aliases")
+    return updated
+
+
 def unset_line_target_option(cfg, name, clear_module=None):
     key = str(name or "").strip()
     if key in ("module", "action"):

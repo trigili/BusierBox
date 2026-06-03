@@ -138,7 +138,10 @@ from gritlib.line_help import (
     print_line_console_help as line_help_print_line_console_help,
 )
 from gritlib.line_options import (
-    GRIT_TO_CFG_KEY, SERVICE_OPTIONS, record_line_target_metadata_update,
+    GRIT_TO_CFG_KEY, SERVICE_OPTIONS,
+    alias_line_target as line_options_alias_line_target,
+    note_line_target as line_options_note_line_target,
+    rename_line_target as line_options_rename_line_target,
     set_line_target_option, unset_line_target_option,
 )
 from gritlib.line_resources import (
@@ -6834,51 +6837,13 @@ def run_line_tui(cfg):
         set_line_target_option(cfg, key, text)
 
     def rename_line_target(label):
-        text = str(label or "").strip()
-        if not text:
-            raise ValueError("usage: rename LABEL")
-        target_id, rec = selected_target_record_for_update(cfg)
-        updated = set_target_label(
-            cfg,
-            target_id,
-            text,
-            aliases=rec.get("aliases") or [],
-            notes=rec.get("notes", ""),
-        )
-        cfg["_target_label_filter"] = str(updated.get("label") or "")
-        print(f"renamed target {target_id} label={updated.get('label', '') or '-'}")
-        record_line_target_metadata_update(cfg, target_id, action="rename", field="target.label")
+        line_options_rename_line_target(cfg, label)
 
     def note_line_target(notes):
-        text = str(notes or "").strip()
-        target_id, rec = selected_target_record_for_update(cfg)
-        if not text:
-            print(f"target.notes={str(rec.get('notes') or '') or '-'}")
-            return
-        updated = set_target_label(
-            cfg,
-            target_id,
-            rec.get("label", ""),
-            aliases=rec.get("aliases") or [],
-            notes=text,
-        )
-        print(f"noted target {target_id} notes={str(updated.get('notes') or '') or '-'}")
-        record_line_target_metadata_update(cfg, target_id, action="note", field="target.notes")
+        line_options_note_line_target(cfg, notes)
 
     def alias_line_target(alias):
-        text = str(alias or "").strip()
-        if not text:
-            raise ValueError("usage: alias NAME")
-        target_id, rec = selected_target_record_for_update(cfg)
-        updated = set_target_label(
-            cfg,
-            target_id,
-            rec.get("label", ""),
-            aliases=[text],
-            notes=rec.get("notes", ""),
-        )
-        print(f"aliased target {target_id} aliases={','.join(str(item) for item in updated.get('aliases') or []) or '-'}")
-        record_line_target_metadata_update(cfg, target_id, action="alias", field="target.aliases")
+        line_options_alias_line_target(cfg, alias)
 
     def set_line_global_option(name, value):
         set_line_global_build_option(cfg, name, value)
