@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key
-from gritlib.session_state import parse_utc_timestamp, utc_now
+from gritlib.session_state import atomic_write_json, parse_utc_timestamp, read_json_file, utc_now
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
@@ -63,6 +63,23 @@ def command_queue_state_record(cfg):
     except (OSError, json.JSONDecodeError) as exc:
         rec["error"] = str(exc)
     return rec
+
+
+def load_command_queue(cfg):
+    data = read_json_file(command_queue_path(cfg), {"schema": 1, "commands": []})
+    if not isinstance(data, dict):
+        data = {"schema": 1, "commands": []}
+    if not isinstance(data.get("commands"), list):
+        data["commands"] = []
+    data.setdefault("schema", 1)
+    return data
+
+
+def save_command_queue(cfg, data):
+    data.setdefault("schema", 1)
+    if not isinstance(data.get("commands"), list):
+        data["commands"] = []
+    atomic_write_json(command_queue_path(cfg), data)
 
 
 def command_queue_expired(rec, now_epoch=None):
@@ -158,6 +175,87 @@ def command_queue_policy_errors(cfg):
     if allow_arbitrary == "yes" and allowed != "custom":
         errors.append("arbitrary command queue execution requires allowed commands policy custom")
     return errors
+
+
+def command_queue_execution_supported(cfg):
+    if command_queue_policy_errors(cfg):
+        return False
+    enabled = str(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no"))
+    allowed = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
+    execution = str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only"))
+    allow_arbitrary = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", "no"))
+    if enabled != "yes" or execution != "execute":
+        return False
+    if allowed == "grit-only":
+        return True
+    if allowed == "custom" and allow_arbitrary == "yes":
+        return True
+    return False
+
+
+def command_queue_policy_snapshot(cfg):
+    errors = command_queue_policy_errors(cfg)
+    enabled = str(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no"))
+    allowed_commands = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
+    execution_mode = str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only"))
+    allow_arbitrary = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", "no"))
+    token_required = str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")) == "yes"
+    token_configured = bool(str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", "")))
+    execution_supported = command_queue_execution_supported(cfg)
+    arbitrary_execution_allowed = execution_supported and allowed_commands == "custom" and allow_arbitrary == "yes"
+    return {
+        "enabled": enabled == "yes",
+        "valid": not errors,
+        "errors": errors,
+        "allowed_commands": allowed_commands,
+        "execution_mode": execution_mode,
+        "metadata_only_default": execution_mode == "metadata-only",
+        "allow_arbitrary": allow_arbitrary == "yes",
+        "token_required": token_required,
+        "token_configured": token_configured,
+        "execution_supported": execution_supported,
+        "executes_commands": execution_supported,
+        "delivery_supported": False,
+        "result_upload_supported": True,
+        "active_control_channel": False,
+        "arbitrary_execution_allowed": arbitrary_execution_allowed,
+        "operator_queue_records_only": True,
+        "safety_boundary": "explicit operator queue record; target execution requires an explicit target poll and execute policy",
+    }
+
+
+def command_queue_delivery_policy_snapshot(cfg):
+    policy = command_queue_policy_snapshot(cfg)
+    policy.update({
+        "delivery_supported": True,
+        "result_upload_supported": True,
+        "delivery_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
+        "active_control_channel": True,
+        "operator_queue_records_only": False,
+        "safety_boundary": "explicit opt-in delivery on target poll; target execution depends on target-side command queue policy",
+    })
+    return policy
+
+
+COMMAND_QUEUE_WORK_METADATA_FIELDS = (
+    "work_kind",
+    "workflow",
+    "request_name",
+    "bridge_profile",
+    "bridge_route_path",
+    "bridge_requires_target_online",
+    "route_kind",
+)
+
+
+def command_queue_work_metadata(rec):
+    if not isinstance(rec, dict):
+        return {}
+    return {
+        key: rec.get(key)
+        for key in COMMAND_QUEUE_WORK_METADATA_FIELDS
+        if rec.get(key) not in (None, "")
+    }
 
 
 def command_queue_mode_semantics(live_transport_supported=True, execution_supported=False):
