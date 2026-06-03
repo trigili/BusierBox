@@ -82,6 +82,8 @@ from gritlib.record_utils import (
     records_by_session,
 )
 from gritlib.release_artifacts import (
+    kernel_floor_from_release, normalized_probe_arch,
+    release_artifact_matches_probe,
     release_recommendation_records, release_recommendations,
     release_artifact_workflow_action_indexes,
     release_artifact_workflow_action_summary, release_state_record,
@@ -5507,94 +5509,6 @@ def mark_service_error(cfg, action, reason, extra=None, event_name="service_erro
         data.update(extra)
     append_event(cfg, action, event_name, "error", details=data)
     return update_server_state(cfg, action, "error", data)
-
-
-def kernel_floor_from_release(release):
-    release = str(release or "").strip().lower()
-    if not release:
-        return ""
-    major = release.split(".", 1)[0]
-    if major.isdigit():
-        major_int = int(major)
-        if major_int < 3:
-            parts = release.split(".", 2)
-            if len(parts) >= 2 and parts[1].isdigit():
-                return f"{major_int}.{int(parts[1])}"
-        if major_int == 3:
-            return "3.x"
-        if major_int == 4:
-            return "4.x"
-        return "current"
-    return release
-
-
-def normalized_probe_arch(arch, endian=""):
-    arch = str(arch or "").strip().lower()
-    endian = str(endian or "").strip().lower()
-    if arch in {"x86-64", "amd64"}:
-        return "x86_64"
-    if arch in {"arm64"}:
-        return "aarch64"
-    if arch.startswith("armv7") or arch in {"armhf", "armv7l"}:
-        return "armv7"
-    if arch in {"mips"} and endian == "little":
-        return "mipsel"
-    if arch in {"mipsel"} and endian == "big":
-        return "mips"
-    return arch
-
-
-def release_tuple_for_record(release, record):
-    tuple_path = str(record.get("tuple_path") or "")
-    if not tuple_path and str(record.get("scope") or "") in {"by_tuple_path", "by_tuple_payload_preset"}:
-        tuple_path = str(record.get("key") or "").split(":", 1)[0]
-    if not tuple_path:
-        artifact = str(record.get("artifact") or "")
-        artifact_rec = (release.get("artifacts_by_release_path") or {}).get(artifact) or {}
-        tuple_path = str(artifact_rec.get("tuple_path") or "")
-    return (release.get("tuples_by_path") or {}).get(tuple_path) or {}
-
-
-def release_record_matches_probe(release, record, probe_arch, probe_kernel_floor):
-    tuple_rec = release_tuple_for_record(release, record)
-    tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
-    tuple_arch = normalized_probe_arch(tuple_info.get("arch") or "")
-    tuple_kernel = str(tuple_info.get("kernel_floor") or "").strip().lower()
-    if probe_arch and tuple_arch and probe_arch != tuple_arch:
-        return False
-    if probe_kernel_floor and tuple_kernel and tuple_kernel not in {"host", "current"}:
-        if tuple_kernel != probe_kernel_floor:
-            return False
-    return True
-
-
-def release_artifact_matches_probe(release, artifact, probe_arch, probe_kernel_floor):
-    tuple_path = str(artifact.get("tuple_path") or "")
-    tuple_rec = (release.get("tuples_by_path") or {}).get(tuple_path) or {}
-    tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
-    tuple_arch = normalized_probe_arch(tuple_info.get("arch") or "")
-    tuple_kernel = str(tuple_info.get("kernel_floor") or "").strip().lower()
-    if not tuple_path or not artifact.get("payload_preset"):
-        return False
-    if probe_arch and tuple_arch and probe_arch != tuple_arch:
-        return False
-    if not probe_kernel_floor or not tuple_kernel or tuple_kernel in {"host"}:
-        return True
-    probe_floor = str(probe_kernel_floor or "").strip().lower()
-    if probe_floor == tuple_kernel:
-        return True
-    if probe_floor == "current":
-        return tuple_kernel in {"current", "4.x"}
-    if probe_floor.endswith(".x"):
-        try:
-            probe_major = int(probe_floor.split(".", 1)[0])
-            tuple_major = int(tuple_kernel.split(".", 1)[0])
-        except (TypeError, ValueError):
-            return False
-        if probe_major >= 4:
-            return tuple_kernel in {"current", "4.x"}
-        return probe_major == tuple_major
-    return False
 
 
 RELEASE_LICENSE_NOTICE_FILES = (
