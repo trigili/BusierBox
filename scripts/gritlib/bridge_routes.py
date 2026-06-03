@@ -6,6 +6,9 @@ import shlex
 from pathlib import Path
 
 
+DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
+
+
 def atomic_write_json(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -54,7 +57,7 @@ def shquote(value):
     return shlex.quote(str(value))
 
 
-def bridge_profiles_path(cfg, default_operator_session_dir="operator-session"):
+def bridge_profiles_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
     return Path(str(cfg.get("bridge_profiles_file") or Path(str(cfg.get("operator_session_dir", default_operator_session_dir))) / "bridge-profiles.json"))
 
 
@@ -67,7 +70,7 @@ def valid_profile_name(name):
     return bool(text) and all(ch.isalnum() or ch in "._-" for ch in text)
 
 
-def load_bridge_profiles(cfg, default_operator_session_dir="operator-session"):
+def load_bridge_profiles(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
     data = read_json_file(bridge_profiles_path(cfg, default_operator_session_dir), {"schema": 1, "profiles": {}})
     if not isinstance(data, dict):
         data = {"schema": 1, "profiles": {}}

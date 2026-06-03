@@ -43,6 +43,7 @@ if str(SCRIPT_DIR) not in sys.path:
 from gritlib import bridge_routes
 from gritlib.bridge_routes import (
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_summary,
+    bridge_profiles_path,
 )
 from gritlib.command_queue import (
     command_queue_mode_record_indexes, command_queue_mode_records,
@@ -378,10 +379,6 @@ def event_log_state_record(cfg, stats=None):
         except OSError as exc:
             rec["error"] = str(exc)
     return rec
-
-
-def bridge_profiles_path(cfg):
-    return Path(str(cfg.get("bridge_profiles_file") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "bridge-profiles.json"))
 
 
 def apply_operator_session_path_defaults(cfg, explicit_keys):
