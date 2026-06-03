@@ -552,23 +552,41 @@ def print_target_activity_records(doc, target_id=None, limit=8):
     )
 
 
-def print_workbench_phone_home_attempts(snap):
+def print_workbench_phone_home_attempts(snap, limit=5, include_work_details=False):
+    def _count_map(counts):
+        if not isinstance(counts, dict):
+            return {}
+        out = {}
+        for key, value in counts.items():
+            out[key] = len(value) if isinstance(value, list) else value
+        return out
+
     print("Target phone-home attempts:")
     phone_home = snap.get("target_phone_home_records") or []
+    if not isinstance(phone_home, list):
+        phone_home = []
     if phone_home:
-        print(f"  total={len(phone_home)} statuses={format_counts(snap.get('target_phone_home_records_by_status') or {})} failed={format_counts(snap.get('target_phone_home_records_by_failed') or {})}")
-        for rec in phone_home[:5]:
+        summary = snap.get("summary") if isinstance(snap.get("summary"), dict) else {}
+        status_counts = snap.get("target_phone_home_records_by_status") or summary.get("target_phone_home_status_counts") or {}
+        failed_counts = snap.get("target_phone_home_records_by_failed") or summary.get("target_phone_home_failed_counts") or {}
+        print(f"  total={len(phone_home)} statuses={format_counts(_count_map(status_counts))} failed={format_counts(_count_map(failed_counts))}")
+        for rec in phone_home[:limit]:
+            if not isinstance(rec, dict):
+                continue
             target = rec.get("target_id", "") or "anonymous"
             reason = rec.get("pending_reason") or rec.get("reason") or ""
             suffix = f" reason={reason}" if reason else ""
             command = f" command={rec.get('command_id', '')}" if rec.get("command_id") else ""
+            work = f" work={rec.get('work_kind', '')}" if include_work_details and rec.get("work_kind") else ""
+            route = f" route={rec.get('route_kind', '')}" if include_work_details and rec.get("route_kind") else ""
+            bridge = f" bridge={rec.get('bridge_profile', '')}" if include_work_details and rec.get("bridge_profile") else ""
             target_state = f" target_state={rec.get('target_connectivity_state', '')}" if rec.get("target_connectivity_state") else ""
             offline_age = f" offline_age={rec.get('target_offline_age_bucket', '')}" if rec.get("target_offline_age_bucket") else ""
             remaining = (
                 f" queued_remaining={rec.get('queued_remaining_count')}"
                 if rec.get("queued_remaining_count") != "" else ""
             )
-            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{target_state}{offline_age}{command}{remaining}{suffix}")
+            print(f"  {rec.get('timestamp', '')} {rec.get('kind', '')} status={rec.get('status', '')} target={target} via={rec.get('contact_path', '')}{target_state}{offline_age}{command}{work}{route}{bridge}{remaining}{suffix}")
     else:
         print("  none")
 
