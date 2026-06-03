@@ -8665,11 +8665,33 @@ def run_line_tui(cfg):
     def parse_line_survey_args(args):
         return parse_line_probe_args(args)
 
-    def print_line_probe_script(paste=False):
+    def print_line_probe_script(paste=False, base64_mode=False):
         route = probe_route_context(cfg)
         route_host = str(route.get("host", "OPERATOR_IP") or "OPERATOR_IP")
         route_port = int(route.get("port", cfg.get("GRIT_PROBE_PORT", 22207)) or 22207)
         script_text = probe_script_fn(cfg, route_host, route_port).rstrip()
+        if base64_mode:
+            encoded = base64.b64encode(script_text.encode("utf-8")).decode("ascii")
+            delimiter = "GRIT_PROBE_B64"
+            while delimiter in encoded:
+                delimiter += "_END"
+            print("")
+            print("Serial/manual base64 paste:")
+            print("bb_probe_b64=$(cat <<'" + delimiter + "'")
+            for idx in range(0, len(encoded), 76):
+                print(encoded[idx:idx + 76])
+            print(delimiter)
+            print(")")
+            print("if printf '' | base64 -d >/dev/null 2>&1; then")
+            print("  printf '%s' \"$bb_probe_b64\" | tr -d '\\n' | base64 -d | /bin/sh")
+            print("elif printf '' | base64 -D >/dev/null 2>&1; then")
+            print("  printf '%s' \"$bb_probe_b64\" | tr -d '\\n' | base64 -D | /bin/sh")
+            print("else")
+            print("  echo 'base64 decoder not found' >&2; exit 1")
+            print("fi")
+            print("")
+            print("After it runs, use: probe results")
+            return
         if paste:
             delimiter = "GRIT_PROBE_SCRIPT"
             while delimiter in script_text:
@@ -10587,9 +10609,14 @@ def run_line_tui(cfg):
                             raise ValueError("usage: probe delivery")
                         _print_probe_delivery()
                     elif subcmd in {"paste", "serial", "heredoc"}:
-                        if len(console_args) > 2:
-                            raise ValueError("usage: probe paste")
-                        print_line_probe_script(paste=True)
+                        paste_args = [str(item).lower() for item in console_args[2:]]
+                        base64_mode = False
+                        for item in paste_args:
+                            if item in {"--base64", "base64", "-b"}:
+                                base64_mode = True
+                            else:
+                                raise ValueError("usage: probe paste [--base64]")
+                        print_line_probe_script(paste=True, base64_mode=base64_mode)
                     elif subcmd in {"script", "raw"}:
                         if len(console_args) > 2:
                             raise ValueError("usage: probe script")

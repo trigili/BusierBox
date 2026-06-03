@@ -706,6 +706,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "events service=workbench -n 2\n"
                 "probe delivery\n"
                 "probe paste\n"
+                "probe paste --base64\n"
                 "probe --queue\n"
                 "download --queue /etc/config/network\n"
                 "show mailbox\n"
@@ -806,6 +807,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Serial/manual paste:",
         "sh <<'GRIT_PROBE_SCRIPT'",
         "bb_payload=\"schema=1&script=probe.sh",
+        "Serial/manual base64 paste:",
+        "bb_probe_b64=$(cat <<'GRIT_PROBE_B64'",
+        "base64 decoder not found",
         "After it runs, use: probe results",
         "daemon -v for commands",
         "dry-run: scripts/grit-console --config",

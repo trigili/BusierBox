@@ -191,6 +191,7 @@ def print_line_command_help(topic):
                 ("probe --queue",                           "queue probe command for selected target's next phone-home"),
                 ("probe delivery",                          "show wget, curl, and raw nc delivery commands"),
                 ("probe paste",                             "print a serial/admin-shell heredoc that runs without writing a file"),
+                ("probe paste --base64",                    "print a base64 paste wrapper for shells with fragile quoting"),
                 ("probe script",                            "print the raw generated probe.sh script"),
                 ("probe results",                           "show received probe results (arch, kernel, bits, endian)"),
                 ("probe config [N]",                        "generate config from the most recent or numbered probe result"),
@@ -202,6 +203,7 @@ def print_line_command_help(topic):
                 "probe.sh captures: arch (uname_m), kernel, OS, word size, endian.",
                 "No griTTYkit required — download with wget, curl, or raw nc over HTTP.",
                 "probe paste bypasses the script download step for serial consoles and limited admin shells.",
+                "probe paste --base64 avoids most shell quoting issues but requires a base64 decoder.",
                 "probe config uses estimated defaults for libc/filesystem; use survey config for full data.",
             ],
             "examples": [
@@ -324,4 +326,3 @@ def print_line_command_help(topic):
     for i, ex in enumerate(entry.get("examples") or []):
         prefix = "  Example: " if i == 0 else "           "
         print(f"{prefix}{ex}")
-
