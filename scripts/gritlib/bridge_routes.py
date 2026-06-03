@@ -5,13 +5,14 @@ from pathlib import Path
 
 from gritlib.event_log import append_event
 from gritlib.operator_network import target_visible_host
-from gritlib.record_utils import record_count_by_key
+from gritlib.record_utils import int_value, record_count_by_key
 from gritlib.session_state import atomic_write_json, read_json_file, state_file_path, utc_now
 from gritlib.shell_utils import shquote
 from gritlib.target_records import selected_target_context
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
+DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 
 
 def records_by_key(records, key):
@@ -364,6 +365,167 @@ def bridge_profile_workflow_action_summary(records):
         "has_last_successful_relay_counts": record_count_by_key(records, "has_last_successful_relay"),
         "has_last_failure_counts": record_count_by_key(records, "has_last_failure"),
     }
+
+
+def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None, default_config=DEFAULT_SERVER_CONFIG):
+    config_path = str(cfg.get("_config_path", default_config))
+    base = "scripts/grit-console --config " + shquote(config_path)
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    fleet_mailbox_pending_work_count = sum(
+        int_value(rec.get("mailbox_pending_work_count", 0))
+        for rec in target_records
+    )
+    fleet_offline_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "offline"
+    ])
+    fleet_stale_target_count = len([
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") == "stale"
+    ])
+    fleet_mailbox_pending_target_count = len([
+        rec for rec in target_records
+        if int_value(rec.get("mailbox_pending_work_count", 0)) > 0
+    ])
+    fleet_poll_overdue_target_count = len([
+        rec for rec in target_records
+        if rec.get("poll_overdue") is True
+    ])
+    records = []
+
+    def command_for(action_id, name):
+        if action_id == "inspect-profile":
+            return base + " --inspect-bridge-profile " + shquote(name)
+        if action_id == "start-profile":
+            return base + " --transport bridge --bridge-profile " + shquote(name)
+        if action_id == "stop-profile":
+            return base + " --stop --transport bridge"
+        if action_id == "delete-profile":
+            return base + " --delete-bridge-profile " + shquote(name)
+        return base
+
+    def add(profile, action_id, category, label, action_state, action_reason,
+            can_run_from_curses_enter=False, curses_enter_action="", requires_confirmation=False):
+        name = str(profile.get("name") or "")
+        if not name:
+            return
+        command = command_for(action_id, name)
+        records.append({
+            "id": f"{name}:{action_id}",
+            "action_id": action_id,
+            "bridge_profile": name,
+            "target_id": str(profile.get("target_id") or ""),
+            "target_label": str(profile.get("target_label") or ""),
+            "category": category,
+            "workflow": "bridge-profile-lifecycle",
+            "label": label,
+            "command": command,
+            "headless_command": command,
+            "run_command": base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:{action_id}"),
+            "dry_run_command": base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:{action_id}") + " --bridge-profile-workflow-dry-run",
+            "route_path": str(profile.get("route_path") or ""),
+            "listen_host": str(profile.get("listen_host") or ""),
+            "listen_port": profile.get("listen_port", ""),
+            "dest_host": str(profile.get("dest_host") or ""),
+            "dest_port": profile.get("dest_port", ""),
+            "current_state": str(profile.get("current_state") or ""),
+            "active": bool(profile.get("active")),
+            "requires_target_online": bool(profile.get("requires_target_online")),
+            "multi_hop": bool(profile.get("multi_hop")),
+            "hop_count": int_value(profile.get("hop_count", 0)),
+            "has_last_successful_relay": bool(profile.get("has_last_successful_relay")),
+            "has_last_failure": bool(profile.get("has_last_failure")),
+            "last_failure_reason": str(profile.get("last_failure_reason") or ""),
+            "fleet_target_count": len(target_records),
+            "fleet_connectivity_state_counts": record_count_by_key(target_records, "connectivity_state"),
+            "fleet_offline_target_count": fleet_offline_target_count,
+            "fleet_stale_target_count": fleet_stale_target_count,
+            "fleet_mailbox_pending_target_count": fleet_mailbox_pending_target_count,
+            "fleet_mailbox_pending_work_count": fleet_mailbox_pending_work_count,
+            "fleet_poll_overdue_target_count": fleet_poll_overdue_target_count,
+            "fleet_has_offline_targets": fleet_offline_target_count > 0,
+            "fleet_has_stale_targets": fleet_stale_target_count > 0,
+            "fleet_has_mailbox_pending_work": fleet_mailbox_pending_work_count > 0,
+            "fleet_has_poll_overdue_targets": fleet_poll_overdue_target_count > 0,
+            "available": True,
+            "requires_input": False,
+            "requires_confirmation": bool(requires_confirmation),
+            "operator_action_state": action_state,
+            "operator_action_reason": action_reason,
+            "can_run_from_curses_enter": bool(can_run_from_curses_enter),
+            "curses_enter_action": curses_enter_action,
+            "execution_default": "show-command",
+            "target_execution": False,
+            "tui_visible": True,
+            "safety_boundary": "operator-side bridge profile lifecycle; starts/stops local bridge listener process only",
+        })
+
+    for profile in bridge_profiles or []:
+        if not isinstance(profile, dict):
+            continue
+        name = str(profile.get("name") or "")
+        if not name:
+            continue
+        active = bool(profile.get("active"))
+        if active:
+            start_state = "already-running"
+            start_reason = "already-active"
+            start_enter = False
+            stop_state = "ready"
+            stop_reason = "stop-bridge-profile"
+            stop_enter = True
+        else:
+            start_state = "ready"
+            start_reason = "start-bridge-profile"
+            start_enter = True
+            stop_state = "not-running"
+            stop_reason = "profile-not-active"
+            stop_enter = False
+        add(
+            profile,
+            "inspect-profile",
+            "inspect",
+            f"Inspect bridge profile {name}",
+            "ready",
+            "run-now",
+        )
+        add(
+            profile,
+            "start-profile",
+            "bridge",
+            f"Start bridge profile {name}",
+            start_state,
+            start_reason,
+            can_run_from_curses_enter=start_enter,
+            curses_enter_action="start-profile" if start_enter else "stop-profile",
+        )
+        add(
+            profile,
+            "stop-profile",
+            "bridge",
+            f"Stop active bridge profile {name}",
+            stop_state,
+            stop_reason,
+            can_run_from_curses_enter=stop_enter,
+            curses_enter_action="stop-profile" if stop_enter else "start-profile",
+        )
+        if records:
+            records[-1]["run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:stop-profile") + " --confirm-bridge-profile-workflow-action"
+            records[-1]["dry_run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:stop-profile") + " --bridge-profile-workflow-dry-run --confirm-bridge-profile-workflow-action"
+        add(
+            profile,
+            "delete-profile",
+            "configuration",
+            f"Delete bridge profile {name}",
+            "confirm-required",
+            "confirmation-required",
+            requires_confirmation=True,
+        )
+        if records:
+            records[-1]["run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:delete-profile") + " --confirm-bridge-profile-workflow-action"
+            records[-1]["dry_run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:delete-profile") + " --bridge-profile-workflow-dry-run --confirm-bridge-profile-workflow-action"
+    records.sort(key=lambda rec: (rec.get("bridge_profile", ""), rec.get("category", ""), rec.get("action_id", "")))
+    return records
 
 
 def save_bridge_profile(cfg, name, purpose="", notes="", hop_args=None, target=None):
