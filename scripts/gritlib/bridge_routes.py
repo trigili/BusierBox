@@ -394,6 +394,18 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None, d
     ])
     records = []
 
+    def workflow_command(name, action_id, dry_run=False, confirmed=False):
+        command = (
+            base
+            + " --run-bridge-profile-workflow-action "
+            + shquote(f"{name}:{action_id}")
+        )
+        if dry_run:
+            command += " --bridge-profile-workflow-dry-run"
+        if confirmed:
+            command += " --confirm-bridge-profile-workflow-action"
+        return command
+
     def command_for(action_id, name):
         if action_id == "inspect-profile":
             return base + " --inspect-bridge-profile " + shquote(name)
@@ -422,8 +434,8 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None, d
             "label": label,
             "command": command,
             "headless_command": command,
-            "run_command": base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:{action_id}"),
-            "dry_run_command": base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:{action_id}") + " --bridge-profile-workflow-dry-run",
+            "run_command": workflow_command(name, action_id),
+            "dry_run_command": workflow_command(name, action_id, dry_run=True),
             "route_path": str(profile.get("route_path") or ""),
             "listen_host": str(profile.get("listen_host") or ""),
             "listen_port": profile.get("listen_port", ""),
@@ -511,8 +523,13 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None, d
             curses_enter_action="stop-profile" if stop_enter else "start-profile",
         )
         if records:
-            records[-1]["run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:stop-profile") + " --confirm-bridge-profile-workflow-action"
-            records[-1]["dry_run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:stop-profile") + " --bridge-profile-workflow-dry-run --confirm-bridge-profile-workflow-action"
+            records[-1]["run_command"] = workflow_command(name, "stop-profile", confirmed=True)
+            records[-1]["dry_run_command"] = workflow_command(
+                name,
+                "stop-profile",
+                dry_run=True,
+                confirmed=True,
+            )
         add(
             profile,
             "delete-profile",
@@ -523,8 +540,13 @@ def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None, d
             requires_confirmation=True,
         )
         if records:
-            records[-1]["run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:delete-profile") + " --confirm-bridge-profile-workflow-action"
-            records[-1]["dry_run_command"] = base + " --run-bridge-profile-workflow-action " + shquote(f"{name}:delete-profile") + " --bridge-profile-workflow-dry-run --confirm-bridge-profile-workflow-action"
+            records[-1]["run_command"] = workflow_command(name, "delete-profile", confirmed=True)
+            records[-1]["dry_run_command"] = workflow_command(
+                name,
+                "delete-profile",
+                dry_run=True,
+                confirmed=True,
+            )
     records.sort(key=lambda rec: (rec.get("bridge_profile", ""), rec.get("category", ""), rec.get("action_id", "")))
     return records
 
