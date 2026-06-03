@@ -101,12 +101,14 @@ Operations:
   view PATH, cat PATH           view a local session/artifact path
   listeners [-v]                list listener services and start/stop commands
   routes [-v], route print      list bridge routes and hop details
-  route add NAME LPORT HOST DPORT [HOP ...]
+  route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]
                                 create a reusable bridge route profile
-                                model: operator listens on LPORT; bridge delivers to HOST:DPORT from target side
+                                model: target connects to operator LISTEN_PORT; operator forwards to DEST_HOST:DEST_PORT
+                                DEST_HOST:DEST_PORT must be visible from the operator/server running grit-console
+                                hops document the target-to-operator path; they do not change the relay destination
                                 hop: FROM=TO, FROM->TO, or FROM,TO; labels are target/jump/operator endpoints
                                 direct: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222
-                                meaning: connect to operator:2222, bridge to target-side 127.0.0.1:22
+                                meaning: target connects to operator:2222; operator forwards to 127.0.0.1:22
                                 multi-hop: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080
   route start NAME, route stop NAME
                                 control a reusable bridge route profile

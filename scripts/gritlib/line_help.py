@@ -241,7 +241,7 @@ def print_line_command_help(topic):
                 ("routes [-v]", "list bridge route profiles"),
                 ("route NAME", "inspect a bridge route"),
                 ("use route NAME", "select a route context"),
-                ("route add NAME LPORT HOST DPORT [HOP…]", "create a route profile"),
+                ("route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]", "create a route profile"),
                 ("route start NAME / route stop NAME", "start or stop a route"),
                 ("route delete NAME", "remove a route profile"),
                 ("start NAME / stop NAME", "shorthand start/stop when in route context"),

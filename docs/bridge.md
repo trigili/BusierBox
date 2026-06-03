@@ -2,7 +2,8 @@
 
 `scripts/grit-console --transport bridge` starts an explicit TCP relay. It
 listens on the operator host and forwards each accepted client connection to a
-configured destination host and port.
+configured destination host and port that is visible from the operator/server
+running `grit-console`.
 
 Example:
 
@@ -15,10 +16,10 @@ scripts/grit-console \
   --bridge-dest-port 80
 ```
 
-This is useful when a target, lab host, or jump point can reach a device or
-service that the operator workstation cannot route to directly. The bridge is
-off unless selected with `--transport bridge`, and `--bridge-dest-port` is
-required.
+This is useful when a target, lab host, or jump point can reach the operator
+listener and you want the operator/server to relay that connection to a known
+endpoint. The bridge is off unless selected with `--transport bridge`, and
+`--bridge-dest-port` is required.
 
 Status and audit behavior:
 
@@ -43,7 +44,10 @@ exposing it beyond a local lab interface.
 ## Named Profiles
 
 Bridge profiles store repeatable bridge routes for CLI, status JSON, and the
-operator console. A profile without explicit hops is a simple one-hop route:
+operator console. `route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]`
+means "the target connects to `LISTEN_PORT` on the operator, and the operator
+forwards to `DEST_HOST:DEST_PORT`." A profile without explicit hops is a simple
+one-hop route:
 
 ```sh
 scripts/grit-console \
@@ -59,8 +63,9 @@ scripts/grit-console --inspect-bridge-profile lab-http
 scripts/grit-console --transport bridge --bridge-profile lab-http
 ```
 
-Profiles can also carry explicit multi-hop chain metadata. Repeat `--bridge-hop`
-when saving the profile:
+Profiles can also carry explicit multi-hop chain metadata. Hops document the
+path a target uses to reach the operator listener; they do not change the TCP
+relay destination. Repeat `--bridge-hop` when saving the profile:
 
 ```sh
 scripts/grit-console \

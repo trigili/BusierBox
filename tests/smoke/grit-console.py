@@ -573,6 +573,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "help fetch\n"
                 "help queue\n"
                 "help build\n"
+                "route add\n"
                 "complete\n"
                 "complete use ag\n"
                 "complete agent Con\n"
@@ -812,11 +813,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Help: files",
         "Help: queue",
         "Help: events",
-        "Route model: the operator listens on LPORT; bridge traffic is delivered to DEST_HOST:DEST_PORT from the target side.",
+        "Route model: the target connects to LPORT on the operator; the operator bridge forwards to DEST_HOST:DEST_PORT.",
+        "DEST_HOST:DEST_PORT is the endpoint visible from the operator/server running grit-console.",
+        "Use hops to document the path the target uses to reach the operator listener; hops do not change the TCP relay destination.",
+        "route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]",
         "Direct target-to-operator SSH: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222",
-        "Meaning: connect to operator:2222, bridge to 127.0.0.1:22 as seen from the target.",
+        "Meaning: target connects to operator:2222; operator forwards that connection to 127.0.0.1:22.",
         "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
-        "Meaning: target reaches jump:9001, jump reaches operator:8080, bridge delivers to 192.168.1.1:80.",
+        "Meaning: target reaches jump:9001, jump reaches operator:8080; operator forwards to 192.168.1.1:80.",
         "Completions for <root>:",
         "resource ",
         "Workspace",
