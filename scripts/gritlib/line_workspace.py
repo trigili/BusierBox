@@ -4,6 +4,20 @@ from gritlib.console_display import console_table
 from gritlib.record_utils import format_counts
 
 
+def line_tui_prompt(target_id="", module="", target_context=None):
+    target_id = str(target_id or "").strip()
+    module = str(module or "").strip()
+    module_suffix = f"/{module}" if module else ""
+    if not target_id:
+        return f"grit[all]{module_suffix}> "
+    ctx = target_context or {}
+    label = str(ctx.get("target_label") or "").strip()
+    display = label or target_id
+    if len(display) > 36:
+        display = display[:33] + "..."
+    return f"grit[{display}]{module_suffix}> "
+
+
 def line_tui_status_bar(snap):
     summary = snap.get("summary") or {}
     target_filter = snap.get("target_filter") or {}
