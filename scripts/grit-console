@@ -6561,8 +6561,7 @@ def run_line_repl(cfg):
                     print(f"  session.session_log={rec.get('session_log', '')}")
                 if rec.get("event_log"):
                     print(f"  session.event_log={rec.get('event_log', '')}")
-                print(f"  session.view_command={view_path_headless_command(cfg, path)}")
-            print("  session.next=info, interact, sessions -v, back")
+            print("  session.next=info, interact, sessions -v, view PATH, back")
         elif module.startswith("job/"):
             job_id = module.split("/", 1)[1]
             rec = line_job_record(job_id)

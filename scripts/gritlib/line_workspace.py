@@ -323,8 +323,7 @@ def print_line_info(
                 print(f"    session_log={rec.get('session_log', '')}")
             if rec.get("event_log"):
                 print(f"    event_log={rec.get('event_log', '')}")
-            print(f"    view={view_command_builder(path)}")
-        print("    next: options, interact, sessions -v, back")
+        print("    next: options, interact, sessions -v, view PATH, back")
     elif module.startswith("job/"):
         job_id = module.split("/", 1)[1]
         rec = job_record(job_id)
