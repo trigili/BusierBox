@@ -247,6 +247,7 @@ from gritlib.workflow_actions import (
     target_workflow_action_record,
     target_workflow_action_summary,
     workflow_action_count,
+    workflow_command_prefix_count,
     workflow_enter_count,
     workflow_queue_count,
     workflow_fleet_metrics,
@@ -1100,10 +1101,7 @@ def operator_console_workflow_records(
             "action_count": workflow_action_count(bridge_profile_workflow_actions),
             "enter_runnable_action_count": workflow_enter_count(bridge_profile_workflow_actions),
             "queueable_offline_action_count": workflow_queue_count(target_workflow_actions),
-            "pending_work_count": len([
-                rec for rec in pending_mailbox
-                if str(rec.get("command") or "").startswith("bridge:")
-            ]),
+            "pending_work_count": workflow_command_prefix_count(pending_mailbox, "bridge:"),
             "warning_count": len([
                 rec for rec in bridge_profiles or []
                 if rec.get("has_last_failure") is True
@@ -1128,10 +1126,7 @@ def operator_console_workflow_records(
             "action_count": workflow_action_count(file_service_workflow_actions) + workflow_action_count(staged_file_workflow_actions),
             "enter_runnable_action_count": workflow_enter_count(file_service_workflow_actions) + workflow_enter_count(staged_file_workflow_actions),
             "queueable_offline_action_count": workflow_queue_count(staged_file_workflow_actions),
-            "pending_work_count": len([
-                rec for rec in pending_mailbox
-                if str(rec.get("command") or "").startswith("fetch:")
-            ]),
+            "pending_work_count": workflow_command_prefix_count(pending_mailbox, "fetch:"),
             "warning_count": len([
                 rec for rec in staged_records or []
                 if rec.get("source_exists") is False
@@ -1156,10 +1151,7 @@ def operator_console_workflow_records(
             "action_count": workflow_action_count(probe_workflow_actions),
             "enter_runnable_action_count": workflow_enter_count(probe_workflow_actions),
             "queueable_offline_action_count": workflow_queue_count(target_workflow_actions),
-            "pending_work_count": len([
-                rec for rec in pending_mailbox
-                if str(rec.get("command") or "").startswith("survey:")
-            ]),
+            "pending_work_count": workflow_command_prefix_count(pending_mailbox, "survey:"),
             "warning_count": 0,
             "headless_command": operator_console_headless_command("survey", base),
             "tui_shortcut": "w",

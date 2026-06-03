@@ -58,6 +58,13 @@ def workflow_queue_count(records):
     ])
 
 
+def workflow_command_prefix_count(records, prefix):
+    return len([
+        rec for rec in records or []
+        if str((rec or {}).get("command") or "").startswith(prefix)
+    ])
+
+
 def operator_console_headless_command(kind, base_command):
     commands = {
         "targets": base_command + " --status",
