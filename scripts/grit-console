@@ -10365,8 +10365,6 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="print interactive operator console command reference")
     parser.add_argument("--no-console", dest="no_console", action="store_true",
                         help="preserve direct listener CLI behavior when running interactively with no service action")
-    parser.add_argument("--no-tui", dest="no_console", action="store_true",
-                        help=argparse.SUPPRESS)
     parser.add_argument("--status", action="store_true",
                         help="show managed service state, actual listeners, sessions, uploads, and stale warnings")
     parser.add_argument("--json-status", action="store_true",
