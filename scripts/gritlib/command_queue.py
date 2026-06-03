@@ -117,7 +117,7 @@ def print_command_queue(cfg, json_output=False):
             print(f"  result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
 
 
-def print_workbench_command_queue_summary(queue):
+def print_workbench_command_queue_summary(queue, include_polling=False):
     print("Command queue:")
     print(f"  path: {queue.get('path', '')}")
     print(f"  enabled={queue.get('enabled', 'no')} default_enabled=no port={queue.get('port', '')} tls={queue.get('tls', '')} require_token={queue.get('require_token', '')} token_configured={'yes' if queue.get('token_configured') else 'no'} token_source={queue.get('token_source', '')}")
@@ -125,6 +125,8 @@ def print_workbench_command_queue_summary(queue):
     print(f"  policy_valid={'yes' if queue.get('policy_valid') else 'no'} configured_for_polling={command_queue_policy_yes_no(queue, 'configured_for_polling')} arbitrary_policy_requested={command_queue_policy_yes_no(queue, 'arbitrary_policy_requested')} arbitrary_execution_allowed={command_queue_policy_yes_no(queue, 'arbitrary_execution_allowed')}")
     print(f"  policy_flags: operator_queue_records_only={command_queue_policy_yes_no(queue, 'operator_queue_records_only')} metadata_only_default={command_queue_policy_yes_no(queue, 'metadata_only_default')} safe_disabled_default={command_queue_policy_yes_no(queue, 'safe_disabled_default')}")
     print(f"  transport_support: poll={command_queue_policy_yes_no(queue, 'poll_transport_supported')} live_polling={command_queue_policy_yes_no(queue, 'live_polling_supported')}")
+    if include_polling:
+        print(f"  polling: interval={queue.get('poll_interval_sec', '')} jitter_pct={queue.get('poll_jitter_pct', '')} backoff={queue.get('poll_backoff', '')} max_interval={queue.get('poll_max_interval_sec', '')} max_polls={queue.get('max_polls', '')}")
     for error in queue.get("policy_errors") or []:
         print(f"  policy_error={error}")
     print(f"  queued: {queue.get('queued_count', 0)} results={queue.get('result_count', 0)} output_exceeded={queue.get('result_output_exceeded_count', 0)} total={queue.get('total_count', 0)} execution_supported={command_queue_policy_yes_no(queue, 'execution_supported')} delivery_supported={command_queue_policy_yes_no(queue, 'delivery_supported')} result_upload_supported={command_queue_policy_yes_no(queue, 'result_upload_supported')}")
