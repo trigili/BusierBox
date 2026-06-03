@@ -164,7 +164,10 @@ from gritlib.line_sessions import (
     line_session_record_by_selector, print_line_session_records,
     print_selected_line_session,
 )
-from gritlib.line_targets import print_line_target_records, print_selected_line_target
+from gritlib.line_targets import (
+    current_line_target_record as line_targets_current_record,
+    print_line_target_records, print_selected_line_target,
+)
 from gritlib.line_target_commands import (
     copy_line_generated_command, run_line_generated_command,
 )
@@ -6897,16 +6900,7 @@ def run_line_tui(cfg):
         return targets
 
     def current_line_target_record():
-        target_id = configured_target_filter(cfg)
-        if not target_id:
-            return {}
-        unfiltered_cfg = dict(cfg)
-        unfiltered_cfg.pop("_target_id_filter", None)
-        unfiltered_cfg.pop("_target_label_filter", None)
-        for rec in workbench_snapshot(unfiltered_cfg).get("targets") or []:
-            if str(rec.get("target_id") or "") == target_id:
-                return rec
-        return {"target_id": target_id}
+        return line_targets_current_record(cfg, workbench_snapshot)
 
     def select_line_target(selector, targets=None):
         targets = targets if targets is not None else print_line_targets()

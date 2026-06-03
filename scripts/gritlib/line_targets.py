@@ -1,6 +1,7 @@
 """Line-console target rendering helpers."""
 
 from gritlib.console_display import console_table
+from gritlib.target_records import configured_target_filter
 
 
 def line_target_seen_text(rec):
@@ -57,3 +58,16 @@ def print_selected_line_target(rec):
         print("  options / next / sessions / queue / mailbox / back")
     else:
         print("  target filter cleared  —  showing all targets")
+
+
+def current_line_target_record(cfg, snapshot_func):
+    target_id = configured_target_filter(cfg)
+    if not target_id:
+        return {}
+    unfiltered_cfg = dict(cfg)
+    unfiltered_cfg.pop("_target_id_filter", None)
+    unfiltered_cfg.pop("_target_label_filter", None)
+    for rec in snapshot_func(unfiltered_cfg).get("targets") or []:
+        if str(rec.get("target_id") or "") == target_id:
+            return rec
+    return {"target_id": target_id}
