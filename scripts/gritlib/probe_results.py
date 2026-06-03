@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from gritlib.console_display import console_table
 from gritlib.session_state import atomic_write_json, read_json_file
 
 
@@ -89,3 +90,37 @@ def probe_synthetic_survey(rec):
             "filesystem, and tool capability data."
         ),
     }
+
+
+def probe_result_time_text(iso):
+    if iso and len(iso) >= 16 and "T" in iso:
+        date, rest = iso.split("T", 1)
+        return f"{date[5:]} {rest[:5]}"
+    return iso or "-"
+
+
+def print_probe_result_records(records):
+    records = list(records or [])
+    console_table(
+        f"Probe results  ({len(records)} received)",
+        records[:8],
+        [
+            ("Remote", lambda r: r.get("remote_addr") or "-"),
+            ("Arch", lambda r: r.get("uname_m") or r.get("architecture") or "-"),
+            ("Kernel", lambda r: r.get("uname_r") or r.get("kernel") or "-"),
+            ("OS", lambda r: r.get("uname_s") or "-"),
+            ("Bits", lambda r: str(r.get("word_bits") or "-")),
+            ("Endian", lambda r: r.get("endian") or "-"),
+            ("At", lambda r: probe_result_time_text(r.get("received_at"))),
+        ],
+    )
+    print("")
+    if records:
+        print("  Next steps:")
+        print("    probe config                           — generate config from most recent result")
+        print("    probe config N                         — generate config from a numbered result")
+        print("    probe config --write-config FILE       — generate and save config")
+        print("    probe clear [N|--all]                  — remove stale probe results")
+        print("    probe serve [--start]                  — stage the matching binary for this arch")
+    else:
+        print("  No results yet — run: probe --start")

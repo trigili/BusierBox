@@ -145,6 +145,7 @@ from gritlib.probe_results import (
     probe_all_results,
     probe_effective_arch,
     probe_latest_result,
+    print_probe_result_records,
     probe_result_by_ordinal,
     probe_results_path,
     probe_synthetic_survey,
@@ -8820,39 +8821,11 @@ def run_line_tui(cfg):
                 break
         return results
 
-    def _fmt_time(iso):
-        if iso and len(iso) >= 16 and "T" in iso:
-            date, rest = iso.split("T", 1)
-            return f"{date[5:]} {rest[:5]}"
-        return iso or "-"
-
     # ── probe results / config ───────────────────────────────────────────────
 
     def print_line_probe_results():
         bootstrap_results = probe_all_results(cfg)
-        _console_table(
-            f"Probe results  ({len(bootstrap_results)} received)",
-            bootstrap_results[:8],
-            [
-                ("Remote",  lambda r: r.get("remote_addr") or "-"),
-                ("Arch",    lambda r: r.get("uname_m") or r.get("architecture") or "-"),
-                ("Kernel",  lambda r: r.get("uname_r") or r.get("kernel") or "-"),
-                ("OS",      lambda r: r.get("uname_s") or "-"),
-                ("Bits",    lambda r: str(r.get("word_bits") or "-")),
-                ("Endian",  lambda r: r.get("endian") or "-"),
-                ("At",      lambda r: _fmt_time(r.get("received_at"))),
-            ],
-        )
-        print("")
-        if bootstrap_results:
-            print("  Next steps:")
-            print("    probe config                           — generate config from most recent result")
-            print("    probe config N                         — generate config from a numbered result")
-            print("    probe config --write-config FILE       — generate and save config")
-            print("    probe clear [N|--all]                  — remove stale probe results")
-            print("    probe serve [--start]                  — stage the matching binary for this arch")
-        else:
-            print("  No results yet — run: probe --start")
+        print_probe_result_records(bootstrap_results)
         append_event(cfg, "workbench", "workbench_probe_results_viewed", details={
             "result_count": len(bootstrap_results),
         })
