@@ -22,6 +22,17 @@ def line_file_target_text(rec):
     return label or "-"
 
 
+def line_file_records_from_staged(staged, target_filter_id=""):
+    staged = staged if isinstance(staged, dict) else {}
+    target_filter_id = str(target_filter_id or "")
+    if target_filter_id:
+        staged = {
+            name: rec for name, rec in staged.items()
+            if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
+        }
+    return [{"_name": name, **rec} for name, rec in sorted(staged.items())]
+
+
 def print_line_file_records(records, verbose=False, fetch_command=None, quote=None):
     records = list(records or [])
     fetch_command = fetch_command or (lambda _name: "")

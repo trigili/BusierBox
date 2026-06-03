@@ -115,7 +115,7 @@ from gritlib.line_command_queue import (
 )
 from gritlib.line_configure import parse_line_config_args, run_config_from_survey
 from gritlib.line_events import print_line_events_view
-from gritlib.line_files import print_line_file_records
+from gritlib.line_files import line_file_records_from_staged, print_line_file_records
 from gritlib.line_help import (
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
@@ -9222,13 +9222,7 @@ def run_line_tui(cfg):
 
     def print_line_files(verbose=False):
         staged = load_staged(cfg).get("staged", {})
-        target_filter_id = configured_target_filter(cfg)
-        if target_filter_id and isinstance(staged, dict):
-            staged = {
-                name: rec for name, rec in staged.items()
-                if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
-            }
-        records = [{"_name": name, **rec} for name, rec in sorted(staged.items())]
+        records = line_file_records_from_staged(staged, configured_target_filter(cfg))
         search_records = print_line_file_records(
             records,
             verbose=verbose,
