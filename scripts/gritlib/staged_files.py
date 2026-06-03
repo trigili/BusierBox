@@ -7,7 +7,7 @@ from pathlib import Path
 
 from gritlib.bridge_routes import attach_target_route_fields, target_route_context
 from gritlib.event_log import append_event
-from gritlib.file_transfers import print_staged_fetch_target_options
+from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
 from gritlib.operator_network import operator_advertised_host
 from gritlib.record_utils import record_count_by_key, records_by_key
 from gritlib.session_state import atomic_write_json, read_json_file, utc_now
@@ -80,6 +80,36 @@ def staged_record_list(staged):
         item["stage_kind"] = str(item.get("stage_kind") or "file")
         records.append(item)
     return records
+
+
+def enriched_staged_records(cfg, staged=None):
+    staged = staged if staged is not None else load_staged(cfg).get("staged", {})
+    host = operator_advertised_host(cfg)
+    route = target_route_context(
+        cfg,
+        "file-service",
+        direct_host=host,
+        direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204),
+    )
+    out = {}
+    for name, rec in sorted((staged or {}).items()):
+        if not isinstance(rec, dict):
+            continue
+        item = dict(rec)
+        request = item.get("request_name") or name
+        source_path = item.get("source_path", "")
+        item["request_name"] = request
+        item["stage_kind"] = str(item.get("stage_kind") or "file")
+        item["fetch_command"] = render_fetch_command(request, cfg, host=host)
+        item["fetch_command_force"] = render_fetch_command(request, cfg, host=host, force=True)
+        item["target_route"] = dict(route)
+        item["route_kind"] = route.get("route_kind", "direct")
+        item["bridge_profile"] = route.get("bridge_profile", "")
+        item["bridge_route_path"] = route.get("bridge_route_path", "")
+        item["source_exists"] = Path(str(source_path)).is_file() if source_path else False
+        item["source_path"] = str(source_path)
+        out[name] = item
+    return out
 
 
 def reject_traversal_request_name(name):

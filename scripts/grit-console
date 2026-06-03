@@ -142,11 +142,11 @@ from gritlib.service_status import (
 from gritlib.shell_utils import shquote
 from gritlib.ssh_keys import ensure_host_key, keys_equal, load_public_key
 from gritlib.staged_files import (
-    file_sha256, load_staged, reject_traversal_request_name,
-    print_staged, stage_dir, stage_file, staged_file_workflow_action_indexes,
-    staged_file_workflow_action_summary, staged_file_path,
-    staged_files_state_record, staged_record_indexes, staged_record_list,
-    staged_record_summary, unstage_file,
+    enriched_staged_records, file_sha256, load_staged,
+    reject_traversal_request_name, print_staged, stage_dir, stage_file,
+    staged_file_workflow_action_indexes, staged_file_workflow_action_summary,
+    staged_file_path, staged_files_state_record, staged_record_indexes,
+    staged_record_list, staged_record_summary, unstage_file,
 )
 from gritlib.systemd_user import (
     render_systemd_user_unit, systemctl_user_command,
@@ -315,31 +315,6 @@ DEFAULTS = {
     "GRIT_RSHELL_RETRY_BACKOFF": "none",
     "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC": "300",
 }
-
-
-def enriched_staged_records(cfg, staged=None):
-    staged = staged if staged is not None else load_staged(cfg).get("staged", {})
-    host = operator_advertised_host(cfg)
-    route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
-    out = {}
-    for name, rec in sorted((staged or {}).items()):
-        if not isinstance(rec, dict):
-            continue
-        item = dict(rec)
-        request = item.get("request_name") or name
-        source_path = item.get("source_path", "")
-        item["request_name"] = request
-        item["stage_kind"] = str(item.get("stage_kind") or "file")
-        item["fetch_command"] = render_fetch_command(request, cfg, host=host)
-        item["fetch_command_force"] = render_fetch_command(request, cfg, host=host, force=True)
-        item["target_route"] = dict(route)
-        item["route_kind"] = route.get("route_kind", "direct")
-        item["bridge_profile"] = route.get("bridge_profile", "")
-        item["bridge_route_path"] = route.get("bridge_route_path", "")
-        item["source_exists"] = Path(str(source_path)).is_file() if source_path else False
-        item["source_path"] = str(source_path)
-        out[name] = item
-    return out
 
 
 def record_target_activity(cfg, metadata, service, session_id=""):
