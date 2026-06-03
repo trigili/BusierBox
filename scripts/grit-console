@@ -12371,7 +12371,7 @@ def run_line_tui(cfg):
             request_name = values[1]
         return selector, request_name, start_file_service, no_start
 
-    def stage_line_binary(selector="", request_name="", prompt_for_missing=True, prompt_start=True, start_file_service=False):
+    def stage_line_binary(selector="", request_name="", prompt_for_missing=True, prompt_start=True, start_file_service=False, show_headless=False):
         rel = release_context(cfg)
         if rel and prompt_for_missing:
             nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=6)
@@ -12425,7 +12425,8 @@ def run_line_tui(cfg):
             output_name=rec.get("request_name", ""),
             executable=True,
         )
-        print(f"headless_command: {headless}")
+        if show_headless:
+            print(f"headless_command: {headless}")
         started = False
         if start_file_service:
             start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
@@ -13846,7 +13847,7 @@ def run_line_tui(cfg):
                     print(exc)
         elif choice == "22":
             try:
-                stage_line_binary()
+                stage_line_binary(show_headless=True)
             except ValueError as exc:
                 print(exc)
         elif choice == "11":

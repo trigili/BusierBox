@@ -944,6 +944,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented download command exposed noisy headless command", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
+    binary_end = line_console_stdout.find("Artifact trailer configured:")
+    binary_start = line_console_stdout.rfind("griTTYkit binary staged for target fetch:", 0, binary_end)
+    binary_text = line_console_stdout[binary_start:binary_end] if binary_start != -1 and binary_end != -1 else ""
+    if not binary_text or "target_run_hint=chmod +x ./grit-console && ./grit-console --help" not in binary_text or "headless_command:" in binary_text:
+        print("line-oriented serve-binary command exposed noisy headless command", file=sys.stderr)
+        print(binary_text or line_console_stdout, file=sys.stderr)
+        return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
     daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)
     daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""
