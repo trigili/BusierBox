@@ -1126,6 +1126,7 @@ def main(argv=None):
     # Paramiko key comparison must use get_name/get_base64, not object equality
     src = (ROOT / "scripts" / "grit-console").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
+    operator_io_src = (ROOT / "scripts" / "gritlib" / "operator_io.py").read_text()
     process_status_src = (ROOT / "scripts" / "gritlib" / "process_status.py").read_text()
     service_status_src = (ROOT / "scripts" / "gritlib" / "service_status.py").read_text()
     release_docs = (ROOT / "docs" / "release-bundles.md").read_text()
@@ -1197,7 +1198,7 @@ def main(argv=None):
                  "Jobs", "enter cancels this job when supported", "action 12 starts jobs; action 13 cancels jobs",
                  "Workflow Actions", "enter starts background workflow job when supported", "action 11 opens full workflow action list",
                  "Operator Daemon", "enter starts/stops attached operator daemon", "TUI attaches through shared status/state files"):
-        if word not in src:
+        if word not in src + operator_io_src:
             print(f"grit-console: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
     for word in ("stage_release_nav_item", "stage_release_selection", "by_device:", "by_tuple_path:", "enter/s stages recommended artifact when available"):

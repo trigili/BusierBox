@@ -88,6 +88,7 @@ from gritlib.file_transfers import (
     target_file_transfer_records_from_sources, upload_record_indexes,
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
+from gritlib.operator_io import clipboard_command, open_path_in_pager, viewable_path
 from gritlib.probe_results import append_probe_result, probe_results_path
 from gritlib.runtime import Service, ServiceManager, Session
 from gritlib.process_status import (
@@ -4805,52 +4806,6 @@ def recent_fetch_metadata(cfg, limit=8):
     return rows[:limit]
 
 
-def pager_command():
-    configured = os.environ.get("PAGER", "").strip()
-    candidates = []
-    if configured:
-        try:
-            candidates.append(shlex.split(configured))
-        except ValueError:
-            candidates.append([configured])
-    candidates.extend((["less", "-R"], ["more"]))
-    for cmd in candidates:
-        if not cmd:
-            continue
-        exe = cmd[0]
-        if "/" in exe:
-            if os.access(exe, os.X_OK):
-                return cmd
-            continue
-        if shutil.which(exe):
-            return cmd
-    return None
-
-
-def viewable_path(path):
-    candidate = Path(str(path or "")).expanduser()
-    if candidate.is_dir():
-        for name in ("session.json", "events.jsonl"):
-            child = candidate / name
-            if child.is_file():
-                return child
-        return None
-    if candidate.is_file():
-        return candidate
-    return None
-
-
-def open_path_in_pager(path):
-    target = viewable_path(path)
-    if not target:
-        return f"no viewable local file: {path}"
-    cmd = pager_command()
-    if not cmd:
-        return f"no pager found for: {target}"
-    subprocess.run(cmd + [str(target)], check=False)
-    return f"viewed {target}"
-
-
 def view_path_headless_command(cfg, path):
     return (
         "scripts/grit-console --config "
@@ -4858,13 +4813,6 @@ def view_path_headless_command(cfg, path):
         + " --view-path "
         + shquote(str(path or ""))
     )
-
-
-def clipboard_command():
-    for cmd in (["wl-copy"], ["xclip", "-selection", "clipboard"], ["xsel", "--clipboard", "--input"], ["pbcopy"]):
-        if shutil.which(cmd[0]):
-            return cmd
-    return None
 
 
 def copy_text_for_operator(cfg, text, label="command", details=None):
