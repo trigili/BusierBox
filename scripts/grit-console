@@ -244,6 +244,7 @@ from gritlib.workflow_actions import (
     probe_workflow_action_record,
     probe_workflow_action_indexes,
     probe_workflow_action_summary,
+    scoped_service_workflow_run_command,
     select_workbench_action,
     select_workflow_action,
     service_lifecycle_action_states,
@@ -1586,7 +1587,7 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
             label,
             command,
             workflow,
-            base + target_arg + " --run-file-service-workflow-action " + shquote(f"file-service:{action_id}"),
+            scoped_service_workflow_run_command(base, target_arg, "file-service", action_id),
             target_filter_id,
             route,
             service_row,
@@ -1640,7 +1641,13 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
         requires_input=True,
     )
     if records:
-        records[-1]["run_command"] = base + target_arg + " --run-file-service-workflow-action file-service:stage-file --file-service-workflow-local-file LOCAL_PATH --file-service-workflow-request-name REQUEST_NAME"
+        records[-1]["run_command"] = scoped_service_workflow_run_command(
+            base,
+            target_arg,
+            "file-service",
+            "stage-file",
+            " --file-service-workflow-local-file LOCAL_PATH --file-service-workflow-request-name REQUEST_NAME",
+        )
     add(
         "show-upload-command",
         "upload",
@@ -1653,7 +1660,13 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
     )
     if records:
         records[-1]["target_command_template"] = render_file_service_command(["put", "TARGET_PATH"], cfg, host=route.get("host"))
-        records[-1]["run_command"] = base + target_arg + " --run-file-service-workflow-action file-service:show-upload-command --file-service-workflow-target-path TARGET_PATH"
+        records[-1]["run_command"] = scoped_service_workflow_run_command(
+            base,
+            target_arg,
+            "file-service",
+            "show-upload-command",
+            " --file-service-workflow-target-path TARGET_PATH",
+        )
     add(
         "start-file-service",
         "service",
@@ -1678,7 +1691,13 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
         curses_enter_action="stop-file-service" if lifecycle_states["stop_enter"] else "start-file-service",
     )
     if records:
-        records[-1]["run_command"] = base + target_arg + " --run-file-service-workflow-action file-service:stop-file-service --confirm-file-service-workflow-action"
+        records[-1]["run_command"] = scoped_service_workflow_run_command(
+            base,
+            target_arg,
+            "file-service",
+            "stop-file-service",
+            " --confirm-file-service-workflow-action",
+        )
     records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
     return records
 
@@ -1804,7 +1823,7 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
             label,
             command,
             workflow,
-            base + target_arg + " --run-command-queue-workflow-action " + shquote(f"command-queue:{action_id}"),
+            scoped_service_workflow_run_command(base, target_arg, "command-queue", action_id),
             target_filter_id,
             service_row,
             command_queue.get("path") or command_queue_path(cfg),
@@ -1860,7 +1879,13 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
         target_phone_home_required=True,
     )
     if records:
-        records[-1]["run_command"] = base + target_arg + " --run-command-queue-workflow-action command-queue:queue-command --command-queue-workflow-command COMMAND"
+        records[-1]["run_command"] = scoped_service_workflow_run_command(
+            base,
+            target_arg,
+            "command-queue",
+            "queue-command",
+            " --command-queue-workflow-command COMMAND",
+        )
     add(
         "clear-command-queue",
         "mailbox",
@@ -1872,7 +1897,13 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
         requires_confirmation=True,
     )
     if records:
-        records[-1]["run_command"] = base + target_arg + " --run-command-queue-workflow-action command-queue:clear-command-queue --confirm-command-queue-workflow-action"
+        records[-1]["run_command"] = scoped_service_workflow_run_command(
+            base,
+            target_arg,
+            "command-queue",
+            "clear-command-queue",
+            " --confirm-command-queue-workflow-action",
+        )
     add(
         "start-command-queue-listener",
         "service",

@@ -300,6 +300,20 @@ def target_workflow_run_command(base_command, target_id, action_id, extra_args="
     return command
 
 
+def scoped_service_workflow_run_command(base_command, target_arg, service_name, action_id, extra_args=""):
+    command = (
+        str(base_command)
+        + str(target_arg or "")
+        + " --run-"
+        + str(service_name)
+        + "-workflow-action "
+        + shquote(f"{service_name}:{action_id}")
+    )
+    if extra_args:
+        command += str(extra_args)
+    return command
+
+
 def bridge_profile_action_context(profile):
     profile = profile or {}
     profile_name = str(profile.get("name") or "")
