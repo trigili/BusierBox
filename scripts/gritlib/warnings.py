@@ -1,4 +1,29 @@
-"""Warning classification, index, and annotation helpers for grit-console."""
+"""Warning classification, index, annotation, and display helpers for grit-console."""
+
+from gritlib.record_utils import format_counts
+
+
+def warning_badge_suffix(row):
+    count = int(row.get("warning_count") or 0)
+    if count <= 0:
+        return ""
+    types = ",".join(str(item) for item in (row.get("warning_types") or []) if item)
+    if types:
+        return f" warnings={count}:{types}"
+    return f" warnings={count}"
+
+
+def print_warning_summary(summary):
+    summary = summary or {}
+    print(
+        "Warning summary: "
+        f"total={summary.get('warning_count', 0)} "
+        f"types={format_counts(summary.get('warning_type_counts') or {})} "
+        f"severity={format_counts(summary.get('warning_severity_counts') or {})} "
+        f"remediation={format_counts(summary.get('warning_remediation_class_counts') or {})} "
+        f"services={format_counts(summary.get('warning_service_counts') or {})} "
+        f"ports={format_counts(summary.get('warning_port_counts') or {})}"
+    )
 
 
 def warning_stats(warnings):

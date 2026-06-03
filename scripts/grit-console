@@ -185,7 +185,8 @@ from gritlib.tftp import parse_tftp_rrq, send_tftp_file, tftp_error_packet
 from gritlib.tls_io import recv_ssl_nonblocking, send_ssl_nonblocking
 from gritlib.warnings import (
     annotate_path_records_with_warnings, annotate_service_port_records_with_warnings,
-    annotate_warning_records, warning_record_indexes, warning_stats,
+    annotate_warning_records, print_warning_summary, warning_badge_suffix,
+    warning_record_indexes, warning_stats,
 )
 from gritlib.workbench_jobs import (
     cancel_workbench_job_headless_command, load_workbench_jobs,
@@ -8993,16 +8994,6 @@ def print_command_queue_mode_lines(queue):
         )
 
 
-def warning_badge_suffix(row):
-    count = int(row.get("warning_count") or 0)
-    if count <= 0:
-        return ""
-    types = ",".join(str(item) for item in (row.get("warning_types") or []) if item)
-    if types:
-        return f" warnings={count}:{types}"
-    return f" warnings={count}"
-
-
 def print_activity_summary(summary):
     summary = summary or {}
     print(
@@ -9060,19 +9051,6 @@ def print_activity_summary(summary):
         f"session_logs={format_counts(summary.get('service_session_log_exists_counts') or {})} "
         f"process_logs={format_counts(summary.get('service_process_log_exists_counts') or {})} "
         f"stopped_reasons={format_counts(summary.get('service_stopped_reason_counts') or {})}"
-    )
-
-
-def print_warning_summary(summary):
-    summary = summary or {}
-    print(
-        "Warning summary: "
-        f"total={summary.get('warning_count', 0)} "
-        f"types={format_counts(summary.get('warning_type_counts') or {})} "
-        f"severity={format_counts(summary.get('warning_severity_counts') or {})} "
-        f"remediation={format_counts(summary.get('warning_remediation_class_counts') or {})} "
-        f"services={format_counts(summary.get('warning_service_counts') or {})} "
-        f"ports={format_counts(summary.get('warning_port_counts') or {})}"
     )
 
 
