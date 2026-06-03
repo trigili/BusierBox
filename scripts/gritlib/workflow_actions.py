@@ -76,6 +76,33 @@ def operator_console_headless_command(kind, base_command):
     return commands.get(kind, base_command + " --status")
 
 
+def operator_console_workflow_context(targets=None, target_mailbox_records=None, release=None, warnings=None):
+    release = release or {}
+    target_records = list(targets or [])
+    mailbox_records = list(target_mailbox_records or [])
+    pending_mailbox = [
+        rec for rec in mailbox_records
+        if rec.get("pending_work") is True or str(rec.get("status") or "") in ("queued", "delivered")
+    ]
+    overdue_targets = [rec for rec in target_records if rec.get("poll_overdue") is True]
+    stale_or_offline_targets = [
+        rec for rec in target_records
+        if str(rec.get("connectivity_state") or "") in ("stale", "offline")
+    ]
+    return {
+        "target_records": target_records,
+        "mailbox_records": mailbox_records,
+        "pending_mailbox": pending_mailbox,
+        "overdue_targets": overdue_targets,
+        "stale_or_offline_targets": stale_or_offline_targets,
+        "warning_records": list(warnings or []),
+        "release_artifacts": list(release.get("artifacts") or []),
+        "release_recommendations": list(release.get("recommendation_records") or []),
+        "release_devices": list(release.get("devices") or []),
+        "release_tuples": list(release.get("tuples") or []),
+    }
+
+
 def annotate_operator_console_workflows(records, target_records, overdue_targets):
     target_records = list(target_records or [])
     overdue_targets = list(overdue_targets or [])

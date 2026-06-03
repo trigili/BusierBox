@@ -230,6 +230,7 @@ from gritlib.workflow_actions import (
     operator_daemon_workflow_action_indexes,
     operator_daemon_workflow_action_summary,
     operator_console_headless_command,
+    operator_console_workflow_context,
     operator_console_workflow_indexes,
     operator_console_workflow_summary,
     file_service_workflow_action_record,
@@ -1008,22 +1009,17 @@ def operator_console_workflow_records(
     base = "scripts/grit-console --config " + shquote(config_path)
     release = release or {}
 
-    target_records = list(targets or [])
-    mailbox_records = list(target_mailbox_records or [])
-    pending_mailbox = [
-        rec for rec in mailbox_records
-        if rec.get("pending_work") is True or str(rec.get("status") or "") in ("queued", "delivered")
-    ]
-    overdue_targets = [rec for rec in target_records if rec.get("poll_overdue") is True]
-    stale_or_offline_targets = [
-        rec for rec in target_records
-        if str(rec.get("connectivity_state") or "") in ("stale", "offline")
-    ]
-    warning_records = list(warnings or [])
-    release_artifacts = list(release.get("artifacts") or [])
-    release_recommendations = list(release.get("recommendation_records") or [])
-    release_devices = list(release.get("devices") or [])
-    release_tuples = list(release.get("tuples") or [])
+    context = operator_console_workflow_context(targets, target_mailbox_records, release, warnings)
+    target_records = context["target_records"]
+    mailbox_records = context["mailbox_records"]
+    pending_mailbox = context["pending_mailbox"]
+    overdue_targets = context["overdue_targets"]
+    stale_or_offline_targets = context["stale_or_offline_targets"]
+    warning_records = context["warning_records"]
+    release_artifacts = context["release_artifacts"]
+    release_recommendations = context["release_recommendations"]
+    release_devices = context["release_devices"]
+    release_tuples = context["release_tuples"]
 
     records = [
         {
