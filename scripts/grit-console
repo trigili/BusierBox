@@ -161,7 +161,8 @@ from gritlib.target_activity import (
     target_phone_home_records_from_events,
 )
 from gritlib.target_commands import (
-    rshell_session_policy_record, target_command_record_indexes,
+    rshell_session_policy_record, shell_listener_max_sessions,
+    target_command_record_indexes,
     target_command_record_summary, target_command_state_status,
 )
 from gritlib.target_records import (
@@ -5932,16 +5933,6 @@ def serve_file_service(cfg, timeout, max_sessions=0):
             append_event(cfg, service, "service_stop", session=str(log_dir),
                          details={"port": port, "reason": stop_reason})
     return 0
-
-
-def shell_listener_max_sessions(cfg, explicit_one_shot=False, scripted=False):
-    if explicit_one_shot or scripted:
-        return 1
-    policy = rshell_session_policy_record(cfg)
-    summary = policy.get("session_policy_summary") or {}
-    if not policy.get("session_policy_valid", False):
-        return 1
-    return 0 if summary.get("reconnects_after_disconnect") else 1
 
 
 def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=None,

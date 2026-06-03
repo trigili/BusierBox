@@ -98,6 +98,16 @@ def rshell_session_policy_record(cfg):
     }
 
 
+def shell_listener_max_sessions(cfg, explicit_one_shot=False, scripted=False):
+    if explicit_one_shot or scripted:
+        return 1
+    policy = rshell_session_policy_record(cfg)
+    summary = policy.get("session_policy_summary") or {}
+    if not policy.get("session_policy_valid", False):
+        return 1
+    return 0 if summary.get("reconnects_after_disconnect") else 1
+
+
 def target_command_record_indexes(records):
     by_service = {}
     by_target_id = {}
