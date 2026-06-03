@@ -1,9 +1,11 @@
 """Command queue policy and mode helpers for grit-console."""
 
 import json
+import time
 from pathlib import Path
 
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key
+from gritlib.session_state import parse_utc_timestamp, utc_now
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
@@ -61,6 +63,20 @@ def command_queue_state_record(cfg):
     except (OSError, json.JSONDecodeError) as exc:
         rec["error"] = str(exc)
     return rec
+
+
+def command_queue_expired(rec, now_epoch=None):
+    if not isinstance(rec, dict):
+        return False
+    if str(rec.get("status") or "") != "queued":
+        return False
+    expires_epoch = parse_utc_timestamp(str(rec.get("expires_at") or ""))
+    if expires_epoch is None:
+        return False
+    if now_epoch is None:
+        now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
+    return int(now_epoch) >= int(expires_epoch)
+
 
 def valid_yes_no(value):
     return str(value) in ("yes", "no")
