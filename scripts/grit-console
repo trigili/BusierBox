@@ -152,11 +152,12 @@ from gritlib.systemd_user import (
     systemd_user_unit_dir, systemd_user_unit_name,
 )
 from gritlib.status_indexes import (
-    add_browser_path, api_collection_record, api_resource_record_indexes,
+    api_collection_record, api_resource_record_indexes,
     api_resource_records, browser_path_indexes, browser_path_summary,
     operator_state_health_counts, operator_network_status, operator_state_indexes,
-    operator_state_records, status_path_record_indexes, status_path_record_list,
-    status_path_records, status_path_summary, warning_health_indexes,
+    operator_browser_path_records, operator_state_records,
+    status_path_record_indexes, status_path_record_list, status_path_records,
+    status_path_summary, warning_health_indexes,
 )
 from gritlib.target_activity import (
     apply_target_phone_home_summary, mailbox_wait_bucket,
@@ -2323,106 +2324,6 @@ def file_service_workflow_action_records(cfg, service_row, staged_records=None, 
     return records
 
 
-
-
-def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, sessions, release):
-    records = []
-    path_kinds = {
-        "operator_session_dir": "operator-dir",
-        "state_file": "server-state",
-        "staged_files": "staged-ledger",
-        "command_queue_file": "command-queue-ledger",
-        "command_copy_file": "command-copy",
-        "workbench_jobs_file": "workbench-jobs-ledger",
-        "event_log": "operator-event-log",
-        "session_root": "session-root",
-        "tls_cert": "tls-cert",
-        "tls_key": "tls-key",
-    }
-    for name, path_text in (paths or {}).items():
-        add_browser_path(
-            records,
-            path_kinds.get(name, "operator-path"),
-            name,
-            path_text,
-            expected_kind="dir" if name in ("operator_session_dir", "session_root") else "file",
-            source_id=name,
-        )
-    for rec in staged_records or []:
-        request = rec.get("request_name") or rec.get("name") or ""
-        metadata = {
-            "stage_kind": rec.get("stage_kind") or "file",
-            "release_path": rec.get("release_path"),
-            "tuple_path": rec.get("tuple_path"),
-            "payload_preset": rec.get("payload_preset"),
-            "selected_by_recommendation": rec.get("selected_by_recommendation"),
-            "compatibility": rec.get("compatibility"),
-        }
-        add_browser_path(
-            records,
-            "staged-source",
-            request,
-            rec.get("source_path", ""),
-            source_id=request,
-            description=str(rec.get("stage_kind") or "file"),
-            metadata=metadata,
-        )
-    for rec in uploads or []:
-        filename = rec.get("filename") or rec.get("stored_path") or "upload"
-        add_browser_path(records, "upload-metadata", filename, rec.get("metadata_path") or rec.get("_metadata_path", ""), source_id=rec.get("session_id", ""))
-        add_browser_path(records, "upload-stored", filename, rec.get("stored_path", ""), source_id=rec.get("session_id", ""))
-        add_browser_path(records, "upload-session", filename, rec.get("session_path", ""), expected_kind="dir", source_id=rec.get("session_id", ""))
-    for rec in fetches or []:
-        request = rec.get("request_name") or rec.get("source_path") or "fetch"
-        add_browser_path(records, "fetch-source", request, rec.get("source_path", ""), source_id=rec.get("session_id", ""))
-        add_browser_path(records, "fetch-metadata", request, rec.get("metadata_path") or rec.get("_metadata_path", ""), source_id=rec.get("session_id", ""))
-        add_browser_path(records, "fetch-session", request, rec.get("session_path", ""), expected_kind="dir", source_id=rec.get("session_id", ""))
-    for rec in sessions or []:
-        session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
-        add_browser_path(records, "session-dir", session_id, rec.get("path", ""), expected_kind="dir", source_id=session_id)
-        add_browser_path(records, "session-metadata", session_id, rec.get("metadata_path", ""), source_id=session_id)
-        add_browser_path(records, "session-event-log", session_id, rec.get("event_log", ""), source_id=session_id)
-    if release:
-        add_browser_path(records, "release-dir", release.get("release_name", "release"), release.get("release_dir", ""), expected_kind="dir")
-        add_browser_path(records, "release-json", release.get("release_name", "release"), release.get("release_json", ""))
-        add_browser_path(records, "release-index", release.get("release_name", "release"), release.get("release_index", ""))
-        for rec in release.get("artifacts") or []:
-            add_browser_path(
-                records,
-                "release-artifact",
-                rec.get("name", "artifact"),
-                rec.get("path", ""),
-                source_id=rec.get("release_path", ""),
-                metadata={
-                    "release_path": rec.get("release_path"),
-                    "tuple_path": rec.get("tuple_path"),
-                    "payload_preset": rec.get("payload_preset"),
-                    "compatibility": rec.get("compatibility"),
-                },
-            )
-        artifacts_by_path = release.get("artifacts_by_release_path") or {}
-        for rec in release.get("recommendation_records") or []:
-            artifact_key = rec.get("artifact") or ""
-            artifact = artifacts_by_path.get(artifact_key) or {}
-            add_browser_path(
-                records,
-                "release-recommendation-artifact",
-                rec.get("id", "recommendation"),
-                artifact.get("path") or artifact_key,
-                source_id=rec.get("id", ""),
-                description=f"{rec.get('scope', '')}:{rec.get('key', '')}",
-                metadata={
-                    "release_path": artifact.get("release_path") or artifact_key,
-                    "tuple_path": artifact.get("tuple_path") or rec.get("tuple_path"),
-                    "payload_preset": artifact.get("payload_preset") or rec.get("payload_preset"),
-                    "compatibility": artifact.get("compatibility") or rec.get("compatibility"),
-                },
-            )
-        for rec in release.get("devices") or []:
-            add_browser_path(records, "release-device-dir", rec.get("name", "device"), rec.get("path", ""), expected_kind="dir", source_id=rec.get("name", ""))
-        for rec in release.get("tuples") or []:
-            add_browser_path(records, "release-tuple-dir", rec.get("path", "tuple"), rec.get("filesystem_path", ""), expected_kind="dir", source_id=rec.get("path", ""))
-    return records
 
 
 def service_workflow_action_records(cfg, services, targets=None):
