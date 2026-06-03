@@ -6,13 +6,16 @@ from pathlib import Path
 
 from gritlib.event_log import append_event
 from gritlib.record_utils import list_merge_unique, record_count_by_key
+from gritlib.shell_utils import shquote
 from gritlib.session_state import (
-    atomic_write_json, parse_utc_timestamp, read_json_file, utc_from_epoch, utc_now,
+    atomic_write_json, parse_utc_timestamp, read_json_file, update_server_state,
+    utc_from_epoch, utc_now,
 )
 from gritlib.target_activity import mailbox_wait_bucket, target_mailbox_counts
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
+DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 TARGET_ONLINE_WINDOW_SEC = 300
 TARGET_RECENT_WINDOW_SEC = 3600
 TARGET_STALE_WINDOW_SEC = 86400
@@ -195,6 +198,86 @@ def set_target_label(cfg, target_id, label, aliases=None, notes=None):
         "aliases": rec.get("aliases") or [],
     })
     return rec
+
+
+def set_workbench_target_filter(cfg, selector, targets=None, default_config=DEFAULT_SERVER_CONFIG):
+    text = str(selector or "").strip()
+    now = utc_now()
+    config_path = str(cfg.get("_config_path", default_config))
+    if text.lower() in ("", "all", "clear", "*"):
+        cfg.pop("_target_id_filter", None)
+        cfg.pop("_target_label_filter", None)
+        update_server_state(cfg, "workbench", "open", {
+            "selected_target_id": "",
+            "selected_target_label": "",
+            "selected_target_at": now,
+        })
+        headless = "scripts/grit-console --config " + shquote(config_path) + " --status"
+        append_event(cfg, "workbench", "workbench_target_filter_cleared", details={
+            "selected_at": now,
+            "headless_command": headless,
+        })
+        return {"target_id": "", "target_label": "", "selected": False, "headless_command": headless}
+
+    records = []
+    if targets is not None:
+        records = [rec for rec in targets or [] if isinstance(rec, dict)]
+    else:
+        for target_id, rec in sorted((load_targets(cfg).get("targets") or {}).items()):
+            if isinstance(rec, dict):
+                item = dict(rec)
+                item.setdefault("target_id", target_id)
+                records.append(item)
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(records):
+            raise ValueError(f"target number out of range: {text}")
+        selected = records[idx]
+    else:
+        lower = text.lower()
+        selected = {}
+        for rec in records:
+            target_id = str(rec.get("target_id") or "")
+            label = str(rec.get("label") or rec.get("target_label") or "")
+            aliases = [str(item) for item in rec.get("aliases") or []]
+            if text == target_id or lower == label.lower() or lower in [alias.lower() for alias in aliases]:
+                selected = rec
+                break
+        if not selected:
+            raise ValueError(f"target not found: {text}")
+    target_id = str(selected.get("target_id") or "").strip()
+    if not target_id:
+        raise ValueError(f"target not found: {text}")
+    target_label = str(selected.get("label") or selected.get("target_label") or "")
+    cfg["_target_id_filter"] = target_id
+    if target_label:
+        cfg["_target_label_filter"] = target_label
+    else:
+        cfg.pop("_target_label_filter", None)
+    update_server_state(cfg, "workbench", "open", {
+        "selected_target_id": target_id,
+        "selected_target_label": target_label,
+        "selected_target_at": now,
+    })
+    headless = (
+        "scripts/grit-console --config "
+        + shquote(config_path)
+        + " --target-id "
+        + shquote(target_id)
+        + " --status"
+    )
+    append_event(cfg, "workbench", "workbench_target_selected", details={
+        "target_id": target_id,
+        "target_label": target_label,
+        "selected_at": now,
+        "headless_command": headless,
+    })
+    return {
+        "target_id": target_id,
+        "target_label": target_label,
+        "selected": True,
+        "headless_command": headless,
+    }
 
 
 def target_identity_from_headers(headers):

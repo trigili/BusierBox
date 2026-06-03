@@ -174,9 +174,9 @@ from gritlib.target_commands import (
 from gritlib.target_records import (
     attach_target_identity, configured_target_filter, details_with_target,
     event_for_target, load_targets, records_for_target, record_target_activity,
-    selected_target_context, set_target_label, target_context_fields,
-    target_identity_from_headers, target_record_indexes, target_record_summary,
-    target_records, targets_path,
+    selected_target_context, set_target_label, set_workbench_target_filter,
+    target_context_fields, target_identity_from_headers, target_record_indexes,
+    target_record_summary, target_records, targets_path,
 )
 from gritlib.tftp import parse_tftp_rrq, send_tftp_file, tftp_error_packet
 from gritlib.tls_io import recv_ssl_nonblocking, send_ssl_nonblocking
@@ -314,86 +314,6 @@ DEFAULTS = {
     "GRIT_RSHELL_RETRY_BACKOFF": "none",
     "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC": "300",
 }
-
-
-def set_workbench_target_filter(cfg, selector, targets=None):
-    text = str(selector or "").strip()
-    now = utc_now()
-    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    if text.lower() in ("", "all", "clear", "*"):
-        cfg.pop("_target_id_filter", None)
-        cfg.pop("_target_label_filter", None)
-        update_server_state(cfg, "workbench", "open", {
-            "selected_target_id": "",
-            "selected_target_label": "",
-            "selected_target_at": now,
-        })
-        headless = "scripts/grit-console --config " + shquote(config_path) + " --status"
-        append_event(cfg, "workbench", "workbench_target_filter_cleared", details={
-            "selected_at": now,
-            "headless_command": headless,
-        })
-        return {"target_id": "", "target_label": "", "selected": False, "headless_command": headless}
-
-    records = []
-    if targets is not None:
-        records = [rec for rec in targets or [] if isinstance(rec, dict)]
-    else:
-        for target_id, rec in sorted((load_targets(cfg).get("targets") or {}).items()):
-            if isinstance(rec, dict):
-                item = dict(rec)
-                item.setdefault("target_id", target_id)
-                records.append(item)
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(records):
-            raise ValueError(f"target number out of range: {text}")
-        selected = records[idx]
-    else:
-        lower = text.lower()
-        selected = {}
-        for rec in records:
-            target_id = str(rec.get("target_id") or "")
-            label = str(rec.get("label") or rec.get("target_label") or "")
-            aliases = [str(item) for item in rec.get("aliases") or []]
-            if text == target_id or lower == label.lower() or lower in [alias.lower() for alias in aliases]:
-                selected = rec
-                break
-        if not selected:
-            raise ValueError(f"target not found: {text}")
-    target_id = str(selected.get("target_id") or "").strip()
-    if not target_id:
-        raise ValueError(f"target not found: {text}")
-    target_label = str(selected.get("label") or selected.get("target_label") or "")
-    cfg["_target_id_filter"] = target_id
-    if target_label:
-        cfg["_target_label_filter"] = target_label
-    else:
-        cfg.pop("_target_label_filter", None)
-    update_server_state(cfg, "workbench", "open", {
-        "selected_target_id": target_id,
-        "selected_target_label": target_label,
-        "selected_target_at": now,
-    })
-    headless = (
-        "scripts/grit-console --config "
-        + shquote(config_path)
-        + " --target-id "
-        + shquote(target_id)
-        + " --status"
-    )
-    append_event(cfg, "workbench", "workbench_target_selected", details={
-        "target_id": target_id,
-        "target_label": target_label,
-        "selected_at": now,
-        "headless_command": headless,
-    })
-    return {
-        "target_id": target_id,
-        "target_label": target_label,
-        "selected": True,
-        "headless_command": headless,
-    }
 
 
 def bridge_profile_workflow_action_records(cfg, bridge_profiles, targets=None):
