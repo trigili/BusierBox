@@ -1,8 +1,11 @@
 """Command copy file helpers for grit-console."""
 
 import hashlib
+import subprocess
 from pathlib import Path
 
+from gritlib.event_log import append_event
+from gritlib.operator_io import clipboard_command
 from gritlib.record_utils import int_value, records_by_key
 
 
@@ -48,6 +51,40 @@ def command_copy_record(cfg):
         "has_command": bool(command),
     })
     return rec
+
+
+def copy_text_for_operator(cfg, text, label="command", details=None):
+    value = str(text or "")
+    if not value:
+        raise ValueError(f"{label} is empty")
+    path = command_copy_path(cfg)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(value + "\n", encoding="utf-8")
+    copied = False
+    helper = clipboard_command()
+    if helper:
+        try:
+            subprocess.run(
+                helper,
+                input=value,
+                text=True,
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            copied = True
+        except OSError:
+            copied = False
+    event_details = {"path": str(path), "clipboard": copied, "label": label}
+    if isinstance(details, dict):
+        event_details.update(details)
+    append_event(cfg, "workbench", "target_command_copied", details=event_details)
+    return {
+        "path": str(path),
+        "clipboard": copied,
+        "text": value,
+        **({} if not isinstance(details, dict) else details),
+    }
 
 
 def command_copy_indexes(records):
