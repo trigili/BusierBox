@@ -1130,6 +1130,7 @@ def main(argv=None):
     process_status_src = (ROOT / "scripts" / "gritlib" / "process_status.py").read_text()
     service_status_src = (ROOT / "scripts" / "gritlib" / "service_status.py").read_text()
     ssh_keys_src = (ROOT / "scripts" / "gritlib" / "ssh_keys.py").read_text()
+    tls_io_src = (ROOT / "scripts" / "gritlib" / "tls_io.py").read_text()
     release_docs = (ROOT / "docs" / "release-bundles.md").read_text()
     for word in ("invalid_command_queue_policy",
                  "command_queue_policy_valid",
@@ -1209,7 +1210,7 @@ def main(argv=None):
     for word in ("tty.setraw", "tcsetattr", "SSLWantReadError", "SSLWantWriteError",
                  "bytearray", "--one-shot", "listener remains open", 'reason = "active"',
                  "TLSVersion.TLSv1_2"):
-        if word not in src + operator_io_src:
+        if word not in src + operator_io_src + tls_io_src:
             print(f"grit-console: robust interactive relay feature missing: {word}", file=sys.stderr)
             return 1
     for reason in ("stdin_eof", "remote_eof", "socket_error", "tls_error", "keyboard_interrupt", "timeout"):

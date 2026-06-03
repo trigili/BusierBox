@@ -171,6 +171,7 @@ from gritlib.target_records import (
     target_record_summary, target_records, targets_path,
 )
 from gritlib.tftp import parse_tftp_rrq, send_tftp_file, tftp_error_packet
+from gritlib.tls_io import recv_ssl_nonblocking, send_ssl_nonblocking
 from gritlib.warnings import (
     annotate_path_records_with_warnings, annotate_service_port_records_with_warnings,
     annotate_warning_records, warning_record_indexes, warning_stats,
@@ -5216,36 +5217,6 @@ def serve_ssh(cfg, timeout):
     return 0
 
 
-def _recv_ssl_nonblocking(conn):
-    try:
-        return conn.recv(65536), None
-    except ssl.SSLWantReadError:
-        return None, "want"
-    except ssl.SSLWantWriteError:
-        return None, "want"
-    except ssl.SSLZeroReturnError:
-        return b"", None
-    except ssl.SSLError as exc:
-        return None, exc
-    except OSError as exc:
-        return None, exc
-
-
-def _send_ssl_nonblocking(conn, data):
-    try:
-        return conn.send(data), None
-    except ssl.SSLWantReadError:
-        return 0, "want"
-    except ssl.SSLWantWriteError:
-        return 0, "want"
-    except ssl.SSLZeroReturnError:
-        return 0, "remote_eof"
-    except ssl.SSLError as exc:
-        return 0, exc
-    except OSError as exc:
-        return 0, exc
-
-
 def relay_stdio(conn, log_dir=None, use_stdin=True, script_bytes=None, expect=None,
                 session_timeout=None):
     """Relay from conn to stdout/log and optionally from stdin to conn."""
@@ -5291,7 +5262,7 @@ def relay_stdio(conn, log_dir=None, use_stdin=True, script_bytes=None, expect=No
             socket_read_ready = conn in readable
             while socket_read_ready or getattr(conn, "pending", lambda: 0)() > 0:
                 socket_read_ready = False
-                data, err = _recv_ssl_nonblocking(conn)
+                data, err = recv_ssl_nonblocking(conn)
                 if err == "want":
                     break
                 if err is not None:
@@ -5321,7 +5292,7 @@ def relay_stdio(conn, log_dir=None, use_stdin=True, script_bytes=None, expect=No
                 outbound.extend(data)
 
             if outbound and conn in writable:
-                sent, err = _send_ssl_nonblocking(conn, bytes(outbound))
+                sent, err = send_ssl_nonblocking(conn, bytes(outbound))
                 if err == "want":
                     continue
                 if err == "remote_eof":
