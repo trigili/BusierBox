@@ -113,6 +113,7 @@ from gritlib.line_services import (
     ordered_line_service_records as line_services_ordered_records,
     resolve_line_service_selector as line_services_resolve_selector,
 )
+from gritlib.line_workspace import print_line_workspace_snapshot
 from gritlib.operator_io import (
     clipboard_command, open_path_in_pager, restore_interactive_tty,
     set_interactive_tty_raw, view_path_headless_command, viewable_path,
@@ -6714,64 +6715,7 @@ def run_line_tui(cfg):
         })
 
     def print_line_workspace():
-        snap = workbench_snapshot(cfg)
-        summary = snap.get("summary") or {}
-        target_filter = snap.get("target_filter") or {}
-        targets = snap.get("targets") or []
-        sessions = snap.get("sessions") or []
-        warnings = snap.get("warnings") or []
-
-        def _fmt_seen(iso):
-            if iso and len(iso) >= 16 and "T" in iso:
-                date, rest = iso.split("T", 1)
-                return f"{date[5:]} {rest[:5]}"
-            return iso or "-"
-
-        # Summary header
-        parts = [f"{summary.get('listening_count', 0)} listening"]
-        if targets:
-            parts.append(f"{len(targets)} target{'s' if len(targets) != 1 else ''}")
-        if sessions:
-            parts.append(f"{len(sessions)} session{'s' if len(sessions) != 1 else ''}")
-        staged = summary.get("staged_count", 0)
-        if staged:
-            parts.append(f"{staged} staged")
-        pending = summary.get("mailbox_pending_work_count") or summary.get("target_mailbox_pending_work_count") or 0
-        if pending:
-            parts.append(f"{pending} pending")
-        if warnings:
-            parts.append(f"{len(warnings)} warning{'s' if len(warnings) != 1 else ''}")
-        print("Workspace  " + "  |  ".join(parts))
-
-        selected_id = target_filter.get("target_id") if target_filter.get("active") else None
-        if selected_id:
-            label = target_filter.get("selected_target_label") or selected_id
-            state = target_filter.get("selected_target_connectivity_state") or "-"
-            print(f"  selected: {label} ({state})")
-
-        if targets:
-            print("")
-            cols = [
-                ("Target", lambda r: ("* " if str(r.get("target_id") or "") == (selected_id or "") else "  ")
-                           + (r.get("label") or r.get("target_id") or "-")),
-                ("State",  lambda r: r.get("connectivity_state") or "-"),
-                ("Pending",lambda r: str(r.get("mailbox_pending_work_count") or 0)),
-                ("Seen",   lambda r: _fmt_seen(r.get("last_seen") or r.get("last_seen_at"))),
-            ]
-            shown = targets[:6]
-            _console_table(
-                f"Agents  ({len(targets)} total)" if len(targets) > 6 else f"Agents  ({len(targets)} total)",
-                shown, cols,
-            )
-            if len(targets) > 6:
-                print(f"  ... {len(targets) - 6} more — use targets")
-
-        for w in warnings[:3]:
-            svc = f" {w.get('service')}" if w.get("service") else ""
-            print(f"  [!]{svc}: {w.get('message', '')}")
-
-        print("")
-        print("  search TERM  |  targets  sessions  files  listeners  routes  |  ? help")
+        return print_line_workspace_snapshot(workbench_snapshot(cfg))
 
     # Per-service option keys with short descriptions shown in `options`
     # Each entry: (grit_env_name, cfg_key, description)
