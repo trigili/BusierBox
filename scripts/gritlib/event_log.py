@@ -420,3 +420,60 @@ def event_summary_stats_for_records(event_stats, records):
     for name in TOP_INDEXES + DETAIL_INDEXES + EVENT_DETAIL_INDEXES + SERVICE_DETAIL_INDEXES:
         summary[f"by_{name}"] = count_index(name)
     return summary
+
+
+def event_status_summary(event_stats, event_state, event_state_records, events, summary_stats):
+    event_stats = event_stats if isinstance(event_stats, dict) else {}
+    event_state = event_state if isinstance(event_state, dict) else {}
+    summary_stats = summary_stats if isinstance(summary_stats, dict) else {}
+    out = {
+        "event_count": summary_stats.get("total_count", 0),
+        "event_log_total_count": event_stats.get("total_count", 0),
+        "event_log_exists": bool(event_state.get("exists", False)),
+        "event_log_valid": bool(event_state.get("valid", False)),
+        "event_log_size": event_state.get("size", 0),
+        "event_log_state_record_count": len(event_state_records or []),
+        "event_log_has_invalid_records": bool(
+            event_state.get("has_invalid_records", False)
+        ),
+        "event_tail_has_records": bool(event_state.get("tail_has_records", False)),
+        "event_tail_has_omitted_records": bool(
+            event_state.get("tail_has_omitted_records", False)
+        ),
+        "event_tail_empty_due_to_limit": bool(
+            event_state.get("tail_empty_due_to_limit", False)
+        ),
+        "event_tail_count": len(events or []),
+        "event_tail_truncated": bool(summary_stats.get("tail_truncated", False)),
+        "event_tail_omitted_count": summary_stats.get("tail_omitted_count", 0),
+        "event_invalid_count": event_stats.get("invalid_count", 0),
+        "first_event_at": summary_stats.get("first_event_at", ""),
+        "latest_event_at": summary_stats.get("latest_event_at", ""),
+    }
+    top_key_names = {
+        "service": "event_service_counts",
+        "event": "event_type_counts",
+        "level": "event_level_counts",
+        "remote": "event_remote_counts",
+        "service_event": "event_service_event_counts",
+        "session_event": "event_session_event_counts",
+        "service_level": "event_service_level_counts",
+        "event_level": "event_type_level_counts",
+        "session_level": "event_session_level_counts",
+        "remote_event": "event_remote_event_counts",
+        "remote_level": "event_remote_level_counts",
+    }
+    for stats_key, summary_key in top_key_names.items():
+        out[summary_key] = summary_stats.get(f"by_{stats_key}") or {}
+    for key in DETAIL_KEYS:
+        out[f"event_detail_{key}_counts"] = (
+            summary_stats.get(f"by_detail_{key}") or {}
+        )
+    for key in DETAIL_KEYS[:18]:
+        out[f"event_type_detail_{key}_counts"] = (
+            summary_stats.get(f"by_event_detail_{key}") or {}
+        )
+        out[f"event_service_detail_{key}_counts"] = (
+            summary_stats.get(f"by_service_detail_{key}") or {}
+        )
+    return out
