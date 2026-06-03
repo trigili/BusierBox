@@ -137,7 +137,9 @@ from gritlib.line_help import (
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
 )
-from gritlib.line_options import GRIT_TO_CFG_KEY, SERVICE_OPTIONS
+from gritlib.line_options import (
+    GRIT_TO_CFG_KEY, SERVICE_OPTIONS, unset_line_target_option,
+)
 from gritlib.line_resources import (
     line_history_command, load_line_resource,
     print_line_history as line_resources_print_line_history,
@@ -6926,21 +6928,7 @@ def run_line_tui(cfg):
         set_line_global_build_option(cfg, name, value)
 
     def unset_line_option(name):
-        key = str(name or "").strip()
-        if key in ("module", "action"):
-            clear_line_module()
-            return
-        target_id, rec = selected_target_record_for_update(cfg)
-        if key in ("label", "target.label"):
-            updated = set_target_label(cfg, target_id, "", aliases=rec.get("aliases") or [], notes=rec.get("notes", ""))
-            cfg.pop("_target_label_filter", None)
-            print(f"unset target.label for {target_id}")
-        elif key in ("notes", "target.notes"):
-            updated = set_target_label(cfg, target_id, rec.get("label", ""), aliases=rec.get("aliases") or [], notes="")
-            print(f"unset target.notes for {target_id}")
-        else:
-            raise ValueError(f"unknown unset option: {name}")
-        print(f"target={target_id} label={updated.get('label', '') or '-'}")
+        unset_line_target_option(cfg, name, clear_module=clear_line_module)
 
     def unset_line_global_option(name):
         unset_line_global_build_option(cfg, name)

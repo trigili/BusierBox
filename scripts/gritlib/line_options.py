@@ -1,4 +1,8 @@
-"""Line-console option metadata."""
+"""Line-console option metadata and mutation helpers."""
+
+from gritlib.target_records import (
+    selected_target_record_for_update, set_target_label,
+)
 
 
 SERVICE_OPTIONS = {
@@ -73,3 +77,35 @@ GRIT_TO_CFG_KEY = {
     for entries in SERVICE_OPTIONS.values()
     for grit, cfg_key, _desc in entries
 }
+
+
+def unset_line_target_option(cfg, name, clear_module=None):
+    key = str(name or "").strip()
+    if key in ("module", "action"):
+        if clear_module is not None:
+            clear_module()
+        return {}
+    target_id, rec = selected_target_record_for_update(cfg)
+    if key in ("label", "target.label"):
+        updated = set_target_label(
+            cfg,
+            target_id,
+            "",
+            aliases=rec.get("aliases") or [],
+            notes=rec.get("notes", ""),
+        )
+        cfg.pop("_target_label_filter", None)
+        print(f"unset target.label for {target_id}")
+    elif key in ("notes", "target.notes"):
+        updated = set_target_label(
+            cfg,
+            target_id,
+            rec.get("label", ""),
+            aliases=rec.get("aliases") or [],
+            notes="",
+        )
+        print(f"unset target.notes for {target_id}")
+    else:
+        raise ValueError(f"unknown unset option: {name}")
+    print(f"target={target_id} label={updated.get('label', '') or '-'}")
+    return updated
