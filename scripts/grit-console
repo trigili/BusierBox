@@ -160,10 +160,10 @@ from gritlib.ssh_keys import ensure_host_key, keys_equal, load_public_key
 from gritlib.staged_files import (
     enriched_staged_records, file_sha256, load_staged,
     reject_traversal_request_name, print_staged, stage_dir, stage_file,
-    staged_file_workflow_action_indexes, staged_file_workflow_action_summary,
-    staged_file_workflow_action_records, staged_file_path,
+    staged_file_workflow_action_indexes, staged_file_workflow_action_records,
+    staged_file_path,
     staged_files_state_status, staged_record_indexes, staged_record_list,
-    staged_record_summary, unstage_file,
+    staged_status_summary, unstage_file,
 )
 from gritlib.systemd_user import (
     handle_systemd_user_action, systemd_user_unit_name,
@@ -4026,7 +4026,6 @@ def status_document(cfg):
         }
     staged = enriched_staged_records(cfg, staged_raw)
     staged_records = staged_record_list(staged)
-    staged_summary = staged_record_summary(staged_records)
     (staged_by_request,
      staged_by_kind,
      staged_by_sha256,
@@ -4119,7 +4118,6 @@ def status_document(cfg):
     target_summary = target_record_summary(targets)
     staged_file_workflow_actions = staged_file_workflow_action_records(cfg, staged_records, targets)
     staged_file_workflow_action_index_maps = staged_file_workflow_action_indexes(staged_file_workflow_actions)
-    staged_file_workflow_action_stats = staged_file_workflow_action_summary(staged_file_workflow_actions)
     bridge_profile_workflow_actions = bridge_profile_workflow_action_records(cfg, bridge_profiles, targets)
     bridge_profile_workflow_action_index_maps = bridge_profile_workflow_action_indexes(bridge_profile_workflow_actions)
     bridge_profile_workflow_action_stats = bridge_profile_workflow_action_summary(bridge_profile_workflow_actions)
@@ -4842,54 +4840,7 @@ def status_document(cfg):
         "operator_state_remediation_class_counts": operator_state_health.get("remediation_class_counts") or {},
         "operator_state_requires_operator_action_counts": operator_state_health.get("requires_operator_action_counts") or {},
         "operator_state_kind_status_counts": {key: len(value) for key, value in operator_state_index_maps.get("operator_state_records_by_kind_status", {}).items()},
-        "staged_count": len(staged),
-        "staged_total_size": staged_summary.get("total_size", 0),
-        "staged_kind_counts": record_count_by_key(staged_records, "stage_kind"),
-        "staged_target_counts": staged_summary.get("target_counts") or {},
-        "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
-        "staged_source_missing_count": staged_summary.get("source_missing_count", 0),
-        "staged_fetch_command_count": staged_summary.get("fetch_command_count", 0),
-        "staged_fetch_command_force_count": staged_summary.get("fetch_command_force_count", 0),
-        "staged_source_exists_kind_counts": staged_summary.get("source_exists_by_kind") or {},
-        "staged_source_missing_kind_counts": staged_summary.get("source_missing_by_kind") or {},
-        "latest_staged_at": latest_record_value(staged_records, ("staged_at",)),
-        "staged_file_workflow_action_count": staged_file_workflow_action_stats.get("total_count", 0),
-        "staged_file_workflow_action_available_count": staged_file_workflow_action_stats.get("available_count", 0),
-        "staged_file_workflow_action_requires_target_count": staged_file_workflow_action_stats.get("requires_target_count", 0),
-        "staged_file_workflow_action_queues_offline_work_count": staged_file_workflow_action_stats.get("queues_offline_work_count", 0),
-        "staged_file_workflow_action_requires_confirmation_count": staged_file_workflow_action_stats.get("requires_confirmation_count", 0),
-        "staged_file_workflow_action_can_run_from_curses_enter_count": staged_file_workflow_action_stats.get("can_run_from_curses_enter_count", 0),
-        "staged_file_workflow_action_request_counts": staged_file_workflow_action_stats.get("request_counts") or {},
-        "staged_file_workflow_action_stage_kind_counts": staged_file_workflow_action_stats.get("stage_kind_counts") or {},
-        "staged_file_workflow_action_category_counts": staged_file_workflow_action_stats.get("category_counts") or {},
-        "staged_file_workflow_action_workflow_counts": staged_file_workflow_action_stats.get("workflow_counts") or {},
-        "staged_file_workflow_action_target_counts": staged_file_workflow_action_stats.get("target_counts") or {},
-        "staged_file_workflow_action_target_connectivity_state_counts": staged_file_workflow_action_stats.get("target_connectivity_state_counts") or {},
-        "staged_file_workflow_action_target_offline_age_bucket_counts": staged_file_workflow_action_stats.get("target_offline_age_bucket_counts") or {},
-        "staged_file_workflow_action_target_poll_overdue_counts": staged_file_workflow_action_stats.get("target_poll_overdue_counts") or {},
-        "staged_file_workflow_action_target_mailbox_pending_work_count_counts": staged_file_workflow_action_stats.get("target_mailbox_pending_work_count_counts") or {},
-        "staged_file_workflow_action_target_latest_phone_home_status_counts": staged_file_workflow_action_stats.get("target_latest_phone_home_status_counts") or {},
-        "staged_file_workflow_action_target_latest_successful_phone_home_status_counts": staged_file_workflow_action_stats.get("target_latest_successful_phone_home_status_counts") or {},
-        "staged_file_workflow_action_target_last_failed_phone_home_status_counts": staged_file_workflow_action_stats.get("target_last_failed_phone_home_status_counts") or {},
-        "staged_file_workflow_action_route_kind_counts": staged_file_workflow_action_stats.get("route_kind_counts") or {},
-        "staged_file_workflow_action_bridge_profile_counts": staged_file_workflow_action_stats.get("bridge_profile_counts") or {},
-        "staged_file_workflow_action_action_counts": staged_file_workflow_action_stats.get("action_counts") or {},
-        "staged_file_workflow_action_fleet_target_count_counts": staged_file_workflow_action_stats.get("fleet_target_count_counts") or {},
-        "staged_file_workflow_action_fleet_offline_target_count_counts": staged_file_workflow_action_stats.get("fleet_offline_target_count_counts") or {},
-        "staged_file_workflow_action_fleet_stale_target_count_counts": staged_file_workflow_action_stats.get("fleet_stale_target_count_counts") or {},
-        "staged_file_workflow_action_fleet_mailbox_pending_target_count_counts": staged_file_workflow_action_stats.get("fleet_mailbox_pending_target_count_counts") or {},
-        "staged_file_workflow_action_fleet_mailbox_pending_work_count_counts": staged_file_workflow_action_stats.get("fleet_mailbox_pending_work_count_counts") or {},
-        "staged_file_workflow_action_fleet_poll_overdue_target_count_counts": staged_file_workflow_action_stats.get("fleet_poll_overdue_target_count_counts") or {},
-        "staged_file_workflow_action_fleet_has_offline_targets_counts": staged_file_workflow_action_stats.get("fleet_has_offline_targets_counts") or {},
-        "staged_file_workflow_action_fleet_has_stale_targets_counts": staged_file_workflow_action_stats.get("fleet_has_stale_targets_counts") or {},
-        "staged_file_workflow_action_fleet_has_mailbox_pending_work_counts": staged_file_workflow_action_stats.get("fleet_has_mailbox_pending_work_counts") or {},
-        "staged_file_workflow_action_fleet_has_poll_overdue_targets_counts": staged_file_workflow_action_stats.get("fleet_has_poll_overdue_targets_counts") or {},
-        "staged_file_workflow_action_source_exists_counts": staged_file_workflow_action_stats.get("source_exists_counts") or {},
-        "staged_file_workflow_action_available_counts": staged_file_workflow_action_stats.get("available_counts") or {},
-        "staged_file_workflow_action_operator_action_state_counts": staged_file_workflow_action_stats.get("operator_action_state_counts") or {},
-        "staged_file_workflow_action_operator_action_reason_counts": staged_file_workflow_action_stats.get("operator_action_reason_counts") or {},
-        "staged_file_workflow_action_can_run_from_curses_enter_counts": staged_file_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
-        "staged_file_workflow_action_curses_enter_action_counts": staged_file_workflow_action_stats.get("curses_enter_action_counts") or {},
+        **staged_status_summary(staged_records, staged_file_workflow_actions),
         "service_actual_counts": record_count_by_key(services, "actual"),
         "service_configured_counts": record_count_by_key(services, "configured"),
         "service_bind_address_counts": record_count_by_key(services, "bind_address"),

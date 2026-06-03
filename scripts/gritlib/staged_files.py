@@ -9,7 +9,9 @@ from gritlib.bridge_routes import attach_target_route_fields, target_route_conte
 from gritlib.event_log import append_event
 from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
 from gritlib.operator_network import operator_advertised_host
-from gritlib.record_utils import int_value, record_count_by_key, records_by_key
+from gritlib.record_utils import (
+    int_value, latest_record_value, record_count_by_key, records_by_key,
+)
 from gritlib.session_state import atomic_write_json, read_json_file, utc_now
 from gritlib.shell_utils import shquote
 from gritlib.target_records import configured_target_filter, target_context_fields
@@ -333,6 +335,140 @@ def staged_record_summary(records):
         "target_counts": record_count_by_key(records, "target_id"),
         "source_exists_by_kind": source_exists_by_kind,
         "source_missing_by_kind": source_missing_by_kind,
+    }
+
+
+def staged_status_summary(records, workflow_action_records=None):
+    records = records or []
+    staged_summary = staged_record_summary(records)
+    action_summary = staged_file_workflow_action_summary(workflow_action_records)
+    return {
+        "staged_count": len(records),
+        "staged_total_size": staged_summary.get("total_size", 0),
+        "staged_kind_counts": record_count_by_key(records, "stage_kind"),
+        "staged_target_counts": staged_summary.get("target_counts") or {},
+        "staged_source_exists_count": staged_summary.get("source_exists_count", 0),
+        "staged_source_missing_count": staged_summary.get("source_missing_count", 0),
+        "staged_fetch_command_count": staged_summary.get("fetch_command_count", 0),
+        "staged_fetch_command_force_count": staged_summary.get(
+            "fetch_command_force_count", 0
+        ),
+        "staged_source_exists_kind_counts": staged_summary.get(
+            "source_exists_by_kind"
+        ) or {},
+        "staged_source_missing_kind_counts": staged_summary.get(
+            "source_missing_by_kind"
+        ) or {},
+        "latest_staged_at": latest_record_value(records, ("staged_at",)),
+        "staged_file_workflow_action_count": action_summary.get("total_count", 0),
+        "staged_file_workflow_action_available_count": action_summary.get(
+            "available_count", 0
+        ),
+        "staged_file_workflow_action_requires_target_count": action_summary.get(
+            "requires_target_count", 0
+        ),
+        "staged_file_workflow_action_queues_offline_work_count": action_summary.get(
+            "queues_offline_work_count", 0
+        ),
+        "staged_file_workflow_action_requires_confirmation_count": action_summary.get(
+            "requires_confirmation_count", 0
+        ),
+        "staged_file_workflow_action_can_run_from_curses_enter_count": action_summary.get(
+            "can_run_from_curses_enter_count", 0
+        ),
+        "staged_file_workflow_action_request_counts": action_summary.get(
+            "request_counts"
+        ) or {},
+        "staged_file_workflow_action_stage_kind_counts": action_summary.get(
+            "stage_kind_counts"
+        ) or {},
+        "staged_file_workflow_action_category_counts": action_summary.get(
+            "category_counts"
+        ) or {},
+        "staged_file_workflow_action_workflow_counts": action_summary.get(
+            "workflow_counts"
+        ) or {},
+        "staged_file_workflow_action_target_counts": action_summary.get(
+            "target_counts"
+        ) or {},
+        "staged_file_workflow_action_target_connectivity_state_counts": action_summary.get(
+            "target_connectivity_state_counts"
+        ) or {},
+        "staged_file_workflow_action_target_offline_age_bucket_counts": action_summary.get(
+            "target_offline_age_bucket_counts"
+        ) or {},
+        "staged_file_workflow_action_target_poll_overdue_counts": action_summary.get(
+            "target_poll_overdue_counts"
+        ) or {},
+        "staged_file_workflow_action_target_mailbox_pending_work_count_counts": action_summary.get(
+            "target_mailbox_pending_work_count_counts"
+        ) or {},
+        "staged_file_workflow_action_target_latest_phone_home_status_counts": action_summary.get(
+            "target_latest_phone_home_status_counts"
+        ) or {},
+        "staged_file_workflow_action_target_latest_successful_phone_home_status_counts": action_summary.get(
+            "target_latest_successful_phone_home_status_counts"
+        ) or {},
+        "staged_file_workflow_action_target_last_failed_phone_home_status_counts": action_summary.get(
+            "target_last_failed_phone_home_status_counts"
+        ) or {},
+        "staged_file_workflow_action_route_kind_counts": action_summary.get(
+            "route_kind_counts"
+        ) or {},
+        "staged_file_workflow_action_bridge_profile_counts": action_summary.get(
+            "bridge_profile_counts"
+        ) or {},
+        "staged_file_workflow_action_action_counts": action_summary.get(
+            "action_counts"
+        ) or {},
+        "staged_file_workflow_action_fleet_target_count_counts": action_summary.get(
+            "fleet_target_count_counts"
+        ) or {},
+        "staged_file_workflow_action_fleet_offline_target_count_counts": action_summary.get(
+            "fleet_offline_target_count_counts"
+        ) or {},
+        "staged_file_workflow_action_fleet_stale_target_count_counts": action_summary.get(
+            "fleet_stale_target_count_counts"
+        ) or {},
+        "staged_file_workflow_action_fleet_mailbox_pending_target_count_counts": action_summary.get(
+            "fleet_mailbox_pending_target_count_counts"
+        ) or {},
+        "staged_file_workflow_action_fleet_mailbox_pending_work_count_counts": action_summary.get(
+            "fleet_mailbox_pending_work_count_counts"
+        ) or {},
+        "staged_file_workflow_action_fleet_poll_overdue_target_count_counts": action_summary.get(
+            "fleet_poll_overdue_target_count_counts"
+        ) or {},
+        "staged_file_workflow_action_fleet_has_offline_targets_counts": action_summary.get(
+            "fleet_has_offline_targets_counts"
+        ) or {},
+        "staged_file_workflow_action_fleet_has_stale_targets_counts": action_summary.get(
+            "fleet_has_stale_targets_counts"
+        ) or {},
+        "staged_file_workflow_action_fleet_has_mailbox_pending_work_counts": action_summary.get(
+            "fleet_has_mailbox_pending_work_counts"
+        ) or {},
+        "staged_file_workflow_action_fleet_has_poll_overdue_targets_counts": action_summary.get(
+            "fleet_has_poll_overdue_targets_counts"
+        ) or {},
+        "staged_file_workflow_action_source_exists_counts": action_summary.get(
+            "source_exists_counts"
+        ) or {},
+        "staged_file_workflow_action_available_counts": action_summary.get(
+            "available_counts"
+        ) or {},
+        "staged_file_workflow_action_operator_action_state_counts": action_summary.get(
+            "operator_action_state_counts"
+        ) or {},
+        "staged_file_workflow_action_operator_action_reason_counts": action_summary.get(
+            "operator_action_reason_counts"
+        ) or {},
+        "staged_file_workflow_action_can_run_from_curses_enter_counts": action_summary.get(
+            "can_run_from_curses_enter_counts"
+        ) or {},
+        "staged_file_workflow_action_curses_enter_action_counts": action_summary.get(
+            "curses_enter_action_counts"
+        ) or {},
     }
 
 
