@@ -89,7 +89,8 @@ from gritlib.service_status import (
 )
 from gritlib.staged_files import (
     staged_file_workflow_action_indexes, staged_file_workflow_action_summary,
-    staged_files_state_record, staged_record_indexes, staged_record_summary,
+    staged_file_path, staged_files_state_record, staged_record_indexes,
+    staged_record_summary,
 )
 from gritlib.status_indexes import (
     browser_path_indexes, browser_path_summary, operator_state_health_counts,
@@ -372,10 +373,6 @@ def event_log_state_record(cfg, stats=None):
         except OSError as exc:
             rec["error"] = str(exc)
     return rec
-
-
-def staged_file_path(cfg):
-    return Path(str(cfg.get("staged_files") or Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "staged-files.json"))
 
 
 def targets_path(cfg):

@@ -6,8 +6,14 @@ from pathlib import Path
 from gritlib.record_utils import record_count_by_key, records_by_key
 
 
-def staged_file_path(cfg):
-    return Path(str(cfg.get("staged_files", "local/operator-session/staged-files.json")))
+DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
+
+
+def staged_file_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
+    return Path(str(
+        cfg.get("staged_files") or
+        Path(str(cfg.get("operator_session_dir", default_operator_session_dir))) / "staged-files.json"
+    ))
 
 
 def staged_files_state_record(cfg):
