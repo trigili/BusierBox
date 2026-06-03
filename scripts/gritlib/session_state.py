@@ -311,3 +311,10 @@ class SessionManager:
         if duration is not None:
             fields["duration_sec"] = duration
         return self.update_record(log_dir, **fields)
+
+    def exit_reason(self, log_dir):
+        path = Path(log_dir) / "exit-reason"
+        try:
+            return path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
