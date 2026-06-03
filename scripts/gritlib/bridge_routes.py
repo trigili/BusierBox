@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from gritlib.event_log import append_event
+from gritlib.console_display import console_table
 from gritlib.operator_network import target_visible_host
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key
 from gritlib.session_state import atomic_write_json, read_json_file, state_file_path, utc_now
@@ -230,6 +231,63 @@ def bridge_profile_indexes(records):
         "bridge_profiles_by_has_last_successful_relay": records_by_key(records, "has_last_successful_relay"),
         "bridge_profiles_by_has_last_failure": records_by_key(records, "has_last_failure"),
     }
+
+
+def bridge_route_listen_text(rec):
+    host = rec.get("listen_host") or ""
+    port = rec.get("listen_port") or "-"
+    return f"{host}:{port}" if host else str(port)
+
+
+def bridge_route_dest_text(rec):
+    host = rec.get("dest_host") or "-"
+    port = rec.get("dest_port") or ""
+    return f"{host}:{port}" if port else host
+
+
+def print_bridge_route_records(records, verbose=False, command_builder=None, quote=shquote):
+    records = list(records or [])
+    command_builder = command_builder or (lambda _action, _name: "")
+
+    def _detail(rec):
+        if not verbose:
+            return []
+        name = str(rec.get("name") or "")
+        details = [("path", rec.get("route_path") or "")]
+        hops = rec.get("hop_count", 0)
+        if hops:
+            details.append(("hops", f"{hops}" + ("  (multi-hop)" if rec.get("multi_hop") else "")))
+        if rec.get("target_id"):
+            details.append(("target", rec["target_id"]))
+        if rec.get("last_successful_relay_at"):
+            details.append(("last_success", rec["last_successful_relay_at"]))
+        if rec.get("last_failure_reason"):
+            details.append(("last_failure", rec["last_failure_reason"]))
+        details.append(("start", command_builder("start", name)))
+        return details
+
+    cols = [
+        ("Name", "name"),
+        ("Listen", bridge_route_listen_text),
+        ("Dest", bridge_route_dest_text),
+        ("State", lambda r: r.get("current_state") or "-"),
+        ("Active", lambda r: "yes" if r.get("active") else "no"),
+    ]
+    console_table(
+        f"Routes  ({len(records)} total)" if records else "Routes  (none)",
+        records, cols, detail_fn=_detail,
+        footer="use N or route NAME to select  |  start/stop NAME  |  routes ? for help",
+    )
+    return [
+        {
+            "kind": "route",
+            "label": f"{rec.get('name','')} state={rec.get('current_state','') or '-'} path={rec.get('route_path','')}",
+            "rec": rec,
+            "command": command_builder("inspect", str(rec.get("name") or "")),
+            "use_hint": f"use route {quote(str(rec.get('name', '')))}",
+        }
+        for rec in records
+    ]
 
 
 def bridge_hop_records_from_profiles(profiles):

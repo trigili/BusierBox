@@ -45,6 +45,7 @@ from gritlib.bridge_routes import (
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_records,
     bridge_profile_workflow_action_status_summary, bridge_profiles_path, bridge_route_path,
     default_bridge_hops, load_bridge_profiles, parse_bridge_hop, ROUTE_HELP_LINES,
+    print_bridge_route_records,
     target_route_context,
     save_bridge_profile, delete_bridge_profile, apply_bridge_profile,
     print_bridge_profile, print_bridge_profiles, valid_profile_name,
@@ -7627,56 +7628,12 @@ def run_line_tui(cfg):
 
     def print_line_routes(verbose=False):
         records = bridge_profile_records(cfg)
-
-        def _listen(rec):
-            h = rec.get("listen_host") or ""
-            p = rec.get("listen_port") or "-"
-            return f"{h}:{p}" if h else str(p)
-
-        def _dest(rec):
-            h = rec.get("dest_host") or "-"
-            p = rec.get("dest_port") or ""
-            return f"{h}:{p}" if p else h
-
-        def _detail(rec):
-            if not verbose:
-                return []
-            name = str(rec.get("name") or "")
-            details = [("path", rec.get("route_path") or "")]
-            hops = rec.get("hop_count", 0)
-            if hops:
-                details.append(("hops", f"{hops}" + ("  (multi-hop)" if rec.get("multi_hop") else "")))
-            if rec.get("target_id"):
-                details.append(("target", rec["target_id"]))
-            if rec.get("last_successful_relay_at"):
-                details.append(("last_success", rec["last_successful_relay_at"]))
-            if rec.get("last_failure_reason"):
-                details.append(("last_failure", rec["last_failure_reason"]))
-            details.append(("start", bridge_profile_headless_command("start", name)))
-            return details
-
-        cols = [
-            ("Name",   "name"),
-            ("Listen", _listen),
-            ("Dest",   _dest),
-            ("State",  lambda r: r.get("current_state") or "-"),
-            ("Active", lambda r: "yes" if r.get("active") else "no"),
-        ]
-        _console_table(
-            f"Routes  ({len(records)} total)" if records else "Routes  (none)",
-            records, cols, detail_fn=_detail,
-            footer="use N or route NAME to select  |  start/stop NAME  |  routes ? for help",
+        search_records = print_bridge_route_records(
+            records,
+            verbose=verbose,
+            command_builder=bridge_profile_headless_command,
+            quote=shquote,
         )
-        search_records = [
-            {
-                "kind": "route",
-                "label": f"{rec.get('name','')} state={rec.get('current_state','') or '-'} path={rec.get('route_path','')}",
-                "rec": rec,
-                "command": bridge_profile_headless_command("inspect", str(rec.get("name") or "")),
-                "use_hint": f"use route {shquote(str(rec.get('name', '')))}",
-            }
-            for rec in records
-        ]
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_routes_listed", details={
             "route_count": len(records),
