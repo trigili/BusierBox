@@ -223,6 +223,7 @@ from gritlib.workbench_jobs import (
 from gritlib.workflow_actions import (
     annotate_operator_console_workflows,
     annotate_workbench_actions,
+    bridge_profiles_by_target_id,
     bringup_recommend_command,
     command_queue_listener_action_states,
     command_queue_workflow_action_record,
@@ -1296,13 +1297,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)
     release = release_context(cfg)
-    bridge_by_target = {}
-    for profile in bridge_profiles or []:
-        if not isinstance(profile, dict):
-            continue
-        target_id = str(profile.get("target_id") or "")
-        if target_id:
-            bridge_by_target.setdefault(target_id, []).append(profile)
+    bridge_by_target = bridge_profiles_by_target_id(bridge_profiles)
     records = []
 
     def add(target, action_id, category, label, command, workflow, requires_input=False,

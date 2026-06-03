@@ -266,6 +266,17 @@ def target_workflow_action_readiness(
     return "ready", "run-now", True
 
 
+def bridge_profiles_by_target_id(bridge_profiles):
+    bridge_by_target = {}
+    for profile in bridge_profiles or []:
+        if not isinstance(profile, dict):
+            continue
+        target_id = str(profile.get("target_id") or "")
+        if target_id:
+            bridge_by_target.setdefault(target_id, []).append(profile)
+    return bridge_by_target
+
+
 def target_workflow_action_record(
     target,
     action_id,
