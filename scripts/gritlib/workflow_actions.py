@@ -42,6 +42,33 @@ def select_workbench_action(records, selector):
     raise ValueError(f"unknown workbench action: {text}")
 
 
+LINE_DAEMON_ACTION_LABELS = {
+    "operator-daemon-start": ("Start operator daemon", "start"),
+    "operator-daemon-status": ("Check operator daemon", "status"),
+    "operator-daemon-stop": ("Stop operator daemon", "stop"),
+    "systemd-user-print": ("Print systemd unit", "print"),
+    "systemd-user-install": ("Install systemd unit", "install"),
+    "systemd-user-start": ("Start systemd unit", "systemd-start"),
+    "systemd-user-stop": ("Stop systemd unit", "systemd-stop"),
+    "systemd-user-restart": ("Restart systemd unit", "systemd-restart"),
+    "systemd-user-status": ("Check systemd unit", "systemd-status"),
+}
+
+
+def line_daemon_action_label(rec):
+    action_id = str((rec or {}).get("id") or "")
+    label, _alias = LINE_DAEMON_ACTION_LABELS.get(action_id, ("", ""))
+    if label:
+        return label
+    return action_id.replace("-", " ").strip().capitalize() or "-"
+
+
+def line_daemon_action_alias(rec):
+    action_id = str((rec or {}).get("id") or "")
+    _label, alias = LINE_DAEMON_ACTION_LABELS.get(action_id, ("", ""))
+    return alias or action_id or "-"
+
+
 def print_line_daemon_action_records(records, verbose=False):
     records = list(records or [])
 
@@ -49,13 +76,14 @@ def print_line_daemon_action_records(records, verbose=False):
         if not verbose:
             return []
         run_cmd = rec.get("run_command") or rec.get("headless_command") or rec.get("command") or ""
-        details = [("run", run_cmd)]
+        details = [("id", rec.get("id") or "-"), ("run", run_cmd)]
         if rec.get("dry_run_command"):
             details.append(("dry-run", rec["dry_run_command"]))
         return details
 
     cols = [
-        ("Action", "id"),
+        ("Action", line_daemon_action_label),
+        ("Use", line_daemon_action_alias),
         ("Workflow", lambda r: r.get("workflow") or "-"),
         ("State", lambda r: r.get("operator_action_state") or "-"),
         ("Attached", lambda r: "yes" if r.get("daemon_attached") else "no"),

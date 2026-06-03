@@ -1342,9 +1342,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     daemon_verbose_text = line_console_stdout[daemon_verbose_start:] if daemon_verbose_start != -1 else ""
     if (not daemon_plain_text or
             "Daemon actions" not in daemon_plain_text or
+            "Start operator daemon" not in daemon_plain_text or
+            "Check operator daemon" not in daemon_plain_text or
+            "operator-daemon-status" in daemon_plain_text or
             "\n     run: scripts/grit-console" in daemon_plain_text or
             "\n     dry-run: scripts/grit-console" in daemon_plain_text or
             "daemon -v for commands" not in daemon_plain_text or
+            "\n     id: operator-daemon-status" not in daemon_verbose_text or
             "\n     run: scripts/grit-console" not in daemon_verbose_text or
             "\n     dry-run: scripts/grit-console" not in daemon_verbose_text):
         print("line-oriented console daemon output did not stay concise by default", file=sys.stderr)
