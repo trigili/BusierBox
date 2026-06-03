@@ -80,6 +80,82 @@ def operator_state_health_counts(records):
     }
 
 
+def status_path_records(paths):
+    records = {}
+    dir_keys = {"operator_session_dir", "session_root"}
+    for name, raw_path in (paths or {}).items():
+        path_text = str(raw_path or "")
+        rec = {
+            "name": name,
+            "path": path_text,
+            "expected_kind": "dir" if name in dir_keys else "file",
+            "expected_kind_matches": False,
+            "expected_kind_mismatch": False,
+            "exists": False,
+            "is_file": False,
+            "is_dir": False,
+            "parent": "",
+            "parent_exists": False,
+            "readable": False,
+            "writable": False,
+        }
+        if not path_text:
+            records[name] = rec
+            continue
+        path = Path(path_text)
+        parent = path.parent
+        rec["parent"] = str(parent)
+        try:
+            rec["exists"] = path.exists()
+            rec["is_file"] = path.is_file()
+            rec["is_dir"] = path.is_dir()
+            rec["parent_exists"] = parent.exists()
+            rec["readable"] = bool(rec["exists"] and os.access(path, os.R_OK))
+            if rec["exists"]:
+                rec["writable"] = os.access(path, os.W_OK)
+            else:
+                rec["writable"] = bool(rec["parent_exists"] and os.access(parent, os.W_OK))
+            if rec["exists"]:
+                if rec["expected_kind"] == "dir":
+                    rec["expected_kind_matches"] = bool(rec["is_dir"])
+                elif rec["expected_kind"] == "file":
+                    rec["expected_kind_matches"] = bool(rec["is_file"])
+                else:
+                    rec["expected_kind_matches"] = True
+                rec["expected_kind_mismatch"] = not rec["expected_kind_matches"]
+        except OSError as exc:
+            rec["error"] = str(exc)
+        records[name] = rec
+    return records
+
+
+def status_path_summary(records):
+    missing = 0
+    parent_missing = 0
+    not_writable = 0
+    kind_mismatch = 0
+    for rec in (records or {}).values():
+        if not rec.get("exists"):
+            missing += 1
+        if not rec.get("parent_exists"):
+            parent_missing += 1
+        if not rec.get("writable"):
+            not_writable += 1
+        if rec.get("expected_kind_mismatch"):
+            kind_mismatch += 1
+    return {
+        "path_status_count": len(records or {}),
+        "path_missing_count": missing,
+        "path_parent_missing_count": parent_missing,
+        "path_not_writable_count": not_writable,
+        "path_kind_mismatch_count": kind_mismatch,
+    }
+
+
+def status_path_record_list(records):
+    return list((records or {}).values())
+
+
 def status_path_record_indexes(records):
     return {
         "path_status_by_name": {rec.get("name", ""): rec for rec in records or [] if rec.get("name")},
