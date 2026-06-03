@@ -1,5 +1,10 @@
 """Line-console config generation helpers."""
 
+import subprocess
+from pathlib import Path
+
+from gritlib.shell_utils import shquote
+
 
 def parse_line_config_args(args, cmd_name):
     survey_path = None
@@ -36,3 +41,27 @@ def parse_line_config_args(args, cmd_name):
                 "[--prefer-rshell auto|ssh|...] [--prefer-runtime auto|...]"
             )
     return survey_path, write_config_path, extra_args
+
+
+def run_config_from_survey(survey_path, write_config_path, extra_args):
+    """Run config-from-survey script and return the subprocess result."""
+    scripts_dir = Path(__file__).resolve().parents[1]
+    script = scripts_dir / "lib" / "config-from-survey"
+    if not script.is_file():
+        script = Path("scripts/lib/config-from-survey")
+    if not script.is_file():
+        raise ValueError("config-from-survey script not found")
+    cmd = [str(script), "--format", "shell"] + list(extra_args or [])
+    if write_config_path:
+        cmd.extend(["--write-config", write_config_path])
+    cmd.append(survey_path)
+    print(f"Running: {' '.join(shquote(str(arg)) for arg in cmd)}")
+    print("")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="")
+    if result.returncode != 0:
+        raise ValueError(f"config-from-survey exited {result.returncode}")
+    return result

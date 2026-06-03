@@ -113,7 +113,7 @@ from gritlib.line_actions import (
 from gritlib.line_command_queue import (
     print_line_command_queue_records, print_line_command_result_record,
 )
-from gritlib.line_configure import parse_line_config_args
+from gritlib.line_configure import parse_line_config_args, run_config_from_survey
 from gritlib.line_events import print_line_events_view
 from gritlib.line_files import print_line_file_records
 from gritlib.line_help import (
@@ -8646,29 +8646,6 @@ def run_line_tui(cfg):
         })
         return command
 
-    def _run_config_from_survey(survey_path, write_config_path, extra_args):
-        """Run config-from-survey script and return the subprocess result."""
-        scripts_dir = Path(__file__).parent
-        script = scripts_dir / "lib" / "config-from-survey"
-        if not script.is_file():
-            script = Path("scripts/lib/config-from-survey")
-        if not script.is_file():
-            raise ValueError("config-from-survey script not found")
-        cmd = [str(script), "--format", "shell"] + extra_args
-        if write_config_path:
-            cmd.extend(["--write-config", write_config_path])
-        cmd.append(survey_path)
-        print(f"Running: {' '.join(shquote(str(a)) for a in cmd)}")
-        print("")
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        if result.stdout:
-            print(result.stdout, end="")
-        if result.stderr:
-            print(result.stderr, end="")
-        if result.returncode != 0:
-            raise ValueError(f"config-from-survey exited {result.returncode}")
-        return result
-
     # ── probe commands ──────────────────────────────────────────────────────
 
     def parse_line_probe_args(args):
@@ -8890,7 +8867,7 @@ def run_line_tui(cfg):
             if not Path(survey_path).is_file():
                 raise ValueError(f"probe data file not found: {survey_path}")
         try:
-            result = _run_config_from_survey(survey_path, write_config_path, extra_args)
+            result = run_config_from_survey(survey_path, write_config_path, extra_args)
         finally:
             if tmp_survey_path:
                 try:
@@ -9114,7 +9091,7 @@ def run_line_tui(cfg):
             print(f"Using most recent survey upload: {survey_path}")
         if not Path(survey_path).is_file():
             raise ValueError(f"survey file not found: {survey_path}")
-        result = _run_config_from_survey(survey_path, write_config_path, extra_args)
+        result = run_config_from_survey(survey_path, write_config_path, extra_args)
         _finish_config_run(result, write_config_path, {
             "cmd_name": "survey config",
             "survey_path": survey_path,
