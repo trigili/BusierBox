@@ -131,6 +131,11 @@ from gritlib.line_help import (
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
 )
+from gritlib.line_resources import (
+    line_history_command, load_line_resource,
+    print_line_history as line_resources_print_line_history,
+    record_line_history, write_line_makerc,
+)
 from gritlib.line_search import print_line_search_results
 from gritlib.line_services import (
     line_service_display_name,
@@ -6413,114 +6418,6 @@ def run_line_tui(cfg):
     def print_line_console_help():
         return line_help_print_line_console_help()
 
-    def load_line_resource(path_text):
-        text = str(path_text or "").strip()
-        if not text:
-            raise ValueError("usage: resource FILE")
-        path = Path(text).expanduser()
-        if not path.is_file():
-            raise ValueError(f"resource file not found: {text}")
-        try:
-            raw_lines = path.read_text(encoding="utf-8").splitlines()
-        except OSError as exc:
-            raise ValueError(f"could not read resource file: {exc}") from exc
-        commands = []
-        skipped_nested = 0
-        for raw in raw_lines:
-            line = raw.strip()
-            if not line or line.startswith("#"):
-                continue
-            try:
-                args = shlex.split(line)
-            except ValueError as exc:
-                raise ValueError(f"resource parse error: {exc}") from exc
-            if args and args[0].lower() == "resource":
-                skipped_nested += 1
-                continue
-            commands.append(line)
-            if len(commands) > 200:
-                raise ValueError("resource file has more than 200 commands")
-        print(f"Resource loaded: {path} commands={len(commands)} skipped_nested={skipped_nested}")
-        append_event(cfg, "workbench", "workbench_console_resource_loaded", details={
-            "path": str(path),
-            "command_count": len(commands),
-            "skipped_nested_count": skipped_nested,
-        })
-        return commands
-
-    def write_line_makerc(path_text):
-        text = str(path_text or "").strip()
-        if not text:
-            raise ValueError("usage: makerc FILE")
-        path = Path(text).expanduser()
-        commands = list(line_history)
-        if commands and commands[-1].strip().lower().startswith("makerc "):
-            commands = commands[:-1]
-        if not commands:
-            raise ValueError("command history is empty")
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(
-                "# griTTYkit operator console resource script\n"
-                + "\n".join(commands)
-                + "\n",
-                encoding="utf-8",
-            )
-        except OSError as exc:
-            raise ValueError(f"could not write resource script: {exc}") from exc
-        print(f"Resource script saved: {path} commands={len(commands)}")
-        print(f"replay: resource {shquote(str(path))}")
-        append_event(cfg, "workbench", "workbench_console_makerc_saved", details={
-            "path": str(path),
-            "command_count": len(commands),
-        })
-        return path
-
-    def record_line_history(command):
-        text = str(command or "").strip()
-        if not text:
-            return
-        line_history.append(text)
-        if len(line_history) > 100:
-            del line_history[:-100]
-        if HAVE_READLINE:
-            try:
-                n = _readline.get_current_history_length()
-                if n == 0 or _readline.get_history_item(n) != text:
-                    _readline.add_history(text)
-            except Exception:
-                pass
-
-    def line_history_command(selector):
-        text = str(selector or "").strip()
-        if text == "!!":
-            if not line_history:
-                raise ValueError("history is empty")
-            return line_history[-1]
-        if text.startswith("!"):
-            text = text[1:]
-        if not text.isdigit():
-            raise ValueError("usage: !N or repeat N")
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(line_history):
-            raise ValueError(f"history number out of range: {text}")
-        return line_history[idx]
-
-    def print_line_history(limit_text=""):
-        limit = 20
-        text = str(limit_text or "").strip()
-        if text:
-            if not text.isdigit() or int(text) <= 0:
-                raise ValueError("usage: history [LIMIT]")
-            limit = int(text)
-        print("Command history:")
-        if not line_history:
-            print("  none")
-            return
-        start = max(0, len(line_history) - limit)
-        for idx, command in enumerate(line_history[start:], start + 1):
-            print(f"  {idx}: {command}")
-
     def record_line_alias(alias, canonical):
         append_event(cfg, "workbench", "workbench_console_alias_used", details={
             "alias": str(alias or ""),
@@ -9794,18 +9691,18 @@ def run_line_tui(cfg):
             continue
         try:
             if choice == "!!" or (choice.startswith("!") and choice[1:].isdigit()):
-                choice = line_history_command(choice)
+                choice = line_history_command(line_history, choice)
                 print(f"replay: {choice}")
             elif choice.lower().startswith("repeat "):
                 repeat_args = shlex.split(choice)
                 if len(repeat_args) != 2:
                     raise ValueError("usage: repeat N")
-                choice = line_history_command(repeat_args[1])
+                choice = line_history_command(line_history, repeat_args[1])
                 print(f"replay: {choice}")
         except ValueError as exc:
             print(exc)
             continue
-        record_line_history(choice)
+        record_line_history(line_history, choice, readline_module=_readline if HAVE_READLINE else None)
         console_args = []
         if not (choice.isdigit() or choice in {"c", "d", "r", "v", "q"}):
             try:
@@ -9829,7 +9726,7 @@ def run_line_tui(cfg):
                 continue
             elif cmd == "history":
                 try:
-                    print_line_history(console_args[1] if len(console_args) >= 2 else "")
+                    line_resources_print_line_history(line_history, console_args[1] if len(console_args) >= 2 else "")
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -9841,13 +9738,13 @@ def run_line_tui(cfg):
                 continue
             elif cmd == "resource":
                 try:
-                    pending_console_lines.extend(load_line_resource(" ".join(console_args[1:]).strip()))
+                    pending_console_lines.extend(load_line_resource(cfg, " ".join(console_args[1:]).strip()))
                 except ValueError as exc:
                     print(exc)
                 continue
             elif cmd == "makerc":
                 try:
-                    write_line_makerc(" ".join(console_args[1:]).strip())
+                    write_line_makerc(cfg, " ".join(console_args[1:]).strip(), line_history)
                 except ValueError as exc:
                     print(exc)
                 continue
