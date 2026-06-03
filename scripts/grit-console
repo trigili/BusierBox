@@ -75,8 +75,8 @@ from gritlib.build_config import (
     workbench_config_field_summary, write_build_config_value,
 )
 from gritlib.event_log import (
-    EventLog, compact_event_details, event_log_state_record, event_log_stats,
-    event_record_indexes,
+    EventLog, append_event, compact_event_details, event_log_state_record,
+    event_log_stats, event_record_indexes, event_tail,
 )
 from gritlib.file_transfers import (
     fetch_record_indexes, file_service_workflow_action_indexes,
@@ -306,14 +306,6 @@ DEFAULTS = {
     "GRIT_RSHELL_RETRY_BACKOFF": "none",
     "GRIT_RSHELL_RETRY_MAX_INTERVAL_SEC": "300",
 }
-
-
-def append_event(cfg, service, event, level="info", session=None, remote=None, details=None):
-    return EventLog(cfg).write(service, event, level=level, session=session, remote=remote, details=details)
-
-
-def event_tail(cfg, limit=12):
-    return EventLog(cfg).tail(limit)
 
 
 def enriched_staged_records(cfg, staged=None):

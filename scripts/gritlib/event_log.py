@@ -216,6 +216,14 @@ def event_log_stats(cfg, limit=12):
     return EventLog(cfg).stats(limit)
 
 
+def append_event(cfg, service, event, level="info", session=None, remote=None, details=None):
+    return EventLog(cfg).write(service, event, level=level, session=session, remote=remote, details=details)
+
+
+def event_tail(cfg, limit=12):
+    return EventLog(cfg).tail(limit)
+
+
 def event_log_state_record(cfg, stats=None):
     stats = stats or event_log_stats(cfg)
     path = Path(str(stats.get("path") or EventLog(cfg).path))
