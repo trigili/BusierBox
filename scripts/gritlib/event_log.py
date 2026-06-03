@@ -6,6 +6,8 @@ import os
 import time
 from pathlib import Path
 
+from gritlib.record_utils import format_counts
+
 
 EVENT_COUNTER = itertools.count(1)
 DEFAULT_OPERATOR_SESSION_DIR = "local/operator-session"
@@ -101,6 +103,34 @@ def compact_event_details(event):
         label = "http" if key == "http_status" else key
         pieces.append(f"{label}={value}")
     return " ".join(pieces)
+
+
+def print_event_log_summary(doc):
+    print("Event log:")
+    stats = (doc or {}).get("event_log_stats") or {}
+    print(f"  path: {(doc or {}).get('event_log', '')}")
+    print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)} truncated={'yes' if stats.get('tail_truncated') else 'no'} omitted={stats.get('tail_omitted_count', 0)}")
+    print(f"  {event_tail_availability_text(doc)}")
+    print(f"  first={stats.get('first_event_at', '') or '-'} latest={stats.get('latest_event_at', '') or '-'}")
+    print(f"  services: {format_counts(stats.get('by_service') or {})}")
+    print(f"  events: {format_counts(stats.get('by_event') or {})}")
+    print(f"  levels: {format_counts(stats.get('by_level') or {})}")
+    print(f"  remotes: {format_counts(stats.get('by_remote') or {})}")
+    print(f"  detail_statuses: {format_counts(stats.get('by_detail_status') or {})}")
+    print(f"  detail_operations: {format_counts(stats.get('by_detail_operation') or {})}")
+    print(f"  detail_http_statuses: {format_counts(stats.get('by_detail_http_status') or {})}")
+    print(f"  detail_reasons: {format_counts(stats.get('by_detail_reason') or {})}")
+    print(f"  detail_sha256: {format_counts(stats.get('by_detail_sha256') or {})}")
+    print(f"  detail_command_ids: {format_counts(stats.get('by_detail_command_id') or {})}")
+    print(f"  detail_command_sha256: {format_counts(stats.get('by_detail_command_sha256') or {})}")
+    if (doc or {}).get("events"):
+        for event in ((doc or {}).get("events") or [])[-8:]:
+            suffix = compact_event_details(event)
+            if suffix:
+                suffix = f" {suffix}"
+            print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}{suffix}")
+    else:
+        print("  events_tail: none")
 
 
 class EventLog:

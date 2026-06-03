@@ -79,7 +79,7 @@ from gritlib.build_config import (
 from gritlib.event_log import (
     EventLog, append_event, compact_event_details, event_log_state_record,
     event_log_stats, event_record_indexes, event_tail,
-    event_tail_availability_text,
+    event_tail_availability_text, print_event_log_summary,
 )
 from gritlib.file_transfers import (
     fetch_record_indexes, file_service_workflow_action_indexes,
@@ -9189,31 +9189,7 @@ def print_status(cfg, json_output=False):
     else:
         print("  none")
     print("")
-    print("Event log:")
-    stats = doc.get("event_log_stats") or {}
-    print(f"  path: {doc.get('event_log', '')}")
-    print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)} truncated={'yes' if stats.get('tail_truncated') else 'no'} omitted={stats.get('tail_omitted_count', 0)}")
-    print(f"  {event_tail_availability_text(doc)}")
-    print(f"  first={stats.get('first_event_at', '') or '-'} latest={stats.get('latest_event_at', '') or '-'}")
-    print(f"  services: {format_counts(stats.get('by_service') or {})}")
-    print(f"  events: {format_counts(stats.get('by_event') or {})}")
-    print(f"  levels: {format_counts(stats.get('by_level') or {})}")
-    print(f"  remotes: {format_counts(stats.get('by_remote') or {})}")
-    print(f"  detail_statuses: {format_counts(stats.get('by_detail_status') or {})}")
-    print(f"  detail_operations: {format_counts(stats.get('by_detail_operation') or {})}")
-    print(f"  detail_http_statuses: {format_counts(stats.get('by_detail_http_status') or {})}")
-    print(f"  detail_reasons: {format_counts(stats.get('by_detail_reason') or {})}")
-    print(f"  detail_sha256: {format_counts(stats.get('by_detail_sha256') or {})}")
-    print(f"  detail_command_ids: {format_counts(stats.get('by_detail_command_id') or {})}")
-    print(f"  detail_command_sha256: {format_counts(stats.get('by_detail_command_sha256') or {})}")
-    if doc["events"]:
-        for event in doc["events"][-8:]:
-            suffix = compact_event_details(event)
-            if suffix:
-                suffix = f" {suffix}"
-            print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}{suffix}")
-    else:
-        print("  events_tail: none")
+    print_event_log_summary(doc)
     if doc["release"]:
         print("")
         print("Release browser:")
@@ -9522,31 +9498,7 @@ def print_workbench(cfg, include_api_summary=True):
     print("")
     print_workbench_phone_home_attempts(snap)
     print("")
-    print("Event log:")
-    stats = snap.get("event_log_stats") or {}
-    print(f"  path: {snap.get('event_log', '')}")
-    print(f"  total={stats.get('total_count', 0)} tail={stats.get('tail_count', 0)} invalid={stats.get('invalid_count', 0)} limit={stats.get('tail_limit', 0)} truncated={'yes' if stats.get('tail_truncated') else 'no'} omitted={stats.get('tail_omitted_count', 0)}")
-    print(f"  {event_tail_availability_text(snap)}")
-    print(f"  first={stats.get('first_event_at', '') or '-'} latest={stats.get('latest_event_at', '') or '-'}")
-    print(f"  services: {format_counts(stats.get('by_service') or {})}")
-    print(f"  events: {format_counts(stats.get('by_event') or {})}")
-    print(f"  levels: {format_counts(stats.get('by_level') or {})}")
-    print(f"  remotes: {format_counts(stats.get('by_remote') or {})}")
-    print(f"  detail_statuses: {format_counts(stats.get('by_detail_status') or {})}")
-    print(f"  detail_operations: {format_counts(stats.get('by_detail_operation') or {})}")
-    print(f"  detail_http_statuses: {format_counts(stats.get('by_detail_http_status') or {})}")
-    print(f"  detail_reasons: {format_counts(stats.get('by_detail_reason') or {})}")
-    print(f"  detail_sha256: {format_counts(stats.get('by_detail_sha256') or {})}")
-    print(f"  detail_command_ids: {format_counts(stats.get('by_detail_command_id') or {})}")
-    print(f"  detail_command_sha256: {format_counts(stats.get('by_detail_command_sha256') or {})}")
-    if snap["events"]:
-        for event in snap["events"][-8:]:
-            suffix = compact_event_details(event)
-            if suffix:
-                suffix = f" {suffix}"
-            print(f"  {event.get('ts', '')} {event.get('level', '')} {event.get('service', '')}:{event.get('event', '')}{suffix}")
-    else:
-        print("  events_tail: none")
+    print_event_log_summary(snap)
     rel = release_context(cfg)
     if rel:
         print("")
