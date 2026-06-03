@@ -8,6 +8,7 @@ import sys
 import time
 from pathlib import Path
 
+from gritlib.console_display import console_table
 from gritlib.event_log import append_event
 from gritlib.process_status import pid_alive, pid_environ_contains
 from gritlib.record_utils import format_counts, records_by_key
@@ -59,6 +60,43 @@ def print_workbench_job_ownership(rec):
         print("    cancel: disabled; process is not alive")
     else:
         print("    cancel: disabled; no pid")
+
+
+def print_line_workbench_job_records(records, verbose=False, command_builder=None, quote=shquote):
+    records = list(records or [])
+    command_builder = command_builder or (lambda _job_id: "")
+
+    def _detail(rec):
+        if not verbose:
+            return []
+        details = []
+        if rec.get("log_path"):
+            details.append(("log", rec["log_path"]))
+        details.append(("cancel", command_builder(str(rec.get("id") or ""))))
+        return details
+
+    cols = [
+        ("Job", "id"),
+        ("Action", "action_id"),
+        ("State", lambda r: r.get("effective_state") or r.get("state") or "-"),
+        ("Managed", lambda r: "yes" if r.get("pid_managed") else "no"),
+        ("Cancel", lambda r: "yes" if r.get("cancel_supported") else "no"),
+    ]
+    console_table(
+        f"Jobs  ({len(records)} total)" if records else "Jobs  (none)",
+        records, cols, detail_fn=_detail,
+        footer="use N or job ID to select  |  jobs -k ID to cancel  |  jobs ? for help",
+    )
+    return [
+        {
+            "kind": "job",
+            "label": f"{rec.get('id','')} action={rec.get('action_id','')} state={rec.get('effective_state','')}",
+            "rec": rec,
+            "command": command_builder(str(rec.get("id") or "")),
+            "use_hint": f"use job {quote(str(rec.get('id', '')))}",
+        }
+        for rec in records
+    ]
 
 
 def record_workbench_refresh(cfg, reason="manual", default_config=DEFAULT_SERVER_CONFIG):

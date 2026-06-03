@@ -253,6 +253,7 @@ from gritlib.workbench_jobs import (
     cancel_workbench_job_headless_command, cancel_workbench_job_record,
     load_workbench_jobs,
     reconcile_workbench_job_completion_events,
+    print_line_workbench_job_records,
     print_workbench_job_ownership, print_workbench_job_summary,
     record_workbench_refresh, run_workbench_action_headless_command,
     run_workbench_action_record,
@@ -7804,38 +7805,12 @@ def run_line_tui(cfg):
     def print_line_jobs(verbose=False):
         snap = workbench_snapshot(cfg)
         jobs = snap.get("workbench_jobs") or []
-
-        def _detail(rec):
-            if not verbose:
-                return []
-            details = []
-            if rec.get("log_path"):
-                details.append(("log", rec["log_path"]))
-            details.append(("cancel", cancel_workbench_job_headless_command(cfg, str(rec.get("id") or ""))))
-            return details
-
-        cols = [
-            ("Job",     "id"),
-            ("Action",  "action_id"),
-            ("State",   lambda r: r.get("effective_state") or r.get("state") or "-"),
-            ("Managed", lambda r: "yes" if r.get("pid_managed") else "no"),
-            ("Cancel",  lambda r: "yes" if r.get("cancel_supported") else "no"),
-        ]
-        _console_table(
-            f"Jobs  ({len(jobs)} total)" if jobs else "Jobs  (none)",
-            jobs, cols, detail_fn=_detail,
-            footer="use N or job ID to select  |  jobs -k ID to cancel  |  jobs ? for help",
+        search_records = print_line_workbench_job_records(
+            jobs,
+            verbose=verbose,
+            command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
+            quote=shquote,
         )
-        search_records = [
-            {
-                "kind": "job",
-                "label": f"{rec.get('id','')} action={rec.get('action_id','')} state={rec.get('effective_state','')}",
-                "rec": rec,
-                "command": cancel_workbench_job_headless_command(cfg, str(rec.get("id") or "")),
-                "use_hint": f"use job {shquote(str(rec.get('id', '')))}",
-            }
-            for rec in jobs
-        ]
         cfg["_line_console_search_results"] = search_records
         append_event(cfg, "workbench", "workbench_jobs_listed", details={
             "job_count": len(jobs),
