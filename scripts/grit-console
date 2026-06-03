@@ -221,7 +221,7 @@ from gritlib.workbench_jobs import (
     start_workbench_job_record,
     start_workbench_job_headless_command,
     workbench_job_records,
-    workbench_jobs_path, workbench_jobs_state_record,
+    workbench_jobs_path, workbench_jobs_state_status,
 )
 from gritlib.workflow_actions import (
     annotate_operator_console_workflows,
@@ -4694,15 +4694,10 @@ def status_document(cfg):
     command_copy_state_record = command_copy_state["state_record"]
     command_copy_state_records = command_copy_state["state_records"]
     command_copy_state_index_maps = command_copy_state["state_index_maps"]
-    workbench_jobs_state = workbench_jobs_state_record(cfg)
-    workbench_jobs_state["has_jobs"] = int(workbench_jobs_state.get("job_count") or 0) > 0
-    workbench_jobs_state_records = [workbench_jobs_state]
-    workbench_jobs_state_index_maps = {
-        "workbench_jobs_state_records_by_path": {rec.get("path", ""): rec for rec in workbench_jobs_state_records if rec.get("path")},
-        "workbench_jobs_state_records_by_exists": records_by_key(workbench_jobs_state_records, "exists"),
-        "workbench_jobs_state_records_by_valid": records_by_key(workbench_jobs_state_records, "valid"),
-        "workbench_jobs_state_records_by_has_jobs": records_by_key(workbench_jobs_state_records, "has_jobs"),
-    }
+    workbench_jobs_status = workbench_jobs_state_status(cfg)
+    workbench_jobs_state = workbench_jobs_status["state_record"]
+    workbench_jobs_state_records = workbench_jobs_status["state_records"]
+    workbench_jobs_state_index_maps = workbench_jobs_status["state_index_maps"]
     operator_state_records_list = operator_state_records(
         cfg, server_state, staged_files_state, command_queue_state,
         command_copy, workbench_jobs_state, event_log_state, session_root_state,

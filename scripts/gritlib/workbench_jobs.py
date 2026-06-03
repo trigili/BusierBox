@@ -10,7 +10,7 @@ from pathlib import Path
 
 from gritlib.event_log import append_event
 from gritlib.process_status import pid_alive, pid_environ_contains
-from gritlib.record_utils import format_counts
+from gritlib.record_utils import format_counts, records_by_key
 from gritlib.session_state import (
     atomic_write_json, elapsed_seconds, read_json_file, state_file_path, utc_now,
 )
@@ -120,6 +120,31 @@ def workbench_jobs_state_record(cfg):
     except (OSError, json.JSONDecodeError) as exc:
         rec["error"] = str(exc)
     return rec
+
+
+def workbench_jobs_state_status(cfg):
+    state_record = workbench_jobs_state_record(cfg)
+    state_record["has_jobs"] = int(state_record.get("job_count") or 0) > 0
+    state_records = [state_record]
+    state_index_maps = {
+        "workbench_jobs_state_records_by_path": {
+            rec.get("path", ""): rec for rec in state_records if rec.get("path")
+        },
+        "workbench_jobs_state_records_by_exists": records_by_key(
+            state_records, "exists"
+        ),
+        "workbench_jobs_state_records_by_valid": records_by_key(
+            state_records, "valid"
+        ),
+        "workbench_jobs_state_records_by_has_jobs": records_by_key(
+            state_records, "has_jobs"
+        ),
+    }
+    return {
+        "state_record": state_record,
+        "state_records": state_records,
+        "state_index_maps": state_index_maps,
+    }
 
 
 def tail_text_file(path_text, line_limit=20, byte_limit=8192):
