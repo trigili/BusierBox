@@ -1124,6 +1124,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented console interpreted a normal command as a stale search result", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
+    if re.search(r"grit\[[^\n]+> q\r?\nmodule context cleared", line_console_stdout):
+        print("line-oriented q command printed noisy module-clear status", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
     for noisy in ("route.inspect_command=scripts/grit-console", "route.start_command=scripts/grit-console",
                   "route.stop_command=scripts/grit-console", "action.command=scripts/grit-console",
                   "action.dry_run_command=scripts/grit-console", "action.start_job_command=scripts/grit-console"):
@@ -1152,7 +1156,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(generated_copy_text or line_console_stdout, file=sys.stderr)
         return 1
     build_view_start = line_console_stdout.find("grit[all]> build")
-    build_view_end = line_console_stdout.find("grit[all]> build -v", build_view_start + 1)
+    build_view_end = line_console_stdout.find("grit[all]/build> build -v", build_view_start + 1)
     build_view_text = line_console_stdout[build_view_start:build_view_end] if build_view_start != -1 and build_view_end != -1 else ""
     if (not build_view_text or
             "configured: " not in build_view_text or
@@ -1166,8 +1170,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented build config view was noisy or missing grouped summary", file=sys.stderr)
         print(build_view_text or line_console_stdout, file=sys.stderr)
         return 1
-    build_verbose_start = line_console_stdout.find("grit[all]> build -v")
-    build_verbose_end = line_console_stdout.find("grit[all]> build set GRIT_RUNTIME_ROOT /tmp/grit-build", build_verbose_start + 1)
+    build_verbose_start = line_console_stdout.find("grit[all]/build> build -v")
+    build_verbose_end = line_console_stdout.find("grit[all]/build> build set GRIT_RUNTIME_ROOT /tmp/grit-build", build_verbose_start + 1)
     build_verbose_text = line_console_stdout[build_verbose_start:build_verbose_end] if build_verbose_start != -1 and build_verbose_end != -1 else ""
     if (not build_verbose_text or
             "options: static-preferred" not in build_verbose_text or
@@ -1178,8 +1182,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented verbose build config view missed options or exposed headless command", file=sys.stderr)
         print(build_verbose_text or line_console_stdout, file=sys.stderr)
         return 1
-    build_set_start = line_console_stdout.find("grit[all]> build set GRIT_RUNTIME_ROOT /tmp/grit-build")
-    build_set_end = line_console_stdout.find("grit[all]> listeners", build_set_start + 1)
+    build_set_start = line_console_stdout.find("grit[all]/build> build set GRIT_RUNTIME_ROOT /tmp/grit-build")
+    build_set_end = line_console_stdout.find("grit[all]/build> listeners", build_set_start + 1)
     build_set_text = line_console_stdout[build_set_start:build_set_end] if build_set_start != -1 and build_set_end != -1 else ""
     if (not build_set_text or
             "set build.GRIT_RUNTIME_ROOT=\"/tmp/grit-build\"" not in build_set_text or
@@ -1218,9 +1222,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(direct_metadata_text or line_console_stdout, file=sys.stderr)
         return 1
     mailbox_start = line_console_stdout.find("grit[Console Router]> mailbox")
-    mailbox_targets_start = line_console_stdout.find("grit[Console Router]> mailbox targets", mailbox_start + 1)
-    queue_view_start = line_console_stdout.find("grit[Console Router]> queue", mailbox_targets_start + 1)
-    queue_view_end = line_console_stdout.find("grit[Console Router]> use 1", queue_view_start + 1)
+    mailbox_targets_start = line_console_stdout.find("grit[Console Router]/queue> mailbox targets", mailbox_start + 1)
+    queue_view_start = line_console_stdout.find("grit[Console Router]/queue> queue", mailbox_targets_start + 1)
+    queue_view_end = line_console_stdout.find("grit[Console Router]/queue> use 1", queue_view_start + 1)
     mailbox_text = line_console_stdout[mailbox_start:mailbox_targets_start] if mailbox_start != -1 and mailbox_targets_start != -1 else ""
     mailbox_targets_text = line_console_stdout[mailbox_targets_start:queue_view_start] if mailbox_targets_start != -1 and queue_view_start != -1 else ""
     queue_view_text = line_console_stdout[queue_view_start:queue_view_end] if queue_view_start != -1 and queue_view_end != -1 else ""
@@ -1328,7 +1332,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(path_view_text or line_console_stdout, file=sys.stderr)
         return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
-    daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)
+    daemon_verbose_start = line_console_stdout.find("grit[all]/daemon> daemon -v", daemon_start + 1)
     daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""
     daemon_verbose_text = line_console_stdout[daemon_verbose_start:] if daemon_verbose_start != -1 else ""
     if (not daemon_plain_text or
@@ -1343,6 +1347,26 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(daemon_plain_text, file=sys.stderr)
         print("verbose daemon section:", file=sys.stderr)
         print(daemon_verbose_text[:4000], file=sys.stderr)
+        return 1
+    collection_prompt_expectations = [
+        "grit[all]/build> build -v",
+        "grit[all]/build> listeners",
+        "grit[all]/listeners> listeners -v",
+        "grit[all]/routes> route start 2",
+        "grit[Console Router]/queue> mailbox targets",
+        "grit[Console Router]/queue> queue",
+        "grit[all]/daemon> daemon -v",
+        "grit[all]/jobs> jobs -v",
+    ]
+    missing_collection_prompts = [
+        expected for expected in collection_prompt_expectations
+        if expected not in line_console_stdout
+    ]
+    if missing_collection_prompts:
+        print("line-oriented collection commands did not keep collection breadcrumbs", file=sys.stderr)
+        for expected in missing_collection_prompts:
+            print(f"missing: {expected}", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
         return 1
     line_console_makerc_text = line_console_makerc.read_text(encoding="utf-8") if line_console_makerc.exists() else ""
     if (not line_console_makerc.is_file() or

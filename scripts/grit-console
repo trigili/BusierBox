@@ -132,7 +132,10 @@ from gritlib.line_configure import (
     artifact_config_candidates, find_artifact_config,
     parse_line_config_args, parse_line_configure_args, run_config_from_survey,
 )
-from gritlib.line_context import clear_line_console_context, clear_line_module_context
+from gritlib.line_context import (
+    clear_line_console_context, clear_line_module_context,
+    set_line_collection_context,
+)
 from gritlib.line_events import print_line_events_view
 from gritlib.line_files import (
     line_file_records_from_staged,
@@ -6610,11 +6613,14 @@ def run_line_repl(cfg):
             stop_command=lambda name: service_stop_headless_command(cfg, name),
         )
 
-    def clear_line_module():
-        clear_line_module_context(cfg)
+    def clear_line_module(quiet=False):
+        clear_line_module_context(cfg, quiet=quiet)
 
     def clear_line_context():
         clear_line_console_context(cfg)
+
+    def set_line_collection(module):
+        set_line_collection_context(cfg, module)
 
     def print_line_targets():
         unfiltered_cfg = dict(cfg)
@@ -8128,29 +8134,41 @@ def run_line_repl(cfg):
         if len(parts) >= 2 and parts[1].lower() in ("module", "modules"):
             print_line_actions(" ".join(parts[2:]).strip(), kind_filter=key)
         elif key in ("target", "targets", "agent", "agents", "host", "hosts"):
+            set_line_collection("targets")
             print_line_targets()
         elif key in ("service", "services", "listener", "listeners"):
+            set_line_collection("listeners")
             print_line_services()
         elif key in ("file", "files", "staged", "stager", "stagers", "loot", "download", "downloads"):
+            set_line_collection("files")
             print_line_files()
         elif key in ("job", "jobs"):
+            set_line_collection("jobs")
             print_line_jobs()
         elif key in ("daemon", "daemons"):
+            set_line_collection("daemon")
             print_line_daemon_actions()
         elif key in ("category", "categories", "module-category", "module-categories"):
+            set_line_collection("categories")
             print_line_module_categories()
         elif key in ("action", "actions", "module", "modules"):
+            set_line_collection("modules")
             print_line_actions(filter_text)
         elif key in ("session", "sessions"):
+            set_line_collection("sessions")
             print_line_sessions()
         elif key in ("route", "routes"):
+            set_line_collection("routes")
             print_line_routes(verbose=filter_text in ("-v", "--verbose", "verbose"))
         elif key in ("queue", "mailbox", "commands"):
+            set_line_collection("queue")
             print_line_command_queue_view(detailed=filter_text in ("-v", "--verbose", "verbose", "details"))
         elif key in ("activity", "events"):
+            set_line_collection("events")
             snap = workbench_snapshot(cfg)
             print_target_activity_records(snap, target_id=configured_target_filter(cfg), limit=12)
         elif key in ("release", "releases", "artifact", "artifacts"):
+            set_line_collection("release")
             print_line_release()
         elif key in ("options", "option"):
             print_line_options()
@@ -8787,6 +8805,8 @@ def run_line_repl(cfg):
                 continue
             elif cmd == "build":
                 try:
+                    if len(console_args) == 1 or console_args[1] in {"-v", "--verbose"}:
+                        set_line_collection("build")
                     run_line_build_command(cfg, console_args[1:])
                 except ValueError as exc:
                     print(exc)
@@ -8885,20 +8905,25 @@ def run_line_repl(cfg):
                 continue
 
             elif cmd in {"categories", "category", "module-categories"}:
+                set_line_collection("categories")
                 print_line_module_categories()
                 continue
             elif cmd in {"modules", "module"}:
+                set_line_collection("modules")
                 print_line_actions(" ".join(console_args[1:]).strip())
                 continue
             elif cmd in {"services", "listeners"}:
+                set_line_collection("listeners")
                 print_line_services(verbose=len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"})
                 continue
             elif cmd == "listener":
                 if len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
+                    set_line_collection("listeners")
                     print_line_services(verbose=True)
                     continue
                 selector = " ".join(console_args[1:]).strip()
                 if not selector:
+                    set_line_collection("listeners")
                     print_line_services()
                     continue
                 try:
@@ -8907,11 +8932,13 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif cmd in {"targets", "agents", "hosts"}:
+                set_line_collection("targets")
                 print_line_targets()
                 continue
             elif cmd in {"target", "agent", "host"}:
                 selector = " ".join(console_args[1:]).strip()
                 if not selector:
+                    set_line_collection("targets")
                     print_line_targets()
                     continue
                 try:
@@ -8939,6 +8966,7 @@ def run_line_repl(cfg):
                 elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
                     print_line_command_help("sessions")
                 elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
+                    set_line_collection("sessions")
                     print_line_sessions(verbose=True)
                 elif len(console_args) >= 2 and console_args[1] not in {"-l", "--list"}:
                     try:
@@ -8946,6 +8974,7 @@ def run_line_repl(cfg):
                     except ValueError as exc:
                         print(exc)
                 else:
+                    set_line_collection("sessions")
                     print_line_sessions()
                 continue
             elif cmd in {"routes", "route"}:
@@ -8973,6 +9002,7 @@ def run_line_repl(cfg):
                 elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
                     print_line_command_help("routes")
                 elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose", "print"}:
+                    set_line_collection("routes")
                     print_line_routes(verbose=True)
                 elif cmd == "route" and len(console_args) >= 2:
                     try:
@@ -8980,6 +9010,7 @@ def run_line_repl(cfg):
                     except ValueError as exc:
                         print(exc)
                 else:
+                    set_line_collection("routes")
                     print_line_routes()
                 continue
             elif cmd == "use" and len(console_args) == 2 and console_args[1].isdigit():
@@ -9204,6 +9235,7 @@ def run_line_repl(cfg):
                 subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
                 try:
                     if subcmd in {"results", "result"}:
+                        set_line_collection("probe")
                         print_line_probe_results()
                     elif subcmd == "config":
                         run_line_probe_config(console_args[2:])
@@ -9214,6 +9246,7 @@ def run_line_repl(cfg):
                     elif subcmd in {"delivery", "deliver", "commands"}:
                         if len(console_args) > 2:
                             raise ValueError("usage: probe delivery")
+                        set_line_collection("probe")
                         _print_probe_delivery()
                     elif subcmd in {"paste", "serial", "heredoc"}:
                         paste_args = [str(item).lower() for item in console_args[2:]]
@@ -9231,6 +9264,8 @@ def run_line_repl(cfg):
                     elif subcmd in {"help", "-h", "--help"}:
                         print_line_command_help("probe")
                     else:
+                        if not subcmd:
+                            set_line_collection("probe")
                         queue_probe, start_probe = parse_line_probe_args(console_args[1:])
                         probe_line_start(queue=queue_probe, start_service=start_probe)
                 except ValueError as exc:
@@ -9240,6 +9275,7 @@ def run_line_repl(cfg):
                 subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
                 try:
                     if subcmd in {"results", "result"} or not subcmd:
+                        set_line_collection("survey")
                         print_line_survey_status()
                     elif subcmd == "config":
                         run_line_survey_config(console_args[2:])
@@ -9254,6 +9290,11 @@ def run_line_repl(cfg):
                 continue
             elif cmd == "daemon":
                 try:
+                    if (
+                        len(console_args) == 1
+                        or all(item in {"-v", "--verbose", "verbose"} for item in console_args[1:])
+                    ):
+                        set_line_collection("daemon")
                     run_line_daemon_action(console_args[1:])
                 except ValueError as exc:
                     print(exc)
@@ -9261,6 +9302,7 @@ def run_line_repl(cfg):
             elif cmd in {"release", "releases"}:
                 subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
                 if not subcmd or subcmd in {"list", "show", "recommendations", "artifacts"}:
+                    set_line_collection("release")
                     print_line_release()
                 elif subcmd in {"stage", "use", "select"}:
                     try:
@@ -9350,11 +9392,14 @@ def run_line_repl(cfg):
                                 "target_filter": target_filter_id or "all",
                             })
                 elif subcmd in {"-v", "--verbose"}:
+                    set_line_collection("files")
                     print_line_files(verbose=True)
                 else:
+                    set_line_collection("files")
                     print_line_files()
                 continue
             elif cmd in {"mailbox", "queue"}:
+                set_line_collection("queue")
                 print_line_command_queue_view()
                 continue
             elif cmd == "jobs":
@@ -9364,8 +9409,10 @@ def run_line_repl(cfg):
                     elif len(console_args) >= 3 and console_args[1] in {"-i", "--info", "info"}:
                         select_line_job(" ".join(console_args[2:]).strip())
                     elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
+                        set_line_collection("jobs")
                         print_line_jobs(verbose=True)
                     else:
+                        set_line_collection("jobs")
                         print_line_jobs()
                 except ValueError as exc:
                     print(exc)
@@ -9404,7 +9451,7 @@ def run_line_repl(cfg):
         if choice in {"q", "quit", "exit"}:
             # If in a subcontext, go back one level instead of quitting
             if str(cfg.get("_line_console_module") or ""):
-                clear_line_module()
+                clear_line_module(quiet=True)
                 compact_next_prompt = True
                 continue
             mark_service_stopped(cfg, "workbench", "quit")

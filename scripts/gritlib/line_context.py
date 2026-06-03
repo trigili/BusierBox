@@ -4,13 +4,24 @@ from gritlib.event_log import append_event
 from gritlib.target_records import configured_target_filter, set_workbench_target_filter
 
 
-def clear_line_module_context(cfg):
+def clear_line_module_context(cfg, quiet=False):
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
     if cfg.pop("_line_console_module", None):
+        if quiet:
+            return
         print("module context cleared")
-    else:
+    elif not quiet:
         print("module context already root")
+
+
+def set_line_collection_context(cfg, module):
+    module = str(module or "").strip()
+    if not module:
+        return
+    cfg["_line_console_module"] = module
+    cfg.pop("_line_console_action_kind", None)
+    cfg.pop("_line_console_action_id", None)
 
 
 def clear_line_console_context(cfg):
