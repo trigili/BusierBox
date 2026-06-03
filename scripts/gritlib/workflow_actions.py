@@ -559,6 +559,19 @@ def command_queue_workflow_action_record(
     }
 
 
+def command_queue_listener_action_states(service_row):
+    actual = str((service_row or {}).get("actual") or "unknown")
+    listening = actual == "listening"
+    return {
+        "start_state": "already-running" if listening else "ready",
+        "start_reason": "service-already-listening" if listening else "run-now",
+        "start_enter": not listening,
+        "stop_state": "ready" if listening else "already-stopped",
+        "stop_reason": "run-now" if listening else "service-not-listening",
+        "stop_enter": listening,
+    }
+
+
 def workbench_action_indexes(records):
     return {
         "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},

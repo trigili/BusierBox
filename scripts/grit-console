@@ -223,6 +223,7 @@ from gritlib.workbench_jobs import (
 from gritlib.workflow_actions import (
     annotate_operator_console_workflows,
     annotate_workbench_actions,
+    command_queue_listener_action_states,
     command_queue_workflow_action_record,
     operator_daemon_workflow_action_indexes,
     operator_daemon_workflow_action_summary,
@@ -1874,7 +1875,6 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)
     service_row = service_row if isinstance(service_row, dict) else {}
-    actual = str(service_row.get("actual") or "unknown")
     target_filter_id = configured_target_filter(cfg)
     target_arg = (" --target-id " + shquote(target_filter_id)) if target_filter_id else ""
     queued_count = int(command_queue.get("queued_count", 0) or 0)
@@ -1890,6 +1890,7 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
         if str(rec.get("target_id") or "")
     }
     fleet_metrics = workflow_fleet_metrics(target_records)
+    lifecycle_states = command_queue_listener_action_states(service_row)
     records = []
 
     def add(action_id, category, label, command, workflow, action_state, action_reason,
@@ -1977,10 +1978,10 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
         "Start command queue poll listener",
         base + " --transport command-queue",
         "command-queue",
-        "ready" if actual != "listening" else "already-running",
-        "run-now" if actual != "listening" else "service-already-listening",
-        can_run_from_curses_enter=actual != "listening",
-        curses_enter_action="start-command-queue-listener" if actual != "listening" else "stop-command-queue-listener",
+        lifecycle_states["start_state"],
+        lifecycle_states["start_reason"],
+        can_run_from_curses_enter=lifecycle_states["start_enter"],
+        curses_enter_action="start-command-queue-listener" if lifecycle_states["start_enter"] else "stop-command-queue-listener",
     )
     add(
         "stop-command-queue-listener",
@@ -1988,11 +1989,11 @@ def command_queue_workflow_action_records(cfg, command_queue, target_mailbox_rec
         "Stop command queue poll listener",
         base + " --stop-service command-queue",
         "command-queue",
-        "ready" if actual == "listening" else "already-stopped",
-        "run-now" if actual == "listening" else "service-not-listening",
+        lifecycle_states["stop_state"],
+        lifecycle_states["stop_reason"],
         requires_confirmation=True,
-        can_run_from_curses_enter=actual == "listening",
-        curses_enter_action="stop-command-queue-listener" if actual == "listening" else "start-command-queue-listener",
+        can_run_from_curses_enter=lifecycle_states["stop_enter"],
+        curses_enter_action="stop-command-queue-listener" if lifecycle_states["stop_enter"] else "start-command-queue-listener",
     )
     records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
     return records
