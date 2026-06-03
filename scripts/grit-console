@@ -64,7 +64,9 @@ from gritlib.build_config import (
     workbench_config_field_indexes, workbench_config_field_records,
     workbench_config_field_summary, write_build_config_value,
 )
-from gritlib.event_log import EventLog, event_record_indexes
+from gritlib.event_log import (
+    EventLog, event_log_state_record, event_log_stats, event_record_indexes,
+)
 from gritlib.file_transfers import (
     fetch_record_indexes, file_service_workflow_action_indexes,
     file_service_workflow_action_summary, target_file_transfer_record_indexes,
@@ -344,41 +346,6 @@ def append_event(cfg, service, event, level="info", session=None, remote=None, d
 
 def event_tail(cfg, limit=12):
     return EventLog(cfg).tail(limit)
-
-
-def event_log_stats(cfg, limit=12):
-    return EventLog(cfg).stats(limit)
-
-
-def event_log_state_record(cfg, stats=None):
-    stats = stats or event_log_stats(cfg)
-    path = Path(str(stats.get("path") or EventLog(cfg).path))
-    exists = path.is_file()
-    invalid_count = int(stats.get("invalid_count", 0) or 0)
-    total_count = int(stats.get("total_count", 0) or 0)
-    rec = {
-        "path": str(path),
-        "exists": exists,
-        "valid": bool(exists and invalid_count == 0),
-        "event_count": total_count,
-        "invalid_count": invalid_count,
-        "tail_count": int(stats.get("tail_count", 0) or 0),
-        "tail_truncated": bool(stats.get("tail_truncated", False)),
-        "tail_omitted_count": int(stats.get("tail_omitted_count", 0) or 0),
-        "tail_limit": int(stats.get("tail_limit", 0) or 0),
-        "first_event_at": stats.get("first_event_at", ""),
-        "latest_event_at": stats.get("latest_event_at", ""),
-        "error": "",
-    }
-    rec["tail_has_records"] = rec["tail_count"] > 0
-    rec["tail_has_omitted_records"] = rec["tail_omitted_count"] > 0
-    rec["tail_empty_due_to_limit"] = total_count > 0 and rec["tail_count"] == 0 and rec["tail_limit"] == 0
-    if exists:
-        try:
-            rec["size"] = path.stat().st_size
-        except OSError as exc:
-            rec["error"] = str(exc)
-    return rec
 
 
 def apply_operator_session_path_defaults(cfg, explicit_keys):

@@ -198,6 +198,41 @@ class EventLog:
         return stats
 
 
+def event_log_stats(cfg, limit=12):
+    return EventLog(cfg).stats(limit)
+
+
+def event_log_state_record(cfg, stats=None):
+    stats = stats or event_log_stats(cfg)
+    path = Path(str(stats.get("path") or EventLog(cfg).path))
+    exists = path.is_file()
+    invalid_count = int(stats.get("invalid_count", 0) or 0)
+    total_count = int(stats.get("total_count", 0) or 0)
+    rec = {
+        "path": str(path),
+        "exists": exists,
+        "valid": bool(exists and invalid_count == 0),
+        "event_count": total_count,
+        "invalid_count": invalid_count,
+        "tail_count": int(stats.get("tail_count", 0) or 0),
+        "tail_truncated": bool(stats.get("tail_truncated", False)),
+        "tail_omitted_count": int(stats.get("tail_omitted_count", 0) or 0),
+        "tail_limit": int(stats.get("tail_limit", 0) or 0),
+        "first_event_at": stats.get("first_event_at", ""),
+        "latest_event_at": stats.get("latest_event_at", ""),
+        "error": "",
+    }
+    rec["tail_has_records"] = rec["tail_count"] > 0
+    rec["tail_has_omitted_records"] = rec["tail_omitted_count"] > 0
+    rec["tail_empty_due_to_limit"] = total_count > 0 and rec["tail_count"] == 0 and rec["tail_limit"] == 0
+    if exists:
+        try:
+            rec["size"] = path.stat().st_size
+        except OSError as exc:
+            rec["error"] = str(exc)
+    return rec
+
+
 def event_record_indexes(records):
     indexes = {name: {} for name in ("id", "session") + TOP_INDEXES + DETAIL_INDEXES + EVENT_DETAIL_INDEXES + SERVICE_DETAIL_INDEXES}
     for rec in records or []:
