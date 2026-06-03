@@ -129,6 +129,7 @@ from gritlib.line_services import (
 )
 from gritlib.line_sessions import (
     line_session_record_by_selector, print_line_session_records,
+    print_selected_line_session,
 )
 from gritlib.line_workspace import print_line_workspace_snapshot
 from gritlib.operator_io import (
@@ -9194,12 +9195,7 @@ def run_line_tui(cfg):
         cfg["_line_console_module"] = f"session/{session_id}"
         cfg.pop("_line_console_action_kind", None)
         cfg.pop("_line_console_action_id", None)
-        service = selected.get("service") or "-"
-        state = selected.get("state") or "?"
-        exit_r = selected.get("exit_reason") or ""
-        state_str = f"{state}/{exit_r}" if exit_r and exit_r != state else state
-        print(f"  {session_id}  —  {service}  |  {state_str}")
-        print("  info / interact / view / sessions -v / back")
+        print_selected_line_session(selected)
         append_event(cfg, "workbench", "workbench_session_selected", details={
             "session_id": session_id,
             "session_path": path,

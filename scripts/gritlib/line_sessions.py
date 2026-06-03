@@ -47,6 +47,16 @@ def line_session_record_by_selector(sessions, selector):
     return {}
 
 
+def print_selected_line_session(rec):
+    session_id = str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
+    service = rec.get("service") or "-"
+    state_str = line_session_state_text(rec)
+    if state_str == "-":
+        state_str = "?"
+    print(f"  {session_id}  —  {service}  |  {state_str}")
+    print("  info / interact / view / sessions -v / back")
+
+
 def print_line_session_records(sessions, verbose=False, view_command=None, quote=None):
     all_sessions = list(sessions or [])
     shown = all_sessions[:12]
