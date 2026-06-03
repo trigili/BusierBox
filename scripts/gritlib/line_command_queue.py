@@ -21,20 +21,60 @@ def line_command_queue_result_text(rec):
     return status or "-"
 
 
+def line_command_queue_humanize(text):
+    return str(text or "").replace("_", "-").replace("-", " ").strip().capitalize()
+
+
 def line_command_queue_action_text(rec):
     action_id = str((rec or {}).get("action_id") or "")
     labels = {
-        "inspect-command-queue": "Inspect queue",
-        "list-command-queue": "List mailbox",
+        "inspect-command-queue": "Review queue",
+        "list-command-queue": "Show mailbox",
         "queue-command": "Queue command",
         "clear-command-queue": "Clear queue",
-        "start-command-queue-listener": "Start listener",
-        "stop-command-queue-listener": "Stop listener",
+        "start-command-queue-listener": "Start mailbox listener",
+        "stop-command-queue-listener": "Stop mailbox listener",
     }
     if action_id in labels:
         return labels[action_id]
     label = str((rec or {}).get("label") or "").strip()
-    return label or str((rec or {}).get("id") or "-")
+    return label or line_command_queue_humanize(action_id) or "-"
+
+
+def line_command_queue_state_text(rec):
+    state = str((rec or {}).get("operator_action_state") or "")
+    labels = {
+        "ready": "ready",
+        "needs-input": "needs input",
+        "already-empty": "empty",
+        "already-stopped": "stopped",
+        "already-running": "running",
+        "missing-target": "needs target",
+        "not-supported": "unavailable",
+        "disabled": "disabled",
+    }
+    return labels.get(state, state.replace("-", " ") or "-")
+
+
+def line_command_queue_action_summary(records):
+    counts = {}
+    needs_input = 0
+    confirm = 0
+    for rec in records or []:
+        state = line_command_queue_state_text(rec)
+        counts[state] = counts.get(state, 0) + 1
+        if str((rec or {}).get("operator_action_state") or "") == "needs-input":
+            needs_input += 1
+        if (rec or {}).get("requires_confirmation"):
+            confirm += 1
+    order = ("ready", "needs input", "empty", "stopped", "running", "disabled", "unavailable")
+    parts = [f"{key}={counts[key]}" for key in order if counts.get(key)]
+    parts.extend(f"{key}={value}" for key, value in sorted(counts.items()) if key not in order)
+    if needs_input:
+        parts.append(f"input needed={needs_input}")
+    if confirm:
+        parts.append(f"confirm={confirm}")
+    return "  queue actions: " + "  ".join(parts) if parts else ""
 
 
 def print_line_command_queue_records(queue_summary, mailbox_records, command_queue_actions, include_queue_summary=True, detailed=False):
@@ -118,9 +158,12 @@ def print_line_command_queue_records(queue_summary, mailbox_records, command_que
         print("Mailbox  (none)")
 
     if command_queue_actions:
+        action_summary = line_command_queue_action_summary(command_queue_actions)
+        if action_summary:
+            print(action_summary)
         action_cols = [
             ("Action", line_command_queue_action_text),
-            ("State", lambda r: r.get("operator_action_state") or "-"),
+            ("State", line_command_queue_state_text),
             ("Pending", lambda r: str(r.get("target_mailbox_pending_work_count", 0))),
             ("Offline", lambda r: str(r.get("fleet_offline_target_count", 0))),
         ]
@@ -153,8 +196,17 @@ def print_line_command_result_record(rec):
     rec = rec or {}
     result = rec.get("result") if isinstance(rec.get("result"), dict) else {}
     print("Command result:")
+    status = rec.get("status") or "-"
+    if result:
+        result_status = result.get("status") or "-"
+        exit_code = result.get("exit_code", "")
+        exit_text = exit_code if exit_code != "" else "-"
+        print(f"  summary: status={status} result={result_status} exit={exit_text}")
+    else:
+        waiting_for = "delivery" if rec.get("status") == "queued" else "result-upload" if rec.get("status") == "delivered" else "-"
+        print(f"  summary: status={status} waiting_for={waiting_for} result=none")
     print(f"  id={rec.get('id', '')}")
-    print(f"  status={rec.get('status', '') or '-'}")
+    print(f"  status={status}")
     print(f"  command={rec.get('command', '')}")
     print(f"  target={rec.get('target_id', '') or '-'} label={rec.get('target_label', '') or '-'}")
     print(f"  created={rec.get('created_at', '') or '-'} delivered={rec.get('delivered_at', '') or '-'} result_at={rec.get('result_received_at', '') or '-'}")

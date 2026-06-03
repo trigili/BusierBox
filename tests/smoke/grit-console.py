@@ -5160,13 +5160,19 @@ def main(argv=None):
                 "headless_command:" in queue_tui_text or
                 "headless_command=" in queue_tui_text or
                 "Command queue  (" not in queue_tui_text or
+                "queue actions:" not in queue_tui_text or
+                "needs input=" not in queue_tui_text or
                 "queue COMMAND  |  queue list" not in queue_tui_text or
-                "List mailbox" not in queue_tui_text or
+                "Show mailbox" not in queue_tui_text or
                 "Queue command" not in queue_tui_text or
                 "Clear queue" not in queue_tui_text or
+                "Start mailbox listener" not in queue_tui_text or
                 "command-queue:list-command-queue" in queue_tui_text or
                 "command-queue:queue-command" in queue_tui_text or
                 "command-queue:clear-command-queue" in queue_tui_text or
+                "already-empty" in queue_tui_text or
+                "already-stopped" in queue_tui_text or
+                "needs-input" in queue_tui_text or
                 "queues_offline_work=yes" not in queue_tui_text or
                 alpha_id not in queue_tui_text or
                 "result-received" not in queue_tui_text or
@@ -5181,6 +5187,7 @@ def main(argv=None):
                 "target_state=online" not in queue_tui_text or
                 alpha_id not in queue_tui_text or
                 "result-received" not in queue_tui_text or
+                "summary: status=result-received result=completed exit=0" not in queue_tui_text or
                 "completed/0" not in queue_tui_text or
                 bravo_id not in queue_tui_text or
                 "target-bravo" not in queue_tui_text or
