@@ -12330,7 +12330,6 @@ def run_line_tui(cfg):
             executable=True,
         )
         print(f"  file_service_started={'yes' if started else 'no'}")
-        print(f"headless_command: {headless}")
         append_event(cfg, "workbench", "workbench_release_artifact_staged", details={
             "selector": selector,
             "headless_command": headless,
@@ -13713,7 +13712,6 @@ def run_line_tui(cfg):
                 )
                 rec = stage_file(cfg, path, name)
                 print(f"staged {rec['request_name']}")
-                print(f"headless_command: {headless}")
                 print(render_fetch_command(rec["request_name"], cfg))
                 append_event(cfg, "workbench", "workbench_file_staged", details={
                     "headless_command": headless,
@@ -13742,7 +13740,6 @@ def run_line_tui(cfg):
                         f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
                         f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
                     )
-                    print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
                     if rec.get("target_command_template"):
                         print(f"    target_command_template: {rec.get('target_command_template', '')}")
             staged_actions = snap.get("staged_file_workflow_actions") or []
@@ -13758,13 +13755,11 @@ def run_line_tui(cfg):
                         f"fleet_pending={rec.get('fleet_mailbox_pending_work_count', 0)} "
                         f"poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'}"
                     )
-                    print(f"    command: {rec.get('headless_command', rec.get('command', ''))}")
             headless = (
                 "scripts/grit-console --config "
                 + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
                 + " --list-staged"
             )
-            print(f"headless_command: {headless}")
             append_event(cfg, "workbench", "workbench_staged_files_viewed", details={
                 "headless_command": headless,
                 "staged_count": len(snap.get("staged_records") or []),
@@ -13785,7 +13780,6 @@ def run_line_tui(cfg):
                     )
                     existed = unstage_file(cfg, name)
                     print("unstaged" if existed else "not staged")
-                    print(f"headless_command: {headless}")
                     append_event(cfg, "workbench", "workbench_file_unstaged", details={
                         "headless_command": headless,
                         "request_name": name,
@@ -13846,7 +13840,7 @@ def run_line_tui(cfg):
                     print(exc)
         elif choice == "22":
             try:
-                stage_line_binary(show_headless=True)
+                stage_line_binary()
             except ValueError as exc:
                 print(exc)
         elif choice == "11":

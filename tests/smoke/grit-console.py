@@ -11029,10 +11029,7 @@ def main(argv=None):
                 pass
         if (line_stage_proc.returncode != 0 or
                 "Traceback" in (line_stage_stderr or "") or
-                "headless_command: scripts/grit-console --config" not in line_stage_stdout or
-                "--serve-file " not in line_stage_stdout or
-                "--as /tmp/line-stage --list-staged" not in line_stage_stdout or
-                "--as grit --list-staged" not in line_stage_stdout or
+                "headless_command:" in line_stage_stdout or
                 "griTTYkit binary staged for target fetch:" not in line_stage_stdout or
                 "request_name=grit" not in line_stage_stdout or
                 "target_fetch_command=grit fetch grit" not in line_stage_stdout or
@@ -11042,16 +11039,14 @@ def main(argv=None):
                 "curl -fLk -o ./grit " not in line_stage_stdout or
                 "nc:    requires file-service TLS=no" not in line_stage_stdout or
                 "/fetch?name=grit" not in line_stage_stdout or
-                "--config " + str(upload_cfg) + " --list-staged" not in line_stage_stdout or
                 "File service workflow actions:" not in line_stage_stdout or
                 "file-service:list-staged-files state=ready reason=run-now enter=yes" not in line_stage_stdout or
                 "file-service:stage-file state=needs-input reason=input-required" not in line_stage_stdout or
                 "file-service:show-upload-command state=needs-input reason=input-required" not in line_stage_stdout or
                 "Staged file workflow actions:" not in line_stage_stdout or
                 "/tmp/line-stage:show-fetch-command" not in line_stage_stdout or
-                "/tmp/line-stage:queue-staged-fetch state=needs-target reason=target-required" not in line_stage_stdout or
-                "--unstage /tmp/line-stage --list-staged" not in line_stage_stdout):
-            print("line-oriented TUI stage/unstage did not expose headless commands", file=sys.stderr)
+                "/tmp/line-stage:queue-staged-fetch state=needs-target reason=target-required" not in line_stage_stdout):
+            print("line-oriented TUI stage/unstage exposed noisy headless commands or missed expected summaries", file=sys.stderr)
             print(line_stage_stdout, file=sys.stderr)
             print(line_stage_stderr or "", file=sys.stderr)
             return 1
