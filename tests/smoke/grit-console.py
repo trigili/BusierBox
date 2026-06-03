@@ -718,6 +718,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "alias console-alias\n"
                 "search Console Router\n"
                 "mailbox\n"
+                "mailbox targets\n"
                 "queue\n"
                 "20\n"
                 "use 1\n"
@@ -977,6 +978,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "allowed_commands=" in mailbox_text or "delivery_policy_counts:" in mailbox_text):
         print("line-oriented mailbox/queue view used verbose policy dump", file=sys.stderr)
         print(mailbox_text or line_console_stdout, file=sys.stderr)
+        return 1
+    if "search result number out of range" in mailbox_text:
+        print("line-oriented mailbox/queue view consumed stale numbered results", file=sys.stderr)
+        print(mailbox_text, file=sys.stderr)
         return 1
     upload_start = line_console_stdout.find("File staged for target fetch:")
     upload_end = line_console_stdout.find("grit[Console Router]> fetch --queue console-upload", upload_start + 1)

@@ -8878,20 +8878,25 @@ def run_line_tui(cfg):
         if not choice:
             compact_next_prompt = True
             continue
+        replayed_history = False
         try:
             if choice == "!!" or (choice.startswith("!") and choice[1:].isdigit()):
                 choice = line_history_command(line_history, choice)
+                replayed_history = True
                 print(f"replay: {choice}")
             elif choice.lower().startswith("repeat "):
                 repeat_args = shlex.split(choice)
                 if len(repeat_args) != 2:
                     raise ValueError("usage: repeat N")
                 choice = line_history_command(line_history, repeat_args[1])
+                replayed_history = True
                 print(f"replay: {choice}")
         except ValueError as exc:
             print(exc)
             continue
         record_line_history(line_history, choice, readline_module=_readline if HAVE_READLINE else None)
+        if replayed_history and choice.isdigit():
+            clear_line_selectable_results()
         console_args = []
         if not (choice.isdigit() or choice in {"c", "d", "r", "v", "q"}):
             try:
