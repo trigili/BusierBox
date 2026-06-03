@@ -78,6 +78,24 @@ def command_queue_expired(rec, now_epoch=None):
     return int(now_epoch) >= int(expires_epoch)
 
 
+def yes_no(value):
+    return "yes" if value is True else "no"
+
+
+def command_queue_policy_value(queue, key, default=False):
+    if isinstance(queue, dict):
+        policy = queue.get("policy_summary") if isinstance(queue.get("policy_summary"), dict) else {}
+        if key in policy:
+            return policy.get(key)
+        if key in queue:
+            return queue.get(key)
+    return default
+
+
+def command_queue_policy_yes_no(queue, key, default=False):
+    return yes_no(command_queue_policy_value(queue, key, default))
+
+
 def valid_yes_no(value):
     return str(value) in ("yes", "no")
 

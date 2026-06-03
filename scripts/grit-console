@@ -53,9 +53,9 @@ from gritlib.command_queue import (
     command_queue_mode_record_indexes, command_queue_mode_records,
     command_queue_mode_semantics, command_queue_mode_summary,
     command_queue_path, command_queue_policy_errors, command_queue_policy_status,
-    command_queue_state_record,
+    command_queue_policy_yes_no, command_queue_state_record,
     command_queue_workflow_action_indexes, command_queue_workflow_action_summary,
-    command_result_output_size_bucket,
+    command_result_output_size_bucket, yes_no,
 )
 from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
@@ -3854,24 +3854,6 @@ def service_workflow_action_records(cfg, services, targets=None):
 
 
 
-
-
-def yes_no(value):
-    return "yes" if value is True else "no"
-
-
-def command_queue_policy_value(queue, key, default=False):
-    if isinstance(queue, dict):
-        policy = queue.get("policy_summary") if isinstance(queue.get("policy_summary"), dict) else {}
-        if key in policy:
-            return policy.get(key)
-        if key in queue:
-            return queue.get(key)
-    return default
-
-
-def command_queue_policy_yes_no(queue, key, default=False):
-    return yes_no(command_queue_policy_value(queue, key, default))
 
 
 def compact_event_details(event):
