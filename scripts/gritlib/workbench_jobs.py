@@ -41,6 +41,22 @@ def print_workbench_job_summary(doc):
     print(f"  outcomes: {format_counts(summary.get('workbench_job_outcome_counts') or {})}")
 
 
+def print_workbench_job_ownership(rec):
+    evidence = rec.get("ownership_evidence") or []
+    if evidence:
+        print(f"    ownership: {','.join(str(item) for item in evidence)}")
+    else:
+        print("    ownership: none")
+    if rec.get("cancel_supported"):
+        return
+    if rec.get("pid") and rec.get("pid_alive") and not rec.get("pid_managed"):
+        print("    cancel: disabled; ownership unverified")
+    elif rec.get("pid"):
+        print("    cancel: disabled; process is not alive")
+    else:
+        print("    cancel: disabled; no pid")
+
+
 def workbench_jobs_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
     return Path(str(
         cfg.get("workbench_jobs_file") or
