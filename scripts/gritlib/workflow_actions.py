@@ -431,6 +431,177 @@ def target_workflow_action_record(
     }
 
 
+def target_workflow_action_records(cfg, targets, bridge_profiles=None):
+    from gritlib.config_utils import DEFAULT_CONFIG
+    from gritlib.release_artifacts import release_context
+
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    base = "scripts/grit-console --config " + shquote(config_path)
+    release = release_context(cfg)
+    bridge_by_target = bridge_profiles_by_target_id(bridge_profiles)
+    records = []
+
+    def add(target, action_id, category, label, command, workflow, requires_input=False,
+            available=True, bridge_profile="", offline_supported=True,
+            requires_target_online=False, queues_offline_work=False,
+            target_phone_home_required=False):
+        rec = target_workflow_action_record(
+            target,
+            action_id,
+            category,
+            label,
+            command,
+            workflow,
+            requires_input=requires_input,
+            available=available,
+            bridge_profile=bridge_profile,
+            offline_supported=offline_supported,
+            requires_target_online=requires_target_online,
+            queues_offline_work=queues_offline_work,
+            target_phone_home_required=target_phone_home_required,
+        )
+        if rec:
+            records.append(rec)
+
+    for target in targets or []:
+        if not isinstance(target, dict):
+            continue
+        target_id = str(target.get("target_id") or "")
+        if not target_id:
+            continue
+        add(
+            target,
+            "inspect-status",
+            "inspect",
+            "Inspect this target's status and activity",
+            target_scoped_command(base, target_id, " --status"),
+            "status",
+        )
+        add(
+            target,
+            "open-workbench",
+            "inspect",
+            "Open the workbench scoped to this target",
+            target_scoped_command(base, target_id, " --tui"),
+            "workbench",
+        )
+        add(
+            target,
+            "queue-command",
+            "mailbox",
+            "Queue command for this target mailbox",
+            target_scoped_command(base, target_id, " --queue-command COMMAND"),
+            "command-queue",
+            requires_input=True,
+            queues_offline_work=True,
+            target_phone_home_required=True,
+        )
+        add(
+            target,
+            "serve-probe",
+            "survey",
+            "Serve probe for this target",
+            target_scoped_command(base, target_id, " --transport probe"),
+            "probe",
+            target_phone_home_required=True,
+        )
+        add(
+            target,
+            "queue-probe",
+            "survey",
+            "Queue probe command for this target mailbox",
+            target_workflow_run_command(base, target_id, "queue-probe"),
+            "probe",
+            queues_offline_work=True,
+            target_phone_home_required=True,
+        )
+        add(
+            target,
+            "stage-file-fetch",
+            "file-transfer",
+            "Stage a local file for this target to fetch",
+            target_scoped_command(base, target_id, " --serve-file LOCAL_PATH --serve-as REQUEST_NAME"),
+            "file-service",
+            requires_input=True,
+            queues_offline_work=True,
+            target_phone_home_required=True,
+        )
+        add(
+            target,
+            "show-upload-command",
+            "file-transfer",
+            "Show target upload command for this target",
+            target_workflow_run_command(base, target_id, "show-upload-command", " --target-workflow-command TARGET_PATH"),
+            "file-service",
+            requires_input=True,
+            queues_offline_work=False,
+            target_phone_home_required=True,
+        )
+        if release:
+            add(
+                target,
+                "stage-release-artifact",
+                "release",
+                "Stage a release artifact for this target to fetch",
+                target_workflow_run_command(base, target_id, "stage-release-artifact", " --target-workflow-command RELEASE_SELECTOR"),
+                "release-artifact",
+                requires_input=True,
+                queues_offline_work=True,
+                target_phone_home_required=True,
+            )
+        add(
+            target,
+            "queue-staged-fetch",
+            "file-transfer",
+            "Queue a staged file fetch command for this target mailbox",
+            target_scoped_command(base, target_id, " --run-target-workflow-action queue-staged-fetch --target-workflow-request-name REQUEST_NAME"),
+            "file-service",
+            requires_input=True,
+            queues_offline_work=True,
+            target_phone_home_required=True,
+        )
+        add(
+            target,
+            "start-file-service",
+            "file-transfer",
+            "Start file service for target uploads/downloads",
+            target_scoped_command(base, target_id, " --file-service"),
+            "file-service",
+        )
+        for profile in bridge_by_target.get(target_id) or []:
+            profile_context = bridge_profile_action_context(profile)
+            profile_name = profile_context["profile_name"]
+            requires_target_online = profile_context["requires_target_online"]
+            add(
+                target,
+                f"start-bridge:{profile_name}",
+                "bridge",
+                f"Start bridge profile {profile_name}",
+                base + " --transport bridge --bridge-profile " + shquote(profile_name),
+                "bridge",
+                available=bool(profile_name),
+                bridge_profile=profile_name,
+                offline_supported=not requires_target_online,
+                requires_target_online=requires_target_online,
+            )
+            add(
+                target,
+                f"queue-bridge-start:{profile_name}",
+                "bridge",
+                f"Queue bridge/reverse-access start for profile {profile_name}{profile_context['label_suffix']}",
+                target_workflow_run_command(base, target_id, f"queue-bridge-start:{profile_name}"),
+                "bridge",
+                available=bool(profile_name),
+                bridge_profile=profile_name,
+                offline_supported=True,
+                requires_target_online=False,
+                queues_offline_work=True,
+                target_phone_home_required=True,
+            )
+    records.sort(key=lambda rec: (rec.get("target_id", ""), rec.get("category", ""), rec.get("action_id", "")))
+    return records
+
+
 def workflow_fleet_metrics(target_records):
     target_records = [rec for rec in target_records or [] if isinstance(rec, dict)]
     fleet_mailbox_pending_work_count = sum(
