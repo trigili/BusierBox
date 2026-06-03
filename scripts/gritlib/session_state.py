@@ -30,6 +30,10 @@ def elapsed_seconds(started_at, ended_at):
     return int(end - start)
 
 
+def utc_from_epoch(epoch):
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(epoch)))
+
+
 def atomic_write_json(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)

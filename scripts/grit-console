@@ -94,7 +94,9 @@ from gritlib.release_artifacts import (
     release_artifact_workflow_action_indexes,
     release_artifact_workflow_action_summary, release_state_record,
 )
-from gritlib.session_state import SessionManager, server_state_record, state_file_path
+from gritlib.session_state import (
+    SessionManager, server_state_record, state_file_path, utc_from_epoch,
+)
 from gritlib.session_records import session_record_indexes, session_root_record
 from gritlib.service_status import (
     port_record_indexes, port_records_from_services, service_manager_status,
@@ -286,10 +288,6 @@ def elapsed_seconds(started_at, ended_at):
 TARGET_ONLINE_WINDOW_SEC = 300
 TARGET_RECENT_WINDOW_SEC = 3600
 TARGET_STALE_WINDOW_SEC = 86400
-
-
-def utc_from_epoch(epoch):
-    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(epoch)))
 
 
 def target_connectivity_state(offline_for_sec):
