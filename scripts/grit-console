@@ -1871,12 +1871,8 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
 
 
 
-def workbench_action_by_selector(cfg, selector):
-    return select_workbench_action(workbench_action_records(cfg), selector)
-
-
 def run_workbench_action(cfg, selector, dry_run=False, confirmed=False):
-    action = workbench_action_by_selector(cfg, selector)
+    action = select_workbench_action(workbench_action_records(cfg), selector)
     action_id = str(action.get("id") or "")
     command = workbench_action_command_for_run(action, dry_run=dry_run)
     if not command:
@@ -16370,7 +16366,7 @@ def run_line_tui(cfg):
             selected = selected_line.strip() if selected_line is not None else ""
             if selected:
                 try:
-                    action = workbench_action_by_selector(cfg, selected)
+                    action = select_workbench_action(workbench_action_records(cfg), selected)
                     if action.get("background_supported") is True:
                         print("background action; use action 12 to start it as a managed job")
                         continue
