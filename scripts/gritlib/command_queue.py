@@ -193,6 +193,34 @@ def command_queue_execution_supported(cfg):
     return False
 
 
+def command_queue_execution_rejection_reason(cfg):
+    if str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")) == "metadata-only":
+        return "command queue execution mode is metadata-only"
+    allowed = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
+    allow_arbitrary = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", "no"))
+    if allowed == "none":
+        return "command queue execution mode execute requires a non-none allowed commands policy"
+    if allowed == "allowlist":
+        return "command queue allowlist execution is not configured in this build"
+    if allowed == "custom" and allow_arbitrary != "yes":
+        return "custom command queue execution requires command_queue_allow_arbitrary=yes"
+    if command_queue_policy_errors(cfg):
+        return "command queue execution policy is invalid"
+    return "command queue execution policy does not permit this command"
+
+
+def command_queue_token_valid(cfg, headers):
+    if str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")) != "yes":
+        return True
+    expected = str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", ""))
+    supplied = str(
+        (headers or {}).get("x-grit-command-queue-token") or
+        (headers or {}).get("x-grittykit-command-queue-token") or
+        ""
+    )
+    return bool(expected) and supplied == expected
+
+
 def command_queue_policy_snapshot(cfg):
     errors = command_queue_policy_errors(cfg)
     enabled = str(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no"))
@@ -256,6 +284,23 @@ def command_queue_work_metadata(rec):
         for key in COMMAND_QUEUE_WORK_METADATA_FIELDS
         if rec.get(key) not in (None, "")
     }
+
+
+def command_queue_poll_outcome_event(status):
+    return {
+        "delivered": "command_queue_poll_delivered",
+        "no-command": "command_queue_poll_no_command",
+        "rejected": "command_queue_poll_rejected",
+        "error": "command_queue_poll_error",
+    }.get(str(status or ""))
+
+
+def command_queue_result_outcome_event(status):
+    return {
+        "result-received": "command_queue_result_upload_received",
+        "rejected": "command_queue_result_upload_rejected",
+        "error": "command_queue_result_upload_error",
+    }.get(str(status or ""))
 
 
 def command_queue_mode_semantics(live_transport_supported=True, execution_supported=False):

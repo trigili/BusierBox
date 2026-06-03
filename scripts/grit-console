@@ -50,8 +50,10 @@ from gritlib.bridge_routes import (
 )
 from gritlib.command_queue import (
     COMMAND_QUEUE_WORK_METADATA_FIELDS, command_queue_delivery_policy_snapshot,
-    command_queue_execution_supported, command_queue_expired,
-    command_queue_policy_snapshot, command_queue_work_metadata,
+    command_queue_execution_rejection_reason, command_queue_execution_supported,
+    command_queue_expired, command_queue_policy_snapshot,
+    command_queue_poll_outcome_event, command_queue_result_outcome_event,
+    command_queue_token_valid, command_queue_work_metadata,
     command_queue_mode_record_indexes, command_queue_mode_records,
     command_queue_mode_semantics, command_queue_mode_summary,
     command_queue_path, command_queue_policy_errors, command_queue_policy_status,
@@ -6258,15 +6260,6 @@ def handle_command_queue_http(cfg, conn, method, target, headers, body, addr):
     return handle_command_queue_poll(cfg, conn, method, target, headers, addr)
 
 
-def command_queue_poll_outcome_event(status):
-    return {
-        "delivered": "command_queue_poll_delivered",
-        "no-command": "command_queue_poll_no_command",
-        "rejected": "command_queue_poll_rejected",
-        "error": "command_queue_poll_error",
-    }.get(str(status or ""))
-
-
 def append_command_queue_poll_events(cfg, service, log_dir, remote, metadata):
     SESSION_MANAGER.append_list_item(log_dir, "command_queue_polls", metadata)
     append_event(cfg, service, "command_queue_poll", session=str(log_dir), remote=remote, details=metadata)
@@ -6276,14 +6269,6 @@ def append_command_queue_poll_events(cfg, service, log_dir, remote, metadata):
         append_event(cfg, service, poll_event, level, session=str(log_dir), remote=remote, details=metadata)
 
 
-def command_queue_result_outcome_event(status):
-    return {
-        "result-received": "command_queue_result_upload_received",
-        "rejected": "command_queue_result_upload_rejected",
-        "error": "command_queue_result_upload_error",
-    }.get(str(status or ""))
-
-
 def append_command_queue_result_events(cfg, service, log_dir, remote, metadata):
     SESSION_MANAGER.append_list_item(log_dir, "command_queue_results", metadata)
     append_event(cfg, service, "command_queue_result_upload", session=str(log_dir), remote=remote, details=metadata)
@@ -6291,30 +6276,6 @@ def append_command_queue_result_events(cfg, service, log_dir, remote, metadata):
     if result_event:
         level = "error" if result_event == "command_queue_result_upload_error" else "info"
         append_event(cfg, service, result_event, level, session=str(log_dir), remote=remote, details=metadata)
-
-
-def command_queue_token_valid(cfg, headers):
-    if str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")) != "yes":
-        return True
-    expected = str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN", ""))
-    supplied = str((headers or {}).get("x-grit-command-queue-token") or (headers or {}).get("x-grittykit-command-queue-token") or "")
-    return bool(expected) and supplied == expected
-
-
-def command_queue_execution_rejection_reason(cfg):
-    if str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")) == "metadata-only":
-        return "command queue execution mode is metadata-only"
-    allowed = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
-    allow_arbitrary = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOW_ARBITRARY", "no"))
-    if allowed == "none":
-        return "command queue execution mode execute requires a non-none allowed commands policy"
-    if allowed == "allowlist":
-        return "command queue allowlist execution is not configured in this build"
-    if allowed == "custom" and allow_arbitrary != "yes":
-        return "custom command queue execution requires command_queue_allow_arbitrary=yes"
-    if command_queue_policy_errors(cfg):
-        return "command queue execution policy is invalid"
-    return "command queue execution policy does not permit this command"
 
 
 def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
