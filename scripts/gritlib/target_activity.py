@@ -7,6 +7,7 @@ from pathlib import Path
 from gritlib.command_queue import (
     command_queue_expired, command_result_output_size_bucket, load_command_queue,
 )
+from gritlib.console_display import console_table
 from gritlib.record_utils import int_value, records_by_key
 from gritlib.session_state import parse_utc_timestamp, utc_now
 
@@ -514,6 +515,41 @@ def target_activity_records_from_sources(targets, mailbox_records, phone_home_re
         })
     records.sort(key=lambda item: (str(item.get("timestamp") or ""), str(item.get("id") or "")), reverse=True)
     return records
+
+
+def print_target_activity_records(doc, target_id=None, limit=8):
+    records = list((doc or {}).get("target_activity_records") or [])
+    if target_id:
+        records = [
+            rec for rec in records
+            if str(rec.get("target_id") or "") == str(target_id)
+        ]
+    shown = records[:limit]
+
+    def _label(rec):
+        return (
+            rec.get("summary") or rec.get("filename") or rec.get("request_name")
+            or rec.get("command_id") or rec.get("session_id") or "-"
+        )
+
+    def _fmt_time(iso):
+        if iso and len(iso) >= 16 and "T" in iso:
+            date, rest = iso.split("T", 1)
+            return f"{date[5:]} {rest[:5]}"
+        return iso or "-"
+
+    cols = [
+        ("Target",    lambda r: r.get("target_id") or "-"),
+        ("Category",  lambda r: r.get("category") or "-"),
+        ("Operation", lambda r: r.get("operation") or "-"),
+        ("Status",    lambda r: r.get("status") or "-"),
+        ("Label",     _label),
+        ("At",        lambda r: _fmt_time(r.get("timestamp"))),
+    ]
+    console_table(
+        f"Activity  ({len(shown)} shown of {len(records)})" if records else "Activity  (none)",
+        shown, cols,
+    )
 
 
 def target_activity_record_indexes(records):
