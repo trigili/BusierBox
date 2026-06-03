@@ -101,7 +101,8 @@ from gritlib.status_indexes import (
     operator_state_record, status_path_record_indexes, warning_health_indexes,
 )
 from gritlib.target_activity import (
-    apply_target_phone_home_summary, target_activity_record_indexes,
+    apply_target_phone_home_summary, mailbox_elapsed_seconds,
+    mailbox_wait_bucket, target_activity_record_indexes,
     target_activity_records_from_sources, target_mailbox_record_indexes,
     target_phone_home_record_indexes,
 )
@@ -739,30 +740,6 @@ def target_mailbox_counts(cfg):
             latest_result_at[target_id] = result_received_at
             latest_result[target_id] = rec
     return counts, latest_result
-
-
-def mailbox_wait_bucket(seconds):
-    if seconds in ("", None):
-        return ""
-    try:
-        value = int(seconds)
-    except (TypeError, ValueError):
-        return ""
-    if value < 60:
-        return "under-minute"
-    if value < 3600:
-        return "under-hour"
-    if value < 86400:
-        return "under-day"
-    return "day-plus"
-
-
-def mailbox_elapsed_seconds(start, end):
-    start_epoch = parse_utc_timestamp(str(start or ""))
-    end_epoch = parse_utc_timestamp(str(end or ""))
-    if start_epoch is None or end_epoch is None:
-        return ""
-    return max(int(end_epoch - start_epoch), 0)
 
 
 def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):

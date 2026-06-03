@@ -3,6 +3,31 @@
 from pathlib import Path
 
 from gritlib.record_utils import int_value, records_by_key
+from gritlib.session_state import parse_utc_timestamp
+
+
+def mailbox_wait_bucket(seconds):
+    if seconds in ("", None):
+        return ""
+    try:
+        value = int(seconds)
+    except (TypeError, ValueError):
+        return ""
+    if value < 60:
+        return "under-minute"
+    if value < 3600:
+        return "under-hour"
+    if value < 86400:
+        return "under-day"
+    return "day-plus"
+
+
+def mailbox_elapsed_seconds(start, end):
+    start_epoch = parse_utc_timestamp(str(start or ""))
+    end_epoch = parse_utc_timestamp(str(end or ""))
+    if start_epoch is None or end_epoch is None:
+        return ""
+    return max(int(end_epoch - start_epoch), 0)
 
 
 def target_activity_records_from_sources(targets, mailbox_records, phone_home_records, file_transfer_records, bridge_profiles, sessions):
