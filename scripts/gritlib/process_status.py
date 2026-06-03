@@ -221,3 +221,42 @@ def port_listener_pids(port):
     for endpoint in listener_endpoints(port):
         pids.extend(endpoint.get("pids", []))
     return sorted(set(pids))
+
+
+def address_values(host):
+    if not host:
+        return set()
+    value = str(host)
+    if value in ("0.0.0.0", "::"):
+        return {value}
+    values = {value}
+    try:
+        for family, _, _, _, sockaddr in socket.getaddrinfo(value, None):
+            if family in (socket.AF_INET, socket.AF_INET6) and sockaddr:
+                values.add(str(sockaddr[0]))
+    except OSError:
+        pass
+    return values
+
+
+def endpoint_matches_bind_address(bind_address, endpoint_address):
+    bind_values = address_values(bind_address)
+    endpoint_values = address_values(endpoint_address)
+    if not bind_values:
+        return True
+    if bind_values.intersection({"0.0.0.0", "::"}):
+        return True
+    if endpoint_values.intersection({"0.0.0.0", "::"}):
+        return True
+    return bool(bind_values & endpoint_values)
+
+
+def matching_listener_endpoints(host, port, protocol="tcp"):
+    return [
+        endpoint for endpoint in listener_endpoints(port, protocol=protocol)
+        if endpoint_matches_bind_address(host, endpoint.get("address", ""))
+    ]
+
+
+def port_listening(host, port, protocol="tcp"):
+    return bool(matching_listener_endpoints(host, port, protocol=protocol))

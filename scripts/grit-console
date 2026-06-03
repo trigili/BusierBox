@@ -87,8 +87,9 @@ from gritlib.file_transfers import (
 from gritlib.probe_results import append_probe_result, probe_results_path
 from gritlib.runtime import Service, ServiceManager, Session
 from gritlib.process_status import (
-    listener_endpoints, managed_server_evidence, pid_alive, pid_environ_contains,
-    pid_process_record, port_listener_pids,
+    endpoint_matches_bind_address, listener_endpoints, managed_server_evidence,
+    matching_listener_endpoints, pid_alive, pid_environ_contains,
+    pid_process_record, port_listener_pids, port_listening,
 )
 from gritlib.record_utils import (
     count_records_with_key, format_counts, int_value, latest_record_value,
@@ -7728,45 +7729,6 @@ def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
             return True
         time.sleep(0.05)
     return not listener_endpoints(port, protocol=protocol)
-
-
-def _address_values(host):
-    if not host:
-        return set()
-    value = str(host)
-    if value in ("0.0.0.0", "::"):
-        return {value}
-    values = {value}
-    try:
-        for family, _, _, _, sockaddr in socket.getaddrinfo(value, None):
-            if family in (socket.AF_INET, socket.AF_INET6) and sockaddr:
-                values.add(str(sockaddr[0]))
-    except OSError:
-        pass
-    return values
-
-
-def endpoint_matches_bind_address(bind_address, endpoint_address):
-    bind_values = _address_values(bind_address)
-    endpoint_values = _address_values(endpoint_address)
-    if not bind_values:
-        return True
-    if bind_values.intersection({"0.0.0.0", "::"}):
-        return True
-    if endpoint_values.intersection({"0.0.0.0", "::"}):
-        return True
-    return bool(bind_values & endpoint_values)
-
-
-def matching_listener_endpoints(host, port, protocol="tcp"):
-    return [
-        endpoint for endpoint in listener_endpoints(port, protocol=protocol)
-        if endpoint_matches_bind_address(host, endpoint.get("address", ""))
-    ]
-
-
-def port_listening(host, port, protocol="tcp"):
-    return bool(matching_listener_endpoints(host, port, protocol=protocol))
 
 
 def raw_service_snapshot(cfg):
