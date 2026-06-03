@@ -281,6 +281,19 @@ def target_id_arg(target_id):
     return " --target-id " + shquote(target_id)
 
 
+def bridge_profile_action_context(profile):
+    profile = profile or {}
+    profile_name = str(profile.get("name") or "")
+    requires_target_online = bool(profile.get("requires_target_online"))
+    route_path = str(profile.get("route_path") or "")
+    return {
+        "profile_name": profile_name,
+        "requires_target_online": requires_target_online,
+        "route_path": route_path,
+        "label_suffix": f" ({route_path})" if route_path else "",
+    }
+
+
 def target_workflow_action_record(
     target,
     action_id,

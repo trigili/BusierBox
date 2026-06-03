@@ -223,6 +223,7 @@ from gritlib.workbench_jobs import (
 from gritlib.workflow_actions import (
     annotate_operator_console_workflows,
     annotate_workbench_actions,
+    bridge_profile_action_context,
     bridge_profiles_by_target_id,
     bringup_recommend_command,
     command_queue_listener_action_states,
@@ -1430,10 +1431,9 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
             "file-service",
         )
         for profile in bridge_by_target.get(target_id) or []:
-            profile_name = str(profile.get("name") or "")
-            requires_target_online = bool(profile.get("requires_target_online"))
-            route_path = str(profile.get("route_path") or "")
-            bridge_label_suffix = f" ({route_path})" if route_path else ""
+            profile_context = bridge_profile_action_context(profile)
+            profile_name = profile_context["profile_name"]
+            requires_target_online = profile_context["requires_target_online"]
             add(
                 target,
                 f"start-bridge:{profile_name}",
@@ -1450,7 +1450,7 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
                 target,
                 f"queue-bridge-start:{profile_name}",
                 "bridge",
-                f"Queue bridge/reverse-access start for profile {profile_name}{bridge_label_suffix}",
+                f"Queue bridge/reverse-access start for profile {profile_name}{profile_context['label_suffix']}",
                 base + " --run-target-workflow-action " + shquote(f"{target_id}:queue-bridge-start:{profile_name}"),
                 "bridge",
                 available=bool(profile_name),
