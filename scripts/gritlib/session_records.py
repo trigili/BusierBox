@@ -82,6 +82,38 @@ def session_record_indexes(records):
     )
 
 
+def print_recent_sessions(records, updated_on_header=False):
+    print("Recent sessions:")
+    if records:
+        for session in records:
+            updated = session.get("updated_at", "")
+            updated_header = f" updated={updated}" if updated_on_header else ""
+            print(
+                f"  {session.get('service', '')} {session.get('path', '')} "
+                f"state={session.get('state', '')} exit={session.get('exit_reason', '')}{updated_header}"
+            )
+            duration = session.get("duration_sec", "")
+            duration_text = f" duration_sec={duration}" if duration not in (None, "") else ""
+            updated_detail = "" if updated_on_header else f" updated={updated}"
+            print(
+                f"    uploads={session.get('upload_count', 0)} "
+                f"fetches={session.get('fetch_count', 0)} "
+                f"events={session.get('event_count', 0)} "
+                f"artifacts={session.get('artifact_count', 0)}{updated_detail}{duration_text}"
+            )
+            print(f"    metadata: {session.get('metadata_path', '')}")
+            if session.get("event_log"):
+                print(f"    event_log: {session.get('event_log', '')}")
+            if session.get("session_log"):
+                print(
+                    f"    session_log: {session.get('session_log', '')} "
+                    f"size={session.get('session_log_size', 0)} "
+                    f"lines={session.get('session_log_line_count', 0)}"
+                )
+    else:
+        print("  none")
+
+
 def session_root_record(cfg, records):
     path = Path(str(cfg.get("session_root", "local/sessions")))
     session_ids = []

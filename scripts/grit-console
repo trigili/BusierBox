@@ -133,7 +133,9 @@ from gritlib.session_state import (
     read_json_file, server_state_record, state_file_path, update_server_state,
     utc_from_epoch, utc_now, utc_now_from_mtime,
 )
-from gritlib.session_records import session_record_indexes, session_root_record
+from gritlib.session_records import (
+    print_recent_sessions, session_record_indexes, session_root_record,
+)
 from gritlib.service_status import (
     port_record_indexes, port_records_from_services, service_manager_status,
     service_port, service_record_indexes, service_tls_enabled,
@@ -9043,20 +9045,7 @@ def print_status(cfg, json_output=False):
             for error in warning.get("session_policy_errors") or []:
                 print(f"    {error}")
     print("")
-    print("Recent sessions:")
-    if doc["sessions"]:
-        for session in doc["sessions"]:
-            print(f"  {session.get('service', '')} {session.get('path', '')} state={session.get('state', '')} exit={session.get('exit_reason', '')}")
-            duration = session.get("duration_sec", "")
-            duration_text = f" duration_sec={duration}" if duration not in (None, "") else ""
-            print(f"    uploads={session.get('upload_count', 0)} fetches={session.get('fetch_count', 0)} events={session.get('event_count', 0)} artifacts={session.get('artifact_count', 0)} updated={session.get('updated_at', '')}{duration_text}")
-            print(f"    metadata: {session.get('metadata_path', '')}")
-            if session.get("event_log"):
-                print(f"    event_log: {session.get('event_log', '')}")
-            if session.get("session_log"):
-                print(f"    session_log: {session.get('session_log', '')} size={session.get('session_log_size', 0)} lines={session.get('session_log_line_count', 0)}")
-    else:
-        print("  none")
+    print_recent_sessions(doc["sessions"])
     print("")
     print("Recent uploads:")
     if doc["uploads"]:
@@ -9376,21 +9365,7 @@ def print_workbench(cfg, include_api_summary=True):
     else:
         print("  none")
     print("")
-    print("Recent sessions:")
-    sessions = snap["sessions"]
-    if sessions:
-        for item in sessions:
-            print(f"  {item.get('service', '')} {item.get('path', '')} state={item.get('state', '')} exit={item.get('exit_reason', '')} updated={item.get('updated_at', '')}")
-            duration = item.get("duration_sec", "")
-            duration_text = f" duration_sec={duration}" if duration not in (None, "") else ""
-            print(f"    uploads={item.get('upload_count', 0)} fetches={item.get('fetch_count', 0)} events={item.get('event_count', 0)} artifacts={item.get('artifact_count', 0)}{duration_text}")
-            print(f"    metadata: {item.get('metadata_path', '')}")
-            if item.get("event_log"):
-                print(f"    event_log: {item.get('event_log', '')}")
-            if item.get("session_log"):
-                print(f"    session_log: {item.get('session_log', '')} size={item.get('session_log_size', 0)} lines={item.get('session_log_line_count', 0)}")
-    else:
-        print("  none")
+    print_recent_sessions(snap["sessions"], updated_on_header=True)
     print("")
     print("Generated target commands:")
     print_target_command_summary(snap)
