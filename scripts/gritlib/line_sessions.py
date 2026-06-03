@@ -4,6 +4,10 @@ from pathlib import Path
 
 from gritlib.console_display import console_table
 from gritlib.shell_utils import shquote
+from gritlib.session_state import read_json_file
+
+
+_FINISHED_SESSION_STATES = {"ended", "stopped", "complete", "done", "error", "failed"}
 
 
 def line_session_state_text(rec):
@@ -46,6 +50,24 @@ def line_session_record_by_selector(sessions, selector):
         if text == session_id or text == str(item.get("path", "")):
             return item
     return {}
+
+
+def line_session_clear_candidates(root, all_sessions=False):
+    candidates = []
+    for path in sorted(root.iterdir()):
+        if not path.is_dir():
+            continue
+        meta = read_json_file(path / "session.json", {})
+        state = str(meta.get("state") or "").lower()
+        exit_r = str(meta.get("exit_reason") or "").lower()
+        uploads = len(meta.get("uploads") or [])
+        fetches = len(meta.get("fetches") or [])
+        artifacts = len(meta.get("artifacts") or [])
+        has_data = uploads > 0 or fetches > 0 or artifacts > 0
+        finished = state in _FINISHED_SESSION_STATES or exit_r in _FINISHED_SESSION_STATES
+        if all_sessions or (finished and not has_data):
+            candidates.append((path, state or exit_r or "unknown", has_data))
+    return candidates
 
 
 def print_selected_line_session(rec):

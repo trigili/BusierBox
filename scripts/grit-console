@@ -128,6 +128,7 @@ from gritlib.line_services import (
     resolve_line_service_selector as line_services_resolve_selector,
 )
 from gritlib.line_sessions import (
+    line_session_clear_candidates,
     print_line_session_interaction,
     line_session_record_by_selector, print_line_session_records,
     print_selected_line_session,
@@ -9241,21 +9242,7 @@ def run_line_tui(cfg):
         if not root.is_dir():
             print("No session directory found.")
             return
-        _finished = {"ended", "stopped", "complete", "done", "error", "failed"}
-        candidates = []
-        for path in sorted(root.iterdir()):
-            if not path.is_dir():
-                continue
-            meta = read_json_file(path / "session.json", {})
-            state = str(meta.get("state") or "").lower()
-            exit_r = str(meta.get("exit_reason") or "").lower()
-            uploads = len(meta.get("uploads") or [])
-            fetches = len(meta.get("fetches") or [])
-            artifacts = len(meta.get("artifacts") or [])
-            has_data = uploads > 0 or fetches > 0 or artifacts > 0
-            finished = state in _finished or exit_r in _finished
-            if all_sessions or (finished and not has_data):
-                candidates.append((path, state or exit_r or "unknown", has_data))
+        candidates = line_session_clear_candidates(root, all_sessions=all_sessions)
         if not candidates:
             msg = "No sessions to clear." if all_sessions else "No finished empty sessions to clear."
             print(msg)
