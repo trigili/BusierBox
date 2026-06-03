@@ -228,7 +228,8 @@ from gritlib.release_artifacts import (
     artifact_compatibility_lines, artifact_doom_wad_lines,
     artifact_provider_status_lines, discover_release_context,
     kernel_floor_from_release, normalized_probe_arch, release_context,
-    release_artifact_matches_probe, release_recommendation_lines,
+    release_artifact_matches_probe, release_record_matches_probe,
+    release_recommendation_lines,
     release_nav_records, print_release_summary, stage_release_artifact,
     stage_release_nav_item, stage_release_selection,
     release_artifact_workflow_action_records,
@@ -7851,7 +7852,10 @@ def run_line_tui(cfg):
         if not tuple_matches:
             tuple_matches = [
                 r for r in recs
-                if r.get("tuple_path") and r.get("payload_preset") and probe_arch and probe_arch in str(r.get("name") or r.get("release_path") or r.get("path") or "").lower()
+                if r.get("tuple_path") and r.get("payload_preset")
+                and release_record_matches_probe(rel, r, probe_arch, "")
+                and probe_arch
+                and probe_arch in str(r.get("name") or r.get("release_path") or r.get("path") or "").lower()
             ]
         deduped_matches = []
         seen_matches = set()
@@ -7915,9 +7919,14 @@ def run_line_tui(cfg):
                             break
                 if not chosen:
                     raise ValueError(f"no match for '{choice}' — enter a number or preset name")
-            selector = str(chosen.get("id") or chosen.get("artifact") or "")
-            selector = str(chosen.get("release_path") or chosen.get("path") or chosen.get("name") or selector)
-            preset = chosen.get("payload_preset") or "?"
+            tuple_path = str(chosen.get("tuple_path") or "")
+            preset = str(chosen.get("payload_preset") or "")
+            if tuple_path and preset:
+                selector = f"by_tuple_payload_preset:{tuple_path}:{preset}"
+            else:
+                selector = str(chosen.get("tuple_artifact") or chosen.get("id") or chosen.get("artifact") or "")
+                selector = str(chosen.get("release_path") or chosen.get("path") or chosen.get("name") or selector)
+            preset = preset or "?"
             print(f"  Staging {preset}: {selector}")
             try:
                 stage_line_release(selector, start_file_service=start_file_service)

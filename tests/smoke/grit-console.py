@@ -12485,6 +12485,7 @@ def main(argv=None):
                 "by-tuple/mipsel/musl/4.x/mips32r2-24kc" not in probe_text or
                 "by-tuple/x86_64/musl/4.x/generic" in probe_text or
                 "  1  -                     -" in probe_text or
+                "Staging default: by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:default" not in probe_text or
                 "Release artifact staged:" not in probe_text or
                 "Target fetch options:" not in probe_text or
                 f"https://{advertised_operator_host}:" not in probe_text or

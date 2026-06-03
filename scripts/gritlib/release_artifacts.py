@@ -1016,9 +1016,13 @@ def stage_release_artifact(cfg, artifact_name):
         raise ValueError("not running inside a release bundle")
     requested = str(artifact_name or "")
     artifact_name = requested
+    recommendation_tuple_path = ""
+    recommendation_payload_preset = ""
     recommendation = (rel.get("recommendations_by_id") or {}).get(requested)
     if recommendation:
         artifact_name = recommendation.get("artifact") or recommendation.get("artifact_name") or artifact_name
+        recommendation_tuple_path = str(recommendation.get("tuple_path") or "")
+        recommendation_payload_preset = str(recommendation.get("payload_preset") or "")
     matches = []
     requested_path = Path(artifact_name).expanduser() if artifact_name else None
     requested_resolved = ""
@@ -1034,9 +1038,30 @@ def stage_release_artifact(cfg, artifact_name):
             path_resolved = str(path.resolve())
         except OSError:
             path_resolved = str(path)
-        if artifact_name in {rec.get("name"), rec.get("release_path"), str(path)} or (
+        tuple_artifact_path = str(rec.get("tuple_artifact_path") or "")
+        tuple_artifact_resolved = ""
+        if tuple_artifact_path:
+            try:
+                tuple_artifact_resolved = str(Path(tuple_artifact_path).resolve())
+            except OSError:
+                tuple_artifact_resolved = tuple_artifact_path
+        if artifact_name in {
+                rec.get("name"),
+                rec.get("release_path"),
+                rec.get("tuple_artifact"),
+                str(path),
+                tuple_artifact_path,
+        } or (
                 requested_resolved and requested_resolved == path_resolved):
             matches.append(rec)
+        elif requested_resolved and tuple_artifact_resolved and requested_resolved == tuple_artifact_resolved:
+            matches.append(rec)
+    if recommendation_tuple_path or recommendation_payload_preset:
+        matches = [
+            rec for rec in matches
+            if (not recommendation_tuple_path or str(rec.get("tuple_path") or "") == recommendation_tuple_path)
+            and (not recommendation_payload_preset or str(rec.get("payload_preset") or "") == recommendation_payload_preset)
+        ]
     if not matches:
         raise ValueError(f"release artifact not found: {requested}")
     if len(matches) > 1:
