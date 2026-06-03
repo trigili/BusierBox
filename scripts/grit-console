@@ -174,8 +174,8 @@ from gritlib.target_commands import (
 )
 from gritlib.target_records import (
     attach_target_identity, capability_report_summary,
-    compatibility_report_summary, configured_target_filter, event_for_target,
-    load_targets, records_for_target, selected_target_context,
+    compatibility_report_summary, configured_target_filter, details_with_target,
+    event_for_target, load_targets, records_for_target, selected_target_context,
     target_context_fields, target_identity_from_headers, target_record_indexes,
     target_record_summary, target_records, targets_path,
 )
@@ -778,15 +778,6 @@ def print_bridge_profile(cfg, name, json_output=False):
 
 def print_bridge_profiles(cfg, json_output=False):
     return bridge_routes.print_bridge_profiles(cfg, json_output=json_output)
-
-
-def details_with_target(cfg, details=None, target_context=None):
-    out = dict(details or {})
-    ctx = dict(target_context if target_context is not None else selected_target_context(cfg))
-    for key, value in ctx.items():
-        if value not in (None, ""):
-            out.setdefault(key, value)
-    return out
 
 
 def record_selected_target_activity(cfg, service, log_dir, operation, remote="", details=None):

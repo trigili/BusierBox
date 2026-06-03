@@ -200,6 +200,15 @@ def selected_target_context(cfg):
     return target_context_fields(cfg, configured_target_filter(cfg))
 
 
+def details_with_target(cfg, details=None, target_context=None):
+    out = dict(details or {})
+    ctx = dict(target_context if target_context is not None else selected_target_context(cfg))
+    for key, value in ctx.items():
+        if value not in (None, ""):
+            out.setdefault(key, value)
+    return out
+
+
 def target_connectivity_state(offline_for_sec):
     if offline_for_sec is None:
         return "unknown"
