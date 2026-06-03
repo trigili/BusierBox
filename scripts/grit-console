@@ -197,7 +197,8 @@ from gritlib.target_records import (
     attach_target_identity, configured_target_filter, details_with_target,
     event_for_target, load_targets, records_for_target, record_target_activity,
     scoped_target_cfg, selected_target_context, set_target_label,
-    set_workbench_target_filter, target_context_fields,
+    set_workbench_target_filter, target_attribution_record_indexes,
+    target_context_fields,
     target_filter_evidence_lines, target_filter_record_indexes,
     target_filter_summary_text,
     target_identity_from_headers, target_record_indexes, target_record_summary,
@@ -4634,14 +4635,9 @@ def status_document(cfg):
             "all_activity_has_target_id": total > 0 and without_count == 0,
             "no_activity": total == 0,
         })
-    target_attribution_index_maps = {
-        "target_attribution_records_by_scope": {rec["scope"]: rec for rec in target_attribution_records},
-        "target_attribution_records_by_has_targeted_activity": records_by_key(target_attribution_records, "has_targeted_activity"),
-        "target_attribution_records_by_has_legacy_activity": records_by_key(target_attribution_records, "has_legacy_activity"),
-        "target_attribution_records_by_legacy_single_target_activity_present": records_by_key(target_attribution_records, "legacy_single_target_activity_present"),
-        "target_attribution_records_by_all_activity_has_target_id": records_by_key(target_attribution_records, "all_activity_has_target_id"),
-        "target_attribution_records_by_no_activity": records_by_key(target_attribution_records, "no_activity"),
-    }
+    target_attribution_index_maps = target_attribution_record_indexes(
+        target_attribution_records
+    )
     paths = {
         "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),

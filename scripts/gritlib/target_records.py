@@ -1388,6 +1388,29 @@ def target_filter_record_indexes(records):
     }
 
 
+def target_attribution_record_indexes(records):
+    return {
+        "target_attribution_records_by_scope": {
+            rec["scope"]: rec for rec in records
+        },
+        "target_attribution_records_by_has_targeted_activity": records_by_key(
+            records, "has_targeted_activity"
+        ),
+        "target_attribution_records_by_has_legacy_activity": records_by_key(
+            records, "has_legacy_activity"
+        ),
+        "target_attribution_records_by_legacy_single_target_activity_present": records_by_key(
+            records, "legacy_single_target_activity_present"
+        ),
+        "target_attribution_records_by_all_activity_has_target_id": records_by_key(
+            records, "all_activity_has_target_id"
+        ),
+        "target_attribution_records_by_no_activity": records_by_key(
+            records, "no_activity"
+        ),
+    }
+
+
 def target_filter_evidence_lines(target_filter):
     if not isinstance(target_filter, dict) or not target_filter.get("active"):
         return []
