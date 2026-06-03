@@ -1110,8 +1110,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "griTTYkit binary staged for target fetch:",
         "Artifact trailer configured:",
         "keys=GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC",
-        "target_fetch_command=grit fetch grit-console",
-        "target_run_hint=chmod +x ./grit-console && ./grit-console --help",
+        "target fetch: grit fetch grit-console",
+        "run hint: chmod +x ./grit-console && ./grit-console --help",
         "unstaged console-upload",
         "not staged missing-upload",
         "Mailbox  (",
@@ -1385,8 +1385,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("unstage section:", file=sys.stderr)
         print(unstage_text or line_console_stdout, file=sys.stderr)
         return 1
-    if ("file_service_started=" in upload_text or "file_service_started=" in fetch_text):
-        print("line-oriented file transfer output exposed raw file-service status field", file=sys.stderr)
+    if ("file_service_started=" in upload_text or "file_service_started=" in fetch_text or
+            "target_fetch_command=" in upload_text or "target_fetch_command=" in fetch_text):
+        print("line-oriented file transfer output exposed raw generated-command/status fields", file=sys.stderr)
         print("upload section:", file=sys.stderr)
         print(upload_text or line_console_stdout, file=sys.stderr)
         print("fetch section:", file=sys.stderr)
@@ -1399,28 +1400,33 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented download command exposed noisy headless command", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
-    if "file_service_started=" in download_text:
-        print("line-oriented download output exposed raw file-service status field", file=sys.stderr)
+    if "target command: ./grit put /etc/config/network" not in download_text:
+        print("line-oriented download output missed target command summary", file=sys.stderr)
+        print(download_text or line_console_stdout, file=sys.stderr)
+        return 1
+    if "file_service_started=" in download_text or "target_command=" in download_text:
+        print("line-oriented download output exposed raw generated-command/status fields", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
     binary_end = line_console_stdout.find("Artifact trailer configured:")
     binary_start = line_console_stdout.rfind("griTTYkit binary staged for target fetch:", 0, binary_end)
     binary_text = line_console_stdout[binary_start:binary_end] if binary_start != -1 and binary_end != -1 else ""
-    if not binary_text or "target_run_hint=chmod +x ./grit-console && ./grit-console --help" not in binary_text or "headless_command:" in binary_text:
+    if not binary_text or "run hint: chmod +x ./grit-console && ./grit-console --help" not in binary_text or "headless_command:" in binary_text:
         print("line-oriented serve-binary command exposed noisy headless command", file=sys.stderr)
         print(binary_text or line_console_stdout, file=sys.stderr)
         return 1
-    if "file_service_started=" in binary_text:
-        print("line-oriented serve-binary output exposed raw file-service status field", file=sys.stderr)
+    if "file_service_started=" in binary_text or "target_fetch_command=" in binary_text or "target_run_hint=" in binary_text:
+        print("line-oriented serve-binary output exposed raw generated-command/status fields", file=sys.stderr)
         print(binary_text or line_console_stdout, file=sys.stderr)
         return 1
     configure_start = line_console_stdout.find("Artifact trailer configured:")
     configure_end = line_console_stdout.find("grit[Console Router]/files> stop file-service", configure_start + 1)
     configure_text = line_console_stdout[configure_start:configure_end] if configure_start != -1 and configure_end != -1 else ""
     if (not configure_text or
-            "target_fetch_command=grit fetch grit-console" not in configure_text or
+            "target fetch: grit fetch grit-console" not in configure_text or
             "keys=GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC" not in configure_text or
-            "headless_command:" in configure_text):
+            "headless_command:" in configure_text or
+            "target_fetch_command=" in configure_text):
         print("line-oriented configure command exposed noisy headless command", file=sys.stderr)
         print(configure_text or line_console_stdout, file=sys.stderr)
         return 1
@@ -11614,8 +11620,8 @@ def main(argv=None):
                 "headless_command:" in line_stage_stdout or
                 "griTTYkit binary staged for target fetch:" not in line_stage_stdout or
                 "request_name=grit" not in line_stage_stdout or
-                "target_fetch_command=grit fetch grit" not in line_stage_stdout or
-                "target_run_hint=chmod +x ./grit && ./grit --help" not in line_stage_stdout or
+                "target fetch: grit fetch grit" not in line_stage_stdout or
+                "run hint: chmod +x ./grit && ./grit --help" not in line_stage_stdout or
                 "Target fetch options:" not in line_stage_stdout or
                 "wget --no-check-certificate -O ./grit " not in line_stage_stdout or
                 "curl -fLk -o ./grit " not in line_stage_stdout or
@@ -12720,7 +12726,7 @@ def main(argv=None):
                 "by_tuple_payload_preset:by-tuple/native/host/host/host:default" not in _line_stdout or
                 "selector=by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout or
                 "Release artifact staged:" not in _line_stdout or
-                "target_fetch_command=grit fetch grit-test" not in _line_stdout or
+                "target fetch: grit fetch grit-test" not in _line_stdout or
                 "Target fetch options:" not in _line_stdout or
                 f"http://{advertised_operator_host}:{fetch_port}/fetch?name=grit-test" not in _line_stdout or
                 f"--host {advertised_operator_host} --port {fetch_port}" not in _line_stdout or

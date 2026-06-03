@@ -7439,7 +7439,7 @@ def run_line_repl(cfg):
         if label:
             print(f"  label={label}")
         print(f"  target_upload_path={path}")
-        print(f"  target_command={command}")
+        print(f"  target command: {command}")
         print(f"  file service: {'started' if started else 'not started'}")
         queued = {}
         if queue:
@@ -8317,7 +8317,7 @@ def run_line_repl(cfg):
         print(f"  release_path={rec.get('release_path', '')}")
         print(f"  tuple_path={rec.get('tuple_path', '')}")
         print(f"  payload_preset={rec.get('payload_preset', '')}")
-        print(f"  target_fetch_command={fetch_command}")
+        print(f"  target fetch: {fetch_command}")
         fetch_options = print_staged_fetch_target_options(
             rec.get("request_name", ""),
             cfg,
@@ -8387,8 +8387,8 @@ def run_line_repl(cfg):
         print(f"  request_name={rec.get('request_name', '')}")
         print(f"  source_path={rec.get('source_path', '')}")
         print(f"  sha256={rec.get('sha256', '')}")
-        print(f"  target_fetch_command={fetch_command}")
-        print(f"  target_run_hint={run_hint}")
+        print(f"  target fetch: {fetch_command}")
+        print(f"  run hint: {run_hint}")
         fetch_options = print_staged_fetch_target_options(
             rec.get("request_name", ""),
             cfg,
@@ -8474,7 +8474,7 @@ def run_line_repl(cfg):
         print(f"  artifact={artifact}")
         if request_name:
             print(f"  request_name={request_name}")
-            print(f"  target_fetch_command={fetch_command}")
+            print(f"  target fetch: {fetch_command}")
         if kv:
             print("  keys=" + ", ".join(item.split("=", 1)[0] for item in kv))
         headless = " ".join(shquote(part) for part in cmd)
@@ -8510,7 +8510,7 @@ def run_line_repl(cfg):
         print(f"  request_name={rec.get('request_name', '')}")
         print(f"  source_path={rec.get('source_path', '')}")
         print(f"  sha256={rec.get('sha256', '')}")
-        print(f"  target_fetch_command={fetch_command}")
+        print(f"  target fetch: {fetch_command}")
         fetch_options = print_staged_fetch_target_options(rec.get("request_name", ""), cfg)
         started = False
         if start_file_service:
@@ -8587,7 +8587,7 @@ def run_line_repl(cfg):
         if target_id:
             label = str(selected_target_context(cfg).get("target_label") or "")
             print(f"  target={target_id} label={label}")
-        print(f"  target_fetch_command={fetch_command}")
+        print(f"  target fetch: {fetch_command}")
         print_staged_fetch_target_options(name, scoped)
         print(f"  file service: {'started' if started else 'not started'}")
         queued = {}
