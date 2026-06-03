@@ -1209,7 +1209,7 @@ def main(argv=None):
     for word in ("tty.setraw", "tcsetattr", "SSLWantReadError", "SSLWantWriteError",
                  "bytearray", "--one-shot", "listener remains open", 'reason = "active"',
                  "TLSVersion.TLSv1_2"):
-        if word not in src:
+        if word not in src + operator_io_src:
             print(f"grit-console: robust interactive relay feature missing: {word}", file=sys.stderr)
             return 1
     for reason in ("stdin_eof", "remote_eof", "socket_error", "tls_error", "keyboard_interrupt", "timeout"):

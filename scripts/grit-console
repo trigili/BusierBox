@@ -28,10 +28,8 @@ import socket
 import ssl
 import subprocess
 import sys
-import termios
 import threading
 import time
-import tty
 import urllib.parse
 from pathlib import Path
 
@@ -90,8 +88,8 @@ from gritlib.file_transfers import (
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.operator_io import (
-    clipboard_command, open_path_in_pager, view_path_headless_command,
-    viewable_path,
+    clipboard_command, open_path_in_pager, restore_interactive_tty,
+    set_interactive_tty_raw, view_path_headless_command, viewable_path,
 )
 from gritlib.operator_network import (
     local_ips, operator_advertised_host, print_candidates, target_visible_host,
@@ -5218,24 +5216,6 @@ def serve_ssh(cfg, timeout):
     return 0
 
 
-def _set_interactive_tty_raw():
-    if not sys.stdin.isatty():
-        return None
-    fd = sys.stdin.fileno()
-    old = termios.tcgetattr(fd)
-    tty.setraw(fd)
-    return old
-
-
-def _restore_interactive_tty(old):
-    if old is None:
-        return
-    try:
-        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old)
-    except termios.error:
-        pass
-
-
 def _recv_ssl_nonblocking(conn):
     try:
         return conn.recv(65536), None
@@ -5281,7 +5261,7 @@ def relay_stdio(conn, log_dir=None, use_stdin=True, script_bytes=None, expect=No
         log_fp = (Path(log_dir) / "session.log").open("ab", buffering=0)
     if stdin_interactive:
         print("Shell connected. Ctrl-C to close.")
-        tty_state = _set_interactive_tty_raw()
+        tty_state = set_interactive_tty_raw()
     elif scripted:
         print("Shell connected. running scripted shell input.")
     else:
@@ -5353,7 +5333,7 @@ def relay_stdio(conn, log_dir=None, use_stdin=True, script_bytes=None, expect=No
                 if sent > 0:
                     del outbound[:sent]
     finally:
-        _restore_interactive_tty(tty_state)
+        restore_interactive_tty(tty_state)
         if log_fp:
             log_fp.close()
         if log_dir is not None and expect is not None:

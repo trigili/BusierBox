@@ -4,6 +4,9 @@ import os
 import shlex
 import shutil
 import subprocess
+import sys
+import termios
+import tty
 from pathlib import Path
 
 from .shell_utils import shquote
@@ -53,6 +56,24 @@ def open_path_in_pager(path):
         return f"no pager found for: {target}"
     subprocess.run(cmd + [str(target)], check=False)
     return f"viewed {target}"
+
+
+def set_interactive_tty_raw():
+    if not sys.stdin.isatty():
+        return None
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    tty.setraw(fd)
+    return old
+
+
+def restore_interactive_tty(old):
+    if old is None:
+        return
+    try:
+        termios.tcsetattr(sys.stdin.fileno(), termios.TCSADRAIN, old)
+    except termios.error:
+        pass
 
 
 def clipboard_command():
