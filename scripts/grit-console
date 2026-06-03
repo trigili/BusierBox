@@ -14094,7 +14094,6 @@ def run_line_tui(cfg):
                     )
                     updated = set_workbench_build_config(cfg, f"{key}={value}")
                     print(f"set {updated.get('key', key)}={shell_double_quote(updated.get('value', value))}")
-                    print(f"headless_command: {headless}")
                 except (ValueError, IndexError) as exc:
                     print(exc)
         elif choice == "r":

@@ -2963,9 +2963,8 @@ def main(argv=None):
         if (build_config_tui_proc.returncode != 0 or
                 "Traceback" in (build_config_tui_stderr or "") or
                 'set GRIT_COMMAND_QUEUE_ENABLE="yes"' not in build_config_tui_text or
-                "headless_command: scripts/grit-console --config" not in build_config_tui_text or
-                f"--build-config {str(guided_build_config)} --set-build-config GRIT_COMMAND_QUEUE_ENABLE=yes" not in build_config_tui_text):
-            print("line TUI build config edit did not show equivalent headless command", file=sys.stderr)
+                "headless_command:" in build_config_tui_text):
+            print("line TUI build config edit exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(build_config_tui_text, file=sys.stderr)
             print(build_config_tui_stderr or "", file=sys.stderr)
             return 1
