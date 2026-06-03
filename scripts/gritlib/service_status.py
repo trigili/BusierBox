@@ -732,6 +732,39 @@ def service_workflow_action_summary(records):
     }
 
 
+def service_workflow_action_status_summary(records):
+    summary = service_workflow_action_summary(records)
+    return {
+        "service_workflow_action_count": summary.get("total_count", 0),
+        "service_workflow_action_available_count": summary.get("available_count", 0),
+        "service_workflow_action_requires_input_count": summary.get("requires_input_count", 0),
+        "service_workflow_action_requires_confirmation_count": summary.get("requires_confirmation_count", 0),
+        "service_workflow_action_can_run_from_curses_enter_count": summary.get("can_run_from_curses_enter_count", 0),
+        "service_workflow_action_service_counts": summary.get("service_counts") or {},
+        "service_workflow_action_action_counts": summary.get("action_counts") or {},
+        "service_workflow_action_category_counts": summary.get("category_counts") or {},
+        "service_workflow_action_workflow_counts": summary.get("workflow_counts") or {},
+        "service_workflow_action_actual_counts": summary.get("actual_counts") or {},
+        "service_workflow_action_configured_counts": summary.get("configured_counts") or {},
+        "service_workflow_action_fleet_target_count_counts": summary.get("fleet_target_count_counts") or {},
+        "service_workflow_action_fleet_offline_target_count_counts": summary.get("fleet_offline_target_count_counts") or {},
+        "service_workflow_action_fleet_stale_target_count_counts": summary.get("fleet_stale_target_count_counts") or {},
+        "service_workflow_action_fleet_mailbox_pending_target_count_counts": summary.get("fleet_mailbox_pending_target_count_counts") or {},
+        "service_workflow_action_fleet_mailbox_pending_work_count_counts": summary.get("fleet_mailbox_pending_work_count_counts") or {},
+        "service_workflow_action_fleet_poll_overdue_target_count_counts": summary.get("fleet_poll_overdue_target_count_counts") or {},
+        "service_workflow_action_fleet_has_offline_targets_counts": summary.get("fleet_has_offline_targets_counts") or {},
+        "service_workflow_action_fleet_has_stale_targets_counts": summary.get("fleet_has_stale_targets_counts") or {},
+        "service_workflow_action_fleet_has_mailbox_pending_work_counts": summary.get("fleet_has_mailbox_pending_work_counts") or {},
+        "service_workflow_action_fleet_has_poll_overdue_targets_counts": summary.get("fleet_has_poll_overdue_targets_counts") or {},
+        "service_workflow_action_operator_action_state_counts": summary.get("operator_action_state_counts") or {},
+        "service_workflow_action_operator_action_reason_counts": summary.get("operator_action_reason_counts") or {},
+        "service_workflow_action_can_run_from_curses_enter_counts": summary.get("can_run_from_curses_enter_counts") or {},
+        "service_workflow_action_curses_enter_action_counts": summary.get("curses_enter_action_counts") or {},
+        "service_workflow_action_has_error_counts": summary.get("has_error_counts") or {},
+        "service_workflow_action_has_warnings_counts": summary.get("has_warnings_counts") or {},
+    }
+
+
 def port_record_indexes(records):
     by_number = {}
     by_service = {}

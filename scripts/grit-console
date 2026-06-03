@@ -154,7 +154,7 @@ from gritlib.service_status import (
     service_status_rows, service_status_summary, service_start_headless_command,
     service_stop_headless_command,
     service_tls_enabled, run_service_workflow_action_headless_command,
-    service_workflow_action_indexes, service_workflow_action_summary,
+    service_workflow_action_indexes, service_workflow_action_status_summary,
     status_summary_and_warnings, wait_service_port_released,
 )
 from gritlib.shell_utils import shquote
@@ -4665,7 +4665,6 @@ def status_document(cfg):
     ports_by_has_warnings, ports_by_warning_type = warning_health_indexes(ports)
     service_workflow_actions = service_workflow_action_records(cfg, services, targets)
     service_workflow_action_index_maps = service_workflow_action_indexes(service_workflow_actions)
-    service_workflow_action_stats = service_workflow_action_summary(service_workflow_actions)
     probe_workflow_actions = probe_workflow_action_records(
         cfg,
         services_by_name.get("probe") or {},
@@ -5110,33 +5109,7 @@ def status_document(cfg):
         "operator_daemon_workflow_action_operator_action_reason_counts": operator_daemon_workflow_action_stats.get("operator_action_reason_counts") or {},
         "operator_daemon_workflow_action_can_run_from_curses_enter_counts": operator_daemon_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
         "operator_daemon_workflow_action_curses_enter_action_counts": operator_daemon_workflow_action_stats.get("curses_enter_action_counts") or {},
-        "service_workflow_action_count": service_workflow_action_stats.get("total_count", 0),
-        "service_workflow_action_available_count": service_workflow_action_stats.get("available_count", 0),
-        "service_workflow_action_requires_input_count": service_workflow_action_stats.get("requires_input_count", 0),
-        "service_workflow_action_requires_confirmation_count": service_workflow_action_stats.get("requires_confirmation_count", 0),
-        "service_workflow_action_can_run_from_curses_enter_count": service_workflow_action_stats.get("can_run_from_curses_enter_count", 0),
-        "service_workflow_action_service_counts": service_workflow_action_stats.get("service_counts") or {},
-        "service_workflow_action_action_counts": service_workflow_action_stats.get("action_counts") or {},
-        "service_workflow_action_category_counts": service_workflow_action_stats.get("category_counts") or {},
-        "service_workflow_action_workflow_counts": service_workflow_action_stats.get("workflow_counts") or {},
-        "service_workflow_action_actual_counts": service_workflow_action_stats.get("actual_counts") or {},
-        "service_workflow_action_configured_counts": service_workflow_action_stats.get("configured_counts") or {},
-        "service_workflow_action_fleet_target_count_counts": service_workflow_action_stats.get("fleet_target_count_counts") or {},
-        "service_workflow_action_fleet_offline_target_count_counts": service_workflow_action_stats.get("fleet_offline_target_count_counts") or {},
-        "service_workflow_action_fleet_stale_target_count_counts": service_workflow_action_stats.get("fleet_stale_target_count_counts") or {},
-        "service_workflow_action_fleet_mailbox_pending_target_count_counts": service_workflow_action_stats.get("fleet_mailbox_pending_target_count_counts") or {},
-        "service_workflow_action_fleet_mailbox_pending_work_count_counts": service_workflow_action_stats.get("fleet_mailbox_pending_work_count_counts") or {},
-        "service_workflow_action_fleet_poll_overdue_target_count_counts": service_workflow_action_stats.get("fleet_poll_overdue_target_count_counts") or {},
-        "service_workflow_action_fleet_has_offline_targets_counts": service_workflow_action_stats.get("fleet_has_offline_targets_counts") or {},
-        "service_workflow_action_fleet_has_stale_targets_counts": service_workflow_action_stats.get("fleet_has_stale_targets_counts") or {},
-        "service_workflow_action_fleet_has_mailbox_pending_work_counts": service_workflow_action_stats.get("fleet_has_mailbox_pending_work_counts") or {},
-        "service_workflow_action_fleet_has_poll_overdue_targets_counts": service_workflow_action_stats.get("fleet_has_poll_overdue_targets_counts") or {},
-        "service_workflow_action_operator_action_state_counts": service_workflow_action_stats.get("operator_action_state_counts") or {},
-        "service_workflow_action_operator_action_reason_counts": service_workflow_action_stats.get("operator_action_reason_counts") or {},
-        "service_workflow_action_can_run_from_curses_enter_counts": service_workflow_action_stats.get("can_run_from_curses_enter_counts") or {},
-        "service_workflow_action_curses_enter_action_counts": service_workflow_action_stats.get("curses_enter_action_counts") or {},
-        "service_workflow_action_has_error_counts": service_workflow_action_stats.get("has_error_counts") or {},
-        "service_workflow_action_has_warnings_counts": service_workflow_action_stats.get("has_warnings_counts") or {},
+        **service_workflow_action_status_summary(service_workflow_actions),
         **probe_workflow_action_status_summary(probe_workflow_actions),
         "workbench_job_count": workbench_job_stats.get("total_count", 0),
         "workbench_job_running_count": workbench_job_stats.get("running_count", 0),
