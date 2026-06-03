@@ -42,6 +42,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 export GRIT_RSHELL_SESSION_POLICY=single
+repo_root=$(pwd)
 
 scripts/make-release --name smoke --targets native --payload-presets default --dry-run >"$work/dry-run.out"
 grep -q 'would build target=native payload=default format=tgz' "$work/dry-run.out"
@@ -282,7 +283,10 @@ test -f "$work/release/devices/native/target.json"
 test -f "$work/release/devices/native/README.txt"
 test -f "$work/release/devices/native/notes.md"
 test -x "$work/release/scripts/lib/artifact-config"
+test -x "$work/release/scripts/lib/config-from-survey"
+test -x "$work/release/scripts/config-from-survey"
 test -x "$work/release/scripts/grit-console"
+test -f "$work/release/scripts/gritlib/line_configure.py"
 if [ -e "$work/release/scripts/grit-server" ]; then
     printf '%s\n' "release-bundles: release bundle still includes stale scripts/grit-server" >&2
     exit 1
@@ -293,6 +297,16 @@ test -x "$work/release/scripts/verify-checksums"
 test -x "$work/release/scripts/lib/release-index"
 test -x "$work/release/scripts/lib/release-find"
 test -x "$work/release/scripts/lib/release-self-test"
+(cd "$work/release" && python3 - "$repo_root/tests/fixtures/survey/glinet-mt7621.json" <<'PY'
+import sys
+
+sys.path.insert(0, "scripts")
+from gritlib.line_configure import run_config_from_survey
+
+run_config_from_survey(sys.argv[1], None, [])
+PY
+) >"$work/release-console-survey-config.out"
+grep -q '^GRIT_TARGET_ARCH=mipsel$' "$work/release-console-survey-config.out"
 "$work/release/scripts/configure-artifact" --help >"$work/configure-help.out" 2>&1 || test "$?" -eq 2
 grep -q -- '--run-mode auto|foreground|background' "$work/configure-help.out"
 grep -q -- '--session-policy single|reconnect|persistent' "$work/configure-help.out"
@@ -864,6 +878,8 @@ if doc.get("checksum_original_verified") is not True:
 helpers = doc.get("helpers") or []
 if "grit-console" not in helpers:
     raise SystemExit(f"release self-test helper inventory missing grit-console: {doc!r}")
+if "config-from-survey" not in helpers:
+    raise SystemExit(f"release self-test helper inventory missing config-from-survey: {doc!r}")
 if "grit-server" in helpers:
     raise SystemExit(f"release self-test helper inventory still reports grit-server: {doc!r}")
 if doc.get("project_license") != "GPL-2.0-or-later":

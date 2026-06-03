@@ -727,6 +727,7 @@ def write_release_helpers(script_dir):
                 "trailer_support": {
                     "helpers": [
                         "scripts/lib/artifact-config",
+                        "scripts/lib/config-from-survey",
                         "scripts/grit-console",
                         "scripts/configure-artifact",
                         "scripts/configure-all",
@@ -1340,11 +1341,12 @@ def write_release_helpers(script_dir):
             str(item) for item in (corresponding_source_policy.get("source_reconstruction_inputs") or [])
         ]
         run([str(root / "scripts" / "verify-checksums"), "--original"])
-        helpers = ("artifact-config", "grit-console", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find")
+        helpers = ("artifact-config", "config-from-survey", "grit-console", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find")
         for helper in helpers:
             path = root / "scripts" / helper
             if not os.access(path, os.X_OK):
                 fail(f"helper is not executable: scripts/{helper}")
+        run([str(root / "scripts" / "lib" / "config-from-survey"), "--help"])
         if not (root / "release-index.json").exists():
             run([str(root / "scripts" / "release-index"), "--write"])
         index = load_json(root / "release-index.json")
@@ -1671,8 +1673,13 @@ def copy_bundle_support(release_dir, include_sources_manifest=True):
     (script_lib_dir / "artifact-config").chmod(0o755)
     shutil.copy2(script_lib_dir / "artifact-config", script_dir / "artifact-config")
     (script_dir / "artifact-config").chmod(0o755)
+    shutil.copy2(ROOT / "scripts" / "lib" / "config-from-survey", script_lib_dir / "config-from-survey")
+    (script_lib_dir / "config-from-survey").chmod(0o755)
+    shutil.copy2(script_lib_dir / "config-from-survey", script_dir / "config-from-survey")
+    (script_dir / "config-from-survey").chmod(0o755)
     shutil.copy2(ROOT / "scripts" / "grit-console", script_dir / "grit-console")
     (script_dir / "grit-console").chmod(0o755)
+    shutil.copytree(ROOT / "scripts" / "gritlib", script_dir / "gritlib", dirs_exist_ok=True)
     write_release_helpers(script_dir)
     for name in ("release-index", "release-find", "release-self-test"):
         shutil.copy2(script_dir / name, script_lib_dir / name)

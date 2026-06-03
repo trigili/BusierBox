@@ -25,7 +25,7 @@ Each release contains:
   `MANIFEST.json`, and per-tuple `bin/`, `configs/`, and `manifests/`.
 - `devices/<alias>/`: device or exemplar aliases with `target.json`,
   `README.txt`, `notes.md`, and an `artifacts` pointer to the canonical tuple.
-- `scripts/`: copied `artifact-config` plus wrapper helpers, release
+- `scripts/`: copied `grit-console`, its `gritlib` modules, `artifact-config`, `config-from-survey`, plus wrapper helpers, release
   self-test, index, and finder tools.
 - `docs/`: release, licensing, and runtime override notes.
 - `LICENSE`, `LICENSE.grit`, and `NOTICE`: griTTYkit GPL license text,
