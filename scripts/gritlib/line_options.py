@@ -1,7 +1,15 @@
 """Line-console option metadata and mutation helpers."""
 
-from gritlib.config_utils import DEFAULT_CONFIG
+import json
+from pathlib import Path
+
+from gritlib.build_config import (
+    set_workbench_build_config, shell_double_quote,
+    workbench_config_field_records,
+)
+from gritlib.config_utils import DEFAULTS, DEFAULT_CONFIG
 from gritlib.event_log import append_event
+from gritlib.session_state import atomic_write_json
 from gritlib.shell_utils import shquote
 from gritlib.target_records import (
     load_targets, selected_target_record_for_update, set_target_label,
@@ -140,6 +148,85 @@ def set_line_target_option(cfg, name, value):
         raise ValueError(f"unknown option: {name}")
     record_line_target_metadata_update(cfg, target_id, action="set-option", field=key)
     return updated
+
+
+def set_line_option(cfg, name, value):
+    key = str(name or "").strip()
+    text = str(value or "")
+    if not key:
+        raise ValueError("usage: set KEY VALUE  or  set N VALUE  (N = row number from options)")
+
+    if key.isdigit():
+        keys = cfg.get("_options_keys") or []
+        idx = int(key) - 1
+        if 0 <= idx < len(keys):
+            key = keys[idx]
+        else:
+            raise ValueError(f"no option at row {key} — run: options")
+
+    if key in {"release_dir", "release-dir", "server.release_dir"}:
+        cfg["release_dir"] = text
+        config_path = Path(str(cfg.get("_config_path") or DEFAULT_CONFIG))
+        try:
+            existing = {}
+            if config_path.is_file():
+                try:
+                    existing = json.loads(config_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    pass
+            if not isinstance(existing, dict):
+                existing = {}
+            existing["release_dir"] = text
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_json(config_path, existing)
+            print(f"set release_dir={shell_double_quote(text)}  (saved to {config_path})")
+        except OSError as exc:
+            print(f"set release_dir={shell_double_quote(text)}  (warning: could not save: {exc})")
+        return {}
+
+    build_keys = {rec.get("key") for rec in workbench_config_field_records(cfg)}
+    if key.startswith("build."):
+        key = key.split(".", 1)[1]
+    if key in build_keys:
+        rec = set_workbench_build_config(cfg, f"{key}={text}")
+        print(f"set {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
+        return rec
+
+    cfg_key = GRIT_TO_CFG_KEY.get(key)
+    if cfg_key == "build":
+        if key in build_keys:
+            rec = set_workbench_build_config(cfg, f"{key}={text}")
+            print(f"set {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
+            return rec
+        print(f"{key} is a build config key — run: build set {key} {text}")
+        return {}
+
+    if cfg_key is not None:
+        default_val = DEFAULTS.get(cfg_key)
+        try:
+            typed_val = type(default_val)(text) if default_val is not None else text
+        except (ValueError, TypeError):
+            typed_val = text
+        cfg[cfg_key] = typed_val
+        config_path = Path(str(cfg.get("_config_path") or DEFAULT_CONFIG))
+        try:
+            existing = {}
+            if config_path.is_file():
+                try:
+                    existing = json.loads(config_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    pass
+            if not isinstance(existing, dict):
+                existing = {}
+            existing[cfg_key] = typed_val
+            config_path.parent.mkdir(parents=True, exist_ok=True)
+            atomic_write_json(config_path, existing)
+            print(f"set {key}={shell_double_quote(str(typed_val))}  (saved to {config_path})")
+        except OSError as exc:
+            print(f"set {key}={shell_double_quote(str(typed_val))}  (warning: could not save: {exc})")
+        return {cfg_key: typed_val}
+
+    return set_line_target_option(cfg, key, text)
 
 
 def rename_line_target(cfg, label):

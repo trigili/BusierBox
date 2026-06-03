@@ -689,7 +689,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "listeners -v\n"
                 "listener file-service\n"
                 "options\n"
+                "set 1 22231\n"
                 "back\n"
+                "set GRIT_OPERATOR_FILE_SERVICE_TLS no\n"
                 "agents\n"
                 "routes\n"
                 "daemon\n"
@@ -897,6 +899,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "command-queue (",
         "set build.GRIT_RUNTIME_ROOT=\"/tmp/grit-build\"",
         "setg GRIT_RUNTIME_ROOT=\"/tmp/grit-global\"",
+        "set GRIT_OPERATOR_FILE_SERVICE_PORT=\"22231\"",
+        "set GRIT_OPERATOR_FILE_SERVICE_TLS=\"no\"",
         "operator daemon workflow action: operator-daemon-status",
         "Session interaction:",
         "Agent interaction: line-console-target label=Console Router state=online",
@@ -934,6 +938,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(f"missing line console markers: {line_console_missing_required}", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         print(line_console_stderr or "", file=sys.stderr)
+        return 1
+    line_console_config = json.loads(upload_cfg.read_text(encoding="utf-8"))
+    if (line_console_config.get("GRIT_OPERATOR_FILE_SERVICE_PORT") != 22231 or
+            line_console_config.get("GRIT_OPERATOR_FILE_SERVICE_TLS") != "no"):
+        print("line-oriented set option commands did not persist numeric or GRIT_ options", file=sys.stderr)
+        print(json.dumps(line_console_config, indent=2, sort_keys=True), file=sys.stderr)
         return 1
     first_prompt = line_console_stdout.find("grit[all]>")
     help_prompt = line_console_stdout.find("grit[all]> help", first_prompt + 1)

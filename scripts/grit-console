@@ -148,11 +148,12 @@ from gritlib.line_help import (
     print_line_console_help as line_help_print_line_console_help,
 )
 from gritlib.line_options import (
-    GRIT_TO_CFG_KEY, SERVICE_OPTIONS,
+    SERVICE_OPTIONS,
     alias_line_target as line_options_alias_line_target,
     note_line_target as line_options_note_line_target,
     rename_line_target as line_options_rename_line_target,
-    set_line_target_option, unset_line_target_option,
+    set_line_option as line_options_set_line_option,
+    unset_line_target_option,
 )
 from gritlib.line_network import print_line_local_ips
 from gritlib.line_resources import (
@@ -6652,79 +6653,7 @@ def run_line_tui(cfg):
             print(f"  Build options: {len(fields)} configured  (run: build to view/edit)")
 
     def set_line_option(name, value):
-        key = str(name or "").strip()
-        text = str(value or "")
-        if not key:
-            raise ValueError("usage: set KEY VALUE  or  set N VALUE  (N = row number from options)")
-        # Resolve row number shortcut from most-recent options display
-        if key.isdigit():
-            keys = cfg.get("_options_keys") or []
-            idx = int(key) - 1
-            if 0 <= idx < len(keys):
-                key = keys[idx]
-            else:
-                raise ValueError(f"no option at row {key} — run: options")
-        if key in {"release_dir", "release-dir", "server.release_dir"}:
-            cfg["release_dir"] = text
-            config_path = Path(str(cfg.get("_config_path") or DEFAULT_CONFIG))
-            try:
-                existing = {}
-                if config_path.is_file():
-                    try:
-                        existing = json.loads(config_path.read_text(encoding="utf-8"))
-                    except (OSError, json.JSONDecodeError):
-                        pass
-                if not isinstance(existing, dict):
-                    existing = {}
-                existing["release_dir"] = text
-                config_path.parent.mkdir(parents=True, exist_ok=True)
-                atomic_write_json(config_path, existing)
-                print(f"set release_dir={shell_double_quote(text)}  (saved to {config_path})")
-            except OSError as exc:
-                print(f"set release_dir={shell_double_quote(text)}  (warning: could not save: {exc})")
-            return
-        build_keys = {rec.get("key") for rec in workbench_config_field_records(cfg)}
-        if key.startswith("build."):
-            key = key.split(".", 1)[1]
-        if key in build_keys:
-            rec = set_workbench_build_config(cfg, f"{key}={text}")
-            print(f"set {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
-            return
-        # Explicit GRIT_ → server cfg key mapping.  No guessing.
-        cfg_key = GRIT_TO_CFG_KEY.get(key)
-        if cfg_key == "build":
-            # This GRIT_ name belongs in the build config, not server config.
-            if key in build_keys:
-                rec = set_workbench_build_config(cfg, f"{key}={text}")
-                print(f"set {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
-            else:
-                print(f"{key} is a build config key — run: build set {key} {text}")
-            return
-        if cfg_key is not None:
-            default_val = DEFAULTS.get(cfg_key)
-            try:
-                typed_val = type(default_val)(text) if default_val is not None else text
-            except (ValueError, TypeError):
-                typed_val = text
-            cfg[cfg_key] = typed_val
-            config_path = Path(str(cfg.get("_config_path") or DEFAULT_CONFIG))
-            try:
-                existing = {}
-                if config_path.is_file():
-                    try:
-                        existing = json.loads(config_path.read_text(encoding="utf-8"))
-                    except (OSError, json.JSONDecodeError):
-                        pass
-                if not isinstance(existing, dict):
-                    existing = {}
-                existing[cfg_key] = typed_val
-                config_path.parent.mkdir(parents=True, exist_ok=True)
-                atomic_write_json(config_path, existing)
-                print(f"set {key}={shell_double_quote(str(typed_val))}  (saved to {config_path})")
-            except OSError as exc:
-                print(f"set {key}={shell_double_quote(str(typed_val))}  (warning: could not save: {exc})")
-            return
-        set_line_target_option(cfg, key, text)
+        return line_options_set_line_option(cfg, name, value)
 
     def rename_line_target(label):
         line_options_rename_line_target(cfg, label)
