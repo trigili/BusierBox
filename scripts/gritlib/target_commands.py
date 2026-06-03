@@ -607,6 +607,82 @@ def target_command_state_status(summary):
     }
 
 
+def target_command_status_summary(
+    summary,
+    state_record=None,
+    state_records=None,
+    rshell_policy_record=None,
+    rshell_policy_records=None,
+):
+    summary = summary or {}
+    state_record = state_record or {}
+    rshell_policy_record = rshell_policy_record or {}
+    return {
+        "target_command_count": summary.get("total_count", 0),
+        "target_command_network_count": summary.get("network_count", 0),
+        "target_command_explicit_action_count": summary.get("explicit_target_action_count", 0),
+        "target_command_operator_supplied_execution_count": summary.get(
+            "operator_supplied_command_execution_count", 0
+        ),
+        "target_command_copy_supported_count": summary.get("copy_supported_count", 0),
+        "target_command_state_record_count": len(state_records or []),
+        "target_command_state_has_commands": bool(
+            state_record.get("has_commands", False)
+        ),
+        "target_command_state_has_network_commands": bool(
+            state_record.get("has_network_commands", False)
+        ),
+        "target_command_state_has_copy_supported_commands": bool(
+            state_record.get("has_copy_supported_commands", False)
+        ),
+        "target_command_state_has_operator_supplied_command_execution": bool(
+            state_record.get("has_operator_supplied_command_execution", False)
+        ),
+        "target_command_state_safe_explicit_target_action_boundary": bool(
+            state_record.get("safe_explicit_target_action_boundary", False)
+        ),
+        "target_command_state_has_session_policy_errors": bool(
+            state_record.get("has_session_policy_errors", False)
+        ),
+        "target_command_executes_operator_supplied_commands": bool(
+            summary.get("executes_operator_supplied_commands", False)
+        ),
+        "target_command_all_require_explicit_target_action": bool(
+            summary.get("all_require_explicit_target_action", False)
+        ),
+        "target_command_target_counts": summary.get("by_target_id") or {},
+        "target_command_side_counts": summary.get("by_side") or {},
+        "target_command_purpose_counts": summary.get("by_purpose") or {},
+        "target_command_route_kind_counts": summary.get("by_route_kind") or {},
+        "target_command_bridge_profile_counts": summary.get("by_bridge_profile") or {},
+        "target_command_stage_kind_counts": summary.get("by_stage_kind") or {},
+        "target_command_release_path_counts": summary.get("by_release_path") or {},
+        "target_command_session_policy_counts": summary.get("by_session_policy") or {},
+        "target_command_session_policy_valid_counts": summary.get(
+            "by_session_policy_valid"
+        ) or {},
+        "target_command_session_policy_error_count": summary.get(
+            "session_policy_error_count", 0
+        ),
+        "rshell_session_policy_record_count": len(rshell_policy_records or []),
+        "GRIT_RSHELL_SESSION_POLICY": rshell_policy_record.get("session_policy", ""),
+        "rshell_session_policy_valid": bool(
+            rshell_policy_record.get("session_policy_valid", False)
+        ),
+        "rshell_session_policy_error_count": len(
+            rshell_policy_record.get("session_policy_errors") or []
+        ),
+        "rshell_session_policy_retry_scope": rshell_policy_record.get("retry_scope", ""),
+        "rshell_session_policy_reconnects_after_disconnect": bool(
+            rshell_policy_record.get("reconnects_after_disconnect", False)
+        ),
+        "rshell_session_policy_persistent_lifecycle": bool(
+            rshell_policy_record.get("persistent_lifecycle", False)
+        ),
+        "target_command_retry_backoff_counts": summary.get("by_retry_backoff") or {},
+    }
+
+
 def target_command_route_text(rec):
     route_kind = str(rec.get("route_kind") or "direct")
     host = str(rec.get("route_host") or "")
