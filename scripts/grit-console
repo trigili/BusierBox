@@ -6566,10 +6566,6 @@ def run_line_tui(cfg):
                 for r in tcmds[:2]:
                     cmd = str(r.get("command") or "")
                     print(f"    {cmd}")
-            elif tcmds:
-                print("")
-                print("  Target command:")
-                print(f"    start {service} first to serve target-side commands")
 
             print("")
             print("  set KEY VALUE  /  build  /  back")

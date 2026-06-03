@@ -456,7 +456,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         os.close(numeric_slave)
         numeric_slave = -1
         time.sleep(0.3)
-        os.write(numeric_master, b"listener probe-http\noptions\nback\nlisteners\nstart 1\nstop 1\nq\n")
+        os.write(
+            numeric_master,
+            b"listener probe-http\noptions\nback\nlisteners\nstart 1\nlistener 1\noptions\nback\nstop 1\nlistener 1\noptions\nback\nq\n",
+        )
         numeric_chunks = []
         deadline = time.time() + 8
         while numeric_proc.poll() is None and time.time() < deadline:
@@ -482,11 +485,37 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             os.close(numeric_master)
         except OSError:
             pass
+    numeric_options_start = numeric_stdout.find("grit[all]/service/probe> options")
+    numeric_options_end = numeric_stdout.find("grit[all]/service/probe> back", numeric_options_start + 1)
+    numeric_options_text = (
+        numeric_stdout[numeric_options_start:numeric_options_end]
+        if numeric_options_start != -1 and numeric_options_end != -1 else ""
+    )
+    numeric_started_options_start = numeric_stdout.find("grit[all]/service/probe> options", numeric_options_end + 1)
+    numeric_started_options_end = numeric_stdout.find("grit[all]/service/probe> back", numeric_started_options_start + 1)
+    numeric_started_options_text = (
+        numeric_stdout[numeric_started_options_start:numeric_started_options_end]
+        if numeric_started_options_start != -1 and numeric_started_options_end != -1 else ""
+    )
+    numeric_stopped_options_start = numeric_stdout.find("grit[all]/service/probe> options", numeric_started_options_end + 1)
+    numeric_stopped_options_end = numeric_stdout.find("grit[all]/service/probe> back", numeric_stopped_options_start + 1)
+    numeric_stopped_options_text = (
+        numeric_stdout[numeric_stopped_options_start:numeric_stopped_options_end]
+        if numeric_stopped_options_start != -1 and numeric_stopped_options_end != -1 else ""
+    )
     if (numeric_proc.returncode != 0 or
             "Traceback" in (numeric_stderr or "") or
             "probe-http  " not in numeric_stdout or
             "transport: probe" not in numeric_stdout or
-            "start probe first to serve target-side commands" not in numeric_stdout or
+            not numeric_options_text or
+            "Target command:" in numeric_options_text or
+            "wget -O- http://" in numeric_options_text or
+            not numeric_started_options_text or
+            "Target command:" not in numeric_started_options_text or
+            "wget -O- http://" not in numeric_started_options_text or
+            not numeric_stopped_options_text or
+            "Target command:" in numeric_stopped_options_text or
+            "wget -O- http://" in numeric_stopped_options_text or
             "started probe:" not in numeric_stdout or
             "stopped probe:" not in numeric_stdout or
             "service or route not found: 1" in numeric_stdout):
