@@ -114,6 +114,7 @@ from gritlib.line_actions import (
     line_action_records_from_snapshot,
     print_line_actions as line_actions_print_line_actions,
     print_line_module_categories as line_actions_print_line_module_categories,
+    run_line_selected_action as line_actions_run_line_selected_action,
     select_line_action as line_actions_select_line_action,
     selected_line_action as line_actions_selected_line_action,
     split_line_run_args,
@@ -7476,55 +7477,18 @@ def run_line_tui(cfg):
         return 0
 
     def run_line_selected_action(args=None, dry_run_default=False):
-        rec = selected_line_action()
-        if not rec:
-            raise ValueError("no selected action module; use action ACTION first")
-        values = list(args or [])
-        dry_run = bool(dry_run_default)
-        confirmed = False
-        for item in values:
-            if item == "--dry-run":
-                dry_run = True
-            elif item in ("--confirm", "confirm", "yes"):
-                confirmed = True
-        kind = str(rec.get("kind") or "")
-        rec_id = str(rec.get("id") or "")
-        if kind == "service":
-            rc = run_service_workflow_action(cfg, rec_id, dry_run=dry_run, confirmed=confirmed)
-            print(f"action_returncode={rc}")
-            return rc
-        if kind == "daemon":
-            rc = run_operator_daemon_workflow_action(cfg, rec_id, dry_run=dry_run, confirmed=confirmed, show_commands=False)
-            print(f"action_returncode={rc}")
-            return rc
-        if kind == "workbench":
-            rc = run_workbench_action_record(
-                cfg,
-                workbench_action_records(cfg),
-                rec_id,
-                dry_run=dry_run,
-                confirmed=confirmed,
-                show_commands=False,
-            )
-            print(f"action_returncode={rc}")
-            return rc
-        if kind == "target":
-            if dry_run:
-                print(f"target workflow action: {rec_id}")
-                print("dry_run=yes")
-                append_event(cfg, "workbench", "target_workflow_action_dry_run", details={
-                    "id": rec_id,
-                    "action_id": rec.get("action_id", ""),
-                    "target_id": rec.get("target_id", ""),
-                    "target_label": rec.get("target_label", ""),
-                    "headless_command": rec.get("headless_command", rec.get("command", "")),
-                })
-                print("action_returncode=0")
-                return 0
-            rc = run_target_workflow_action(cfg, rec_id, input_func=line_input, show_commands=False)
-            print(f"action_returncode={rc}")
-            return rc
-        raise ValueError(f"unsupported selected action kind: {kind}")
+        return line_actions_run_line_selected_action(
+            cfg,
+            selected_line_action(),
+            args=args,
+            dry_run_default=dry_run_default,
+            service_runner=run_service_workflow_action,
+            daemon_runner=run_operator_daemon_workflow_action,
+            workbench_runner=run_workbench_action_record,
+            target_runner=run_target_workflow_action,
+            workbench_actions=workbench_action_records(cfg),
+            target_input_func=line_input,
+        )
 
     def queue_line_command(command):
         text = str(command or "").strip()

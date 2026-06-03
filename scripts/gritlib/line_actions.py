@@ -127,6 +127,80 @@ def split_line_run_args(values):
     return " ".join(selector_parts).strip(), flags
 
 
+def run_line_selected_action(
+    cfg, rec, args=None, dry_run_default=False,
+    service_runner=None, daemon_runner=None, workbench_runner=None,
+    target_runner=None, workbench_actions=None, target_input_func=None
+):
+    if not rec:
+        raise ValueError("no selected action module; use action ACTION first")
+    values = list(args or [])
+    dry_run = bool(dry_run_default)
+    confirmed = False
+    for item in values:
+        if item == "--dry-run":
+            dry_run = True
+        elif item in ("--confirm", "confirm", "yes"):
+            confirmed = True
+    kind = str(rec.get("kind") or "")
+    rec_id = str(rec.get("id") or "")
+    if kind == "service":
+        if service_runner is None:
+            raise ValueError("service action runner is unavailable")
+        rc = service_runner(cfg, rec_id, dry_run=dry_run, confirmed=confirmed)
+        print(f"action_returncode={rc}")
+        return rc
+    if kind == "daemon":
+        if daemon_runner is None:
+            raise ValueError("daemon action runner is unavailable")
+        rc = daemon_runner(
+            cfg,
+            rec_id,
+            dry_run=dry_run,
+            confirmed=confirmed,
+            show_commands=False,
+        )
+        print(f"action_returncode={rc}")
+        return rc
+    if kind == "workbench":
+        if workbench_runner is None:
+            raise ValueError("workbench action runner is unavailable")
+        rc = workbench_runner(
+            cfg,
+            workbench_actions or [],
+            rec_id,
+            dry_run=dry_run,
+            confirmed=confirmed,
+            show_commands=False,
+        )
+        print(f"action_returncode={rc}")
+        return rc
+    if kind == "target":
+        if dry_run:
+            print(f"target workflow action: {rec_id}")
+            print("dry_run=yes")
+            append_event(cfg, "workbench", "target_workflow_action_dry_run", details={
+                "id": rec_id,
+                "action_id": rec.get("action_id", ""),
+                "target_id": rec.get("target_id", ""),
+                "target_label": rec.get("target_label", ""),
+                "headless_command": rec.get("headless_command", rec.get("command", "")),
+            })
+            print("action_returncode=0")
+            return 0
+        if target_runner is None:
+            raise ValueError("target action runner is unavailable")
+        rc = target_runner(
+            cfg,
+            rec_id,
+            input_func=target_input_func,
+            show_commands=False,
+        )
+        print(f"action_returncode={rc}")
+        return rc
+    raise ValueError(f"unsupported selected action kind: {kind}")
+
+
 def print_line_action_records(actions, filter_text="", kind_filter="", quote=None):
     actions, kind_text = filtered_line_action_records(actions, filter_text=filter_text, kind_filter=kind_filter)
     quote = quote or (lambda text: str(text))
