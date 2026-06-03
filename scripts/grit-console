@@ -7307,12 +7307,13 @@ def run_line_repl(cfg):
     def print_line_module_categories():
         return line_actions_print_line_module_categories(cfg, line_action_records())
 
-    def print_line_actions(filter_text="", kind_filter=""):
+    def print_line_actions(filter_text="", kind_filter="", verbose=False):
         return line_actions_print_line_actions(
             cfg,
             line_action_records(),
             filter_text=filter_text,
             kind_filter=kind_filter,
+            verbose=verbose,
             quote=shquote,
         )
 
@@ -8129,10 +8130,14 @@ def run_line_repl(cfg):
 
     def show_line_resource(resource):
         parts = shlex.split(str(resource or "").strip()) if str(resource or "").strip() else []
-        key = (parts[0] if parts else "").lower()
-        filter_text = " ".join(parts[1:]).strip()
-        if len(parts) >= 2 and parts[1].lower() in ("module", "modules"):
-            print_line_actions(" ".join(parts[2:]).strip(), kind_filter=key)
+        verbose_flags = {"-v", "--verbose", "verbose", "details"}
+        verbose = any(str(part).lower() in verbose_flags for part in parts)
+        filtered_parts = [part for part in parts if str(part).lower() not in verbose_flags]
+        filtered_key = (filtered_parts[0] if filtered_parts else "").lower()
+        key = filtered_key
+        filter_text = " ".join(filtered_parts[1:]).strip()
+        if len(filtered_parts) >= 2 and filtered_parts[1].lower() in ("module", "modules"):
+            print_line_actions(" ".join(filtered_parts[2:]).strip(), kind_filter=filtered_key, verbose=verbose)
         elif key in ("target", "targets", "agent", "agents", "host", "hosts"):
             set_line_collection("targets")
             print_line_targets()
@@ -8153,7 +8158,7 @@ def run_line_repl(cfg):
             print_line_module_categories()
         elif key in ("action", "actions", "module", "modules"):
             set_line_collection("modules")
-            print_line_actions(filter_text)
+            print_line_actions(filter_text, verbose=verbose)
         elif key in ("session", "sessions"):
             set_line_collection("sessions")
             print_line_sessions()
@@ -8911,7 +8916,14 @@ def run_line_repl(cfg):
                 continue
             elif cmd in {"modules", "module"}:
                 set_line_collection("modules")
-                print_line_actions(" ".join(console_args[1:]).strip())
+                module_args = list(console_args[1:])
+                verbose_flags = {"-v", "--verbose", "verbose", "details"}
+                verbose = any(str(part).lower() in verbose_flags for part in module_args)
+                filter_text = " ".join(
+                    part for part in module_args
+                    if str(part).lower() not in verbose_flags
+                ).strip()
+                print_line_actions(filter_text, verbose=verbose)
                 continue
             elif cmd in {"services", "listeners"}:
                 set_line_collection("listeners")

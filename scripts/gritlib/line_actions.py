@@ -201,12 +201,14 @@ def run_line_selected_action(
     raise ValueError(f"unsupported selected action kind: {kind}")
 
 
-def print_line_action_records(actions, filter_text="", kind_filter="", quote=None):
+def print_line_action_records(actions, filter_text="", kind_filter="", quote=None, verbose=False):
     actions, kind_text = filtered_line_action_records(actions, filter_text=filter_text, kind_filter=kind_filter)
     quote = quote or (lambda text: str(text))
     shown = actions[:30]
 
     def _detail(rec):
+        if not verbose:
+            return []
         cmd = str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or "")
         if len(cmd) > 100:
             cmd = cmd[:97] + "…"
@@ -227,7 +229,7 @@ def print_line_action_records(actions, filter_text="", kind_filter="", quote=Non
     ]
     console_table(
         title, shown, cols, detail_fn=_detail,
-        footer="use N  |  use module NAME  |  modules ? for help",
+        footer="use N  |  use module NAME  |  modules -v for commands  |  modules ? for help",
     )
     grouped = {}
     for rec in actions:
@@ -306,12 +308,13 @@ def print_line_module_categories(cfg, actions):
     return event_details
 
 
-def print_line_actions(cfg, actions, filter_text="", kind_filter="", quote=None):
+def print_line_actions(cfg, actions, filter_text="", kind_filter="", quote=None, verbose=False):
     search_records, event_details = print_line_action_records(
         actions,
         filter_text=filter_text,
         kind_filter=kind_filter,
         quote=quote,
+        verbose=verbose,
     )
     cfg["_line_console_search_results"] = search_records
     append_event(

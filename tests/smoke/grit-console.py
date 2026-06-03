@@ -811,6 +811,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "show workbench modules\n"
                 "show modules daemon\n"
                 "modules file-service\n"
+                "show service modules -v\n"
                 "use 1\n"
                 "info\n"
                 "next\n"
@@ -1161,6 +1162,24 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             print(f"line-oriented console context exposed noisy equivalent CLI command: {noisy}", file=sys.stderr)
             print(line_console_stdout, file=sys.stderr)
             return 1
+    service_modules_start = line_console_stdout.find("grit[all]/categories> show service modules")
+    service_modules_end = line_console_stdout.find("grit[all]> show daemon modules", service_modules_start + 1)
+    service_modules_text = line_console_stdout[service_modules_start:service_modules_end] if service_modules_start != -1 and service_modules_end != -1 else ""
+    service_modules_verbose_start = line_console_stdout.find("grit[all]/modules> show service modules -v")
+    service_modules_verbose_end = line_console_stdout.find("grit[all]/modules> use 1", service_modules_verbose_start + 1)
+    service_modules_verbose_text = line_console_stdout[service_modules_verbose_start:service_modules_verbose_end] if service_modules_verbose_start != -1 and service_modules_verbose_end != -1 else ""
+    if (not service_modules_text or
+            "Modules  (service)" not in service_modules_text or
+            "\n      run: scripts/grit-console" in service_modules_text or
+            "modules -v for commands" not in service_modules_text or
+            not service_modules_verbose_text or
+            "\n      run: scripts/grit-console" not in service_modules_verbose_text):
+        print("line-oriented module list did not keep generated commands behind verbose mode", file=sys.stderr)
+        print("default service modules:", file=sys.stderr)
+        print(service_modules_text or line_console_stdout, file=sys.stderr)
+        print("verbose service modules:", file=sys.stderr)
+        print(service_modules_verbose_text, file=sys.stderr)
+        return 1
     route_start = line_console_stdout.find("saved route zz-console-added")
     route_end = line_console_stdout.find("selected route console-route", route_start + 1)
     route_text = line_console_stdout[route_start:route_end] if route_start != -1 and route_end != -1 else ""
