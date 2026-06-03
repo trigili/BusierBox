@@ -81,7 +81,8 @@ from gritlib.probe_results import append_probe_result, probe_results_path
 from gritlib.runtime import Service, ServiceManager, Session
 from gritlib.record_utils import (
     count_records_with_key, format_counts, int_value, latest_record_value,
-    list_merge_unique, record_bool_counts, record_count_by_key, records_by_bool,
+    list_merge_unique, record_bool_counts, record_count_by_key,
+    record_count_by_nested_key, record_sum_by_key, records_by_bool,
     records_by_composite, records_by_key, records_by_list_item, records_by_nested_key,
     records_by_session,
 )
@@ -966,14 +967,6 @@ def operator_state_records(cfg, server_state, staged_files_state, command_queue_
             {"recent_session_ids": session_root_state.get("recent_session_ids") or []},
         ),
     ]
-
-
-def record_count_by_nested_key(records, parent_key, child_key):
-    counts = {}
-    for key, value in records_by_nested_key(records, parent_key, child_key).items():
-        counts[key] = len(value)
-    return counts
-
 
 
 def set_workbench_build_config(cfg, assignment):
@@ -3298,22 +3291,6 @@ def cancel_workbench_job(cfg, job_id, headless_command=""):
         })
         return current
     raise ValueError(f"unknown workbench job: {job_id}")
-
-
-
-def record_sum_by_key(records, key):
-    total = 0
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        try:
-            total += int(rec.get(key, 0) or 0)
-        except (TypeError, ValueError):
-            pass
-    return total
-
-
-
 
 def staged_file_workflow_action_records(cfg, staged_records, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))

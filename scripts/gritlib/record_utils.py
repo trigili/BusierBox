@@ -32,6 +32,25 @@ def record_count_by_key(records, key):
     return counts
 
 
+def record_count_by_nested_key(records, parent_key, child_key):
+    counts = {}
+    for key, value in records_by_nested_key(records, parent_key, child_key).items():
+        counts[key] = len(value)
+    return counts
+
+
+def record_sum_by_key(records, key):
+    total = 0
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        try:
+            total += int(rec.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            pass
+    return total
+
+
 def count_records_with_key(records, key):
     return len([
         rec for rec in records or []
@@ -163,4 +182,3 @@ def format_counts(counts, limit=6):
     for key, value in sorted(counts.items(), key=lambda item: (-int(item[1]), str(item[0])))[:limit]:
         parts.append(f"{key}={value}")
     return ", ".join(parts) if parts else "none"
-
