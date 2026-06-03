@@ -489,6 +489,110 @@ def service_record_indexes(records):
     )
 
 
+def _index_counts(index):
+    return {key: len(value) for key, value in (index or {}).items()}
+
+
+def service_status_summary(services, manager_snapshot=None, manager_status=None):
+    services = services or []
+    manager_snapshot = manager_snapshot or {}
+    manager_status = manager_status or service_manager_status(manager_snapshot)
+    (
+        _services_by_actual,
+        _services_by_configured,
+        _services_by_bind_address,
+        _services_by_port,
+        _services_by_pid,
+        _services_by_listener_pid,
+        services_by_tls,
+        services_by_stale,
+        services_by_pid_alive,
+        services_by_pid_managed,
+        services_by_listener_bind_mismatch,
+        services_by_session_log_exists,
+        services_by_process_log_exists,
+        services_by_has_error,
+        services_by_stopped_reason,
+    ) = service_record_indexes(services)
+    state_record = manager_status.get("state_record") or {}
+    state_records = manager_status.get("state_records") or []
+    resources = manager_status.get("resources") or []
+    resource_index_maps = manager_status.get("resource_index_maps") or {}
+    return {
+        "service_actual_counts": record_count_by_key(services, "actual"),
+        "service_configured_counts": record_count_by_key(services, "configured"),
+        "service_bind_address_counts": record_count_by_key(services, "bind_address"),
+        "service_tls_counts": _index_counts(services_by_tls),
+        "service_stale_counts": _index_counts(services_by_stale),
+        "service_pid_alive_counts": _index_counts(services_by_pid_alive),
+        "service_pid_managed_counts": _index_counts(services_by_pid_managed),
+        "service_listener_bind_mismatch_counts": _index_counts(
+            services_by_listener_bind_mismatch
+        ),
+        "service_session_log_exists_counts": _index_counts(
+            services_by_session_log_exists
+        ),
+        "service_process_log_exists_counts": _index_counts(
+            services_by_process_log_exists
+        ),
+        "service_has_error_counts": _index_counts(services_by_has_error),
+        "service_stopped_reason_counts": _index_counts(services_by_stopped_reason),
+        "service_manager_shutdown_requested": bool(
+            manager_snapshot.get("shutdown_requested", False)
+        ),
+        "service_manager_socket_count": manager_snapshot.get("socket_count", 0),
+        "service_manager_open_socket_count": manager_snapshot.get(
+            "open_socket_count", 0
+        ),
+        "service_manager_transport_count": manager_snapshot.get("transport_count", 0),
+        "service_manager_active_transport_count": manager_snapshot.get(
+            "active_transport_count", 0
+        ),
+        "service_manager_thread_count": manager_snapshot.get("thread_count", 0),
+        "service_manager_alive_thread_count": manager_snapshot.get(
+            "alive_thread_count", 0
+        ),
+        "service_manager_child_process_count": manager_snapshot.get(
+            "child_process_count", 0
+        ),
+        "service_manager_running_child_process_count": manager_snapshot.get(
+            "running_child_process_count", 0
+        ),
+        "service_manager_state_record_count": len(state_records),
+        "service_manager_has_open_sockets": bool(
+            state_record.get("has_open_sockets", False)
+        ),
+        "service_manager_has_active_transports": bool(
+            state_record.get("has_active_transports", False)
+        ),
+        "service_manager_has_alive_threads": bool(
+            state_record.get("has_alive_threads", False)
+        ),
+        "service_manager_has_running_children": bool(
+            state_record.get("has_running_children", False)
+        ),
+        "service_manager_has_resources": bool(
+            state_record.get("has_resources", False)
+        ),
+        "service_manager_resource_count": len(resources),
+        "service_manager_resource_kind_counts": record_count_by_key(
+            resources, "kind"
+        ),
+        "service_manager_resource_state_counts": record_count_by_key(
+            resources, "state"
+        ),
+        "service_manager_resource_active_counts": record_count_by_key(
+            resources, "active"
+        ),
+        "service_manager_resource_kind_state_counts": _index_counts(
+            resource_index_maps.get("service_manager_resources_by_kind_state")
+        ),
+        "service_manager_resource_kind_active_counts": _index_counts(
+            resource_index_maps.get("service_manager_resources_by_kind_active")
+        ),
+    }
+
+
 def status_summary_and_warnings(services):
     summary = {
         "service_count": len(services),
