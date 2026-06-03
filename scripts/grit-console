@@ -70,11 +70,9 @@ from gritlib.config_utils import apply_operator_session_path_defaults, yes
 from gritlib.crypto import generate_tls_cert
 from gritlib.dns import dns_parse_qname, dns_txt_answer_packet
 from gritlib.build_config import (
-    WORKBENCH_BUILD_CONFIG_FIELDS, WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS,
-    build_config_path, delete_build_config_value, parse_build_config,
-    shell_double_quote,
-    workbench_config_field_indexes, workbench_config_field_records,
-    workbench_config_field_summary, write_build_config_value,
+    build_config_path, set_workbench_build_config, shell_double_quote,
+    unset_workbench_build_config, workbench_config_field_indexes,
+    workbench_config_field_records, workbench_config_field_summary,
 )
 from gritlib.event_log import (
     EventLog, append_event, compact_event_details, event_log_state_record,
@@ -537,66 +535,6 @@ def operator_state_records(cfg, server_state, staged_files_state, command_queue_
             {"recent_session_ids": session_root_state.get("recent_session_ids") or []},
         ),
     ]
-
-
-def set_workbench_build_config(cfg, assignment):
-    if "=" not in str(assignment):
-        raise ValueError("--set-build-config expects KEY=VALUE")
-    key, value = str(assignment).split("=", 1)
-    key = key.strip()
-    if not any(rec[1] == key for rec in WORKBENCH_BUILD_CONFIG_FIELDS):
-        raise ValueError(f"unsupported guided build config key: {key}")
-    options = WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS.get(key)
-    if options and value not in options:
-        raise ValueError(f"unsupported value for {key}: {value}; expected one of: {', '.join(options)}")
-    path = build_config_path(cfg)
-    old_value = parse_build_config(path).get("values", {}).get(key, "")
-    write_build_config_value(path, key, value)
-    command = "scripts/grit-console --build-config " + shquote(str(path)) + " --set-build-config " + shquote(f"{key}={value}")
-    headless_command = (
-        "scripts/grit-console --config "
-        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-        + " --build-config "
-        + shquote(str(path))
-        + " --set-build-config "
-        + shquote(f"{key}={value}")
-    )
-    append_event(cfg, "workbench", "workbench_config_updated", details={
-        "config_path": str(path),
-        "key": key,
-        "old_value": old_value,
-        "new_value": value,
-        "command": command,
-        "headless_command": headless_command,
-    })
-    return {rec.get("key"): rec for rec in workbench_config_field_records(cfg)}.get(key, {"key": key, "value": value, "config_path": str(path)})
-
-
-def unset_workbench_build_config(cfg, key):
-    key = str(key or "").strip()
-    if key.startswith("build."):
-        key = key.split(".", 1)[1]
-    if not any(rec[1] == key for rec in WORKBENCH_BUILD_CONFIG_FIELDS):
-        raise ValueError(f"unsupported guided build config key: {key}")
-    path = build_config_path(cfg)
-    old_value = parse_build_config(path).get("values", {}).get(key, "")
-    removed = delete_build_config_value(path, key)
-    headless_command = (
-        "scripts/grit-console --config "
-        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-        + " --build-config "
-        + shquote(str(path))
-        + " --set-build-config "
-        + shquote(f"{key}=")
-    )
-    append_event(cfg, "workbench", "workbench_config_unset", details={
-        "config_path": str(path),
-        "key": key,
-        "old_value": old_value,
-        "removed": bool(removed),
-        "headless_command": headless_command,
-    })
-    return {rec.get("key"): rec for rec in workbench_config_field_records(cfg)}.get(key, {"key": key, "value": "", "config_path": str(path)})
 
 
 def workbench_action_records(cfg):

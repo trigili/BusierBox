@@ -4,6 +4,7 @@ import os
 import shlex
 from pathlib import Path
 
+from gritlib.event_log import append_event
 from gritlib.record_utils import record_count_by_key, records_by_key
 
 
@@ -13,6 +14,8 @@ def shquote(value):
         return text
     return "'" + text.replace("'", "'\\''") + "'"
 
+
+DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 
 WORKBENCH_BUILD_CONFIG_FIELDS = [
     ("target", "GRIT_TARGET_PRESET", "target/device preset", "mipsel-linux-4.x-musl native"),
@@ -215,6 +218,66 @@ def workbench_config_field_records(cfg):
     return records
 
 
+def set_workbench_build_config(cfg, assignment, default_config=DEFAULT_SERVER_CONFIG):
+    if "=" not in str(assignment):
+        raise ValueError("--set-build-config expects KEY=VALUE")
+    key, value = str(assignment).split("=", 1)
+    key = key.strip()
+    if not any(rec[1] == key for rec in WORKBENCH_BUILD_CONFIG_FIELDS):
+        raise ValueError(f"unsupported guided build config key: {key}")
+    options = WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS.get(key)
+    if options and value not in options:
+        raise ValueError(f"unsupported value for {key}: {value}; expected one of: {', '.join(options)}")
+    path = build_config_path(cfg)
+    old_value = parse_build_config(path).get("values", {}).get(key, "")
+    write_build_config_value(path, key, value)
+    command = "scripts/grit-console --build-config " + shquote(str(path)) + " --set-build-config " + shquote(f"{key}={value}")
+    headless_command = (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", default_config)))
+        + " --build-config "
+        + shquote(str(path))
+        + " --set-build-config "
+        + shquote(f"{key}={value}")
+    )
+    append_event(cfg, "workbench", "workbench_config_updated", details={
+        "config_path": str(path),
+        "key": key,
+        "old_value": old_value,
+        "new_value": value,
+        "command": command,
+        "headless_command": headless_command,
+    })
+    return {rec.get("key"): rec for rec in workbench_config_field_records(cfg)}.get(key, {"key": key, "value": value, "config_path": str(path)})
+
+
+def unset_workbench_build_config(cfg, key, default_config=DEFAULT_SERVER_CONFIG):
+    key = str(key or "").strip()
+    if key.startswith("build."):
+        key = key.split(".", 1)[1]
+    if not any(rec[1] == key for rec in WORKBENCH_BUILD_CONFIG_FIELDS):
+        raise ValueError(f"unsupported guided build config key: {key}")
+    path = build_config_path(cfg)
+    old_value = parse_build_config(path).get("values", {}).get(key, "")
+    removed = delete_build_config_value(path, key)
+    headless_command = (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", default_config)))
+        + " --build-config "
+        + shquote(str(path))
+        + " --set-build-config "
+        + shquote(f"{key}=")
+    )
+    append_event(cfg, "workbench", "workbench_config_unset", details={
+        "config_path": str(path),
+        "key": key,
+        "old_value": old_value,
+        "removed": bool(removed),
+        "headless_command": headless_command,
+    })
+    return {rec.get("key"): rec for rec in workbench_config_field_records(cfg)}.get(key, {"key": key, "value": "", "config_path": str(path)})
+
+
 def workbench_config_field_indexes(records):
     return {
         "workbench_config_fields_by_key": {rec.get("key", ""): rec for rec in records or [] if rec.get("key")},
@@ -248,5 +311,4 @@ def workbench_config_field_summary(records):
         "command_queue_related_count": len([rec for rec in records or [] if rec.get("command_queue_related") is True]),
         "requires_explicit_operator_choice_count": len([rec for rec in records or [] if rec.get("requires_explicit_operator_choice") is True]),
     }
-
 
