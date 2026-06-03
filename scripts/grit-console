@@ -85,6 +85,7 @@ from gritlib.file_transfers import (
     send_json_response, stream_fetch_response, target_file_transfer_record_indexes,
     target_file_transfer_records_from_sources, upload_record_indexes,
 )
+from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.probe_results import append_probe_result, probe_results_path
 from gritlib.runtime import Service, ServiceManager, Session
 from gritlib.process_status import (
@@ -6932,31 +6933,6 @@ def render_probe_ftp_command(cfg, host=None, port=None):
     return f"wget -O- {shquote(url)} | /bin/sh"
 
 
-def ftp_send_line(conn, text):
-    conn.sendall((text.rstrip("\r\n") + "\r\n").encode("utf-8", errors="replace"))
-
-
-def ftp_recv_line(conn):
-    data = bytearray()
-    while len(data) < 8192:
-        chunk = conn.recv(1)
-        if not chunk:
-            break
-        data.extend(chunk)
-        if data.endswith(b"\n"):
-            break
-    return data.decode("utf-8", errors="replace").strip()
-
-
-def ftp_pasv_reply_host(host):
-    try:
-        socket.inet_aton(host)
-        return host
-    except OSError:
-        candidates = local_ips()
-        return candidates[0] if candidates else "127.0.0.1"
-
-
 def handle_probe_ftp_session(cfg, conn, addr, script_name, payload, log_dir, host):
     remote = f"{addr[0]}:{addr[1]}"
     data_sock = None
@@ -7000,7 +6976,7 @@ def handle_probe_ftp_session(cfg, conn, addr, script_name, payload, log_dir, hos
                 data_sock.bind((str(cfg.get("listen_host", "0.0.0.0")), 0))
                 data_sock.listen(1)
                 register_socket(data_sock)
-                pasv_host = ftp_pasv_reply_host(host).replace(".", ",")
+                pasv_host = ftp_pasv_reply_host(host, local_ips()).replace(".", ",")
                 data_port = data_sock.getsockname()[1]
                 ftp_send_line(conn, f"227 Entering Passive Mode ({pasv_host},{data_port // 256},{data_port % 256})")
             elif command == "EPSV":
