@@ -232,6 +232,7 @@ from gritlib.workflow_actions import (
     operator_console_workflow_summary,
     file_service_workflow_action_record,
     print_workbench_action_summary,
+    probe_listener_action_states,
     probe_workflow_action_record,
     probe_workflow_action_indexes,
     probe_workflow_action_summary,
@@ -1560,7 +1561,6 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
     base = "scripts/grit-console --config " + shquote(config_path)
     bridge_arg = (" --bridge-profile " + shquote(str(cfg.get("bridge_profile")))) if cfg.get("bridge_profile") else ""
     service_row = service_row if isinstance(service_row, dict) else {}
-    actual = str(service_row.get("actual") or "unknown")
     port = int(cfg.get("GRIT_PROBE_PORT", service_row.get("port", 22207)) or 22207)
     host = operator_advertised_host(cfg)
     route = probe_route_context(cfg, host=host, port=port)
@@ -1572,6 +1572,7 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
     stop_command = base + " --stop"
     target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
     fleet_metrics = workflow_fleet_metrics(target_records)
+    lifecycle_states = probe_listener_action_states(service_row)
     records = []
 
     def add(action_id, category, label, command, action_state, action_reason,
@@ -1620,21 +1621,21 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
         "survey",
         "Start probe listener",
         start_command,
-        "ready" if actual != "listening" else "already-running",
-        "run-now" if actual != "listening" else "service-already-listening",
-        can_run_from_curses_enter=actual != "listening",
-        curses_enter_action="start-probe" if actual != "listening" else "stop-probe",
+        lifecycle_states["start_state"],
+        lifecycle_states["start_reason"],
+        can_run_from_curses_enter=lifecycle_states["start_enter"],
+        curses_enter_action="start-probe" if lifecycle_states["start_enter"] else "stop-probe",
     )
     add(
         "stop-probe",
         "survey",
         "Stop probe listener",
         stop_command,
-        "ready" if actual == "listening" else "already-stopped",
-        "run-now" if actual == "listening" else "service-not-listening",
+        lifecycle_states["stop_state"],
+        lifecycle_states["stop_reason"],
         requires_confirmation=True,
-        can_run_from_curses_enter=actual == "listening",
-        curses_enter_action="stop-probe" if actual == "listening" else "start-probe",
+        can_run_from_curses_enter=lifecycle_states["stop_enter"],
+        curses_enter_action="stop-probe" if lifecycle_states["stop_enter"] else "start-probe",
     )
     if records:
         records[-1]["run_command"] = base + bridge_arg + " --run-probe-workflow-action probe:stop-probe --confirm-probe-workflow-action"
