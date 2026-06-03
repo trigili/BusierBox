@@ -285,7 +285,8 @@ from gritlib.target_records import (
     apply_target_filter_activity_counts, attach_target_identity,
     configured_target_filter, details_with_target, event_for_target,
     load_targets, records_for_target, record_target_activity, scoped_target_cfg,
-    selected_target_context, set_target_label, set_workbench_target_filter,
+    selected_target_context, selected_target_record_for_update,
+    set_target_label, set_workbench_target_filter,
     target_attribution_record_indexes, target_attribution_record_summary,
     target_attribution_status, target_context_fields,
     target_filter_evidence_lines, target_filter_record_from_target,
@@ -6751,15 +6752,6 @@ def run_line_tui(cfg):
         if fields:
             print(f"  Build options: {len(fields)} configured  (run: build to view/edit)")
 
-    def selected_target_record_for_update():
-        target_id = configured_target_filter(cfg)
-        if not target_id:
-            raise ValueError("select a target before setting target options")
-        rec = (load_targets(cfg).get("targets") or {}).get(target_id)
-        if not isinstance(rec, dict):
-            rec = {"target_id": target_id, "label": "", "aliases": [], "notes": ""}
-        return target_id, rec
-
     def set_line_option(name, value):
         key = str(name or "").strip()
         text = str(value or "")
@@ -6833,7 +6825,7 @@ def run_line_tui(cfg):
             except OSError as exc:
                 print(f"set {key}={shell_double_quote(str(typed_val))}  (warning: could not save: {exc})")
             return
-        target_id, rec = selected_target_record_for_update()
+        target_id, rec = selected_target_record_for_update(cfg)
         if key in ("label", "target.label"):
             updated = set_target_label(
                 cfg, target_id, text,
@@ -6864,7 +6856,7 @@ def run_line_tui(cfg):
         text = str(label or "").strip()
         if not text:
             raise ValueError("usage: rename LABEL")
-        target_id, rec = selected_target_record_for_update()
+        target_id, rec = selected_target_record_for_update(cfg)
         updated = set_target_label(
             cfg,
             target_id,
@@ -6878,7 +6870,7 @@ def run_line_tui(cfg):
 
     def note_line_target(notes):
         text = str(notes or "").strip()
-        target_id, rec = selected_target_record_for_update()
+        target_id, rec = selected_target_record_for_update(cfg)
         if not text:
             print(f"target.notes={str(rec.get('notes') or '') or '-'}")
             return
@@ -6896,7 +6888,7 @@ def run_line_tui(cfg):
         text = str(alias or "").strip()
         if not text:
             raise ValueError("usage: alias NAME")
-        target_id, rec = selected_target_record_for_update()
+        target_id, rec = selected_target_record_for_update(cfg)
         updated = set_target_label(
             cfg,
             target_id,
@@ -6943,7 +6935,7 @@ def run_line_tui(cfg):
         if key in ("module", "action"):
             clear_line_module()
             return
-        target_id, rec = selected_target_record_for_update()
+        target_id, rec = selected_target_record_for_update(cfg)
         if key in ("label", "target.label"):
             updated = set_target_label(cfg, target_id, "", aliases=rec.get("aliases") or [], notes=rec.get("notes", ""))
             cfg.pop("_target_label_filter", None)

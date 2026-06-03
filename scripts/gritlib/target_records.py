@@ -601,6 +601,16 @@ def configured_target_filter(cfg):
     return str(cfg.get("_target_id_filter") or "").strip()
 
 
+def selected_target_record_for_update(cfg):
+    target_id = configured_target_filter(cfg)
+    if not target_id:
+        raise ValueError("select a target before setting target options")
+    rec = (load_targets(cfg).get("targets") or {}).get(target_id)
+    if not isinstance(rec, dict):
+        rec = {"target_id": target_id, "label": "", "aliases": [], "notes": ""}
+    return target_id, rec
+
+
 def records_for_target(records, target_id):
     if not target_id:
         return list(records or [])
