@@ -9014,9 +9014,12 @@ def run_line_repl(cfg):
                         print(exc)
                 elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
                     print_line_command_help("routes")
-                elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose", "print"}:
+                elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
                     set_line_collection("routes")
                     print_line_routes(verbose=True)
+                elif cmd == "route" and route_subcmd == "print":
+                    set_line_collection("routes")
+                    print_line_routes()
                 elif cmd == "route" and len(console_args) >= 2:
                     try:
                         select_line_route(" ".join(console_args[1:]).strip())

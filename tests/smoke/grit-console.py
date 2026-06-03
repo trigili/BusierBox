@@ -1192,6 +1192,22 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented route commands exposed noisy headless commands", file=sys.stderr)
         print(route_text or line_console_stdout, file=sys.stderr)
         return 1
+    routes_verbose_start = line_console_stdout.find("grit[all]/routes> routes -v")
+    routes_verbose_end = line_console_stdout.find("grit[all]/routes> route delete 2", routes_verbose_start + 1)
+    routes_verbose_text = line_console_stdout[routes_verbose_start:routes_verbose_end] if routes_verbose_start != -1 and routes_verbose_end != -1 else ""
+    route_print_start = line_console_stdout.find("grit[all]> route print")
+    route_print_end = line_console_stdout.find("grit[all]/routes> route console-route", route_print_start + 1)
+    route_print_text = line_console_stdout[route_print_start:route_print_end] if route_print_start != -1 and route_print_end != -1 else ""
+    if (not routes_verbose_text or
+            "\n     start: scripts/grit-console" not in routes_verbose_text or
+            not route_print_text or
+            "\n     start: scripts/grit-console" in route_print_text):
+        print("line-oriented route print did not keep generated commands behind verbose mode", file=sys.stderr)
+        print("routes -v:", file=sys.stderr)
+        print(routes_verbose_text or line_console_stdout, file=sys.stderr)
+        print("route print:", file=sys.stderr)
+        print(route_print_text, file=sys.stderr)
+        return 1
     generated_copy_start = line_console_stdout.find("grit[all]> copy 1")
     generated_copy_end = line_console_stdout.find("grit[all]> build", generated_copy_start + 1)
     generated_copy_text = line_console_stdout[generated_copy_start:generated_copy_end] if generated_copy_start != -1 and generated_copy_end != -1 else ""
