@@ -8,6 +8,7 @@ from gritlib.record_utils import (
     records_by_nested_key,
 )
 from gritlib.session_state import read_json_file
+from gritlib.staged_files import stage_file
 
 
 RELEASE_LICENSE_NOTICE_FILES = (
@@ -916,6 +917,107 @@ def release_nav_records(release, release_devices, release_tuples, limit=5):
     for t in (release_tuples or [])[:limit]:
         out.append({"kind": "tuple", "label": f"tuple {t.get('path', '')} artifacts={t.get('artifact_count', len(t.get('artifacts') or []))}", "record": t})
     return out
+
+
+def stage_release_artifact(cfg, artifact_name):
+    rel = release_context(cfg)
+    if not rel:
+        raise ValueError("not running inside a release bundle")
+    requested = str(artifact_name or "")
+    artifact_name = requested
+    recommendation = (rel.get("recommendations_by_id") or {}).get(requested)
+    if recommendation:
+        artifact_name = recommendation.get("artifact") or recommendation.get("artifact_name") or artifact_name
+    matches = []
+    requested_path = Path(artifact_name).expanduser() if artifact_name else None
+    requested_resolved = ""
+    if requested_path:
+        try:
+            requested_resolved = str(requested_path.resolve())
+        except OSError:
+            requested_resolved = str(requested_path)
+    for rec in rel.get("artifacts") or []:
+        path = Path(str(rec.get("path", "")))
+        path_resolved = ""
+        try:
+            path_resolved = str(path.resolve())
+        except OSError:
+            path_resolved = str(path)
+        if artifact_name in {rec.get("name"), rec.get("release_path"), str(path)} or (
+                requested_resolved and requested_resolved == path_resolved):
+            matches.append(rec)
+    if not matches:
+        raise ValueError(f"release artifact not found: {requested}")
+    if len(matches) > 1:
+        raise ValueError(f"release artifact is ambiguous: {requested}")
+    rec = matches[0]
+    request = rec.get("request_name") or Path(str(rec.get("path"))).name
+    metadata = {
+        "stage_kind": "release-artifact",
+        "release_artifact_name": rec.get("name", ""),
+        "release_artifact_path": rec.get("path", ""),
+        "release_path": rec.get("release_path", ""),
+        "tuple_path": rec.get("tuple_path", ""),
+        "payload_preset": rec.get("payload_preset", ""),
+        "compatibility": rec.get("compatibility") or {},
+        "selected_by_recommendation": requested if recommendation else "",
+    }
+    return stage_file(cfg, rec["path"], request, metadata=metadata)
+
+
+def stage_release_nav_item(cfg, rec):
+    kind = rec.get("kind", "")
+    record = rec.get("record") if isinstance(rec.get("record"), dict) else {}
+    if kind == "recommendation":
+        recommendation_id = record.get("id")
+        if recommendation_id:
+            return stage_release_artifact(cfg, recommendation_id)
+        artifact = record.get("artifact") or rec.get("path")
+        if artifact:
+            return stage_release_artifact(cfg, artifact)
+    if kind == "device":
+        name = record.get("name", "")
+        if name:
+            try:
+                return stage_release_artifact(cfg, f"by_device:{name}")
+            except ValueError:
+                pass
+    if kind == "tuple":
+        tuple_path = record.get("path", "")
+        if tuple_path:
+            try:
+                return stage_release_artifact(cfg, f"by_tuple_path:{tuple_path}")
+            except ValueError:
+                pass
+    artifact_paths = record.get("artifacts") or record.get("artifact_paths") or []
+    for artifact in artifact_paths:
+        if artifact:
+            return stage_release_artifact(cfg, artifact)
+    path = rec.get("path") or record.get("path") or record.get("filesystem_path") or ""
+    if path:
+        return stage_release_artifact(cfg, path)
+    raise ValueError("no release artifact to stage")
+
+
+def stage_release_selection(cfg, selector):
+    selector = str(selector or "").strip()
+    if not selector:
+        raise ValueError("release selection is required")
+    rel = release_context(cfg)
+    if not rel:
+        raise ValueError("not running inside a release bundle")
+    if selector.isdigit():
+        nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=12)
+        idx = int(selector) - 1
+        if idx < 0 or idx >= len(nav):
+            raise ValueError(f"release selection number out of range: {selector}")
+        return stage_release_nav_item(cfg, nav[idx])
+    if selector.startswith(("by_device:", "by_tuple_path:")):
+        return stage_release_artifact(cfg, selector)
+    recommendations = rel.get("recommendations_by_id") or {}
+    if selector in recommendations:
+        return stage_release_artifact(cfg, selector)
+    return stage_release_artifact(cfg, selector)
 
 
 def _release_shquote(value):
