@@ -255,6 +255,15 @@ def event_log_state_record(cfg, stats=None):
     return rec
 
 
+def event_tail_availability_text(doc):
+    state = (doc or {}).get("event_log_state") or {}
+    return (
+        f"tail_has_records={'yes' if state.get('tail_has_records') else 'no'} "
+        f"tail_has_omitted={'yes' if state.get('tail_has_omitted_records') else 'no'} "
+        f"tail_empty_due_to_limit={'yes' if state.get('tail_empty_due_to_limit') else 'no'}"
+    )
+
+
 def event_record_indexes(records):
     indexes = {name: {} for name in ("id", "session") + TOP_INDEXES + DETAIL_INDEXES + EVENT_DETAIL_INDEXES + SERVICE_DETAIL_INDEXES}
     for rec in records or []:

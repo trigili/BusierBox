@@ -77,6 +77,7 @@ from gritlib.build_config import (
 from gritlib.event_log import (
     EventLog, append_event, compact_event_details, event_log_state_record,
     event_log_stats, event_record_indexes, event_tail,
+    event_tail_availability_text,
 )
 from gritlib.file_transfers import (
     fetch_record_indexes, file_service_workflow_action_indexes,
@@ -9101,15 +9102,6 @@ def print_api_resource_summary(doc, limit=8):
         )
     if len(resources) > limit:
         print(f"  ... {len(resources) - limit} more resource(s)")
-
-
-def event_tail_availability_text(doc):
-    state = (doc or {}).get("event_log_state") or {}
-    return (
-        f"tail_has_records={'yes' if state.get('tail_has_records') else 'no'} "
-        f"tail_has_omitted={'yes' if state.get('tail_has_omitted_records') else 'no'} "
-        f"tail_empty_due_to_limit={'yes' if state.get('tail_empty_due_to_limit') else 'no'}"
-    )
 
 
 def print_target_summary(doc, limit=8):
