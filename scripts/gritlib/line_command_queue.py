@@ -3,6 +3,7 @@
 from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.event_log import append_event
+from gritlib.line_state import line_action_state_text
 from gritlib.shell_utils import shquote
 
 
@@ -42,18 +43,7 @@ def line_command_queue_action_text(rec):
 
 
 def line_command_queue_state_text(rec):
-    state = str((rec or {}).get("operator_action_state") or "")
-    labels = {
-        "ready": "ready",
-        "needs-input": "needs input",
-        "already-empty": "empty",
-        "already-stopped": "stopped",
-        "already-running": "running",
-        "missing-target": "needs target",
-        "not-supported": "unavailable",
-        "disabled": "disabled",
-    }
-    return labels.get(state, state.replace("-", " ") or "-")
+    return line_action_state_text(rec)
 
 
 def line_command_queue_action_summary(records):

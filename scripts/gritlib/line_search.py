@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from gritlib.line_command_queue import line_command_queue_state_text
+from gritlib.line_state import line_action_state_text
 
 
 def line_searchable_text(rec):
@@ -60,7 +60,7 @@ def print_line_search_results(
     for rec in action_records:
         add(
             "action",
-            f"{rec.get('kind', '')}:{rec.get('id', '')} state={line_command_queue_state_text(rec)}",
+            f"{rec.get('kind', '')}:{rec.get('id', '')} state={line_action_state_text(rec)}",
             rec,
             str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or ""),
         )

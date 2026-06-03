@@ -124,7 +124,6 @@ from gritlib.line_build import (
     unset_line_global_build_option,
 )
 from gritlib.line_command_queue import (
-    line_command_queue_state_text,
     print_line_command_queue_records,
     print_line_command_result as line_command_queue_print_result,
     queue_line_command as line_command_queue_queue_command,
@@ -138,6 +137,7 @@ from gritlib.line_context import (
     set_line_collection_context,
 )
 from gritlib.line_events import print_line_events_view
+from gritlib.line_state import line_action_state_text
 from gritlib.line_files import (
     line_file_records_from_staged,
     parse_line_binary_args,
@@ -10118,7 +10118,7 @@ def run_line_repl(cfg):
                             f"     offline={'yes' if rec.get('offline_supported') else 'no'} "
                             f"requires_online={'yes' if rec.get('requires_target_online') else 'no'} "
                             f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'} "
-                            f"state={line_command_queue_state_text(rec)} "
+                            f"state={line_action_state_text(rec)} "
                             f"reason={rec.get('operator_action_reason', '') or '-'} "
                             f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}"
                         )
