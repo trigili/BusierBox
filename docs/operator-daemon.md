@@ -31,12 +31,13 @@ scripts/grit-console --stop
 `--stop` uses the same managed-process ownership checks as direct listeners and
 terminates daemon-owned child listeners through the recorded state. This keeps
 foreground/headless operation and daemon operation on the same status and event
-surface for future TUI and systemd-user integration.
+surface for line-console, API, and systemd-user integration.
 
 ## Workbench Actions
 
 The operator workbench exposes daemon lifecycle controls as normal workflow
-actions, with the same headless commands shown in status JSON and TUI output:
+actions, with the same headless commands available in status JSON, verbose line
+console views, and the event log:
 
 - `operator-daemon-start` starts a foreground daemon for selected services.
 - `operator-daemon-status` inspects daemon and managed listener state.
@@ -53,9 +54,11 @@ them from `workbench_actions`, group them through
 from the lower-level command string.
 Workbench action records also expose `operator_action_state`,
 `operator_action_reason`, `can_run_from_curses_enter`, and
-`curses_enter_action` so TUI/API clients can distinguish background-ready jobs,
-foreground-safe actions, confirmation-gated actions, and prompted placeholder
-commands without parsing command text.
+`curses_enter_action` so line-console and API clients can distinguish
+background-ready jobs, foreground-safe actions, confirmation-gated actions, and
+prompted placeholder commands without parsing command text. The curses-named
+fields are retained as compatibility metadata; the active interactive frontend
+is the line-oriented `grit[...]>` REPL.
 Status JSON also exposes the daemon subset as
 `operator_daemon_workflow_actions`. These records keep the workbench action id
 but add daemon-specific fields such as `workflow`,
@@ -74,7 +77,7 @@ clients render daemon lifecycle controls without special-casing the broader
 Individual listener controls are also exposed through `service_workflow_actions`.
 Each service has `inspect-status`, `start-service`, and `stop-service` records
 with the generated headless command, current listener state, confirmation
-requirements, and curses Enter readiness. API clients can group these through
+requirements, and interactive readiness. API clients can group these through
 `service_workflow_actions_by_service` or
 `service_workflow_actions_by_operator_action_state` to render service controls
 without inferring start/stop state from command text.
@@ -93,9 +96,10 @@ scripts/grit-console --run-workbench-action systemd-user-status \
   --workbench-action-dry-run
 ```
 
-Line-mode TUI action `11` lists the same actions and can preview or run
-foreground actions after explicit selection. Long-running/background-capable
-actions continue to use TUI action `12` or `--start-workbench-job`.
+The line-oriented console lists the same actions under `daemon` and module views
+and can preview or run foreground actions after explicit selection.
+Long-running/background-capable actions continue to use managed jobs through
+the REPL or `--start-workbench-job`.
 
 The line-oriented console keeps build and operator configuration visible through
 `options`, `show options`, and build/config actions. These list guided build

@@ -95,7 +95,7 @@ current probe route. Records cover inspecting the route, showing the target-side
 command, starting the listener, and stopping it. Each record includes the
 equivalent `headless_command`, generated `target_command`, direct or bridged
 route metadata, current service state, operator readiness fields, a stable
-`run_command`, and Enter-key hints for TUI clients.
+`run_command`, and Enter-key hints for line-console/API clients.
 
 Operators can run the same records headlessly with
 `--run-probe-workflow-action ACTION_OR_NUMBER`; dry runs use

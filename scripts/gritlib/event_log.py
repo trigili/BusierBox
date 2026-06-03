@@ -134,7 +134,7 @@ def print_event_log_summary(doc):
 
 
 class EventLog:
-    """Structured JSONL event log shared by status, TUI, and future frontends."""
+    """Structured JSONL event log shared by status, line console, and frontends."""
 
     def __init__(self, cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR, now_func=utc_now):
         self.cfg = cfg

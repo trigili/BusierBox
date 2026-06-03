@@ -119,7 +119,7 @@ Status JSON also exposes `bridge_profile_workflow_actions`, with
 `inspect-profile`, `start-profile`, `stop-profile`, and `delete-profile`
 records for each saved bridge profile. These records include generated
 headless commands, stable `run_command` / `dry_run_command` fields, route
-metadata, current profile state, confirmation requirements, and curses Enter
+metadata, current profile state, confirmation requirements, and interactive
 readiness. Operators can execute the same records with
 `--run-bridge-profile-workflow-action ACTION_OR_NUMBER`; previews use
 `--bridge-profile-workflow-dry-run`, and stop/delete actions can require

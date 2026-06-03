@@ -377,16 +377,18 @@ same records headlessly by passing an action id or visible number to
 `--confirm-command-queue-workflow-action`. The `queue-command` action is
 explicitly marked `queues_offline_work=true` and
 `target_phone_home_required=true`, while the list action is marked as runnable
-from curses Enter. Indexes such as
+from the interactive Enter/select path. Indexes such as
 `command_queue_workflow_actions_by_action_id`,
 `command_queue_workflow_actions_by_category`,
 `command_queue_workflow_actions_by_requires_input`,
 `command_queue_workflow_actions_by_requires_confirmation`,
 `command_queue_workflow_actions_by_queues_offline_work`, and
-`command_queue_workflow_actions_by_can_run_from_curses_enter` let the console,
-scripts, and future API clients render command-queue controls from the same
-contract. Line-mode queue and mailbox views use these records to show what can
-be run now, what needs input, and what will wait for a later phone-home window.
+`command_queue_workflow_actions_by_can_run_from_curses_enter` let the line
+console, scripts, and API clients render command-queue controls from the same
+contract. The `can_run_from_curses_enter` name is retained for compatibility,
+but the active frontend is the line-oriented `grit[...]>` REPL. Line-mode queue
+and mailbox views use these records to show what can be run now, what needs
+input, and what will wait for a later phone-home window.
 
 For file workflows, status JSON exposes `target_file_transfer_records`, a
 unified target-scoped collection spanning staged target fetches, received
@@ -415,9 +417,9 @@ staged fetches queue mailbox work for the next phone-home window. Indexes such a
 `staged_file_workflow_actions_by_request_name`,
 `staged_file_workflow_actions_by_target_id`,
 `staged_file_workflow_actions_by_queues_offline_work`, and
-`staged_file_workflow_actions_by_can_run_from_curses_enter` let console and API
-clients render staged-file controls from the same API contract used by headless
-operators.
+`staged_file_workflow_actions_by_can_run_from_curses_enter` let the line console
+and API clients render staged-file controls from the same API contract used by
+headless operators.
 
 The file-service workflow itself is exposed as `file_service_workflow_actions`.
 Those top-level records cover inspecting file workflow state, listing staged
@@ -472,15 +474,16 @@ fetch when a release bundle is available, queue a staged fetch command, show a
 target upload command, start the file service, start any bridge profile tied to
 that target, and queue a bridge-related reverse-access start command for the
 target mailbox.
-Each action carries a `headless_command` so the console can show the exact CLI path
-instead of hiding automation behind an interactive-only flow. Action records
-also expose `offline_supported`, `requires_target_online`,
+Each action carries a `headless_command` so verbose/detail views and the event
+log can expose the exact CLI path without making the default REPL output noisy.
+Action records also expose `offline_supported`, `requires_target_online`,
 `queues_offline_work`, `target_phone_home_required`, `operator_action_state`,
-`operator_action_reason`, and `can_run_from_curses_enter`, with matching status
-summary counts and lookup maps. Console and API clients can use those fields to show
-which target workflows can be prepared while a target is offline, which actions
-need prompted input, which bridge actions need the target online now, and which
-actions leave mailbox work waiting for the next phone-home window.
+`operator_action_reason`, and the compatibility field
+`can_run_from_curses_enter`, with matching status summary counts and lookup
+maps. Console and API clients can use those fields to show which target
+workflows can be prepared while a target is offline, which actions need prompted
+input, which bridge actions need the target online now, and which actions leave
+mailbox work waiting for the next phone-home window.
 
 Status JSON also exposes `operator_console_workflows`, a top-level catalog for
 frontends that want the console organized around workflows instead of raw

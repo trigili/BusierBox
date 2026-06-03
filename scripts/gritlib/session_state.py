@@ -193,7 +193,7 @@ def utc_now_from_mtime(mtime):
 
 
 class SessionManager:
-    """Structured session metadata owner for status, TUI, and future APIs."""
+    """Structured session metadata owner for status, line console, and APIs."""
 
     def __init__(self):
         self._lock = threading.RLock()

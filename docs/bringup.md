@@ -213,7 +213,7 @@ publishes `api_collections` metadata with `count`, `summary_key`,
 `run_file_records`, selected tool provider records, and selected Doom WAD
 records. It also publishes `api`, `api_resources`,
 `api_resources_by_name`, `api_resources_by_records_key`, and
-`api_resources_by_summary_key` so future TUI/web clients can discover each
+`api_resources_by_summary_key` so line-console/web clients can discover each
 record collection, its JSON path, summary counter, primary key, and index names
 without hard-coding bringup-specific paths. This mirrors the collection/index
 discovery pattern used by `scripts/grit-console --api-status` and the

@@ -193,8 +193,8 @@ during validation; reports summarize active capability/constraint checks,
 detected constraints, failed checks, and skipped operator-side probes from
 `reality-test-json.log`. The JSON report blocks for recovery and reality-test
 data include flat record lists, lookup maps by case/status/action/check type,
-and `api_collections` metadata so TUI or future web clients can render those
-tables without hard-coded scans. The top-level JSON report also publishes an
+and `api_collections` metadata so line-console or future web clients can render
+those tables without hard-coded scans. The top-level JSON report also publishes an
 `api` catalog plus `api_resources` records for cases, failure reasons, recent
 operator events, release self-test diagnostics, recovery evidence, and
 reality-test evidence. The compare tool classifies regressions, new failures,
