@@ -1290,6 +1290,104 @@ def target_registry_state_status(target_summary, selected_target=None, target_fi
     }
 
 
+def target_filter_record_indexes(records):
+    return {
+        "target_filter_records_by_id": {rec["id"]: rec for rec in records},
+        "target_filter_records_by_active": records_by_key(records, "active"),
+        "target_filter_records_by_target_id": records_by_key(records, "target_id"),
+        "target_filter_records_by_selected_target_found": records_by_key(
+            records, "selected_target_found"
+        ),
+        "target_filter_records_by_selected_target_label": records_by_key(
+            records, "selected_target_label"
+        ),
+        "target_filter_records_by_selected_target_identity_confidence": records_by_key(
+            records, "selected_target_identity_confidence"
+        ),
+        "target_filter_records_by_selected_target_connectivity_state": records_by_key(
+            records, "selected_target_connectivity_state"
+        ),
+        "target_filter_records_by_selected_target_offline_age_bucket": records_by_key(
+            records, "selected_target_offline_age_bucket"
+        ),
+        "target_filter_records_by_selected_target_latest_phone_home_status": records_by_key(
+            records, "selected_target_latest_phone_home_status"
+        ),
+        "target_filter_records_by_selected_target_latest_successful_phone_home_status": records_by_key(
+            records, "selected_target_latest_successful_phone_home_status"
+        ),
+        "target_filter_records_by_selected_target_last_failed_phone_home_status": records_by_key(
+            records, "selected_target_last_failed_phone_home_status"
+        ),
+        "target_filter_records_by_selected_target_poll_overdue": records_by_key(
+            records, "selected_target_poll_overdue"
+        ),
+        "target_filter_records_by_selected_target_mailbox_pending_work_count": records_by_key(
+            records, "selected_target_mailbox_pending_work_count"
+        ),
+        "target_filter_records_by_selected_target_notes_present": records_by_key(
+            records, "selected_target_notes_present"
+        ),
+        "target_filter_records_by_selected_target_latest_activity_service": records_by_key(
+            records, "selected_target_latest_activity_service"
+        ),
+        "target_filter_records_by_selected_target_latest_activity_operation": records_by_key(
+            records, "selected_target_latest_activity_operation"
+        ),
+        "target_filter_records_by_selected_target_latest_file_transfer_status": records_by_key(
+            records, "selected_target_latest_file_transfer_status"
+        ),
+        "target_filter_records_by_selected_target_latest_file_transfer_route_kind": records_by_key(
+            records, "selected_target_latest_file_transfer_route_kind"
+        ),
+        "target_filter_records_by_selected_target_latest_survey_result_status": records_by_key(
+            records, "selected_target_latest_survey_result_status"
+        ),
+        "target_filter_records_by_selected_target_latest_survey_result_route_kind": records_by_key(
+            records, "selected_target_latest_survey_result_route_kind"
+        ),
+        "target_filter_records_by_selected_target_latest_bridge_profile": records_by_key(
+            records, "selected_target_latest_bridge_profile"
+        ),
+        "target_filter_records_by_selected_target_latest_bridge_status": records_by_key(
+            records, "selected_target_latest_bridge_status"
+        ),
+        "target_filter_records_by_selected_target_latest_capability_report_kind": records_by_key(
+            records, "selected_target_latest_capability_report_kind"
+        ),
+        "target_filter_records_by_selected_target_latest_compatibility_report_kind": records_by_key(
+            records, "selected_target_latest_compatibility_report_kind"
+        ),
+        "target_filter_records_by_selected_target_latest_compatibility_label": records_by_key(
+            records, "selected_target_latest_compatibility_label"
+        ),
+        "target_filter_records_by_selected_target_latest_compatibility_release_name": records_by_key(
+            records, "selected_target_latest_compatibility_release_name"
+        ),
+        "target_filter_records_by_selected_target_latest_compatibility_payload_preset": records_by_key(
+            records, "selected_target_latest_compatibility_payload_preset"
+        ),
+        "target_filter_records_by_has_unfiltered_activity": records_by_key(
+            records, "has_unfiltered_activity"
+        ),
+        "target_filter_records_by_has_filtered_activity": records_by_key(
+            records, "has_filtered_activity"
+        ),
+        "target_filter_records_by_filter_reduced_activity": records_by_key(
+            records, "filter_reduced_activity"
+        ),
+        "target_filter_records_by_has_unfiltered_observed_activity": records_by_key(
+            records, "has_unfiltered_observed_activity"
+        ),
+        "target_filter_records_by_has_filtered_observed_activity": records_by_key(
+            records, "has_filtered_observed_activity"
+        ),
+        "target_filter_records_by_filter_reduced_observed_activity": records_by_key(
+            records, "filter_reduced_observed_activity"
+        ),
+    }
+
+
 def target_filter_evidence_lines(target_filter):
     if not isinstance(target_filter, dict) or not target_filter.get("active"):
         return []
