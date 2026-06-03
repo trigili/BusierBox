@@ -86,10 +86,7 @@ def print_line_search_results(
     for idx, (kind, label, rec, command) in enumerate(matches, 1):
         print(f"  {idx}: {kind} {label}")
         use_hint = ""
-        if command:
-            if len(command) > 140:
-                command = command[:137] + "..."
-            print(f"     command: {command}")
+        stored_command = command
         if kind == "target":
             use_hint = f"use target {quote(str(rec.get('target_id', '')))}"
         elif kind == "service":
@@ -105,12 +102,12 @@ def print_line_search_results(
             use_hint = f"use job {quote(str(rec.get('id', '')))}"
         if use_hint:
             print(f"     use: use {idx}")
-            print(f"     command: {use_hint}")
+            print(f"     use command: {use_hint}")
         search_records.append({
             "kind": kind,
             "label": label,
             "rec": rec,
-            "command": command,
+            "command": stored_command,
             "use_hint": use_hint,
         })
     return search_records

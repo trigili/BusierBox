@@ -1298,6 +1298,24 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("direct metadata section:", file=sys.stderr)
         print(direct_metadata_text or line_console_stdout, file=sys.stderr)
         return 1
+    job_search_start = line_console_stdout.find("Search results for line-console-job:")
+    job_search_end = line_console_stdout.find("grit[all]> use 1", job_search_start + 1)
+    job_search_text = line_console_stdout[job_search_start:job_search_end] if job_search_start != -1 and job_search_end != -1 else ""
+    target_search_start = line_console_stdout.find("Search results for Console Router:")
+    target_search_end = line_console_stdout.find("grit[Console Router]> mailbox", target_search_start + 1)
+    target_search_text = line_console_stdout[target_search_start:target_search_end] if target_search_start != -1 and target_search_end != -1 else ""
+    if (not job_search_text or
+            "use command: use job line-console-job" not in job_search_text or
+            "command: scripts/grit-console" in job_search_text or
+            not target_search_text or
+            "use command: use target line-console-target" not in target_search_text or
+            "command: scripts/grit-console" in target_search_text):
+        print("line-oriented search results exposed generated commands by default", file=sys.stderr)
+        print("job search:", file=sys.stderr)
+        print(job_search_text or line_console_stdout, file=sys.stderr)
+        print("target search:", file=sys.stderr)
+        print(target_search_text, file=sys.stderr)
+        return 1
     mailbox_start = line_console_stdout.find("grit[Console Router]> mailbox")
     mailbox_targets_start = line_console_stdout.find("grit[Console Router]/queue> mailbox targets", mailbox_start + 1)
     queue_view_start = line_console_stdout.find("grit[Console Router]/queue> queue", mailbox_targets_start + 1)
