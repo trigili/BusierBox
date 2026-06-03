@@ -239,6 +239,7 @@ from gritlib.workflow_actions import (
     operator_console_workflow_context,
     operator_console_workflow_indexes,
     operator_console_workflow_summary,
+    operator_daemon_workflow_commands,
     file_service_workflow_action_record,
     print_workbench_action_summary,
     probe_listener_action_states,
@@ -933,14 +934,13 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets
         dry_run_command = str(action.get("dry_run_command") or "")
         start_job_command = str(action.get("start_job_command") or "")
         command = str(action.get("command") or "")
-        workflow_run_command = (
-            "scripts/grit-console --config "
-            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-            + " --run-operator-daemon-workflow-action "
-            + shquote(action_id)
+        workflow_commands = operator_daemon_workflow_commands(
+            cfg.get("_config_path", DEFAULT_CONFIG),
+            action_id,
         )
-        workflow_dry_run_command = workflow_run_command + " --operator-daemon-workflow-dry-run"
-        workflow_confirm_command = workflow_run_command + " --confirm-operator-daemon-workflow-action"
+        workflow_run_command = workflow_commands["run"]
+        workflow_dry_run_command = workflow_commands["dry_run"]
+        workflow_confirm_command = workflow_commands["confirm"]
         headless = workflow_run_command or start_job_command or run_command or dry_run_command or command
         action_state = operator_daemon_action_state(action_id, action, daemon_attached)
         records.append(operator_daemon_workflow_action_record(

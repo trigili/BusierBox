@@ -330,6 +330,20 @@ def probe_workflow_run_command(base_command, bridge_arg, action_id, extra_args="
     return command
 
 
+def operator_daemon_workflow_commands(config_path, action_id):
+    run_command = (
+        "scripts/grit-console --config "
+        + shquote(str(config_path))
+        + " --run-operator-daemon-workflow-action "
+        + shquote(str(action_id))
+    )
+    return {
+        "run": run_command,
+        "dry_run": run_command + " --operator-daemon-workflow-dry-run",
+        "confirm": run_command + " --confirm-operator-daemon-workflow-action",
+    }
+
+
 def bridge_profile_action_context(profile):
     profile = profile or {}
     profile_name = str(profile.get("name") or "")
