@@ -73,6 +73,7 @@ from gritlib.file_transfers import (
     file_service_workflow_action_summary, target_file_transfer_record_indexes,
     target_file_transfer_records_from_sources, upload_record_indexes,
 )
+from gritlib.probe_results import append_probe_result, probe_results_path
 from gritlib.runtime import Service, ServiceManager, Session
 from gritlib.record_utils import (
     count_records_with_key, format_counts, int_value, latest_record_value,
@@ -9349,20 +9350,6 @@ fi
 printf '%s\\n' "probe upload failed: no usable wget, curl, or nc" >&2
 exit 1
 """
-
-
-def probe_results_path(cfg):
-    return Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR))) / "probe-results.json"
-
-
-def append_probe_result(cfg, result):
-    path = probe_results_path(cfg)
-    data = read_json_file(path, {"schema": 1, "results": []})
-    if not isinstance(data.get("results"), list):
-        data["results"] = []
-    data["results"].append(result)
-    atomic_write_json(path, data)
-    return path
 
 
 def handle_probe_http(cfg, conn, method, target, headers, body, addr, script_text, route=None):
