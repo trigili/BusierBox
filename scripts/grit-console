@@ -41,12 +41,13 @@ from gritlib.bridge_routes import (
     attach_target_route_fields,
     bridge_hop_indexes, bridge_hop_records_from_profiles, bridge_hops_from_args,
     bridge_profile_indexes, bridge_profile_record, bridge_profile_records,
-    bridge_profile_record_by_selector,
     bridge_profile_record_summary,
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_records,
     bridge_profile_workflow_action_status_summary, bridge_profiles_path, bridge_route_path,
+    line_route_record as bridge_routes_line_route_record,
+    print_line_routes as bridge_routes_print_line_routes,
+    select_line_route as bridge_routes_select_line_route,
     default_bridge_hops, load_bridge_profiles, parse_bridge_hop, ROUTE_HELP_LINES,
-    print_bridge_route_records,
     target_route_context,
     save_bridge_profile, delete_bridge_profile, apply_bridge_profile,
     print_bridge_profile, print_bridge_profiles, valid_profile_name,
@@ -6986,50 +6987,23 @@ def run_line_tui(cfg):
         stop_recorded_service(cfg, service, headless_command=headless)
 
     def line_route_record(name):
-        return bridge_profile_record_by_selector(bridge_profile_records(cfg), name)
+        return bridge_routes_line_route_record(bridge_profile_records(cfg), name)
 
     def print_line_routes(verbose=False):
-        records = bridge_profile_records(cfg)
-        search_records = print_bridge_route_records(
-            records,
+        return bridge_routes_print_line_routes(
+            cfg,
+            bridge_profile_records(cfg),
             verbose=verbose,
             command_builder=bridge_profile_headless_command,
             quote=shquote,
         )
-        cfg["_line_console_search_results"] = search_records
-        append_event(cfg, "workbench", "workbench_routes_listed", details={
-            "route_count": len(records),
-            "verbose": bool(verbose),
-        })
-        return records
 
     def select_line_route(selector, records=None):
-        text = str(selector or "").strip()
-        if not text:
-            raise ValueError("usage: route NAME|NUMBER")
-        records = records if records is not None else bridge_profile_records(cfg)
-        selected = bridge_profile_record_by_selector(records, text)
-        if text.isdigit() and not selected:
-            raise ValueError(f"route number out of range: {text}")
-        if not selected:
-            raise ValueError(f"route not found: {text}")
-        name = str(selected.get("name") or "")
-        cfg["_line_console_module"] = f"route/{name}"
-        cfg.pop("_line_console_action_kind", None)
-        cfg.pop("_line_console_action_id", None)
-        print(f"selected route {name}")
-        state = selected.get("current_state") or "stopped"
-        listen = f"{selected.get('listen_host','') or '0.0.0.0'}:{selected.get('listen_port','?')}"
-        dest = f"{selected.get('dest_host','?')}:{selected.get('dest_port','?')}"
-        active = "active" if selected.get("active") else "inactive"
-        print(f"  {name}  —  {state} ({active})  |  {listen} → {dest}")
-        print("  options / info / start / stop / back")
-        append_event(cfg, "workbench", "workbench_route_selected", details={
-            "name": name,
-            "route_path": selected.get("route_path", ""),
-            "active": bool(selected.get("active")),
-        })
-        return selected
+        return bridge_routes_select_line_route(
+            cfg,
+            selector,
+            records if records is not None else bridge_profile_records(cfg),
+        )
 
     def add_line_route(args):
         values = list(args or [])

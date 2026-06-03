@@ -306,6 +306,57 @@ def bridge_profile_record_by_selector(records, selector):
     return {}
 
 
+def line_route_record(records, selector):
+    return bridge_profile_record_by_selector(records, selector)
+
+
+def print_line_routes(
+    cfg, records, verbose=False, command_builder=None, quote=shquote
+):
+    records = list(records or [])
+    search_records = print_bridge_route_records(
+        records,
+        verbose=verbose,
+        command_builder=command_builder,
+        quote=quote,
+    )
+    cfg["_line_console_search_results"] = search_records
+    append_event(cfg, "workbench", "workbench_routes_listed", details={
+        "route_count": len(records),
+        "verbose": bool(verbose),
+    })
+    return records
+
+
+def select_line_route(cfg, selector, records):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("usage: route NAME|NUMBER")
+    records = list(records or [])
+    selected = bridge_profile_record_by_selector(records, text)
+    if text.isdigit() and not selected:
+        raise ValueError(f"route number out of range: {text}")
+    if not selected:
+        raise ValueError(f"route not found: {text}")
+    name = str(selected.get("name") or "")
+    cfg["_line_console_module"] = f"route/{name}"
+    cfg.pop("_line_console_action_kind", None)
+    cfg.pop("_line_console_action_id", None)
+    print(f"selected route {name}")
+    state = selected.get("current_state") or "stopped"
+    listen = f"{selected.get('listen_host','') or '0.0.0.0'}:{selected.get('listen_port','?')}"
+    dest = f"{selected.get('dest_host','?')}:{selected.get('dest_port','?')}"
+    active = "active" if selected.get("active") else "inactive"
+    print(f"  {name}  —  {state} ({active})  |  {listen} → {dest}")
+    print("  options / info / start / stop / back")
+    append_event(cfg, "workbench", "workbench_route_selected", details={
+        "name": name,
+        "route_path": selected.get("route_path", ""),
+        "active": bool(selected.get("active")),
+    })
+    return selected
+
+
 def bridge_hop_records_from_profiles(profiles):
     records = []
     for profile in profiles or []:
