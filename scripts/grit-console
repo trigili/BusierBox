@@ -12692,7 +12692,6 @@ def run_line_tui(cfg):
         print(f"  sha256={rec.get('sha256', '')}")
         print(f"  target_fetch_command={fetch_command}")
         fetch_options = print_staged_fetch_target_options(rec.get("request_name", ""), cfg)
-        print(f"headless_command: {headless}")
         started = False
         if start_file_service:
             start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
@@ -12799,7 +12798,6 @@ def run_line_tui(cfg):
             })
             print(f"queued {queued['id']}: {queued['command']}")
             print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        print(f"headless_command: {headless}")
         append_event(cfg, "workbench", "workbench_staged_fetch_command_shown", details={
             "headless_command": headless,
             "request_name": name,
@@ -12827,7 +12825,6 @@ def run_line_tui(cfg):
         )
         existed = unstage_file(cfg, name)
         print(f"unstaged {name}" if existed else f"not staged {name}")
-        print(f"headless_command: {headless}")
         append_event(cfg, "workbench", "workbench_file_unstaged", details={
             "headless_command": headless,
             "request_name": name,

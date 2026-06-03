@@ -917,6 +917,26 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented mailbox/queue view used verbose policy dump", file=sys.stderr)
         print(mailbox_text or line_console_stdout, file=sys.stderr)
         return 1
+    upload_start = line_console_stdout.find("File staged for target fetch:")
+    upload_end = line_console_stdout.find("grit[Console Router]> fetch --queue console-upload", upload_start + 1)
+    upload_text = line_console_stdout[upload_start:upload_end] if upload_start != -1 and upload_end != -1 else ""
+    fetch_start = line_console_stdout.find("Staged fetch command:")
+    fetch_end = line_console_stdout.find("grit[Console Router]> stop file-service", fetch_start + 1)
+    fetch_text = line_console_stdout[fetch_start:fetch_end] if fetch_start != -1 and fetch_end != -1 else ""
+    unstage_start = line_console_stdout.find("grit[Console Router]> unstage console-upload")
+    unstage_end = line_console_stdout.find("grit[Console Router]> stagers", unstage_start + 1)
+    unstage_text = line_console_stdout[unstage_start:unstage_end] if unstage_start != -1 and unstage_end != -1 else ""
+    if (not upload_text or "File staged for target fetch:" not in upload_text or "headless_command:" in upload_text or
+            not fetch_text or "Staged fetch command:" not in fetch_text or "headless_command:" in fetch_text or
+            not unstage_text or "unstaged console-upload" not in unstage_text or "not staged missing-upload" not in unstage_text or "headless_command:" in unstage_text):
+        print("line-oriented file transfer commands exposed noisy headless commands", file=sys.stderr)
+        print("upload section:", file=sys.stderr)
+        print(upload_text or line_console_stdout, file=sys.stderr)
+        print("fetch section:", file=sys.stderr)
+        print(fetch_text or line_console_stdout, file=sys.stderr)
+        print("unstage section:", file=sys.stderr)
+        print(unstage_text or line_console_stdout, file=sys.stderr)
+        return 1
     daemon_start = line_console_stdout.find("grit[all]> daemon")
     daemon_verbose_start = line_console_stdout.find("grit[all]> daemon -v", daemon_start + 1)
     daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""
