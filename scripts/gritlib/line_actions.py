@@ -1,6 +1,7 @@
 """Line-console action/module rendering helpers."""
 
 from gritlib.console_display import console_table
+from gritlib.event_log import append_event
 
 
 def normalize_line_action_kind(kind):
@@ -183,3 +184,32 @@ def print_line_module_category_records(actions):
         "category_counts": category_counts,
         "workflow_counts": workflow_counts,
     }
+
+
+def print_line_module_categories(cfg, actions):
+    event_details = print_line_module_category_records(actions)
+    cfg["_line_console_search_results"] = []
+    append_event(
+        cfg,
+        "workbench",
+        "workbench_console_module_categories_listed",
+        details=event_details,
+    )
+    return event_details
+
+
+def print_line_actions(cfg, actions, filter_text="", kind_filter="", quote=None):
+    search_records, event_details = print_line_action_records(
+        actions,
+        filter_text=filter_text,
+        kind_filter=kind_filter,
+        quote=quote,
+    )
+    cfg["_line_console_search_results"] = search_records
+    append_event(
+        cfg,
+        "workbench",
+        "workbench_console_modules_listed",
+        details=event_details,
+    )
+    return search_records, event_details

@@ -112,7 +112,8 @@ from gritlib.file_transfers import (
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.line_actions import (
     line_action_records_from_snapshot,
-    print_line_action_records, print_line_module_category_records,
+    print_line_actions as line_actions_print_line_actions,
+    print_line_module_categories as line_actions_print_line_module_categories,
     select_line_action_record,
     split_line_run_args,
 )
@@ -7439,19 +7440,16 @@ def run_line_tui(cfg):
         raise ValueError(f"search result {text} is not directly selectable")
 
     def print_line_module_categories():
-        event_details = print_line_module_category_records(line_action_records())
-        cfg["_line_console_search_results"] = []
-        append_event(cfg, "workbench", "workbench_console_module_categories_listed", details=event_details)
+        return line_actions_print_line_module_categories(cfg, line_action_records())
 
     def print_line_actions(filter_text="", kind_filter=""):
-        search_records, event_details = print_line_action_records(
+        return line_actions_print_line_actions(
+            cfg,
             line_action_records(),
             filter_text=filter_text,
             kind_filter=kind_filter,
             quote=shquote,
         )
-        cfg["_line_console_search_results"] = search_records
-        append_event(cfg, "workbench", "workbench_console_modules_listed", details=event_details)
 
     def select_line_action(selector):
         text = str(selector or "").strip()
