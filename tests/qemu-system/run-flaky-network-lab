@@ -564,14 +564,14 @@ phase_operator_commands = {
         "scripts/grit-console --daemon --daemon-service command-queue --daemon-service file-service --daemon-service probe",
         "scripts/grit-console --target-id target-alpha --queue-command 'grit survey --json'",
         "scripts/grit-console --target-id target-bravo --queue-command 'grit survey --json'",
-        "scripts/grit-console --line-tui",
+        "scripts/grit-console",
         "scripts/grit-console --json-status > offline-status.json",
     ],
     "offline-workflow-drain": [
         "scripts/grit-console --target-id target-workflow --run-target-workflow-action queue-probe",
         "scripts/grit-console --target-id target-workflow --run-target-workflow-action stage-file-fetch --target-workflow-local-file ./payload.bin --target-workflow-request-name payload.bin",
         "scripts/grit-console --target-id target-workflow --json-status > offline-workflow-drain-status.json",
-        "scripts/grit-console --line-tui --target-id target-workflow",
+        "scripts/grit-console --target-id target-workflow",
     ],
     "systemd-user-service": [
         "scripts/grit-console --systemd-user-action print --systemd-user-dry-run --daemon-service command-queue --daemon-service file-service --daemon-service probe",

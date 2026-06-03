@@ -1361,6 +1361,10 @@ def main(argv=None):
         return 1
     forbidden = ("--artifact", "--send", "--token", "send_file", "stager")
     combined = help_all_out.stdout + help_all_out.stderr
+    if "--no-console" not in combined or "--no-tui" in combined:
+        print("grit-console help did not expose --no-console while hiding legacy --no-tui", file=sys.stderr)
+        print(combined, file=sys.stderr)
+        return 1
     for word in forbidden:
         if word in combined:
             print(f"old server protocol surfaced in help: {word}", file=sys.stderr)
@@ -1380,7 +1384,7 @@ def main(argv=None):
         print("grit-console help missing probe mode", file=sys.stderr)
         return 1
     for word in ("--serve-file", "--serve-dir", "--stage-release-artifact", "--release-dir", "--run-release-artifact-workflow-action", "--list-staged", "--status", "--stop", "--stop-service", "--view-path", "--json-status", "--api-status", "--event-limit",
-                 "--help-console",
+                 "--help-console", "--no-console",
                  "--queue-command", "--list-command-queue", "--clear-command-queue", "--copy-target-command", "--command-copy-file",
                  "--record-command-result", "--result-json", "--start-workbench-job", "--cancel-workbench-job",
                  "--run-service-workflow-action", "--service-workflow-dry-run", "--confirm-service-workflow-action",
@@ -1393,6 +1397,18 @@ def main(argv=None):
                  "--build-config", "--list-build-config", "--set-build-config"):
         if word not in combined:
             print(f"grit-console help missing operator workbench flag: {word}", file=sys.stderr)
+            return 1
+    with tempfile.TemporaryDirectory() as hidden_flag_tmp:
+        hidden_flag_cfg = Path(hidden_flag_tmp) / "server-config-hidden-no-tui.json"
+        hidden_flag_cfg.write_text(json.dumps({
+            "operator_session_dir": str(Path(hidden_flag_tmp) / "operator-session"),
+            "session_root": str(Path(hidden_flag_tmp) / "sessions"),
+        }), encoding="utf-8")
+        hidden_no_tui = run("scripts/grit-console", "--config", str(hidden_flag_cfg), "--no-tui", "--status")
+        if hidden_no_tui.returncode != 0:
+            print("hidden --no-tui compatibility alias no longer parses", file=sys.stderr)
+            print(hidden_no_tui.stdout, file=sys.stderr)
+            print(hidden_no_tui.stderr, file=sys.stderr)
             return 1
 
     # Paramiko key comparison must use get_name/get_base64, not object equality

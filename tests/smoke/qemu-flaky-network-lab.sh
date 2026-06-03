@@ -259,7 +259,7 @@ assert "systemd-user-service" in runbooks["phases_without_target_commands"]
 assert "offline-workflow-drain" in runbooks["phases_with_both_operator_and_target_commands"]
 assert "bridge-interruption" in runbooks["phases_with_both_operator_and_target_commands"]
 assert any("--queue-command 'grit survey --json'" in item for item in phases_by_name["offline-queue"]["operator_commands"])
-assert any("--line-tui" in item for item in phases_by_name["offline-queue"]["operator_commands"])
+assert any(item == "scripts/grit-console" for item in phases_by_name["offline-queue"]["operator_commands"])
 assert any("systemd-user-dry-run" in item for item in phases_by_name["systemd-user-service"]["operator_commands"])
 assert any("--transport probe" in item for item in phases_by_name["survey-window"]["operator_commands"])
 assert any("--file-service" in item for item in phases_by_name["partial-transfer"]["operator_commands"])
@@ -267,7 +267,8 @@ assert any("--save-bridge-profile flaky-bad-bridge" in item for item in phases_b
 assert any("command-queue once --target-id target-workflow" in item for item in phases_by_name["offline-workflow-drain"]["target_commands"])
 assert any("grit upload /tmp/evidence.txt" in item for item in phases_by_name["partial-transfer"]["target_commands"])
 assert any("systemd-user-dry-run" in item for item in plan["operator_commands"])
-assert any("line-tui" in item for item in plan["operator_commands"])
+assert any(item == "scripts/grit-console --target-id target-workflow" for item in plan["operator_commands"])
+assert not any("--line-tui" in item for item in plan["operator_commands"])
 assert any("grit command-queue result --target-id target-alpha" in item for item in plan["target_commands"])
 PY
 
