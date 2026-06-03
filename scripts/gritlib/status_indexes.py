@@ -3,10 +3,16 @@
 import os
 from pathlib import Path
 
+from gritlib.command_copy import command_copy_path
+from gritlib.command_queue import command_queue_path
+from gritlib.event_log import EventLog
 from gritlib.record_utils import (
     int_value, record_count_by_key, records_by_bool, records_by_composite,
     records_by_key,
 )
+from gritlib.session_state import state_file_path
+from gritlib.staged_files import staged_file_path
+from gritlib.workbench_jobs import workbench_jobs_path
 
 
 def operator_state_indexes(records):
@@ -62,6 +68,55 @@ def operator_state_record(name, kind, path, exists, valid, record_count=0, error
     if extra:
         rec.update(extra)
     return rec
+
+
+def operator_state_records(cfg, server_state, staged_files_state, command_queue_state,
+                           command_copy, workbench_jobs_state, event_log_state,
+                           session_root_state):
+    return [
+        operator_state_record(
+            "server_state", "json-state", server_state.get("path", state_file_path(cfg)),
+            server_state.get("exists", False), server_state.get("valid", False),
+            server_state.get("service_count", 0), server_state.get("error", ""),
+            {"schema": server_state.get("schema"), "session_count": server_state.get("session_count", 0)},
+        ),
+        operator_state_record(
+            "staged_files", "json-state", staged_files_state.get("path", staged_file_path(cfg)),
+            staged_files_state.get("exists", False), staged_files_state.get("valid", False),
+            staged_files_state.get("staged_count", 0), staged_files_state.get("error", ""),
+            {"schema": staged_files_state.get("schema")},
+        ),
+        operator_state_record(
+            "command_queue", "json-state", command_queue_state.get("path", command_queue_path(cfg)),
+            command_queue_state.get("exists", False), command_queue_state.get("valid", False),
+            command_queue_state.get("command_count", 0), command_queue_state.get("error", ""),
+            {"schema": command_queue_state.get("schema")},
+        ),
+        operator_state_record(
+            "command_copy", "text-state", command_copy.get("path", command_copy_path(cfg)),
+            command_copy.get("exists", False), command_copy.get("readable", False),
+            1 if command_copy.get("has_command") else 0, command_copy.get("error", ""),
+            {"readable": command_copy.get("readable", False), "has_command": command_copy.get("has_command", False)},
+        ),
+        operator_state_record(
+            "workbench_jobs", "json-state", workbench_jobs_state.get("path", workbench_jobs_path(cfg)),
+            workbench_jobs_state.get("exists", False), workbench_jobs_state.get("valid", False),
+            workbench_jobs_state.get("job_count", 0), workbench_jobs_state.get("error", ""),
+            {"schema": workbench_jobs_state.get("schema")},
+        ),
+        operator_state_record(
+            "event_log", "jsonl-log", event_log_state.get("path", EventLog(cfg).path),
+            event_log_state.get("exists", False), event_log_state.get("valid", False),
+            event_log_state.get("event_count", 0), event_log_state.get("error", ""),
+            {"invalid_count": event_log_state.get("invalid_count", 0), "tail_count": event_log_state.get("tail_count", 0)},
+        ),
+        operator_state_record(
+            "session_root", "directory", session_root_state.get("path", cfg.get("session_root", "local/sessions")),
+            session_root_state.get("exists", False), session_root_state.get("exists", False),
+            session_root_state.get("recent_session_count", 0), session_root_state.get("error", ""),
+            {"recent_session_ids": session_root_state.get("recent_session_ids") or []},
+        ),
+    ]
 
 
 def operator_state_health_counts(records):
