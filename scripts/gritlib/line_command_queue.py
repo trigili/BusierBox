@@ -21,7 +21,7 @@ def line_command_queue_result_text(rec):
     return status or "-"
 
 
-def print_line_command_queue_records(queue_summary, mailbox_records, command_queue_actions, include_queue_summary=True):
+def print_line_command_queue_records(queue_summary, mailbox_records, command_queue_actions, include_queue_summary=True, detailed=False):
     queue_summary = queue_summary or {}
     mailbox_records = list(mailbox_records or [])
     command_queue_actions = list(command_queue_actions or [])
@@ -54,6 +54,21 @@ def print_line_command_queue_records(queue_summary, mailbox_records, command_que
             print("  policy: valid")
         else:
             print("  policy: not configured")
+        if detailed:
+            print(
+                "  policy details: "
+                f"execution={queue_summary.get('execution_mode', '-') or '-'} "
+                f"delivery={'yes' if queue_summary.get('delivery_supported') else 'no'} "
+                f"result_upload={'yes' if queue_summary.get('result_upload_supported') else 'no'}"
+            )
+            limits = queue_summary.get("command_limits") if isinstance(queue_summary.get("command_limits"), dict) else {}
+            if limits:
+                print(
+                    "  limits: "
+                    f"timeout={limits.get('timeout_sec', '-') or '-'} "
+                    f"max_output={limits.get('max_output_bytes', '-') or '-'} "
+                    f"expire={limits.get('expire_sec', '-') or '-'}"
+                )
         if command_records:
             command_cols = [
                 ("Command", lambda r: str(r.get("id") or "-")[:20]),

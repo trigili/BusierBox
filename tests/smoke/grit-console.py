@@ -739,6 +739,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "probe --queue\n"
                 "download --queue /etc/config/network\n"
                 "show mailbox\n"
+                "show mailbox -v\n"
                 f"upload --start {line_console_upload} console-upload\n"
                 "fetch --queue console-upload\n"
                 "stop file-service\n"
@@ -982,6 +983,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     if "search result number out of range" in mailbox_text:
         print("line-oriented mailbox/queue view consumed stale numbered results", file=sys.stderr)
         print(mailbox_text, file=sys.stderr)
+        return 1
+    verbose_policy_markers = ("allowed_commands=", "delivery_policy_counts:", "mode status:")
+    if any(marker in line_console_stdout for marker in verbose_policy_markers):
+        print("line-oriented console still exposed verbose command queue policy dump", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
         return 1
     upload_start = line_console_stdout.find("File staged for target fetch:")
     upload_end = line_console_stdout.find("grit[Console Router]> fetch --queue console-upload", upload_start + 1)

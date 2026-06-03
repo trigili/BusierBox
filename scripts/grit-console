@@ -8250,20 +8250,12 @@ def run_line_tui(cfg):
         mailbox_records = snap.get("target_mailbox_records") or []
         queue_summary = command_queue_summary(cfg)
 
-        if detailed:
-            print_command_queue(cfg, json_output=False)
-            print_line_command_queue_records(
-                queue_summary,
-                mailbox_records,
-                command_queue_actions,
-                include_queue_summary=False,
-            )
-        else:
-            print_line_command_queue_records(
-                queue_summary,
-                mailbox_records,
-                command_queue_actions,
-            )
+        print_line_command_queue_records(
+            queue_summary,
+            mailbox_records,
+            command_queue_actions,
+            detailed=detailed,
+        )
 
         append_event(cfg, "workbench", "workbench_command_queue_inspected", details={
             "command_count": len((command_queue_summary(cfg).get("commands") or [])),
