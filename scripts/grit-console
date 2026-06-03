@@ -107,6 +107,8 @@ from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.line_actions import (
     line_action_records_from_snapshot,
     print_line_action_records, print_line_module_category_records,
+    select_line_action_record,
+    split_line_run_args,
 )
 from gritlib.line_command_queue import print_line_command_queue_records
 from gritlib.line_events import print_line_events_view
@@ -8375,25 +8377,7 @@ def run_line_tui(cfg):
         text = str(selector or "").strip()
         if not text:
             raise ValueError("usage: use action ACTION")
-        actions = line_action_records()
-        selected = {}
-        if text.isdigit():
-            idx = int(text) - 1
-            if idx < 0 or idx >= len(actions):
-                raise ValueError(f"action number out of range: {text}")
-            selected = actions[idx]
-        else:
-            lower = text.lower()
-            for rec in actions:
-                rec_id = str(rec.get("id") or "")
-                action_id = str(rec.get("action_id") or "")
-                label = str(rec.get("label") or "")
-                qualified = f"{rec.get('kind', '')}:{rec_id}"
-                if text in (rec_id, action_id, qualified) or lower == label.lower():
-                    selected = rec
-                    break
-        if not selected:
-            raise ValueError(f"action not found: {text}")
+        selected = select_line_action_record(line_action_records(), text)
         action_id = str(selected.get("id") or "")
         cfg["_line_console_action_kind"] = str(selected.get("kind") or "")
         cfg["_line_console_action_id"] = action_id
@@ -8420,16 +8404,6 @@ def run_line_tui(cfg):
             if str(rec.get("kind") or "") == kind and str(rec.get("id") or "") == action_id:
                 return rec
         return {}
-
-    def split_line_run_args(values):
-        flags = []
-        selector_parts = []
-        for item in list(values or []):
-            if item in {"--dry-run", "--confirm", "confirm", "yes"}:
-                flags.append(item)
-            else:
-                selector_parts.append(item)
-        return " ".join(selector_parts).strip(), flags
 
     def run_line_module_or_service(values=None, dry_run_default=False):
         selector, flags = split_line_run_args(values or [])

@@ -60,6 +60,38 @@ def filtered_line_action_records(actions, filter_text="", kind_filter=""):
     return records, kind_text
 
 
+def select_line_action_record(actions, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("usage: use action ACTION")
+    actions = list(actions or [])
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(actions):
+            raise ValueError(f"action number out of range: {text}")
+        return actions[idx]
+    lower = text.lower()
+    for rec in actions:
+        rec_id = str(rec.get("id") or "")
+        action_id = str(rec.get("action_id") or "")
+        label = str(rec.get("label") or "")
+        qualified = f"{rec.get('kind', '')}:{rec_id}"
+        if text in (rec_id, action_id, qualified) or lower == label.lower():
+            return rec
+    raise ValueError(f"action not found: {text}")
+
+
+def split_line_run_args(values):
+    flags = []
+    selector_parts = []
+    for item in list(values or []):
+        if item in {"--dry-run", "--confirm", "confirm", "yes"}:
+            flags.append(item)
+        else:
+            selector_parts.append(item)
+    return " ".join(selector_parts).strip(), flags
+
+
 def print_line_action_records(actions, filter_text="", kind_filter="", quote=None):
     actions, kind_text = filtered_line_action_records(actions, filter_text=filter_text, kind_filter=kind_filter)
     quote = quote or (lambda text: str(text))
