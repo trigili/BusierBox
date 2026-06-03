@@ -7,6 +7,7 @@ import urllib.parse
 from pathlib import Path
 
 from gritlib.record_utils import record_count_by_key, records_by_bool, records_by_key
+from gritlib.session_state import read_json_file
 from gritlib.target_records import attach_target_identity, target_identity_from_headers
 
 
@@ -15,6 +16,60 @@ def safe_upload_name(source_path):
     raw = urllib.parse.unquote(parsed.path or source_path or "upload.bin")
     name = Path(raw).name
     return name or "upload.bin"
+
+
+def recent_upload_metadata(cfg, limit=8):
+    root = Path(str(cfg.get("session_root", "local/sessions")))
+    if not root.is_dir():
+        return []
+    metas = sorted(root.glob("*/files/*.metadata.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    out = []
+    for path in metas[:limit]:
+        data = read_json_file(path, {})
+        if isinstance(data, dict):
+            stored_path = data.get("stored_path", "")
+            data["metadata_path"] = str(path)
+            data["_metadata_path"] = str(path)
+            data["metadata_exists"] = path.is_file()
+            data["session_path"] = str(path.parent.parent)
+            data["session_id"] = path.parent.parent.name
+            event_log = path.parent.parent / "events.jsonl"
+            data["event_log"] = str(event_log) if event_log.is_file() else ""
+            data["event_log_exists"] = event_log.is_file()
+            data["stored_exists"] = Path(str(stored_path)).is_file() if stored_path else False
+            data["sha256_prefix"] = str(data.get("sha256", ""))[:12]
+            data["status"] = data.get("transfer_status", data.get("status", ""))
+            data["upload_kind"] = str(data.get("upload_kind") or "file")
+            out.append(data)
+    return out
+
+
+def recent_fetch_metadata(cfg, limit=8):
+    root = Path(str(cfg.get("session_root", "local/sessions")))
+    if not root.is_dir():
+        return []
+    rows = []
+    for session_json in root.glob("*/session.json"):
+        session_doc = read_json_file(session_json, {})
+        if not isinstance(session_doc, dict):
+            continue
+        session_path = session_json.parent
+        session_id_value = session_doc.get("session_id") or session_path.name
+        for item in session_doc.get("fetches") or []:
+            if not isinstance(item, dict):
+                continue
+            rec = dict(item)
+            rec["session_id"] = session_id_value
+            rec["session_path"] = str(session_path)
+            rec["metadata_path"] = str(session_json)
+            rec["metadata_exists"] = session_json.is_file()
+            rec["event_log"] = str(session_path / "events.jsonl")
+            rec["event_log_exists"] = (session_path / "events.jsonl").is_file()
+            rec["sha256_prefix"] = str(rec.get("sha256", ""))[:12]
+            rec["source_exists"] = Path(str(rec.get("source_path", ""))).is_file() if rec.get("source_path") else False
+            rows.append(rec)
+    rows.sort(key=lambda item: item.get("timestamp") or item.get("updated_at") or "", reverse=True)
+    return rows[:limit]
 
 
 def read_http_upload(conn, files_dir, addr):
