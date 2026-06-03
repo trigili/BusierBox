@@ -1555,6 +1555,100 @@ def target_filter_record_from_target(target_filter_id="", selected_target=None):
     }
 
 
+def apply_target_filter_activity_counts(record, target_filter_id="", unfiltered=None, filtered=None):
+    record = record if isinstance(record, dict) else {}
+    unfiltered = unfiltered if isinstance(unfiltered, dict) else {}
+    filtered = filtered if isinstance(filtered, dict) else {}
+    record.update({
+        "unfiltered_target_count": unfiltered.get("targets", 0),
+        "unfiltered_upload_count": unfiltered.get("uploads", 0),
+        "unfiltered_fetch_count": unfiltered.get("fetches", 0),
+        "unfiltered_staged_count": unfiltered.get("staged", 0),
+        "unfiltered_session_count": unfiltered.get("sessions", 0),
+        "unfiltered_event_tail_count": unfiltered.get("event_tail", 0),
+        "unfiltered_command_queue_command_count": unfiltered.get(
+            "command_queue_commands", 0
+        ),
+        "unfiltered_target_command_record_count": unfiltered.get(
+            "target_command_records", 0
+        ),
+        "unfiltered_target_phone_home_record_count": unfiltered.get(
+            "target_phone_home_records", 0
+        ),
+        "filtered_target_count": filtered.get("targets", 0),
+        "filtered_upload_count": filtered.get("uploads", 0),
+        "filtered_fetch_count": filtered.get("fetches", 0),
+        "filtered_staged_count": filtered.get("staged", 0),
+        "filtered_session_count": filtered.get("sessions", 0),
+        "filtered_event_tail_count": filtered.get("event_tail", 0),
+        "filtered_command_queue_command_count": filtered.get(
+            "command_queue_commands", 0
+        ),
+        "filtered_target_command_record_count": filtered.get(
+            "target_command_records", 0
+        ),
+        "filtered_target_phone_home_record_count": filtered.get(
+            "target_phone_home_records", 0
+        ),
+    })
+    record["unfiltered_activity_count"] = (
+        record["unfiltered_upload_count"] +
+        record["unfiltered_fetch_count"] +
+        record["unfiltered_staged_count"] +
+        record["unfiltered_session_count"] +
+        record["unfiltered_event_tail_count"] +
+        record["unfiltered_command_queue_command_count"] +
+        record["unfiltered_target_command_record_count"] +
+        record["unfiltered_target_phone_home_record_count"]
+    )
+    record["filtered_activity_count"] = (
+        record["filtered_upload_count"] +
+        record["filtered_fetch_count"] +
+        record["filtered_staged_count"] +
+        record["filtered_session_count"] +
+        record["filtered_event_tail_count"] +
+        record["filtered_command_queue_command_count"] +
+        record["filtered_target_command_record_count"] +
+        record["filtered_target_phone_home_record_count"]
+    )
+    record["unfiltered_observed_activity_count"] = (
+        record["unfiltered_upload_count"] +
+        record["unfiltered_fetch_count"] +
+        record["unfiltered_staged_count"] +
+        record["unfiltered_session_count"] +
+        record["unfiltered_event_tail_count"] +
+        record["unfiltered_command_queue_command_count"] +
+        record["unfiltered_target_phone_home_record_count"]
+    )
+    record["filtered_observed_activity_count"] = (
+        record["filtered_upload_count"] +
+        record["filtered_fetch_count"] +
+        record["filtered_staged_count"] +
+        record["filtered_session_count"] +
+        record["filtered_event_tail_count"] +
+        record["filtered_command_queue_command_count"] +
+        record["filtered_target_phone_home_record_count"]
+    )
+    record["has_unfiltered_activity"] = record["unfiltered_activity_count"] > 0
+    record["has_filtered_activity"] = record["filtered_activity_count"] > 0
+    record["filter_reduced_activity"] = (
+        bool(target_filter_id) and
+        record["filtered_activity_count"] < record["unfiltered_activity_count"]
+    )
+    record["has_unfiltered_observed_activity"] = (
+        record["unfiltered_observed_activity_count"] > 0
+    )
+    record["has_filtered_observed_activity"] = (
+        record["filtered_observed_activity_count"] > 0
+    )
+    record["filter_reduced_observed_activity"] = (
+        bool(target_filter_id) and
+        record["filtered_observed_activity_count"] <
+        record["unfiltered_observed_activity_count"]
+    )
+    return record
+
+
 def target_attribution_record_indexes(records):
     return {
         "target_attribution_records_by_scope": {

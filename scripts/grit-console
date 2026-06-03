@@ -194,11 +194,12 @@ from gritlib.target_commands import (
     target_command_route_text,
 )
 from gritlib.target_records import (
-    attach_target_identity, configured_target_filter, details_with_target,
-    event_for_target, load_targets, records_for_target, record_target_activity,
-    scoped_target_cfg, selected_target_context, set_target_label,
-    set_workbench_target_filter, target_attribution_record_indexes,
-    target_attribution_status, target_context_fields,
+    apply_target_filter_activity_counts, attach_target_identity,
+    configured_target_filter, details_with_target, event_for_target,
+    load_targets, records_for_target, record_target_activity, scoped_target_cfg,
+    selected_target_context, set_target_label, set_workbench_target_filter,
+    target_attribution_record_indexes, target_attribution_status,
+    target_context_fields,
     target_filter_evidence_lines, target_filter_record_from_target,
     target_filter_record_indexes,
     target_filter_summary_text,
@@ -4338,77 +4339,23 @@ def status_document(cfg):
      target_commands_by_session_policy_valid,
      target_commands_by_retry_backoff,
      target_commands_by_retry_interval_sec,
-     target_commands_by_retry_post_disconnect_count) = target_command_record_indexes(target_command_records)
+    target_commands_by_retry_post_disconnect_count) = target_command_record_indexes(target_command_records)
     target_command_summary = target_command_record_summary(target_command_records)
-    target_filter_record.update({
-        "unfiltered_target_count": unfiltered_counts.get("targets", 0),
-        "unfiltered_upload_count": unfiltered_counts.get("uploads", 0),
-        "unfiltered_fetch_count": unfiltered_counts.get("fetches", 0),
-        "unfiltered_staged_count": unfiltered_counts.get("staged", 0),
-        "unfiltered_session_count": unfiltered_counts.get("sessions", 0),
-        "unfiltered_event_tail_count": unfiltered_counts.get("event_tail", 0),
-        "unfiltered_command_queue_command_count": unfiltered_counts.get("command_queue_commands", 0),
-        "unfiltered_target_command_record_count": unfiltered_counts.get("target_command_records", 0),
-        "unfiltered_target_phone_home_record_count": unfiltered_counts.get("target_phone_home_records", 0),
-        "filtered_target_count": len(targets),
-        "filtered_upload_count": len(uploads),
-        "filtered_fetch_count": len(fetches),
-        "filtered_staged_count": len(staged_records),
-        "filtered_session_count": len(sessions),
-        "filtered_event_tail_count": len(events),
-        "filtered_command_queue_command_count": len(command_queue.get("commands") or []),
-        "filtered_target_command_record_count": target_command_summary.get("total_count", 0),
-        "filtered_target_phone_home_record_count": len(target_phone_home_records),
-    })
-    target_filter_record["unfiltered_activity_count"] = (
-        target_filter_record["unfiltered_upload_count"] +
-        target_filter_record["unfiltered_fetch_count"] +
-        target_filter_record["unfiltered_staged_count"] +
-        target_filter_record["unfiltered_session_count"] +
-        target_filter_record["unfiltered_event_tail_count"] +
-        target_filter_record["unfiltered_command_queue_command_count"] +
-        target_filter_record["unfiltered_target_command_record_count"] +
-        target_filter_record["unfiltered_target_phone_home_record_count"]
-    )
-    target_filter_record["filtered_activity_count"] = (
-        target_filter_record["filtered_upload_count"] +
-        target_filter_record["filtered_fetch_count"] +
-        target_filter_record["filtered_staged_count"] +
-        target_filter_record["filtered_session_count"] +
-        target_filter_record["filtered_event_tail_count"] +
-        target_filter_record["filtered_command_queue_command_count"] +
-        target_filter_record["filtered_target_command_record_count"] +
-        target_filter_record["filtered_target_phone_home_record_count"]
-    )
-    target_filter_record["unfiltered_observed_activity_count"] = (
-        target_filter_record["unfiltered_upload_count"] +
-        target_filter_record["unfiltered_fetch_count"] +
-        target_filter_record["unfiltered_staged_count"] +
-        target_filter_record["unfiltered_session_count"] +
-        target_filter_record["unfiltered_event_tail_count"] +
-        target_filter_record["unfiltered_command_queue_command_count"] +
-        target_filter_record["unfiltered_target_phone_home_record_count"]
-    )
-    target_filter_record["filtered_observed_activity_count"] = (
-        target_filter_record["filtered_upload_count"] +
-        target_filter_record["filtered_fetch_count"] +
-        target_filter_record["filtered_staged_count"] +
-        target_filter_record["filtered_session_count"] +
-        target_filter_record["filtered_event_tail_count"] +
-        target_filter_record["filtered_command_queue_command_count"] +
-        target_filter_record["filtered_target_phone_home_record_count"]
-    )
-    target_filter_record["has_unfiltered_activity"] = target_filter_record["unfiltered_activity_count"] > 0
-    target_filter_record["has_filtered_activity"] = target_filter_record["filtered_activity_count"] > 0
-    target_filter_record["filter_reduced_activity"] = (
-        bool(target_filter_id) and
-        target_filter_record["filtered_activity_count"] < target_filter_record["unfiltered_activity_count"]
-    )
-    target_filter_record["has_unfiltered_observed_activity"] = target_filter_record["unfiltered_observed_activity_count"] > 0
-    target_filter_record["has_filtered_observed_activity"] = target_filter_record["filtered_observed_activity_count"] > 0
-    target_filter_record["filter_reduced_observed_activity"] = (
-        bool(target_filter_id) and
-        target_filter_record["filtered_observed_activity_count"] < target_filter_record["unfiltered_observed_activity_count"]
+    apply_target_filter_activity_counts(
+        target_filter_record,
+        target_filter_id,
+        unfiltered_counts,
+        {
+            "targets": len(targets),
+            "uploads": len(uploads),
+            "fetches": len(fetches),
+            "staged": len(staged_records),
+            "sessions": len(sessions),
+            "event_tail": len(events),
+            "command_queue_commands": len(command_queue.get("commands") or []),
+            "target_command_records": target_command_summary.get("total_count", 0),
+            "target_phone_home_records": len(target_phone_home_records),
+        },
     )
     target_filter_index_maps = target_filter_record_indexes(target_filter_records)
     target_command_state = target_command_state_status(target_command_summary)
