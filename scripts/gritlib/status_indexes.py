@@ -91,6 +91,34 @@ def print_activity_summary(summary):
     )
 
 
+def print_api_resource_summary(doc, limit=8):
+    api = doc.get("api") or {}
+    resources = doc.get("api_resources") or []
+    warning_indexed = [
+        rec for rec in resources
+        if isinstance(rec, dict) and rec.get("has_warning_indexes")
+    ]
+    print(
+        "API resources: "
+        f"schema={api.get('schema', '')} "
+        f"resources={api.get('resource_count', len(resources))} "
+        f"collections_key={api.get('collections_key', '')} "
+        f"resources_key={api.get('resources_key', '')} "
+        f"warning_indexed={len(warning_indexed)}"
+    )
+    for rec in resources[:limit]:
+        print(
+            f"  {rec.get('name', '')}: "
+            f"records={rec.get('records_key', '')} "
+            f"count={rec.get('count', 0)} "
+            f"primary={rec.get('primary_key', '') or '-'} "
+            f"summary={rec.get('summary_key', '') or '-'} "
+            f"indexes={len(rec.get('indexes') or [])}"
+        )
+    if len(resources) > limit:
+        print(f"  ... {len(resources) - limit} more resource(s)")
+
+
 def operator_state_record(name, kind, path, exists, valid, record_count=0, error="", extra=None):
     if exists and not valid:
         status = "invalid"
