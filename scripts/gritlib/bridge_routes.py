@@ -3,6 +3,7 @@
 import json
 from pathlib import Path
 
+from gritlib.operator_network import target_visible_host
 from gritlib.record_utils import record_count_by_key
 from gritlib.session_state import atomic_write_json, read_json_file, state_file_path
 from gritlib.shell_utils import shquote
@@ -137,6 +138,51 @@ def bridge_profile_record(cfg, name, rec, service_state=None):
     out["has_last_successful_relay"] = bool(out["last_successful_relay_at"])
     out["has_last_failure"] = bool(out["last_failure_at"] or out["last_failure_reason"])
     return out
+
+
+def selected_bridge_profile_record(cfg):
+    name = str(cfg.get("bridge_profile") or "").strip()
+    if not name:
+        return {}
+    profiles = load_bridge_profiles(cfg).get("profiles") or {}
+    rec = profiles.get(name)
+    if not isinstance(rec, dict):
+        return {}
+    return bridge_profile_record(cfg, name, rec)
+
+
+def target_route_context(cfg, service, direct_host=None, direct_port=None):
+    direct_port = int(direct_port or 0)
+    direct = {
+        "route_kind": "direct",
+        "service": str(service or ""),
+        "host": target_visible_host(direct_host, cfg),
+        "port": direct_port,
+        "bridge_profile": "",
+        "bridge_route_path": "",
+        "bridge_hop_count": 0,
+        "bridge_multi_hop": False,
+        "requires_bridge": False,
+    }
+    profile = selected_bridge_profile_record(cfg)
+    if not profile:
+        return direct
+    hops = profile.get("hops") if isinstance(profile.get("hops"), list) else []
+    first = hops[0] if hops and isinstance(hops[0], dict) else {}
+    endpoint_host, endpoint_port = parse_endpoint_host_port(first.get("from") or "")
+    if not endpoint_port:
+        endpoint_port = int(profile.get("listen_port") or direct_port or 0)
+    direct.update({
+        "route_kind": "bridge",
+        "host": target_visible_host(endpoint_host, cfg, fallback_host=direct_host),
+        "port": endpoint_port,
+        "bridge_profile": str(profile.get("name") or ""),
+        "bridge_route_path": str(profile.get("route_path") or ""),
+        "bridge_hop_count": int(profile.get("hop_count") or 0),
+        "bridge_multi_hop": bool(profile.get("multi_hop")),
+        "requires_bridge": True,
+    })
+    return direct
 
 
 def bridge_profile_records(cfg):
