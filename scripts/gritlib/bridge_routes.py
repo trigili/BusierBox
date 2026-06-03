@@ -5,7 +5,7 @@ from pathlib import Path
 
 from gritlib.event_log import append_event
 from gritlib.operator_network import target_visible_host
-from gritlib.record_utils import int_value, record_count_by_key
+from gritlib.record_utils import int_value, record_count_by_key, records_by_key
 from gritlib.session_state import atomic_write_json, read_json_file, state_file_path, utc_now
 from gritlib.shell_utils import shquote
 from gritlib.target_records import selected_target_context
@@ -22,14 +22,6 @@ ROUTE_HELP_LINES = [
     "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
     "  Meaning: target reaches jump:9001, jump reaches operator:8080, bridge delivers to 192.168.1.1:80.",
 ]
-
-
-def records_by_key(records, key):
-    out = {}
-    for rec in records or []:
-        value = rec.get(key)
-        out.setdefault(str(value), []).append(rec)
-    return out
 
 
 def bridge_profiles_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
