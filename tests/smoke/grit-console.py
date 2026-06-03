@@ -1006,6 +1006,15 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-console transcript artifact recorded UX regression flags", file=sys.stderr)
         print(json.dumps(line_console_artifact_summary, indent=2, sort_keys=True), file=sys.stderr)
         return 1
+    blank_enter_match = re.search(
+        r"grit\[all\]>[ \t]*\r?\n"
+        r"grit\[all\]> help",
+        line_console_stdout,
+    )
+    if not blank_enter_match:
+        print("line-oriented blank Enter rerendered output instead of showing a fresh prompt", file=sys.stderr)
+        print(line_console_stdout[:2000], file=sys.stderr)
+        return 1
     line_console_session_markers = [
         "selected session ",
         "grit[all]/session/",
