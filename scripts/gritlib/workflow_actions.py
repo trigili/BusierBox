@@ -141,6 +141,36 @@ def dispatch_line_daemon_command(
     raise ValueError("unsupported daemon command")
 
 
+def run_line_daemon_action(
+    args,
+    *,
+    print_actions_func=None,
+    run_action_func=None,
+):
+    daemon_cmd = parse_line_daemon_action_args(args)
+    if daemon_cmd["action"] == "list":
+        if print_actions_func:
+            return print_actions_func(verbose=daemon_cmd["verbose"])
+        return None
+    if not run_action_func:
+        raise ValueError("daemon action runner is unavailable")
+    rc = run_action_func(
+        daemon_cmd["selector"],
+        dry_run=daemon_cmd["dry_run"],
+        confirmed=daemon_cmd["confirmed"],
+        show_commands=False,
+    )
+    try:
+        rc_code = int(rc)
+    except (TypeError, ValueError):
+        rc_code = 1
+    if rc_code == 0:
+        print("daemon action complete: ok")
+    else:
+        print(f"daemon action failed: rc={rc_code}")
+    return rc
+
+
 def print_line_daemon_action_records(records, verbose=False):
     records = list(records or [])
 

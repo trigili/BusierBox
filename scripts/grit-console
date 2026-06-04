@@ -441,7 +441,6 @@ from gritlib.workflow_actions import (
     operator_console_workflow_records,
     operator_console_workflow_indexes,
     operator_console_workflow_summary,
-    parse_line_daemon_action_args,
     parse_line_daemon_command,
     print_line_daemon_action_records,
     print_workbench_action_summary,
@@ -459,6 +458,7 @@ from gritlib.workflow_actions import (
     workbench_action_summary,
     workbench_job_indexes,
     workbench_job_summary,
+    run_line_daemon_action as workflow_run_line_daemon_action,
 )
 
 try:
@@ -6700,25 +6700,19 @@ def run_line_repl(cfg):
         print_line_daemon_action_records(actions, verbose=verbose)
 
     def run_line_daemon_action(args):
-        daemon_cmd = parse_line_daemon_action_args(args)
-        if daemon_cmd["action"] == "list":
-            print_line_daemon_actions(verbose=daemon_cmd["verbose"])
-            return
-        rc = run_operator_daemon_workflow_action(
-            cfg,
-            daemon_cmd["selector"],
-            dry_run=daemon_cmd["dry_run"],
-            confirmed=daemon_cmd["confirmed"],
-            show_commands=False,
+        return workflow_run_line_daemon_action(
+            args,
+            print_actions_func=print_line_daemon_actions,
+            run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
+                run_operator_daemon_workflow_action(
+                    cfg,
+                    selector,
+                    dry_run=dry_run,
+                    confirmed=confirmed,
+                    show_commands=show_commands,
+                )
+            ),
         )
-        try:
-            rc_code = int(rc)
-        except (TypeError, ValueError):
-            rc_code = 1
-        if rc_code == 0:
-            print("daemon action complete: ok")
-        else:
-            print(f"daemon action failed: rc={rc_code}")
 
     def line_action_records():
         return line_action_records_from_snapshot(workbench_snapshot(cfg))
