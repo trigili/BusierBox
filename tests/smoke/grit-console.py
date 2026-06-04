@@ -1019,6 +1019,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "clear target\n"
                 "use agent Console Router\n"
                 "next\n"
+                "b\n"
+                "b\n"
+                "use agent Console Router\n"
                 "main\n"
                 "use agent Console Router\n"
                 "rename Console Router\n"
@@ -1067,6 +1070,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "queue clear --confirm\n"
                 "queue list\n"
                 "clear target\n"
+                "use agent Console Router\n"
+                "q\n"
+                "q\n"
                 "q\n"
             ).encode("utf-8"),
         )
@@ -1286,6 +1292,21 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Console help topics:" in probe_context_help_text):
         print("line-oriented bare ? did not use probe breadcrumb context", file=sys.stderr)
         print(probe_context_help_text or line_console_stdout, file=sys.stderr)
+        return 1
+    target_back_start = line_console_stdout.find("grit[Console Router]/targets> b")
+    target_back_end = line_console_stdout.find("grit[all]> use agent Console Router", target_back_start + 1)
+    target_back_text = line_console_stdout[target_back_start:target_back_end] if target_back_start != -1 and target_back_end != -1 else ""
+    if (not target_back_text or
+            "grit[Console Router]> b" not in target_back_text):
+        print("line-oriented b command did not step through module and target breadcrumbs", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
+    target_quit_start = line_console_stdout.find("grit[Console Router]> q")
+    target_quit_end = line_console_stdout.find("grit[all]> q", target_quit_start + 1)
+    target_quit_text = line_console_stdout[target_quit_start:target_quit_end] if target_quit_start != -1 and target_quit_end != -1 else ""
+    if not target_quit_text:
+        print("line-oriented q command did not return from selected target before exiting", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
         return 1
     line_console_config = json.loads(upload_cfg.read_text(encoding="utf-8"))
     if (line_console_config.get("GRIT_OPERATOR_FILE_SERVICE_PORT") != 22231 or

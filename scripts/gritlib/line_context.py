@@ -67,5 +67,9 @@ def back_line_module_context(cfg):
     if parent:
         cfg["_line_console_module"] = parent
         return parent
-    cfg.pop("_line_console_module", None)
+    if module:
+        cfg.pop("_line_console_module", None)
+        return ""
+    if configured_target_filter(cfg):
+        set_workbench_target_filter(cfg, "all", targets=[])
     return ""

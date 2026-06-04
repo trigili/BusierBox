@@ -386,7 +386,7 @@ def print_line_command_help(topic):
                 ("use N", "select a numbered result from the last list or search"),
                 ("main, home, root", "clear target and module context"),
                 ("back", "go up one breadcrumb level"),
-                ("quit, exit", "quit"),
+                ("quit, exit", "quit from root; leave context first"),
             ],
             "notes": [
                 "Aliases: agents=targets  listeners=services  routes=bridges",

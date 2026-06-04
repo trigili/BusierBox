@@ -8205,7 +8205,7 @@ def run_line_repl(cfg):
             elif cmd == "back" and len(console_args) >= 2 and console_args[1].lower() in {"all", "main", "root"}:
                 clear_line_context()
                 continue
-            elif cmd in {"back", "background", "bg", "unset"}:
+            elif cmd in {"b", "back", "background", "bg", "unset"}:
                 back_line_module()
                 continue
             elif cmd == "start":
@@ -8516,7 +8516,7 @@ def run_line_repl(cfg):
                 continue
         if choice in {"q", "quit", "exit"}:
             # If in a subcontext, go back one level instead of quitting
-            if str(cfg.get("_line_console_module") or ""):
+            if str(cfg.get("_line_console_module") or "") or configured_target_filter(cfg):
                 back_line_module()
                 compact_next_prompt = True
                 continue
