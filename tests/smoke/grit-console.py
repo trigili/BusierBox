@@ -598,6 +598,57 @@ def run_console_arg_override_check():
     return 0
 
 
+def run_console_runtime_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.console_runtime import (
+        listener_action_from_args,
+        script_bytes_from_args,
+        session_timeout_from_args,
+        timeout_from_args,
+    )
+
+    args = argparse.Namespace(
+        timeout=0,
+        session_timeout=0,
+        script=None,
+        file_service=False,
+        transport="ssh",
+    )
+    if timeout_from_args(args) is not None or session_timeout_from_args(args) is not None:
+        print("console runtime helper did not preserve zero timeout semantics", file=sys.stderr)
+        return 1
+    args.timeout = 2.5
+    args.session_timeout = 30
+    if timeout_from_args(args) != 2.5 or session_timeout_from_args(args) != 30:
+        print("console runtime helper did not preserve nonzero timeout values", file=sys.stderr)
+        return 1
+    if listener_action_from_args({}, args, lambda _cfg, transport: f"resolved:{transport}") != "resolved:ssh":
+        print("console runtime helper did not resolve configured transport", file=sys.stderr)
+        return 1
+    args.file_service = True
+    if listener_action_from_args({}, args, lambda _cfg, _transport: "resolved") != "file-service":
+        print("console runtime helper did not prefer --file-service action", file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory() as tmpdir:
+        script_path = Path(tmpdir) / "script.sh"
+        script_path.write_bytes(b"echo hi")
+        args.script = str(script_path)
+        if script_bytes_from_args(args) != b"echo hi\n":
+            print("console runtime helper did not newline-terminate script bytes", file=sys.stderr)
+            return 1
+        script_path.write_bytes(b"echo hi\n")
+        if script_bytes_from_args(args) != b"echo hi\n":
+            print("console runtime helper changed already newline-terminated script bytes", file=sys.stderr)
+            return 1
+        script_path.write_bytes(b"")
+        if script_bytes_from_args(args) != b"":
+            print("console runtime helper changed empty script bytes", file=sys.stderr)
+            return 1
+    return 0
+
+
 def request_with_retry(port, payload):
     deadline = time.time() + 5
     last = None
@@ -2950,6 +3001,8 @@ def main(argv=None):
     if run_line_repl_runtime_check() != 0:
         return 1
     if run_console_arg_override_check() != 0:
+        return 1
+    if run_console_runtime_check() != 0:
         return 1
 
     if args.section == "preflight":

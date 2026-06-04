@@ -74,6 +74,10 @@ from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
     command_copy_state_status, copy_text_for_operator,
 )
+from gritlib.console_runtime import (
+    listener_action_from_args, script_bytes_from_args, session_timeout_from_args,
+    timeout_from_args,
+)
 from gritlib.console_help import print_concise_help, print_console_help_reference
 from gritlib.config_utils import (
     DEFAULTS, DEFAULT_CONFIG, DEFAULT_OPERATOR_SESSION_DIR, load_config, yes,
@@ -7604,20 +7608,16 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             print(f"grit-console: {exc}", file=sys.stderr)
             return 2
 
-    timeout = None if args.timeout == 0 else args.timeout
+    timeout = timeout_from_args(args)
     if args.daemon:
         try:
             return run_operator_daemon(cfg, args.daemon_service, timeout=timeout)
         except ValueError as exc:
             print(f"grit-console: {exc}", file=sys.stderr)
             return 2
-    action = "file-service" if args.file_service else resolve_transport(cfg, args.transport)
-    script_bytes = None
-    if args.script:
-        script_bytes = Path(args.script).read_bytes()
-        if script_bytes and not script_bytes.endswith(b"\n"):
-            script_bytes += b"\n"
-    session_timeout = None if args.session_timeout == 0 else args.session_timeout
+    action = listener_action_from_args(cfg, args, resolve_transport)
+    script_bytes = script_bytes_from_args(args)
+    session_timeout = session_timeout_from_args(args)
 
     try:
         if args.serve_file:
