@@ -2088,3 +2088,21 @@ def target_filter_summary_text(target_filter, prefix="target_filter:"):
         f"observed_seen={'yes' if observed_counts.get('has_filtered') else 'no'} "
         f"state={state} label={label} confidence={confidence}"
     )
+
+
+def target_filter_brief_text(target_filter, prefix="selected agent:"):
+    if not isinstance(target_filter, dict) or not target_filter.get("active"):
+        return ""
+    counts = target_filter.get("filtered_counts") or {}
+    label = target_filter.get("selected_target_label") or "-"
+    state = target_filter.get("selected_target_connectivity_state") or "-"
+    pending = target_filter.get("selected_target_mailbox_pending_work_count", 0)
+    sessions = counts.get("sessions", 0)
+    uploads = counts.get("uploads", 0)
+    poll = "overdue" if target_filter.get("selected_target_poll_overdue") else "current"
+    offline_age = target_filter.get("selected_target_offline_age_bucket") or "-"
+    return (
+        f"{prefix} {target_filter.get('target_id', '')} ({label})  "
+        f"state {state}  mailbox {pending} pending  sessions {sessions}  "
+        f"uploads {uploads}  poll {poll}  offline {offline_age}"
+    )

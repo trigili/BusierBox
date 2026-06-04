@@ -4,7 +4,7 @@ from gritlib.console_display import console_table
 from gritlib.event_log import append_event
 from gritlib.record_utils import format_counts
 from gritlib.target_records import (
-    target_filter_evidence_lines, target_filter_summary_text,
+    target_filter_brief_text, target_filter_evidence_lines, target_filter_summary_text,
 )
 
 
@@ -514,7 +514,7 @@ def print_line_next(
         print("  commands: info, options, jobs, jobs -i ID, background")
     elif target_id:
         target_filter = snap.get("target_filter") or {}
-        print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
+        print(target_filter_brief_text(target_filter, prefix="  selected agent:"))
         print("  commands: interact, queue COMMAND, probe --queue, download --queue TARGET_PATH, upload --start LOCAL NAME, fetch --queue NAME, show activity, serve-binary --start PATH NAME, clear target")
     else:
         print("  selected agent: all")

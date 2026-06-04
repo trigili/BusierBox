@@ -7,7 +7,7 @@ from gritlib.event_log import append_event
 from gritlib.target_records import (
     configured_target_filter,
     set_workbench_target_filter,
-    target_filter_summary_text,
+    target_filter_brief_text,
 )
 
 
@@ -155,7 +155,7 @@ def print_line_target_interaction(
     label = target.get("label") or target_filter.get("target_label") or "-"
     state = target.get("connectivity_state") or target_filter.get("connectivity_state") or "-"
     print(f"Agent interaction: {target_id} label={label} state={state}")
-    print(target_filter_summary_text(target_filter, prefix="  status:"))
+    print(target_filter_brief_text(target_filter, prefix="  status:"))
     print("  commands: queue COMMAND, probe --queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target")
     pending = [rec for rec in mailbox_records or [] if rec.get("pending_work")]
     if pending:
