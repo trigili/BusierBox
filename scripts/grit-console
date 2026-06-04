@@ -350,10 +350,11 @@ from gritlib.target_commands import (
 )
 from gritlib.target_records import (
     apply_target_filter_activity_counts, attach_target_identity,
-    configured_target_filter, details_with_target, event_for_target,
+    configured_target_filter, details_with_target, dispatch_legacy_target_filter_number,
+    event_for_target,
     load_targets, records_for_target, record_target_activity, scoped_target_cfg,
     selected_target_context, selected_target_record_for_update,
-    select_workbench_target_record, set_target_label, set_workbench_target_filter,
+    select_workbench_target_record, set_target_label,
     target_attribution_record_indexes, target_attribution_record_summary,
     target_attribution_status, target_context_fields,
     target_filter_evidence_lines, target_filter_record_from_target,
@@ -7570,29 +7571,13 @@ def run_line_repl(cfg):
             print_target_summary_func=print_target_summary,
         ):
             continue
-        elif choice == "16":
-            unfiltered_cfg = dict(cfg)
-            unfiltered_cfg.pop("_target_id_filter", None)
-            unfiltered_cfg.pop("_target_label_filter", None)
-            snap = workbench_snapshot(unfiltered_cfg)
-            targets = snap.get("targets") or []
-            current = configured_target_filter(cfg)
-            print_workbench_target_selector(
-                targets,
-                current_target_id=current,
-                empty_message="no known targets; use all/clear to remove any current filter",
-            )
-            selected_line = line_input("target number/id/label, or all to clear> ")
-            selected = selected_line.strip() if selected_line is not None else ""
-            if selected:
-                try:
-                    rec = set_workbench_target_filter(cfg, selected, targets=targets)
-                    if rec.get("selected"):
-                        print(f"selected target {rec.get('target_id', '')} label={rec.get('target_label', '') or '-'}")
-                    else:
-                        print("target filter cleared")
-                except ValueError as exc:
-                    print(exc)
+        elif dispatch_legacy_target_filter_number(
+            choice,
+            cfg,
+            input_func=line_input,
+            snapshot_func=workbench_snapshot,
+        ):
+            continue
         elif dispatch_legacy_line_job_number(
             choice,
             cfg,

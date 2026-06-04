@@ -550,6 +550,34 @@ def print_workbench_target_selector(targets, *, current_target_id="", empty_mess
         )
 
 
+def dispatch_legacy_target_filter_number(choice, cfg, *, input_func=None, snapshot_func=None):
+    if str(choice or "").strip() != "16":
+        return False
+    unfiltered_cfg = dict(cfg)
+    unfiltered_cfg.pop("_target_id_filter", None)
+    unfiltered_cfg.pop("_target_label_filter", None)
+    snap = snapshot_func(unfiltered_cfg) if snapshot_func else {}
+    targets = snap.get("targets") or []
+    current = configured_target_filter(cfg)
+    print_workbench_target_selector(
+        targets,
+        current_target_id=current,
+        empty_message="no known targets; use all/clear to remove any current filter",
+    )
+    selected_line = input_func("target number/id/label, or all to clear> ") if input_func else None
+    selected = selected_line.strip() if selected_line is not None else ""
+    if selected:
+        try:
+            rec = set_workbench_target_filter(cfg, selected, targets=targets)
+            if rec.get("selected"):
+                print(f"selected target {rec.get('target_id', '')} label={rec.get('target_label', '') or '-'}")
+            else:
+                print("target filter cleared")
+        except ValueError as exc:
+            print(exc)
+    return True
+
+
 def target_identity_from_headers(headers):
     headers = headers or {}
     target_id = str(headers.get("x-grit-target-id") or headers.get("x-grittykit-target-id") or headers.get("x-grit-target") or "").strip()
