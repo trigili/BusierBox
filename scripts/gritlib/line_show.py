@@ -91,3 +91,57 @@ def dispatch_line_show_resource(resource, handlers):
     if not handler:
         raise ValueError(LINE_SHOW_USAGE)
     return handler(parsed)
+
+
+def build_line_show_resource_callback(
+    cfg,
+    *,
+    set_context_func,
+    snapshot_func,
+    target_filter_func,
+    print_actions_func,
+    print_targets_func,
+    print_services_func,
+    print_files_func,
+    print_jobs_func,
+    print_daemon_func,
+    print_categories_func,
+    print_sessions_func,
+    print_routes_func,
+    print_queue_func,
+    print_events_func,
+    print_release_func,
+    print_options_func,
+    print_info_func,
+):
+    def show_collection(name, render_fn):
+        set_context_func(cfg, name)
+        return render_fn()
+
+    def show_events(_parsed=None):
+        set_context_func(cfg, "events")
+        snap = snapshot_func(cfg)
+        return print_events_func(snap, target_id=target_filter_func(cfg), limit=12)
+
+    def show_resource(resource):
+        return dispatch_line_show_resource(resource, {
+            "module-kind": lambda p: print_actions_func(
+                p["filter_text"], kind_filter=p["kind_filter"], verbose=p["verbose"]),
+            "targets": lambda _p: show_collection("targets", print_targets_func),
+            "listeners": lambda p: show_collection("listeners", lambda: print_services_func(verbose=p["verbose"])),
+            "files": lambda _p: show_collection("files", print_files_func),
+            "jobs": lambda _p: show_collection("jobs", print_jobs_func),
+            "daemon": lambda _p: show_collection("daemon", lambda: print_daemon_func(snapshot_func(cfg))),
+            "categories": lambda _p: show_collection("categories", print_categories_func),
+            "modules": lambda p: show_collection(
+                "modules", lambda: print_actions_func(p["filter_text"], verbose=p["verbose"])),
+            "sessions": lambda _p: show_collection("sessions", print_sessions_func),
+            "routes": lambda p: show_collection("routes", lambda: print_routes_func(verbose=p["verbose"])),
+            "queue": lambda p: show_collection("queue", lambda: print_queue_func(detailed=p["verbose"])),
+            "events": show_events,
+            "release": lambda _p: show_collection("release", print_release_func),
+            "options": lambda _p: print_options_func(),
+            "context": lambda _p: print_info_func(),
+        })
+
+    return show_resource

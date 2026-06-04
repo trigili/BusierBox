@@ -210,7 +210,7 @@ from gritlib.line_services import (
     start_line_service as line_services_start_line_service,
     stop_line_service as line_services_stop_line_service,
 )
-from gritlib.line_show import dispatch_line_show_resource
+from gritlib.line_show import build_line_show_resource_callback
 from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
     current_line_session_record,
@@ -6804,42 +6804,29 @@ def run_line_repl(cfg):
         target_command_records_func=generated_target_command_records,
     )
 
-    def show_line_resource(resource):
-        def show_collection(name, render_fn):
-            set_line_collection_context(cfg, name)
-            return render_fn()
-
-        def show_events(_parsed=None):
-            set_line_collection_context(cfg, "events")
-            snap = workbench_snapshot(cfg)
-            print_target_activity_records(snap, target_id=configured_target_filter(cfg), limit=12)
-
-        return dispatch_line_show_resource(resource, {
-            "module-kind": lambda p: print_line_actions(
-                p["filter_text"], kind_filter=p["kind_filter"], verbose=p["verbose"]),
-            "targets": lambda _p: show_collection("targets", print_line_targets),
-            "listeners": lambda p: show_collection("listeners", lambda: print_line_services(verbose=p["verbose"])),
-            "files": lambda _p: show_collection("files", print_line_files),
-            "jobs": lambda _p: show_collection("jobs", print_line_jobs),
-            "daemon": lambda _p: show_collection(
-                "daemon",
-                lambda: line_daemon_print_actions(workbench_snapshot(cfg)),
-            ),
-            "categories": lambda _p: show_collection(
-                "categories",
-                lambda: print_current_line_module_categories(cfg, lambda: workbench_snapshot(cfg)),
-            ),
-            "modules": lambda p: show_collection(
-                "modules", lambda: print_line_actions(p["filter_text"], verbose=p["verbose"])),
-            "sessions": lambda _p: show_collection("sessions", print_line_sessions),
-            "routes": lambda p: show_collection("routes", lambda: print_line_routes(verbose=p["verbose"])),
-            "queue": lambda p: show_collection("queue", lambda: print_line_command_queue_view(detailed=p["verbose"])),
-            "events": show_events,
-            "release": lambda _p: show_collection(
-                "release", lambda: line_release_print_line_release(cfg, append_event_fn=append_event)),
-            "options": lambda _p: print_line_options(),
-            "context": lambda _p: print_line_info(),
-        })
+    show_line_resource = build_line_show_resource_callback(
+        cfg,
+        set_context_func=set_line_collection_context,
+        snapshot_func=workbench_snapshot,
+        target_filter_func=configured_target_filter,
+        print_actions_func=print_line_actions,
+        print_targets_func=print_line_targets,
+        print_services_func=print_line_services,
+        print_files_func=print_line_files,
+        print_jobs_func=print_line_jobs,
+        print_daemon_func=line_daemon_print_actions,
+        print_categories_func=lambda: print_current_line_module_categories(
+            cfg,
+            lambda: workbench_snapshot(cfg),
+        ),
+        print_sessions_func=print_line_sessions,
+        print_routes_func=print_line_routes,
+        print_queue_func=print_line_command_queue_view,
+        print_events_func=print_target_activity_records,
+        print_release_func=lambda: line_release_print_line_release(cfg, append_event_fn=append_event),
+        print_options_func=print_line_options,
+        print_info_func=print_line_info,
+    )
 
     def stage_line_release(selector, start_file_service=False):
         return line_release_stage_line_release(
