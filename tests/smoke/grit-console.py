@@ -249,6 +249,11 @@ def run_line_local_ips_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
+    from gritlib.line_configure import (
+        find_config_from_survey,
+        find_preset_from_survey,
+        parse_line_config_args,
+    )
     from gritlib.line_network import print_line_local_ips
     from gritlib.probe_commands import parse_line_probe_args
     import gritlib.operator_network as operator_network
@@ -285,6 +290,13 @@ def run_line_local_ips_check():
         return 1
     if parse_line_probe_args(["start", "queue"]) != (True, True):
         print("probe start/queue aliases did not map to canonical flags", file=sys.stderr)
+        return 1
+    if parse_line_config_args(["1", "--write-config", "configs/grit.conf"], "probe config") != (
+            "1", "configs/grit.conf", []):
+        print("line config parser did not preserve probe config arguments", file=sys.stderr)
+        return 1
+    if not find_config_from_survey() or not find_preset_from_survey():
+        print("line config helpers did not find source-tree survey scripts", file=sys.stderr)
         return 1
     return 0
 

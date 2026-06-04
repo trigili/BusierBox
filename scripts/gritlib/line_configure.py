@@ -1,10 +1,20 @@
 """Line-console config generation helpers."""
 
+import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
+from gritlib.build_config import build_config_path
+from gritlib.config_utils import DEFAULT_CONFIG
+from gritlib.probe_results import (
+    probe_effective_arch,
+    probe_result_by_ordinal,
+    probe_synthetic_survey,
+)
+from gritlib.session_state import read_json_file
 from gritlib.shell_utils import shquote
 
 
@@ -221,3 +231,201 @@ def run_config_from_survey(survey_path, write_config_path, extra_args, search_ro
     if result.returncode != 0:
         raise ValueError(f"config-from-survey exited {result.returncode}")
     return result
+
+
+def finish_line_config_run(cfg, write_config_path, event_details, append_event_fn=None):
+    if write_config_path:
+        print(f"\nConfig written: {write_config_path}")
+        print("  reload  — apply it now without restarting")
+    else:
+        build_cfg = str(build_config_path(cfg))
+        print(f"\n  To write: {event_details.get('cmd_name', 'config')} --write-config {shquote(build_cfg)}")
+        print(
+            "  (build config — separate from server config "
+            f"{str(cfg.get('_config_path') or DEFAULT_CONFIG)})"
+        )
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_config_generated", details=event_details)
+
+
+def run_line_probe_config(cfg, args, append_event_fn=None):
+    survey_path, write_config_path, extra_args = parse_line_config_args(args, "probe config")
+    tmp_survey_path = None
+    selected_probe_ordinal = ""
+    if not survey_path or str(survey_path).isdigit():
+        selected_probe_ordinal = str(survey_path or "1")
+        rec = probe_result_by_ordinal(cfg, selected_probe_ordinal)
+        if not rec:
+            raise ValueError(f"probe result not found: {selected_probe_ordinal} — run: probe results")
+        uname_m, endian = probe_effective_arch(rec)
+        bits = str(rec.get("word_bits") or "")
+        kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
+        print(f"Using probe result {selected_probe_ordinal} ({rec.get('received_at', '')})")
+        print(f"  arch={uname_m}  kernel={kernel}  bits={bits}  endian={endian}")
+        print("  Note: libc, filesystem, and tool data will use estimated defaults.")
+        print("")
+        synthetic = probe_synthetic_survey(rec)
+        tmp = tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", prefix="grit-probe-",
+            delete=False, encoding="utf-8",
+        )
+        tmp.write(json.dumps(synthetic, indent=2) + "\n")
+        tmp.close()
+        tmp_survey_path = tmp.name
+        survey_path = tmp_survey_path
+    else:
+        if not Path(survey_path).is_file():
+            raise ValueError(f"probe data file not found: {survey_path}")
+    try:
+        result = run_config_from_survey(survey_path, write_config_path, extra_args)
+    finally:
+        if tmp_survey_path:
+            try:
+                Path(tmp_survey_path).unlink()
+            except OSError:
+                pass
+    finish_line_config_run(cfg, write_config_path, {
+        "cmd_name": "probe config",
+        "survey_path": survey_path,
+        "write_config_path": write_config_path or "",
+        "exit_code": result.returncode,
+        "from_probe": True,
+        "probe_ordinal": selected_probe_ordinal,
+    }, append_event_fn=append_event_fn)
+
+
+def run_line_survey_config(cfg, args, find_survey_uploads_fn, append_event_fn=None):
+    survey_path, write_config_path, extra_args = parse_line_config_args(args, "survey config")
+    if not survey_path:
+        uploads = find_survey_uploads_fn()
+        if not uploads:
+            raise ValueError(
+                "no full survey uploads found\n"
+                "  on target: grit survey push --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
+                "  or use probe data: probe config"
+            )
+        survey_path = uploads[0].get("stored_path") or ""
+        print(f"Using most recent survey upload: {survey_path}")
+    if not Path(survey_path).is_file():
+        raise ValueError(f"survey file not found: {survey_path}")
+    result = run_config_from_survey(survey_path, write_config_path, extra_args)
+    finish_line_config_run(cfg, write_config_path, {
+        "cmd_name": "survey config",
+        "survey_path": survey_path,
+        "write_config_path": write_config_path or "",
+        "exit_code": result.returncode,
+    }, append_event_fn=append_event_fn)
+
+
+def _preset_from_survey_candidates(search_roots=None):
+    seen = set()
+    candidates = []
+
+    def _add(path):
+        path = Path(path)
+        text = str(path)
+        if text in seen:
+            return
+        seen.add(text)
+        candidates.append(path)
+
+    module_dir = Path(__file__).resolve().parent
+    argv_dir = Path(sys.argv[0]).resolve().parent if sys.argv and sys.argv[0] else Path.cwd()
+    roots = [
+        *(Path(root) for root in (search_roots or [])),
+        module_dir.parent,
+        module_dir.parent.parent,
+        argv_dir,
+        argv_dir.parent,
+        Path.cwd(),
+    ]
+    for root in roots:
+        _add(root / "lib" / "preset-from-survey")
+        _add(root / "scripts" / "lib" / "preset-from-survey")
+        _add(root / "preset-from-survey")
+    return candidates
+
+
+def find_preset_from_survey(search_roots=None):
+    for candidate in _preset_from_survey_candidates(search_roots):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def run_line_survey_preset(cfg, args, find_survey_uploads_fn, append_event_fn=None):
+    survey_path = None
+    preset_name = None
+    write_local = False
+    overwrite = False
+    i = 0
+    while i < len(args):
+        a = str(args[i])
+        if a in {"--name", "-n"} and i + 1 < len(args):
+            preset_name = str(args[i + 1])
+            i += 2
+        elif a.startswith("--name="):
+            preset_name = a.split("=", 1)[1]
+            i += 1
+        elif a in {"--write-local", "--write"}:
+            write_local = True
+            i += 1
+        elif a == "--overwrite":
+            overwrite = True
+            i += 1
+        elif not a.startswith("-"):
+            survey_path = a
+            i += 1
+        else:
+            raise ValueError(
+                f"unknown option: {a}\n"
+                "usage: survey preset [PATH] --name NAME [--write-local] [--overwrite]"
+            )
+    if not survey_path:
+        uploads = find_survey_uploads_fn()
+        if not uploads:
+            raise ValueError(
+                "no full survey uploads found\n"
+                "  on target: grit survey push --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
+                "  or specify: survey preset PATH --name NAME"
+            )
+        survey_path = uploads[0].get("stored_path") or ""
+        print(f"Using most recent survey upload: {survey_path}")
+    if not Path(survey_path).is_file():
+        raise ValueError(f"survey file not found: {survey_path}")
+    if not preset_name:
+        try:
+            data = read_json_file(survey_path, {})
+            arch = str(data.get("uname_m") or data.get("architecture") or "unknown")
+            preset_name = f"target-{arch}"
+        except Exception:
+            preset_name = "target-unknown"
+        print(f"Auto-generated preset name: {preset_name}  (override with --name NAME)")
+    script = find_preset_from_survey()
+    if not script:
+        raise ValueError("preset-from-survey script not found")
+    cmd = [str(script), "--survey", survey_path, "--name", preset_name, "--json"]
+    if write_local:
+        cmd.append("--write-local")
+    if overwrite:
+        cmd.append("--overwrite")
+    headless = " ".join(shquote(str(a)) for a in cmd)
+    print(f"Running: {headless}")
+    print("")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="")
+    if result.returncode != 0:
+        raise ValueError(f"preset-from-survey exited {result.returncode}")
+    if not write_local:
+        print(f"\n  To save: survey preset {shquote(survey_path)} --name {shquote(preset_name)} --write-local")
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_survey_preset_generated", details={
+            "survey_path": survey_path,
+            "preset_name": preset_name,
+            "write_local": write_local,
+            "headless_command": headless,
+            "exit_code": result.returncode,
+        })
