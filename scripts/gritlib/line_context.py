@@ -34,7 +34,8 @@ def clear_line_console_context(cfg):
     cfg.pop("_target_label_filter", None)
     set_workbench_target_filter(cfg, "all", targets=[])
     print("returned to main workspace")
-    print(f"  cleared_module={'yes' if had_module else 'no'} cleared_target={'yes' if had_target else 'no'}")
+    print(f"  cleared module: {'yes' if had_module else 'no'}")
+    print(f"  cleared target: {'yes' if had_target else 'no'}")
     print("  next: workspace, agents, listeners, routes, sessions, show categories")
     append_event(cfg, "workbench", "workbench_console_main_selected", details={
         "cleared_module": had_module,

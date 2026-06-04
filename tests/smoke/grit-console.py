@@ -1304,6 +1304,18 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented probe queue output did not use concise labels", file=sys.stderr)
         print(probe_queue_text or line_console_stdout, file=sys.stderr)
         return 1
+    main_start = line_console_stdout.find("grit[Console Router]> main")
+    main_end = line_console_stdout.find("grit[all]> use agent Console Router", main_start + 1)
+    main_text = line_console_stdout[main_start:main_end] if main_start != -1 and main_end != -1 else ""
+    if (not main_text or
+            "returned to main workspace" not in main_text or
+            "  cleared module: no" not in main_text or
+            "  cleared target: yes" not in main_text or
+            "cleared_module=" in main_text or
+            "cleared_target=" in main_text):
+        print("line-oriented main command did not use concise reset labels", file=sys.stderr)
+        print(main_text or line_console_stdout, file=sys.stderr)
+        return 1
     target_back_start = line_console_stdout.find("grit[Console Router]/targets> b")
     target_back_end = line_console_stdout.find("grit[all]> use agent Console Router", target_back_start + 1)
     target_back_text = line_console_stdout[target_back_start:target_back_end] if target_back_start != -1 and target_back_end != -1 else ""
