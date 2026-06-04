@@ -262,6 +262,7 @@ def run_line_local_ips_check():
         clear_line_probe_results,
         line_probe_result_search_records,
     )
+    from gritlib.status_indexes import operator_network_status
     import gritlib.operator_network as operator_network
 
     buf = io.StringIO()
@@ -293,6 +294,12 @@ def run_line_local_ips_check():
     if candidates != ["10.0.0.5", "192.168.8.2"]:
         print("operator local IP choice candidates were not sorted for interactive prompts", file=sys.stderr)
         print(candidates, file=sys.stderr)
+        return 1
+    status = operator_network_status(["192.168.8.2", "10.0.0.5", "127.0.0.1", "10.0.0.5"])
+    if (status.get("selected_local_ip") != "10.0.0.5" or
+            [rec.get("ip") for rec in status.get("operator_network_records") or []] != ["10.0.0.5", "192.168.8.2"]):
+        print("operator network status did not sort and de-duplicate local IP candidates", file=sys.stderr)
+        print(status, file=sys.stderr)
         return 1
     if parse_line_probe_args(["start", "queue"]) != (True, True):
         print("probe start/queue aliases did not map to canonical flags", file=sys.stderr)

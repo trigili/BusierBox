@@ -6,6 +6,7 @@ from pathlib import Path
 from gritlib.command_copy import command_copy_path
 from gritlib.command_queue import command_queue_path
 from gritlib.event_log import EventLog
+from gritlib.operator_network import sorted_local_ips
 from gritlib.record_utils import (
     format_counts, int_value, record_count_by_key, records_by_bool,
     records_by_composite, records_by_key,
@@ -650,7 +651,8 @@ def warning_health_indexes(records):
 
 
 def operator_network_status(ips):
-    selected_local_ip = (ips or ["OPERATOR_IP"])[0]
+    candidates = sorted_local_ips(ips or []) or ["OPERATOR_IP"]
+    selected_local_ip = candidates[0]
     operator_network_records = [
         {
             "id": f"local-ip-{idx}",
@@ -662,7 +664,7 @@ def operator_network_status(ips):
             "source": "detected" if ip != "OPERATOR_IP" else "placeholder",
             "usable_for_generated_commands": ip != "OPERATOR_IP",
         }
-        for idx, ip in enumerate(ips or ["OPERATOR_IP"])
+        for idx, ip in enumerate(candidates)
     ]
     operator_network_index_maps = {
         "operator_network_records_by_id": {rec["id"]: rec for rec in operator_network_records},
