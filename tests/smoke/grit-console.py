@@ -257,6 +257,11 @@ def run_line_local_ips_check():
     )
     from gritlib.line_network import print_line_local_ips
     from gritlib.probe_commands import parse_line_probe_args
+    from gritlib.probe_results import (
+        append_probe_result,
+        clear_line_probe_results,
+        line_probe_result_search_records,
+    )
     import gritlib.operator_network as operator_network
 
     buf = io.StringIO()
@@ -313,6 +318,25 @@ def run_line_local_ips_check():
         uploads = find_survey_uploads({"session_root": str(session_root)})
         if len(uploads) != 1 or uploads[0].get("stored_path") != str(survey_path):
             print("line config helper did not discover survey uploads", file=sys.stderr)
+            return 1
+    records = [{"uname_m": "armv7l", "uname_r": "4.1.8", "remote_addr": "192.0.2.1"}]
+    search_records = line_probe_result_search_records(records)
+    if not search_records or search_records[0].get("use_hint") != "probe config 1":
+        print("probe result search records did not preserve numbered config hints", file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory() as tmpdir:
+        cfg = {"operator_session_dir": tmpdir}
+        append_probe_result(cfg, {"received_at": "2026-06-03T12:00:00Z", "remote_addr": "192.0.2.44"})
+        events = []
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            removed = clear_line_probe_results(
+                cfg, ["1"],
+                append_event_fn=lambda *args, **kwargs: events.append((args, kwargs)),
+            )
+        text = buf.getvalue()
+        if removed != 1 or "cleared 1 probe result(s)" not in text or not events:
+            print("probe result clear wrapper did not clear and emit event details", file=sys.stderr)
             return 1
     return 0
 

@@ -219,11 +219,10 @@ from gritlib.probe_commands import (
 )
 from gritlib.probe_results import (
     append_probe_result,
-    clear_probe_results,
-    probe_all_results,
+    clear_line_probe_results as probe_results_clear_line_probe_results,
     probe_effective_arch,
     probe_latest_result,
-    print_probe_result_records,
+    print_line_probe_results as probe_results_print_line_probe_results,
 )
 from gritlib.runtime import Service, ServiceManager, Session, relay_pipe
 from gritlib.process_status import (
@@ -7580,47 +7579,6 @@ def run_line_repl(cfg):
     def find_survey_uploads(limit=20):
         return configure_find_survey_uploads(cfg, limit=limit)
 
-    # ── probe results / config ───────────────────────────────────────────────
-
-    def print_line_probe_results():
-        bootstrap_results = probe_all_results(cfg)
-        print_probe_result_records(bootstrap_results)
-        cfg["_line_console_search_results"] = [
-            {
-                "kind": "probe-result",
-                "label": (
-                    f"{idx} arch={rec.get('uname_m') or rec.get('architecture') or '-'} "
-                    f"kernel={rec.get('uname_r') or rec.get('kernel') or '-'} "
-                    f"remote={rec.get('remote_addr') or '-'}"
-                ),
-                "rec": rec,
-                "ordinal": idx,
-                "use_hint": f"probe config {idx}",
-            }
-            for idx, rec in enumerate(bootstrap_results, 1)
-        ]
-        append_event(cfg, "workbench", "workbench_probe_results_viewed", details={
-            "result_count": len(bootstrap_results),
-        })
-
-    def clear_line_probe_results(args):
-        text = " ".join(str(arg or "") for arg in args).strip()
-        details = clear_probe_results(cfg, text)
-        if not details.get("had_results"):
-            print("no probe results to clear")
-            return 0
-        count = int(details.get("count") or 0)
-        removed = details.get("removed") if isinstance(details.get("removed"), dict) else {}
-        if removed:
-            print(f"removed probe result {details.get('selector')}: {removed.get('received_at', '') or '-'} {removed.get('remote_addr', '') or '-'}")
-        print(f"cleared {count} probe result(s)")
-        append_event(cfg, "workbench", "workbench_probe_results_cleared", details={
-            "count": count,
-            "selector": details.get("selector") or "--all",
-            "remaining_count": details.get("remaining_count", 0),
-        })
-        return count
-
     def run_line_probe_serve(args):
         start_file_service = False
         for a in args:
@@ -9063,11 +9021,13 @@ def run_line_repl(cfg):
                 try:
                     if subcmd in {"results", "result"}:
                         set_line_collection("probe")
-                        print_line_probe_results()
+                        probe_results_print_line_probe_results(cfg, append_event_fn=append_event)
                     elif subcmd == "config":
                         configure_line_probe_config(cfg, console_args[2:], append_event_fn=append_event)
                     elif subcmd == "clear":
-                        clear_line_probe_results(console_args[2:])
+                        probe_results_clear_line_probe_results(
+                            cfg, console_args[2:], append_event_fn=append_event,
+                        )
                     elif subcmd == "serve":
                         run_line_probe_serve(console_args[2:])
                     elif subcmd in {"delivery", "deliver", "commands"}:

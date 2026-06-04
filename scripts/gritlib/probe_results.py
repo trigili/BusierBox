@@ -161,3 +161,54 @@ def print_probe_result_records(records):
         print("    probe serve [--start]                  — stage the matching binary for this arch")
     else:
         print("  No results yet — run: probe --start")
+
+
+def line_probe_result_search_records(records):
+    return [
+        {
+            "kind": "probe-result",
+            "label": (
+                f"{idx} arch={rec.get('uname_m') or rec.get('architecture') or '-'} "
+                f"kernel={rec.get('uname_r') or rec.get('kernel') or '-'} "
+                f"remote={rec.get('remote_addr') or '-'}"
+            ),
+            "rec": rec,
+            "ordinal": idx,
+            "use_hint": f"probe config {idx}",
+        }
+        for idx, rec in enumerate(records or [], 1)
+    ]
+
+
+def print_line_probe_results(cfg, append_event_fn=None):
+    records = probe_all_results(cfg)
+    print_probe_result_records(records)
+    cfg["_line_console_search_results"] = line_probe_result_search_records(records)
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_probe_results_viewed", details={
+            "result_count": len(records),
+        })
+    return records
+
+
+def clear_line_probe_results(cfg, args, append_event_fn=None):
+    text = " ".join(str(arg or "") for arg in args).strip()
+    details = clear_probe_results(cfg, text)
+    if not details.get("had_results"):
+        print("no probe results to clear")
+        return 0
+    count = int(details.get("count") or 0)
+    removed = details.get("removed") if isinstance(details.get("removed"), dict) else {}
+    if removed:
+        print(
+            f"removed probe result {details.get('selector')}: "
+            f"{removed.get('received_at', '') or '-'} {removed.get('remote_addr', '') or '-'}"
+        )
+    print(f"cleared {count} probe result(s)")
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_probe_results_cleared", details={
+            "count": count,
+            "selector": details.get("selector") or "--all",
+            "remaining_count": details.get("remaining_count", 0),
+        })
+    return count
