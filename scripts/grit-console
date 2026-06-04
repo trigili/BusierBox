@@ -123,6 +123,7 @@ from gritlib.line_build import (
     unset_line_global_build_option,
 )
 from gritlib.line_command_queue import (
+    parse_line_queue_command,
     print_line_command_queue_view as line_command_queue_print_view,
     queue_line_command as line_command_queue_queue_command,
     run_line_queue_command as line_command_queue_run_command,
@@ -7966,12 +7967,6 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "queue" and len(console_args) >= 2:
-                try:
-                    run_line_queue_command(console_args[1:])
-                except ValueError as exc:
-                    print(exc)
-                continue
             elif cmd in {"download", "get"}:
                 try:
                     download_cmd = parse_line_download_command(console_args[1:])
@@ -8175,14 +8170,16 @@ def run_line_repl(cfg):
                     print_line_files(verbose=files_cmd["verbose"])
                 continue
             elif cmd in {"mailbox", "queue"}:
-                set_line_collection("queue")
-                if len(console_args) >= 2:
-                    try:
-                        run_line_queue_command(console_args[1:])
-                    except ValueError as exc:
-                        print(exc)
-                else:
-                    print_line_command_queue_view()
+                try:
+                    queue_cmd = parse_line_queue_command(cmd, console_args[1:])
+                    if not (cmd == "queue" and queue_cmd["action"] == "run"):
+                        set_line_collection("queue")
+                    if queue_cmd["action"] == "run":
+                        run_line_queue_command(queue_cmd["args"])
+                    else:
+                        print_line_command_queue_view()
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif cmd in {"jobs", "job"}:
                 try:

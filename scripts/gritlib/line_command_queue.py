@@ -328,6 +328,16 @@ def print_line_command_result(cfg, queue_summary, selector):
     return rec
 
 
+def parse_line_queue_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    if cmd not in {"mailbox", "queue"}:
+        return {}
+    if args:
+        return {"action": "run", "args": args}
+    return {"action": "view", "args": []}
+
+
 def run_line_queue_command(
     cfg,
     args,
