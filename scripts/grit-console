@@ -69,6 +69,7 @@ from gritlib.command_queue import (
     save_command_queue, yes_no,
 )
 from gritlib.console_display import print_dry_run_notice
+from gritlib.console_actions import handle_console_utility_args
 from gritlib.console_args import (
     apply_console_arg_overrides, handle_early_console_args,
     has_explicit_console_action,
@@ -212,10 +213,10 @@ from gritlib.line_workspace import (
     print_line_workspace_snapshot, reload_line_config_for_repl as line_workspace_reload_line_config_for_repl,
 )
 from gritlib.operator_io import (
-    clipboard_command, open_path_in_pager,
+    clipboard_command,
     restore_interactive_tty, set_interactive_tty_raw,
     view_line_path as operator_io_view_line_path,
-    view_path_headless_command, viewable_path,
+    view_path_headless_command,
 )
 from gritlib.operator_network import (
     choose_operator_host_for_target, local_ips, operator_advertised_host, print_candidates,
@@ -320,7 +321,6 @@ from gritlib.target_activity import (
     target_phone_home_records_from_events,
 )
 from gritlib.target_commands import (
-    copy_generated_command,
     generated_target_command_records,
     rshell_session_policy_record, rshell_session_policy_status,
     shell_listener_max_sessions,
@@ -335,7 +335,6 @@ from gritlib.target_records import (
     dispatch_legacy_target_filter_number, event_for_target,
     load_targets, records_for_target, record_target_activity, scoped_target_cfg,
     selected_target_context, selected_target_record_for_update,
-    set_target_label,
     target_attribution_record_indexes, target_attribution_record_summary,
     target_attribution_status, target_context_fields,
     target_filter_evidence_lines, target_filter_record_from_target,
@@ -7504,36 +7503,9 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         build_config_code = handle_build_config_args(cfg, args, append_event_fn=append_event)
         if build_config_code is not None:
             return build_config_code
-        if args.copy_target_command:
-            rec = copy_generated_command(cfg, args.copy_target_command)
-            print(f"copied target command {args.copy_target_command} to {rec['path']}")
-            print(f"clipboard={'yes' if rec['clipboard'] else 'no'}")
-            print(rec["text"])
-            return 0
-        if args.view_path:
-            headless = view_path_headless_command(cfg, args.view_path)
-            result = open_path_in_pager(args.view_path)
-            print(result)
-            append_event(cfg, "workbench", "workbench_path_viewed", details={
-                "headless_command": headless,
-                "path": args.view_path,
-                "result": result,
-                "viewable": viewable_path(args.view_path) is not None,
-                "via": "server-view-path",
-            })
-            return 0
-        if args.set_target_label:
-            if args.target_label is None:
-                raise ValueError("--set-target-label requires --target-label")
-            rec = set_target_label(
-                cfg, args.set_target_label, args.target_label,
-                aliases=args.target_alias or [], notes=args.target_notes,
-            )
-            print(f"target {rec.get('target_id', '')} label={rec.get('label', '')}")
-            if str(rec.get("notes") or "").strip():
-                print(f"notes={str(rec.get('notes') or '').strip()}")
-            print(f"targets_file={targets_path(cfg)}")
-            return 0
+        utility_code = handle_console_utility_args(cfg, args, append_event_fn=append_event)
+        if utility_code is not None:
+            return utility_code
     except ValueError as exc:
         print(f"grit-console: {exc}", file=sys.stderr)
         return 2

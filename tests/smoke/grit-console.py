@@ -749,6 +749,102 @@ def run_build_config_dispatch_check():
     return 0
 
 
+def run_console_utility_dispatch_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import gritlib.console_actions as console_actions
+
+    original_copy = console_actions.copy_generated_command
+    original_view = console_actions.view_line_path
+    original_label = console_actions.set_target_label
+    original_targets_path = console_actions.targets_path
+    try:
+        copy_calls = []
+        console_actions.copy_generated_command = lambda cfg, index: copy_calls.append((cfg, index)) or {
+            "path": "copy.txt",
+            "clipboard": False,
+            "text": "echo copied",
+        }
+        args = argparse.Namespace(
+            copy_target_command=2,
+            view_path="",
+            set_target_label="",
+            target_label=None,
+            target_alias=[],
+            target_notes=None,
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = console_actions.handle_console_utility_args({}, args)
+        text = buf.getvalue()
+        if code != 0 or copy_calls != [({}, 2)] or "copied target command 2 to copy.txt" not in text or "echo copied" not in text:
+            print("console utility dispatch helper did not preserve copy output", file=sys.stderr)
+            print(text, file=sys.stderr)
+            return 1
+
+        view_calls = []
+        events = []
+        console_actions.view_line_path = lambda cfg, path, append_event_fn=None: (
+            view_calls.append((cfg, path)),
+            append_event_fn and append_event_fn(cfg, "workbench", "workbench_path_viewed", details={"path": path}),
+            "viewed",
+        )[-1]
+        args.copy_target_command = None
+        args.view_path = "session.log"
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = console_actions.handle_console_utility_args(
+                {"cfg": "yes"},
+                args,
+                append_event_fn=lambda *event_args, **event_kwargs: events.append((event_args, event_kwargs)),
+            )
+        if code != 0 or view_calls != [({"cfg": "yes"}, "session.log")] or not events:
+            print("console utility dispatch helper did not preserve view dispatch", file=sys.stderr)
+            return 1
+
+        console_actions.set_target_label = lambda cfg, target_id, label, aliases=None, notes=None: {
+            "target_id": target_id,
+            "label": label,
+            "aliases": aliases or [],
+            "notes": notes or "",
+        }
+        console_actions.targets_path = lambda cfg: "targets.json"
+        args.view_path = ""
+        args.set_target_label = "target-1"
+        args.target_label = "Lab Router"
+        args.target_alias = ["router"]
+        args.target_notes = "bench target"
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = console_actions.handle_console_utility_args({}, args)
+        text = buf.getvalue()
+        if code != 0 or "target target-1 label=Lab Router" not in text or "notes=bench target" not in text or "targets_file=targets.json" not in text:
+            print("console utility dispatch helper did not preserve target label output", file=sys.stderr)
+            print(text, file=sys.stderr)
+            return 1
+        args.target_label = None
+        try:
+            console_actions.handle_console_utility_args({}, args)
+        except ValueError as exc:
+            if "--set-target-label requires --target-label" not in str(exc):
+                print("console utility dispatch helper raised wrong target-label error", file=sys.stderr)
+                return 1
+        else:
+            print("console utility dispatch helper accepted missing target label", file=sys.stderr)
+            return 1
+        args.set_target_label = ""
+        if console_actions.handle_console_utility_args({}, args) is not None:
+            print("console utility dispatch helper handled empty args", file=sys.stderr)
+            return 1
+    finally:
+        console_actions.copy_generated_command = original_copy
+        console_actions.view_line_path = original_view
+        console_actions.set_target_label = original_label
+        console_actions.targets_path = original_targets_path
+    return 0
+
+
 def request_with_retry(port, payload):
     deadline = time.time() + 5
     last = None
@@ -3105,6 +3201,8 @@ def main(argv=None):
     if run_console_runtime_check() != 0:
         return 1
     if run_build_config_dispatch_check() != 0:
+        return 1
+    if run_console_utility_dispatch_check() != 0:
         return 1
 
     if args.section == "preflight":
