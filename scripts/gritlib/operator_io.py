@@ -92,6 +92,13 @@ def view_path_headless_command(cfg, path, default_config=Path("local/server-conf
     )
 
 
+def parse_line_view_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    if cmd not in {"view", "cat", "less"}:
+        return {}
+    return {"action": "view", "path": " ".join(args or []).strip()}
+
+
 def view_line_path(cfg, path_text, append_event_fn=None):
     path = str(path_text or "").strip()
     if not path:

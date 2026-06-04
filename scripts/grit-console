@@ -240,8 +240,9 @@ from gritlib.line_workspace import (
     print_line_workspace_snapshot,
 )
 from gritlib.operator_io import (
-    clipboard_command, open_path_in_pager, restore_interactive_tty,
-    set_interactive_tty_raw, view_line_path as operator_io_view_line_path,
+    clipboard_command, open_path_in_pager, parse_line_view_command,
+    restore_interactive_tty, set_interactive_tty_raw,
+    view_line_path as operator_io_view_line_path,
     view_path_headless_command, viewable_path,
 )
 from gritlib.operator_network import (
@@ -8082,7 +8083,8 @@ def run_line_repl(cfg):
                 continue
             elif cmd in {"view", "cat", "less"}:
                 try:
-                    view_line_path(" ".join(console_args[1:]).strip())
+                    view_cmd = parse_line_view_command(cmd, console_args[1:])
+                    view_line_path(view_cmd["path"])
                 except ValueError as exc:
                     print(exc)
                 continue
