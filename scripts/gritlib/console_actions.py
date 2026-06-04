@@ -117,6 +117,90 @@ def handle_workbench_job_args(
     return None
 
 
+def handle_workflow_action_args(
+    cfg,
+    args,
+    *,
+    run_service_workflow_action_func,
+    run_operator_daemon_workflow_action_func,
+    run_release_artifact_workflow_action_func,
+    run_command_queue_workflow_action_func,
+    run_probe_workflow_action_func,
+    run_bridge_profile_workflow_action_func,
+    run_file_service_workflow_action_func,
+    run_staged_file_workflow_action_func,
+    run_target_workflow_action_func,
+):
+    if args.run_service_workflow_action:
+        return run_service_workflow_action_func(
+            cfg,
+            args.run_service_workflow_action,
+            dry_run=args.service_workflow_dry_run,
+            confirmed=args.confirm_service_workflow_action,
+        )
+    if args.run_operator_daemon_workflow_action:
+        return run_operator_daemon_workflow_action_func(
+            cfg,
+            args.run_operator_daemon_workflow_action,
+            dry_run=args.operator_daemon_workflow_dry_run,
+            confirmed=args.confirm_operator_daemon_workflow_action,
+        )
+    if args.run_release_artifact_workflow_action:
+        return run_release_artifact_workflow_action_func(
+            cfg,
+            args.run_release_artifact_workflow_action,
+            dry_run=args.release_artifact_workflow_dry_run,
+        )
+    if args.run_command_queue_workflow_action:
+        return run_command_queue_workflow_action_func(
+            cfg,
+            args.run_command_queue_workflow_action,
+            command_input=args.command_queue_workflow_command or "",
+            dry_run=args.command_queue_workflow_dry_run,
+            confirmed=args.confirm_command_queue_workflow_action,
+        )
+    if args.run_probe_workflow_action:
+        return run_probe_workflow_action_func(
+            cfg,
+            args.run_probe_workflow_action,
+            dry_run=args.probe_workflow_dry_run,
+            confirmed=args.confirm_probe_workflow_action,
+        )
+    if args.run_bridge_profile_workflow_action:
+        return run_bridge_profile_workflow_action_func(
+            cfg,
+            args.run_bridge_profile_workflow_action,
+            dry_run=args.bridge_profile_workflow_dry_run,
+            confirmed=args.confirm_bridge_profile_workflow_action,
+        )
+    if args.run_file_service_workflow_action:
+        return run_file_service_workflow_action_func(
+            cfg,
+            args.run_file_service_workflow_action,
+            local_file=args.file_service_workflow_local_file or "",
+            request_name=args.file_service_workflow_request_name or "",
+            target_path=args.file_service_workflow_target_path or "",
+            dry_run=args.file_service_workflow_dry_run,
+            confirmed=args.confirm_file_service_workflow_action,
+        )
+    if args.run_staged_file_workflow_action:
+        return run_staged_file_workflow_action_func(
+            cfg,
+            args.run_staged_file_workflow_action,
+            dry_run=args.staged_file_workflow_dry_run,
+            confirmed=args.confirm_staged_file_workflow_action,
+        )
+    if args.run_target_workflow_action:
+        return run_target_workflow_action_func(
+            cfg,
+            args.run_target_workflow_action,
+            command_input=args.target_workflow_command or "",
+            local_file=args.target_workflow_local_file or "",
+            request_name=args.target_workflow_request_name or "",
+        )
+    return None
+
+
 def print_staged_fetch_record(cfg, rec, render_fetch_command_func):
     print(f"staged {rec['request_name']} <- {rec['source_path']}")
     if rec.get("target_id"):

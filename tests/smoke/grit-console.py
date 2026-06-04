@@ -1362,6 +1362,198 @@ def run_workbench_job_dispatch_check():
     return 0
 
 
+def run_workflow_action_dispatch_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import gritlib.console_actions as console_actions
+
+    def args_for(**overrides):
+        values = {
+            "run_service_workflow_action": "",
+            "service_workflow_dry_run": False,
+            "confirm_service_workflow_action": False,
+            "run_operator_daemon_workflow_action": "",
+            "operator_daemon_workflow_dry_run": False,
+            "confirm_operator_daemon_workflow_action": False,
+            "run_release_artifact_workflow_action": "",
+            "release_artifact_workflow_dry_run": False,
+            "run_command_queue_workflow_action": "",
+            "command_queue_workflow_command": "",
+            "command_queue_workflow_dry_run": False,
+            "confirm_command_queue_workflow_action": False,
+            "run_probe_workflow_action": "",
+            "probe_workflow_dry_run": False,
+            "confirm_probe_workflow_action": False,
+            "run_bridge_profile_workflow_action": "",
+            "bridge_profile_workflow_dry_run": False,
+            "confirm_bridge_profile_workflow_action": False,
+            "run_file_service_workflow_action": "",
+            "file_service_workflow_local_file": "",
+            "file_service_workflow_request_name": "",
+            "file_service_workflow_target_path": "",
+            "file_service_workflow_dry_run": False,
+            "confirm_file_service_workflow_action": False,
+            "run_staged_file_workflow_action": "",
+            "staged_file_workflow_dry_run": False,
+            "confirm_staged_file_workflow_action": False,
+            "run_target_workflow_action": "",
+            "target_workflow_command": "",
+            "target_workflow_local_file": "",
+            "target_workflow_request_name": "",
+        }
+        values.update(overrides)
+        return argparse.Namespace(**values)
+
+    calls = []
+
+    def dispatch(args):
+        return console_actions.handle_workflow_action_args(
+            {"cfg": "yes"},
+            args,
+            run_service_workflow_action_func=lambda cfg, selector, dry_run=False, confirmed=False: calls.append(
+                ("service", cfg, selector, dry_run, confirmed)
+            ) or 11,
+            run_operator_daemon_workflow_action_func=lambda cfg, selector, dry_run=False, confirmed=False: calls.append(
+                ("daemon", cfg, selector, dry_run, confirmed)
+            ) or 12,
+            run_release_artifact_workflow_action_func=lambda cfg, selector, dry_run=False: calls.append(
+                ("release", cfg, selector, dry_run)
+            ) or 13,
+            run_command_queue_workflow_action_func=lambda cfg, selector, command_input="", dry_run=False, confirmed=False: calls.append(
+                ("queue", cfg, selector, command_input, dry_run, confirmed)
+            ) or 14,
+            run_probe_workflow_action_func=lambda cfg, selector, dry_run=False, confirmed=False: calls.append(
+                ("probe", cfg, selector, dry_run, confirmed)
+            ) or 15,
+            run_bridge_profile_workflow_action_func=lambda cfg, selector, dry_run=False, confirmed=False: calls.append(
+                ("bridge", cfg, selector, dry_run, confirmed)
+            ) or 16,
+            run_file_service_workflow_action_func=lambda cfg, selector, local_file="", request_name="", target_path="", dry_run=False, confirmed=False: calls.append(
+                ("file", cfg, selector, local_file, request_name, target_path, dry_run, confirmed)
+            ) or 17,
+            run_staged_file_workflow_action_func=lambda cfg, selector, dry_run=False, confirmed=False: calls.append(
+                ("staged", cfg, selector, dry_run, confirmed)
+            ) or 18,
+            run_target_workflow_action_func=lambda cfg, selector, command_input="", local_file="", request_name="": calls.append(
+                ("target", cfg, selector, command_input, local_file, request_name)
+            ) or 19,
+        )
+
+    cases = [
+        (
+            args_for(
+                run_service_workflow_action="svc:restart",
+                service_workflow_dry_run=True,
+                confirm_service_workflow_action=True,
+            ),
+            11,
+            [("service", {"cfg": "yes"}, "svc:restart", True, True)],
+        ),
+        (
+            args_for(
+                run_operator_daemon_workflow_action="daemon:install",
+                operator_daemon_workflow_dry_run=True,
+                confirm_operator_daemon_workflow_action=True,
+            ),
+            12,
+            [("daemon", {"cfg": "yes"}, "daemon:install", True, True)],
+        ),
+        (
+            args_for(run_release_artifact_workflow_action="release:stage", release_artifact_workflow_dry_run=True),
+            13,
+            [("release", {"cfg": "yes"}, "release:stage", True)],
+        ),
+        (
+            args_for(
+                run_command_queue_workflow_action="queue:add",
+                command_queue_workflow_command="id",
+                command_queue_workflow_dry_run=True,
+                confirm_command_queue_workflow_action=True,
+            ),
+            14,
+            [("queue", {"cfg": "yes"}, "queue:add", "id", True, True)],
+        ),
+        (
+            args_for(run_command_queue_workflow_action="queue:add"),
+            14,
+            [("queue", {"cfg": "yes"}, "queue:add", "", False, False)],
+        ),
+        (
+            args_for(
+                run_probe_workflow_action="probe:run",
+                probe_workflow_dry_run=True,
+                confirm_probe_workflow_action=True,
+            ),
+            15,
+            [("probe", {"cfg": "yes"}, "probe:run", True, True)],
+        ),
+        (
+            args_for(
+                run_bridge_profile_workflow_action="bridge:start",
+                bridge_profile_workflow_dry_run=True,
+                confirm_bridge_profile_workflow_action=True,
+            ),
+            16,
+            [("bridge", {"cfg": "yes"}, "bridge:start", True, True)],
+        ),
+        (
+            args_for(
+                run_file_service_workflow_action="file:stage",
+                file_service_workflow_local_file="tool.bin",
+                file_service_workflow_request_name="payload",
+                file_service_workflow_target_path="/tmp/payload",
+                file_service_workflow_dry_run=True,
+                confirm_file_service_workflow_action=True,
+            ),
+            17,
+            [("file", {"cfg": "yes"}, "file:stage", "tool.bin", "payload", "/tmp/payload", True, True)],
+        ),
+        (
+            args_for(run_file_service_workflow_action="file:stage"),
+            17,
+            [("file", {"cfg": "yes"}, "file:stage", "", "", "", False, False)],
+        ),
+        (
+            args_for(
+                run_staged_file_workflow_action="staged:unstage",
+                staged_file_workflow_dry_run=True,
+                confirm_staged_file_workflow_action=True,
+            ),
+            18,
+            [("staged", {"cfg": "yes"}, "staged:unstage", True, True)],
+        ),
+        (
+            args_for(
+                run_target_workflow_action="target:queue",
+                target_workflow_command="uname",
+                target_workflow_local_file="payload",
+                target_workflow_request_name="req",
+            ),
+            19,
+            [("target", {"cfg": "yes"}, "target:queue", "uname", "payload", "req")],
+        ),
+        (
+            args_for(run_target_workflow_action="target:queue"),
+            19,
+            [("target", {"cfg": "yes"}, "target:queue", "", "", "")],
+        ),
+    ]
+    for args, expected_code, expected_calls in cases:
+        calls.clear()
+        code = dispatch(args)
+        if code != expected_code or calls != expected_calls:
+            print("workflow action dispatch helper did not preserve branch behavior", file=sys.stderr)
+            print(f"code={code} calls={calls}", file=sys.stderr)
+            return 1
+
+    calls.clear()
+    if dispatch(args_for()) is not None or calls:
+        print("workflow action dispatch helper handled empty args", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_file_staging_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -3863,6 +4055,8 @@ def main(argv=None):
     if run_console_control_dispatch_check() != 0:
         return 1
     if run_workbench_job_dispatch_check() != 0:
+        return 1
+    if run_workflow_action_dispatch_check() != 0:
         return 1
     if run_file_staging_dispatch_check() != 0:
         return 1

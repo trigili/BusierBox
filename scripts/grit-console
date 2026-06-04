@@ -72,6 +72,7 @@ from gritlib.console_display import print_dry_run_notice
 from gritlib.console_actions import (
     handle_console_control_args, handle_console_utility_args,
     handle_file_staging_args, handle_workbench_job_args,
+    handle_workflow_action_args,
 )
 from gritlib.console_args import (
     apply_console_arg_overrides, handle_early_console_args,
@@ -7411,73 +7412,21 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         )
         if workbench_job_code is not None:
             return workbench_job_code
-        if args.run_service_workflow_action:
-            return run_service_workflow_action(
-                cfg,
-                args.run_service_workflow_action,
-                dry_run=args.service_workflow_dry_run,
-                confirmed=args.confirm_service_workflow_action,
-            )
-        if args.run_operator_daemon_workflow_action:
-            return run_operator_daemon_workflow_action(
-                cfg,
-                args.run_operator_daemon_workflow_action,
-                dry_run=args.operator_daemon_workflow_dry_run,
-                confirmed=args.confirm_operator_daemon_workflow_action,
-            )
-        if args.run_release_artifact_workflow_action:
-            return run_release_artifact_workflow_action(
-                cfg,
-                args.run_release_artifact_workflow_action,
-                dry_run=args.release_artifact_workflow_dry_run,
-            )
-        if args.run_command_queue_workflow_action:
-            return run_command_queue_workflow_action(
-                cfg,
-                args.run_command_queue_workflow_action,
-                command_input=args.command_queue_workflow_command or "",
-                dry_run=args.command_queue_workflow_dry_run,
-                confirmed=args.confirm_command_queue_workflow_action,
-            )
-        if args.run_probe_workflow_action:
-            return run_probe_workflow_action(
-                cfg,
-                args.run_probe_workflow_action,
-                dry_run=args.probe_workflow_dry_run,
-                confirmed=args.confirm_probe_workflow_action,
-            )
-        if args.run_bridge_profile_workflow_action:
-            return run_bridge_profile_workflow_action(
-                cfg,
-                args.run_bridge_profile_workflow_action,
-                dry_run=args.bridge_profile_workflow_dry_run,
-                confirmed=args.confirm_bridge_profile_workflow_action,
-            )
-        if args.run_file_service_workflow_action:
-            return run_file_service_workflow_action(
-                cfg,
-                args.run_file_service_workflow_action,
-                local_file=args.file_service_workflow_local_file or "",
-                request_name=args.file_service_workflow_request_name or "",
-                target_path=args.file_service_workflow_target_path or "",
-                dry_run=args.file_service_workflow_dry_run,
-                confirmed=args.confirm_file_service_workflow_action,
-            )
-        if args.run_staged_file_workflow_action:
-            return run_staged_file_workflow_action(
-                cfg,
-                args.run_staged_file_workflow_action,
-                dry_run=args.staged_file_workflow_dry_run,
-                confirmed=args.confirm_staged_file_workflow_action,
-            )
-        if args.run_target_workflow_action:
-            return run_target_workflow_action(
-                cfg,
-                args.run_target_workflow_action,
-                command_input=args.target_workflow_command or "",
-                local_file=args.target_workflow_local_file or "",
-                request_name=args.target_workflow_request_name or "",
-            )
+        workflow_code = handle_workflow_action_args(
+            cfg,
+            args,
+            run_service_workflow_action_func=run_service_workflow_action,
+            run_operator_daemon_workflow_action_func=run_operator_daemon_workflow_action,
+            run_release_artifact_workflow_action_func=run_release_artifact_workflow_action,
+            run_command_queue_workflow_action_func=run_command_queue_workflow_action,
+            run_probe_workflow_action_func=run_probe_workflow_action,
+            run_bridge_profile_workflow_action_func=run_bridge_profile_workflow_action,
+            run_file_service_workflow_action_func=run_file_service_workflow_action,
+            run_staged_file_workflow_action_func=run_staged_file_workflow_action,
+            run_target_workflow_action_func=run_target_workflow_action,
+        )
+        if workflow_code is not None:
+            return workflow_code
         build_config_code = handle_build_config_args(cfg, args, append_event_fn=append_event)
         if build_config_code is not None:
             return build_config_code
