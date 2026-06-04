@@ -133,6 +133,7 @@ def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=N
         "headless_command_default_spam_present": "headless_command:" in (stdout_text or ""),
         "headless_command_event_summary_present": "headless_command=" in (stdout_text or ""),
         "stale_numbered_result_error_present": "search result number out of range" in (stdout_text or ""),
+        "raw_queue_action_name_present": "command-queue:inspect-command-queue" in (stdout_text or ""),
         "verbose_policy_dump_present": any(
             marker in (stdout_text or "")
             for marker in ("allowed_commands=", "delivery_policy_counts:", "mode status:")
@@ -1204,6 +1205,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "traceback_present",
             "raw_python_repr_present",
             "raw_action_state_present",
+            "raw_queue_action_name_present",
             "literal_ctrl_c_present",
             "headless_command_default_spam_present",
             "stale_numbered_result_error_present",
@@ -1314,6 +1316,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "target note updated: line-console-target",
         "target alias updated: line-console-target",
         "Command queue  (",
+        "Review queue",
+        "Clear queue",
+        "Show mailbox",
+        "Queue command",
+        "Start mailbox listener",
+        "Stop mailbox listener",
         "queued: cq-",
         "Command result:",
         "result: none",
@@ -1510,6 +1518,23 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         return 1
     if "search result number out of range" in line_console_stdout:
         print("line-oriented console interpreted a normal command as a stale search result", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
+    queue_context_help_start = line_console_stdout.find("grit[Console Router]/queue> mailbox ?")
+    queue_context_help_end = line_console_stdout.find("grit[Console Router]/queue> ?", queue_context_help_start + 1)
+    queue_context_help_text = (
+        line_console_stdout[queue_context_help_start:queue_context_help_end]
+        if queue_context_help_start != -1 and queue_context_help_end != -1 else ""
+    )
+    if (not queue_context_help_text or
+            "Help: queue" not in queue_context_help_text or
+            "Console help topics:" in queue_context_help_text or
+            "search result number out of range" in queue_context_help_text):
+        print("line-oriented mailbox help did not use queue breadcrumb context", file=sys.stderr)
+        print(queue_context_help_text or line_console_stdout, file=sys.stderr)
+        return 1
+    if "command-queue:inspect-command-queue" in line_console_stdout:
+        print("line-oriented queue output exposed raw queue action identifiers", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
     if "module context cleared" in line_console_stdout:
