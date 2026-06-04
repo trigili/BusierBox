@@ -8,7 +8,6 @@ def build_line_display_show_callbacks(
     cfg,
     *,
     workbench_snapshot_func,
-    selected_action_func,
     service_status_rows_func,
     service_record_func,
     route_record_func,
@@ -34,6 +33,7 @@ def build_line_display_show_callbacks(
     print_release_func,
     append_event_fn,
 ):
+    selected_action_func = action_callbacks["selected_line_action"]
     print_line_info, print_line_next, print_line_options = build_line_display_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot_func,

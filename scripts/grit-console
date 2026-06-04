@@ -6098,14 +6098,12 @@ def run_line_repl(cfg):
         append_event_fn=append_event,
         quote=shquote,
     )
-    selected_line_action = line_action_callbacks["selected_line_action"]
 
     line_job_callbacks = build_line_job_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
         workbench_actions_func=workbench_action_records,
-        select_action_func=line_action_callbacks["select_line_action"],
-        selected_action_func=selected_line_action,
+        action_callbacks=line_action_callbacks,
         start_job_func=start_workbench_job_record,
         quote=shquote,
     )
@@ -6190,7 +6188,6 @@ def run_line_repl(cfg):
     line_display_show_callbacks = build_line_display_show_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        selected_action_func=selected_line_action,
         service_status_rows_func=service_status_rows,
         service_record_func=line_service_record,
         route_record_func=line_route_record,

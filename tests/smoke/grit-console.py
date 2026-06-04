@@ -508,6 +508,7 @@ def run_line_repl_runtime_check():
         sys.path.insert(0, scripts_dir)
     import gritlib.line_repl_completions as repl_completions
     import gritlib.line_repl_core as repl_core
+    import gritlib.line_repl_jobs as repl_jobs
     import gritlib.line_repl_legacy as repl_legacy
     import gritlib.line_repl_navigation as repl_navigation
     import gritlib.line_repl_options as repl_options
@@ -1764,6 +1765,106 @@ def run_line_repl_runtime_check():
     ]
     if search_bundle_calls != expected_search_bundle_calls:
         print(f"line REPL search bundle wiring changed: {search_bundle_calls}", file=sys.stderr)
+        return 1
+
+    job_bundle_calls = []
+    original_start_line_job = repl_jobs.workbench_jobs_start_line_job
+
+    def fake_start_line_job(cfg, action_selector, **kwargs):
+        job_bundle_calls.append(("start-builder", cfg.get("name"), action_selector))
+        kwargs["select_action_func"]("action1")
+        kwargs["selected_action_func"]()
+        return "job-started"
+
+    repl_jobs.workbench_jobs_start_line_job = fake_start_line_job
+    try:
+        job_callbacks = repl_jobs.build_line_job_callbacks(
+            {"name": "job-cfg"},
+            workbench_snapshot_func=lambda cfg: job_bundle_calls.append(("snapshot", cfg.get("name"))) or {},
+            workbench_actions_func=lambda cfg: job_bundle_calls.append(("actions", cfg.get("name"))) or [],
+            action_callbacks={
+                "select_line_action": lambda selector: job_bundle_calls.append(("select-action", selector)),
+                "selected_line_action": lambda: job_bundle_calls.append("selected-action") or {"id": "action1"},
+            },
+            start_job_func=lambda rec: job_bundle_calls.append(("start-job", rec)),
+            quote=lambda text: f"'{text}'",
+        )
+        if job_callbacks["start_line_job"]("action1") != "job-started":
+            print("line REPL job callbacks did not return start result", file=sys.stderr)
+            return 1
+    finally:
+        repl_jobs.workbench_jobs_start_line_job = original_start_line_job
+    expected_job_bundle_calls = [
+        ("start-builder", "job-cfg", "action1"),
+        ("select-action", "action1"),
+        "selected-action",
+    ]
+    if job_bundle_calls != expected_job_bundle_calls:
+        print(f"line REPL job callbacks did not use action bundle: {job_bundle_calls}", file=sys.stderr)
+        return 1
+
+    display_bundle_calls = []
+    original_display_builder = repl_show.build_line_display_callbacks
+    original_show_adapter = repl_show.build_line_show_resource_adapter
+
+    def fake_display_builder(cfg, **kwargs):
+        display_bundle_calls.append(("display-builder", cfg.get("name")))
+        kwargs["selected_action_func"]()
+        return (
+            lambda: display_bundle_calls.append("info"),
+            lambda: display_bundle_calls.append("next"),
+            lambda: display_bundle_calls.append("options"),
+        )
+
+    repl_show.build_line_display_callbacks = fake_display_builder
+    repl_show.build_line_show_resource_adapter = lambda cfg, **kwargs: (
+        display_bundle_calls.append(("show-builder", cfg.get("name"), len(kwargs.get("display_callbacks") or ())))
+        or (lambda resource: display_bundle_calls.append(("show", resource)))
+    )
+    try:
+        display_callbacks = repl_show.build_line_display_show_callbacks(
+            {"name": "display-cfg"},
+            workbench_snapshot_func=lambda cfg: {},
+            service_status_rows_func=lambda cfg: [],
+            service_record_func=lambda service: {},
+            route_record_func=lambda route: {},
+            session_record_func=lambda session: {},
+            job_record_func=lambda job: {},
+            probe_delivery_func=lambda cfg: None,
+            bridge_command_builder=lambda action, name="", extra=None: "",
+            display_name_func=lambda name: name,
+            build_fields_func=lambda cfg: [],
+            target_command_records_func=lambda cfg: [],
+            set_context_func=lambda cfg, module: None,
+            target_filter_func=lambda cfg: "",
+            action_callbacks={
+                "selected_line_action": lambda: display_bundle_calls.append("selected-action") or {},
+                "print_line_actions": lambda verbose=False: None,
+            },
+            target_callbacks={"print_line_targets": lambda: None},
+            route_service_callbacks={"print_line_services": lambda verbose=False: None, "print_line_routes": lambda verbose=False: None},
+            file_callbacks={"print_line_files": lambda verbose=False: None},
+            job_callbacks={"print_line_jobs": lambda verbose=False: None},
+            session_callbacks={"print_line_sessions": lambda verbose=False: None},
+            queue_callbacks={"print_line_command_queue_view": lambda detailed=False: None},
+            print_daemon_func=lambda verbose=False: None,
+            print_categories_func=lambda cfg, snapshot_func: None,
+            print_events_func=lambda cfg, args=None: None,
+            print_release_func=lambda cfg, append_event_fn=None: None,
+            append_event_fn=lambda *args, **kwargs: None,
+        )
+        display_callbacks["show_line_resource"]("jobs")
+    finally:
+        repl_show.build_line_display_callbacks = original_display_builder
+        repl_show.build_line_show_resource_adapter = original_show_adapter
+    expected_display_bundle_calls = [
+        ("display-builder", "display-cfg"),
+        "selected-action",
+        ("show-builder", "display-cfg", 3),
+        ("show", "jobs"),
+    ]
+    if display_bundle_calls != expected_display_bundle_calls:
+        print(f"line REPL display callbacks did not use action bundle: {display_bundle_calls}", file=sys.stderr)
         return 1
 
     workflow_calls = []
