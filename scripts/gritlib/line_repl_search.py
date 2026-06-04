@@ -3,6 +3,7 @@
 from gritlib.line_actions import current_line_action_records
 from gritlib.line_configure import run_line_probe_config
 from gritlib.line_search import (
+    clear_line_search_results,
     line_search_results,
     run_line_search,
     use_line_search_result,
@@ -62,7 +63,11 @@ def build_line_search_callbacks(
             ),
         )
 
+    def clear_search_results():
+        return clear_line_search_results(cfg)
+
     return {
+        "clear_line_search_results": clear_search_results,
         "search_line_resources": search_line_resources,
         "use_line_search_result": use_search_result,
     }

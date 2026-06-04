@@ -408,6 +408,10 @@ def current_stop_reason(default="complete"):
     return SHUTDOWN_REASON or default
 
 
+def current_shutdown_reason():
+    return SHUTDOWN_REASON
+
+
 def register_socket(sock):
     return SERVICE_MANAGER.register_socket(sock)
 
@@ -6222,6 +6226,7 @@ def run_line_repl(cfg):
         append_event_fn=append_event,
         quote=shquote,
     )
+    clear_line_search_results_callback = line_search_callbacks["clear_line_search_results"]
     search_line_resources = line_search_callbacks["search_line_resources"]
     use_line_search_result = line_search_callbacks["use_line_search_result"]
 
@@ -6408,13 +6413,17 @@ def run_line_repl(cfg):
         action_state_text_func=line_action_state_text,
         print_queue_func=print_line_command_queue_view,
     )
+
+    def mark_line_workbench_quit_stopped():
+        mark_service_stopped(cfg, "workbench", "quit")
+
     try:
         result = run_configured_line_repl_loop(
             cfg,
             target_filter_func=configured_target_filter,
             clear_console_context_func=clear_line_console_context,
             shutdown_event=SHUTDOWN,
-            shutdown_reason_func=lambda: SHUTDOWN_REASON,
+            shutdown_reason_func=current_shutdown_reason,
             line_history=line_history,
             pending_console_lines=pending_console_lines,
             workbench_snapshot_func=workbench_snapshot,
@@ -6425,7 +6434,7 @@ def run_line_repl(cfg):
             input_func=line_input,
             history_command_func=line_history_command,
             record_history_func=record_line_history,
-            clear_results_func=lambda: clear_line_search_results(cfg),
+            clear_results_func=clear_line_search_results_callback,
             readline_module=_readline if HAVE_READLINE else None,
             command_help_printer=print_line_command_help,
             context_help_printer=print_context_line_help,
@@ -6434,7 +6443,7 @@ def run_line_repl(cfg):
             navigation_dispatch_func=dispatch_line_navigation,
             workflow_dispatch_func=dispatch_line_workflow,
             unknown_message_func=line_unknown_command_message,
-            mark_stopped_func=lambda: mark_service_stopped(cfg, "workbench", "quit"),
+            mark_stopped_func=mark_line_workbench_quit_stopped,
             legacy_dispatch_func=dispatch_line_legacy,
         )
     finally:
@@ -6456,7 +6465,7 @@ def run_line_console(cfg):
         request_shutdown_func=request_shutdown,
         stop_services_func=stop_workbench_started_services,
         mark_stopped_func=mark_service_stopped,
-        shutdown_reason_func=lambda: SHUTDOWN_REASON,
+        shutdown_reason_func=current_shutdown_reason,
         stderr=sys.stderr,
     )
 
