@@ -234,10 +234,9 @@ from gritlib.line_navigation_commands import dispatch_line_navigation_command
 from gritlib.line_utility_commands import dispatch_line_utility_command
 from gritlib.line_workflow_commands import dispatch_line_workflow_command
 from gritlib.line_workspace import (
-    line_repl_prompt as line_workspace_repl_prompt,
+    line_repl_prompt_for_config,
     line_repl_status_bar, print_line_console_banner,
-    print_line_info as line_workspace_print_line_info,
-    print_line_next as line_workspace_print_line_next,
+    print_current_line_info, print_current_line_next,
     print_line_workspace_snapshot, reload_line_config_for_repl as line_workspace_reload_line_config_for_repl,
 )
 from gritlib.operator_io import (
@@ -6397,10 +6396,7 @@ def run_line_repl(cfg):
         )
 
     def line_repl_prompt():
-        target_id = configured_target_filter(cfg)
-        module = str(cfg.get("_line_console_module") or "").strip()
-        ctx = target_context_fields(cfg, target_id) if target_id else {}
-        return line_workspace_repl_prompt(target_id=target_id, module=module, target_context=ctx)
+        return line_repl_prompt_for_config(cfg)
 
     def record_line_alias(alias, canonical):
         append_event(cfg, "workbench", "workbench_console_alias_used", details={
@@ -6409,12 +6405,9 @@ def run_line_repl(cfg):
         })
 
     def print_line_info():
-        snap = workbench_snapshot(cfg)
-        module = str(cfg.get("_line_console_module") or "root")
-        return line_workspace_print_line_info(
-            snap,
-            module=module,
-            prompt_text=line_repl_prompt(),
+        return print_current_line_info(
+            cfg,
+            workbench_snapshot(cfg),
             selected_action=selected_line_action,
             service_record=lambda service: line_service_record(service_status_rows(cfg), service),
             route_record=line_route_record,
@@ -6427,15 +6420,9 @@ def run_line_repl(cfg):
         )
 
     def print_line_next():
-        snap = workbench_snapshot(cfg)
-        module = str(cfg.get("_line_console_module") or "").strip()
-        target_id = configured_target_filter(cfg)
-        return line_workspace_print_line_next(
+        return print_current_line_next(
             cfg,
-            snap,
-            module=module,
-            target_id=target_id,
-            prompt_text=line_repl_prompt(),
+            workbench_snapshot(cfg),
             selected_action=selected_line_action,
             job_record=line_job_record,
         )

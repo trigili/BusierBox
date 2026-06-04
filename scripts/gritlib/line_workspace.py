@@ -4,7 +4,9 @@ from gritlib.console_display import console_table
 from gritlib.event_log import append_event
 from gritlib.record_utils import format_counts
 from gritlib.target_records import (
+    configured_target_filter,
     target_filter_brief_text, target_filter_evidence_lines, target_filter_summary_text,
+    target_context_fields,
 )
 
 
@@ -138,6 +140,13 @@ def line_repl_prompt(target_id="", module="", target_context=None):
     if len(display) > 36:
         display = display[:33] + "..."
     return f"grit[{display}]{module_suffix}> "
+
+
+def line_repl_prompt_for_config(cfg):
+    target_id = configured_target_filter(cfg)
+    module = str((cfg or {}).get("_line_console_module") or "").strip()
+    ctx = target_context_fields(cfg, target_id) if target_id else {}
+    return line_repl_prompt(target_id=target_id, module=module, target_context=ctx)
 
 
 def line_repl_status_bar(snap):
@@ -473,6 +482,29 @@ def print_line_info(
         print("  selected agent: all")
 
 
+def print_current_line_info(
+    cfg, snap, *,
+    selected_action=None, service_record=None, route_record=None,
+    session_record=None, job_record=None, probe_delivery_printer=None,
+    bridge_command_builder=None, view_command_builder=None,
+    cancel_job_command_builder=None,
+):
+    return print_line_info(
+        snap,
+        module=str((cfg or {}).get("_line_console_module") or "root"),
+        prompt_text=line_repl_prompt_for_config(cfg),
+        selected_action=selected_action,
+        service_record=service_record,
+        route_record=route_record,
+        session_record=session_record,
+        job_record=job_record,
+        probe_delivery_printer=probe_delivery_printer,
+        bridge_command_builder=bridge_command_builder,
+        view_command_builder=view_command_builder,
+        cancel_job_command_builder=cancel_job_command_builder,
+    )
+
+
 def print_line_next(
     cfg, snap, module="", target_id="", prompt_text="",
     selected_action=None, job_record=None
@@ -528,3 +560,20 @@ def print_line_next(
         "target_id": target_id,
         "session_count": len(sessions),
     })
+
+
+def print_current_line_next(
+    cfg, snap, *,
+    selected_action=None, job_record=None,
+):
+    module = str((cfg or {}).get("_line_console_module") or "").strip()
+    target_id = configured_target_filter(cfg)
+    return print_line_next(
+        cfg,
+        snap,
+        module=module,
+        target_id=target_id,
+        prompt_text=line_repl_prompt_for_config(cfg),
+        selected_action=selected_action,
+        job_record=job_record,
+    )
