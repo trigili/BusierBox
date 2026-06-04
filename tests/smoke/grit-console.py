@@ -1229,9 +1229,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "operator daemon workflow action: operator-daemon-status",
         "Session interaction:",
         "Agent interaction: line-console-target label=Console Router state=online",
-        "renamed target line-console-target label=Console Router",
-        "noted target line-console-target notes=Console quick note",
-        "aliased target line-console-target aliases=console-alias",
+        "renamed target: line-console-target",
+        "noted target: line-console-target",
+        "aliased target: line-console-target",
         "Command queue  (",
         "queued cq-",
         "Command result:",
@@ -1601,14 +1601,24 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("clear section:", file=sys.stderr)
         print(clear_text or line_console_stdout, file=sys.stderr)
         return 1
-    metadata_start = line_console_stdout.find("set target.notes=Rack shelf A")
+    metadata_start = line_console_stdout.find("notes: Rack shelf A")
     metadata_end = line_console_stdout.find("show activity", metadata_start + 1)
     metadata_text = line_console_stdout[metadata_start:metadata_end] if metadata_start != -1 and metadata_end != -1 else ""
-    direct_metadata_start = line_console_stdout.find("renamed target line-console-target")
+    direct_metadata_start = line_console_stdout.find("renamed target: line-console-target")
     direct_metadata_end = line_console_stdout.find("Search results for Console Router", direct_metadata_start + 1)
     direct_metadata_text = line_console_stdout[direct_metadata_start:direct_metadata_end] if direct_metadata_start != -1 and direct_metadata_end != -1 else ""
-    if (not metadata_text or "set target.aliases=" not in metadata_text or "headless_command:" in metadata_text or
-            not direct_metadata_text or "aliased target line-console-target" not in direct_metadata_text or "headless_command:" in direct_metadata_text):
+    if (not metadata_text or
+            "aliases: console-alias" not in metadata_text or
+            "unset notes for target: line-console-target" not in metadata_text or
+            "target: line-console-target (Console Router)" not in metadata_text or
+            "target=" in metadata_text or
+            "headless_command:" in metadata_text or
+            not direct_metadata_text or
+            "aliased target: line-console-target" not in direct_metadata_text or
+            "label=Console Router" in direct_metadata_text or
+            "notes=Console quick note" in direct_metadata_text or
+            "aliases=console-alias" in direct_metadata_text or
+            "headless_command:" in direct_metadata_text):
         print("line-oriented target metadata commands exposed noisy headless commands", file=sys.stderr)
         print("metadata section:", file=sys.stderr)
         print(metadata_text or line_console_stdout, file=sys.stderr)

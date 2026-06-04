@@ -301,7 +301,7 @@ def set_line_target_option(cfg, name, value):
             notes=rec.get("notes", ""),
         )
         cfg["_target_label_filter"] = str(updated.get("label") or "")
-        print(f"set target.label={updated.get('label', '') or '-'}")
+        print(f"label: {updated.get('label', '') or '-'}")
     elif key in ("notes", "target.notes"):
         updated = set_target_label(
             cfg,
@@ -310,7 +310,7 @@ def set_line_target_option(cfg, name, value):
             aliases=rec.get("aliases") or [],
             notes=text,
         )
-        print(f"set target.notes={str(updated.get('notes') or '') or '-'}")
+        print(f"notes: {str(updated.get('notes') or '') or '-'}")
     elif key in ("alias", "target.alias", "target.aliases"):
         updated = set_target_label(
             cfg,
@@ -319,7 +319,7 @@ def set_line_target_option(cfg, name, value):
             aliases=[text],
             notes=rec.get("notes", ""),
         )
-        print(f"set target.aliases={','.join(str(item) for item in updated.get('aliases') or []) or '-'}")
+        print(f"aliases: {', '.join(str(item) for item in updated.get('aliases') or []) or '-'}")
     else:
         raise ValueError(f"unknown option: {name}")
     record_line_target_metadata_update(cfg, target_id, action="set-option", field=key)
@@ -418,7 +418,8 @@ def rename_line_target(cfg, label):
         notes=rec.get("notes", ""),
     )
     cfg["_target_label_filter"] = str(updated.get("label") or "")
-    print(f"renamed target {target_id} label={updated.get('label', '') or '-'}")
+    print(f"renamed target: {target_id}")
+    print(f"  label: {updated.get('label', '') or '-'}")
     record_line_target_metadata_update(cfg, target_id, action="rename", field="target.label")
     return updated
 
@@ -427,7 +428,7 @@ def note_line_target(cfg, notes):
     text = str(notes or "").strip()
     target_id, rec = selected_target_record_for_update(cfg)
     if not text:
-        print(f"target.notes={str(rec.get('notes') or '') or '-'}")
+        print(f"notes: {str(rec.get('notes') or '') or '-'}")
         return rec
     updated = set_target_label(
         cfg,
@@ -436,7 +437,8 @@ def note_line_target(cfg, notes):
         aliases=rec.get("aliases") or [],
         notes=text,
     )
-    print(f"noted target {target_id} notes={str(updated.get('notes') or '') or '-'}")
+    print(f"noted target: {target_id}")
+    print(f"  notes: {str(updated.get('notes') or '') or '-'}")
     record_line_target_metadata_update(cfg, target_id, action="note", field="target.notes")
     return updated
 
@@ -453,7 +455,8 @@ def alias_line_target(cfg, alias):
         aliases=[text],
         notes=rec.get("notes", ""),
     )
-    print(f"aliased target {target_id} aliases={','.join(str(item) for item in updated.get('aliases') or []) or '-'}")
+    print(f"aliased target: {target_id}")
+    print(f"  aliases: {', '.join(str(item) for item in updated.get('aliases') or []) or '-'}")
     record_line_target_metadata_update(cfg, target_id, action="alias", field="target.aliases")
     return updated
 
@@ -474,7 +477,7 @@ def unset_line_target_option(cfg, name, clear_module=None):
             notes=rec.get("notes", ""),
         )
         cfg.pop("_target_label_filter", None)
-        print(f"unset target.label for {target_id}")
+        print(f"unset label for target: {target_id}")
     elif key in ("notes", "target.notes"):
         updated = set_target_label(
             cfg,
@@ -483,8 +486,8 @@ def unset_line_target_option(cfg, name, clear_module=None):
             aliases=rec.get("aliases") or [],
             notes="",
         )
-        print(f"unset target.notes for {target_id}")
+        print(f"unset notes for target: {target_id}")
     else:
         raise ValueError(f"unknown unset option: {name}")
-    print(f"target={target_id} label={updated.get('label', '') or '-'}")
+    print(f"target: {target_id} ({updated.get('label', '') or '-'})")
     return updated
