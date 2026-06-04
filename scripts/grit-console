@@ -6200,9 +6200,6 @@ def run_line_repl(cfg):
         print_release_func=line_release_print_line_release,
         append_event_fn=append_event,
     )
-    print_line_info = line_display_show_callbacks["print_line_info"]
-    print_line_next = line_display_show_callbacks["print_line_next"]
-    print_line_options = line_display_show_callbacks["print_line_options"]
 
     install_readline_completer(_readline, HAVE_READLINE, line_completion_candidates)
 
@@ -6232,6 +6229,7 @@ def run_line_repl(cfg):
         clear_module_func=clear_line_module_context,
         probe_callbacks=line_probe_callbacks,
         file_callbacks=line_file_callbacks,
+        display_callbacks=line_display_show_callbacks,
         default_config=DEFAULT_CONFIG,
         load_config_func=load_config,
         defaults=DEFAULTS,
@@ -6240,9 +6238,6 @@ def run_line_repl(cfg):
         print_workspace_snapshot_func=print_line_workspace_snapshot,
         reload_config_func=line_workspace_reload_line_config_for_repl,
         clear_console_context_func=clear_line_console_context,
-        info_func=print_line_info,
-        next_func=print_line_next,
-        options_func=print_line_options,
         set_context_func=set_line_collection_context,
         build_run_func=run_line_build_command,
         set_global_option_func=set_line_global_build_option,

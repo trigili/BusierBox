@@ -1468,6 +1468,9 @@ def run_line_repl_runtime_check():
             unset_context_option_func("B")
             core_bundle_calls.append(("probe-start", kwargs["probe_start_func"]()))
             core_bundle_calls.append(("stage-release", kwargs["probe_serve_stage_release_func"]("release-id")))
+            kwargs["info_func"]()
+            kwargs["next_func"]()
+            kwargs["options_func"]()
             return "bundle-refresh"
 
         return dispatch_core_bundle
@@ -1489,6 +1492,11 @@ def run_line_repl_runtime_check():
             file_callbacks={
                 "stage_release": lambda release_id: f"staged-{release_id}",
             },
+            display_callbacks={
+                "print_line_info": lambda: core_bundle_calls.append("info"),
+                "print_line_next": lambda: core_bundle_calls.append("next"),
+                "print_line_options": lambda: core_bundle_calls.append("options"),
+            },
             default_config="bundle-default.json",
         )
         if core_bundle["dispatch_line_core"]("status", []) != "bundle-refresh":
@@ -1505,6 +1513,9 @@ def run_line_repl_runtime_check():
         ("unset", "bundle-core", "B"),
         ("probe-start", "probe-started"),
         ("stage-release", "staged-release-id"),
+        "info",
+        "next",
+        "options",
         ("unset", "bundle-core", "C"),
     ]
     if core_bundle_calls != expected_core_bundle_calls:
