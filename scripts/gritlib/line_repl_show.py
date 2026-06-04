@@ -8,9 +8,9 @@ def build_line_display_show_callbacks(
     cfg,
     *,
     workbench_snapshot_func,
-    service_status_rows_func,
-    service_record_func,
-    probe_delivery_func,
+    service_status_rows_func=None,
+    service_record_func=None,
+    probe_delivery_func=None,
     display_name_func,
     build_fields_func,
     target_command_records_func,
@@ -19,6 +19,7 @@ def build_line_display_show_callbacks(
     action_callbacks,
     target_callbacks,
     route_service_callbacks,
+    probe_callbacks=None,
     file_callbacks,
     job_callbacks,
     session_callbacks,
@@ -34,6 +35,12 @@ def build_line_display_show_callbacks(
     session_record_func = session_callbacks["line_session_record"]
     job_record_func = job_callbacks["line_job_record"]
     bridge_command_builder = route_service_callbacks["bridge_profile_headless_command"]
+    if service_status_rows_func is None:
+        service_status_rows_func = lambda _cfg: route_service_callbacks["service_rows"]()
+    if service_record_func is None:
+        service_record_func = route_service_callbacks["service_record"]
+    if probe_delivery_func is None and probe_callbacks is not None:
+        probe_delivery_func = probe_callbacks["probe_delivery"]
     print_line_info, print_line_next, print_line_options = build_line_display_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot_func,

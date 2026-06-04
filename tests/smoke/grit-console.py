@@ -2178,9 +2178,12 @@ def run_line_repl_runtime_check():
     def fake_display_builder(cfg, **kwargs):
         display_bundle_calls.append(("display-builder", cfg.get("name")))
         kwargs["selected_action_func"]()
+        kwargs["service_status_rows_func"]({"name": "ignored"})
+        kwargs["service_record_func"]([], "probe")
         kwargs["route_record_func"]("route1")
         kwargs["session_record_func"]("session1")
         kwargs["job_record_func"]("job1")
+        kwargs["probe_delivery_func"]({"name": "ignored"})
         kwargs["bridge_command_builder"]("inspect", "route1")
         return (
             lambda: display_bundle_calls.append("info"),
@@ -2197,9 +2200,6 @@ def run_line_repl_runtime_check():
         display_callbacks = repl_show.build_line_display_show_callbacks(
             {"name": "display-cfg"},
             workbench_snapshot_func=lambda cfg: {},
-            service_status_rows_func=lambda cfg: [],
-            service_record_func=lambda service: {},
-            probe_delivery_func=lambda cfg: None,
             display_name_func=lambda name: name,
             build_fields_func=lambda cfg: [],
             target_command_records_func=lambda cfg: [],
@@ -2217,6 +2217,13 @@ def run_line_repl_runtime_check():
                 ),
                 "print_line_services": lambda verbose=False: None,
                 "print_line_routes": lambda verbose=False: None,
+                "service_rows": lambda: display_bundle_calls.append("service-rows") or [],
+                "service_record": lambda rows, service: display_bundle_calls.append(
+                    ("service-record", rows, service)
+                ),
+            },
+            probe_callbacks={
+                "probe_delivery": lambda cfg: display_bundle_calls.append(("probe-delivery", cfg.get("name"))),
             },
             file_callbacks={"print_line_files": lambda verbose=False: None},
             job_callbacks={
@@ -2241,9 +2248,12 @@ def run_line_repl_runtime_check():
     expected_display_bundle_calls = [
         ("display-builder", "display-cfg"),
         "selected-action",
+        "service-rows",
+        ("service-record", [], "probe"),
         ("route-record", "route1"),
         ("session-record", "session1"),
         ("job-record", "job1"),
+        ("probe-delivery", "ignored"),
         ("bridge-command", "inspect", "route1", None),
         ("show-builder", "display-cfg", 3),
         ("show", "jobs"),

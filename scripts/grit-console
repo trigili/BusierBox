@@ -6186,9 +6186,6 @@ def run_line_repl(cfg):
     line_display_show_callbacks = build_line_display_show_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        service_status_rows_func=service_status_rows,
-        service_record_func=line_service_record,
-        probe_delivery_func=print_probe_delivery,
         display_name_func=line_service_display_name,
         build_fields_func=workbench_config_field_records,
         target_command_records_func=generated_target_command_records,
@@ -6197,6 +6194,7 @@ def run_line_repl(cfg):
         action_callbacks=line_action_callbacks,
         target_callbacks=line_target_callbacks,
         route_service_callbacks=line_route_service_callbacks,
+        probe_callbacks=line_probe_callbacks,
         file_callbacks=line_file_callbacks,
         job_callbacks=line_job_callbacks,
         session_callbacks=line_session_callbacks,
