@@ -929,6 +929,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "back\n"
                 f"route add zz-console-added {line_console_added_route_port} 127.0.0.1 {line_console_added_route_dest_port} operator:{line_console_added_route_port}=rack-hop:9100 rack-hop:9100=127.0.0.1:{line_console_added_route_dest_port}\n"
                 "show routes\n"
+                "show routes -v\n"
                 "route start 2\n"
                 "route stop 2\n"
                 "routes -v\n"
@@ -1568,16 +1569,26 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     routes_verbose_start = line_console_stdout.find("grit[all]/routes> routes -v")
     routes_verbose_end = line_console_stdout.find("grit[all]/routes> route delete 2", routes_verbose_start + 1)
     routes_verbose_text = line_console_stdout[routes_verbose_start:routes_verbose_end] if routes_verbose_start != -1 and routes_verbose_end != -1 else ""
+    show_routes_verbose_start = line_console_stdout.find("grit[all]/routes> show routes -v")
+    show_routes_verbose_end = line_console_stdout.find("grit[all]/routes> route start 2", show_routes_verbose_start + 1)
+    show_routes_verbose_text = (
+        line_console_stdout[show_routes_verbose_start:show_routes_verbose_end]
+        if show_routes_verbose_start != -1 and show_routes_verbose_end != -1 else ""
+    )
     route_print_start = line_console_stdout.find("grit[all]/routes> route print")
     route_print_end = line_console_stdout.find("grit[all]/routes> route console-route", route_print_start + 1)
     route_print_text = line_console_stdout[route_print_start:route_print_end] if route_print_start != -1 and route_print_end != -1 else ""
     if (not routes_verbose_text or
             "\n     start: scripts/grit-console" not in routes_verbose_text or
+            not show_routes_verbose_text or
+            "\n     start: scripts/grit-console" not in show_routes_verbose_text or
             not route_print_text or
             "\n     start: scripts/grit-console" in route_print_text):
         print("line-oriented route print did not keep generated commands behind verbose mode", file=sys.stderr)
         print("routes -v:", file=sys.stderr)
         print(routes_verbose_text or line_console_stdout, file=sys.stderr)
+        print("show routes -v:", file=sys.stderr)
+        print(show_routes_verbose_text, file=sys.stderr)
         print("route print:", file=sys.stderr)
         print(route_print_text, file=sys.stderr)
         return 1

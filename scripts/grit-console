@@ -7469,10 +7469,10 @@ def run_line_repl(cfg):
             print_line_sessions()
         elif key in ("route", "routes"):
             set_line_collection("routes")
-            print_line_routes(verbose=filter_text in ("-v", "--verbose", "verbose"))
+            print_line_routes(verbose=verbose)
         elif key in ("queue", "mailbox", "commands"):
             set_line_collection("queue")
-            print_line_command_queue_view(detailed=filter_text in ("-v", "--verbose", "verbose", "details"))
+            print_line_command_queue_view(detailed=verbose)
         elif key in ("activity", "events"):
             set_line_collection("events")
             snap = workbench_snapshot(cfg)
