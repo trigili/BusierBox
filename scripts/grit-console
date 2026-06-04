@@ -155,7 +155,9 @@ from gritlib.line_context import (
     parse_line_use_command,
     set_line_collection_context,
 )
-from gritlib.line_events import parse_line_events_command, print_line_events_view
+from gritlib.line_events import (
+    dispatch_line_events_command, parse_line_events_command, print_line_events_view,
+)
 from gritlib.line_state import line_action_state_text
 from gritlib.line_files import (
     clear_line_files as line_files_clear_line_files,
@@ -223,6 +225,7 @@ from gritlib.line_release import (
 )
 from gritlib.line_search import (
     clear_line_search_results,
+    dispatch_line_search_command,
     parse_line_search_command,
     print_line_search_results,
     use_line_search_result as line_search_use_line_search_result,
@@ -238,7 +241,9 @@ from gritlib.line_services import (
     select_line_service as line_services_select_line_service,
     resolve_line_service_selector as line_services_resolve_selector,
 )
-from gritlib.line_show import dispatch_line_show_resource, parse_line_show_command
+from gritlib.line_show import (
+    dispatch_line_show_command, dispatch_line_show_resource, parse_line_show_command,
+)
 from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
     dispatch_line_sessions_command,
@@ -255,6 +260,7 @@ from gritlib.line_targets import (
 )
 from gritlib.line_target_commands import (
     copy_line_generated_command, copy_line_service_command,
+    dispatch_line_copy_command, dispatch_line_generated_commands_command,
     parse_line_copy_command, parse_line_generated_commands_command,
     run_line_generated_command,
 )
@@ -7638,16 +7644,10 @@ def run_line_repl(cfg):
                 )
                 continue
             elif (events_cmd := parse_line_events_command(cmd, console_args[1:])):
-                try:
-                    print_line_events(events_cmd["args"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_events_command(events_cmd, print_func=print_line_events)
                 continue
             elif (search_cmd := parse_line_search_command(cmd, console_args[1:])):
-                try:
-                    search_line_resources(search_cmd["query"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_search_command(search_cmd, search_func=search_line_resources)
                 continue
             elif (workspace_cmd := parse_line_workspace_command(cmd, console_args[1:])):
                 workspace_result = dispatch_line_workspace_command(
@@ -7695,31 +7695,29 @@ def run_line_repl(cfg):
                 )
                 continue
             elif (show_cmd := parse_line_show_command(cmd, console_args[1:])):
-                try:
-                    show_line_resource(show_cmd["resource"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_show_command(show_cmd, show_func=show_line_resource)
                 continue
             elif (commands_cmd := parse_line_generated_commands_command(cmd, console_args[1:])):
-                try:
-                    run_line_generated_command(cfg, commands_cmd["args"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_generated_commands_command(
+                    commands_cmd,
+                    run_func=lambda args: run_line_generated_command(cfg, args),
+                )
                 continue
             elif (copy_cmd := parse_line_copy_command(cmd, console_args[1:])):
-                if copy_cmd["action"] == "service":
-                    copy_line_service_command(
+                dispatch_line_copy_command(
+                    copy_cmd,
+                    service_copy_func=lambda subcmd: copy_line_service_command(
                         cfg,
-                        copy_cmd["subcmd"],
+                        subcmd,
                         lambda command, label: copy_text_for_operator(cfg, command, label=label),
                         start_command=lambda svc: service_start_headless_command(cfg, svc),
                         stop_command=lambda svc: service_stop_headless_command(cfg, svc),
-                    )
-                else:
-                    try:
-                        copy_line_generated_command(cfg, copy_cmd["selector"])
-                    except ValueError as exc:
-                        print(exc)
+                    ),
+                    generated_copy_func=lambda selector: copy_line_generated_command(
+                        cfg,
+                        selector,
+                    ),
+                )
                 continue
             elif (listener_cmd := parse_line_listener_command(cmd, console_args[1:])):
                 dispatch_line_listener_command(

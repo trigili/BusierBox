@@ -14,6 +14,16 @@ def parse_line_search_command(cmd, args):
     }
 
 
+def dispatch_line_search_command(search_cmd, *, search_func=None):
+    try:
+        if search_func:
+            return search_func((search_cmd or {}).get("query", ""))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported search command")
+
+
 def clear_line_search_results(cfg):
     cfg["_line_console_search_results"] = []
 

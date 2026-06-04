@@ -117,6 +117,16 @@ def parse_line_events_command(cmd, args):
     }
 
 
+def dispatch_line_events_command(events_cmd, *, print_func=None):
+    try:
+        if print_func:
+            return print_func((events_cmd or {}).get("args") or [])
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported events command")
+
+
 def line_event_time_text(iso):
     text = str(iso or "")
     if len(text) >= 16 and "T" in text:

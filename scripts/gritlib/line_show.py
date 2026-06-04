@@ -74,6 +74,16 @@ def parse_line_show_command(cmd, args):
     return {"action": "show", "resource": resource}
 
 
+def dispatch_line_show_command(show_cmd, *, show_func=None):
+    try:
+        if show_func:
+            return show_func((show_cmd or {}).get("resource", ""))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported show command")
+
+
 def dispatch_line_show_resource(resource, handlers):
     parsed = parse_line_show_resource(resource)
     kind = parsed["kind"]

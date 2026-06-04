@@ -82,6 +82,34 @@ def parse_line_generated_commands_command(cmd, args):
     return {"action": "commands", "args": list(args or [])}
 
 
+def dispatch_line_generated_commands_command(commands_cmd, *, run_func=None):
+    try:
+        if run_func:
+            return run_func((commands_cmd or {}).get("args") or [])
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported generated commands command")
+
+
+def dispatch_line_copy_command(
+    copy_cmd,
+    *,
+    service_copy_func=None,
+    generated_copy_func=None,
+):
+    try:
+        action = (copy_cmd or {}).get("action")
+        if action == "service" and service_copy_func:
+            return service_copy_func(copy_cmd.get("subcmd", ""))
+        if action == "generated" and generated_copy_func:
+            return generated_copy_func(copy_cmd.get("selector", ""))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported copy command")
+
+
 def copy_line_service_command(cfg, subcmd, copy_func, start_command=None, stop_command=None):
     subcmd = str(subcmd or "").strip().lower()
     if subcmd not in {"start", "stop"}:
