@@ -6436,6 +6436,8 @@ def run_line_repl(cfg):
         topic = line_help_topic_for_module(cfg.get("_line_console_module"))
         if topic:
             return print_line_command_help(topic)
+        if configured_target_filter(cfg):
+            return print_line_command_help("targets")
         return print_line_console_help()
 
     def print_line_info():

@@ -1044,6 +1044,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "use agent Console Router\n"
                 "main\n"
                 "use agent Console Router\n"
+                "?\n"
                 "rename Console Router\n"
                 "note Console quick note\n"
                 "alias console-alias\n"
@@ -1325,6 +1326,18 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Console help topics:" in probe_context_bare_help_text):
         print("line-oriented bare help did not use probe breadcrumb context", file=sys.stderr)
         print(probe_context_bare_help_text or line_console_stdout, file=sys.stderr)
+        return 1
+    target_context_help_start = line_console_stdout.find("grit[Console Router]> ?")
+    target_context_help_end = line_console_stdout.find("grit[Console Router]> rename", target_context_help_start + 1)
+    target_context_help_text = (
+        line_console_stdout[target_context_help_start:target_context_help_end]
+        if target_context_help_start != -1 and target_context_help_end != -1 else ""
+    )
+    if (not target_context_help_text or
+            "Help: targets" not in target_context_help_text or
+            "Console help topics:" in target_context_help_text):
+        print("line-oriented bare ? did not use selected target context", file=sys.stderr)
+        print(target_context_help_text or line_console_stdout, file=sys.stderr)
         return 1
     probe_queue_start = line_console_stdout.find("grit[Console Router]/probe> probe --queue")
     probe_queue_end = line_console_stdout.find("grit[Console Router]/probe> download --queue", probe_queue_start + 1)
