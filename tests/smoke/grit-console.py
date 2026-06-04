@@ -481,7 +481,7 @@ def run_console_arg_override_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from gritlib.console_args import apply_console_arg_overrides
+    from gritlib.console_args import apply_console_arg_overrides, has_explicit_console_action
 
     args = argparse.Namespace(
         config="configs/operator.json",
@@ -563,6 +563,28 @@ def run_console_arg_override_check():
     if cfg.get("GRIT_RSHELL_SOCAT_PORT") != 5555:
         print("console arg override helper did not prefer --shell-port over --socat-port", file=sys.stderr)
         return 1
+    if has_explicit_console_action(args):
+        print("console action helper treated context-only flags as explicit actions", file=sys.stderr)
+        return 1
+    for attr, value in (
+        ("transport", "ssh"),
+        ("daemon", True),
+        ("file_service", True),
+        ("serve_file", "tool.bin"),
+        ("serve_dir", "operator-files"),
+        ("stage_release_artifact", "bin/grit"),
+        ("list_staged", True),
+        ("unstage", "/tmp/tool"),
+        ("stop", True),
+        ("status", True),
+        ("json_status", True),
+        ("api_status", True),
+        ("systemd_user_action", "status"),
+    ):
+        explicit_args = argparse.Namespace(**{attr: value})
+        if not has_explicit_console_action(explicit_args):
+            print(f"console action helper missed explicit action flag: {attr}", file=sys.stderr)
+            return 1
     args.event_limit = -1
     try:
         apply_console_arg_overrides({}, args)

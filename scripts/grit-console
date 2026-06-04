@@ -69,7 +69,7 @@ from gritlib.command_queue import (
     save_command_queue, yes_no,
 )
 from gritlib.console_display import print_dry_run_notice
-from gritlib.console_args import apply_console_arg_overrides
+from gritlib.console_args import apply_console_arg_overrides, has_explicit_console_action
 from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
     command_copy_state_status, copy_text_for_operator,
@@ -7653,19 +7653,7 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         print(f"grit-console: {exc}", file=sys.stderr)
         return 2
 
-    # Open the console when no explicit service/transport action was requested.
-    # --config, --release-dir, --target-id etc. are context flags, not actions.
-    _explicit_action = bool(
-        args.transport or args.daemon or getattr(args, "file_service", False)
-        or getattr(args, "serve_file", None) or getattr(args, "serve_dir", None)
-        or getattr(args, "stage_release_artifact", None)
-        or getattr(args, "list_staged", False) or getattr(args, "unstage", None)
-        or getattr(args, "stop", False)
-        or getattr(args, "status", False) or getattr(args, "json_status", False)
-        or getattr(args, "api_status", False)
-        or getattr(args, "systemd_user_action", None)
-    )
-    if not _explicit_action and not args.no_console:
+    if not has_explicit_console_action(args) and not args.no_console:
         return run_line_console(cfg)
 
     try:

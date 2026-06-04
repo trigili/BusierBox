@@ -3,6 +3,23 @@
 from gritlib.bridge_routes import apply_bridge_profile
 
 
+EXPLICIT_CONSOLE_ACTION_ARGS = (
+    "transport",
+    "daemon",
+    "file_service",
+    "serve_file",
+    "serve_dir",
+    "stage_release_artifact",
+    "list_staged",
+    "unstage",
+    "stop",
+    "status",
+    "json_status",
+    "api_status",
+    "systemd_user_action",
+)
+
+
 def apply_console_arg_overrides(cfg, args):
     """Apply argparse values that act as console configuration overrides."""
     cfg["_config_path"] = args.config
@@ -53,3 +70,8 @@ def apply_console_arg_overrides(cfg, args):
         raise ValueError("--event-limit must be >= 0")
     cfg["_event_limit"] = args.event_limit
     return cfg
+
+
+def has_explicit_console_action(args):
+    """Return true when args request work instead of opening the line console."""
+    return any(bool(getattr(args, attr, None)) for attr in EXPLICIT_CONSOLE_ACTION_ARGS)
