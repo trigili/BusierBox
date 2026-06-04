@@ -149,8 +149,7 @@ from gritlib.line_files import (
     line_file_records_from_staged,
     parse_line_binary_args,
     parse_line_download_args,
-    parse_line_fetch_args,
-    parse_line_file_args,
+    parse_line_file_transfer_command,
     parse_line_files_command,
     parse_line_release_stage_args,
     print_line_file_records,
@@ -8083,23 +8082,32 @@ def run_line_repl(cfg):
                 continue
             elif cmd in {"upload", "stage", "serve-file"}:
                 try:
-                    selector, request_name, start_upload_service = parse_line_file_args(console_args[1:])
-                    stage_line_file(selector, request_name, start_file_service=start_upload_service)
+                    file_cmd = parse_line_file_transfer_command(cmd, console_args[1:])
+                    stage_line_file(
+                        file_cmd["selector"],
+                        file_cmd["request_name"],
+                        start_file_service=file_cmd["start_service"],
+                    )
                     set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
                 continue
             elif cmd in {"fetch", "deploy", "queue-fetch"}:
                 try:
-                    request_name, queue_fetch, start_fetch_service = parse_line_fetch_args(console_args[1:], queue_default=cmd == "queue-fetch")
-                    fetch_line_staged(request_name, queue=queue_fetch, start_file_service=start_fetch_service)
+                    file_cmd = parse_line_file_transfer_command(cmd, console_args[1:])
+                    fetch_line_staged(
+                        file_cmd["request_name"],
+                        queue=file_cmd["queue"],
+                        start_file_service=file_cmd["start_service"],
+                    )
                     set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
                 continue
             elif cmd in {"unstage", "rmfile", "rm-file"}:
                 try:
-                    unstage_line_file(" ".join(console_args[1:]).strip())
+                    file_cmd = parse_line_file_transfer_command(cmd, console_args[1:])
+                    unstage_line_file(file_cmd["selector"])
                     set_line_collection("files")
                 except ValueError as exc:
                     print(exc)

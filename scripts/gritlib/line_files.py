@@ -47,6 +47,33 @@ def parse_line_files_command(args):
     return {"action": "list", "verbose": False}
 
 
+def parse_line_file_transfer_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    if cmd in {"upload", "stage", "serve-file"}:
+        selector, request_name, start_service = parse_line_file_args(args)
+        return {
+            "action": "upload",
+            "selector": selector,
+            "request_name": request_name,
+            "start_service": start_service,
+        }
+    if cmd in {"fetch", "deploy", "queue-fetch"}:
+        request_name, queue_fetch, start_service = parse_line_fetch_args(
+            args,
+            queue_default=cmd == "queue-fetch",
+        )
+        return {
+            "action": "fetch",
+            "request_name": request_name,
+            "queue": queue_fetch,
+            "start_service": start_service,
+        }
+    if cmd in {"unstage", "rmfile", "rm-file"}:
+        return {"action": "unstage", "selector": " ".join(args).strip()}
+    return {}
+
+
 def parse_line_download_args(args):
     queue = False
     start_file_service = False
