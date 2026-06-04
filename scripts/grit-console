@@ -179,7 +179,7 @@ from gritlib.line_repl_core import build_line_core_dispatch_callback
 from gritlib.line_repl_display import build_line_display_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_line_job_callbacks
-from gritlib.line_legacy_dispatch import dispatch_legacy_line_choice
+from gritlib.line_repl_legacy import build_line_legacy_dispatch_callback
 from gritlib.line_repl_navigation import build_line_navigation_dispatch_callback
 from gritlib.line_repl_probe import build_line_probe_start_callback
 from gritlib.line_repl_queue import build_line_queue_callbacks
@@ -6416,6 +6416,32 @@ def run_line_repl(cfg):
         configure_func=configure_line_artifact,
         append_event_fn=append_event,
     )
+    dispatch_line_legacy = build_line_legacy_dispatch_callback(
+        cfg,
+        input_func=line_input,
+        use_result_func=use_line_search_result,
+        clear_results_func=clear_line_search_results,
+        start_service_func=start_service_process,
+        stop_service_func=stop_recorded_service,
+        service_rows_func=service_status_rows,
+        service_record_func=line_service_record,
+        sleep_func=time.sleep,
+        append_event_fn=append_event,
+        print_staged_func=print_staged,
+        snapshot_func=workbench_snapshot,
+        view_path_func=operator_io_view_line_path,
+        stage_binary_func=stage_line_binary,
+        actions_func=workbench_action_records,
+        run_workbench_action_func=run_workbench_action_record,
+        run_target_workflow_func=run_target_workflow_action,
+        scoped_target_cfg_func=scoped_target_cfg,
+        print_target_summary_func=print_target_summary,
+        bridge_command_builder=bridge_profile_headless_command,
+        print_bridge_profile_func=print_bridge_profile,
+        delete_bridge_profile_func=delete_bridge_profile,
+        action_state_text_func=line_action_state_text,
+        print_queue_func=print_line_command_queue_view,
+    )
     result = run_line_repl_loop(
         cfg,
         shutdown_event=SHUTDOWN,
@@ -6443,33 +6469,7 @@ def run_line_repl(cfg):
         unknown_message_func=line_unknown_command_message,
         clear_context_func=lambda quiet=False: clear_line_console_context(cfg, quiet=quiet),
         mark_stopped_func=lambda: mark_service_stopped(cfg, "workbench", "quit"),
-        legacy_dispatch_func=lambda choice: dispatch_legacy_line_choice(
-            choice,
-            cfg,
-            input_func=line_input,
-            use_result_func=use_line_search_result,
-            clear_results_func=lambda: clear_line_search_results(cfg),
-            start_service_func=start_service_process,
-            stop_service_func=stop_recorded_service,
-            service_rows_func=lambda: service_status_rows(cfg),
-            service_record_func=line_service_record,
-            sleep_func=time.sleep,
-            append_event_fn=append_event,
-            print_staged_func=print_staged,
-            snapshot_func=workbench_snapshot,
-            view_path_func=operator_io_view_line_path,
-            stage_binary_func=stage_line_binary,
-            actions_func=lambda: workbench_action_records(cfg),
-            run_workbench_action_func=run_workbench_action_record,
-            run_target_workflow_func=run_target_workflow_action,
-            scoped_target_cfg_func=scoped_target_cfg,
-            print_target_summary_func=print_target_summary,
-            save_bridge_profile_headless_command_builder=bridge_profile_headless_command,
-            print_bridge_profile_func=print_bridge_profile,
-            delete_bridge_profile_func=delete_bridge_profile,
-            action_state_text_func=line_action_state_text,
-            print_line_command_queue_view_func=print_line_command_queue_view,
-        ),
+        legacy_dispatch_func=dispatch_line_legacy,
     )
     restore_signal_handlers(signal_handlers)
     return result

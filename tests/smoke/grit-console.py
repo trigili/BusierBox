@@ -418,6 +418,7 @@ def run_line_repl_runtime_check():
         sys.path.insert(0, scripts_dir)
     import gritlib.line_repl_completions as repl_completions
     import gritlib.line_repl_core as repl_core
+    import gritlib.line_repl_legacy as repl_legacy
     import gritlib.line_repl_navigation as repl_navigation
     import gritlib.line_repl_show as repl_show
     import gritlib.line_repl_utility as repl_utility
@@ -1534,6 +1535,88 @@ def run_line_repl_runtime_check():
     for marker in expected_completion_markers:
         if marker not in completion_calls:
             print(f"line REPL completion adapter missed {marker}: {completion_calls}", file=sys.stderr)
+            return 1
+
+    legacy_calls = []
+    original_legacy_dispatch = repl_legacy.dispatch_legacy_line_choice
+
+    def fake_legacy_dispatch(choice, cfg, **kwargs):
+        legacy_calls.append(("dispatch", choice, cfg.get("name")))
+        kwargs["clear_results_func"]()
+        kwargs["service_rows_func"]()
+        kwargs["actions_func"]()
+        kwargs["input_func"]("prompt> ")
+        kwargs["use_result_func"]("1")
+        kwargs["start_service_func"]("svc")
+        kwargs["stop_service_func"]("svc")
+        kwargs["service_record_func"]([], "svc")
+        kwargs["sleep_func"](0)
+        kwargs["append_event_fn"](cfg, "svc", "event")
+        kwargs["print_staged_func"]()
+        kwargs["snapshot_func"](cfg)
+        kwargs["view_path_func"]("path")
+        kwargs["stage_binary_func"]("bin")
+        kwargs["run_workbench_action_func"]("action")
+        kwargs["run_target_workflow_func"]("target-action")
+        kwargs["scoped_target_cfg_func"](cfg)
+        kwargs["print_target_summary_func"]("target")
+        kwargs["save_bridge_profile_headless_command_builder"]("save", "name")
+        kwargs["print_bridge_profile_func"]("name")
+        kwargs["delete_bridge_profile_func"]("name")
+        kwargs["action_state_text_func"]({"state": "ok"})
+        kwargs["print_line_command_queue_view_func"]()
+        return {"handled": True, "compact_next_prompt": True}
+
+    repl_legacy.dispatch_legacy_line_choice = fake_legacy_dispatch
+    try:
+        legacy_cfg = {"name": "legacy-cfg"}
+        dispatch_legacy = repl_legacy.build_line_legacy_dispatch_callback(
+            legacy_cfg,
+            input_func=lambda prompt: legacy_calls.append(("input", prompt)),
+            use_result_func=lambda selector: legacy_calls.append(("use", selector)),
+            clear_results_func=lambda cfg: legacy_calls.append(("clear", cfg.get("name"))),
+            start_service_func=lambda service: legacy_calls.append(("start-service", service)),
+            stop_service_func=lambda service: legacy_calls.append(("stop-service", service)),
+            service_rows_func=lambda cfg: legacy_calls.append(("service-rows", cfg.get("name"))) or [],
+            service_record_func=lambda rows, service: legacy_calls.append(("service-record", rows, service)),
+            sleep_func=lambda seconds: legacy_calls.append(("sleep", seconds)),
+            append_event_fn=lambda cfg, service, event: legacy_calls.append(
+                ("event", cfg.get("name"), service, event)
+            ),
+            print_staged_func=lambda: legacy_calls.append("staged"),
+            snapshot_func=lambda cfg: legacy_calls.append(("snapshot", cfg.get("name"))) or {},
+            view_path_func=lambda path: legacy_calls.append(("view", path)),
+            stage_binary_func=lambda selector: legacy_calls.append(("stage", selector)),
+            actions_func=lambda cfg: legacy_calls.append(("actions", cfg.get("name"))) or [],
+            run_workbench_action_func=lambda selector: legacy_calls.append(("workbench-action", selector)),
+            run_target_workflow_func=lambda selector: legacy_calls.append(("target-action", selector)),
+            scoped_target_cfg_func=lambda cfg: legacy_calls.append(("scoped", cfg.get("name"))) or cfg,
+            print_target_summary_func=lambda target: legacy_calls.append(("target-summary", target)),
+            bridge_command_builder=lambda action, name="", extra=None: legacy_calls.append(
+                ("bridge-command", action, name, extra)
+            ),
+            print_bridge_profile_func=lambda name: legacy_calls.append(("bridge-print", name)),
+            delete_bridge_profile_func=lambda name: legacy_calls.append(("bridge-delete", name)),
+            action_state_text_func=lambda rec: legacy_calls.append(("state-text", rec)),
+            print_queue_func=lambda: legacy_calls.append("queue"),
+        )
+        legacy_result = dispatch_legacy("1")
+    finally:
+        repl_legacy.dispatch_legacy_line_choice = original_legacy_dispatch
+    if legacy_result != {"handled": True, "compact_next_prompt": True}:
+        print(f"line REPL legacy adapter did not return dispatch result: {legacy_result}", file=sys.stderr)
+        return 1
+    expected_legacy_markers = [
+        ("dispatch", "1", "legacy-cfg"),
+        ("clear", "legacy-cfg"),
+        ("service-rows", "legacy-cfg"),
+        ("actions", "legacy-cfg"),
+        ("bridge-command", "save", "name", None),
+        "queue",
+    ]
+    for marker in expected_legacy_markers:
+        if marker not in legacy_calls:
+            print(f"line REPL legacy adapter missed {marker}: {legacy_calls}", file=sys.stderr)
             return 1
     return 0
 
