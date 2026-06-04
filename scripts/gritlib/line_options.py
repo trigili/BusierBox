@@ -7,6 +7,7 @@ from gritlib.build_config import (
     set_workbench_build_config, shell_double_quote,
     workbench_config_field_records,
 )
+from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULTS, DEFAULT_CONFIG
 from gritlib.event_log import append_event
 from gritlib.session_state import atomic_write_json
@@ -88,6 +89,83 @@ GRIT_TO_CFG_KEY = {
     for entries in SERVICE_OPTIONS.values()
     for grit, cfg_key, _desc in entries
 }
+
+
+def print_line_service_options(
+    cfg,
+    service,
+    service_record=None,
+    display_name_func=None,
+    build_fields=None,
+    target_command_records=None,
+):
+    service = str(service or "").strip()
+    service_record = service_record if isinstance(service_record, dict) else {}
+    display_name_func = display_name_func or (lambda name: name)
+    build_fields = build_fields if isinstance(build_fields, dict) else {}
+    target_command_records = list(target_command_records or [])
+
+    status = f"{service_record.get('actual', '?')}"
+    if service_record.get("configured") and service_record.get("configured") != service_record.get("actual"):
+        status += f" (want {service_record.get('configured')})"
+    bind = ""
+    tls = ""
+    if service_record:
+        host = service_record.get("bind_address") or ""
+        port = service_record.get("port") or ""
+        bind = f"  |  {host}:{port}" if host else (f"  |  :{port}" if port else "")
+        tls = "  |  TLS: yes" if service_record.get("tls") else ""
+
+    display_name = display_name_func(service)
+    print(f"{display_name}  ─  {status}{bind}{tls if service_record else ''}")
+    if display_name != service:
+        print(f"transport: {service}")
+    print("")
+
+    relevant = SERVICE_OPTIONS.get(service, [])
+    if relevant:
+        rows = []
+        for grit_name, cfg_key, desc in relevant:
+            if cfg_key == "build":
+                field = build_fields.get(grit_name) or {}
+                value = field.get("value") or field.get("compiled") or "(not set)"
+                opts = field.get("options") or []
+            else:
+                raw = cfg.get(cfg_key)
+                value = str(raw) if raw not in (None, "") else "(not set)"
+                opts = []
+            rows.append({"key": grit_name, "value": value, "desc": desc, "opts": opts})
+
+        def _opts(row):
+            if row["opts"]:
+                return [("options", "  ".join(str(item) for item in row["opts"]))]
+            return []
+
+        cfg["_options_keys"] = [row["key"] for row in rows]
+        console_table(
+            "Relevant settings  (set KEY VALUE or set N VALUE to change  |  build to see all)",
+            rows,
+            [
+                ("Key", "key"),
+                ("Value", "value"),
+                ("Description", "desc"),
+            ],
+            detail_fn=_opts,
+        )
+    else:
+        cfg.pop("_options_keys", None)
+        print("  No specific options for this service.  Run: build")
+
+    service_actual = str((service_record or {}).get("actual") or "")
+    if target_command_records and service_actual == "listening":
+        print("")
+        print("  Target command:")
+        for rec in target_command_records[:2]:
+            command = str(rec.get("command") or "")
+            print(f"    {command}")
+
+    print("")
+    print("  set KEY VALUE  /  build  /  back")
 
 
 def record_line_target_metadata_update(cfg, target_id, action="", field="", default_config=DEFAULT_CONFIG):

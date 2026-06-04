@@ -76,7 +76,6 @@ from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
     command_copy_state_status, copy_text_for_operator,
 )
-from gritlib.console_display import console_table as _console_table
 from gritlib.console_help import print_concise_help, print_console_help_reference
 from gritlib.config_utils import (
     DEFAULTS, DEFAULT_CONFIG, DEFAULT_OPERATOR_SESSION_DIR, load_config, yes,
@@ -164,9 +163,9 @@ from gritlib.line_help import (
     print_line_console_help as line_help_print_line_console_help,
 )
 from gritlib.line_options import (
-    SERVICE_OPTIONS,
     alias_line_target as line_options_alias_line_target,
     note_line_target as line_options_note_line_target,
+    print_line_service_options as line_options_print_line_service_options,
     rename_line_target as line_options_rename_line_target,
     set_line_option as line_options_set_line_option,
     unset_line_target_option,
@@ -6479,72 +6478,17 @@ def run_line_repl(cfg):
 
         if module.startswith(("listener/", "service/")):
             service = module.split("/", 1)[1]
-            rec = line_service_record(service_status_rows(cfg), service)
-            status = f"{rec.get('actual','?')}"
-            if rec.get('configured') and rec.get('configured') != rec.get('actual'):
-                status += f" (want {rec.get('configured')})"
-            bind = ""
-            if rec:
-                host = rec.get("bind_address") or ""
-                port = rec.get("port") or ""
-                bind = f"  |  {host}:{port}" if host else (f"  |  :{port}" if port else "")
-                tls = "  |  TLS: yes" if rec.get("tls") else ""
-
-            print(f"{line_service_display_name(service)}  ─  {status}{bind}{tls if rec else ''}")
-            if line_service_display_name(service) != service:
-                print(f"transport: {service}")
-            print("")
-
-            relevant = SERVICE_OPTIONS.get(service, [])
-            if relevant:
-                rows = []
-                for grit_name, cfg_key, desc in relevant:
-                    if cfg_key == "build":
-                        field = all_fields.get(grit_name) or {}
-                        value = field.get("value") or field.get("compiled") or "(not set)"
-                        opts = field.get("options") or []
-                    else:
-                        raw = cfg.get(cfg_key)
-                        value = str(raw) if raw not in (None, "") else "(not set)"
-                        opts = []
-                    rows.append({"key": grit_name, "value": value, "desc": desc, "opts": opts})
-
-                def _opts(r):
-                    if r["opts"]:
-                        return [("options", "  ".join(str(o) for o in r["opts"]))]
-                    return []
-
-                # Store GRIT_ names so `set N value` can resolve row numbers
-                cfg["_options_keys"] = [r["key"] for r in rows]
-                _console_table(
-                    "Relevant settings  (set KEY VALUE or set N VALUE to change  |  build to see all)",
-                    rows,
-                    [
-                        ("Key",         "key"),
-                        ("Value",       "value"),
-                        ("Description", "desc"),
-                    ],
-                    detail_fn=_opts,
-                )
-            else:
-                cfg.pop("_options_keys", None)
-                print("  No specific options for this service.  Run: build")
-
-            # Target-side connection command.  Do not print runnable target
-            # commands for stopped listeners; that makes the command look
-            # available even though nothing is serving it yet.
-            tcmds = [r for r in generated_target_command_records(cfg)
-                     if str(r.get("service") or "") == service]
-            service_actual = str((rec or {}).get("actual") or "")
-            if tcmds and service_actual == "listening":
-                print("")
-                print("  Target command:")
-                for r in tcmds[:2]:
-                    cmd = str(r.get("command") or "")
-                    print(f"    {cmd}")
-
-            print("")
-            print("  set KEY VALUE  /  build  /  back")
+            line_options_print_line_service_options(
+                cfg,
+                service,
+                service_record=line_service_record(service_status_rows(cfg), service),
+                display_name_func=line_service_display_name,
+                build_fields=all_fields,
+                target_command_records=[
+                    rec for rec in generated_target_command_records(cfg)
+                    if str(rec.get("service") or "") == service
+                ],
+            )
             return
         elif module.startswith("route/"):
             route_name = module.split("/", 1)[1]
