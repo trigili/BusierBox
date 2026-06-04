@@ -175,7 +175,10 @@ from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers,
     read_line as line_repl_read_line, restore_signal_handlers,
 )
-from gritlib.line_release import print_line_release as line_release_print_line_release
+from gritlib.line_release import (
+    print_line_release as line_release_print_line_release,
+    stage_line_release as line_release_stage_line_release,
+)
 from gritlib.line_search import print_line_search_results
 from gritlib.line_services import (
     line_service_display_name,
@@ -7766,52 +7769,17 @@ def run_line_repl(cfg):
             raise ValueError("usage: show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options")
 
     def stage_line_release(selector, start_file_service=False):
-        selector = str(selector or "").strip()
-        if not selector:
-            raise ValueError("usage: release stage [--start] SELECTOR")
-        headless = (
-            "scripts/grit-console --config "
-            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-            + " --stage-release-artifact "
-            + shquote(selector)
-            + " --list-staged"
-        )
-        rec = stage_release_selection(cfg, selector)
-        fetch_command = render_fetch_command(rec["request_name"], cfg)
-        started = False
-        if start_file_service:
-            start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
-            started = True
-        print("Release artifact staged:")
-        print(f"  selector={selector}")
-        print(f"  request_name={rec.get('request_name', '')}")
-        print(f"  source_path={rec.get('source_path', '')}")
-        print(f"  release_path={rec.get('release_path', '')}")
-        print(f"  tuple_path={rec.get('tuple_path', '')}")
-        print(f"  payload_preset={rec.get('payload_preset', '')}")
-        print(f"  target fetch: {fetch_command}")
-        fetch_options = print_staged_fetch_target_options(
-            rec.get("request_name", ""),
+        return line_release_stage_line_release(
             cfg,
-            output_name=rec.get("request_name", ""),
-            executable=True,
+            selector,
+            start_file_service=start_file_service,
+            start_file_service_fn=lambda: start_service_process(
+                cfg,
+                "file-service",
+                headless_command=service_start_headless_command(cfg, "file-service"),
+            ),
+            append_event_fn=append_event,
         )
-        print(f"  file service: {'started' if started else 'not started'}")
-        append_event(cfg, "workbench", "workbench_release_artifact_staged", details={
-            "selector": selector,
-            "headless_command": headless,
-            "request_name": rec.get("request_name", ""),
-            "source_path": rec.get("source_path", ""),
-            "release_artifact_name": rec.get("release_artifact_name", ""),
-            "release_path": rec.get("release_path", ""),
-            "tuple_path": rec.get("tuple_path", ""),
-            "payload_preset": rec.get("payload_preset", ""),
-            "fetch_command": fetch_command,
-            "fetch_options": fetch_options,
-            "started_file_service": started,
-            "direct_console": True,
-        })
-        return rec
 
     def stage_line_binary(selector="", request_name="", prompt_for_missing=True, prompt_start=True, start_file_service=False, show_headless=False):
         rel = release_context(cfg)

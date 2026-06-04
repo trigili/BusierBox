@@ -1,7 +1,10 @@
 """Line-console release view helpers."""
 
 from gritlib.console_display import console_table
-from gritlib.release_artifacts import discover_release_context
+from gritlib.config_utils import DEFAULT_CONFIG
+from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
+from gritlib.release_artifacts import discover_release_context, stage_release_selection
+from gritlib.shell_utils import shquote
 
 
 def _release_compat_label(rec):
@@ -121,3 +124,60 @@ def print_line_release(cfg, append_event_fn=None):
             "tuple_count": len(tuples),
         })
     return rel
+
+
+def stage_line_release(
+    cfg,
+    selector,
+    start_file_service=False,
+    start_file_service_fn=None,
+    append_event_fn=None,
+):
+    selector = str(selector or "").strip()
+    if not selector:
+        raise ValueError("usage: release stage [--start] SELECTOR")
+    headless = (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --stage-release-artifact "
+        + shquote(selector)
+        + " --list-staged"
+    )
+    rec = stage_release_selection(cfg, selector)
+    fetch_command = render_fetch_command(rec["request_name"], cfg)
+    started = False
+    if start_file_service:
+        if start_file_service_fn:
+            start_file_service_fn()
+        started = True
+    print("Release artifact staged:")
+    print(f"  selector={selector}")
+    print(f"  request_name={rec.get('request_name', '')}")
+    print(f"  source_path={rec.get('source_path', '')}")
+    print(f"  release_path={rec.get('release_path', '')}")
+    print(f"  tuple_path={rec.get('tuple_path', '')}")
+    print(f"  payload_preset={rec.get('payload_preset', '')}")
+    print(f"  target fetch: {fetch_command}")
+    fetch_options = print_staged_fetch_target_options(
+        rec.get("request_name", ""),
+        cfg,
+        output_name=rec.get("request_name", ""),
+        executable=True,
+    )
+    print(f"  file service: {'started' if started else 'not started'}")
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_release_artifact_staged", details={
+            "selector": selector,
+            "headless_command": headless,
+            "request_name": rec.get("request_name", ""),
+            "source_path": rec.get("source_path", ""),
+            "release_artifact_name": rec.get("release_artifact_name", ""),
+            "release_path": rec.get("release_path", ""),
+            "tuple_path": rec.get("tuple_path", ""),
+            "payload_preset": rec.get("payload_preset", ""),
+            "fetch_command": fetch_command,
+            "fetch_options": fetch_options,
+            "started_file_service": started,
+            "direct_console": True,
+        })
+    return rec
