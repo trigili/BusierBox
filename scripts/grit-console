@@ -107,9 +107,10 @@ from gritlib.event_log import (
     print_event_log_summary,
 )
 from gritlib.file_transfers import (
-    fetch_record_indexes, fetch_record_summary, file_service_workflow_action_indexes,
+    fetch_record_summary, file_service_workflow_action_indexes,
     file_service_workflow_action_records,
-    file_service_workflow_status_summary, read_http_body, read_http_headers,
+    file_service_workflow_status_summary, file_transfer_status_context,
+    read_http_body, read_http_headers,
     read_http_upload, recent_fetch_metadata, recent_upload_metadata,
     print_recent_fetches, print_recent_uploads, print_staged_fetch_target_options,
     render_fetch_command,
@@ -117,7 +118,7 @@ from gritlib.file_transfers import (
     staged_fetch_output_name, staged_fetch_target_commands,
     send_json_response, stream_fetch_response, target_file_transfer_record_indexes,
     target_file_transfer_record_summary, target_file_transfer_records_from_sources,
-    upload_record_indexes, upload_record_summary,
+    upload_record_summary,
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.line_actions import (
@@ -2829,6 +2830,7 @@ def status_document(cfg):
     target_command_state_record = target_command_context["state_record"]
     target_command_state_records = target_command_context["state_records"]
     target_command_state_index_maps = target_command_context["state_index_maps"]
+    file_transfer_context = file_transfer_status_context(uploads, fetches)
     (uploads_by_filename,
      uploads_by_kind,
      uploads_by_sha256,
@@ -2843,7 +2845,7 @@ def status_document(cfg):
      uploads_by_kind_status,
      uploads_by_filename_status,
      uploads_by_status_stored_exists,
-     uploads_by_status_remote_addr) = upload_record_indexes(uploads)
+     uploads_by_status_remote_addr) = file_transfer_context["upload_indexes"]
     (fetches_by_request,
      fetches_by_sha256,
      fetches_by_target_id,
@@ -2857,7 +2859,7 @@ def status_document(cfg):
      fetches_by_request_status,
      fetches_by_status_source_exists,
      fetches_by_status_remote_addr,
-     fetches_by_http_status_remote_addr) = fetch_record_indexes(fetches)
+     fetches_by_http_status_remote_addr) = file_transfer_context["fetch_indexes"]
     target_file_transfer_records = target_file_transfer_records_from_sources(staged_records, uploads, fetches)
     target_file_transfer_index_maps = target_file_transfer_record_indexes(target_file_transfer_records)
     file_service_row = next((row for row in services if row.get("name") == "file-service"), {})

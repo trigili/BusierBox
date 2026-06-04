@@ -1053,6 +1053,54 @@ def run_staged_status_context_check():
     return 0
 
 
+def run_file_transfer_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.file_transfers import file_transfer_status_context
+
+    upload = {
+        "filename": "loot.txt",
+        "upload_kind": "target-upload",
+        "sha256": "abc123",
+        "target_id": "target-a",
+        "source_path": "/tmp/loot.txt",
+        "stored_path": "local/uploads/loot.txt",
+        "stored_exists": True,
+        "metadata_exists": True,
+        "event_log_exists": False,
+        "remote_addr": "127.0.0.1:1",
+        "status": "stored",
+    }
+    fetch = {
+        "request_name": "payload.bin",
+        "sha256": "def456",
+        "target_id": "target-a",
+        "source_path": "dist/payload.bin",
+        "source_exists": True,
+        "metadata_exists": True,
+        "event_log_exists": False,
+        "status": "served",
+        "http_status": 200,
+        "remote_addr": "127.0.0.1:2",
+    }
+    context = file_transfer_status_context([upload], [fetch])
+    upload_indexes = context.get("upload_indexes") or ()
+    fetch_indexes = context.get("fetch_indexes") or ()
+    if len(upload_indexes) != 15 or len(fetch_indexes) != 14:
+        print("file transfer status context returned unexpected index tuple", file=sys.stderr)
+        return 1
+    uploads_by_filename, _by_kind, _by_sha256, uploads_by_target_id, *_upload_rest = upload_indexes
+    fetches_by_request, _fetch_by_sha256, fetches_by_target_id, *_fetch_rest = fetch_indexes
+    if uploads_by_filename.get("loot.txt") != [upload] or uploads_by_target_id.get("target-a") != [upload]:
+        print("file transfer status context did not preserve upload indexes", file=sys.stderr)
+        return 1
+    if fetches_by_request.get("payload.bin") != [fetch] or fetches_by_target_id.get("target-a") != [fetch]:
+        print("file transfer status context did not preserve fetch indexes", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_target_command_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4977,6 +5025,8 @@ def main(argv=None):
     if run_build_config_dispatch_check() != 0:
         return 1
     if run_staged_status_context_check() != 0:
+        return 1
+    if run_file_transfer_status_context_check() != 0:
         return 1
     if run_target_command_status_context_check() != 0:
         return 1

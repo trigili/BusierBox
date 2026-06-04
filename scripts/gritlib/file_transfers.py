@@ -607,6 +607,13 @@ def fetch_record_indexes(records):
     )
 
 
+def file_transfer_status_context(uploads=None, fetches=None):
+    return {
+        "upload_indexes": upload_record_indexes(uploads),
+        "fetch_indexes": fetch_record_indexes(fetches),
+    }
+
+
 def _index_counts(index):
     return {key: len(value) for key, value in (index or {}).items()}
 
