@@ -1308,6 +1308,112 @@ def run_event_log_status_context_check():
     return 0
 
 
+def run_target_activity_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.target_activity import target_activity_status_context
+
+    targets_by_id = {
+        "target-a": {
+            "target_id": "target-a",
+            "label": "Router A",
+            "connectivity_state": "online",
+        },
+        "target-b": {
+            "target_id": "target-b",
+            "label": "Router B",
+            "connectivity_state": "offline",
+        },
+    }
+    command_queue = {
+        "commands": [
+            {
+                "id": "cmd-a",
+                "target_id": "target-a",
+                "status": "queued",
+                "created_at": "2026-06-04T00:00:01Z",
+                "command": "id",
+                "work_kind": "shell",
+            },
+            {
+                "id": "cmd-b",
+                "target_id": "target-b",
+                "status": "delivered",
+                "created_at": "2026-06-04T00:00:02Z",
+                "delivered_at": "2026-06-04T00:00:03Z",
+                "command": "hostname",
+                "work_kind": "shell",
+            },
+        ],
+    }
+    events = [
+        {
+            "id": "evt-a",
+            "ts": "2026-06-04T00:00:04Z",
+            "service": "command-queue",
+            "session": "",
+            "event": "command_queue_poll",
+            "level": "info",
+            "remote": "127.0.0.1:1",
+            "details": {
+                "target_id": "target-a",
+                "status": "delivered",
+                "queued_count_before": 1,
+                "delivered_count": 1,
+            },
+        },
+        {
+            "id": "evt-b",
+            "ts": "2026-06-04T00:00:05Z",
+            "service": "command-queue",
+            "session": "sess-a",
+            "event": "command_queue_result_upload",
+            "level": "info",
+            "remote": "127.0.0.1:2",
+            "details": {"status": "result-received"},
+        },
+        {
+            "id": "evt-c",
+            "ts": "2026-06-04T00:00:06Z",
+            "service": "command-queue",
+            "session": "",
+            "event": "command_queue_poll",
+            "level": "info",
+            "remote": "127.0.0.1:3",
+            "details": {"target_id": "target-b", "status": "no-command"},
+        },
+    ]
+    context = target_activity_status_context(
+        command_queue,
+        targets_by_id,
+        events,
+        target_filter_id="target-a",
+        target_filter_session_ids={"sess-a"},
+        now_epoch=1770000010,
+    )
+    mailbox_records = context.get("target_mailbox_records") or []
+    phone_home_records = context.get("target_phone_home_records") or []
+    mailbox_indexes = context.get("target_mailbox_index_maps") or {}
+    phone_home_indexes = context.get("target_phone_home_index_maps") or {}
+    if [rec.get("command_id") for rec in mailbox_records] != ["cmd-b", "cmd-a"]:
+        print("target activity status context did not preserve mailbox ordering", file=sys.stderr)
+        return 1
+    if "cmd-a" not in mailbox_indexes.get("target_mailbox_records_by_command_id", {}):
+        print("target activity status context did not preserve mailbox indexes", file=sys.stderr)
+        return 1
+    if [rec.get("event_id") for rec in phone_home_records] != ["evt-b", "evt-a"]:
+        print("target activity status context did not filter phone-home events", file=sys.stderr)
+        return 1
+    delivered = phone_home_indexes.get(
+        "target_phone_home_records_by_status", {}
+    ).get("delivered", [None])
+    if not delivered or (delivered[0] or {}).get("event_id") != "evt-a":
+        print("target activity status context did not preserve phone-home indexes", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4538,6 +4644,8 @@ def main(argv=None):
     if run_session_status_context_check() != 0:
         return 1
     if run_event_log_status_context_check() != 0:
+        return 1
+    if run_target_activity_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1

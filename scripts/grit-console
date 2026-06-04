@@ -321,10 +321,10 @@ from gritlib.target_activity import (
     print_target_activity_records, print_workbench_phone_home_attempts,
     record_selected_target_activity,
     target_activity_record_indexes, target_activity_records_from_sources,
-    target_activity_record_summary, target_mailbox_record_indexes,
-    target_mailbox_record_summary, target_mailbox_records_from_commands,
-    target_phone_home_record_indexes, target_phone_home_record_summary,
-    target_phone_home_records_from_events,
+    target_activity_status_context,
+    target_activity_record_summary,
+    target_mailbox_record_summary,
+    target_phone_home_record_summary, target_phone_home_records_from_events,
 )
 from gritlib.target_commands import (
     generated_target_command_records,
@@ -2721,21 +2721,17 @@ def status_document(cfg):
     events_by_service_detail_target_identity_confidence) = event_context["indexes"]
     event_summary_stats = event_context["summary_stats"]
     command_queue = command_queue_summary(cfg)
-    target_mailbox_now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
-    target_mailbox_records = target_mailbox_records_from_commands(
-        command_queue.get("commands") or [],
+    target_activity_context = target_activity_status_context(
+        command_queue,
         targets_by_id,
-        now_epoch=target_mailbox_now_epoch,
+        all_event_records,
+        target_filter_id=target_filter_id,
+        target_filter_session_ids=target_filter_session_ids,
     )
-    target_mailbox_index_maps = target_mailbox_record_indexes(target_mailbox_records)
-    target_phone_home_source_events = all_event_records
-    if target_filter_id:
-        target_phone_home_source_events = [
-            event for event in target_phone_home_source_events
-            if event_for_target(event, target_filter_id, target_filter_session_ids)
-        ]
-    target_phone_home_records = target_phone_home_records_from_events(target_phone_home_source_events, targets_by_id=targets_by_id)
-    target_phone_home_index_maps = target_phone_home_record_indexes(target_phone_home_records)
+    target_mailbox_records = target_activity_context["target_mailbox_records"]
+    target_mailbox_index_maps = target_activity_context["target_mailbox_index_maps"]
+    target_phone_home_records = target_activity_context["target_phone_home_records"]
+    target_phone_home_index_maps = target_activity_context["target_phone_home_index_maps"]
     command_queue_policy = command_queue_policy_status(command_queue)
     command_queue_policy_record = command_queue_policy["policy_record"]
     command_queue_policy_records = command_queue_policy["policy_records"]

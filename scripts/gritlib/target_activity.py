@@ -428,6 +428,42 @@ def target_phone_home_records_from_events(events, targets_by_id=None):
     return records
 
 
+def target_activity_status_context(
+    command_queue,
+    targets_by_id=None,
+    event_records=None,
+    *,
+    target_filter_id="",
+    target_filter_session_ids=None,
+    now_epoch=None,
+):
+    if now_epoch is None:
+        now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
+    mailbox_records = target_mailbox_records_from_commands(
+        (command_queue or {}).get("commands") or [],
+        targets_by_id,
+        now_epoch=now_epoch,
+    )
+    source_events = event_records or []
+    if target_filter_id:
+        from gritlib.target_records import event_for_target
+
+        source_events = [
+            event for event in source_events
+            if event_for_target(event, target_filter_id, target_filter_session_ids)
+        ]
+    phone_home_records = target_phone_home_records_from_events(
+        source_events,
+        targets_by_id=targets_by_id,
+    )
+    return {
+        "target_mailbox_records": mailbox_records,
+        "target_mailbox_index_maps": target_mailbox_record_indexes(mailbox_records),
+        "target_phone_home_records": phone_home_records,
+        "target_phone_home_index_maps": target_phone_home_record_indexes(phone_home_records),
+    }
+
+
 def target_activity_records_from_sources(targets, mailbox_records, phone_home_records, file_transfer_records, bridge_profiles, sessions):
     records = []
     targets_by_id = {
