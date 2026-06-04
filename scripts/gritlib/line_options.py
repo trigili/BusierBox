@@ -10,6 +10,7 @@ from gritlib.build_config import (
 from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULTS, DEFAULT_CONFIG
 from gritlib.event_log import append_event
+from gritlib.line_services import line_service_status_text
 from gritlib.session_state import atomic_write_json
 from gritlib.shell_utils import shquote
 from gritlib.target_records import (
@@ -105,9 +106,7 @@ def print_line_service_options(
     build_fields = build_fields if isinstance(build_fields, dict) else {}
     target_command_records = list(target_command_records or [])
 
-    status = f"{service_record.get('actual', '?')}"
-    if service_record.get("configured") and service_record.get("configured") != service_record.get("actual"):
-        status += f" (want {service_record.get('configured')})"
+    status = line_service_status_text(service_record) if service_record else "?"
     bind = ""
     tls = ""
     if service_record:

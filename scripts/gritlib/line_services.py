@@ -283,9 +283,9 @@ def line_service_bind_text(rec):
 def line_service_status_text(rec):
     actual = rec.get("actual") or "-"
     configured = rec.get("configured") or "-"
-    if actual == configured:
+    if actual == configured or configured in {"-", "unknown"}:
         return actual
-    return f"{actual} (want {configured})"
+    return f"{actual} (configured {configured})"
 
 
 def print_line_service_records(rows, verbose=False, start_command=None, stop_command=None, quote=None):
