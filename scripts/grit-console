@@ -6223,7 +6223,7 @@ def run_line_repl(cfg):
         route_record_func=line_route_record,
         session_record_func=line_session_record,
         job_record_func=line_job_record,
-        probe_delivery_printer=lambda: print_probe_delivery(cfg),
+        probe_delivery_func=print_probe_delivery,
         bridge_command_builder=bridge_profile_headless_command,
         display_name_func=line_service_display_name,
         build_fields_func=workbench_config_field_records,
