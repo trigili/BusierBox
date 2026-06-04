@@ -1101,6 +1101,57 @@ def run_file_transfer_status_context_check():
     return 0
 
 
+def run_target_file_transfer_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.file_transfers import target_file_transfer_status_context
+
+    staged = {
+        "request_name": "payload-a",
+        "source_path": "dist/payload-a",
+        "source_exists": True,
+        "target_id": "target-a",
+        "target_label": "Router A",
+        "sha256": "abc123",
+        "route_kind": "direct",
+    }
+    upload = {
+        "filename": "loot.txt",
+        "metadata_path": "local/uploads/loot.json",
+        "status": "stored",
+        "target_id": "target-a",
+        "target_label": "Router A",
+        "stored_exists": True,
+        "sha256": "def456",
+    }
+    fetch = {
+        "request_name": "payload-a",
+        "metadata_path": "local/fetches/payload-a.json",
+        "source_path": "dist/payload-a",
+        "source_exists": True,
+        "status": "served",
+        "target_id": "target-a",
+        "target_label": "Router A",
+        "sha256": "abc123",
+    }
+    context = target_file_transfer_status_context([staged], [upload], [fetch])
+    records = context.get("records") or []
+    indexes = context.get("index_maps") or {}
+    if len(records) != 3:
+        print("target file transfer context did not preserve record count", file=sys.stderr)
+        return 1
+    by_operation = indexes.get("target_file_transfer_records_by_operation") or {}
+    by_target = indexes.get("target_file_transfer_records_by_target_id") or {}
+    if not by_operation.get("staged-fetch") or not by_operation.get("upload") or not by_operation.get("fetch"):
+        print("target file transfer context did not preserve operation indexes", file=sys.stderr)
+        return 1
+    if by_target.get("target-a") != records:
+        print("target file transfer context did not preserve target indexes", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_target_command_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -5027,6 +5078,8 @@ def main(argv=None):
     if run_staged_status_context_check() != 0:
         return 1
     if run_file_transfer_status_context_check() != 0:
+        return 1
+    if run_target_file_transfer_status_context_check() != 0:
         return 1
     if run_target_command_status_context_check() != 0:
         return 1

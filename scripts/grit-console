@@ -116,8 +116,8 @@ from gritlib.file_transfers import (
     render_fetch_command,
     render_file_service_command, safe_upload_name, send_http_response,
     staged_fetch_output_name, staged_fetch_target_commands,
-    send_json_response, stream_fetch_response, target_file_transfer_record_indexes,
-    target_file_transfer_record_summary, target_file_transfer_records_from_sources,
+    send_json_response, stream_fetch_response, target_file_transfer_record_summary,
+    target_file_transfer_status_context,
     upload_record_summary,
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
@@ -2860,8 +2860,13 @@ def status_document(cfg):
      fetches_by_status_source_exists,
      fetches_by_status_remote_addr,
      fetches_by_http_status_remote_addr) = file_transfer_context["fetch_indexes"]
-    target_file_transfer_records = target_file_transfer_records_from_sources(staged_records, uploads, fetches)
-    target_file_transfer_index_maps = target_file_transfer_record_indexes(target_file_transfer_records)
+    target_file_transfer_context = target_file_transfer_status_context(
+        staged_records,
+        uploads,
+        fetches,
+    )
+    target_file_transfer_records = target_file_transfer_context["records"]
+    target_file_transfer_index_maps = target_file_transfer_context["index_maps"]
     file_service_row = next((row for row in services if row.get("name") == "file-service"), {})
     file_service_workflow_actions = file_service_workflow_action_records(
         cfg,

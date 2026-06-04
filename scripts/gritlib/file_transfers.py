@@ -839,6 +839,14 @@ def target_file_transfer_record_indexes(records):
     }
 
 
+def target_file_transfer_status_context(staged_records=None, uploads=None, fetches=None):
+    records = target_file_transfer_records_from_sources(staged_records, uploads, fetches)
+    return {
+        "records": records,
+        "index_maps": target_file_transfer_record_indexes(records),
+    }
+
+
 def target_file_transfer_record_summary(records):
     records = records or []
     return {
