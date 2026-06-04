@@ -2539,6 +2539,7 @@ def run_line_repl_runtime_check():
 
         def dispatch_workflow_bundle(command, args):
             workflow_bundle_calls.append(("dispatch", command, tuple(args)))
+            workflow_bundle_calls.append(("target-selected", kwargs["target_filter_func"]({"name": "ignored"})))
             kwargs["download_func"]("target1")
             kwargs["release_stage_func"]("artifact1", start_file_service=True)
             kwargs["upload_file_func"]("local.bin")
@@ -2570,7 +2571,9 @@ def run_line_repl_runtime_check():
                 ("release-list", cfg.get("name"), append_event_fn is not None)
             ),
             release_help_func=lambda topic: workflow_bundle_calls.append(("release-help", topic)),
-            target_filter_func=lambda cfg: cfg.get("target"),
+            target_callbacks={
+                "target_filter": lambda: workflow_bundle_calls.append("target-filter") or "target1",
+            },
             clear_files_func=lambda cfg, confirm=False, target_filter_id="", append_event_fn=None: (
                 workflow_bundle_calls.append(("clear-files", confirm, target_filter_id, append_event_fn is not None))
             ),
@@ -2606,6 +2609,8 @@ def run_line_repl_runtime_check():
     expected_workflow_bundle_calls = [
         ("builder", "workflow-bundle-cfg"),
         ("dispatch", "queue", ("list",)),
+        "target-filter",
+        ("target-selected", "target1"),
         ("download", "target1"),
         ("release-stage", "artifact1", True),
         ("upload", "local.bin"),

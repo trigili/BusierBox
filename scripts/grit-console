@@ -6283,7 +6283,7 @@ def run_line_repl(cfg):
         daemon_runner_func=run_operator_daemon_workflow_action,
         release_print_func=line_release_print_line_release,
         release_help_func=print_line_command_help,
-        target_filter_func=configured_target_filter,
+        target_callbacks=line_target_callbacks,
         clear_files_func=line_files_clear_line_files,
         file_callbacks=line_file_callbacks,
         queue_callbacks=line_queue_callbacks,

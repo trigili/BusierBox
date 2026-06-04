@@ -12,13 +12,18 @@ def build_line_workflow_callbacks(
     daemon_runner_func,
     release_print_func,
     release_help_func,
-    target_filter_func,
+    target_filter_func=None,
+    target_callbacks=None,
     clear_files_func,
     file_callbacks,
     queue_callbacks,
     job_callbacks,
     append_event_fn,
 ):
+    if target_filter_func is None and target_callbacks is not None:
+        target_filter = target_callbacks["target_filter"]
+        target_filter_func = lambda _cfg: target_filter()
+
     dispatch_workflow = build_line_workflow_dispatch_callback(
         cfg,
         workbench_snapshot_func=workbench_snapshot_func,
