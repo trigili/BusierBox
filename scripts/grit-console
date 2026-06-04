@@ -71,7 +71,7 @@ from gritlib.command_queue import (
 from gritlib.console_display import print_dry_run_notice
 from gritlib.console_actions import (
     handle_console_control_args, handle_console_utility_args,
-    handle_file_staging_args,
+    handle_file_staging_args, handle_workbench_job_args,
 )
 from gritlib.console_args import (
     apply_console_arg_overrides, handle_early_console_args,
@@ -7399,43 +7399,18 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
             return print_bridge_profile(cfg, args.inspect_bridge_profile, json_output=args.json_bridge_profiles)
         if args.list_bridge_profiles or args.json_bridge_profiles:
             return print_bridge_profiles(cfg, json_output=args.json_bridge_profiles)
-        if args.start_workbench_job:
-            print(f"workbench action: {args.start_workbench_job}")
-            headless = start_workbench_job_headless_command(
-                cfg,
-                args.start_workbench_job,
-                command_override=args.job_command,
-            )
-            rec = start_workbench_job_record(
-                cfg,
-                workbench_action_records(cfg),
-                args.start_workbench_job,
-                command_override=args.job_command,
-                headless_command=headless,
-            )
-            print(f"started workbench job {rec.get('id', '')}: pid={rec.get('pid', '')}")
-            print(f"log={rec.get('log_path', '')}")
-            print(f"command={rec.get('command', '')}")
-            return 0
-        if args.cancel_workbench_job:
-            headless = cancel_workbench_job_headless_command(cfg, args.cancel_workbench_job)
-            rec = cancel_workbench_job_record(
-                cfg,
-                workbench_action_records(cfg),
-                args.cancel_workbench_job,
-                headless_command=headless,
-            )
-            print(f"cancel requested for workbench job {rec.get('id', args.cancel_workbench_job)}")
-            print(f"pid={rec.get('pid', '')}")
-            return 0
-        if args.run_workbench_action:
-            return run_workbench_action_record(
-                cfg,
-                workbench_action_records(cfg),
-                args.run_workbench_action,
-                dry_run=args.workbench_action_dry_run,
-                confirmed=args.confirm_workbench_action,
-            )
+        workbench_job_code = handle_workbench_job_args(
+            cfg,
+            args,
+            workbench_action_records_func=workbench_action_records,
+            start_workbench_job_headless_command_func=start_workbench_job_headless_command,
+            start_workbench_job_record_func=start_workbench_job_record,
+            cancel_workbench_job_headless_command_func=cancel_workbench_job_headless_command,
+            cancel_workbench_job_record_func=cancel_workbench_job_record,
+            run_workbench_action_record_func=run_workbench_action_record,
+        )
+        if workbench_job_code is not None:
+            return workbench_job_code
         if args.run_service_workflow_action:
             return run_service_workflow_action(
                 cfg,

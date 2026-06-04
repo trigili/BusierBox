@@ -1265,6 +1265,103 @@ def run_console_control_dispatch_check():
     return 0
 
 
+def run_workbench_job_dispatch_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import gritlib.console_actions as console_actions
+
+    def args_for(**overrides):
+        values = {
+            "start_workbench_job": "",
+            "job_command": "",
+            "cancel_workbench_job": "",
+            "run_workbench_action": "",
+            "workbench_action_dry_run": False,
+            "confirm_workbench_action": False,
+        }
+        values.update(overrides)
+        return argparse.Namespace(**values)
+
+    calls = []
+
+    def dispatch(args):
+        return console_actions.handle_workbench_job_args(
+            {"cfg": "yes"},
+            args,
+            workbench_action_records_func=lambda cfg: calls.append(("records", cfg)) or ["action-rec"],
+            start_workbench_job_headless_command_func=lambda cfg, action, command_override=None: calls.append(
+                ("start-headless", cfg, action, command_override)
+            ) or f"start {action}",
+            start_workbench_job_record_func=lambda cfg, actions, action, command_override=None, headless_command="": calls.append(
+                ("start-record", cfg, actions, action, command_override, headless_command)
+            ) or {
+                "id": "job-1",
+                "pid": 123,
+                "log_path": "job.log",
+                "command": "python worker.py",
+            },
+            cancel_workbench_job_headless_command_func=lambda cfg, job_id: calls.append(
+                ("cancel-headless", cfg, job_id)
+            ) or f"cancel {job_id}",
+            cancel_workbench_job_record_func=lambda cfg, actions, job_id, headless_command="": calls.append(
+                ("cancel-record", cfg, actions, job_id, headless_command)
+            ) or {
+                "id": job_id,
+                "pid": 123,
+            },
+            run_workbench_action_record_func=lambda cfg, actions, selector, dry_run=False, confirmed=False: calls.append(
+                ("run", cfg, actions, selector, dry_run, confirmed)
+            ) or 31,
+        )
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = dispatch(args_for(start_workbench_job="build", job_command="make smoke-test"))
+    text = buf.getvalue()
+    if code != 0 or calls != [
+        ("start-headless", {"cfg": "yes"}, "build", "make smoke-test"),
+        ("records", {"cfg": "yes"}),
+        ("start-record", {"cfg": "yes"}, ["action-rec"], "build", "make smoke-test", "start build"),
+    ] or "workbench action: build" not in text or "started workbench job job-1: pid=123" not in text or "log=job.log" not in text or "command=python worker.py" not in text:
+        print("workbench job dispatch helper did not preserve start behavior", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = dispatch(args_for(cancel_workbench_job="job-1"))
+    text = buf.getvalue()
+    if code != 0 or calls != [
+        ("cancel-headless", {"cfg": "yes"}, "job-1"),
+        ("records", {"cfg": "yes"}),
+        ("cancel-record", {"cfg": "yes"}, ["action-rec"], "job-1", "cancel job-1"),
+    ] or "cancel requested for workbench job job-1" not in text or "pid=123" not in text:
+        print("workbench job dispatch helper did not preserve cancel behavior", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    code = dispatch(args_for(
+        run_workbench_action="probe",
+        workbench_action_dry_run=True,
+        confirm_workbench_action=True,
+    ))
+    if code != 31 or calls != [
+        ("records", {"cfg": "yes"}),
+        ("run", {"cfg": "yes"}, ["action-rec"], "probe", True, True),
+    ]:
+        print("workbench job dispatch helper did not preserve run behavior", file=sys.stderr)
+        return 1
+
+    calls.clear()
+    if dispatch(args_for()) is not None or calls:
+        print("workbench job dispatch helper handled empty args", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_file_staging_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -3764,6 +3861,8 @@ def main(argv=None):
     if run_command_queue_dispatch_check() != 0:
         return 1
     if run_console_control_dispatch_check() != 0:
+        return 1
+    if run_workbench_job_dispatch_check() != 0:
         return 1
     if run_file_staging_dispatch_check() != 0:
         return 1

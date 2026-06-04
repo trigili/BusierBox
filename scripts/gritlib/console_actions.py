@@ -66,6 +66,57 @@ def handle_console_control_args(
     return None
 
 
+def handle_workbench_job_args(
+    cfg,
+    args,
+    *,
+    workbench_action_records_func,
+    start_workbench_job_headless_command_func,
+    start_workbench_job_record_func,
+    cancel_workbench_job_headless_command_func,
+    cancel_workbench_job_record_func,
+    run_workbench_action_record_func,
+):
+    if args.start_workbench_job:
+        print(f"workbench action: {args.start_workbench_job}")
+        headless = start_workbench_job_headless_command_func(
+            cfg,
+            args.start_workbench_job,
+            command_override=args.job_command,
+        )
+        rec = start_workbench_job_record_func(
+            cfg,
+            workbench_action_records_func(cfg),
+            args.start_workbench_job,
+            command_override=args.job_command,
+            headless_command=headless,
+        )
+        print(f"started workbench job {rec.get('id', '')}: pid={rec.get('pid', '')}")
+        print(f"log={rec.get('log_path', '')}")
+        print(f"command={rec.get('command', '')}")
+        return 0
+    if args.cancel_workbench_job:
+        headless = cancel_workbench_job_headless_command_func(cfg, args.cancel_workbench_job)
+        rec = cancel_workbench_job_record_func(
+            cfg,
+            workbench_action_records_func(cfg),
+            args.cancel_workbench_job,
+            headless_command=headless,
+        )
+        print(f"cancel requested for workbench job {rec.get('id', args.cancel_workbench_job)}")
+        print(f"pid={rec.get('pid', '')}")
+        return 0
+    if args.run_workbench_action:
+        return run_workbench_action_record_func(
+            cfg,
+            workbench_action_records_func(cfg),
+            args.run_workbench_action,
+            dry_run=args.workbench_action_dry_run,
+            confirmed=args.confirm_workbench_action,
+        )
+    return None
+
+
 def print_staged_fetch_record(cfg, rec, render_fetch_command_func):
     print(f"staged {rec['request_name']} <- {rec['source_path']}")
     if rec.get("target_id"):
