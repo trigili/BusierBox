@@ -76,7 +76,9 @@ def load_line_resource(cfg, path_text):
         commands.append(line)
         if len(commands) > 200:
             raise ValueError("resource file has more than 200 commands")
-    print(f"Resource loaded: {path} commands={len(commands)} skipped_nested={skipped_nested}")
+    suffix = f"; skipped {skipped_nested} nested resource line(s)" if skipped_nested else ""
+    print(f"Resource loaded: {path}")
+    print(f"  commands: {len(commands)}{suffix}")
     append_event(cfg, "workbench", "workbench_console_resource_loaded", details={
         "path": str(path),
         "command_count": len(commands),
@@ -105,7 +107,8 @@ def write_line_makerc(cfg, path_text, line_history):
         )
     except OSError as exc:
         raise ValueError(f"could not write resource script: {exc}") from exc
-    print(f"Resource script saved: {path} commands={len(commands)}")
+    print(f"Resource script saved: {path}")
+    print(f"  commands: {len(commands)}")
     print(f"replay: resource {shquote(str(path))}")
     append_event(cfg, "workbench", "workbench_console_makerc_saved", details={
         "path": str(path),

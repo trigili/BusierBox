@@ -2149,6 +2149,17 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             print(f"missing: {expected}", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
+    resource_start = line_console_stdout.find(f"resource {line_console_resource}")
+    resource_end = line_console_stdout.find("grit[all]> workspace", resource_start + 1)
+    resource_text = line_console_stdout[resource_start:resource_end] if resource_start != -1 and resource_end != -1 else ""
+    if (not resource_text or
+            "Resource loaded:" not in resource_text or
+            "  commands: 3; skipped 1 nested resource line(s)" not in resource_text or
+            "commands=3" in resource_text or
+            "skipped_nested=1" in resource_text):
+        print("line-oriented resource load output used raw key-value counters", file=sys.stderr)
+        print(resource_text or line_console_stdout, file=sys.stderr)
+        return 1
     line_console_makerc_text = line_console_makerc.read_text(encoding="utf-8") if line_console_makerc.exists() else ""
     if (not line_console_makerc.is_file() or
             f"resource {line_console_resource}" not in line_console_makerc_text or
