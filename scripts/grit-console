@@ -22,7 +22,6 @@ import json
 import os
 import select
 import shlex
-import shutil
 import signal
 import socket
 import ssl
@@ -196,7 +195,7 @@ from gritlib.line_services import (
     resolve_line_service_selector as line_services_resolve_selector,
 )
 from gritlib.line_sessions import (
-    line_session_clear_candidates,
+    clear_line_sessions as line_sessions_clear_line_sessions,
     print_line_session_interaction,
     line_session_record_by_selector, print_line_session_records,
     print_selected_line_session,
@@ -7607,39 +7606,13 @@ def run_line_repl(cfg):
         })
 
     def clear_line_sessions(all_sessions=False, confirm=False):
-        root = SESSION_MANAGER.root(cfg)
-        if not root.is_dir():
-            print("No session directory found.")
-            return
-        candidates = line_session_clear_candidates(root, all_sessions=all_sessions)
-        if not candidates:
-            msg = "No sessions to clear." if all_sessions else "No finished empty sessions to clear."
-            print(msg)
-            print("  Hint: sessions with uploads/fetches/artifacts are kept unless you use --all.")
-            return
-        for path, state, has_data in candidates:
-            flag = "  [has data]" if has_data else ""
-            print(f"  {path.name}  ({state}){flag}")
-        if not confirm:
-            print(f"\n  {len(candidates)} session(s) would be removed. Run: sessions clear --confirm")
-            if not all_sessions:
-                print("  To also remove sessions with data: sessions clear --all --confirm")
-            return
-        removed = 0
-        errors = 0
-        for path, _state, _has_data in candidates:
-            try:
-                shutil.rmtree(path)
-                removed += 1
-            except OSError as exc:
-                print(f"  error removing {path.name}: {exc}")
-                errors += 1
-        print(f"\n  Cleared {removed} session(s)." + (f"  {errors} error(s)." if errors else ""))
-        append_event(cfg, "workbench", "workbench_sessions_cleared", details={
-            "removed": removed,
-            "errors": errors,
-            "all_sessions": all_sessions,
-        })
+        return line_sessions_clear_line_sessions(
+            cfg,
+            SESSION_MANAGER.root(cfg),
+            all_sessions=all_sessions,
+            confirm=confirm,
+            append_event_fn=append_event,
+        )
 
     def interact_line_session(selector):
         text = str(selector or "").strip()

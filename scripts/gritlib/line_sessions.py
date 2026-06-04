@@ -1,6 +1,7 @@
 """Line-console session rendering helpers."""
 
 from pathlib import Path
+import shutil
 
 from gritlib.console_display import console_table
 from gritlib.shell_utils import shquote
@@ -68,6 +69,43 @@ def line_session_clear_candidates(root, all_sessions=False):
         if all_sessions or (finished and not has_data):
             candidates.append((path, state or exit_r or "unknown", has_data))
     return candidates
+
+
+def clear_line_sessions(cfg, root, all_sessions=False, confirm=False, append_event_fn=None):
+    root = Path(root)
+    if not root.is_dir():
+        print("No session directory found.")
+        return
+    candidates = line_session_clear_candidates(root, all_sessions=all_sessions)
+    if not candidates:
+        msg = "No sessions to clear." if all_sessions else "No finished empty sessions to clear."
+        print(msg)
+        print("  Hint: sessions with uploads/fetches/artifacts are kept unless you use --all.")
+        return
+    for path, state, has_data in candidates:
+        flag = "  [has data]" if has_data else ""
+        print(f"  {path.name}  ({state}){flag}")
+    if not confirm:
+        print(f"\n  {len(candidates)} session(s) would be removed. Run: sessions clear --confirm")
+        if not all_sessions:
+            print("  To also remove sessions with data: sessions clear --all --confirm")
+        return
+    removed = 0
+    errors = 0
+    for path, _state, _has_data in candidates:
+        try:
+            shutil.rmtree(path)
+            removed += 1
+        except OSError as exc:
+            print(f"  error removing {path.name}: {exc}")
+            errors += 1
+    print(f"\n  Cleared {removed} session(s)." + (f"  {errors} error(s)." if errors else ""))
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_sessions_cleared", details={
+            "removed": removed,
+            "errors": errors,
+            "all_sessions": all_sessions,
+        })
 
 
 def print_selected_line_session(rec):
