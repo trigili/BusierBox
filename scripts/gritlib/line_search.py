@@ -35,7 +35,7 @@ def dispatch_line_number_selection(
     text = str(choice or "").strip()
     if not text.isdigit():
         return False
-    search_results = list((cfg or {}).get("_line_console_search_results") or [])
+    search_results = line_search_results(cfg)
     if not search_results:
         if require_active_results:
             return False
@@ -61,6 +61,10 @@ def clear_line_search_results(cfg):
 
 def set_line_search_results(cfg, records):
     cfg["_line_console_search_results"] = list(records or [])
+
+
+def line_search_results(cfg):
+    return list((cfg or {}).get("_line_console_search_results") or [])
 
 
 def line_searchable_text(rec):
