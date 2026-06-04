@@ -7667,19 +7667,6 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "reload":
-                config_path = str(cfg.get("_config_path") or DEFAULT_CONFIG)
-                try:
-                    reload_line_config(
-                        cfg,
-                        config_path=config_path,
-                        load_config_fn=load_config,
-                        defaults=DEFAULTS,
-                        append_event_fn=append_event,
-                    )
-                except Exception as exc:
-                    print(f"reload failed: {exc}")
-                continue
             elif (workspace_cmd := parse_line_workspace_command(cmd, console_args[1:])):
                 if workspace_cmd["action"] == "status":
                     print(line_repl_status_bar(workbench_snapshot(cfg)))
@@ -7688,6 +7675,18 @@ def run_line_repl(cfg):
                 elif workspace_cmd["action"] == "workspace":
                     clear_line_module(quiet=True)
                     print_line_workspace()
+                elif workspace_cmd["action"] == "reload":
+                    config_path = str(cfg.get("_config_path") or DEFAULT_CONFIG)
+                    try:
+                        reload_line_config(
+                            cfg,
+                            config_path=config_path,
+                            load_config_fn=load_config,
+                            defaults=DEFAULTS,
+                            append_event_fn=append_event,
+                        )
+                    except Exception as exc:
+                        print(f"reload failed: {exc}")
                 elif workspace_cmd["action"] == "root":
                     clear_line_context()
                 elif workspace_cmd["action"] == "info":

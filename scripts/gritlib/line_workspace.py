@@ -16,6 +16,8 @@ def parse_line_workspace_command(cmd, args=None):
         return {"action": "ips"}
     if cmd in {"workspace", "overview", "dashboard"}:
         return {"action": "workspace"}
+    if cmd == "reload":
+        return {"action": "reload"}
     if cmd in {"main", "home", "root"}:
         return {"action": "root"}
     if cmd == "info":
