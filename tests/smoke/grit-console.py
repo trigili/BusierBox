@@ -416,6 +416,7 @@ def run_line_repl_runtime_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
+    import gritlib.line_repl_utility as repl_utility
     from gritlib.line_repl_runtime import (
         dispatch_line_help_command,
         dispatch_line_parsed_command,
@@ -842,6 +843,91 @@ def run_line_repl_runtime_check():
         or "unknown bogus module=targets target=False" not in unknown_out.getvalue()
     ):
         print(f"line REPL runtime parsed unknown command incorrectly: {unknown_parsed} {parsed_calls}", file=sys.stderr)
+        return 1
+
+    adapter_calls = []
+    original_utility_dispatch = repl_utility.dispatch_line_utility_command
+
+    def fake_utility_dispatch(command, args, **kwargs):
+        adapter_calls.append(("dispatch", command, tuple(args)))
+        kwargs["completion_func"]("pr")
+        kwargs["resource_history_func"]("2")
+        kwargs["resource_load_func"]("ops.rc")
+        kwargs["resource_save_func"]("save.rc")
+        kwargs["events_func"](["--limit", "1"])
+        kwargs["search_func"]("target")
+        kwargs["show_func"]("jobs")
+        kwargs["generated_run_func"](["--verbose"])
+        kwargs["service_copy_func"]("start")
+        kwargs["generated_copy_func"]("3")
+        return True
+
+    repl_utility.dispatch_line_utility_command = fake_utility_dispatch
+    try:
+        history = ["workspace"]
+        pending_lines = []
+        dispatch_utility = repl_utility.build_line_utility_dispatch_callback(
+            {"name": "cfg"},
+            line_history=history,
+            pending_console_lines=pending_lines,
+            completion_func=lambda prefix: adapter_calls.append(("completion", prefix)),
+            resource_history_func=lambda line_history, limit: adapter_calls.append(
+                ("history", list(line_history), limit)
+            ),
+            resource_load_func=lambda cfg, path: adapter_calls.append(
+                ("load", cfg.get("name"), path)
+            ) or ["status", "targets"],
+            resource_save_func=lambda cfg, path, line_history: adapter_calls.append(
+                ("save", cfg.get("name"), path, list(line_history))
+            ),
+            events_func=lambda cfg, args: adapter_calls.append(("events", cfg.get("name"), tuple(args))),
+            search_func=lambda query: adapter_calls.append(("search", query)),
+            show_func=lambda resource: adapter_calls.append(("show", resource)),
+            generated_run_func=lambda cfg, args: adapter_calls.append(
+                ("generated-run", cfg.get("name"), tuple(args))
+            ),
+            copy_text_func=lambda cfg, command_text, label=None: adapter_calls.append(
+                ("copy-text", cfg.get("name"), command_text, label)
+            ),
+            service_start_command_func=lambda cfg, service: adapter_calls.append(
+                ("start-command", cfg.get("name"), service)
+            ) or f"start {service}",
+            service_stop_command_func=lambda cfg, service: adapter_calls.append(
+                ("stop-command", cfg.get("name"), service)
+            ) or f"stop {service}",
+            service_copy_command_func=lambda cfg, subcmd, copy_func, start_command, stop_command: (
+                adapter_calls.append(("service-copy", cfg.get("name"), subcmd)),
+                copy_func(start_command("svc"), "start"),
+                copy_func(stop_command("svc"), "stop"),
+            ),
+            generated_copy_func=lambda cfg, selector: adapter_calls.append(
+                ("generated-copy", cfg.get("name"), selector)
+            ),
+        )
+        if dispatch_utility("history", ["2"]) is not True:
+            print("line REPL utility adapter did not return utility dispatch result", file=sys.stderr)
+            return 1
+    finally:
+        repl_utility.dispatch_line_utility_command = original_utility_dispatch
+    expected_adapter_calls = [
+        ("dispatch", "history", ("2",)),
+        ("completion", "pr"),
+        ("history", ["workspace"], "2"),
+        ("load", "cfg", "ops.rc"),
+        ("save", "cfg", "save.rc", ["workspace"]),
+        ("events", "cfg", ("--limit", "1")),
+        ("search", "target"),
+        ("show", "jobs"),
+        ("generated-run", "cfg", ("--verbose",)),
+        ("service-copy", "cfg", "start"),
+        ("start-command", "cfg", "svc"),
+        ("copy-text", "cfg", "start svc", "start"),
+        ("stop-command", "cfg", "svc"),
+        ("copy-text", "cfg", "stop svc", "stop"),
+        ("generated-copy", "cfg", "3"),
+    ]
+    if adapter_calls != expected_adapter_calls or pending_lines != ["status", "targets"]:
+        print(f"line REPL utility adapter wiring changed: {adapter_calls} pending={pending_lines}", file=sys.stderr)
         return 1
     return 0
 

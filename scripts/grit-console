@@ -189,6 +189,7 @@ from gritlib.line_repl_routes import build_line_route_service_callbacks
 from gritlib.line_repl_search import build_line_search_callbacks
 from gritlib.line_repl_sessions import build_line_session_callbacks
 from gritlib.line_repl_targets import build_line_target_callbacks
+from gritlib.line_repl_utility import build_line_utility_dispatch_callback
 from gritlib.line_release import (
     print_line_release as line_release_print_line_release,
 )
@@ -204,7 +205,6 @@ from gritlib.line_target_commands import (
     copy_line_generated_command, copy_line_service_command, run_line_generated_command,
 )
 from gritlib.line_navigation_commands import dispatch_line_navigation_command
-from gritlib.line_utility_commands import dispatch_line_utility_command
 from gritlib.line_workflow_commands import dispatch_line_workflow_command
 from gritlib.line_workspace import (
     line_repl_prompt_for_config,
@@ -6285,6 +6285,24 @@ def run_line_repl(cfg):
     compact_next_prompt = False
     pending_console_lines = []
     line_history = []
+    dispatch_line_utility = build_line_utility_dispatch_callback(
+        cfg,
+        line_history=line_history,
+        pending_console_lines=pending_console_lines,
+        completion_func=print_line_completions,
+        resource_history_func=line_resources_print_line_history,
+        resource_load_func=load_line_resource,
+        resource_save_func=write_line_makerc,
+        events_func=print_line_events_view,
+        search_func=search_line_resources,
+        show_func=show_line_resource,
+        generated_run_func=run_line_generated_command,
+        copy_text_func=copy_text_for_operator,
+        service_start_command_func=service_start_headless_command,
+        service_stop_command_func=service_stop_headless_command,
+        service_copy_command_func=copy_line_service_command,
+        generated_copy_func=copy_line_generated_command,
+    )
     while not SHUTDOWN.is_set():
         prompt_result = read_next_repl_line(
             cfg,
@@ -6326,34 +6344,7 @@ def run_line_repl(cfg):
                 target_selected=bool(configured_target_filter(cfg)),
                 command_help_printer=print_line_command_help,
                 context_help_printer=print_context_line_help,
-                utility_dispatch_func=lambda command, args: dispatch_line_utility_command(
-                    command,
-                    args,
-                    completion_func=print_line_completions,
-                    resource_history_func=lambda limit="": line_resources_print_line_history(
-                        line_history,
-                        limit,
-                    ),
-                    resource_load_func=lambda path: pending_console_lines.extend(
-                        load_line_resource(cfg, path)
-                    ),
-                    resource_save_func=lambda path: write_line_makerc(cfg, path, line_history),
-                    events_func=lambda args: print_line_events_view(cfg, args),
-                    search_func=search_line_resources,
-                    show_func=show_line_resource,
-                    generated_run_func=lambda args: run_line_generated_command(cfg, args),
-                    service_copy_func=lambda subcmd: copy_line_service_command(
-                        cfg,
-                        subcmd,
-                        lambda command, label: copy_text_for_operator(cfg, command, label=label),
-                        start_command=lambda svc: service_start_headless_command(cfg, svc),
-                        stop_command=lambda svc: service_stop_headless_command(cfg, svc),
-                    ),
-                    generated_copy_func=lambda selector: copy_line_generated_command(
-                        cfg,
-                        selector,
-                    ),
-                ),
+                utility_dispatch_func=dispatch_line_utility,
                 core_dispatch_func=lambda command, args: dispatch_line_core_command(
                     command,
                     args,
