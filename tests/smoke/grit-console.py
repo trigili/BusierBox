@@ -652,6 +652,7 @@ def run_console_runtime_check():
     from gritlib.console_runtime import (
         listener_action_from_args,
         script_bytes_from_args,
+        serve_listener_action,
         session_timeout_from_args,
         timeout_from_args,
     )
@@ -693,6 +694,203 @@ def run_console_runtime_check():
         if script_bytes_from_args(args) != b"":
             print("console runtime helper changed empty script bytes", file=sys.stderr)
             return 1
+    args = argparse.Namespace(
+        one_shot=False,
+        no_stdin=False,
+        log_only=False,
+        script=None,
+        expect="ready",
+    )
+    cfg = {"cfg": "yes"}
+    calls = []
+
+    def max_sessions(cfg_arg, explicit_one_shot=False, scripted=False):
+        calls.append(("max-sessions", cfg_arg, explicit_one_shot, scripted))
+        return 7
+
+    def simple(name):
+        return lambda cfg_arg, timeout, max_sessions=0: calls.append(
+            (name, cfg_arg, timeout, max_sessions)
+        ) or len(calls)
+
+    ssh_code = serve_listener_action(
+        cfg,
+        args,
+        "ssh",
+        timeout=4,
+        script_bytes=None,
+        session_timeout=None,
+        shell_listener_max_sessions_func=max_sessions,
+        serve_ssh_func=lambda cfg_arg, timeout: calls.append(("ssh", cfg_arg, timeout)) or 3,
+        serve_tls_shell_func=None,
+        serve_plain_shell_func=None,
+        serve_file_service_func=None,
+        serve_command_queue_func=None,
+        serve_bridge_func=None,
+        serve_probe_func=None,
+        serve_probe_tftp_func=None,
+        serve_probe_ftp_func=None,
+        serve_probe_dns_func=None,
+    )
+    if ssh_code != 3 or calls != [("ssh", cfg, 4)]:
+        print("console runtime helper did not dispatch ssh listener", file=sys.stderr)
+        return 1
+
+    calls.clear()
+    args.script = "script.sh"
+    args.no_stdin = True
+    tls_code = serve_listener_action(
+        cfg,
+        args,
+        "tls-shell",
+        timeout=5,
+        script_bytes=b"echo hi\n",
+        session_timeout=30,
+        shell_listener_max_sessions_func=max_sessions,
+        serve_ssh_func=None,
+        serve_tls_shell_func=lambda cfg_arg, timeout, **kwargs: calls.append(
+            ("tls-shell", cfg_arg, timeout, kwargs)
+        ) or 11,
+        serve_plain_shell_func=None,
+        serve_file_service_func=None,
+        serve_command_queue_func=None,
+        serve_bridge_func=None,
+        serve_probe_func=None,
+        serve_probe_tftp_func=None,
+        serve_probe_ftp_func=None,
+        serve_probe_dns_func=None,
+    )
+    if tls_code != 11 or calls != [
+        ("max-sessions", cfg, False, True),
+        ("tls-shell", cfg, 5, {
+            "use_stdin": False,
+            "max_sessions": 7,
+            "script_bytes": b"echo hi\n",
+            "expect": "ready",
+            "session_timeout": 30,
+        }),
+    ]:
+        print("console runtime helper did not dispatch tls-shell listener", file=sys.stderr)
+        return 1
+
+    calls.clear()
+    args.one_shot = True
+    args.no_stdin = False
+    args.log_only = True
+    plain_code = serve_listener_action(
+        cfg,
+        args,
+        "plain-shell",
+        timeout=6,
+        script_bytes=None,
+        session_timeout=45,
+        shell_listener_max_sessions_func=max_sessions,
+        serve_ssh_func=None,
+        serve_tls_shell_func=None,
+        serve_plain_shell_func=lambda cfg_arg, timeout, **kwargs: calls.append(
+            ("plain-shell", cfg_arg, timeout, kwargs)
+        ) or 13,
+        serve_file_service_func=None,
+        serve_command_queue_func=None,
+        serve_bridge_func=None,
+        serve_probe_func=None,
+        serve_probe_tftp_func=None,
+        serve_probe_ftp_func=None,
+        serve_probe_dns_func=None,
+    )
+    if plain_code != 13 or calls != [
+        ("max-sessions", cfg, True, True),
+        ("plain-shell", cfg, 6, {
+            "use_stdin": False,
+            "max_sessions": 7,
+            "script_bytes": None,
+            "expect": "ready",
+            "session_timeout": 45,
+        }),
+    ]:
+        print("console runtime helper did not dispatch plain-shell listener", file=sys.stderr)
+        return 1
+
+    callbacks = {
+        "file-service": ("file", simple("file")),
+        "command-queue": ("queue", simple("queue")),
+        "probe": ("probe", simple("probe")),
+        "probe-tftp": ("probe-tftp", simple("probe-tftp")),
+        "probe-ftp": ("probe-ftp", simple("probe-ftp")),
+        "probe-dns": ("probe-dns", simple("probe-dns")),
+    }
+    for action_name, (_label, callback) in callbacks.items():
+        calls.clear()
+        code = serve_listener_action(
+            cfg,
+            args,
+            action_name,
+            timeout=8,
+            script_bytes=None,
+            session_timeout=90,
+            shell_listener_max_sessions_func=max_sessions,
+            serve_ssh_func=None,
+            serve_tls_shell_func=None,
+            serve_plain_shell_func=None,
+            serve_file_service_func=callback if action_name == "file-service" else None,
+            serve_command_queue_func=callback if action_name == "command-queue" else None,
+            serve_bridge_func=None,
+            serve_probe_func=callback if action_name == "probe" else None,
+            serve_probe_tftp_func=callback if action_name == "probe-tftp" else None,
+            serve_probe_ftp_func=callback if action_name == "probe-ftp" else None,
+            serve_probe_dns_func=callback if action_name == "probe-dns" else None,
+        )
+        if code != 1 or calls != [(callbacks[action_name][0], cfg, 8, 1)]:
+            print(f"console runtime helper did not dispatch {action_name}", file=sys.stderr)
+            return 1
+
+    calls.clear()
+    bridge_code = serve_listener_action(
+        cfg,
+        args,
+        "bridge",
+        timeout=9,
+        script_bytes=None,
+        session_timeout=120,
+        shell_listener_max_sessions_func=max_sessions,
+        serve_ssh_func=None,
+        serve_tls_shell_func=None,
+        serve_plain_shell_func=None,
+        serve_file_service_func=None,
+        serve_command_queue_func=None,
+        serve_bridge_func=lambda cfg_arg, timeout, **kwargs: calls.append(
+            ("bridge", cfg_arg, timeout, kwargs)
+        ) or 29,
+        serve_probe_func=None,
+        serve_probe_tftp_func=None,
+        serve_probe_ftp_func=None,
+        serve_probe_dns_func=None,
+    )
+    if bridge_code != 29 or calls != [("bridge", cfg, 9, {"max_sessions": 1, "session_timeout": 120})]:
+        print("console runtime helper did not dispatch bridge listener", file=sys.stderr)
+        return 1
+
+    if serve_listener_action(
+        cfg,
+        args,
+        "bogus",
+        timeout=1,
+        script_bytes=None,
+        session_timeout=None,
+        shell_listener_max_sessions_func=max_sessions,
+        serve_ssh_func=None,
+        serve_tls_shell_func=None,
+        serve_plain_shell_func=None,
+        serve_file_service_func=None,
+        serve_command_queue_func=None,
+        serve_bridge_func=None,
+        serve_probe_func=None,
+        serve_probe_tftp_func=None,
+        serve_probe_ftp_func=None,
+        serve_probe_dns_func=None,
+    ) is not None:
+        print("console runtime helper handled unsupported listener action", file=sys.stderr)
+        return 1
     return 0
 
 

@@ -80,7 +80,7 @@ from gritlib.command_copy import (
 )
 from gritlib.console_runtime import (
     listener_action_from_args, script_bytes_from_args, session_timeout_from_args,
-    timeout_from_args,
+    serve_listener_action, timeout_from_args,
 )
 from gritlib.console_help import print_concise_help, print_console_help_reference
 from gritlib.config_utils import (
@@ -7583,33 +7583,27 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         return run_line_console(cfg)
 
     try:
-        if action == "ssh":
-            return serve_ssh(cfg, timeout)
-        if action == "tls-shell":
-            return serve_tls_shell(cfg, timeout, use_stdin=not (args.no_stdin or args.log_only),
-                                   max_sessions=shell_listener_max_sessions(cfg, explicit_one_shot=args.one_shot, scripted=bool(args.script)),
-                                   script_bytes=script_bytes, expect=args.expect,
-                                   session_timeout=session_timeout)
-        if action == "plain-shell":
-            return serve_plain_shell(cfg, timeout, use_stdin=not (args.no_stdin or args.log_only),
-                                     max_sessions=shell_listener_max_sessions(cfg, explicit_one_shot=args.one_shot, scripted=bool(args.script)),
-                                     script_bytes=script_bytes, expect=args.expect,
-                                     session_timeout=session_timeout)
-        if action == "file-service":
-            return serve_file_service(cfg, timeout, max_sessions=1 if args.one_shot else 0)
-        if action == "command-queue":
-            return serve_command_queue(cfg, timeout, max_sessions=1 if args.one_shot else 0)
-        if action == "bridge":
-            return serve_bridge(cfg, timeout, max_sessions=1 if args.one_shot else 0,
-                                session_timeout=session_timeout)
-        if action == "probe":
-            return serve_probe(cfg, timeout, max_sessions=1 if args.one_shot else 0)
-        if action == "probe-tftp":
-            return serve_probe_tftp(cfg, timeout, max_sessions=1 if args.one_shot else 0)
-        if action == "probe-ftp":
-            return serve_probe_ftp(cfg, timeout, max_sessions=1 if args.one_shot else 0)
-        if action == "probe-dns":
-            return serve_probe_dns(cfg, timeout, max_sessions=1 if args.one_shot else 0)
+        listen_code = serve_listener_action(
+            cfg,
+            args,
+            action,
+            timeout=timeout,
+            script_bytes=script_bytes,
+            session_timeout=session_timeout,
+            shell_listener_max_sessions_func=shell_listener_max_sessions,
+            serve_ssh_func=serve_ssh,
+            serve_tls_shell_func=serve_tls_shell,
+            serve_plain_shell_func=serve_plain_shell,
+            serve_file_service_func=serve_file_service,
+            serve_command_queue_func=serve_command_queue,
+            serve_bridge_func=serve_bridge,
+            serve_probe_func=serve_probe,
+            serve_probe_tftp_func=serve_probe_tftp,
+            serve_probe_ftp_func=serve_probe_ftp,
+            serve_probe_dns_func=serve_probe_dns,
+        )
+        if listen_code is not None:
+            return listen_code
     except KeyboardInterrupt:
         print("grit-console: interrupted, shutting down", file=sys.stderr)
         request_shutdown("keyboard_interrupt")
