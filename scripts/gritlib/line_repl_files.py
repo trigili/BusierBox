@@ -19,15 +19,24 @@ def build_line_file_workflow_callbacks(
     line_input_fn,
     start_service_func,
     service_start_command_func,
-    target_id_func,
-    target_context_func,
+    target_id_func=None,
+    target_context_func=None,
     scoped_target_cfg_func,
     queue_command_func,
+    target_callbacks=None,
     load_staged_func,
     fetch_command_func,
     append_event_fn,
     quote,
 ):
+    if target_callbacks is not None:
+        if target_id_func is None:
+            target_filter = target_callbacks["target_filter"]
+            target_id_func = lambda _cfg: target_filter()
+        if target_context_func is None:
+            target_context = target_callbacks["target_context"]
+            target_context_func = lambda _cfg: target_context()
+
     def start_file_service_process():
         return start_service_func(
             cfg,

@@ -574,6 +574,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_actions as repl_actions
     import gritlib.line_repl_completions as repl_completions
     import gritlib.line_repl_core as repl_core
+    import gritlib.line_repl_files as repl_files
     import gritlib.line_repl_jobs as repl_jobs
     import gritlib.line_repl_legacy as repl_legacy
     import gritlib.line_repl_navigation as repl_navigation
@@ -1494,6 +1495,80 @@ def run_line_repl_runtime_check():
     ]
     if probe_bundle_calls != expected_probe_bundle_calls:
         print(f"line REPL probe bundle wiring changed: {probe_bundle_calls}", file=sys.stderr)
+        return 1
+
+    file_bundle_calls = []
+    original_download_target = repl_files.download_line_target
+    original_fetch_staged = repl_files.fetch_line_staged
+    original_print_files = repl_files.print_current_line_files
+
+    def fake_download_target(cfg, target_path, **kwargs):
+        file_bundle_calls.append(("download", cfg.get("name"), target_path))
+        file_bundle_calls.append(("target-id", kwargs["target_id_fn"]()))
+        file_bundle_calls.append(("target-context", kwargs["target_context_fn"]()))
+        return "downloaded"
+
+    def fake_fetch_staged(cfg, request_name, **kwargs):
+        file_bundle_calls.append(("fetch", cfg.get("name"), request_name))
+        file_bundle_calls.append(("fetch-target-id", kwargs["target_id_fn"]()))
+        file_bundle_calls.append(("fetch-target-context", kwargs["target_context_fn"]()))
+        return "fetched"
+
+    def fake_print_files(cfg, staged, **kwargs):
+        file_bundle_calls.append(("files", cfg.get("name"), staged, kwargs.get("target_filter_id")))
+        return "files"
+
+    repl_files.download_line_target = fake_download_target
+    repl_files.fetch_line_staged = fake_fetch_staged
+    repl_files.print_current_line_files = fake_print_files
+    try:
+        file_bundle = repl_files.build_line_file_workflow_callbacks(
+            {"name": "file-cfg"},
+            line_input_fn=lambda prompt: "",
+            start_service_func=lambda *args, **kwargs: None,
+            service_start_command_func=lambda cfg, service: "start-file",
+            target_callbacks={
+                "target_filter": lambda: file_bundle_calls.append("target-filter") or "target1",
+                "target_context": lambda: file_bundle_calls.append("target-context") or {
+                    "target_label": "Target 1",
+                },
+            },
+            scoped_target_cfg_func=lambda cfg, target_id, target_label="": cfg,
+            queue_command_func=lambda *args, **kwargs: {},
+            load_staged_func=lambda cfg: {"staged": {"bin": {"name": "bin"}}},
+            fetch_command_func=lambda name, cfg: f"fetch {name}",
+            append_event_fn=lambda *args, **kwargs: None,
+            quote=lambda value: f"'{value}'",
+        )
+        if file_bundle["download_target"]("remote.bin") != "downloaded":
+            print("line REPL file bundle did not return download result", file=sys.stderr)
+            return 1
+        if file_bundle["fetch_staged"]("bin") != "fetched":
+            print("line REPL file bundle did not return fetch result", file=sys.stderr)
+            return 1
+        if file_bundle["print_line_files"]() != "files":
+            print("line REPL file bundle did not return files result", file=sys.stderr)
+            return 1
+    finally:
+        repl_files.download_line_target = original_download_target
+        repl_files.fetch_line_staged = original_fetch_staged
+        repl_files.print_current_line_files = original_print_files
+    expected_file_bundle_calls = [
+        ("download", "file-cfg", "remote.bin"),
+        "target-filter",
+        ("target-id", "target1"),
+        "target-context",
+        ("target-context", {"target_label": "Target 1"}),
+        ("fetch", "file-cfg", "bin"),
+        "target-filter",
+        ("fetch-target-id", "target1"),
+        "target-context",
+        ("fetch-target-context", {"target_label": "Target 1"}),
+        "target-filter",
+        ("files", "file-cfg", {"bin": {"name": "bin"}}, "target1"),
+    ]
+    if file_bundle_calls != expected_file_bundle_calls:
+        print(f"line REPL file bundle wiring changed: {file_bundle_calls}", file=sys.stderr)
         return 1
 
     core_calls = []
