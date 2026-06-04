@@ -6335,9 +6335,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         os.close(line_console_slave)
         line_console_slave = -1
         time.sleep(0.3)
-        os.write(
-            line_console_master,
-            (
+        line_console_script = (
                 "\n"
                 "help\n"
                 "?\n"
@@ -6585,7 +6583,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "q\n"
                 "q\n"
                 "q\n"
-            ).encode("utf-8"),
+        )
+        line_console_scripted_commands = line_console_script.splitlines()
+        os.write(
+            line_console_master,
+            line_console_script.encode("utf-8"),
         )
         line_console_chunks = []
         deadline = time.time() + 24
@@ -6635,6 +6637,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "state_file": str(line_console_state),
             "staged_file": str(line_console_staged),
             "bridge_profiles_file": str(line_console_routes),
+            "scripted_command_count": len(line_console_scripted_commands),
+            "scripted_commands": line_console_scripted_commands,
         },
     )
     if (not (line_console_artifact_dir_path / "transcript.txt").is_file() or
@@ -6664,6 +6668,39 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     if line_console_artifact_summary.get("returncode") != 0 or bad_artifact_flags or coverage_missing:
         print("line-console transcript artifact recorded UX regression flags", file=sys.stderr)
         print(json.dumps(line_console_artifact_summary, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
+    scripted_commands = line_console_artifact_summary.get("scripted_commands") or []
+    if (
+            line_console_artifact_summary.get("scripted_command_count") != len(scripted_commands)
+            or len(scripted_commands) < 150):
+        print("line-console transcript artifact did not record enough scripted command coverage", file=sys.stderr)
+        print(json.dumps(line_console_artifact_summary, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
+    required_scripted_commands = (
+        "",
+        "help",
+        "complete use ag",
+        "route start 1",
+        "build set 9 /tmp/grit-build",
+        "daemon status --dry-run",
+        "sessions -i 1",
+        "queue grit survey --json",
+        "probe --queue",
+        "upload --start",
+        "serve-binary --start",
+        "configure grit-console",
+        "queue clear --confirm",
+    )
+    missing_scripted_commands = [
+        expected for expected in required_scripted_commands
+        if not any(command == expected or command.startswith(expected) for command in scripted_commands)
+    ]
+    if missing_scripted_commands:
+        print("line-console transcript artifact missing scripted command coverage markers", file=sys.stderr)
+        print(json.dumps({
+            "missing": missing_scripted_commands,
+            "scripted_commands": scripted_commands,
+        }, indent=2, sort_keys=True), file=sys.stderr)
         return 1
     blank_enter_match = re.search(
         r"grit\[all\]>[ \t]*\r?\n"
