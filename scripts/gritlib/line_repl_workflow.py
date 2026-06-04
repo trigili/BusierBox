@@ -1,5 +1,6 @@
 """Line REPL workflow command callback adapters."""
 
+from gritlib.line_daemon import run_line_daemon_action
 from gritlib.line_workflow_commands import dispatch_line_workflow_command
 
 
@@ -9,7 +10,7 @@ def build_line_workflow_dispatch_callback(
     workbench_snapshot_func,
     set_context_func,
     download_func,
-    daemon_action_func,
+    daemon_runner_func,
     release_print_func,
     release_stage_func,
     release_help_func,
@@ -29,16 +30,28 @@ def build_line_workflow_dispatch_callback(
     configure_func,
     append_event_fn,
 ):
+    def run_daemon_action(daemon_args):
+        return run_line_daemon_action(
+            daemon_args,
+            snapshot_func=lambda: workbench_snapshot_func(cfg),
+            run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
+                daemon_runner_func(
+                    cfg,
+                    selector,
+                    dry_run=dry_run,
+                    confirmed=confirmed,
+                    show_commands=show_commands,
+                )
+            ),
+        )
+
     def dispatch_workflow(command, args):
         return dispatch_line_workflow_command(
             command,
             args,
             set_context_func=lambda module: set_context_func(cfg, module),
             download_func=download_func,
-            daemon_run_func=lambda daemon_args: daemon_action_func(
-                daemon_args,
-                snapshot_func=lambda: workbench_snapshot_func(cfg),
-            ),
+            daemon_run_func=run_daemon_action,
             release_list_func=lambda: (
                 set_context_func(cfg, "release"),
                 release_print_func(cfg, append_event_fn=append_event_fn),

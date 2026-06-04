@@ -1344,6 +1344,7 @@ def run_line_repl_runtime_check():
 
     workflow_calls = []
     original_workflow_dispatch = repl_workflow.dispatch_line_workflow_command
+    original_daemon_action = repl_workflow.run_line_daemon_action
 
     def fake_workflow_dispatch(command, args, **kwargs):
         workflow_calls.append(("dispatch", command, tuple(args)))
@@ -1369,6 +1370,9 @@ def run_line_repl_runtime_check():
         return True
 
     repl_workflow.dispatch_line_workflow_command = fake_workflow_dispatch
+    repl_workflow.run_line_daemon_action = lambda args, snapshot_func, run_action_func: workflow_calls.append(
+        ("daemon", tuple(args), snapshot_func(), run_action_func("daemon:restart", dry_run=True))
+    )
     try:
         workflow_cfg = {"name": "workflow-cfg", "target": "target1"}
         dispatch_workflow = repl_workflow.build_line_workflow_dispatch_callback(
@@ -1376,8 +1380,10 @@ def run_line_repl_runtime_check():
             workbench_snapshot_func=lambda cfg: workflow_calls.append(("snapshot", cfg.get("name"))) or {"ok": True},
             set_context_func=lambda cfg, module: workflow_calls.append(("context", cfg.get("name"), module)),
             download_func=lambda selector: workflow_calls.append(("download", selector)),
-            daemon_action_func=lambda args, snapshot_func: workflow_calls.append(
-                ("daemon", tuple(args), snapshot_func())
+            daemon_runner_func=lambda cfg, selector, dry_run=False, confirmed=False, show_commands=False: (
+                workflow_calls.append(
+                    ("daemon-runner", cfg.get("name"), selector, dry_run, confirmed, show_commands)
+                ) or "daemon-result"
             ),
             release_print_func=lambda cfg, append_event_fn: workflow_calls.append(
                 ("release-list", cfg.get("name"), append_event_fn is not None)
@@ -1409,12 +1415,14 @@ def run_line_repl_runtime_check():
             return 1
     finally:
         repl_workflow.dispatch_line_workflow_command = original_workflow_dispatch
+        repl_workflow.run_line_daemon_action = original_daemon_action
     expected_workflow_calls = [
         ("dispatch", "queue", ("list",)),
         ("context", "workflow-cfg", "queue"),
         ("download", "target1"),
         ("snapshot", "workflow-cfg"),
-        ("daemon", ("start",), {"ok": True}),
+        ("daemon-runner", "workflow-cfg", "daemon:restart", True, False, False),
+        ("daemon", ("start",), {"ok": True}, "daemon-result"),
         ("context", "workflow-cfg", "release"),
         ("release-list", "workflow-cfg", True),
         ("release-stage", "artifact1", True),

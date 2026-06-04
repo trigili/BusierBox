@@ -141,7 +141,6 @@ from gritlib.line_context import (
 )
 from gritlib.line_daemon import (
     print_line_daemon_actions as line_daemon_print_actions,
-    run_line_daemon_action as line_daemon_run_action,
 )
 from gritlib.line_events import print_line_events_view
 from gritlib.line_state import line_action_state_text
@@ -6354,19 +6353,7 @@ def run_line_repl(cfg):
         workbench_snapshot_func=workbench_snapshot,
         set_context_func=set_line_collection_context,
         download_func=download_line_target,
-        daemon_action_func=lambda args, snapshot_func: line_daemon_run_action(
-            args,
-            snapshot_func=snapshot_func,
-            run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
-                run_operator_daemon_workflow_action(
-                    cfg,
-                    selector,
-                    dry_run=dry_run,
-                    confirmed=confirmed,
-                    show_commands=show_commands,
-                )
-            ),
-        ),
+        daemon_runner_func=run_operator_daemon_workflow_action,
         release_print_func=line_release_print_line_release,
         release_stage_func=stage_line_release,
         release_help_func=print_line_command_help,
