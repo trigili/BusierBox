@@ -17,6 +17,15 @@ from gritlib.probe_results import (
 )
 from gritlib.session_state import read_json_file
 from gritlib.shell_utils import shquote
+from gritlib.file_transfers import render_fetch_command
+from gritlib.session_state import atomic_write_json, utc_now
+from gritlib.staged_files import (
+    file_sha256,
+    load_staged,
+    prepare_staged_artifact_for_configure,
+    staged_file_path,
+    staged_record_for_configure,
+)
 
 
 def parse_line_config_args(args, cmd_name):
@@ -171,6 +180,75 @@ def find_artifact_config(search_roots=None):
         if candidate.is_file():
             return candidate
     return None
+
+
+def artifact_config_script(search_roots=None):
+    helper = find_artifact_config(search_roots)
+    if helper:
+        return helper
+    searched = ", ".join(str(path) for path in artifact_config_candidates(search_roots)[:6])
+    raise ValueError(f"artifact-config helper not found (searched: {searched})")
+
+
+def configure_line_artifact(cfg, args, append_event_fn=None):
+    selector, action, obfuscation, kv = parse_line_configure_args(args)
+    request_name, staged_rec = staged_record_for_configure(cfg, selector)
+    if request_name:
+        artifact = prepare_staged_artifact_for_configure(cfg, request_name, staged_rec)
+    else:
+        artifact = Path(selector).expanduser()
+        if not artifact.is_file():
+            raise ValueError(f"artifact or staged request not found: {selector}")
+    helper = artifact_config_script()
+    cmd = [str(helper), action, str(artifact)]
+    if action == "set":
+        cmd = [str(helper), "set", "--obfuscation", obfuscation, str(artifact)] + kv
+    result = subprocess.run(cmd, cwd=Path(__file__).resolve().parent.parent, text=True, capture_output=True)
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="")
+    if result.returncode != 0:
+        raise ValueError(f"artifact-config exited {result.returncode}")
+    if request_name:
+        data = load_staged(cfg)
+        staged = data.setdefault("staged", {})
+        rec = dict(staged.get(request_name) or staged_rec)
+        rec.update({
+            "source_path": str(artifact),
+            "configured_source_path": str(artifact),
+            "configured": action != "clear",
+            "configured_at": utc_now(),
+            "configured_keys": sorted([item.split("=", 1)[0] for item in kv]) if action == "set" else rec.get("configured_keys", []),
+            "size": artifact.stat().st_size,
+            "sha256": file_sha256(artifact),
+            "mtime": int(artifact.stat().st_mtime),
+        })
+        if action == "clear":
+            rec["configured_keys"] = []
+        staged[request_name] = rec
+        atomic_write_json(staged_file_path(cfg), data)
+    fetch_command = render_fetch_command(request_name, cfg) if request_name else ""
+    print("Artifact trailer configured:" if action == "set" else f"Artifact trailer {action}:")
+    print(f"  artifact={artifact}")
+    if request_name:
+        print(f"  request_name={request_name}")
+        print(f"  target fetch: {fetch_command}")
+    if kv:
+        print("  keys=" + ", ".join(item.split("=", 1)[0] for item in kv))
+    headless = " ".join(shquote(part) for part in cmd)
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_artifact_trailer_configured", details={
+            "selector": selector,
+            "request_name": request_name,
+            "artifact": str(artifact),
+            "action": action,
+            "keys": [item.split("=", 1)[0] for item in kv],
+            "sha256": file_sha256(artifact) if artifact.is_file() else "",
+            "fetch_command": fetch_command,
+            "headless_command": headless,
+        })
+    return artifact
 
 
 def _config_from_survey_candidates(search_roots=None):
