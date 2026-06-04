@@ -293,3 +293,64 @@ def print_line_command_result(cfg, queue_summary, selector):
         "target_label": str(rec.get("target_label") or ""),
     })
     return rec
+
+
+def run_line_queue_command(
+    cfg,
+    args,
+    *,
+    queue_summary_func,
+    queue_func,
+    clear_queue_func,
+    view_func,
+    target_filter_func=None,
+    clear_selectable_results_func=None,
+    quote=shquote,
+):
+    if clear_selectable_results_func:
+        clear_selectable_results_func()
+    args = list(args or [])
+    if not args:
+        view_func()
+        return None
+    subcmd = str(args[0] or "").lower()
+    if subcmd in {"list", "show", "mailbox", "ls"}:
+        view_func()
+        return None
+    if subcmd in {"target", "targets", "agent", "agents"}:
+        view_func(mailbox_only=True)
+        return None
+    if subcmd in {"result", "results"}:
+        if len(args) == 1 and subcmd == "results":
+            view_func()
+            return None
+        return print_line_command_result(cfg, queue_summary_func(cfg), " ".join(args[1:]).strip())
+    if subcmd == "clear":
+        if "--confirm" not in args[1:]:
+            raise ValueError("usage: queue clear --confirm")
+        count = clear_queue_func(cfg)
+        headless = (
+            "scripts/grit-console --config "
+            + quote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --clear-command-queue --list-command-queue"
+        )
+        print(f"cleared {count} queued command record(s)")
+        append_event(cfg, "workbench", "workbench_command_queue_cleared", details={
+            "count": count,
+            "headless_command": headless,
+        })
+        return count
+    if subcmd == "command":
+        return queue_line_command(
+            cfg, " ".join(args[1:]).strip(), queue_func,
+            target_filter_func=target_filter_func, quote=quote,
+        )
+    if subcmd == "--":
+        return queue_line_command(
+            cfg, " ".join(args[1:]).strip(), queue_func,
+            target_filter_func=target_filter_func, quote=quote,
+        )
+    return queue_line_command(
+        cfg, " ".join(args).strip(), queue_func,
+        target_filter_func=target_filter_func, quote=quote,
+    )

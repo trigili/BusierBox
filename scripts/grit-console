@@ -124,8 +124,8 @@ from gritlib.line_build import (
 from gritlib.line_command_queue import (
     print_line_mailbox_records,
     print_line_command_queue_records,
-    print_line_command_result as line_command_queue_print_result,
     queue_line_command as line_command_queue_queue_command,
+    run_line_queue_command as line_command_queue_run_command,
 )
 from gritlib.line_configure import (
     configure_line_artifact as configure_line_artifact_impl,
@@ -7245,49 +7245,18 @@ def run_line_repl(cfg):
     def clear_line_selectable_results():
         cfg["_line_console_search_results"] = []
 
-    def print_line_command_result(selector):
-        return line_command_queue_print_result(cfg, command_queue_summary(cfg), selector)
-
     def run_line_queue_command(args):
-        clear_line_selectable_results()
-        if not args:
-            print_line_command_queue_view()
-            return
-        subcmd = str(args[0] or "").lower()
-        if subcmd in {"list", "show", "mailbox", "ls"}:
-            print_line_command_queue_view()
-            return
-        if subcmd in {"target", "targets", "agent", "agents"}:
-            print_line_command_queue_view(mailbox_only=True)
-            return
-        if subcmd in {"result", "results"}:
-            if len(args) == 1 and subcmd == "results":
-                print_line_command_queue_view()
-                return
-            print_line_command_result(" ".join(args[1:]).strip())
-            return
-        if subcmd == "clear":
-            if "--confirm" not in args[1:]:
-                raise ValueError("usage: queue clear --confirm")
-            count = clear_command_queue(cfg)
-            headless = (
-                "scripts/grit-console --config "
-                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                + " --clear-command-queue --list-command-queue"
-            )
-            print(f"cleared {count} queued command record(s)")
-            append_event(cfg, "workbench", "workbench_command_queue_cleared", details={
-                "count": count,
-                "headless_command": headless,
-            })
-            return
-        if subcmd == "command":
-            queue_line_command(" ".join(args[1:]).strip())
-            return
-        if subcmd == "--":
-            queue_line_command(" ".join(args[1:]).strip())
-            return
-        queue_line_command(" ".join(args).strip())
+        return line_command_queue_run_command(
+            cfg,
+            args,
+            queue_summary_func=command_queue_summary,
+            queue_func=queue_command,
+            clear_queue_func=clear_command_queue,
+            view_func=print_line_command_queue_view,
+            target_filter_func=configured_target_filter,
+            clear_selectable_results_func=clear_line_selectable_results,
+            quote=shquote,
+        )
 
     # ── probe commands ──────────────────────────────────────────────────────
 
