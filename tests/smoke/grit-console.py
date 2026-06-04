@@ -1653,7 +1653,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     target_search_end = line_console_stdout.find("grit[Console Router]> mailbox", target_search_start + 1)
     target_search_text = line_console_stdout[target_search_start:target_search_end] if target_search_start != -1 and target_search_end != -1 else ""
     if (not job_search_text or
+            "job line-console-job action: package-artifact state: running" not in job_search_text or
             "use command: use job line-console-job" not in job_search_text or
+            "action=package-artifact" in job_search_text or
             "command: scripts/grit-console" in job_search_text or
             not target_search_text or
             "use command: use target line-console-target" not in target_search_text or
