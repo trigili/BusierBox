@@ -174,7 +174,6 @@ from gritlib.line_core_commands import dispatch_line_core_command
 from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
     note_line_target as line_options_note_line_target,
-    print_line_options as line_options_print_line_options,
     rename_line_target as line_options_rename_line_target,
     set_line_option as line_options_set_line_option,
     unset_line_target_option,
@@ -191,6 +190,7 @@ from gritlib.line_repl_runtime import (
     parse_line_command_args, read_line as line_repl_read_line, resolve_replay_command,
     restore_signal_handlers, should_parse_line_command,
 )
+from gritlib.line_repl_display import build_line_display_callbacks
 from gritlib.line_release import (
     dispatch_legacy_line_release_number,
     print_line_release as line_release_print_line_release,
@@ -233,7 +233,6 @@ from gritlib.line_workflow_commands import dispatch_line_workflow_command
 from gritlib.line_workspace import (
     line_repl_prompt_for_config,
     line_repl_status_bar, print_line_console_banner,
-    print_current_line_info, print_current_line_next,
     print_line_workspace_snapshot, reload_line_config_for_repl as line_workspace_reload_line_config_for_repl,
 )
 from gritlib.operator_io import (
@@ -6385,44 +6384,6 @@ def run_line_repl(cfg):
         )
     )
 
-    def print_line_info():
-        return print_current_line_info(
-            cfg,
-            workbench_snapshot(cfg),
-            selected_action=selected_line_action,
-            service_record=lambda service: line_service_record(service_status_rows(cfg), service),
-            route_record=line_route_record,
-            session_record=line_session_record,
-            job_record=line_job_record,
-            probe_delivery_printer=lambda: print_probe_delivery(cfg),
-            bridge_command_builder=bridge_profile_headless_command,
-            view_command_builder=lambda path: view_path_headless_command(cfg, path),
-            cancel_job_command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
-        )
-
-    def print_line_next():
-        return print_current_line_next(
-            cfg,
-            workbench_snapshot(cfg),
-            selected_action=selected_line_action,
-            job_record=line_job_record,
-        )
-
-    def print_line_options():
-        module = str(cfg.get("_line_console_module") or "root")
-        return line_options_print_line_options(
-            cfg,
-            module=module,
-            service_record_func=lambda service: line_service_record(service_status_rows(cfg), service),
-            display_name_func=line_service_display_name,
-            build_fields_func=lambda: workbench_config_field_records(cfg),
-            target_command_records_func=lambda: generated_target_command_records(cfg),
-            route_record_func=line_route_record,
-            session_record_func=line_session_record,
-            job_record_func=line_job_record,
-            selected_action_func=selected_line_action,
-        )
-
     def unset_line_option(name):
         unset_line_target_option(
             cfg,
@@ -6824,6 +6785,24 @@ def run_line_repl(cfg):
             append_event_fn=append_event,
             quote=shquote,
         )
+
+    print_line_info, print_line_next, print_line_options = build_line_display_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        selected_action_func=selected_line_action,
+        service_status_rows_func=service_status_rows,
+        service_record_func=line_service_record,
+        route_record_func=line_route_record,
+        session_record_func=line_session_record,
+        job_record_func=line_job_record,
+        probe_delivery_printer=lambda: print_probe_delivery(cfg),
+        bridge_command_builder=bridge_profile_headless_command,
+        view_command_builder=lambda path: view_path_headless_command(cfg, path),
+        cancel_job_command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
+        display_name_func=line_service_display_name,
+        build_fields_func=workbench_config_field_records,
+        target_command_records_func=generated_target_command_records,
+    )
 
     def show_line_resource(resource):
         def show_collection(name, render_fn):
