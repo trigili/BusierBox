@@ -18,6 +18,7 @@ Common operator workflows:
   --serve-file ./grit --as grit
   --stage-release-artifact SELECTOR
   artifact inspect|verify|config ARTIFACT
+  bringup --recommend-only --survey-json survey.json
   --list-staged
   --target-id TARGET --queue-command COMMAND
   --list-command-queue

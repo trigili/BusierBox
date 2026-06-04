@@ -80,6 +80,7 @@ from gritlib.console_args import (
     apply_console_arg_overrides, handle_early_console_args,
     has_explicit_console_action,
 )
+from gritlib.console_bringup import handle_bringup_command
 from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
     command_copy_state_status, copy_text_for_operator,
@@ -6758,6 +6759,8 @@ def main(argv=None):
     raw_argv = list(sys.argv[1:] if argv is None else argv)
     if raw_argv and raw_argv[0] == "artifact":
         return handle_artifact_command(raw_argv[1:], program="grit-console artifact")
+    if raw_argv and raw_argv[0] == "bringup":
+        return handle_bringup_command(raw_argv[1:])
     parser = build_arg_parser()
     early_args = handle_early_console_args(
         raw_argv,

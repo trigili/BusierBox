@@ -432,7 +432,8 @@ def render_daemon_service_args(daemon_services):
 def bringup_recommend_command(config_path, operator_host, release_dir, target_ctx=None, stage_recommended=False):
     target_ctx = target_ctx or {}
     parts = [
-        "scripts/grit-bringup",
+        "scripts/grit-console",
+        "bringup",
         "--recommend-only",
         "--json",
         "--operator-config", config_path,
@@ -1026,7 +1027,7 @@ def workbench_action_records(cfg):
             "id": "bringup-recommend",
             "category": "bringup",
             "label": "Generate bringup recommendation with current operator route",
-            "script": "scripts/grit-bringup",
+            "script": "scripts/grit-console",
             "command": bringup_recommend_command(config_path, operator_host, release_dir, target_ctx),
             "config_path": config_path,
             "writes_config": False,
@@ -1042,7 +1043,7 @@ def workbench_action_records(cfg):
             "id": "bringup-stage-recommended",
             "category": "bringup",
             "label": "Select and stage recommended bringup artifact",
-            "script": "scripts/grit-bringup",
+            "script": "scripts/grit-console",
             "command": bringup_recommend_command(config_path, operator_host, release_dir, target_ctx, stage_recommended=True),
             "config_path": config_path,
             "writes_config": False,

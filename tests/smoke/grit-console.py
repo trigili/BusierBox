@@ -7148,6 +7148,13 @@ def main(argv=None):
         print(artifact_wrapper_help_out.stdout, file=sys.stderr)
         print(artifact_wrapper_help_out.stderr, file=sys.stderr)
         return 1
+    bringup_help_out = run("scripts/grit-console", "bringup", "--help")
+    if (bringup_help_out.returncode != 0 or
+            "Guided target bring-up flow." not in (bringup_help_out.stdout + bringup_help_out.stderr)):
+        print("grit-console bringup help did not route to bringup dispatcher", file=sys.stderr)
+        print(bringup_help_out.stdout, file=sys.stderr)
+        print(bringup_help_out.stderr, file=sys.stderr)
+        return 1
     help_console_out = run("scripts/grit-console", "--help-console")
     if help_console_out.returncode != 0:
         print(help_console_out.stderr, file=sys.stderr)
@@ -12241,11 +12248,12 @@ def main(argv=None):
                 actions_by_id.get("operator-daemon-start", {}).get("long_running") is not True or
                 actions_by_id.get("operator-daemon-start", {}).get("operator_action_state") != "background-ready" or
                 "--daemon --daemon-service file-service --daemon-service command-queue" not in actions_by_id.get("operator-daemon-start", {}).get("command", "") or
-                actions_by_id.get("bringup-recommend", {}).get("script") != "scripts/grit-bringup" or
+                actions_by_id.get("bringup-recommend", {}).get("script") != "scripts/grit-console" or
                 actions_by_id.get("bringup-recommend", {}).get("operator_action_state") != "background-ready" or
                 f"--operator-config {str(cfg)}" not in actions_by_id.get("bringup-recommend", {}).get("command", "") or
+                "scripts/grit-console bringup --recommend-only --json" not in actions_by_id.get("bringup-recommend", {}).get("command", "") or
                 "--operator-host " not in actions_by_id.get("bringup-recommend", {}).get("command", "") or
-                actions_by_id.get("bringup-stage-recommended", {}).get("script") != "scripts/grit-bringup" or
+                actions_by_id.get("bringup-stage-recommended", {}).get("script") != "scripts/grit-console" or
                 actions_by_id.get("bringup-stage-recommended", {}).get("operator_action_state") != "background-ready" or
                 f"--operator-config {str(cfg)}" not in actions_by_id.get("bringup-stage-recommended", {}).get("command", "") or
                 "--stage-recommended-artifact" not in actions_by_id.get("bringup-stage-recommended", {}).get("command", "") or
@@ -12280,7 +12288,6 @@ def main(argv=None):
                 len(actions_by_category.get("daemon", [])) < 9 or
                 len(actions_by_category.get("tooling", [])) < 4 or
                 len(actions_by_category.get("offline", [])) < 7 or
-                not actions_by_script.get("scripts/grit-bringup") or
                 len(actions_by_script.get("scripts/grit-console", [])) < 3 or
                 len(actions_by_script.get("scripts/tools/dropin-tool-status", [])) < 1 or
                 len(actions_by_script.get("scripts/tools/install-dropin-tool", [])) < 1 or
@@ -17395,7 +17402,7 @@ def main(argv=None):
                 "session_root:" not in tui.stdout or
                 "Operator workflow actions:" not in tui.stdout or
                 "make package" not in tui.stdout or
-                "scripts/grit-bringup --recommend-only --json --operator-config" not in tui.stdout or
+                "scripts/grit-console bringup --recommend-only --json --operator-config" not in tui.stdout or
                 "--stage-recommended-artifact" not in tui.stdout):
             print("noninteractive console/workbench missing operator path details", file=sys.stderr)
             print(tui.stdout, file=sys.stderr)
