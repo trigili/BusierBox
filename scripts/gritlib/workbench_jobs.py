@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from gritlib.console_display import console_table
+from gritlib.console_display import console_table, print_dry_run_notice
 from gritlib.event_log import append_event
 from gritlib.process_status import pid_alive, pid_environ_contains
 from gritlib.record_utils import format_counts, records_by_key
@@ -534,7 +534,7 @@ def run_workbench_action_record(cfg, actions, selector, dry_run=False, confirmed
     })
 
     if dry_run and "--systemd-user-action" not in command:
-        print("dry_run=yes")
+        print_dry_run_notice(machine=show_commands)
         append_event(cfg, "workbench", "workbench_action_dry_run", details={
             "action_id": action_id,
             "category": action.get("category", ""),

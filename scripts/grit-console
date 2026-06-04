@@ -74,6 +74,7 @@ from gritlib.command_queue import (
     print_workbench_command_queue_summary, record_command_result_payload,
     save_command_queue, yes_no,
 )
+from gritlib.console_display import print_dry_run_notice
 from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
     command_copy_state_status, copy_text_for_operator,
@@ -5361,9 +5362,10 @@ def run_operator_daemon_workflow_action(cfg, selector, dry_run=False, confirmed=
                 workbench_action_id,
                 dry_run=True,
                 confirmed=confirmed,
+                show_commands=show_commands,
             )
         else:
-            print("dry_run=yes")
+            print_dry_run_notice(machine=show_commands)
             rc = 0
         append_event(cfg, "workbench", "operator_daemon_workflow_action_dry_run", details={
             "id": rec_id,

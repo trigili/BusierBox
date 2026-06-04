@@ -1,6 +1,6 @@
 """Line-console action/module rendering helpers."""
 
-from gritlib.console_display import console_table
+from gritlib.console_display import console_table, print_dry_run_notice
 from gritlib.event_log import append_event
 from gritlib.line_state import line_action_state_text
 
@@ -243,7 +243,7 @@ def run_line_selected_action(
     if kind == "target":
         if dry_run:
             print(f"target workflow action: {rec_id}")
-            print("dry_run=yes")
+            print_dry_run_notice()
             append_event(cfg, "workbench", "target_workflow_action_dry_run", details={
                 "id": rec_id,
                 "action_id": rec.get("action_id", ""),

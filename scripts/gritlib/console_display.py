@@ -1,6 +1,13 @@
 """Console display helpers shared by grit-console modules."""
 
 
+def print_dry_run_notice(*, machine=False):
+    if machine:
+        print("dry_run=yes")
+    else:
+        print("preview only: no changes applied")
+
+
 def console_table(title, records, cols, detail_fn=None, footer=None):
     """Render a numbered table to stdout.
 
