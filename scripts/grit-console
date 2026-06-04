@@ -165,6 +165,7 @@ from gritlib.line_options import (
     unset_line_target_option,
 )
 from gritlib.line_network import print_line_local_ips
+from gritlib.line_probe_serve import run_line_probe_serve as probe_serve_run_line_probe_serve
 from gritlib.line_resources import (
     line_history_command, load_line_resource,
     print_line_history as line_resources_print_line_history,
@@ -220,8 +221,6 @@ from gritlib.probe_commands import (
 from gritlib.probe_results import (
     append_probe_result,
     clear_line_probe_results as probe_results_clear_line_probe_results,
-    probe_effective_arch,
-    probe_latest_result,
     print_line_probe_results as probe_results_print_line_probe_results,
 )
 from gritlib.runtime import Service, ServiceManager, Session, relay_pipe
@@ -239,8 +238,7 @@ from gritlib.record_utils import (
 from gritlib.release_artifacts import (
     artifact_compatibility_lines, artifact_doom_wad_lines,
     artifact_provider_status_lines, discover_release_context,
-    kernel_floor_from_release, normalized_probe_arch, release_context,
-    release_artifact_matches_probe, release_record_matches_probe,
+    release_context,
     release_recommendation_lines,
     release_nav_records, print_release_summary, stage_release_artifact,
     stage_release_nav_item, stage_release_selection,
@@ -7579,190 +7577,6 @@ def run_line_repl(cfg):
     def find_survey_uploads(limit=20):
         return configure_find_survey_uploads(cfg, limit=limit)
 
-    def run_line_probe_serve(args):
-        start_file_service = False
-        for a in args:
-            if a in {"--start", "start"}:
-                start_file_service = True
-            else:
-                raise ValueError(f"unknown option: {a}\nusage: probe serve [--start]")
-        rec = probe_latest_result(cfg)
-        if not rec:
-            raise ValueError("no probe results — run: probe --start")
-        uname_m, endian = probe_effective_arch(rec)
-        kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
-        probe_arch = normalized_probe_arch(uname_m, endian)
-        probe_kernel_floor = kernel_floor_from_release(kernel)
-        print(f"Probe arch: {probe_arch or uname_m}  kernel: {kernel}  floor: {probe_kernel_floor or '-'}  endian: {endian}")
-        print("")
-        rel, checked_releases = discover_release_context(cfg)
-        if not rel:
-            print("No release configured.")
-            expected_floor = probe_kernel_floor or "KERNEL"
-            expected_arch = probe_arch or uname_m or "ARCH"
-            print(f"  Probe needs arch={expected_arch} kernel_floor={expected_floor} endian={endian or '-'}")
-            print(f"  Expected tuple shape: by-tuple/{expected_arch}/LIBC/{expected_floor}/CPU")
-            print(f"  Expected artifact stem: grit-{expected_arch}-linux-{expected_floor}-LIBC-PRESET")
-            print("  Common payload presets: builtin-core-shell, survey-core, default, payload-bash, socat-rescue, ssh-operator, full-debug")
-            print("")
-            print("  Looked for a release bundle in:")
-            for state in checked_releases[:8]:
-                markers = state.get("detection_reason") or "not-a-release"
-                print(f"    {state.get('release_dir', '')}  ({markers})")
-            if len(checked_releases) > 8:
-                print(f"    ... {len(checked_releases) - 8} more")
-            print("")
-            print("  Expected a release directory containing release.json, bin/, and scripts/.")
-            print("  From a source checkout, build one with: make release-full")
-            print("  From this console, point at an extracted release with:")
-            print("    set release_dir /path/to/extracted-release")
-            print("    probe serve --start")
-            return
-        if rel.get("release_discovery_source") == "auto":
-            cfg["release_dir"] = rel.get("release_dir", "")
-            print(f"Using release: {rel.get('release_dir', '')}")
-            print("")
-        recs = rel.get("artifacts") or []
-        tuple_matches = [
-            r for r in recs
-            if release_artifact_matches_probe(rel, r, probe_arch, probe_kernel_floor)
-        ]
-        if not tuple_matches:
-            tuple_matches = [
-                r for r in recs
-                if r.get("tuple_path") and r.get("payload_preset")
-                and release_record_matches_probe(rel, r, probe_arch, "")
-                and probe_arch
-                and probe_arch in str(r.get("name") or r.get("release_path") or r.get("path") or "").lower()
-            ]
-        deduped_matches = []
-        seen_matches = set()
-        for item in tuple_matches:
-            key = (
-                str(item.get("release_path") or item.get("path") or item.get("name") or ""),
-                str(item.get("tuple_path") or ""),
-                str(item.get("payload_preset") or ""),
-            )
-            if key in seen_matches:
-                continue
-            seen_matches.add(key)
-            deduped_matches.append(item)
-        tuple_matches = deduped_matches
-        if tuple_matches:
-            _console_table(
-                f"Available for {probe_arch or uname_m}  ({len(tuple_matches)} found)",
-                tuple_matches[:9],
-                [
-                    ("Preset",    lambda r: r.get("payload_preset") or "-"),
-                    ("Tuple",     lambda r: r.get("tuple_path") or "-"),
-                    ("Artifact",  lambda r: r.get("name") or r.get("release_path") or r.get("path") or "-"),
-                    ("Compat",    lambda r: (r.get("compatibility") or {}).get("label") or "-"),
-                ],
-            )
-            print("")
-            # If multiple presets available for this arch, let the operator pick
-            if len(tuple_matches) == 1:
-                chosen = tuple_matches[0]
-            else:
-                _PRESET_DESCRIPTIONS = {
-                    "builtin-core-shell": "small built-in shell/core; no extracted payload required",
-                    "survey-core": "minimal — probe, survey, config-info; smallest footprint",
-                    "default":     "BusyBox + common debug tools; balanced size",
-                    "payload-bash": "default-style payload with bash when available",
-                    "socat-rescue": "no-residue socat-oriented rescue payload",
-                    "ssh-operator": "full suite — dropbear, tmux, gdbserver, strace, curl, zsh",
-                    "full-debug":  "maximum toolset including RE tools",
-                }
-                print("  Which payload preset?")
-                for i, r in enumerate(tuple_matches[:9], 1):
-                    preset = r.get("payload_preset") or "-"
-                    desc = _PRESET_DESCRIPTIONS.get(preset, "")
-                    tuple_path = r.get("tuple_path") or "-"
-                    print(f"    {i}  {preset:<20}  {tuple_path:<42}  {desc}")
-                print("")
-                choice_line = line_input("  Select preset (number or name, blank to cancel)> ")
-                choice = (choice_line or "").strip()
-                if not choice:
-                    print("  Cancelled.")
-                    return
-                chosen = None
-                if choice.isdigit():
-                    idx = int(choice) - 1
-                    if 0 <= idx < len(tuple_matches):
-                        chosen = tuple_matches[idx]
-                else:
-                    for r in tuple_matches:
-                        if (r.get("payload_preset") or "").lower() == choice.lower():
-                            chosen = r
-                            break
-                if not chosen:
-                    raise ValueError(f"no match for '{choice}' — enter a number or preset name")
-            tuple_path = str(chosen.get("tuple_path") or "")
-            preset = str(chosen.get("payload_preset") or "")
-            if tuple_path and preset:
-                selector = f"by_tuple_payload_preset:{tuple_path}:{preset}"
-            else:
-                selector = str(chosen.get("tuple_artifact") or chosen.get("id") or chosen.get("artifact") or "")
-                selector = str(chosen.get("release_path") or chosen.get("path") or chosen.get("name") or selector)
-            preset = preset or "?"
-            print(f"  Staging {preset}: {selector}")
-            try:
-                stage_line_release(selector, start_file_service=start_file_service)
-            except Exception as exc:
-                raise ValueError(f"staging failed: {exc}") from exc
-        else:
-            tuple_candidates = []
-            preset_candidates = []
-            for tuple_rec in rel.get("tuples") or []:
-                tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
-                if probe_arch and str(tuple_info.get("arch") or "") != probe_arch:
-                    continue
-                if probe_kernel_floor and str(tuple_info.get("kernel_floor") or "") != probe_kernel_floor:
-                    continue
-                if tuple_rec.get("path"):
-                    tuple_candidates.append(str(tuple_rec.get("path")))
-            for artifact in rel.get("artifacts") or []:
-                preset = str(artifact.get("payload_preset") or "")
-                if preset and preset not in preset_candidates:
-                    preset_candidates.append(preset)
-            print("  No matching release artifact found for this probe.")
-            print(f"  Expected arch={probe_arch or uname_m} kernel_floor={probe_kernel_floor or '-'} endian={endian or '-'}")
-            if tuple_candidates:
-                print("  Candidate tuple paths in this release:")
-                for path in tuple_candidates[:8]:
-                    print(f"    {path}")
-            else:
-                print("  No tuple path in this release matched the probe arch/kernel floor.")
-            if preset_candidates:
-                print("  Payload presets available in this release:")
-                print("    " + ", ".join(sorted(preset_candidates)))
-            expected_patterns = []
-            for tuple_path in tuple_candidates[:4]:
-                tuple_rec = (rel.get("tuples_by_path") or {}).get(tuple_path) or {}
-                tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
-                arch = str(tuple_info.get("arch") or probe_arch or uname_m or "ARCH")
-                libc = str(tuple_info.get("libc") or "LIBC")
-                kernel_floor = str(tuple_info.get("kernel_floor") or probe_kernel_floor or "KERNEL")
-                target_stem = "native" if arch == "native" else f"{arch}-linux-{kernel_floor}-{libc}"
-                for preset in (sorted(preset_candidates) or ["PRESET"])[:4]:
-                    expected_patterns.append(f"grit-{target_stem}-{preset}-full")
-            if not expected_patterns:
-                floor = probe_kernel_floor or "KERNEL"
-                expected_patterns.append(f"grit-{probe_arch or uname_m or 'ARCH'}-linux-{floor}-LIBC-PRESET-full")
-            print("  Expected generic artifact names like:")
-            for pattern in expected_patterns[:8]:
-                print(f"    {pattern}")
-            print("  Try: release")
-        append_event(cfg, "workbench", "workbench_probe_serve_run", details={
-            "probe_arch": probe_arch or uname_m,
-            "probe_kernel": kernel,
-            "probe_kernel_floor": probe_kernel_floor,
-            "match_count": len(tuple_matches),
-            "start_file_service": start_file_service,
-            "release_dir": rel.get("release_dir", ""),
-            "release_discovery_source": rel.get("release_discovery_source", ""),
-        })
-
     def line_session_record(selector):
         return line_session_record_by_selector(
             workbench_snapshot(cfg).get("sessions") or [],
@@ -9029,7 +8843,10 @@ def run_line_repl(cfg):
                             cfg, console_args[2:], append_event_fn=append_event,
                         )
                     elif subcmd == "serve":
-                        run_line_probe_serve(console_args[2:])
+                        probe_serve_run_line_probe_serve(
+                            cfg, console_args[2:], line_input, stage_line_release,
+                            append_event_fn=append_event,
+                        )
                     elif subcmd in {"delivery", "deliver", "commands"}:
                         if len(console_args) > 2:
                             raise ValueError("usage: probe delivery")
