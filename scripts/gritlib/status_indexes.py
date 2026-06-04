@@ -304,6 +304,82 @@ def operator_state_status_context(
     }
 
 
+def operator_state_file_summary(
+    server_state,
+    server_state_records,
+    staged_files_state,
+    staged_files_state_records,
+    command_queue_state,
+    command_queue_state_records,
+    command_copy,
+    command_copy_state_record,
+    command_copy_state_records,
+    workbench_jobs_state,
+    workbench_jobs_state_records,
+):
+    server_state = server_state or {}
+    server_state_records = server_state_records or []
+    staged_files_state = staged_files_state or {}
+    staged_files_state_records = staged_files_state_records or []
+    command_queue_state = command_queue_state or {}
+    command_queue_state_records = command_queue_state_records or []
+    command_copy = command_copy or {}
+    command_copy_state_record = command_copy_state_record or {}
+    command_copy_state_records = command_copy_state_records or []
+    workbench_jobs_state = workbench_jobs_state or {}
+    workbench_jobs_state_records = workbench_jobs_state_records or []
+    return {
+        "server_state_exists": bool(server_state.get("exists", False)),
+        "server_state_valid": bool(server_state.get("valid", False)),
+        "server_state_service_count": server_state.get("service_count", 0),
+        "server_state_session_count": server_state.get("session_count", 0),
+        "server_state_record_count": len(server_state_records),
+        "server_state_has_services": bool(server_state.get("has_services", False)),
+        "server_state_has_sessions": bool(server_state.get("has_sessions", False)),
+        "staged_files_exists": bool(staged_files_state.get("exists", False)),
+        "staged_files_valid": bool(staged_files_state.get("valid", False)),
+        "staged_files_state_count": staged_files_state.get("staged_count", 0),
+        "staged_files_state_record_count": len(staged_files_state_records),
+        "staged_files_state_has_staged": bool(
+            staged_files_state.get("has_staged", False)
+        ),
+        "command_queue_file_exists": bool(command_queue_state.get("exists", False)),
+        "command_queue_file_valid": bool(command_queue_state.get("valid", False)),
+        "command_queue_file_command_count": command_queue_state.get("command_count", 0),
+        "command_queue_state_record_count": len(command_queue_state_records),
+        "command_queue_state_has_commands": bool(
+            command_queue_state.get("has_commands", False)
+        ),
+        "command_copy_exists_count": 1 if command_copy.get("exists") is True else 0,
+        "command_copy_has_command_count": (
+            1 if command_copy.get("has_command") is True else 0
+        ),
+        "command_copy_state_record_count": len(command_copy_state_records),
+        "command_copy_state_exists": bool(
+            command_copy_state_record.get("exists", False)
+        ),
+        "command_copy_state_readable": bool(
+            command_copy_state_record.get("readable", False)
+        ),
+        "command_copy_state_has_command": bool(
+            command_copy_state_record.get("has_command", False)
+        ),
+        "command_copy_state_empty_or_missing": bool(
+            command_copy_state_record.get("empty_or_missing", False)
+        ),
+        "command_copy_state_has_readable_command": bool(
+            command_copy_state_record.get("has_readable_command", False)
+        ),
+        "workbench_jobs_file_exists": bool(workbench_jobs_state.get("exists", False)),
+        "workbench_jobs_file_valid": bool(workbench_jobs_state.get("valid", False)),
+        "workbench_jobs_file_job_count": workbench_jobs_state.get("job_count", 0),
+        "workbench_jobs_state_record_count": len(workbench_jobs_state_records),
+        "workbench_jobs_state_has_jobs": bool(
+            workbench_jobs_state.get("has_jobs", False)
+        ),
+    }
+
+
 def status_path_records(paths):
     records = {}
     dir_keys = {"operator_session_dir", "session_root"}

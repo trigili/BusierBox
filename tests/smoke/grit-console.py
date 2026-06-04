@@ -1941,7 +1941,10 @@ def run_operator_state_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from gritlib.status_indexes import operator_state_status_context
+    from gritlib.status_indexes import (
+        operator_state_file_summary,
+        operator_state_status_context,
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
@@ -2025,6 +2028,45 @@ def run_operator_state_status_context_check():
             return 1
         if "json-state:invalid" not in (summary.get("operator_state_kind_status_counts") or {}):
             print("operator state context did not preserve composite summary counts", file=sys.stderr)
+            return 1
+        file_summary = operator_state_file_summary(
+            {
+                "exists": True,
+                "valid": True,
+                "service_count": 2,
+                "session_count": 1,
+                "has_services": True,
+                "has_sessions": True,
+            },
+            [{"name": "file-service"}, {"name": "command-queue"}],
+            {"exists": True, "valid": True, "staged_count": 3, "has_staged": True},
+            [{"request_name": "payload"}],
+            {
+                "exists": True,
+                "valid": True,
+                "command_count": 4,
+                "has_commands": True,
+            },
+            [{"command_id": "cmd-a"}, {"command_id": "cmd-b"}],
+            {"exists": True, "has_command": True},
+            {
+                "exists": True,
+                "readable": True,
+                "has_command": True,
+                "empty_or_missing": False,
+                "has_readable_command": True,
+            },
+            [{"name": "command-copy"}],
+            {"exists": True, "valid": True, "job_count": 5, "has_jobs": True},
+            [{"id": "job-a"}, {"id": "job-b"}],
+        )
+        if (file_summary.get("server_state_service_count") != 2 or
+                file_summary.get("staged_files_state_count") != 3 or
+                file_summary.get("command_queue_file_command_count") != 4 or
+                file_summary.get("command_copy_exists_count") != 1 or
+                file_summary.get("command_copy_state_has_readable_command") is not True or
+                file_summary.get("workbench_jobs_file_job_count") != 5):
+            print("operator state file summary did not preserve file-state counts", file=sys.stderr)
             return 1
     return 0
 
