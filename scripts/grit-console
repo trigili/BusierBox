@@ -158,7 +158,8 @@ from gritlib.line_files import (
     unstage_line_file as line_files_unstage_line_file,
 )
 from gritlib.line_help import (
-    line_help_topic_for_module,
+    line_context_help_topic,
+    line_unknown_command_message as line_help_unknown_command_message,
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
 )
@@ -6440,20 +6441,20 @@ def run_line_repl(cfg):
         return line_help_print_line_command_help(topic)
 
     def print_context_line_help():
-        topic = line_help_topic_for_module(cfg.get("_line_console_module"))
+        topic = line_context_help_topic(
+            cfg.get("_line_console_module"),
+            target_selected=bool(configured_target_filter(cfg)),
+        )
         if topic:
             return print_line_command_help(topic)
-        if configured_target_filter(cfg):
-            return print_line_command_help("targets")
         return print_line_console_help()
 
     def line_unknown_command_message(cmd):
-        topic = line_help_topic_for_module(cfg.get("_line_console_module"))
-        if not topic and configured_target_filter(cfg):
-            topic = "targets"
-        if topic:
-            return f"unknown command: {cmd}; type ? for {topic} help"
-        return f"unknown command: {cmd}; type ? for help topics"
+        return line_help_unknown_command_message(
+            cmd,
+            cfg.get("_line_console_module"),
+            target_selected=bool(configured_target_filter(cfg)),
+        )
 
     def print_line_info():
         snap = workbench_snapshot(cfg)

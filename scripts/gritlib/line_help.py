@@ -52,6 +52,22 @@ def line_help_topic_for_module(module):
     }.get(head, head)
 
 
+def line_context_help_topic(module="", target_selected=False):
+    topic = line_help_topic_for_module(module)
+    if topic:
+        return topic
+    if target_selected:
+        return "targets"
+    return ""
+
+
+def line_unknown_command_message(cmd, module="", target_selected=False):
+    topic = line_context_help_topic(module, target_selected=target_selected)
+    if topic:
+        return f"unknown command: {cmd}; type ? for {topic} help"
+    return f"unknown command: {cmd}; type ? for help topics"
+
+
 def print_line_console_help():
     print("Console help topics:")
     print("")
