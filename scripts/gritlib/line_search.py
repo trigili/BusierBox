@@ -59,6 +59,10 @@ def clear_line_search_results(cfg):
     cfg["_line_console_search_results"] = []
 
 
+def set_line_search_results(cfg, records):
+    cfg["_line_console_search_results"] = list(records or [])
+
+
 def line_searchable_text(rec):
     parts = []
     if isinstance(rec, dict):
