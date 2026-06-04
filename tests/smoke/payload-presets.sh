@@ -68,6 +68,10 @@ if not isinstance(data["validated_cases"], list):
     raise SystemExit(f"{path}: validated_cases must be a list")
 if len(data["menu_label"]) < 20:
     raise SystemExit(f"{path}: menu_label is too terse")
+if len(data["menu_label"]) > 64:
+    raise SystemExit(f"{path}: menu_label is too long for menuconfig")
+if "risk=" in data["menu_label"] or "size=" in data["menu_label"]:
+    raise SystemExit(f"{path}: menu_label must not include clipping-prone risk/size suffixes")
 PY
 done
 
