@@ -6776,7 +6776,7 @@ def run_line_repl(cfg):
         use_kinds = ["agent", "target", "listener", "service", "route", "session", "job", "module", "action"]
         help_topics = [
             "search", "complete", "commands", "resource", "makerc", "history", "use", "main", "show",
-            "modules", "options", "next", "workspace", "aliases", "listeners",
+            "actions", "modules", "options", "next", "workspace", "aliases", "listeners",
             "routes", "set", "setg", "run", "jobs", "queue", "events", "download", "probe", "survey", "build", "release", "upload", "fetch", "files", "view",
             "daemon", "interact", "sessions",
         ]

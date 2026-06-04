@@ -83,6 +83,7 @@ def print_line_console_help():
             "Control plane",
             [
                 ("routes", "bridge profiles, multi-hop tunnels"),
+                ("actions", "operator modules, dry-run/run, background jobs"),
                 ("daemon", "systemd workflow actions"),
                 ("jobs", "background jobs"),
                 ("build", "binary build config, guided options"),

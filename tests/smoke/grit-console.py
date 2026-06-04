@@ -882,6 +882,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "help sessions\n"
                 "help modules\n"
                 "help routes\n"
+                "help actions\n"
                 "help next\n"
                 "help main\n"
                 "help setg\n"
@@ -1201,12 +1202,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Operator workspace",
         "Target work",
         "Control plane",
+        "actions    operator modules, dry-run/run, background jobs",
         "Console",
         "Tip: use `search TERM` to find agents, listeners, modules, sessions, jobs, files, and queue records.",
         "next: ? help  |  targets (1)  |  use N  |  search TERM",
         "Help: files",
         "Help: queue",
         "Help: events",
+        "Help: actions",
         "Route model: the target connects to LPORT on the operator; the operator bridge forwards to DEST_HOST:DEST_PORT.",
         "DEST_HOST:DEST_PORT is the endpoint visible from the operator/server running grit-console.",
         "Use hops to document the path the target uses to reach the operator listener; hops do not change the TCP relay destination.",
