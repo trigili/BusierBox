@@ -34,6 +34,28 @@ hide_failure_artifact() {
     fi
 }
 
+refresh_release_original_checksums() {
+    release_dir=$1
+    (
+        cd "$release_dir"
+        tmp=$(mktemp SHA256SUMS.original.tmp.XXXXXX)
+        find . -type f \
+            ! -name 'SHA256SUMS' \
+            ! -name 'SHA256SUMS.original' \
+            ! -name 'SHA256SUMS.original.tmp*' \
+            ! -name 'SHA256SUMS.configured' \
+            ! -name 'SHA256SUMS.configured.tmp*' \
+            ! -name '*.tar.gz' |
+        LC_ALL=C sort |
+        while IFS= read -r item; do
+            item=${item#./}
+            sha256sum "$item"
+        done >"$tmp"
+        mv "$tmp" SHA256SUMS.original
+        cp SHA256SUMS.original SHA256SUMS
+    )
+}
+
 cleanup() {
     restore_hidden_failure_artifact
     rm -rf "$work"
@@ -1015,6 +1037,44 @@ doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 if doc.get("status") != "pass" or doc.get("checked_artifact_count") != 1:
     raise SystemExit("release-self-test wrapper did not forward --json diagnostics")
 PY
+
+cp -a "$work/release" "$work/shared-lib-release"
+python3 - "$work/shared-lib-release" <<'PY'
+import json
+import os
+import pathlib
+import sys
+
+root = pathlib.Path(sys.argv[1])
+release = json.load(open(root / "release.json", "r", encoding="utf-8"))
+artifact_rel = next(
+    rec["artifact"]
+    for rec in release.get("artifacts", [])
+    if rec.get("build_status") != "failed" and rec.get("tuple", {}).get("arch") == "native"
+)
+for rec in release.get("artifacts", []):
+    if rec.get("artifact") == artifact_rel:
+        rec.pop("manifest_path", None)
+artifact = root / artifact_rel
+artifact.write_text(
+    "#!/bin/sh\n"
+    "printf '%s\\n' \"$0: error while loading shared libraries: libwolfssl.so.42: cannot open shared object file: No such file or directory\" >&2\n"
+    "exit 127\n",
+    encoding="utf-8",
+)
+os.chmod(artifact, 0o755)
+with open(root / "release.json", "w", encoding="utf-8") as fh:
+    json.dump(release, fh, indent=2, sort_keys=True)
+    fh.write("\n")
+PY
+refresh_release_original_checksums "$work/shared-lib-release"
+if "$work/shared-lib-release/scripts/lib/release-self-test" >"$work/shared-lib-self-test.out" 2>"$work/shared-lib-self-test.err"; then
+    printf '%s\n' "release-bundles: release-self-test accepted missing shared library artifact" >&2
+    exit 1
+fi
+grep -q 'required shared library is missing: libwolfssl.so.42' "$work/shared-lib-self-test.err"
+grep -q 'release library directories:' "$work/shared-lib-self-test.err"
+grep -q '^LD_LIBRARY_PATH=' "$work/shared-lib-self-test.err"
 
 cp -a "$work/release" "$work/matrix-gap-release"
 python3 - "$work/matrix-gap-release/release.json" <<'PY'

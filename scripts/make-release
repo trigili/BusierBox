@@ -1192,6 +1192,7 @@ def write_release_helpers(script_dir):
         import json
         import os
         import pathlib
+        import re
         import shutil
         import subprocess
         import sys
@@ -1242,8 +1243,7 @@ def write_release_helpers(script_dir):
             if info.get("path") != tuple_path_for(info):
                 fail(f"{context}: tuple path drift {info.get('path')} != {tuple_path_for(info)}")
 
-        def release_runtime_env():
-            env = os.environ.copy()
+        def release_runtime_library_dirs():
             lib_dirs = []
             for candidate in (
                 root / "lib",
@@ -1255,14 +1255,44 @@ def write_release_helpers(script_dir):
             for candidate in root.glob("by-tuple/**/lib"):
                 if candidate.is_dir():
                     lib_dirs.append(str(candidate))
+            return lib_dirs
+
+        def release_runtime_env():
+            env = os.environ.copy()
+            lib_dirs = release_runtime_library_dirs()
             existing = env.get("LD_LIBRARY_PATH")
             if lib_dirs:
                 env["LD_LIBRARY_PATH"] = ":".join(lib_dirs + ([existing] if existing else []))
             return env
 
+        def shared_library_failure(cmd, output, env):
+            matches = re.findall(
+                r"error while loading shared libraries:\s*([^:\s]+):\s*([^\n]+)",
+                output or "",
+            )
+            if not matches:
+                return ""
+            libs = sorted({name for name, _reason in matches})
+            lib_label = ", ".join(libs)
+            lib_dirs = release_runtime_library_dirs()
+            searched = ", ".join(lib_dirs) if lib_dirs else "(no release library directories found)"
+            ld_library_path = (env or os.environ).get("LD_LIBRARY_PATH") or "(unset)"
+            cmd_label = " ".join(map(str, cmd))
+            return "\n".join((
+                f"{cmd_label} failed because a required shared library is missing: {lib_label}",
+                f"release library directories: {searched}",
+                f"LD_LIBRARY_PATH={ld_library_path}",
+                "bundle the library under lib/, runtime/payload/lib/, payload/lib/, or a by-tuple */lib directory; otherwise rebuild the payload fully static",
+                "loader output:",
+                (output or "").rstrip(),
+            ))
+
         def run(cmd, required=True, env=None):
             proc = subprocess.run(cmd, cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
             if required and proc.returncode != 0:
+                runtime_failure = shared_library_failure(cmd, proc.stdout, env)
+                if runtime_failure:
+                    fail(runtime_failure)
                 fail(f"{' '.join(map(str, cmd))} failed:\n{proc.stdout}")
             return proc
 
