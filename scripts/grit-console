@@ -167,8 +167,8 @@ from gritlib.line_files import (
     unstage_line_file as line_files_unstage_line_file,
 )
 from gritlib.line_help import (
-    line_context_help_topic,
     line_unknown_command_message as line_help_unknown_command_message,
+    print_context_line_help as line_help_print_context_line_help,
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
 )
@@ -6416,13 +6416,11 @@ def run_line_repl(cfg):
         return line_help_print_line_command_help(topic)
 
     def print_context_line_help():
-        topic = line_context_help_topic(
+        return line_help_print_context_line_help(
             cfg.get("_line_console_module"),
             target_selected=bool(configured_target_filter(cfg)),
+            command_help_printer=print_line_command_help,
         )
-        if topic:
-            return print_line_command_help(topic)
-        return print_line_console_help()
 
     def line_unknown_command_message(cmd):
         return line_help_unknown_command_message(

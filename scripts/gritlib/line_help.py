@@ -68,6 +68,13 @@ def line_unknown_command_message(cmd, module="", target_selected=False):
     return f"unknown command: {cmd}; type ? for help topics"
 
 
+def print_context_line_help(module="", target_selected=False, command_help_printer=None):
+    topic = line_context_help_topic(module, target_selected=target_selected)
+    if topic and command_help_printer:
+        return command_help_printer(topic)
+    return print_line_console_help()
+
+
 def print_line_console_help():
     print("Console help topics:")
     print("")
