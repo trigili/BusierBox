@@ -70,6 +70,42 @@ def line_daemon_action_alias(rec):
     return alias or action_id or "-"
 
 
+def parse_line_daemon_action_args(args):
+    values = list(args or [])
+    dry_run = False
+    confirmed = False
+    verbose = False
+    filtered = []
+    for item in values:
+        if item == "--dry-run":
+            dry_run = True
+        elif item in ("--confirm", "confirm", "yes"):
+            confirmed = True
+        elif item in {"-v", "--verbose", "verbose"}:
+            verbose = True
+        else:
+            filtered.append(item)
+    aliases = {
+        "start": "operator-daemon-start",
+        "status": "operator-daemon-status",
+        "stop": "operator-daemon-stop",
+        "print": "systemd-user-print",
+        "install": "systemd-user-install",
+        "systemd-start": "systemd-user-start",
+        "systemd-stop": "systemd-user-stop",
+        "systemd-restart": "systemd-user-restart",
+        "systemd-status": "systemd-user-status",
+    }
+    action = filtered[0] if filtered else ""
+    return {
+        "action": "run" if action else "list",
+        "selector": aliases.get(action, action),
+        "dry_run": dry_run,
+        "confirmed": confirmed,
+        "verbose": verbose,
+    }
+
+
 def print_line_daemon_action_records(records, verbose=False):
     records = list(records or [])
 

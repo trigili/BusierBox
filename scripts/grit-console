@@ -394,6 +394,7 @@ from gritlib.workflow_actions import (
     operator_console_workflow_records,
     operator_console_workflow_indexes,
     operator_console_workflow_summary,
+    parse_line_daemon_action_args,
     print_line_daemon_action_records,
     print_workbench_action_summary,
     probe_workflow_action_indexes,
@@ -6733,37 +6734,17 @@ def run_line_repl(cfg):
         print_line_daemon_action_records(actions, verbose=verbose)
 
     def run_line_daemon_action(args):
-        values = list(args or [])
-        dry_run = False
-        confirmed = False
-        verbose = False
-        filtered = []
-        for item in values:
-            if item == "--dry-run":
-                dry_run = True
-            elif item in ("--confirm", "confirm", "yes"):
-                confirmed = True
-            elif item in {"-v", "--verbose", "verbose"}:
-                verbose = True
-            else:
-                filtered.append(item)
-        if not filtered:
-            print_line_daemon_actions(verbose=verbose)
+        daemon_cmd = parse_line_daemon_action_args(args)
+        if daemon_cmd["action"] == "list":
+            print_line_daemon_actions(verbose=daemon_cmd["verbose"])
             return
-        action = filtered[0]
-        aliases = {
-            "start": "operator-daemon-start",
-            "status": "operator-daemon-status",
-            "stop": "operator-daemon-stop",
-            "print": "systemd-user-print",
-            "install": "systemd-user-install",
-            "systemd-start": "systemd-user-start",
-            "systemd-stop": "systemd-user-stop",
-            "systemd-restart": "systemd-user-restart",
-            "systemd-status": "systemd-user-status",
-        }
-        selector = aliases.get(action, action)
-        rc = run_operator_daemon_workflow_action(cfg, selector, dry_run=dry_run, confirmed=confirmed, show_commands=False)
+        rc = run_operator_daemon_workflow_action(
+            cfg,
+            daemon_cmd["selector"],
+            dry_run=daemon_cmd["dry_run"],
+            confirmed=daemon_cmd["confirmed"],
+            show_commands=False,
+        )
         try:
             rc_code = int(rc)
         except (TypeError, ValueError):
