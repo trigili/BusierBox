@@ -1019,6 +1019,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "jobs -v\n"
                 "jobs -i 1\n"
                 "info\n"
+                "?\n"
                 "options\n"
                 "next\n"
                 "back\n"
@@ -1058,6 +1059,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 f"view {line_console_session / 'session.log'}\n"
                 "use session 1\n"
                 "info\n"
+                "?\n"
                 "options\n"
                 "next\n"
                 "interact\n"
@@ -2146,8 +2148,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(path_view_text or line_console_stdout, file=sys.stderr)
         return 1
     session_info_start = line_console_stdout.find("grit[all]/session/20260101T000000-file-service> info")
-    session_info_end = line_console_stdout.find("grit[all]/session/20260101T000000-file-service> options", session_info_start + 1)
+    session_info_end = line_console_stdout.find("grit[all]/session/20260101T000000-file-service> ?", session_info_start + 1)
     session_info_text = line_console_stdout[session_info_start:session_info_end] if session_info_start != -1 and session_info_end != -1 else ""
+    session_help_start = line_console_stdout.find("grit[all]/session/20260101T000000-file-service> ?", session_info_start + 1)
+    session_help_end = line_console_stdout.find("grit[all]/session/20260101T000000-file-service> options", session_help_start + 1)
+    session_help_text = line_console_stdout[session_help_start:session_help_end] if session_help_start != -1 and session_help_end != -1 else ""
     session_options_start = line_console_stdout.find("grit[all]/session/20260101T000000-file-service> options")
     session_options_end = line_console_stdout.find("grit[all]/session/20260101T000000-file-service> next", session_options_start + 1)
     session_options_text = line_console_stdout[session_options_start:session_options_end] if session_options_start != -1 and session_options_end != -1 else ""
@@ -2155,6 +2160,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Session: 20260101T000000-file-service" not in session_info_text or
             "session log:" not in session_info_text or
             "event log:" not in session_info_text or
+            not session_help_text or
+            "Help: sessions" not in session_help_text or
+            "interact [SESSION]" not in session_help_text or
+            "Console help topics:" in session_help_text or
             "session=" in session_info_text or
             "service=" in session_info_text or
             "session_log=" in session_info_text or
@@ -2200,8 +2209,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     jobs_verbose_end = line_console_stdout.find("grit[all]/jobs> jobs -i 1", jobs_verbose_start + 1)
     jobs_verbose_text = line_console_stdout[jobs_verbose_start:jobs_verbose_end] if jobs_verbose_start != -1 and jobs_verbose_end != -1 else ""
     job_info_start = line_console_stdout.find("grit[all]/job/line-console-job> info")
-    job_info_end = line_console_stdout.find("grit[all]/job/line-console-job> options", job_info_start + 1)
+    job_info_end = line_console_stdout.find("grit[all]/job/line-console-job> ?", job_info_start + 1)
     job_info_text = line_console_stdout[job_info_start:job_info_end] if job_info_start != -1 and job_info_end != -1 else ""
+    job_help_start = line_console_stdout.find("grit[all]/job/line-console-job> ?", job_info_start + 1)
+    job_help_end = line_console_stdout.find("grit[all]/job/line-console-job> options", job_help_start + 1)
+    job_help_text = line_console_stdout[job_help_start:job_help_end] if job_help_start != -1 and job_help_end != -1 else ""
     job_options_start = line_console_stdout.find("grit[all]/job/line-console-job> options")
     job_options_end = line_console_stdout.find("grit[all]/job/line-console-job> next", job_options_start + 1)
     job_options_text = line_console_stdout[job_options_start:job_options_end] if job_options_start != -1 and job_options_end != -1 else ""
@@ -2215,6 +2227,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "action: package-artifact" not in job_info_text or
             "state: running" not in job_info_text or
             "cancel supported:" not in job_info_text or
+            not job_help_text or
+            "Help: jobs" not in job_help_text or
+            "jobs -k ID" not in job_help_text or
+            "Console help topics:" in job_help_text or
             "job=" in job_info_text or
             "action=" in job_info_text or
             "cancel_supported=" in job_info_text or
