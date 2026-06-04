@@ -21,7 +21,6 @@ import hashlib
 import json
 import os
 import select
-import shlex
 import signal
 import socket
 import ssl
@@ -188,7 +187,8 @@ from gritlib.line_resources import (
 )
 from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
-    read_line as line_repl_read_line, resolve_replay_command, restore_signal_handlers,
+    parse_line_command_args, read_line as line_repl_read_line, resolve_replay_command,
+    restore_signal_handlers, should_parse_line_command,
 )
 from gritlib.line_release import (
     dispatch_legacy_line_release_number,
@@ -7200,9 +7200,9 @@ def run_line_repl(cfg):
         if replayed_history and choice.isdigit():
             clear_line_selectable_results()
         console_args = []
-        if not (choice.isdigit() or choice in {"c", "d", "r", "v", "q"}):
+        if should_parse_line_command(choice):
             try:
-                console_args = shlex.split(choice)
+                console_args = parse_line_command_args(choice)
             except ValueError as exc:
                 print(exc)
                 continue

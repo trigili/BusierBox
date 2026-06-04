@@ -8,6 +8,9 @@ import sys
 import time
 
 
+LINE_REPL_LEGACY_SINGLE_KEY_CHOICES = frozenset({"c", "d", "r", "v", "q"})
+
+
 def configure_readline_history(readline_module, have_readline, limit=500):
     if have_readline and readline_module is not None:
         readline_module.set_history_length(limit)
@@ -47,6 +50,15 @@ def resolve_replay_command(choice, line_history, history_command_func):
             raise ValueError("usage: repeat N")
         return history_command_func(line_history, repeat_args[1]), True
     return choice, False
+
+
+def should_parse_line_command(choice):
+    text = str(choice or "").strip()
+    return bool(text) and not text.isdigit() and text not in LINE_REPL_LEGACY_SINGLE_KEY_CHOICES
+
+
+def parse_line_command_args(choice):
+    return shlex.split(str(choice or ""))
 
 
 def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull):
