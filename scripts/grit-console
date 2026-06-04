@@ -6635,9 +6635,6 @@ def run_line_repl(cfg):
             append_event_fn=append_event,
         )
 
-    def print_line_events(args):
-        return print_line_events_view(cfg, args)
-
     def use_line_search_result(selector):
         return line_search_use_line_search_result(
             selector,
@@ -7088,7 +7085,7 @@ def run_line_repl(cfg):
                     load_line_resource(cfg, path)
                 ),
                 resource_save_func=lambda path: write_line_makerc(cfg, path, line_history),
-                events_func=print_line_events,
+                events_func=lambda args: print_line_events_view(cfg, args),
                 search_func=search_line_resources,
                 show_func=show_line_resource,
                 generated_run_func=lambda args: run_line_generated_command(cfg, args),
