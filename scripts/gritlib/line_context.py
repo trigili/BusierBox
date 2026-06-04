@@ -56,6 +56,51 @@ def parse_line_use_command(cmd, args):
     }
 
 
+def dispatch_line_use_command(
+    use_cmd,
+    *,
+    alias_recorder=None,
+    number_func=None,
+    target_func=None,
+    listener_func=None,
+    route_func=None,
+    session_func=None,
+    job_func=None,
+    action_func=None,
+    after_number_func=None,
+):
+    selector = (use_cmd or {}).get("selector", "")
+    if (use_cmd or {}).get("usage") and not selector:
+        print(use_cmd["usage"])
+        return None
+    try:
+        if use_cmd.get("alias") and alias_recorder:
+            alias_recorder(use_cmd["alias"], use_cmd["canonical"])
+        kind = use_cmd.get("kind")
+        if kind == "number" and number_func:
+            result = number_func(selector)
+            if after_number_func:
+                after_number_func()
+            return result
+        if kind == "target" and target_func:
+            return target_func(selector)
+        if kind == "listener" and listener_func:
+            return listener_func(selector)
+        if kind == "route" and route_func:
+            return route_func(selector)
+        if kind == "session" and session_func:
+            return session_func(selector)
+        if kind == "job" and job_func:
+            return job_func(selector)
+        if kind == "action" and action_func:
+            return action_func(selector)
+        print(use_cmd.get("usage") or "usage: use KIND SELECTOR")
+        return None
+    except ValueError as exc:
+        print(exc)
+        return None
+
+
 def parse_line_interact_command(cmd, args=None, target_selected=False, module=""):
     if args is None:
         args = cmd
@@ -81,6 +126,27 @@ def parse_line_context_command(cmd, args):
     if cmd in {"b", "back", "background", "bg", "unset"}:
         return {"action": "back"}
     return {}
+
+
+def dispatch_line_context_command(
+    context_cmd,
+    *,
+    clear_target_func=None,
+    root_func=None,
+    back_func=None,
+):
+    action = (context_cmd or {}).get("action")
+    try:
+        if action == "clear-target" and clear_target_func:
+            return clear_target_func()
+        if action == "root" and root_func:
+            return root_func()
+        if action == "back" and back_func:
+            return back_func()
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported context command")
 
 
 def clear_line_module_context(cfg, quiet=True):

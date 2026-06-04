@@ -144,6 +144,8 @@ from gritlib.line_configure import (
 from gritlib.line_context import (
     back_line_module_context,
     clear_line_console_context, clear_line_module_context,
+    dispatch_line_context_command,
+    dispatch_line_use_command,
     parse_line_context_command,
     parse_line_interact_command,
     parse_line_use_command,
@@ -7760,43 +7762,26 @@ def run_line_repl(cfg):
                 )
                 continue
             elif (use_cmd := parse_line_use_command(cmd, console_args[1:])):
-                selector = use_cmd.get("selector", "")
-                if use_cmd.get("usage") and not selector:
-                    print(use_cmd["usage"])
-                    continue
-                try:
-                    if use_cmd.get("alias"):
-                        record_line_alias(use_cmd["alias"], use_cmd["canonical"])
-                    if use_cmd["kind"] == "number":
-                        use_line_search_result(selector)
-                        clear_line_selectable_results()
-                    elif use_cmd["kind"] == "target":
-                        select_line_target(selector)
-                    elif use_cmd["kind"] == "listener":
-                        select_line_service(selector)
-                    elif use_cmd["kind"] == "route":
-                        select_line_route(selector)
-                    elif use_cmd["kind"] == "session":
-                        select_line_session(selector)
-                    elif use_cmd["kind"] == "job":
-                        select_line_job(selector)
-                    elif use_cmd["kind"] == "action":
-                        select_line_action(selector)
-                    else:
-                        print(use_cmd.get("usage") or "usage: use KIND SELECTOR")
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_use_command(
+                    use_cmd,
+                    alias_recorder=record_line_alias,
+                    number_func=use_line_search_result,
+                    target_func=select_line_target,
+                    listener_func=select_line_service,
+                    route_func=select_line_route,
+                    session_func=select_line_session,
+                    job_func=select_line_job,
+                    action_func=select_line_action,
+                    after_number_func=clear_line_selectable_results,
+                )
                 continue
             elif (context_cmd := parse_line_context_command(cmd, console_args[1:])):
-                if context_cmd["action"] == "clear-target":
-                    try:
-                        select_line_target("all", targets=[])
-                    except ValueError as exc:
-                        print(exc)
-                elif context_cmd["action"] == "root":
-                    clear_line_context()
-                else:
-                    back_line_module()
+                dispatch_line_context_command(
+                    context_cmd,
+                    clear_target_func=lambda: select_line_target("all", targets=[]),
+                    root_func=clear_line_context,
+                    back_func=back_line_module,
+                )
                 continue
             elif (service_cmd := parse_line_service_control_command(cmd, console_args[1:])):
                 dispatch_line_service_control_command(
