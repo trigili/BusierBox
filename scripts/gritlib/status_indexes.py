@@ -923,4 +923,43 @@ def operator_network_status(ips):
         "operator_network_state_record": operator_network_state_record,
         "operator_network_state_records": operator_network_state_records,
         "operator_network_state_index_maps": operator_network_state_index_maps,
+        "summary": operator_network_summary(
+            operator_network_records,
+            operator_network_state_record,
+            operator_network_state_records,
+        ),
+    }
+
+
+def operator_network_summary(records, state_record=None, state_records=None):
+    records = records or []
+    state_record = state_record or {}
+    state_records = state_records or []
+    selected_local_ip = state_record.get("selected_ip", "")
+    return {
+        "operator_network_record_count": len(records),
+        "operator_network_state_record_count": len(state_records),
+        "operator_network_detected_ip_count": state_record.get(
+            "detected_ip_count", 0
+        ),
+        "operator_network_placeholder_count": state_record.get(
+            "placeholder_count", 0
+        ),
+        "operator_network_selected_ip": selected_local_ip,
+        "operator_network_selected_source": state_record.get("selected_source", ""),
+        "operator_network_selected_placeholder": bool(
+            state_record.get("selected_placeholder", False)
+        ),
+        "operator_network_has_detected_ip": bool(
+            state_record.get("has_detected_ip", False)
+        ),
+        "operator_network_uses_placeholder": bool(
+            state_record.get("uses_placeholder", False)
+        ),
+        "operator_network_has_generated_command_ip": bool(
+            state_record.get("has_generated_command_ip", False)
+        ),
+        "operator_network_has_multiple_ips": bool(
+            state_record.get("has_multiple_ips", False)
+        ),
     }

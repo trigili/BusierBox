@@ -356,6 +356,15 @@ def run_line_local_ips_check():
         print("operator network status did not sort and de-duplicate local IP candidates", file=sys.stderr)
         print(status, file=sys.stderr)
         return 1
+    network_summary = status.get("summary") or {}
+    if (network_summary.get("operator_network_record_count") != 2 or
+            network_summary.get("operator_network_detected_ip_count") != 2 or
+            network_summary.get("operator_network_selected_ip") != "10.0.0.5" or
+            network_summary.get("operator_network_selected_source") != "detected" or
+            network_summary.get("operator_network_has_multiple_ips") is not True):
+        print("operator network status did not preserve summary", file=sys.stderr)
+        print(status, file=sys.stderr)
+        return 1
     if parse_line_probe_args(["start", "queue"]) != (True, True):
         print("probe start/queue aliases did not map to canonical flags", file=sys.stderr)
         return 1
