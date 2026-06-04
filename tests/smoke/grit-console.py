@@ -1638,10 +1638,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     path_view_end = line_console_stdout.find("grit[all]/sessions> use session 1", path_view_start + 1)
     path_view_text = line_console_stdout[path_view_start:path_view_end] if path_view_start != -1 and path_view_end != -1 else ""
     if (not path_view_text or
-            "session_log=" not in path_view_text or
-            "view: scripts/grit-console --config" not in path_view_text or
+            "session log:" not in path_view_text or
+            "event log:" not in path_view_text or
+            "view: view " not in path_view_text or
+            "view: scripts/grit-console --config" in path_view_text or
+            "session_log=" in path_view_text or
+            "event_log=" in path_view_text or
             "headless_command:" in path_view_text):
-        print("line-oriented direct path view exposed noisy headless command", file=sys.stderr)
+        print("line-oriented session interaction exposed noisy generated command or raw fields", file=sys.stderr)
         print(path_view_text or line_console_stdout, file=sys.stderr)
         return 1
     session_info_start = line_console_stdout.find("grit[all]/session/20260101T000000-file-service> info")
