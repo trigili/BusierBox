@@ -25,6 +25,16 @@ def parse_line_release_command(args):
     raise ValueError("usage: release [list|stage SELECTOR]")
 
 
+def parse_line_release_alias_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    if cmd in {"release", "releases"}:
+        return parse_line_release_command(args)
+    if cmd == "stage-release":
+        return parse_line_release_command(["stage", *args])
+    return {}
+
+
 def _release_compat_label(rec):
     return (rec.get("compatibility") or {}).get("label") or "-"
 

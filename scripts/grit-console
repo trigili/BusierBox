@@ -198,7 +198,7 @@ from gritlib.line_repl_runtime import (
     read_line as line_repl_read_line, restore_signal_handlers,
 )
 from gritlib.line_release import (
-    parse_line_release_command,
+    parse_line_release_alias_command,
     print_line_release as line_release_print_line_release,
     stage_line_release as line_release_stage_line_release,
 )
@@ -8010,9 +8010,9 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"release", "releases"}:
+            elif cmd in {"release", "releases", "stage-release"}:
                 try:
-                    release_cmd = parse_line_release_command(console_args[1:])
+                    release_cmd = parse_line_release_alias_command(cmd, console_args[1:])
                     if release_cmd["action"] == "list":
                         set_line_collection("release")
                         line_release_print_line_release(cfg, append_event_fn=append_event)
@@ -8024,17 +8024,6 @@ def run_line_repl(cfg):
                         set_line_collection("files")
                     elif release_cmd["action"] == "help":
                         print_line_command_help("release")
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "stage-release":
-                try:
-                    release_cmd = parse_line_release_command(["stage", *console_args[1:]])
-                    stage_line_release(
-                        release_cmd["selector"],
-                        start_file_service=release_cmd["start_service"],
-                    )
-                    set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
                 continue
