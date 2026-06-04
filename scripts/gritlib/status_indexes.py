@@ -734,6 +734,40 @@ def warning_health_indexes(records):
     return by_has_warnings, by_warning_type
 
 
+def path_warning_status_context(path_status_records, browser_paths):
+    path_status_by_has_warnings, path_status_by_warning_type = warning_health_indexes(
+        path_status_records
+    )
+    browser_paths_by_has_warnings, browser_paths_by_warning_type = warning_health_indexes(
+        browser_paths
+    )
+    browser_summary = browser_path_summary(browser_paths)
+    return {
+        "path_status_by_has_warnings": path_status_by_has_warnings,
+        "path_status_by_warning_type": path_status_by_warning_type,
+        "browser_paths_by_has_warnings": browser_paths_by_has_warnings,
+        "browser_paths_by_warning_type": browser_paths_by_warning_type,
+        "browser_summary": browser_summary,
+        "summary": {
+            "path_warning_count": len(path_status_by_has_warnings.get("yes") or []),
+            "path_without_warning_count": len(
+                path_status_by_has_warnings.get("no") or []
+            ),
+            "path_warning_type_counts": {
+                key: len(value)
+                for key, value in path_status_by_warning_type.items()
+            },
+            "browser_path_warning_count": browser_summary.get("warning_count", 0),
+            "browser_path_warning_kind_counts": (
+                browser_summary.get("warning_by_kind") or {}
+            ),
+            "browser_path_warning_type_counts": (
+                browser_summary.get("warning_by_type") or {}
+            ),
+        },
+    }
+
+
 def operator_network_status(ips):
     candidates = sorted_local_ips(ips or []) or ["OPERATOR_IP"]
     selected_local_ip = candidates[0]

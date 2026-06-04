@@ -2033,7 +2033,7 @@ def run_path_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from gritlib.status_indexes import path_status_context
+    from gritlib.status_indexes import path_status_context, path_warning_status_context
 
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
@@ -2122,6 +2122,23 @@ def run_path_status_context_check():
         browser_by_kind = browser_indexes[0]
         if not browser_by_kind.get("staged-source") or not browser_by_kind.get("release-artifact"):
             print("path status context did not preserve browser path kinds", file=sys.stderr)
+            return 1
+        path_records[0]["warning_count"] = 1
+        path_records[0]["warning_types"] = ["operator_path_kind_mismatch"]
+        browser_paths[0]["warning_count"] = 1
+        browser_paths[0]["warning_types"] = ["operator_path_kind_mismatch"]
+        warning_context = path_warning_status_context(path_records, browser_paths)
+        if not (warning_context.get("path_status_by_has_warnings") or {}).get("yes"):
+            print("path warning context did not preserve path warning index", file=sys.stderr)
+            return 1
+        if not (warning_context.get("browser_paths_by_has_warnings") or {}).get("yes"):
+            print("path warning context did not preserve browser warning index", file=sys.stderr)
+            return 1
+        warning_summary = warning_context.get("summary") or {}
+        if (warning_summary.get("path_warning_count") != 1 or
+                warning_summary.get("browser_path_warning_count") != 1 or
+                warning_summary.get("path_warning_type_counts", {}).get("operator_path_kind_mismatch") != 1):
+            print("path warning context did not preserve warning summary", file=sys.stderr)
             return 1
     return 0
 
