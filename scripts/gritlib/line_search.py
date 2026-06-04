@@ -189,7 +189,7 @@ def use_line_search_result(
         raise ValueError("no numbered results active; run search, targets, listeners, sessions, files, jobs, routes, or probe results")
     idx = int(text) - 1
     if idx < 0 or idx >= len(results):
-        raise ValueError(f"search result number out of range: {text}")
+        raise ValueError(f"numbered result not found: {text}; run a list command first, then use N")
     item = results[idx] if isinstance(results[idx], dict) else {}
     kind = str(item.get("kind") or "")
     rec = item.get("rec") if isinstance(item.get("rec"), dict) else {}
