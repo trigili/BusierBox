@@ -5509,6 +5509,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 f"route add zz-console-added {line_console_added_route_port} 127.0.0.1 {line_console_added_route_dest_port} operator:{line_console_added_route_port}=rack-hop:9100 rack-hop:9100=127.0.0.1:{line_console_added_route_dest_port}\n"
                 "show routes\n"
                 "show routes -v\n"
+                "route start 9\n"
                 "route start 1\n"
                 "route start 2\n"
                 "route stop 1\n"
@@ -5516,12 +5517,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "routes -v\n"
                 "route delete 2\n"
                 "use 1\n"
-                "info\n"
-                "next\n"
                 "back\n"
                 "route print\n"
                 "route console-route\n"
                 "info\n"
+                "next\n"
                 "?\n"
                 "options\n"
                 "back\n"
@@ -6304,6 +6304,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "stopped route console-route" not in route_text or
             "stopped route zz-console-added" not in route_text or
             "deleted route zz-console-added" not in route_text or
+            "route number out of range: 9" not in route_text or
+            "numbered result not found: 9" in route_text or
             "stale pid" in route_text or
             "failed to stop" in route_text or
             "Address already in use" in route_text or
@@ -6327,6 +6329,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     route_print_start = line_console_stdout.find("grit[all]/routes> route print")
     route_print_end = line_console_stdout.find("grit[all]/routes> route console-route", route_print_start + 1)
     route_print_text = line_console_stdout[route_print_start:route_print_end] if route_print_start != -1 and route_print_end != -1 else ""
+    route_use_number_start = line_console_stdout.find("grit[all]/routes> use 1")
+    route_use_number_end = line_console_stdout.find("grit[all]/route/console-route> back", route_use_number_start + 1)
+    route_use_number_text = (
+        line_console_stdout[route_use_number_start:route_use_number_end]
+        if route_use_number_start != -1 and route_use_number_end != -1 else ""
+    )
     if (not routes_verbose_text or
             "\n     start: scripts/grit-console" not in routes_verbose_text or
             not show_routes_verbose_text or
@@ -6340,6 +6348,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(show_routes_verbose_text, file=sys.stderr)
         print("route print:", file=sys.stderr)
         print(route_print_text, file=sys.stderr)
+        return 1
+    if (not route_use_number_text or
+            "selected route console-route" not in route_use_number_text or
+            "search result" in route_use_number_text):
+        print("line-oriented route numbered selection did not use the current route list", file=sys.stderr)
+        print(route_use_number_text or line_console_stdout, file=sys.stderr)
         return 1
     route_context_start = line_console_stdout.find("grit[all]/routes> route console-route")
     route_context_end = line_console_stdout.find("grit[all]/route/console-route> back", route_context_start + 1)

@@ -369,7 +369,7 @@ def print_line_command_help(topic):
                 ("route NAME", "inspect a bridge route"),
                 ("use route NAME", "select a route context"),
                 ("route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]", "create a route profile"),
-                ("route start NAME / route stop NAME", "start or stop a route"),
+                ("route start NAME|NUMBER / route stop NAME|NUMBER", "start or stop a route"),
                 ("route delete NAME", "remove a route profile"),
                 ("start NAME / stop NAME", "shorthand start/stop when in route context"),
                 ("info, options", "show selected route context"),

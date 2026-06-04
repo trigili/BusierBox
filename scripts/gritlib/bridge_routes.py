@@ -470,7 +470,7 @@ def print_bridge_route_records(records, verbose=False, command_builder=None, quo
     console_table(
         f"Routes  ({len(records)} total)" if records else "Routes  (none)",
         records, cols, detail_fn=_detail,
-        footer="use N or route NAME to select  |  start/stop NAME  |  routes ? for help",
+        footer="use N or route NAME|NUMBER to select  |  start/stop NAME|NUMBER  |  routes ? for help",
     )
     return bridge_route_search_records(records, command_builder=command_builder, quote=quote)
 
@@ -510,6 +510,16 @@ def line_route_record(records, selector):
     return bridge_profile_record_by_selector(records, selector)
 
 
+def require_line_route_record(records, selector):
+    text = str(selector or "").strip()
+    rec = line_route_record(records, text)
+    if not rec and text.isdigit():
+        raise ValueError(f"route number out of range: {text}")
+    if not rec:
+        raise ValueError(f"route not found: {text}")
+    return rec
+
+
 def print_line_routes(
     cfg, records, verbose=False, command_builder=None, quote=shquote
 ):
@@ -533,11 +543,7 @@ def select_line_route(cfg, selector, records):
     if not text:
         raise ValueError("usage: route NAME|NUMBER")
     records = list(records or [])
-    selected = bridge_profile_record_by_selector(records, text)
-    if text.isdigit() and not selected:
-        raise ValueError(f"route number out of range: {text}")
-    if not selected:
-        raise ValueError(f"route not found: {text}")
+    selected = require_line_route_record(records, text)
     name = str(selected.get("name") or "")
     set_line_collection_context(cfg, f"route/{name}")
     print(f"selected route {name}")
@@ -693,9 +699,7 @@ def start_line_route(
     name = str(route_name or "").strip()
     if not name:
         raise ValueError("usage: start ROUTE")
-    rec = line_route_record(records, name)
-    if not rec:
-        raise ValueError(f"route not found: {name}")
+    rec = require_line_route_record(records, name)
     name = str(rec.get("name") or name)
     headless_command_builder = headless_command_builder or (
         lambda _action, _name="", extra=None: ""
@@ -727,9 +731,7 @@ def stop_line_route(
             name = module.split("/", 1)[1]
     if not name:
         raise ValueError("usage: stop ROUTE")
-    rec = line_route_record(records, name)
-    if not rec:
-        raise ValueError(f"route not found: {name}")
+    rec = require_line_route_record(records, name)
     name = str(rec.get("name") or name)
     headless_command_builder = headless_command_builder or (
         lambda _action, _name="", extra=None: ""
@@ -753,9 +755,7 @@ def delete_line_route(cfg, route_name, records, headless_command_builder=None):
             name = module.split("/", 1)[1]
     if not name:
         raise ValueError("usage: route delete ROUTE")
-    rec = line_route_record(records, name)
-    if not rec:
-        raise ValueError(f"route not found: {name}")
+    rec = require_line_route_record(records, name)
     name = str(rec.get("name") or name)
     headless_command_builder = headless_command_builder or (
         lambda _action, _name="", extra=None: ""

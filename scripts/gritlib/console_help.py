@@ -112,7 +112,7 @@ Operations:
                                 direct: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222
                                 meaning: target connects to operator:2222; operator forwards to 127.0.0.1:22
                                 multi-hop: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080
-  route start NAME, route stop NAME
+  route start NAME|NUMBER, route stop NAME|NUMBER
                                 control a reusable bridge route profile
   route delete NAME              remove a reusable bridge route profile
   queue COMMAND                 queue work for the selected/offline target
