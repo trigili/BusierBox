@@ -2722,7 +2722,6 @@ def run_line_repl_runtime_check():
         configured_cfg = {"_line_console_module": "targets", "target": "target1"}
         if run_configured_line_repl_loop(
                 configured_cfg,
-                target_filter_func=lambda cfg: cfg.get("target"),
                 clear_console_context_func=lambda cfg, quiet=False: configured_calls.append(
                     ("clear", cfg.get("_line_console_module"), quiet)
                 ),
@@ -2731,6 +2730,9 @@ def run_line_repl_runtime_check():
                 ),
                 shutdown_event=threading.Event(),
                 shutdown_reason_func=lambda: "",
+                target_callbacks={
+                    "target_filter": lambda: configured_cfg.get("target"),
+                },
                 utility_callbacks={
                     "line_history": ["status"],
                     "pending_console_lines": ["targets"],

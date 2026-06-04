@@ -342,11 +342,12 @@ def run_line_repl_loop(
 def run_configured_line_repl_loop(
     cfg,
     *,
-    target_filter_func,
     clear_console_context_func,
+    target_filter_func=None,
     **kwargs,
 ):
     """Run the standard config-backed line REPL loop."""
+    target_callbacks = kwargs.pop("target_callbacks", None)
     utility_callbacks = kwargs.pop("utility_callbacks", None)
     search_callbacks = kwargs.pop("search_callbacks", None)
     core_callbacks = kwargs.pop("core_callbacks", None)
@@ -377,6 +378,12 @@ def run_configured_line_repl_loop(
                 workbench_mark_stopped_func,
             ),
         )
+    if target_filter_func is None and target_callbacks is not None:
+        target_filter_callback = target_callbacks.get("target_filter")
+        if target_filter_callback is not None:
+            target_filter_func = lambda _cfg: target_filter_callback()
+    if target_filter_func is None:
+        target_filter_func = lambda _cfg: None
 
     def line_module(repl_cfg):
         return repl_cfg.get("_line_console_module")
