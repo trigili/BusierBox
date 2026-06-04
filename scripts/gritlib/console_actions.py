@@ -66,6 +66,48 @@ def handle_console_control_args(
     return None
 
 
+def handle_bridge_profile_args(
+    cfg,
+    args,
+    *,
+    save_bridge_profile_func,
+    delete_bridge_profile_func,
+    print_bridge_profile_func,
+    print_bridge_profiles_func,
+    bridge_profiles_path_func,
+):
+    if args.save_bridge_profile:
+        rec = save_bridge_profile_func(
+            cfg,
+            args.save_bridge_profile,
+            purpose=args.bridge_profile_purpose or "",
+            notes=args.bridge_profile_notes or "",
+            hop_args=args.bridge_hop,
+        )
+        print(f"saved bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
+        print(f"bridge_profiles_file={bridge_profiles_path_func(cfg)}")
+        if not (
+            args.inspect_bridge_profile or args.delete_bridge_profile or
+            args.list_bridge_profiles or args.json_bridge_profiles
+        ):
+            return 0
+    if args.delete_bridge_profile:
+        rec = delete_bridge_profile_func(cfg, args.delete_bridge_profile)
+        print(f"deleted bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
+        print(f"bridge_profiles_file={bridge_profiles_path_func(cfg)}")
+        if not (args.inspect_bridge_profile or args.list_bridge_profiles or args.json_bridge_profiles):
+            return 0
+    if args.inspect_bridge_profile:
+        return print_bridge_profile_func(
+            cfg,
+            args.inspect_bridge_profile,
+            json_output=args.json_bridge_profiles,
+        )
+    if args.list_bridge_profiles or args.json_bridge_profiles:
+        return print_bridge_profiles_func(cfg, json_output=args.json_bridge_profiles)
+    return None
+
+
 def handle_workbench_job_args(
     cfg,
     args,

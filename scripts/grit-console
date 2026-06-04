@@ -70,8 +70,9 @@ from gritlib.command_queue import (
 )
 from gritlib.console_display import print_dry_run_notice
 from gritlib.console_actions import (
-    handle_console_control_args, handle_console_utility_args,
-    handle_file_staging_args, handle_workbench_job_args,
+    handle_bridge_profile_args, handle_console_control_args,
+    handle_console_utility_args, handle_file_staging_args,
+    handle_workbench_job_args,
     handle_workflow_action_args,
 )
 from gritlib.console_args import (
@@ -7384,22 +7385,17 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         return 2
 
     try:
-        if args.save_bridge_profile:
-            rec = save_bridge_profile(cfg, args.save_bridge_profile, purpose=args.bridge_profile_purpose or "", notes=args.bridge_profile_notes or "", hop_args=args.bridge_hop)
-            print(f"saved bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
-            print(f"bridge_profiles_file={bridge_profiles_path(cfg)}")
-            if not (args.inspect_bridge_profile or args.delete_bridge_profile or args.list_bridge_profiles or args.json_bridge_profiles):
-                return 0
-        if args.delete_bridge_profile:
-            rec = delete_bridge_profile(cfg, args.delete_bridge_profile)
-            print(f"deleted bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
-            print(f"bridge_profiles_file={bridge_profiles_path(cfg)}")
-            if not (args.inspect_bridge_profile or args.list_bridge_profiles or args.json_bridge_profiles):
-                return 0
-        if args.inspect_bridge_profile:
-            return print_bridge_profile(cfg, args.inspect_bridge_profile, json_output=args.json_bridge_profiles)
-        if args.list_bridge_profiles or args.json_bridge_profiles:
-            return print_bridge_profiles(cfg, json_output=args.json_bridge_profiles)
+        bridge_profile_code = handle_bridge_profile_args(
+            cfg,
+            args,
+            save_bridge_profile_func=save_bridge_profile,
+            delete_bridge_profile_func=delete_bridge_profile,
+            print_bridge_profile_func=print_bridge_profile,
+            print_bridge_profiles_func=print_bridge_profiles,
+            bridge_profiles_path_func=bridge_profiles_path,
+        )
+        if bridge_profile_code is not None:
+            return bridge_profile_code
         workbench_job_code = handle_workbench_job_args(
             cfg,
             args,

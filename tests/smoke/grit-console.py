@@ -1265,6 +1265,126 @@ def run_console_control_dispatch_check():
     return 0
 
 
+def run_bridge_profile_dispatch_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import gritlib.console_actions as console_actions
+
+    def args_for(**overrides):
+        values = {
+            "save_bridge_profile": "",
+            "bridge_profile_purpose": "",
+            "bridge_profile_notes": "",
+            "bridge_hop": [],
+            "delete_bridge_profile": "",
+            "inspect_bridge_profile": "",
+            "list_bridge_profiles": False,
+            "json_bridge_profiles": False,
+        }
+        values.update(overrides)
+        return argparse.Namespace(**values)
+
+    calls = []
+
+    def dispatch(args):
+        return console_actions.handle_bridge_profile_args(
+            {"cfg": "yes"},
+            args,
+            save_bridge_profile_func=lambda cfg, name, purpose="", notes="", hop_args=None: calls.append(
+                ("save", cfg, name, purpose, notes, hop_args)
+            ) or {"name": name, "route_path": "operator:2222 -> target:80"},
+            delete_bridge_profile_func=lambda cfg, name: calls.append(
+                ("delete", cfg, name)
+            ) or {"name": name, "route_path": "operator:2222 -> target:80"},
+            print_bridge_profile_func=lambda cfg, name, json_output=False: calls.append(
+                ("inspect", cfg, name, json_output)
+            ) or 41,
+            print_bridge_profiles_func=lambda cfg, json_output=False: calls.append(
+                ("list", cfg, json_output)
+            ) or 42,
+            bridge_profiles_path_func=lambda cfg: calls.append(("path", cfg)) or "profiles.json",
+        )
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = dispatch(args_for(
+            save_bridge_profile="lab",
+            bridge_profile_purpose="testing",
+            bridge_profile_notes="bench",
+            bridge_hop=["a:b"],
+        ))
+    text = buf.getvalue()
+    if code != 0 or calls != [
+        ("save", {"cfg": "yes"}, "lab", "testing", "bench", ["a:b"]),
+        ("path", {"cfg": "yes"}),
+    ] or "saved bridge profile lab: operator:2222 -> target:80" not in text or "bridge_profiles_file=profiles.json" not in text:
+        print("bridge profile dispatch helper did not preserve save behavior", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = dispatch(args_for(save_bridge_profile="lab", inspect_bridge_profile="lab", json_bridge_profiles=True))
+    text = buf.getvalue()
+    if code != 41 or calls != [
+        ("save", {"cfg": "yes"}, "lab", "", "", []),
+        ("path", {"cfg": "yes"}),
+        ("inspect", {"cfg": "yes"}, "lab", True),
+    ] or "saved bridge profile lab" not in text:
+        print("bridge profile dispatch helper did not preserve save+inspect fallthrough", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = dispatch(args_for(delete_bridge_profile="old"))
+    text = buf.getvalue()
+    if code != 0 or calls != [
+        ("delete", {"cfg": "yes"}, "old"),
+        ("path", {"cfg": "yes"}),
+    ] or "deleted bridge profile old: operator:2222 -> target:80" not in text:
+        print("bridge profile dispatch helper did not preserve delete behavior", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code = dispatch(args_for(delete_bridge_profile="old", list_bridge_profiles=True))
+    text = buf.getvalue()
+    if code != 42 or calls != [
+        ("delete", {"cfg": "yes"}, "old"),
+        ("path", {"cfg": "yes"}),
+        ("list", {"cfg": "yes"}, False),
+    ] or "deleted bridge profile old" not in text:
+        print("bridge profile dispatch helper did not preserve delete+list fallthrough", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    if dispatch(args_for(inspect_bridge_profile="lab")) != 41 or calls != [
+        ("inspect", {"cfg": "yes"}, "lab", False),
+    ]:
+        print("bridge profile dispatch helper did not preserve inspect behavior", file=sys.stderr)
+        return 1
+
+    calls.clear()
+    if dispatch(args_for(list_bridge_profiles=True, json_bridge_profiles=True)) != 42 or calls != [
+        ("list", {"cfg": "yes"}, True),
+    ]:
+        print("bridge profile dispatch helper did not preserve list/json behavior", file=sys.stderr)
+        return 1
+
+    calls.clear()
+    if dispatch(args_for()) is not None or calls:
+        print("bridge profile dispatch helper handled empty args", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_workbench_job_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4053,6 +4173,8 @@ def main(argv=None):
     if run_command_queue_dispatch_check() != 0:
         return 1
     if run_console_control_dispatch_check() != 0:
+        return 1
+    if run_bridge_profile_dispatch_check() != 0:
         return 1
     if run_workbench_job_dispatch_check() != 0:
         return 1
