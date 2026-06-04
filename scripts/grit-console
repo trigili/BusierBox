@@ -8019,34 +8019,22 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"upload", "stage", "serve-file"}:
+            elif (file_cmd := parse_line_file_transfer_command(cmd, console_args[1:])):
                 try:
-                    file_cmd = parse_line_file_transfer_command(cmd, console_args[1:])
-                    stage_line_file(
-                        file_cmd["selector"],
-                        file_cmd["request_name"],
-                        start_file_service=file_cmd["start_service"],
-                    )
-                    set_line_collection("files")
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd in {"fetch", "deploy", "queue-fetch"}:
-                try:
-                    file_cmd = parse_line_file_transfer_command(cmd, console_args[1:])
-                    fetch_line_staged(
-                        file_cmd["request_name"],
-                        queue=file_cmd["queue"],
-                        start_file_service=file_cmd["start_service"],
-                    )
-                    set_line_collection("files")
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd in {"unstage", "rmfile", "rm-file"}:
-                try:
-                    file_cmd = parse_line_file_transfer_command(cmd, console_args[1:])
-                    unstage_line_file(file_cmd["selector"])
+                    if file_cmd["action"] == "upload":
+                        stage_line_file(
+                            file_cmd["selector"],
+                            file_cmd["request_name"],
+                            start_file_service=file_cmd["start_service"],
+                        )
+                    elif file_cmd["action"] == "fetch":
+                        fetch_line_staged(
+                            file_cmd["request_name"],
+                            queue=file_cmd["queue"],
+                            start_file_service=file_cmd["start_service"],
+                        )
+                    else:
+                        unstage_line_file(file_cmd["selector"])
                     set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
