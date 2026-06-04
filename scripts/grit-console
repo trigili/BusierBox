@@ -69,6 +69,7 @@ from gritlib.command_queue import (
     save_command_queue, yes_no,
 )
 from gritlib.console_display import print_dry_run_notice
+from gritlib.console_args import apply_console_arg_overrides
 from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
     command_copy_state_status, copy_text_for_operator,
@@ -7369,75 +7370,11 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     args = parser.parse_args(raw_argv)
 
     cfg = load_config(args.config)
-    cfg["_config_path"] = args.config
-    cfg["_build_config_path"] = args.build_config
-    if args.listen_host:
-        cfg["listen_host"] = args.listen_host
-    if args.ssh_port:
-        cfg["ssh_listen_port"] = args.ssh_port
-    shell_port = args.shell_port or args.socat_port
-    if shell_port:
-        cfg["GRIT_RSHELL_SOCAT_PORT"] = shell_port
-    if args.forward_port:
-        cfg["GRIT_OPERATOR_REMOTE_FORWARD_PORT"] = args.forward_port
-    if args.file_port:
-        cfg["GRIT_OPERATOR_FILE_SERVICE_PORT"] = args.file_port
-    if args.command_queue_port:
-        cfg["GRIT_COMMAND_QUEUE_PORT"] = str(args.command_queue_port)
-    if args.bridge_port:
-        cfg["bridge_listen_port"] = args.bridge_port
-    if args.bridge_dest_host:
-        cfg["bridge_dest_host"] = args.bridge_dest_host
-    if args.bridge_dest_port:
-        cfg["bridge_dest_port"] = args.bridge_dest_port
-    if args.probe_port:
-        cfg["GRIT_PROBE_PORT"] = args.probe_port
-    if args.probe_tftp_port:
-        cfg["GRIT_PROBE_TFTP_PORT"] = args.probe_tftp_port
-    if args.probe_ftp_port:
-        cfg["GRIT_PROBE_FTP_PORT"] = args.probe_ftp_port
-    if args.probe_dns_port:
-        cfg["GRIT_PROBE_DNS_PORT"] = args.probe_dns_port
-    if args.probe_dns_name:
-        cfg["GRIT_PROBE_DNS_NAME"] = args.probe_dns_name
-    if args.probe_name:
-        cfg["GRIT_PROBE_NAME"] = args.probe_name
-    if args.file_service_tls:
-        cfg["GRIT_OPERATOR_FILE_SERVICE_TLS"] = args.file_service_tls
-    if args.state_file:
-        cfg["server_state"] = args.state_file
-    if args.staged_file:
-        cfg["staged_files"] = args.staged_file
-    if args.command_queue_file:
-        cfg["command_queue_file"] = args.command_queue_file
-    if args.command_copy_file:
-        cfg["command_copy_file"] = args.command_copy_file
-    if args.targets_file:
-        cfg["targets_file"] = args.targets_file
-    if args.bridge_profiles_file:
-        cfg["bridge_profiles_file"] = args.bridge_profiles_file
-    if args.target_id:
-        cfg["_target_id_filter"] = args.target_id
-    if args.target_label:
-        cfg["_target_label_filter"] = args.target_label
-    if args.target_alias:
-        cfg["_target_alias_filter"] = args.target_alias
-    if args.release_dir:
-        cfg["release_dir"] = args.release_dir
-    if args.managed_by:
-        cfg["_managed_by"] = args.managed_by
-    if args.process_log:
-        cfg["_process_log"] = args.process_log
-    if args.bridge_profile:
-        try:
-            apply_bridge_profile(cfg, args.bridge_profile)
-        except ValueError as exc:
-            print(f"grit-console: {exc}", file=sys.stderr)
-            return 2
-    if args.event_limit < 0:
-        print("grit-console: --event-limit must be >= 0", file=sys.stderr)
+    try:
+        apply_console_arg_overrides(cfg, args)
+    except ValueError as exc:
+        print(f"grit-console: {exc}", file=sys.stderr)
         return 2
-    cfg["_event_limit"] = args.event_limit
 
     try:
         if args.save_bridge_profile:

@@ -477,6 +477,105 @@ def run_line_repl_runtime_check():
     return 0
 
 
+def run_console_arg_override_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.console_args import apply_console_arg_overrides
+
+    args = argparse.Namespace(
+        config="configs/operator.json",
+        build_config="configs/grit.conf",
+        listen_host="127.0.0.1",
+        ssh_port=2222,
+        shell_port=None,
+        socat_port=4444,
+        forward_port=8080,
+        file_port=8443,
+        command_queue_port=9001,
+        bridge_port=22280,
+        bridge_dest_host="192.0.2.10",
+        bridge_dest_port=80,
+        probe_port=8000,
+        probe_tftp_port=8069,
+        probe_ftp_port=8021,
+        probe_dns_port=8053,
+        probe_dns_name="probe.example",
+        probe_name="probe.sh",
+        file_service_tls="no",
+        state_file="state.json",
+        staged_file="staged.json",
+        command_queue_file="queue.json",
+        command_copy_file="copy.txt",
+        targets_file="targets.json",
+        bridge_profiles_file="bridges.json",
+        target_id="target-1",
+        target_label="Lab Router",
+        target_alias=["router", "edge"],
+        release_dir="dist/releases/current",
+        managed_by="operator-daemon",
+        process_log="process.log",
+        bridge_profile=None,
+        event_limit=7,
+    )
+    cfg = {}
+    apply_console_arg_overrides(cfg, args)
+    expected = {
+        "_config_path": "configs/operator.json",
+        "_build_config_path": "configs/grit.conf",
+        "listen_host": "127.0.0.1",
+        "ssh_listen_port": 2222,
+        "GRIT_RSHELL_SOCAT_PORT": 4444,
+        "GRIT_OPERATOR_REMOTE_FORWARD_PORT": 8080,
+        "GRIT_OPERATOR_FILE_SERVICE_PORT": 8443,
+        "GRIT_COMMAND_QUEUE_PORT": "9001",
+        "bridge_listen_port": 22280,
+        "bridge_dest_host": "192.0.2.10",
+        "bridge_dest_port": 80,
+        "GRIT_PROBE_PORT": 8000,
+        "GRIT_PROBE_TFTP_PORT": 8069,
+        "GRIT_PROBE_FTP_PORT": 8021,
+        "GRIT_PROBE_DNS_PORT": 8053,
+        "GRIT_PROBE_DNS_NAME": "probe.example",
+        "GRIT_PROBE_NAME": "probe.sh",
+        "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
+        "server_state": "state.json",
+        "staged_files": "staged.json",
+        "command_queue_file": "queue.json",
+        "command_copy_file": "copy.txt",
+        "targets_file": "targets.json",
+        "bridge_profiles_file": "bridges.json",
+        "_target_id_filter": "target-1",
+        "_target_label_filter": "Lab Router",
+        "_target_alias_filter": ["router", "edge"],
+        "release_dir": "dist/releases/current",
+        "_managed_by": "operator-daemon",
+        "_process_log": "process.log",
+        "_event_limit": 7,
+    }
+    if cfg != expected:
+        print("console arg override helper did not preserve CLI config mapping", file=sys.stderr)
+        print(cfg, file=sys.stderr)
+        return 1
+    args.shell_port = 5555
+    cfg = {}
+    apply_console_arg_overrides(cfg, args)
+    if cfg.get("GRIT_RSHELL_SOCAT_PORT") != 5555:
+        print("console arg override helper did not prefer --shell-port over --socat-port", file=sys.stderr)
+        return 1
+    args.event_limit = -1
+    try:
+        apply_console_arg_overrides({}, args)
+    except ValueError as exc:
+        if "--event-limit must be >= 0" not in str(exc):
+            print("console arg override helper raised the wrong event-limit error", file=sys.stderr)
+            return 1
+    else:
+        print("console arg override helper accepted negative event-limit", file=sys.stderr)
+        return 1
+    return 0
+
+
 def request_with_retry(port, payload):
     deadline = time.time() + 5
     last = None
@@ -2714,8 +2813,8 @@ def main(argv=None):
                  "operator_state_unhealthy_count", "target_legacy_single_target_activity_present",
                  "target_id:", "target_label:", "target_filter_summary_text",
                  "observed_seen=", "Events  (", "target_filter_evidence_lines",
-                 "Status: ", "mailbox clear", "line_banner_hint(snap)",
-                 "Console help topics:",
+                 "Workspace:", "queue clear --confirm", "line_banner_hint(snap)",
+                 "Console commands",
                  "refreshed workbench at",
                  "Operator console workflow summary:", "operator_console_workflows_by_group",
                  "operator_console_workflows", "operator_console_workflow_count",
@@ -2827,6 +2926,8 @@ def main(argv=None):
     if run_line_local_ips_check() != 0:
         return 1
     if run_line_repl_runtime_check() != 0:
+        return 1
+    if run_console_arg_override_check() != 0:
         return 1
 
     if args.section == "preflight":
