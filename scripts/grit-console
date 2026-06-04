@@ -7779,8 +7779,7 @@ def run_line_repl(cfg):
                     except ValueError as exc:
                         print(exc)
                 continue
-            elif cmd in {"sessions", "session"}:
-                session_cmd = parse_line_sessions_command(cmd, console_args[1:])
+            elif (session_cmd := parse_line_sessions_command(cmd, console_args[1:])):
                 if session_cmd["action"] == "clear":
                     clear_line_sessions(
                         all_sessions=session_cmd["all_sessions"],

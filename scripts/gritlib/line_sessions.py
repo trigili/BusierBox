@@ -14,6 +14,8 @@ _FINISHED_SESSION_STATES = {"ended", "stopped", "complete", "done", "error", "fa
 def parse_line_sessions_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
+    if cmd not in {"sessions", "session"}:
+        return {}
     first = str(args[0]).lower() if args else ""
     if first in {"clear", "prune", "clean"}:
         flags = {str(item).lower() for item in args[1:]}
