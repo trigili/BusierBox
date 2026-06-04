@@ -83,9 +83,9 @@ def build_line_legacy_dispatch_callback(
     snapshot_func,
     view_path_func,
     stage_binary_func,
-    actions_func,
-    run_workbench_action_func,
-    run_target_workflow_func,
+    actions_func=None,
+    run_workbench_action_func=None,
+    run_target_workflow_func=None,
     scoped_target_cfg_func,
     print_target_summary_func,
     bridge_command_builder,
@@ -153,9 +153,9 @@ def build_line_legacy_callbacks(
     print_staged_func,
     snapshot_func,
     view_path_func,
-    actions_func,
-    run_workbench_action_func,
-    run_target_workflow_func,
+    actions_func=None,
+    run_workbench_action_func=None,
+    run_target_workflow_func=None,
     scoped_target_cfg_func,
     print_target_summary_func,
     print_bridge_profile_func,
@@ -166,11 +166,19 @@ def build_line_legacy_callbacks(
     queue_callbacks,
     bridge_command_builder=None,
     search_callbacks=None,
+    action_callbacks=None,
 ):
     if use_result_func is None and search_callbacks is not None:
         use_result_func = search_callbacks["use_line_search_result"]
     if bridge_command_builder is None:
         bridge_command_builder = route_service_callbacks["bridge_profile_headless_command"]
+    if action_callbacks is not None:
+        if actions_func is None:
+            actions_func = lambda _cfg: action_callbacks["workbench_actions"]()
+        if run_workbench_action_func is None:
+            run_workbench_action_func = action_callbacks["run_workbench_action"]
+        if run_target_workflow_func is None:
+            run_target_workflow_func = action_callbacks["run_target_workflow"]
     dispatch_legacy = build_line_legacy_dispatch_callback(
         cfg,
         input_func=input_func,

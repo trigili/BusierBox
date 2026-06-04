@@ -59,6 +59,9 @@ def build_line_action_callbacks(
     def service_names():
         return service_names_func(service_status_rows_func(cfg))
 
+    def workbench_actions():
+        return workbench_actions_func(cfg)
+
     if start_service_func is None and route_service_callbacks is not None:
         start_service_func = route_service_callbacks["start_line_service"]
 
@@ -72,7 +75,7 @@ def build_line_action_callbacks(
             daemon_runner=daemon_runner,
             workbench_runner=workbench_runner,
             target_runner=target_runner,
-            workbench_actions=workbench_actions_func(cfg),
+            workbench_actions=workbench_actions(),
             target_input_func=target_input_func,
         )
 
@@ -94,4 +97,7 @@ def build_line_action_callbacks(
         "selected_line_action": selected_line_action,
         "run_line_module_or_service": run_line_module_or_service_callback,
         "run_line_selected_action": run_line_selected_action_callback,
+        "workbench_actions": workbench_actions,
+        "run_workbench_action": workbench_runner,
+        "run_target_workflow": target_runner,
     }

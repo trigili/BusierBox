@@ -799,9 +799,9 @@ def run_line_repl_runtime_check():
             },
             service_runner=lambda *args, **kwargs: None,
             daemon_runner=lambda *args, **kwargs: None,
-            workbench_runner=lambda *args, **kwargs: None,
-            target_runner=lambda *args, **kwargs: None,
-            workbench_actions_func=lambda cfg: [],
+            workbench_runner=lambda *args, **kwargs: action_bundle_calls.append(("workbench-runner", args, kwargs)),
+            target_runner=lambda *args, **kwargs: action_bundle_calls.append(("target-runner", args, kwargs)),
+            workbench_actions_func=lambda cfg: action_bundle_calls.append(("workbench-actions", cfg.get("name"))) or [],
             target_input_func=lambda prompt: "",
             append_event_fn=lambda *args, **kwargs: None,
             quote=lambda text: text,
@@ -809,13 +809,18 @@ def run_line_repl_runtime_check():
         if action_bundle["run_line_module_or_service"](["svc-1"], dry_run_default=True) != "action-refresh":
             print("line REPL action bundle did not return module/service dispatch result", file=sys.stderr)
             return 1
+        action_bundle["workbench_actions"]()
+        action_bundle["run_workbench_action"]("wb")
+        action_bundle["run_target_workflow"]("target")
     finally:
         repl_actions.run_line_module_or_service = original_run_line_module_or_service
-    if action_bundle_calls != [
+    expected_action_bundle_prefix = [
         ("module-service", ("svc-1",), True),
         ("route-start", "svc-1"),
         ("start", "started"),
-    ]:
+        ("workbench-actions", "action-cfg"),
+    ]
+    if action_bundle_calls[:4] != expected_action_bundle_prefix or action_bundle_calls[4][0] != "workbench-runner" or action_bundle_calls[5][0] != "target-runner":
         print(f"line REPL action bundle did not consume route service callbacks: {action_bundle_calls}", file=sys.stderr)
         return 1
 
@@ -2923,6 +2928,9 @@ def run_line_repl_runtime_check():
             kwargs["line_start_service_func"]("svc")
             kwargs["line_stop_service_func"]("svc")
             kwargs["use_result_func"]("1")
+            kwargs["actions_func"]({"name": "ignored"})
+            kwargs["run_workbench_action_func"]("workbench-action")
+            kwargs["run_target_workflow_func"]("target-action")
             kwargs["bridge_command_builder"]("save", "name")
             kwargs["stage_binary_func"]("bin")
             kwargs["print_queue_func"]()
@@ -2950,9 +2958,11 @@ def run_line_repl_runtime_check():
             print_staged_func=lambda: legacy_bundle_calls.append("staged"),
             snapshot_func=lambda cfg: legacy_bundle_calls.append(("snapshot", cfg.get("name"))) or {},
             view_path_func=lambda path: legacy_bundle_calls.append(("view", path)),
-            actions_func=lambda cfg: legacy_bundle_calls.append(("actions", cfg.get("name"))) or [],
-            run_workbench_action_func=lambda selector: legacy_bundle_calls.append(("workbench-action", selector)),
-            run_target_workflow_func=lambda selector: legacy_bundle_calls.append(("target-action", selector)),
+            action_callbacks={
+                "workbench_actions": lambda: legacy_bundle_calls.append("actions") or [],
+                "run_workbench_action": lambda selector: legacy_bundle_calls.append(("workbench-action", selector)),
+                "run_target_workflow": lambda selector: legacy_bundle_calls.append(("target-action", selector)),
+            },
             scoped_target_cfg_func=lambda cfg: legacy_bundle_calls.append(("scoped", cfg.get("name"))) or cfg,
             print_target_summary_func=lambda target: legacy_bundle_calls.append(("target-summary", target)),
             print_bridge_profile_func=lambda name: legacy_bundle_calls.append(("bridge-print", name)),
@@ -2983,6 +2993,9 @@ def run_line_repl_runtime_check():
         ("line-start", "svc"),
         ("line-stop", "svc"),
         ("use", "1"),
+        "actions",
+        ("workbench-action", "workbench-action"),
+        ("target-action", "target-action"),
         ("bridge-command", "save", "name", None),
         ("stage", "bin"),
         "queue",
