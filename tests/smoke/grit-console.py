@@ -556,6 +556,146 @@ def run_line_repl_runtime_check():
     return 0
 
 
+def run_line_legacy_dispatch_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import gritlib.line_legacy_dispatch as legacy
+
+    calls = []
+    original_active = legacy.dispatch_line_number_selection
+    original_service = legacy.dispatch_legacy_line_service_number
+    original_refresh = legacy.dispatch_legacy_refresh_choice
+    false_dispatch_names = (
+        "dispatch_legacy_line_file_number",
+        "dispatch_legacy_line_release_number",
+        "dispatch_legacy_workbench_action_number",
+        "dispatch_legacy_target_workflow_number",
+        "dispatch_legacy_target_filter_number",
+        "dispatch_legacy_line_job_number",
+        "dispatch_legacy_line_build_number",
+        "dispatch_legacy_copy_choice",
+        "dispatch_legacy_bridge_profile_number",
+        "dispatch_legacy_target_detail_number",
+        "dispatch_legacy_probe_number",
+        "dispatch_legacy_line_queue_number",
+        "dispatch_legacy_target_activity_number",
+    )
+    original_false_dispatches = {
+        name: getattr(legacy, name)
+        for name in false_dispatch_names
+    }
+    try:
+        for name in false_dispatch_names:
+            setattr(legacy, name, lambda *args, **kwargs: False)
+        legacy.dispatch_line_number_selection = lambda choice, cfg, **kwargs: calls.append(("number", kwargs.get("require_active_results"))) or (kwargs.get("require_active_results") is True)
+        result = legacy.dispatch_legacy_line_choice(
+            "1",
+            {},
+            input_func=lambda _prompt="": "",
+            use_result_func=lambda _choice: None,
+            clear_results_func=lambda: None,
+            start_service_func=lambda *args, **kwargs: None,
+            stop_service_func=lambda *args, **kwargs: None,
+            service_rows_func=lambda: [],
+            service_record_func=lambda _choice: {},
+            sleep_func=lambda _sec: None,
+            append_event_fn=lambda *args, **kwargs: None,
+            print_staged_func=lambda *args, **kwargs: None,
+            snapshot_func=lambda _cfg: {},
+            view_path_func=lambda *args, **kwargs: None,
+            stage_binary_func=lambda *args, **kwargs: None,
+            actions_func=lambda: [],
+            run_workbench_action_func=lambda *args, **kwargs: None,
+            run_target_workflow_func=lambda *args, **kwargs: None,
+            scoped_target_cfg_func=lambda *args, **kwargs: {},
+            print_target_summary_func=lambda *args, **kwargs: None,
+            save_bridge_profile_headless_command_builder=lambda *args, **kwargs: "",
+            print_bridge_profile_func=lambda *args, **kwargs: None,
+            delete_bridge_profile_func=lambda *args, **kwargs: None,
+            action_state_text_func=lambda *args, **kwargs: "",
+            print_line_command_queue_view_func=lambda *args, **kwargs: None,
+        )
+        if result != {"handled": True, "compact_next_prompt": True} or calls != [("number", True)]:
+            print("line legacy dispatch did not preserve active number selection", file=sys.stderr)
+            return 1
+
+        calls.clear()
+        legacy.dispatch_line_number_selection = lambda choice, cfg, **kwargs: calls.append(("number", kwargs.get("require_active_results"))) or False
+        legacy.dispatch_legacy_line_service_number = lambda choice, **kwargs: calls.append("service") or True
+        result = legacy.dispatch_legacy_line_choice(
+            "2",
+            {},
+            input_func=lambda _prompt="": "",
+            use_result_func=lambda _choice: None,
+            clear_results_func=lambda: None,
+            start_service_func=lambda *args, **kwargs: None,
+            stop_service_func=lambda *args, **kwargs: None,
+            service_rows_func=lambda: [],
+            service_record_func=lambda _choice: {},
+            sleep_func=lambda _sec: None,
+            append_event_fn=lambda *args, **kwargs: None,
+            print_staged_func=lambda *args, **kwargs: None,
+            snapshot_func=lambda _cfg: {},
+            view_path_func=lambda *args, **kwargs: None,
+            stage_binary_func=lambda *args, **kwargs: None,
+            actions_func=lambda: [],
+            run_workbench_action_func=lambda *args, **kwargs: None,
+            run_target_workflow_func=lambda *args, **kwargs: None,
+            scoped_target_cfg_func=lambda *args, **kwargs: {},
+            print_target_summary_func=lambda *args, **kwargs: None,
+            save_bridge_profile_headless_command_builder=lambda *args, **kwargs: "",
+            print_bridge_profile_func=lambda *args, **kwargs: None,
+            delete_bridge_profile_func=lambda *args, **kwargs: None,
+            action_state_text_func=lambda *args, **kwargs: "",
+            print_line_command_queue_view_func=lambda *args, **kwargs: None,
+        )
+        if result != {"handled": True} or calls != [("number", True), "service"]:
+            print("line legacy dispatch did not preserve service fallback order", file=sys.stderr)
+            return 1
+
+        calls.clear()
+        legacy.dispatch_legacy_line_service_number = lambda choice, **kwargs: False
+        legacy.dispatch_legacy_refresh_choice = lambda choice, cfg: calls.append("refresh") or True
+        result = legacy.dispatch_legacy_line_choice(
+            "r",
+            {},
+            input_func=lambda _prompt="": "",
+            use_result_func=lambda _choice: None,
+            clear_results_func=lambda: None,
+            start_service_func=lambda *args, **kwargs: None,
+            stop_service_func=lambda *args, **kwargs: None,
+            service_rows_func=lambda: [],
+            service_record_func=lambda _choice: {},
+            sleep_func=lambda _sec: None,
+            append_event_fn=lambda *args, **kwargs: None,
+            print_staged_func=lambda *args, **kwargs: None,
+            snapshot_func=lambda _cfg: {},
+            view_path_func=lambda *args, **kwargs: None,
+            stage_binary_func=lambda *args, **kwargs: None,
+            actions_func=lambda: [],
+            run_workbench_action_func=lambda *args, **kwargs: None,
+            run_target_workflow_func=lambda *args, **kwargs: None,
+            scoped_target_cfg_func=lambda *args, **kwargs: {},
+            print_target_summary_func=lambda *args, **kwargs: None,
+            save_bridge_profile_headless_command_builder=lambda *args, **kwargs: "",
+            print_bridge_profile_func=lambda *args, **kwargs: None,
+            delete_bridge_profile_func=lambda *args, **kwargs: None,
+            action_state_text_func=lambda *args, **kwargs: "",
+            print_line_command_queue_view_func=lambda *args, **kwargs: None,
+        )
+        if result != {"handled": True, "render_full": True} or "refresh" not in calls:
+            print("line legacy dispatch did not preserve refresh result", file=sys.stderr)
+            return 1
+    finally:
+        legacy.dispatch_line_number_selection = original_active
+        legacy.dispatch_legacy_line_service_number = original_service
+        legacy.dispatch_legacy_refresh_choice = original_refresh
+        for name, func in original_false_dispatches.items():
+            setattr(legacy, name, func)
+    return 0
+
+
 def run_console_arg_override_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -5799,6 +5939,8 @@ def main(argv=None):
     if run_line_local_ips_check() != 0:
         return 1
     if run_line_repl_runtime_check() != 0:
+        return 1
+    if run_line_legacy_dispatch_check() != 0:
         return 1
     if run_console_arg_override_check() != 0:
         return 1
