@@ -154,9 +154,6 @@ from gritlib.line_help import (
     print_line_command_help,
     print_line_console_help,
 )
-from gritlib.line_completions import (
-    build_line_completion_callbacks,
-)
 from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
     note_line_target as line_options_note_line_target,
@@ -177,6 +174,7 @@ from gritlib.line_repl_runtime import (
     restore_signal_handlers,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
+from gritlib.line_repl_completions import build_line_completion_adapter
 from gritlib.line_repl_core import build_line_core_dispatch_callback
 from gritlib.line_repl_display import build_line_display_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
@@ -6082,10 +6080,10 @@ def run_line_repl(cfg):
     start_line_service = line_route_service_callbacks["start_line_service"]
     stop_line_service = line_route_service_callbacks["stop_line_service"]
 
-    line_completion_candidates, print_line_completions = build_line_completion_callbacks(
+    line_completion_candidates, print_line_completions = build_line_completion_adapter(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        line_action_records_func=lambda: current_line_action_records(lambda: workbench_snapshot(cfg)),
+        current_action_records_func=current_line_action_records,
         bridge_profile_records_func=bridge_profile_records,
         release_context_func=release_context,
         command_queue_summary_func=command_queue_summary,
@@ -6095,13 +6093,8 @@ def run_line_repl(cfg):
         service_completion_names_func=line_service_completion_names,
         service_names_func=line_service_names,
         load_staged_func=load_staged,
-        find_survey_uploads_func=lambda limit=20: configure_find_survey_uploads(cfg, limit=limit),
-        append_event_func=lambda service, event, details=None: append_event(
-            cfg,
-            service,
-            event,
-            details=details,
-        ),
+        find_survey_uploads_func=configure_find_survey_uploads,
+        append_event_fn=append_event,
     )
 
     line_action_callbacks = build_line_action_callbacks(

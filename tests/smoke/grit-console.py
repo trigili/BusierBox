@@ -416,6 +416,7 @@ def run_line_repl_runtime_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
+    import gritlib.line_repl_completions as repl_completions
     import gritlib.line_repl_core as repl_core
     import gritlib.line_repl_navigation as repl_navigation
     import gritlib.line_repl_show as repl_show
@@ -1476,6 +1477,63 @@ def run_line_repl_runtime_check():
     for marker in expected_show_markers:
         if marker not in show_calls:
             print(f"line REPL show adapter missed {marker}: {show_calls}", file=sys.stderr)
+            return 1
+
+    completion_calls = []
+    original_completion_builder = repl_completions.build_line_completion_callbacks
+
+    def fake_completion_builder(cfg, **kwargs):
+        completion_calls.append(("builder", cfg.get("name"), sorted(kwargs)))
+        kwargs["line_action_records_func"]()
+        kwargs["find_survey_uploads_func"](limit=7)
+        kwargs["append_event_func"]("workbench", "complete", details={"prefix": "st"})
+        return (
+            lambda prefix="": completion_calls.append(("candidates", prefix)) or ["status"],
+            lambda prefix="": completion_calls.append(("printer", prefix)),
+        )
+
+    repl_completions.build_line_completion_callbacks = fake_completion_builder
+    try:
+        completion_cfg = {"name": "completion-cfg"}
+        candidates, printer = repl_completions.build_line_completion_adapter(
+            completion_cfg,
+            workbench_snapshot_func=lambda cfg: completion_calls.append(("snapshot", cfg.get("name"))) or {"snap": True},
+            current_action_records_func=lambda snapshot_func: completion_calls.append(
+                ("actions", snapshot_func())
+            ) or [],
+            bridge_profile_records_func=lambda cfg: [],
+            release_context_func=lambda cfg: {},
+            command_queue_summary_func=lambda cfg: {},
+            generated_target_command_records_func=lambda cfg: [],
+            workbench_config_field_records_func=lambda cfg: [],
+            service_status_rows_func=lambda cfg: [],
+            service_completion_names_func=lambda rows: [],
+            service_names_func=lambda rows: [],
+            load_staged_func=lambda cfg: {},
+            find_survey_uploads_func=lambda cfg, limit=20: completion_calls.append(
+                ("survey", cfg.get("name"), limit)
+            ) or [],
+            append_event_fn=lambda cfg, service, event, details=None: completion_calls.append(
+                ("event", cfg.get("name"), service, event, details)
+            ),
+        )
+        if candidates("st") != ["status"]:
+            print("line REPL completion adapter did not return candidates result", file=sys.stderr)
+            return 1
+        printer("st")
+    finally:
+        repl_completions.build_line_completion_callbacks = original_completion_builder
+    expected_completion_markers = [
+        ("snapshot", "completion-cfg"),
+        ("actions", {"snap": True}),
+        ("survey", "completion-cfg", 7),
+        ("event", "completion-cfg", "workbench", "complete", {"prefix": "st"}),
+        ("candidates", "st"),
+        ("printer", "st"),
+    ]
+    for marker in expected_completion_markers:
+        if marker not in completion_calls:
+            print(f"line REPL completion adapter missed {marker}: {completion_calls}", file=sys.stderr)
             return 1
     return 0
 
