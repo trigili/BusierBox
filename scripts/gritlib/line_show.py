@@ -60,6 +60,20 @@ def parse_line_show_resource(resource):
     }
 
 
+def parse_line_show_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    if cmd == "show":
+        resource = " ".join(args).strip() if args else "options"
+    elif cmd in {"categories", "category", "module-categories"}:
+        resource = "categories"
+    elif cmd in {"modules", "module"}:
+        resource = " ".join(["modules", *args]).strip()
+    else:
+        return {}
+    return {"action": "show", "resource": resource}
+
+
 def dispatch_line_show_resource(resource, handlers):
     parsed = parse_line_show_resource(resource)
     kind = parsed["kind"]

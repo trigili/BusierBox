@@ -214,7 +214,7 @@ from gritlib.line_services import (
     select_line_service as line_services_select_line_service,
     resolve_line_service_selector as line_services_resolve_selector,
 )
-from gritlib.line_show import dispatch_line_show_resource
+from gritlib.line_show import dispatch_line_show_resource, parse_line_show_command
 from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
     print_line_session_interaction,
@@ -7744,9 +7744,12 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "show":
+            elif cmd == "show" or cmd in {
+                "categories", "category", "module-categories", "modules", "module",
+            }:
                 try:
-                    show_line_resource(" ".join(console_args[1:]).strip() if len(console_args) >= 2 else "options")
+                    show_cmd = parse_line_show_command(cmd, console_args[1:])
+                    show_line_resource(show_cmd["resource"])
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -7771,13 +7774,6 @@ def run_line_repl(cfg):
                         copy_line_generated_command(cfg, copy_cmd["selector"])
                     except ValueError as exc:
                         print(exc)
-                continue
-
-            elif cmd in {"categories", "category", "module-categories"}:
-                show_line_resource("categories")
-                continue
-            elif cmd in {"modules", "module"}:
-                show_line_resource(" ".join(["modules", *console_args[1:]]).strip())
                 continue
             elif cmd in {"services", "listeners"}:
                 listener_cmd = parse_line_listener_command(cmd, console_args[1:])
