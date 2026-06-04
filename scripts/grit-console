@@ -331,8 +331,7 @@ from gritlib.target_commands import (
     rshell_session_policy_record, rshell_session_policy_status,
     shell_listener_max_sessions,
     print_target_command_summary, target_command_display_line,
-    target_command_record_indexes,
-    target_command_record_summary, target_command_state_status,
+    target_command_status_context,
     target_command_route_text, target_command_status_summary,
 )
 from gritlib.target_records import (
@@ -2778,17 +2777,14 @@ def status_document(cfg):
         target_filter_id, selected_target
     )
     target_filter_records = [target_filter_record]
-    unfiltered_target_command_records = generated_target_command_records(cfg, unfiltered_staged_raw)
-    unfiltered_counts["target_command_records"] = len([
-        rec for rec in unfiltered_target_command_records if isinstance(rec, dict)
-    ])
-    target_command_records = generated_target_command_records(cfg, staged_raw)
-    if target_filter_id:
-        for rec in target_command_records:
-            if isinstance(rec, dict):
-                rec["target_id_filter"] = target_filter_id
-                rec.setdefault("target_id", target_filter_id)
-                rec.setdefault("target_label", (target_context_fields(cfg, target_filter_id) or {}).get("target_label", ""))
+    target_command_context = target_command_status_context(
+        cfg,
+        staged_raw=staged_raw,
+        unfiltered_staged_raw=unfiltered_staged_raw,
+        target_filter_id=target_filter_id,
+    )
+    target_command_records = target_command_context["records"]
+    unfiltered_counts["target_command_records"] = target_command_context["unfiltered_count"]
     (target_commands_by_service,
      target_commands_by_target_id,
      target_commands_by_request,
@@ -2811,8 +2807,8 @@ def status_document(cfg):
      target_commands_by_session_policy_valid,
      target_commands_by_retry_backoff,
      target_commands_by_retry_interval_sec,
-    target_commands_by_retry_post_disconnect_count) = target_command_record_indexes(target_command_records)
-    target_command_summary = target_command_record_summary(target_command_records)
+    target_commands_by_retry_post_disconnect_count) = target_command_context["indexes"]
+    target_command_summary = target_command_context["summary"]
     apply_target_filter_activity_counts(
         target_filter_record,
         target_filter_id,
@@ -2830,10 +2826,9 @@ def status_document(cfg):
         },
     )
     target_filter_index_maps = target_filter_record_indexes(target_filter_records)
-    target_command_state = target_command_state_status(target_command_summary)
-    target_command_state_record = target_command_state["state_record"]
-    target_command_state_records = target_command_state["state_records"]
-    target_command_state_index_maps = target_command_state["state_index_maps"]
+    target_command_state_record = target_command_context["state_record"]
+    target_command_state_records = target_command_context["state_records"]
+    target_command_state_index_maps = target_command_context["state_index_maps"]
     (uploads_by_filename,
      uploads_by_kind,
      uploads_by_sha256,

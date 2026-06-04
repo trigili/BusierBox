@@ -1053,6 +1053,67 @@ def run_staged_status_context_check():
     return 0
 
 
+def run_target_command_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.target_commands import target_command_status_context
+
+    cfg = {
+        "GRIT_OPERATOR_HOST": "127.0.0.1",
+        "GRIT_OPERATOR_FILE_SERVICE_PORT": 22444,
+        "_target_label_filter": "Router A",
+    }
+    staged_raw = {
+        "payload-a": {
+            "request_name": "payload-a",
+            "source_path": "payload-a.bin",
+            "stage_kind": "operator-upload",
+        },
+    }
+    unfiltered_staged_raw = {
+        **staged_raw,
+        "payload-b": {
+            "request_name": "payload-b",
+            "source_path": "payload-b.bin",
+            "stage_kind": "release-artifact",
+        },
+    }
+    context = target_command_status_context(
+        cfg,
+        staged_raw=staged_raw,
+        unfiltered_staged_raw=unfiltered_staged_raw,
+        target_filter_id="target-a",
+    )
+    records = context.get("records") or []
+    indexes = context.get("indexes") or ()
+    summary = context.get("summary") or {}
+    if not records or context.get("unfiltered_count", 0) <= len(records):
+        print("target command status context did not preserve unfiltered count", file=sys.stderr)
+        return 1
+    if not any(
+        rec.get("target_id_filter") == "target-a" and rec.get("target_label") == "Router A"
+        for rec in records
+    ):
+        print("target command status context did not apply target filter fields", file=sys.stderr)
+        return 1
+    if summary.get("total_count") != len(records):
+        print("target command status context did not preserve summary", file=sys.stderr)
+        return 1
+    if len(indexes) != 23:
+        print("target command status context returned unexpected index tuple", file=sys.stderr)
+        return 1
+    _by_service, by_target_id, by_request, *_rest = indexes
+    if "target-a" not in by_target_id or "payload-a" not in by_request:
+        print("target command status context did not preserve indexes", file=sys.stderr)
+        return 1
+    state = context.get("state_record") or {}
+    if state.get("command_count") != len(records) or not (context.get("state_records") or []):
+        print("target command status context did not preserve state records", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4275,6 +4336,8 @@ def main(argv=None):
     if run_build_config_dispatch_check() != 0:
         return 1
     if run_staged_status_context_check() != 0:
+        return 1
+    if run_target_command_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1

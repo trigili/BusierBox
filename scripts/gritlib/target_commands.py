@@ -10,7 +10,7 @@ from gritlib.probe_commands import probe_route_context, render_probe_command
 from gritlib.record_utils import format_counts, int_value, records_by_key
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged
-from gritlib.target_records import configured_target_filter
+from gritlib.target_records import configured_target_filter, target_context_fields
 
 
 def print_target_command_summary(doc):
@@ -537,6 +537,40 @@ def target_command_record_summary(records):
         "by_session_policy_valid": by_session_policy_valid,
         "session_policy_error_count": session_policy_error_count,
         "by_retry_backoff": by_retry_backoff,
+    }
+
+
+def target_command_status_context(
+    cfg,
+    staged_raw=None,
+    unfiltered_staged_raw=None,
+    target_filter_id=None,
+):
+    unfiltered_target_command_records = generated_target_command_records(
+        cfg,
+        unfiltered_staged_raw,
+    )
+    target_command_records = generated_target_command_records(cfg, staged_raw)
+    if target_filter_id:
+        target_fields = target_context_fields(cfg, target_filter_id) or {}
+        for rec in target_command_records:
+            if isinstance(rec, dict):
+                rec["target_id_filter"] = target_filter_id
+                rec.setdefault("target_id", target_filter_id)
+                rec.setdefault("target_label", target_fields.get("target_label", ""))
+    target_command_summary = target_command_record_summary(target_command_records)
+    target_command_state = target_command_state_status(target_command_summary)
+    return {
+        "records": target_command_records,
+        "unfiltered_records": unfiltered_target_command_records,
+        "unfiltered_count": len([
+            rec for rec in unfiltered_target_command_records if isinstance(rec, dict)
+        ]),
+        "indexes": target_command_record_indexes(target_command_records),
+        "summary": target_command_summary,
+        "state_record": target_command_state["state_record"],
+        "state_records": target_command_state["state_records"],
+        "state_index_maps": target_command_state["state_index_maps"],
     }
 
 
