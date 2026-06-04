@@ -26,6 +26,29 @@ ROUTE_HELP_LINES = [
 ]
 
 
+def parse_line_route_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    subcmd = str(args[0]).lower() if args else ""
+    if cmd == "route" and subcmd == "add":
+        return {"action": "add", "args": args}
+    if cmd == "route" and subcmd == "start":
+        return {"action": "start", "selector": " ".join(args[1:]).strip()}
+    if cmd == "route" and subcmd == "stop":
+        return {"action": "stop", "selector": " ".join(args[1:]).strip()}
+    if cmd == "route" and subcmd in {"delete", "rm", "remove"}:
+        return {"action": "delete", "selector": " ".join(args[1:]).strip()}
+    if subcmd in {"-h", "--help"}:
+        return {"action": "help"}
+    if subcmd in {"-v", "--verbose"}:
+        return {"action": "list", "verbose": True}
+    if cmd == "route" and subcmd == "print":
+        return {"action": "list", "verbose": False}
+    if cmd == "route" and args:
+        return {"action": "select", "selector": " ".join(args).strip()}
+    return {"action": "list", "verbose": False}
+
+
 def bridge_profiles_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
     return Path(str(cfg.get("bridge_profiles_file") or Path(str(cfg.get("operator_session_dir", default_operator_session_dir))) / "bridge-profiles.json"))
 

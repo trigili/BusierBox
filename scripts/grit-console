@@ -46,6 +46,7 @@ from gritlib.bridge_routes import (
     add_line_route as bridge_routes_add_line_route,
     delete_line_route as bridge_routes_delete_line_route,
     line_route_record as bridge_routes_line_route_record,
+    parse_line_route_command,
     print_line_routes as bridge_routes_print_line_routes,
     select_line_route as bridge_routes_select_line_route,
     start_line_route as bridge_routes_start_line_route,
@@ -7861,43 +7862,37 @@ def run_line_repl(cfg):
                     print_line_sessions(verbose=session_cmd["verbose"])
                 continue
             elif cmd in {"routes", "route"}:
-                route_subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
-                if cmd == "route" and route_subcmd == "add":
+                route_cmd = parse_line_route_command(cmd, console_args[1:])
+                if route_cmd["action"] == "add":
                     try:
-                        add_line_route(console_args[1:])
+                        add_line_route(route_cmd["args"])
                     except ValueError as exc:
                         print(exc)
-                elif cmd == "route" and route_subcmd == "start":
+                elif route_cmd["action"] == "start":
                     try:
-                        start_line_route(" ".join(console_args[2:]).strip())
+                        start_line_route(route_cmd["selector"])
                     except ValueError as exc:
                         print(exc)
-                elif cmd == "route" and route_subcmd == "stop":
+                elif route_cmd["action"] == "stop":
                     try:
-                        stop_line_route(" ".join(console_args[2:]).strip())
+                        stop_line_route(route_cmd["selector"])
                     except ValueError as exc:
                         print(exc)
-                elif cmd == "route" and route_subcmd in {"delete", "rm", "remove"}:
+                elif route_cmd["action"] == "delete":
                     try:
-                        delete_line_route(" ".join(console_args[2:]).strip())
+                        delete_line_route(route_cmd["selector"])
                     except ValueError as exc:
                         print(exc)
-                elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
+                elif route_cmd["action"] == "help":
                     print_line_command_help("routes")
-                elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
-                    set_line_collection("routes")
-                    print_line_routes(verbose=True)
-                elif cmd == "route" and route_subcmd == "print":
-                    set_line_collection("routes")
-                    print_line_routes()
-                elif cmd == "route" and len(console_args) >= 2:
+                elif route_cmd["action"] == "select":
                     try:
-                        select_line_route(" ".join(console_args[1:]).strip())
+                        select_line_route(route_cmd["selector"])
                     except ValueError as exc:
                         print(exc)
                 else:
                     set_line_collection("routes")
-                    print_line_routes()
+                    print_line_routes(verbose=route_cmd["verbose"])
                 continue
             elif cmd == "use" and len(console_args) == 2 and console_args[1].isdigit():
                 try:
