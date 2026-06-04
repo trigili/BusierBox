@@ -229,7 +229,7 @@ def configure_line_artifact(cfg, args, append_event_fn=None):
     if action == "set":
         cmd = [str(helper), "set", "--obfuscation", obfuscation, str(artifact)] + kv
     result = subprocess.run(cmd, cwd=Path(__file__).resolve().parent.parent, text=True, capture_output=True)
-    if result.stdout:
+    if result.returncode != 0 and result.stdout:
         print(result.stdout, end="")
     if result.stderr:
         print(result.stderr, end="")
