@@ -5541,7 +5541,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "show modules daemon\n"
                 "modules file-service\n"
                 "show service modules -v\n"
-                "use 1\n"
+                "use module 99\n"
+                "use module 1\n"
                 "?\n"
                 "info\n"
                 "next\n"
@@ -6217,14 +6218,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     service_modules_end = line_console_stdout.find("grit[all]> show daemon modules", service_modules_start + 1)
     service_modules_text = line_console_stdout[service_modules_start:service_modules_end] if service_modules_start != -1 and service_modules_end != -1 else ""
     service_modules_verbose_start = line_console_stdout.find("grit[all]/modules> show service modules -v")
-    service_modules_verbose_end = line_console_stdout.find("grit[all]/modules> use 1", service_modules_verbose_start + 1)
+    service_modules_verbose_end = line_console_stdout.find("grit[all]/modules> use module 99", service_modules_verbose_start + 1)
     service_modules_verbose_text = line_console_stdout[service_modules_verbose_start:service_modules_verbose_end] if service_modules_verbose_start != -1 and service_modules_verbose_end != -1 else ""
     if (not service_modules_text or
             "Modules  (service)" not in service_modules_text or
             "\n      run: scripts/grit-console" in service_modules_text or
             "modules -v for commands" not in service_modules_text or
             not service_modules_verbose_text or
-            "\n      run: scripts/grit-console" not in service_modules_verbose_text):
+            "\n      run: scripts/grit-console" not in service_modules_verbose_text or
+            "action number out of range: 99" not in line_console_stdout or
+            "numbered result not found: 99;" in line_console_stdout):
         print("line-oriented module list did not keep generated commands behind verbose mode", file=sys.stderr)
         print("default service modules:", file=sys.stderr)
         print(service_modules_text or line_console_stdout, file=sys.stderr)
@@ -6236,7 +6239,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     action_help_text = line_console_stdout[action_help_start:action_help_end] if action_help_start != -1 and action_help_end != -1 else ""
     if (not action_help_text or
             "Help: actions" not in action_help_text or
-            "use module NAME" not in action_help_text or
+            "use module NAME|NUMBER" not in action_help_text or
             "check [MODULE]" not in action_help_text or
             "Help: console" in action_help_text):
         print("line-oriented action context help fell back to generic console help", file=sys.stderr)

@@ -348,7 +348,7 @@ def print_line_action_records(actions, filter_text="", kind_filter="", quote=Non
     ]
     console_table(
         title, shown, cols, detail_fn=_detail,
-        footer="use N  |  use module NAME  |  modules -v for commands  |  modules ? for help",
+        footer="use N  |  use module NAME|NUMBER  |  modules -v for commands  |  modules ? for help",
     )
     grouped = {}
     for rec in actions:

@@ -425,7 +425,7 @@ def print_line_command_help(topic):
                 ("show modules [FILTER]", "browse runnable service, daemon, target, and workbench modules"),
                 ("show service|daemon|target|workbench modules", "browse modules by category"),
                 ("modules -v [FILTER]", "include generated headless run commands"),
-                ("use module NAME", "select an action module context"),
+                ("use module NAME|NUMBER", "select an action module context"),
                 ("use N", "select a numbered module from the last module list"),
                 ("info", "show selected action state and summary"),
                 ("options, show options", "show selected action inputs and related context"),
