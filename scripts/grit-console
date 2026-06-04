@@ -6261,7 +6261,6 @@ def run_line_repl(cfg):
     )
     line_navigation_callbacks = build_line_navigation_callbacks(
         cfg,
-        target_filter_func=configured_target_filter,
         append_event_fn=append_event,
         clear_results_func=clear_line_search_results,
         set_context_func=set_line_collection_context,

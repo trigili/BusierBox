@@ -2112,6 +2112,7 @@ def run_line_repl_runtime_check():
 
         def dispatch_navigation_bundle(command, args):
             navigation_bundle_calls.append(("dispatch", command, tuple(args)))
+            navigation_bundle_calls.append(("target-selected", kwargs["target_filter_func"]({"name": "ignored"})))
             kwargs["print_targets_func"]()
             kwargs["print_routes_func"](verbose=True)
             kwargs["print_sessions_func"](verbose=True)
@@ -2128,7 +2129,6 @@ def run_line_repl_runtime_check():
     try:
         navigation_bundle = repl_navigation.build_line_navigation_callbacks(
             {"name": "nav-bundle-cfg"},
-            target_filter_func=lambda cfg: cfg.get("target"),
             append_event_fn=lambda cfg, service, event, details=None: navigation_bundle_calls.append(
                 ("event", cfg.get("name"), service, event)
             ),
@@ -2142,6 +2142,7 @@ def run_line_repl_runtime_check():
                 "use_line_search_result": lambda selector: navigation_bundle_calls.append(("number", selector)),
             },
             target_callbacks={
+                "target_filter": lambda: navigation_bundle_calls.append("target-filter") or "target1",
                 "print_line_targets": lambda: navigation_bundle_calls.append("targets"),
                 "select_line_target": lambda selector, targets=None: navigation_bundle_calls.append(
                     ("target", selector, targets)
@@ -2188,6 +2189,8 @@ def run_line_repl_runtime_check():
     expected_navigation_bundle_calls = [
         ("builder", "nav-bundle-cfg"),
         ("dispatch", "targets", ("list",)),
+        "target-filter",
+        ("target-selected", "target1"),
         "targets",
         ("routes", True),
         ("sessions", True),

@@ -6,7 +6,7 @@ from gritlib.line_navigation_commands import dispatch_line_navigation_command
 def build_line_navigation_callbacks(
     cfg,
     *,
-    target_filter_func,
+    target_filter_func=None,
     append_event_fn,
     clear_results_func,
     set_context_func,
@@ -23,6 +23,9 @@ def build_line_navigation_callbacks(
     queue_callbacks=None,
     search_callbacks=None,
 ):
+    if target_filter_func is None:
+        target_filter = target_callbacks["target_filter"]
+        target_filter_func = lambda _cfg: target_filter()
     if number_func is None and search_callbacks is not None:
         number_func = search_callbacks["use_line_search_result"]
     dispatch_navigation = build_line_navigation_dispatch_callback(
