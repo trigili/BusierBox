@@ -37,6 +37,33 @@ def parse_line_sessions_command(cmd, args):
     return {"action": "list", "verbose": False}
 
 
+def dispatch_line_sessions_command(
+    session_cmd,
+    *,
+    clear_func=None,
+    help_func=None,
+    interact_func=None,
+    list_func=None,
+):
+    action = (session_cmd or {}).get("action")
+    try:
+        if action == "clear" and clear_func:
+            return clear_func(
+                all_sessions=bool(session_cmd.get("all_sessions")),
+                confirm=bool(session_cmd.get("confirm")),
+            )
+        if action == "help" and help_func:
+            return help_func("sessions")
+        if action == "interact" and interact_func:
+            return interact_func(session_cmd.get("selector", ""))
+        if action == "list" and list_func:
+            return list_func(verbose=bool(session_cmd.get("verbose")))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported sessions command")
+
+
 def line_session_state_text(rec):
     state = rec.get("state") or "-"
     exit_reason = rec.get("exit_reason") or ""

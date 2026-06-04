@@ -227,6 +227,7 @@ from gritlib.line_services import (
 from gritlib.line_show import dispatch_line_show_resource, parse_line_show_command
 from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
+    dispatch_line_sessions_command,
     print_line_session_interaction,
     line_session_record_by_selector, print_line_session_records,
     parse_line_sessions_command, print_selected_line_session,
@@ -7729,21 +7730,16 @@ def run_line_repl(cfg):
                         print(exc)
                 continue
             elif (session_cmd := parse_line_sessions_command(cmd, console_args[1:])):
-                if session_cmd["action"] == "clear":
-                    clear_line_sessions(
-                        all_sessions=session_cmd["all_sessions"],
-                        confirm=session_cmd["confirm"],
-                    )
-                elif session_cmd["action"] == "help":
-                    print_line_command_help("sessions")
-                elif session_cmd["action"] == "interact":
-                    try:
-                        interact_line_session(session_cmd["selector"])
-                    except ValueError as exc:
-                        print(exc)
-                else:
-                    set_line_collection("sessions")
-                    print_line_sessions(verbose=session_cmd["verbose"])
+                dispatch_line_sessions_command(
+                    session_cmd,
+                    clear_func=clear_line_sessions,
+                    help_func=print_line_command_help,
+                    interact_func=interact_line_session,
+                    list_func=lambda verbose=False: (
+                        set_line_collection("sessions"),
+                        print_line_sessions(verbose=verbose),
+                    ),
+                )
                 continue
             elif (route_cmd := parse_line_route_command(cmd, console_args[1:])):
                 dispatch_line_route_command(
