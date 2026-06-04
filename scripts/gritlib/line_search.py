@@ -113,3 +113,45 @@ def print_line_search_results(
             "use_hint": use_hint,
         })
     return search_records
+
+
+def use_line_search_result(
+    selector,
+    results,
+    *,
+    select_target,
+    select_service,
+    select_route,
+    select_action,
+    select_session,
+    select_job,
+    probe_result_config,
+):
+    text = str(selector or "").strip()
+    if not text.isdigit():
+        raise ValueError("usage: use N")
+    results = list(results or [])
+    if not results:
+        raise ValueError("no numbered results active; run search, targets, listeners, sessions, files, jobs, routes, or probe results")
+    idx = int(text) - 1
+    if idx < 0 or idx >= len(results):
+        raise ValueError(f"search result number out of range: {text}")
+    item = results[idx] if isinstance(results[idx], dict) else {}
+    kind = str(item.get("kind") or "")
+    rec = item.get("rec") if isinstance(item.get("rec"), dict) else {}
+    if kind == "target":
+        return select_target(str(rec.get("target_id") or ""))
+    if kind == "service":
+        return select_service(str(rec.get("name") or ""))
+    if kind == "route":
+        return select_route(str(rec.get("name") or ""))
+    if kind == "action":
+        return select_action(str(rec.get("id") or ""))
+    if kind == "session":
+        session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
+        return select_session(str(session_id))
+    if kind == "job":
+        return select_job(str(rec.get("id") or ""))
+    if kind == "probe-result":
+        return probe_result_config([str(item.get("ordinal") or text)])
+    raise ValueError(f"search result {text} is not directly selectable")

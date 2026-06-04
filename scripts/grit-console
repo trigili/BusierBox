@@ -195,7 +195,10 @@ from gritlib.line_release import (
     print_line_release as line_release_print_line_release,
     stage_line_release as line_release_stage_line_release,
 )
-from gritlib.line_search import print_line_search_results
+from gritlib.line_search import (
+    print_line_search_results,
+    use_line_search_result as line_search_use_line_search_result,
+)
 from gritlib.line_services import (
     line_service_display_name,
     line_service_completion_names, line_service_names, line_service_record,
@@ -7134,37 +7137,17 @@ def run_line_repl(cfg):
         return print_line_events_view(cfg, args)
 
     def use_line_search_result(selector):
-        text = str(selector or "").strip()
-        if not text.isdigit():
-            raise ValueError("usage: use N")
-        results = cfg.get("_line_console_search_results") or []
-        if not results:
-            raise ValueError("no numbered results active; run search, targets, listeners, sessions, files, jobs, routes, or probe results")
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(results):
-            raise ValueError(f"search result number out of range: {text}")
-        item = results[idx] if isinstance(results[idx], dict) else {}
-        kind = str(item.get("kind") or "")
-        rec = item.get("rec") if isinstance(item.get("rec"), dict) else {}
-        label = str(item.get("label") or "")
-        # Suppress generic "selected search result" line — the specific
-        # select_line_* function prints a cleaner confirmation.
-        if kind == "target":
-            return select_line_target(str(rec.get("target_id") or ""))
-        if kind == "service":
-            return select_line_service(str(rec.get("name") or ""))
-        if kind == "route":
-            return select_line_route(str(rec.get("name") or ""))
-        if kind == "action":
-            return select_line_action(str(rec.get("id") or ""))
-        if kind == "session":
-            session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
-            return select_line_session(str(session_id))
-        if kind == "job":
-            return select_line_job(str(rec.get("id") or ""))
-        if kind == "probe-result":
-            return run_line_probe_config([str(item.get("ordinal") or text)])
-        raise ValueError(f"search result {text} is not directly selectable")
+        return line_search_use_line_search_result(
+            selector,
+            cfg.get("_line_console_search_results") or [],
+            select_target=select_line_target,
+            select_service=select_line_service,
+            select_route=select_line_route,
+            select_action=select_line_action,
+            select_session=select_line_session,
+            select_job=select_line_job,
+            probe_result_config=lambda args: configure_line_probe_config(cfg, args, append_event_fn=append_event),
+        )
 
     def print_line_module_categories():
         return line_actions_print_line_module_categories(cfg, line_action_records())
