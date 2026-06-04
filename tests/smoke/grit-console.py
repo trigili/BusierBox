@@ -2249,6 +2249,79 @@ def run_line_repl_runtime_check():
             print(f"line REPL legacy adapter missed {marker}: {legacy_calls}", file=sys.stderr)
             return 1
 
+    legacy_bundle_calls = []
+    original_legacy_builder = repl_legacy.build_line_legacy_dispatch_callback
+
+    def fake_legacy_builder(cfg, **kwargs):
+        legacy_bundle_calls.append(("builder", cfg.get("name")))
+
+        def dispatch_legacy_bundle(choice):
+            legacy_bundle_calls.append(("dispatch", choice))
+            kwargs["line_start_service_func"]("svc")
+            kwargs["line_stop_service_func"]("svc")
+            kwargs["stage_binary_func"]("bin")
+            kwargs["print_queue_func"]()
+            return "legacy-bundle"
+
+        return dispatch_legacy_bundle
+
+    repl_legacy.build_line_legacy_dispatch_callback = fake_legacy_builder
+    try:
+        legacy_bundle = repl_legacy.build_line_legacy_callbacks(
+            {"name": "legacy-bundle-cfg"},
+            input_func=lambda prompt: legacy_bundle_calls.append(("input", prompt)),
+            use_result_func=lambda selector: legacy_bundle_calls.append(("use", selector)),
+            clear_results_func=lambda cfg: legacy_bundle_calls.append(("clear", cfg.get("name"))),
+            start_service_func=lambda service: legacy_bundle_calls.append(("start-service", service)),
+            stop_service_func=lambda service: legacy_bundle_calls.append(("stop-service", service)),
+            service_rows_func=lambda cfg: legacy_bundle_calls.append(("service-rows", cfg.get("name"))) or [],
+            service_record_func=lambda rows, service: legacy_bundle_calls.append(("service-record", rows, service)),
+            sleep_func=lambda seconds: legacy_bundle_calls.append(("sleep", seconds)),
+            append_event_fn=lambda cfg, service, event: legacy_bundle_calls.append(
+                ("event", cfg.get("name"), service, event)
+            ),
+            print_staged_func=lambda: legacy_bundle_calls.append("staged"),
+            snapshot_func=lambda cfg: legacy_bundle_calls.append(("snapshot", cfg.get("name"))) or {},
+            view_path_func=lambda path: legacy_bundle_calls.append(("view", path)),
+            actions_func=lambda cfg: legacy_bundle_calls.append(("actions", cfg.get("name"))) or [],
+            run_workbench_action_func=lambda selector: legacy_bundle_calls.append(("workbench-action", selector)),
+            run_target_workflow_func=lambda selector: legacy_bundle_calls.append(("target-action", selector)),
+            scoped_target_cfg_func=lambda cfg: legacy_bundle_calls.append(("scoped", cfg.get("name"))) or cfg,
+            print_target_summary_func=lambda target: legacy_bundle_calls.append(("target-summary", target)),
+            bridge_command_builder=lambda action, name="", extra=None: legacy_bundle_calls.append(
+                ("bridge-command", action, name, extra)
+            ),
+            print_bridge_profile_func=lambda name: legacy_bundle_calls.append(("bridge-print", name)),
+            delete_bridge_profile_func=lambda name: legacy_bundle_calls.append(("bridge-delete", name)),
+            action_state_text_func=lambda rec: legacy_bundle_calls.append(("state-text", rec)),
+            route_service_callbacks={
+                "start_line_service": lambda selector: legacy_bundle_calls.append(("line-start", selector)),
+                "stop_line_service": lambda selector: legacy_bundle_calls.append(("line-stop", selector)),
+            },
+            file_callbacks={
+                "stage_binary": lambda selector: legacy_bundle_calls.append(("stage", selector)),
+            },
+            queue_callbacks={
+                "print_line_command_queue_view": lambda: legacy_bundle_calls.append("queue"),
+            },
+        )
+        if legacy_bundle["dispatch_line_legacy"]("1") != "legacy-bundle":
+            print("line REPL legacy bundle did not return dispatch result", file=sys.stderr)
+            return 1
+    finally:
+        repl_legacy.build_line_legacy_dispatch_callback = original_legacy_builder
+    expected_legacy_bundle_calls = [
+        ("builder", "legacy-bundle-cfg"),
+        ("dispatch", "1"),
+        ("line-start", "svc"),
+        ("line-stop", "svc"),
+        ("stage", "bin"),
+        "queue",
+    ]
+    if legacy_bundle_calls != expected_legacy_bundle_calls:
+        print(f"line REPL legacy bundle wiring changed: {legacy_bundle_calls}", file=sys.stderr)
+        return 1
+
     lifecycle_calls = []
     lifecycle_cfg = {"name": "life-cfg"}
 
