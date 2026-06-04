@@ -9,6 +9,7 @@ from gritlib.file_transfers import (
     print_staged_fetch_target_options,
     render_fetch_command,
     render_file_service_command,
+    staged_fetch_target_commands,
 )
 from gritlib.line_search import set_line_search_results
 from gritlib.release_artifacts import release_context, release_nav_records, stage_release_selection
@@ -662,8 +663,9 @@ def stage_line_file(
     print(f"  name: {rec.get('request_name', '')}")
     print(f"  source: {rec.get('source_path', '')}")
     print(f"  sha256: {str(rec.get('sha256', ''))[:16]}...")
-    print(f"  target fetch: {fetch_command}")
-    fetch_options = print_staged_fetch_target_options(rec.get("request_name", ""), cfg)
+    print(f"  next: fetch {rec.get('request_name', '')}")
+    print("  fetch shows target-side commands; fetch --queue queues it for the selected agent")
+    fetch_options = staged_fetch_target_commands(rec.get("request_name", ""), cfg)
     started = False
     if start_file_service:
         if start_file_service_fn:

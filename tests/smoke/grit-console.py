@@ -1358,6 +1358,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Target download command:",
         "target path: /etc/config/network",
         "File staged for target fetch:",
+        "next: fetch console-upload",
+        "fetch shows target-side commands; fetch --queue queues it for the selected agent",
         "Staged fetch command:",
         "griTTYkit binary staged for target fetch:",
         "Artifact trailer configured:",
@@ -1547,6 +1549,17 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     if "search result number out of range" in line_console_stdout:
         print("line-oriented console interpreted a normal command as a stale search result", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
+        return 1
+    upload_start = line_console_stdout.find("File staged for target fetch:")
+    upload_end = line_console_stdout.find("file-service started", upload_start + 1)
+    upload_text = line_console_stdout[upload_start:upload_end] if upload_start != -1 and upload_end != -1 else ""
+    if (not upload_text or
+            "File staged for target fetch:" not in upload_text or
+            "  next: fetch console-upload" not in upload_text or
+            "Target fetch options:" in upload_text or
+            "  target fetch:" in upload_text):
+        print("line-oriented upload output exposed target fetch commands instead of concise next action", file=sys.stderr)
+        print(upload_text or line_console_stdout, file=sys.stderr)
         return 1
     queue_context_help_start = line_console_stdout.find("grit[Console Router]/queue> mailbox ?")
     queue_context_help_end = line_console_stdout.find("grit[Console Router]/queue> ?", queue_context_help_start + 1)
