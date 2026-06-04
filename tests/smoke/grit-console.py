@@ -627,7 +627,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     workspace_empty_text = workspace_empty_buf.getvalue()
     if (
         "No active workspace items yet." not in workspace_empty_text or
-        "probe --start        serve the shell probe and print target commands" not in workspace_empty_text or
+        "probe start          serve the shell probe and print target commands" not in workspace_empty_text or
         "listeners            see services you can start" not in workspace_empty_text or
         "upload --start FILE  stage a file for target fetch" not in workspace_empty_text
     ):
@@ -673,7 +673,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     if (
         "mailbox (2 pending)" not in selected_banner_hint_text or
         "queue COMMAND" not in selected_banner_hint_text or
-        "probe --queue" not in selected_banner_hint_text or
+        "probe queue" not in selected_banner_hint_text or
         "download --queue PATH" not in selected_banner_hint_text or
         "clear target" not in selected_banner_hint_text
     ):
@@ -1432,6 +1432,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     )
     if (not probe_context_help_text or
             "Help: probe" not in probe_context_help_text or
+            "probe start" not in probe_context_help_text or
+            "probe queue" not in probe_context_help_text or
+            "Compatibility aliases: probe --start and probe --queue still work." not in probe_context_help_text or
             "Console help topics:" in probe_context_help_text):
         print("line-oriented bare ? did not use probe breadcrumb context", file=sys.stderr)
         print(probe_context_help_text or line_console_stdout, file=sys.stderr)

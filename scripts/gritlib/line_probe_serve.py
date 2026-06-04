@@ -186,7 +186,7 @@ def run_line_probe_serve(cfg, args, line_input_fn, stage_line_release_fn, append
     start_file_service = parse_line_probe_serve_args(args)
     rec = probe_latest_result(cfg)
     if not rec:
-        raise ValueError("no probe results - run: probe --start")
+        raise ValueError("no probe results - run: probe start")
     uname_m, endian = probe_effective_arch(rec)
     kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
     probe_arch = normalized_probe_arch(uname_m, endian)

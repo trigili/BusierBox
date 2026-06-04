@@ -161,7 +161,7 @@ def print_probe_result_records(records):
         print("    probe clear [N|--all]                  — remove stale probe results")
         print("    probe serve [--start]                  — stage the matching binary for this arch")
     else:
-        print("  No results yet — run: probe --start")
+        print("  No results yet — run: probe start")
 
 
 def line_probe_result_search_records(records):

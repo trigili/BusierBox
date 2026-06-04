@@ -51,7 +51,7 @@ def build_line_probe_start_callback(
 
         if not already_listening and not started:
             print(f"Probe listener is not running on port {port}.")
-            print("  start it with: probe --start")
+            print("  start it with: probe start")
             print("")
 
         state = "listening" if (already_listening or started) else "not listening"
@@ -61,7 +61,7 @@ def build_line_probe_start_callback(
         target_id = target_filter_func(cfg)
         if queue:
             if not target_id:
-                raise ValueError("select an agent before probe --queue; use agent NAME or use target ID")
+                raise ValueError("select an agent before probe queue; use agent NAME or use target ID")
             queued = queue_command_func(cfg, command, metadata={
                 "work_kind": "probe",
                 "workflow": "probe",
