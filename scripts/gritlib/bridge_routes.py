@@ -459,6 +459,84 @@ def add_line_route(cfg, args, headless_command_builder=None):
     return rec
 
 
+def prompt_line_bridge_profile_save(
+    cfg, line_input_fn, headless_command_builder=None
+):
+    name_line = line_input_fn("bridge profile name> ")
+    name = name_line.strip() if name_line is not None else ""
+    if not name:
+        return None
+    listen_default = str(cfg.get("bridge_listen_port", 22206))
+    dest_host_default = str(cfg.get("bridge_dest_host", "127.0.0.1"))
+    dest_port_default = str(cfg.get("bridge_dest_port", ""))
+    listen_line = line_input_fn(f"listen port [{listen_default}]> ")
+    dest_host_line = line_input_fn(f"destination host [{dest_host_default}]> ")
+    dest_port_line = line_input_fn(f"destination port [{dest_port_default}]> ")
+    purpose_line = line_input_fn("purpose> ")
+    notes_line = line_input_fn("notes> ")
+    hops_line = line_input_fn("hops separated by ;, or blank for one-hop default> ")
+    try:
+        listen_port = int(
+            (
+                listen_line.strip()
+                if listen_line is not None and listen_line.strip()
+                else listen_default
+            )
+            or "0"
+        )
+        dest_port = int(
+            (
+                dest_port_line.strip()
+                if dest_port_line is not None and dest_port_line.strip()
+                else dest_port_default
+            )
+            or "0"
+        )
+        save_cfg = dict(cfg)
+        save_cfg["bridge_listen_port"] = listen_port
+        save_cfg["bridge_dest_host"] = (
+            dest_host_line.strip()
+            if dest_host_line is not None and dest_host_line.strip()
+            else dest_host_default
+        )
+        save_cfg["bridge_dest_port"] = dest_port
+        hop_args = [
+            item.strip() for item in (hops_line or "").split(";")
+            if item.strip()
+        ]
+        extra = [
+            "--save-bridge-profile", name,
+            "--bridge-port", str(listen_port),
+            "--bridge-dest-host", str(save_cfg["bridge_dest_host"]),
+            "--bridge-dest-port", str(dest_port),
+        ]
+        if purpose_line is not None and purpose_line.strip():
+            extra.extend(["--bridge-profile-purpose", purpose_line.strip()])
+        if notes_line is not None and notes_line.strip():
+            extra.extend(["--bridge-profile-notes", notes_line.strip()])
+        for hop in hop_args:
+            extra.extend(["--bridge-hop", hop])
+        rec = save_bridge_profile(
+            save_cfg, name,
+            purpose=(purpose_line or "").strip(),
+            notes=(notes_line or "").strip(),
+            hop_args=hop_args,
+        )
+        print(f"saved bridge profile {rec.get('name', '')}: {rec.get('route_path', '')}")
+        headless_command_builder = headless_command_builder or (
+            lambda _action, _name="", extra=None: ""
+        )
+        append_event(cfg, "workbench", "workbench_bridge_profile_saved", details={
+            "name": rec.get("name", ""),
+            "route_path": rec.get("route_path", ""),
+            "headless_command": headless_command_builder("save", extra=extra),
+        })
+        return rec
+    except (TypeError, ValueError) as exc:
+        print(exc)
+        return None
+
+
 def start_line_route(
     cfg, route_name, records, headless_command_builder=None, start_service=None
 ):
