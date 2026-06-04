@@ -449,6 +449,21 @@ def service_manager_status(snapshot):
     }
 
 
+def service_status_context(cfg, manager_snapshot):
+    services = service_status_rows(cfg)
+    manager_status = service_manager_status(manager_snapshot)
+    return {
+        "services": services,
+        "manager": manager_snapshot,
+        "manager_status": manager_status,
+        "manager_resources": manager_status["resources"],
+        "manager_resource_index_maps": manager_status["resource_index_maps"],
+        "manager_state_record": manager_status["state_record"],
+        "manager_state_records": manager_status["state_records"],
+        "manager_state_index_maps": manager_status["state_index_maps"],
+    }
+
+
 def service_record_indexes(records):
     by_actual = {}
     by_configured = {}

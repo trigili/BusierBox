@@ -1114,6 +1114,51 @@ def run_target_command_status_context_check():
     return 0
 
 
+def run_service_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.service_status import service_status_context
+
+    manager_snapshot = {
+        "shutdown_requested": False,
+        "socket_count": 1,
+        "open_socket_count": 1,
+        "transport_count": 1,
+        "active_transport_count": 1,
+        "thread_count": 1,
+        "alive_thread_count": 1,
+        "child_process_count": 1,
+        "running_child_process_count": 1,
+        "sockets": [{"closed": False, "fileno": 3, "local": "127.0.0.1:1"}],
+        "transports": [{"active": True, "type": "ssh"}],
+        "threads": [{"alive": True, "name": "worker", "ident": 7}],
+        "child_processes": [{"running": True, "pid": 1234, "returncode": ""}],
+    }
+    context = service_status_context({"listen_host": "127.0.0.1"}, manager_snapshot)
+    resources = context.get("manager_resources") or []
+    state = context.get("manager_state_record") or {}
+    if context.get("manager") != manager_snapshot or context.get("manager_status", {}).get("resources") != resources:
+        print("service status context did not preserve manager snapshot/status", file=sys.stderr)
+        return 1
+    if not isinstance(context.get("services"), list):
+        print("service status context did not return service rows", file=sys.stderr)
+        return 1
+    if len(resources) != 4 or state.get("resource_count") != 4:
+        print("service status context did not preserve manager resources", file=sys.stderr)
+        return 1
+    resource_indexes = context.get("manager_resource_index_maps") or {}
+    state_indexes = context.get("manager_state_index_maps") or {}
+    if ("service_manager_resources_by_kind_state" not in resource_indexes or
+            "service_manager_state_records_by_has_resources" not in state_indexes):
+        print("service status context did not preserve index maps", file=sys.stderr)
+        return 1
+    if not state.get("has_open_sockets") or not state.get("has_active_transports"):
+        print("service status context did not preserve manager state flags", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4338,6 +4383,8 @@ def main(argv=None):
     if run_staged_status_context_check() != 0:
         return 1
     if run_target_command_status_context_check() != 0:
+        return 1
+    if run_service_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1
