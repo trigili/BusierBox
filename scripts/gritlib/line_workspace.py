@@ -93,7 +93,7 @@ def line_banner_hint(snap):
     summary = snap.get("summary") or {}
     warnings = snap.get("warnings") or []
     target_filter = snap.get("target_filter") or {}
-    hints = ["? help", "next", "workspace overview"]
+    hints = ["? help"]
 
     pending_work = _count_value(
         summary.get("mailbox_pending_work_count")
@@ -116,9 +116,10 @@ def line_banner_hint(snap):
             hints.append(f"mailbox ({pending_work} pending)")
         else:
             hints.append("mailbox")
-        hints.extend(["sessions", "clear target"])
+        hints.extend(["queue COMMAND", "probe --queue", "download --queue PATH", "clear target"])
     elif target_count:
         hints.append(f"targets ({target_count})")
+        hints.extend(["use N", "search TERM"])
     else:
         hints.append("probe --start")
     if pending_work or poll_overdue:
@@ -136,12 +137,14 @@ def line_banner_hint(snap):
         hints.append(f"routes ({route_count})")
     if not listening:
         hints.append("listeners")
+    if not target_filter.get("active"):
+        hints.append("workspace")
 
     deduped = []
     for hint in hints:
         if hint not in deduped:
             deduped.append(hint)
-    return "  next: " + "  |  ".join(deduped[:10])
+    return "  next: " + "  |  ".join(deduped[:12])
 
 
 def print_line_console_banner(snap, version):

@@ -593,16 +593,36 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "warnings": [{"message": "listener down"}],
     })
     if (
-        "workspace overview" not in banner_hint_text or
         "status (1 warning)" not in banner_hint_text or
         "targets (2)" not in banner_hint_text or
+        "use N" not in banner_hint_text or
+        "search TERM" not in banner_hint_text or
         "queue (3 pending, 1 overdue)" not in banner_hint_text or
         "files (2)" not in banner_hint_text or
         "sessions (1)" not in banner_hint_text or
-        "routes (1)" not in banner_hint_text
+        "routes (1)" not in banner_hint_text or
+        "workspace" not in banner_hint_text
     ):
         print("line-oriented banner hint did not expose useful counts", file=sys.stderr)
         print(banner_hint_text, file=sys.stderr)
+        return 1
+    selected_banner_hint_text = line_banner_hint({
+        "summary": {
+            "mailbox_pending_work_count": 2,
+            "listening_count": 1,
+        },
+        "target_filter": {"active": True},
+        "warnings": [],
+    })
+    if (
+        "mailbox (2 pending)" not in selected_banner_hint_text or
+        "queue COMMAND" not in selected_banner_hint_text or
+        "probe --queue" not in selected_banner_hint_text or
+        "download --queue PATH" not in selected_banner_hint_text or
+        "clear target" not in selected_banner_hint_text
+    ):
+        print("line-oriented selected-target banner hint did not expose target actions", file=sys.stderr)
+        print(selected_banner_hint_text, file=sys.stderr)
         return 1
 
     line_console_binary = Path(tmp) / "grit-line-console"
@@ -737,7 +757,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             stdout=numeric_slave,
             stderr=subprocess.PIPE,
             text=True,
-            env={**os.environ, "TERM": "dumb"},
+            env={**os.environ, "TERM": "dumb", "PAGER": "cat"},
         )
         os.close(numeric_slave)
         numeric_slave = -1
@@ -843,7 +863,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             stdout=line_console_slave,
             stderr=subprocess.PIPE,
             text=True,
-            env={**os.environ, "TERM": "dumb"},
+            env={**os.environ, "TERM": "dumb", "PAGER": "cat"},
         )
         os.close(line_console_slave)
         line_console_slave = -1
@@ -1180,7 +1200,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Control plane",
         "Console",
         "Tip: use `search TERM` to find agents, listeners, modules, sessions, jobs, files, and queue records.",
-        "next: ? help  |  next  |  workspace overview",
+        "next: ? help  |  targets (1)  |  use N  |  search TERM",
         "Help: files",
         "Help: queue",
         "Help: events",
