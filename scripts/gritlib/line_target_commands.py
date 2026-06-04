@@ -85,6 +85,7 @@ def dispatch_legacy_copy_choice(choice, cfg, *, input_func):
             rec = copy_generated_command(cfg, chosen)
             print(f"Copied command to {rec['path']}")
             print(f"  clipboard: {'yes' if rec['clipboard'] else 'no'}")
+            print(f"  command: {rec.get('text', '')}")
         except ValueError as exc:
             print(exc)
     return True

@@ -3791,7 +3791,9 @@ def main(argv=None):
         copy_tui_text = copy_tui_output.decode("utf-8", errors="replace")
         if (copy_tui_proc.returncode != 0 or
                 "Traceback" in (copy_tui_stderr or "") or
-                "copied command to " not in copy_tui_text or
+                "Copied command to " not in copy_tui_text or
+                "  clipboard: yes" not in copy_tui_text or
+                "  command: ./grit put /etc/config/network" not in copy_tui_text or
                 "headless_command:" in copy_tui_text):
             print("line console generated-command copy exposed noisy headless command or missed expected summary", file=sys.stderr)
             print(copy_tui_text, file=sys.stderr)
