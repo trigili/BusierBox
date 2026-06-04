@@ -2895,10 +2895,6 @@ def status_document(cfg):
     target_activity_index_maps = target_activity_feed_context["index_maps"]
     summary = service_context["summary"]
     warnings = service_context["warnings"]
-    summary.update({
-        **bridge_profile_record_summary(bridge_profiles, bridge_hop_records),
-        **bridge_profile_workflow_action_status_summary(bridge_profile_workflow_actions),
-    })
     (services_by_actual,
      services_by_configured,
      services_by_bind_address,
@@ -3173,6 +3169,8 @@ def status_document(cfg):
     warning_summary = warning_stats(warnings)
     summary.update({
         **path_context["path_summary"],
+        **bridge_profile_record_summary(bridge_profiles, bridge_hop_records),
+        **bridge_profile_workflow_action_status_summary(bridge_profile_workflow_actions),
         **path_context["browser_status_summary"],
         **path_warning_context["summary"],
         **operator_state_file_summary_doc,
