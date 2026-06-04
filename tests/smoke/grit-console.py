@@ -2556,11 +2556,14 @@ def main(argv=None):
 
     # Paramiko key comparison must use get_name/get_base64, not object equality
     src = (ROOT / "scripts" / "grit-console").read_text()
+    bridge_routes_src = (ROOT / "scripts" / "gritlib" / "bridge_routes.py").read_text()
+    command_queue_src = (ROOT / "scripts" / "gritlib" / "command_queue.py").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
     line_command_queue_src = (ROOT / "scripts" / "gritlib" / "line_command_queue.py").read_text()
     line_events_src = (ROOT / "scripts" / "gritlib" / "line_events.py").read_text()
     line_module_src = "\n".join(path.read_text() for path in sorted((ROOT / "scripts" / "gritlib").glob("line_*.py")))
     operator_io_src = (ROOT / "scripts" / "gritlib" / "operator_io.py").read_text()
+    probe_commands_src = (ROOT / "scripts" / "gritlib" / "probe_commands.py").read_text()
     process_status_src = (ROOT / "scripts" / "gritlib" / "process_status.py").read_text()
     release_artifacts_src = (ROOT / "scripts" / "gritlib" / "release_artifacts.py").read_text()
     service_lifecycle_src = (ROOT / "scripts" / "gritlib" / "service_lifecycle.py").read_text()
@@ -2570,6 +2573,22 @@ def main(argv=None):
     tls_io_src = (ROOT / "scripts" / "gritlib" / "tls_io.py").read_text()
     workbench_jobs_src = (ROOT / "scripts" / "gritlib" / "workbench_jobs.py").read_text()
     workflow_actions_src = (ROOT / "scripts" / "gritlib" / "workflow_actions.py").read_text()
+    workbench_pager_src = "\n".join((
+        src,
+        bridge_routes_src,
+        command_queue_src,
+        file_transfer_src,
+        line_command_queue_src,
+        line_events_src,
+        line_module_src,
+        operator_io_src,
+        probe_commands_src,
+        release_artifacts_src,
+        service_status_src,
+        target_records_src,
+        workbench_jobs_src,
+        workflow_actions_src,
+    ))
     release_docs = (ROOT / "docs" / "release-bundles.md").read_text()
     for word in ("invalid_command_queue_policy",
                  "command_queue_policy_valid",
@@ -2638,7 +2657,7 @@ def main(argv=None):
                  "Jobs", "cancel_line_job", "start_line_job",
                  "line_action_records", "start_workbench_job_record", "run_workbench_action_record",
                  "Operator Daemon", "run_line_daemon_action", "operator_daemon_workflow_actions"):
-        if word not in src + line_command_queue_src + line_events_src + line_module_src + operator_io_src + target_records_src + workbench_jobs_src + workflow_actions_src:
+        if word not in workbench_pager_src:
             print(f"grit-console: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
     for word in ("stage_release_nav_item", "stage_release_selection", "stage_line_release", "by_device:", "by_tuple_path:", "stage-release"):
@@ -3162,7 +3181,7 @@ def main(argv=None):
         )
         if (bridge_action_start.returncode != 0 or
                 "bridge profile workflow action: lab-http:start-profile" not in bridge_action_start.stdout or
-                "started bridge:" not in bridge_action_start.stdout):
+                "bridge started" not in bridge_action_start.stdout):
             print("headless bridge profile workflow start action failed", file=sys.stderr)
             print(bridge_action_start.stdout, file=sys.stderr)
             print(bridge_action_start.stderr, file=sys.stderr)
@@ -3175,7 +3194,7 @@ def main(argv=None):
         )
         if (bridge_action_stop.returncode != 0 or
                 "bridge profile workflow action: lab-http:stop-profile" not in bridge_action_stop.stdout or
-                ("stopped bridge:" not in bridge_action_stop.stdout and "bridge: stale pid" not in bridge_action_stop.stdout)):
+                ("bridge stopped; port released" not in bridge_action_stop.stdout and "bridge: stale pid" not in bridge_action_stop.stdout)):
             print("headless bridge profile workflow stop action failed", file=sys.stderr)
             print(bridge_action_stop.stdout, file=sys.stderr)
             print(bridge_action_stop.stderr, file=sys.stderr)
@@ -3219,10 +3238,12 @@ def main(argv=None):
         )
         if (queue_bridge_action.returncode != 0 or
                 "target workflow action: target-bridge:queue-bridge-start:lab-http" not in queue_bridge_action.stdout or
-                "queued " not in queue_bridge_action.stdout or
-                "grit rshell start" not in queue_bridge_action.stdout or
-                "bridge_profile=lab-http" not in queue_bridge_action.stdout or
-                f"route=operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" not in queue_bridge_action.stdout):
+                "queued: " not in queue_bridge_action.stdout or
+                "command: grit rshell start" not in queue_bridge_action.stdout or
+                "bridge profile: lab-http" not in queue_bridge_action.stdout or
+                f"route: operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" not in queue_bridge_action.stdout or
+                "bridge_profile=lab-http" in queue_bridge_action.stdout or
+                f"route=operator:{bridge_port} -> 127.0.0.1:{echo_result['port']}" in queue_bridge_action.stdout):
             print("bridge target workflow queue action failed", file=sys.stderr)
             print(queue_bridge_action.stdout, file=sys.stderr)
             print(queue_bridge_action.stderr, file=sys.stderr)

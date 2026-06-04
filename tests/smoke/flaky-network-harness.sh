@@ -195,7 +195,8 @@ assert "staged tui-payload.txt" in tui_queue["stdout"]
 assert "grit survey --json" in tui_queue["stdout"]
 assert "probe.sh" in tui_queue["stdout"]
 assert "grit fetch tui-payload.txt" in tui_queue["stdout"]
-assert "bridge_profile=tui-bridge" in tui_queue["stdout"]
+assert "bridge profile: tui-bridge" in tui_queue["stdout"]
+assert "bridge_profile=tui-bridge" not in tui_queue["stdout"]
 assert "grit rshell start" in tui_queue["stdout"]
 assert tui_queue["target"]["target_id"] == "target-tui"
 assert tui_queue["target"]["mailbox_pending_work_count"] == 4

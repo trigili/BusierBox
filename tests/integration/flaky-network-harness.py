@@ -1600,7 +1600,7 @@ def run_console_offline_queue_scenario(artifact_dir):
     assert_condition("queued " in line_console_text and "grit survey --json" in line_console_text, "line console offline queue action did not queue command", line_console_text)
     assert_condition("probe.sh" in line_console_text, "line console offline survey queue action did not queue survey command", line_console_text)
     assert_condition("grit fetch tui-payload.txt" in line_console_text, "line console offline staged-fetch action did not queue fetch command", line_console_text)
-    assert_condition("bridge_profile=tui-bridge" in line_console_text and "grit rshell start" in line_console_text, "line console offline bridge action did not queue bridge work", line_console_text)
+    assert_condition("bridge profile: tui-bridge" in line_console_text and "grit rshell start" in line_console_text and "bridge_profile=tui-bridge" not in line_console_text, "line console offline bridge action did not queue bridge work", line_console_text)
 
     after_doc = status(cfg, artifact_dir, "tui-offline-queue-after", "--event-limit", "128")
     records = [

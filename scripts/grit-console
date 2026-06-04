@@ -6338,9 +6338,11 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             "bridge_requires_target_online": bool(profile_info.get("requires_target_online")),
             "route_kind": "bridge",
         })
-        print(f"queued {queued['id']}: {queued['command']}")
-        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        print(f"bridge_profile={profile} route={profile_info.get('route_path', '')}")
+        print(f"queued: {queued['id']}")
+        print(f"command: {queued['command']}")
+        print(f"target: {queued.get('target_id', '')} ({queued.get('target_label', '') or '-'})")
+        print(f"bridge profile: {profile}")
+        print(f"route: {profile_info.get('route_path', '')}")
         append_event(cfg, "workbench", "target_workflow_action_completed", details={
             "id": rec.get("id", ""),
             "action_id": action_id,
