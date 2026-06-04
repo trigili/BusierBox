@@ -122,6 +122,8 @@ grep -q 'would build target=native payload=ssh-operator format=tgz' "$work/rever
 grep -q 'would build target=native payload=socat-rescue format=tgz' "$work/reverse-dry-run.out"
 scripts/make-release --name full-smoke --matrix tests/matrix/release-full.json --dry-run >"$work/full-dry-run.out"
 scripts/make-release --name full-smoke --matrix tests/matrix/release-full.json --dry-run --jobs 4 >"$work/full-dry-run-jobs.out"
+make --no-print-directory -n release-full DRY_RUN=1 jobs=4 >"$work/release-full-make-lowercase-jobs.out"
+grep -q -- '--jobs "4"' "$work/release-full-make-lowercase-jobs.out"
 if scripts/make-release --name bad-jobs --targets native --payload-presets default --dry-run --jobs 0 >"$work/bad-jobs.out" 2>"$work/bad-jobs.err"; then
     printf '%s\n' "expected --jobs 0 to fail" >&2
     exit 1
@@ -136,8 +138,10 @@ end = text.index("SOURCE_MIRROR_DIR", start)
 target = text[start:end]
 if "--strict" not in target:
     raise SystemExit("make release-full must pass --strict so failed matrix artifacts fail the build")
-if '--jobs "$(JOBS)"' not in target:
-    raise SystemExit("make release-full must pass JOBS through to scripts/make-release")
+if 'RELEASE_JOBS := $(or $(JOBS),$(jobs))' not in text:
+    raise SystemExit("make release-full must accept JOBS or lowercase jobs")
+if '--jobs "$(RELEASE_JOBS)"' not in target:
+    raise SystemExit("make release-full must pass release jobs through to scripts/make-release")
 PY
 sh -n scripts/lib/package-target
 python3 - <<'PY'

@@ -57,7 +57,9 @@ release:
 #         make release-full GRIT_RELEASE_NAME=my-label
 #         make release-full DRY_RUN=1  (preview jobs without building)
 #         make release-full JOBS=4     (build different targets concurrently)
+#         make release-full jobs=4     (lowercase alias for command-line use)
 GRIT_RELEASE_NAME ?= full-$(shell cat VERSION 2>/dev/null | tr -d '[:space:]')-$(shell git rev-parse --short HEAD 2>/dev/null || printf dev)
+RELEASE_JOBS := $(or $(JOBS),$(jobs))
 release-full:
 	@scripts/make-release \
 	  --name "$(GRIT_RELEASE_NAME)" \
@@ -65,7 +67,7 @@ release-full:
 	  --strict \
 	  $(if $(DRY_RUN),--dry-run,) \
 	  $(if $(FAIL_FAST),--fail-fast,) \
-	  $(if $(JOBS),--jobs "$(JOBS)",) \
+	  $(if $(RELEASE_JOBS),--jobs "$(RELEASE_JOBS)",) \
 	  $(if $(OUT_DIR),--out-dir "$(OUT_DIR)",)
 
 SOURCE_MIRROR_DIR ?= dist/source-mirror/full
