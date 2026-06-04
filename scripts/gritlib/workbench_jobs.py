@@ -24,6 +24,21 @@ DEFAULT_CONFIG = "local/operator-session/config.json"
 DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 
 
+def parse_line_jobs_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    first = str(args[0]).lower() if args else ""
+    if cmd == "job":
+        return {"action": "select", "selector": " ".join(args).strip()}
+    if len(args) >= 2 and first in {"-k", "--kill", "--cancel"}:
+        return {"action": "cancel", "selector": " ".join(args[1:]).strip()}
+    if len(args) >= 2 and first in {"-i", "--info", "info"}:
+        return {"action": "select", "selector": " ".join(args[1:]).strip()}
+    if first in {"-v", "--verbose"}:
+        return {"action": "list", "verbose": True}
+    return {"action": "list", "verbose": False}
+
+
 def print_workbench_job_summary(doc):
     doc = doc or {}
     summary = doc.get("summary") or {}

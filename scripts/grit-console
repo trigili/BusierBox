@@ -373,6 +373,7 @@ from gritlib.workbench_jobs import (
     line_job_record as workbench_jobs_line_job_record,
     load_workbench_jobs,
     reconcile_workbench_job_completion_events,
+    parse_line_jobs_command,
     print_line_jobs as workbench_jobs_print_line_jobs,
     print_workbench_job_ownership, print_workbench_job_summary,
     record_workbench_refresh, run_workbench_action_headless_command,
@@ -8313,24 +8314,16 @@ def run_line_repl(cfg):
                 else:
                     print_line_command_queue_view()
                 continue
-            elif cmd == "jobs":
+            elif cmd in {"jobs", "job"}:
                 try:
-                    if len(console_args) >= 3 and console_args[1] in {"-k", "--kill", "--cancel"}:
-                        cancel_line_job(" ".join(console_args[2:]).strip())
-                    elif len(console_args) >= 3 and console_args[1] in {"-i", "--info", "info"}:
-                        select_line_job(" ".join(console_args[2:]).strip())
-                    elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
-                        set_line_collection("jobs")
-                        print_line_jobs(verbose=True)
+                    jobs_cmd = parse_line_jobs_command(cmd, console_args[1:])
+                    if jobs_cmd["action"] == "cancel":
+                        cancel_line_job(jobs_cmd["selector"])
+                    elif jobs_cmd["action"] == "select":
+                        select_line_job(jobs_cmd["selector"])
                     else:
                         set_line_collection("jobs")
-                        print_line_jobs()
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "job":
-                try:
-                    select_line_job(" ".join(console_args[1:]).strip())
+                        print_line_jobs(verbose=jobs_cmd["verbose"])
                 except ValueError as exc:
                     print(exc)
                 continue
