@@ -231,8 +231,9 @@ The initial survey artifact uses the selected payload preset, defaults to
 `survey-core`, forces `GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES="no"`, and keeps
 `GRIT_ZERO_ARG_MODE="help"`. `scripts/lib/config-from-survey` remains conservative:
 it does not enable external writes or network autorun unless explicitly asked.
-`--configure-trailer` prints an `scripts/lib/artifact-config set ...` command; it
-does not run target-side code. `--stage-recommended-artifact` updates the
+`--configure-trailer` prints a
+`scripts/grit-console artifact config set ...` command; it does not run
+target-side code. `--stage-recommended-artifact` updates the
 operator staged-files index so the target can explicitly run `grit fetch`;
 it does not start the file-service listener by itself.
 

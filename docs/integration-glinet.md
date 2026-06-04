@@ -38,10 +38,10 @@ scripts/lib/integration-glinet --host root@192.168.8.1 --operator-host auto --al
 ```
 
 The safe set includes a `trailer-runtime-override` case. That case copies the
-built artifact, applies allowlisted post-build runtime overrides with
-`scripts/lib/artifact-config`, and verifies on the target that `runtime-config`,
-`config-info`, and `rshell status --json` report the trailer-derived effective
-configuration.
+built artifact, applies allowlisted post-build runtime overrides through
+`scripts/grit-console artifact config`, and verifies on the target that
+`runtime-config`, `config-info`, and `rshell status --json` report the
+trailer-derived effective configuration.
 
 The safe set also includes `recovery-fakeroot`, which exercises recovery
 install, status, and uninstall against a fake root inside the remote workdir.

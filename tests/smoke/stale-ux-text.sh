@@ -74,8 +74,10 @@ require_text scripts/grit-console 'staged file delivery'
 require_text docs/manifest.md 'positive inventory by default'
 require_text docs/manifest.md 'payload/bin/busybox'
 require_text docs/manifest.md 'payload/bin/<tool>'
+require_text docs/manifest.md 'scripts/grit-console artifact config'
 require_text docs/artifact-runtime-overrides.md 'cannot change target tuple compatibility'
 require_text docs/artifact-runtime-overrides.md 'remove, or replace payload contents'
+require_text docs/artifact-runtime-overrides.md 'scripts/grit-console artifact config set'
 require_text docs/release-bundles.md 'scripts/lib/release-self-test'
 require_text docs/release-bundles.md 'source_tree_changed_during_build'
 require_text docs/release-bundles.md 'source_tree_stability'
@@ -122,6 +124,10 @@ if grep -q 'Use `scripts/grit-bringup` first' docs/integration-glinet.md; then
 fi
 if grep -Eq 'scripts/grit-bringup --recommend-only --json|scripts/lib/artifact-config set ARTIFACT KEY=VALUE' docs/release-bundles.md; then
     printf '%s\n' "stale-ux-text: release docs still recommend wrapper/helper commands for bringup/artifact config" >&2
+    exit 1
+fi
+if grep -Eq 'scripts/lib/artifact-config (show|set|export|import|clear)|scripts/lib/artifact-config`' docs/artifact-runtime-overrides.md docs/manifest.md docs/bringup.md docs/integration-glinet.md; then
+    printf '%s\n' "stale-ux-text: operator docs still recommend direct artifact-config helper usage" >&2
     exit 1
 fi
 

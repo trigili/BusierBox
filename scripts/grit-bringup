@@ -39,7 +39,7 @@ Options:
   --write-target-preset NAME  write local/presets/targets/NAME.json from survey
   --release-dir DIR           choose a compatible artifact from a release bundle or local release repository
   --max-compatibility LABEL   reject release artifacts riskier than LABEL
-  --configure-trailer         print artifact-config command for operator overrides
+  --configure-trailer         print grit-console artifact config command for operator overrides
   --stage-recommended-artifact
                               stage selected/recommended artifact for target fetch
   --json                      print summary JSON to stdout
@@ -1318,7 +1318,7 @@ generate_trailer_command() {
     [ -n "$artifact_for_trailer" ] || return 0
     host_for_trailer=$operator_host
     [ "$host_for_trailer" = auto ] && host_for_trailer=OPERATOR_IP
-    trailer_command="scripts/lib/artifact-config set $(shell_quote "$artifact_for_trailer") GRIT_OPERATOR_SERVER_HOST=$(shell_quote "$host_for_trailer") GRIT_OPERATOR_FILE_SERVICE_ENABLE=yes GRIT_OPERATOR_FILE_SERVICE_PORT=22204"
+    trailer_command="scripts/grit-console artifact config set $(shell_quote "$artifact_for_trailer") GRIT_OPERATOR_SERVER_HOST=$(shell_quote "$host_for_trailer") GRIT_OPERATOR_FILE_SERVICE_ENABLE=yes GRIT_OPERATOR_FILE_SERVICE_PORT=22204"
 }
 
 stage_artifact_for_fetch() {
