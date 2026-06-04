@@ -251,6 +251,35 @@ def set_workbench_build_config(cfg, assignment, default_config=DEFAULT_SERVER_CO
     return {rec.get("key"): rec for rec in workbench_config_field_records(cfg)}.get(key, {"key": key, "value": value, "config_path": str(path)})
 
 
+def handle_build_config_args(cfg, args, append_event_fn=append_event):
+    if args.list_build_config:
+        for rec in workbench_config_field_records(cfg):
+            print(
+                f"{rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} "
+                f"category={rec.get('category', '')} "
+                f"configured={'yes' if rec.get('configured') else 'no'}"
+            )
+            print(
+                "  safety: "
+                f"boundary={rec.get('safety_boundary', '')} "
+                f"control_like={'yes' if rec.get('control_like') else 'no'} "
+                f"explicit_choice={'yes' if rec.get('requires_explicit_operator_choice') else 'no'}"
+            )
+            print(f"  label: {rec.get('label', '')}")
+            print(f"  set: {rec.get('set_command', '')}")
+        append_event_fn(cfg, "workbench", "workbench_config_viewed", details={
+            "config_path": str(build_config_path(cfg)),
+            "field_count": len(workbench_config_field_records(cfg)),
+        })
+        return 0
+    if args.set_build_config:
+        for assignment in args.set_build_config:
+            rec = set_workbench_build_config(cfg, assignment)
+            print(f"set {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} in {rec.get('config_path', '')}")
+        return 0
+    return None
+
+
 def unset_workbench_build_config(cfg, key, default_config=DEFAULT_SERVER_CONFIG):
     key = str(key or "").strip()
     if key.startswith("build."):
@@ -311,4 +340,3 @@ def workbench_config_field_summary(records):
         "command_queue_related_count": len([rec for rec in records or [] if rec.get("command_queue_related") is True]),
         "requires_explicit_operator_choice_count": len([rec for rec in records or [] if rec.get("requires_explicit_operator_choice") is True]),
     }
-

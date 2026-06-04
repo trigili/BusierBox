@@ -88,7 +88,7 @@ from gritlib.config_utils import (
 from gritlib.crypto import generate_tls_cert
 from gritlib.dns import dns_parse_qname, dns_txt_answer_packet
 from gritlib.build_config import (
-    build_config_path, set_workbench_build_config, shell_double_quote,
+    build_config_path, handle_build_config_args,
     unset_workbench_build_config, workbench_config_field_indexes,
     workbench_config_field_records, workbench_config_field_summary,
 )
@@ -7501,19 +7501,9 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                 local_file=args.target_workflow_local_file or "",
                 request_name=args.target_workflow_request_name or "",
             )
-        if args.list_build_config:
-            for rec in workbench_config_field_records(cfg):
-                print(f"{rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} category={rec.get('category', '')} configured={'yes' if rec.get('configured') else 'no'}")
-                print(f"  safety: boundary={rec.get('safety_boundary', '')} control_like={'yes' if rec.get('control_like') else 'no'} explicit_choice={'yes' if rec.get('requires_explicit_operator_choice') else 'no'}")
-                print(f"  label: {rec.get('label', '')}")
-                print(f"  set: {rec.get('set_command', '')}")
-            append_event(cfg, "workbench", "workbench_config_viewed", details={"config_path": str(build_config_path(cfg)), "field_count": len(workbench_config_field_records(cfg))})
-            return 0
-        if args.set_build_config:
-            for assignment in args.set_build_config:
-                rec = set_workbench_build_config(cfg, assignment)
-                print(f"set {rec.get('key', '')}={shell_double_quote(rec.get('value', ''))} in {rec.get('config_path', '')}")
-            return 0
+        build_config_code = handle_build_config_args(cfg, args, append_event_fn=append_event)
+        if build_config_code is not None:
+            return build_config_code
         if args.copy_target_command:
             rec = copy_generated_command(cfg, args.copy_target_command)
             print(f"copied target command {args.copy_target_command} to {rec['path']}")

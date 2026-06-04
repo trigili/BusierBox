@@ -696,6 +696,59 @@ def run_console_runtime_check():
     return 0
 
 
+def run_build_config_dispatch_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.build_config import handle_build_config_args
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        build_config = Path(tmpdir) / "grit.conf"
+        cfg = {
+            "_config_path": str(Path(tmpdir) / "server.json"),
+            "_build_config_path": str(build_config),
+            "operator_session_dir": str(Path(tmpdir) / "sessions"),
+        }
+        events = []
+        args = argparse.Namespace(list_build_config=True, set_build_config=[])
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = handle_build_config_args(
+                cfg,
+                args,
+                append_event_fn=lambda *event_args, **event_kwargs: events.append((event_args, event_kwargs)),
+            )
+        text = buf.getvalue()
+        if (code != 0 or
+                "GRIT_NORESIDUE_LEVEL=" not in text or
+                "configured=no" not in text or
+                "safety: boundary=target-runtime" not in text or
+                not events or
+                events[0][0][2] != "workbench_config_viewed"):
+            print("build config dispatch helper did not preserve list output/event", file=sys.stderr)
+            print(text, file=sys.stderr)
+            return 1
+        args = argparse.Namespace(
+            list_build_config=False,
+            set_build_config=["GRIT_NORESIDUE_LEVEL=aggressive"],
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = handle_build_config_args(cfg, args)
+        text = buf.getvalue()
+        if (code != 0 or
+                "set GRIT_NORESIDUE_LEVEL=\"aggressive\"" not in text or
+                'GRIT_NORESIDUE_LEVEL="aggressive"' not in build_config.read_text(encoding="utf-8")):
+            print("build config dispatch helper did not preserve set behavior", file=sys.stderr)
+            print(text, file=sys.stderr)
+            return 1
+        args = argparse.Namespace(list_build_config=False, set_build_config=[])
+        if handle_build_config_args(cfg, args) is not None:
+            print("build config dispatch helper handled empty args", file=sys.stderr)
+            return 1
+    return 0
+
+
 def request_with_retry(port, payload):
     deadline = time.time() + 5
     last = None
@@ -3050,6 +3103,8 @@ def main(argv=None):
     if run_console_arg_override_check() != 0:
         return 1
     if run_console_runtime_check() != 0:
+        return 1
+    if run_build_config_dispatch_check() != 0:
         return 1
 
     if args.section == "preflight":
