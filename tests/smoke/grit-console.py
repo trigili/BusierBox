@@ -1998,6 +1998,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "request_name=" in upload_text or "request_name=" in fetch_text or
             "source_path=" in upload_text or "source_path=" in fetch_text or
             "file service:" in upload_text or "file service:" in fetch_text or
+            "queued cq-" in fetch_text or
+            "queued:" not in fetch_text or
             "target=" in fetch_text):
         print("line-oriented file transfer output exposed raw generated-command/status fields", file=sys.stderr)
         print("upload section:", file=sys.stderr)
@@ -2018,6 +2020,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         return 1
     if ("file_service_started=" in download_text or "target_command=" in download_text or
             "target_upload_path=" in download_text or "file service:" in download_text or
+            "queued cq-" in download_text or
+            "queued:" not in download_text or
             "target=" in download_text):
         print("line-oriented download output exposed raw generated-command/status fields", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)

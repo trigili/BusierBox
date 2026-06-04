@@ -19,6 +19,16 @@ def print_file_service_note(started):
     print(f"  file service {'started' if started else 'not started'}")
 
 
+def print_file_queue_note(queued):
+    print(f"  queued: {queued.get('id', '')}")
+    queued_target = queued.get("target_id", "")
+    queued_label = queued.get("target_label", "")
+    if queued_label:
+        queued_target = f"{queued_target} ({queued_label})"
+    if queued_target:
+        print(f"  target: {queued_target}")
+
+
 def parse_line_files_command(cmd, args=None):
     if args is None:
         args = cmd
@@ -501,12 +511,7 @@ def download_line_target(
             "route_kind": "bridge" if cfg.get("bridge_profile") else "direct",
             "bridge_profile": str(cfg.get("bridge_profile") or ""),
         })
-        print(f"queued {queued['id']}: {queued['command']}")
-        queued_target = queued.get("target_id", "")
-        queued_label = queued.get("target_label", "")
-        if queued_label:
-            queued_target = f"{queued_target} ({queued_label})"
-        print(f"target: {queued_target}")
+        print_file_queue_note(queued)
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_target_download_command_shown", details={
             "headless_command": headless,
@@ -768,12 +773,7 @@ def fetch_line_staged(
             "bridge_profile": str(rec.get("bridge_profile") or ""),
             "bridge_route_path": str(rec.get("bridge_route_path") or ""),
         })
-        print(f"queued {queued['id']}: {queued['command']}")
-        queued_target = queued.get("target_id", "")
-        queued_label = queued.get("target_label", "")
-        if queued_label:
-            queued_target = f"{queued_target} ({queued_label})"
-        print(f"target: {queued_target}")
+        print_file_queue_note(queued)
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_staged_fetch_command_shown", details={
             "headless_command": headless,
