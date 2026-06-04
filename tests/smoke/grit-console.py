@@ -5340,7 +5340,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         time.sleep(0.3)
         os.write(
             numeric_master,
-            b"listener probe-http\n?\noptions\nback\nlisteners\nstart 1\nlistener 1\noptions\nback\nstop 1\nlistener 1\noptions\nback\nq\nq\n",
+            b"listener probe-http\n?\noptions\nback\nlisteners\nuse 1\nback\nlisteners\nstart 99\nstart 1\nlistener 1\noptions\nback\nstop 1\nlistener 1\noptions\nback\nq\nq\n",
         )
         numeric_chunks = []
         deadline = time.time() + 8
@@ -5418,6 +5418,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "probe started" not in numeric_stdout or
             "probe stopped; port released" not in numeric_stdout or
             "recent events: filter events by service probe" not in numeric_stdout or
+            "service number out of range: 99" not in numeric_stdout or
+            "numbered result not found: 99" in numeric_stdout or
+            "grit[all]/listener> use 1" not in numeric_stdout or
+            "grit[all]/listener/probe> back" not in numeric_stdout or
             "service or route not found: 1" in numeric_stdout):
         print("line console numbered listener start/stop UX failed", file=sys.stderr)
         print(numeric_stdout, file=sys.stderr)
