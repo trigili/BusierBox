@@ -67,12 +67,12 @@ def line_command_queue_action_summary(records):
         if (rec or {}).get("requires_confirmation"):
             confirm += 1
     order = ("ready", "needs input", "empty", "stopped", "running", "disabled", "unavailable")
-    parts = [f"{key}={counts[key]}" for key in order if counts.get(key)]
-    parts.extend(f"{key}={value}" for key, value in sorted(counts.items()) if key not in order)
+    parts = [f"{key} {counts[key]}" for key in order if counts.get(key)]
+    parts.extend(f"{key} {value}" for key, value in sorted(counts.items()) if key not in order)
     if needs_input:
-        parts.append(f"input needed={needs_input}")
+        parts.append(f"input needed {needs_input}")
     if confirm:
-        parts.append(f"confirm={confirm}")
+        parts.append(f"confirm {confirm}")
     return "  queue actions: " + "  ".join(parts) if parts else ""
 
 
@@ -141,9 +141,9 @@ def print_line_command_queue_records(
         if detailed:
             print(
                 "  policy details: "
-                f"execution={queue_summary.get('execution_mode', '-') or '-'} "
-                f"delivery={'yes' if queue_summary.get('delivery_supported') else 'no'} "
-                f"result_upload={'yes' if queue_summary.get('result_upload_supported') else 'no'}"
+                f"execution {queue_summary.get('execution_mode', '-') or '-'}  "
+                f"delivery {'yes' if queue_summary.get('delivery_supported') else 'no'}  "
+                f"result upload {'yes' if queue_summary.get('result_upload_supported') else 'no'}"
             )
             limits = queue_summary.get("command_limits") if isinstance(queue_summary.get("command_limits"), dict) else {}
             if limits:

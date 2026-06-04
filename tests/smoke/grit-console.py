@@ -1908,9 +1908,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Review queue" not in queue_view_text or
             "Queue command" not in queue_view_text or
             "Start mailbox listener" not in queue_view_text or
+            "queue actions: ready 3" not in queue_view_text or
             "policy details:" not in queue_verbose_text or
+            "policy details: execution metadata-only" not in queue_verbose_text or
+            "result upload yes" not in queue_verbose_text or
             "pending_mailbox=" in mailbox_queue_text or
             "enabled=no" in mailbox_queue_text or
+            "ready=3" in mailbox_queue_text or
+            "needs input=1" in mailbox_queue_text or
+            "execution=metadata-only" in mailbox_queue_text or
+            "result_upload=yes" in mailbox_queue_text or
             "command-queue:" in queue_view_text or
             "allowed_commands=" in mailbox_queue_text or
             "delivery_policy_counts:" in mailbox_queue_text):
