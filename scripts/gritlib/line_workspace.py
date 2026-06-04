@@ -31,6 +31,40 @@ def parse_line_workspace_command(cmd, args=None):
     return {}
 
 
+def dispatch_line_workspace_command(
+    workspace_cmd,
+    *,
+    status_func=None,
+    ips_func=None,
+    workspace_func=None,
+    reload_func=None,
+    root_func=None,
+    info_func=None,
+    next_func=None,
+    options_func=None,
+):
+    action = (workspace_cmd or {}).get("action")
+    if action == "status" and status_func:
+        return status_func()
+    if action == "ips" and ips_func:
+        return ips_func()
+    if action == "workspace" and workspace_func:
+        return workspace_func()
+    if action == "reload" and reload_func:
+        return reload_func()
+    if action == "refresh":
+        return "refresh"
+    if action == "root" and root_func:
+        return root_func()
+    if action == "info" and info_func:
+        return info_func()
+    if action == "next" and next_func:
+        return next_func()
+    if action == "options" and options_func:
+        return options_func()
+    raise ValueError("unsupported workspace command")
+
+
 def reload_line_config(cfg, config_path="", load_config_fn=None, defaults=None, append_event_fn=None):
     config_path = str(config_path or cfg.get("_config_path") or "")
     if load_config_fn is None:

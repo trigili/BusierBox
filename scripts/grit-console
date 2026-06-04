@@ -240,7 +240,7 @@ from gritlib.line_target_commands import (
     run_line_generated_command,
 )
 from gritlib.line_workspace import (
-    line_repl_prompt as line_workspace_repl_prompt,
+    dispatch_line_workspace_command, line_repl_prompt as line_workspace_repl_prompt,
     line_repl_status_bar, parse_line_workspace_command, print_line_console_banner,
     print_line_info as line_workspace_print_line_info,
     print_line_next as line_workspace_print_line_next,
@@ -6517,6 +6517,19 @@ def run_line_repl(cfg):
     def print_line_workspace():
         return print_line_workspace_snapshot(workbench_snapshot(cfg))
 
+    def reload_line_config_for_repl():
+        config_path = str(cfg.get("_config_path") or DEFAULT_CONFIG)
+        try:
+            reload_line_config(
+                cfg,
+                config_path=config_path,
+                load_config_fn=load_config,
+                defaults=DEFAULTS,
+                append_event_fn=append_event,
+            )
+        except Exception as exc:
+            print(f"reload failed: {exc}")
+
     def print_line_options():
         module = str(cfg.get("_line_console_module") or "root")
 
@@ -7669,36 +7682,20 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif (workspace_cmd := parse_line_workspace_command(cmd, console_args[1:])):
-                if workspace_cmd["action"] == "status":
-                    print(line_repl_status_bar(workbench_snapshot(cfg)))
-                elif workspace_cmd["action"] == "ips":
-                    print_line_local_ips(workbench_snapshot(cfg))
-                elif workspace_cmd["action"] == "workspace":
-                    clear_line_module(quiet=True)
-                    print_line_workspace()
-                elif workspace_cmd["action"] == "reload":
-                    config_path = str(cfg.get("_config_path") or DEFAULT_CONFIG)
-                    try:
-                        reload_line_config(
-                            cfg,
-                            config_path=config_path,
-                            load_config_fn=load_config,
-                            defaults=DEFAULTS,
-                            append_event_fn=append_event,
-                        )
-                    except Exception as exc:
-                        print(f"reload failed: {exc}")
-                elif workspace_cmd["action"] == "refresh":
+                workspace_result = dispatch_line_workspace_command(
+                    workspace_cmd,
+                    status_func=lambda: print(line_repl_status_bar(workbench_snapshot(cfg))),
+                    ips_func=lambda: print_line_local_ips(workbench_snapshot(cfg)),
+                    workspace_func=lambda: (clear_line_module(quiet=True), print_line_workspace()),
+                    reload_func=reload_line_config_for_repl,
+                    root_func=clear_line_context,
+                    info_func=print_line_info,
+                    next_func=print_line_next,
+                    options_func=print_line_options,
+                )
+                if workspace_result == "refresh":
                     compact_next_prompt = False
                     choice = "r"
-                elif workspace_cmd["action"] == "root":
-                    clear_line_context()
-                elif workspace_cmd["action"] == "info":
-                    print_line_info()
-                elif workspace_cmd["action"] == "next":
-                    print_line_next()
-                elif workspace_cmd["action"] == "options":
-                    print_line_options()
                 continue
             elif (build_cmd := parse_line_build_command(cmd, console_args[1:])):
                 try:
