@@ -169,9 +169,10 @@ from gritlib.line_resources import (
 )
 from gritlib.line_repl_runtime import (
     build_line_workbench_quit_stopped_callback,
+    line_repl_io_input,
+    restore_line_repl_io,
     setup_line_repl_io,
     run_configured_line_repl_loop, run_line_console_lifecycle,
-    restore_signal_handlers,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
 from gritlib.line_repl_completions import (
@@ -6044,7 +6045,7 @@ def run_line_repl(cfg):
         shutdown_event=SHUTDOWN,
         request_shutdown_func=request_shutdown,
     )
-    line_input = repl_io["line_input"]
+    line_input = line_repl_io_input(repl_io)
 
     line_target_callbacks = build_line_target_callbacks(
         cfg,
@@ -6349,7 +6350,7 @@ def run_line_repl(cfg):
             mark_stopped_func=mark_line_workbench_quit_stopped,
         )
     finally:
-        restore_signal_handlers(repl_io["signal_handlers"])
+        restore_line_repl_io(repl_io)
     return result
 
 

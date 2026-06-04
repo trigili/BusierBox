@@ -525,9 +525,11 @@ def run_line_repl_runtime_check():
         dispatch_line_parsed_command,
         dispatch_line_quit_choice,
         install_line_repl_signal_handlers,
+        line_repl_io_input,
         prepare_repl_choice,
         read_line,
         read_next_repl_line,
+        restore_line_repl_io,
         restore_signal_handlers,
         run_configured_line_repl_loop,
         run_line_console_lifecycle,
@@ -616,6 +618,7 @@ def run_line_repl_runtime_check():
         return 1
 
     setup_calls = []
+    restored_handlers = []
     setup_shutdown = threading.Event()
     repl_io = setup_line_repl_io(
         "readline-module",
@@ -635,6 +638,7 @@ def run_line_repl_runtime_check():
     if (
         repl_io.get("signal_handlers") != [("SIGINT", "previous")]
         or repl_io.get("line_input")("grit> ") != "typed:grit> "
+        or line_repl_io_input(repl_io)("again> ") != "typed:again> "
         or setup_calls != [
             ("history", "readline-module", True),
             ("signals", True),
@@ -642,6 +646,16 @@ def run_line_repl_runtime_check():
         ]
     ):
         print(f"line REPL IO setup did not configure callbacks cleanly: {setup_calls}", file=sys.stderr)
+        return 1
+    original_restore_signal_handlers = restore_line_repl_io.__globals__["restore_signal_handlers"]
+    restore_line_repl_io.__globals__["restore_signal_handlers"] = lambda handlers: restored_handlers.append(handlers)
+    try:
+        restore_line_repl_io(repl_io)
+        restore_line_repl_io(None)
+    finally:
+        restore_line_repl_io.__globals__["restore_signal_handlers"] = original_restore_signal_handlers
+    if restored_handlers != [[("SIGINT", "previous")], None]:
+        print(f"line REPL IO restore wrapper did not forward signal handlers: {restored_handlers}", file=sys.stderr)
         return 1
 
     sig_reasons = []

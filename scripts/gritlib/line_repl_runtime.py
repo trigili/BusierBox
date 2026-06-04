@@ -571,6 +571,14 @@ def setup_line_repl_io(
     }
 
 
+def line_repl_io_input(repl_io):
+    return repl_io["line_input"]
+
+
+def restore_line_repl_io(repl_io):
+    restore_signal_handlers((repl_io or {}).get("signal_handlers"))
+
+
 def build_line_workbench_quit_stopped_callback(cfg, mark_stopped_func):
     def mark_line_workbench_quit_stopped():
         mark_stopped_func(cfg, "workbench", "quit")
