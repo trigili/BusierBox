@@ -120,9 +120,6 @@ from gritlib.line_build import (
 )
 from gritlib.line_command_queue import (
     dispatch_legacy_line_queue_number,
-    print_line_command_queue_view as line_command_queue_print_view,
-    queue_line_command as line_command_queue_queue_command,
-    run_line_queue_command as line_command_queue_run_command,
     select_current_line_command_queue_action as line_command_queue_select_current_action,
 )
 from gritlib.line_configure import (
@@ -180,6 +177,7 @@ from gritlib.line_repl_runtime import (
 from gritlib.line_repl_display import build_line_display_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_line_job_callbacks
+from gritlib.line_repl_queue import build_line_queue_callbacks
 from gritlib.line_repl_routes import build_line_route_service_callbacks
 from gritlib.line_repl_sessions import build_line_session_callbacks
 from gritlib.line_repl_targets import build_line_target_callbacks
@@ -189,7 +187,7 @@ from gritlib.line_release import (
 )
 from gritlib.line_search import (
     clear_line_search_results, dispatch_line_number_selection,
-    line_search_results, run_line_search, set_line_search_results,
+    line_search_results, run_line_search,
     use_line_search_result as line_search_use_line_search_result,
 )
 from gritlib.line_services import (
@@ -6509,27 +6507,19 @@ def run_line_repl(cfg):
             target_input_func=line_input,
         )
 
-    def queue_line_command(command):
-        return line_command_queue_queue_command(
-            cfg,
-            command,
-            queue_command,
-            target_filter_func=configured_target_filter,
-            quote=shquote,
-        )
-
-    def run_line_queue_command(args):
-        return line_command_queue_run_command(
-            cfg,
-            args,
-            queue_summary_func=command_queue_summary,
-            queue_func=queue_command,
-            clear_queue_func=clear_command_queue,
-            view_func=print_line_command_queue_view,
-            target_filter_func=configured_target_filter,
-            clear_selectable_results_func=lambda: clear_line_search_results(cfg),
-            quote=shquote,
-        )
+    line_queue_callbacks = build_line_queue_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        queue_summary_func=command_queue_summary,
+        queue_func=queue_command,
+        clear_queue_func=clear_command_queue,
+        target_filter_func=configured_target_filter,
+        append_event_fn=append_event,
+        quote=shquote,
+    )
+    print_line_command_queue_view = line_queue_callbacks["print_line_command_queue_view"]
+    queue_line_command = line_queue_callbacks["queue_line_command"]
+    run_line_queue_command = line_queue_callbacks["run_line_queue_command"]
 
     def probe_line_start(queue=False, start_service=False):
         choose_operator_host_for_target(
@@ -6622,19 +6612,6 @@ def run_line_repl(cfg):
             fetch_command=lambda name: render_fetch_command(name, cfg),
             quote=shquote,
             append_event_fn=append_event,
-        )
-
-    def print_line_command_queue_view(detailed=False, mailbox_only=False):
-        return line_command_queue_print_view(
-            cfg,
-            detailed=detailed,
-            mailbox_only=mailbox_only,
-            snapshot_func=workbench_snapshot,
-            queue_summary_func=command_queue_summary,
-            clear_results_func=clear_line_search_results,
-            set_results_func=set_line_search_results,
-            append_event_fn=append_event,
-            quote=shquote,
         )
 
     print_line_info, print_line_next, print_line_options = build_line_display_callbacks(
