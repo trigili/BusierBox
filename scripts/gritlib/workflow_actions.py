@@ -2939,6 +2939,120 @@ def operator_console_workflow_summary(records):
     }
 
 
+def operator_console_workflow_status_summary(stats=None):
+    stats = stats or {}
+    return {
+        "operator_console_workflow_count": stats.get("total_count", 0),
+        "operator_console_workflow_target_scoped_count": stats.get(
+            "target_scoped_count", 0
+        ),
+        "operator_console_workflow_multi_target_count": stats.get(
+            "multi_target_count", 0
+        ),
+        "operator_console_workflow_offline_queue_supported_count": stats.get(
+            "offline_queue_supported_count", 0
+        ),
+        "operator_console_workflow_has_records_count": stats.get(
+            "has_records_count", 0
+        ),
+        "operator_console_workflow_has_actions_count": stats.get(
+            "has_actions_count", 0
+        ),
+        "operator_console_workflow_has_enter_runnable_actions_count": stats.get(
+            "has_enter_runnable_actions_count", 0
+        ),
+        "operator_console_workflow_has_pending_work_count": stats.get(
+            "has_pending_work_count", 0
+        ),
+        "operator_console_workflow_has_warnings_count": stats.get(
+            "has_warnings_count", 0
+        ),
+        "operator_console_workflow_action_total_count": stats.get(
+            "action_total_count", 0
+        ),
+        "operator_console_workflow_enter_runnable_action_total_count": stats.get(
+            "enter_runnable_action_total_count", 0
+        ),
+        "operator_console_workflow_pending_work_total_count": stats.get(
+            "pending_work_total_count", 0
+        ),
+        "operator_console_workflow_warning_total_count": stats.get(
+            "warning_total_count", 0
+        ),
+        "operator_console_workflow_group_counts": stats.get("group_counts") or {},
+        "operator_console_workflow_workflow_counts": stats.get("workflow_counts") or {},
+        "operator_console_workflow_primary_collection_counts": stats.get(
+            "primary_collection_counts"
+        ) or {},
+        "operator_console_workflow_target_scoped_counts": stats.get(
+            "target_scoped_counts"
+        ) or {},
+        "operator_console_workflow_multi_target_counts": stats.get(
+            "multi_target_counts"
+        ) or {},
+        "operator_console_workflow_offline_queue_supported_counts": stats.get(
+            "offline_queue_supported_counts"
+        ) or {},
+        "operator_console_workflow_has_records_counts": stats.get(
+            "has_records_counts"
+        ) or {},
+        "operator_console_workflow_has_actions_counts": stats.get(
+            "has_actions_counts"
+        ) or {},
+        "operator_console_workflow_has_enter_runnable_actions_counts": stats.get(
+            "has_enter_runnable_actions_counts"
+        ) or {},
+        "operator_console_workflow_has_pending_work_counts": stats.get(
+            "has_pending_work_counts"
+        ) or {},
+        "operator_console_workflow_has_warnings_counts": stats.get(
+            "has_warnings_counts"
+        ) or {},
+        "operator_console_workflow_fleet_target_count_counts": stats.get(
+            "fleet_target_count_counts"
+        ) or {},
+        "operator_console_workflow_fleet_offline_target_count_counts": stats.get(
+            "fleet_offline_target_count_counts"
+        ) or {},
+        "operator_console_workflow_fleet_stale_target_count_counts": stats.get(
+            "fleet_stale_target_count_counts"
+        ) or {},
+        "operator_console_workflow_fleet_mailbox_pending_target_count_counts": stats.get(
+            "fleet_mailbox_pending_target_count_counts"
+        ) or {},
+        "operator_console_workflow_fleet_mailbox_pending_work_count_counts": stats.get(
+            "fleet_mailbox_pending_work_count_counts"
+        ) or {},
+        "operator_console_workflow_fleet_poll_overdue_target_count_counts": stats.get(
+            "fleet_poll_overdue_target_count_counts"
+        ) or {},
+        "operator_console_workflow_fleet_has_offline_targets_counts": stats.get(
+            "fleet_has_offline_targets_counts"
+        ) or {},
+        "operator_console_workflow_fleet_has_stale_targets_counts": stats.get(
+            "fleet_has_stale_targets_counts"
+        ) or {},
+        "operator_console_workflow_fleet_has_mailbox_pending_work_counts": stats.get(
+            "fleet_has_mailbox_pending_work_counts"
+        ) or {},
+        "operator_console_workflow_fleet_has_poll_overdue_targets_counts": stats.get(
+            "fleet_has_poll_overdue_targets_counts"
+        ) or {},
+        "operator_console_workflow_operator_action_state_counts": stats.get(
+            "operator_action_state_counts"
+        ) or {},
+        "operator_console_workflow_operator_action_reason_counts": stats.get(
+            "operator_action_reason_counts"
+        ) or {},
+        "operator_console_workflow_tui_shortcut_counts": stats.get(
+            "tui_shortcut_counts"
+        ) or {},
+        "operator_console_workflow_line_mode_action_counts": stats.get(
+            "line_mode_action_counts"
+        ) or {},
+    }
+
+
 def target_workflow_action_indexes(records):
     return {
         "target_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},

@@ -2026,6 +2026,54 @@ def run_workbench_job_status_context_check():
     return 0
 
 
+def run_operator_console_workflow_status_summary_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.workflow_actions import (
+        operator_console_workflow_status_summary,
+        operator_console_workflow_summary,
+    )
+
+    records = [
+        {
+            "group": "targets",
+            "workflow": "mailbox",
+            "primary_collection": "target_mailbox_records",
+            "target_scoped": True,
+            "multi_target": True,
+            "offline_queue_supported": True,
+            "has_records": True,
+            "has_actions": True,
+            "has_enter_runnable_actions": True,
+            "has_pending_work": True,
+            "has_warnings": False,
+            "action_count": 2,
+            "enter_runnable_action_count": 1,
+            "pending_work_count": 3,
+            "warning_count": 0,
+            "fleet_target_count": 2,
+            "fleet_mailbox_pending_work_count": 1,
+            "fleet_has_mailbox_pending_work": True,
+            "operator_action_state": "ready",
+            "line_mode_action": "show-mailbox",
+        },
+    ]
+    stats = operator_console_workflow_summary(records)
+    summary = operator_console_workflow_status_summary(stats)
+    if (
+        summary.get("operator_console_workflow_count") != 1
+        or summary.get("operator_console_workflow_action_total_count") != 2
+        or summary.get("operator_console_workflow_pending_work_total_count") != 3
+        or summary.get("operator_console_workflow_group_counts", {}).get("targets") != 1
+        or summary.get("operator_console_workflow_line_mode_action_counts", {}).get("show-mailbox") != 1
+        or summary.get("operator_console_workflow_fleet_mailbox_pending_work_count_counts", {}).get("1") != 1
+    ):
+        print("operator console workflow summary did not preserve status keys", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_operator_state_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -5683,6 +5731,8 @@ def main(argv=None):
     if run_workbench_action_status_context_check() != 0:
         return 1
     if run_workbench_job_status_context_check() != 0:
+        return 1
+    if run_operator_console_workflow_status_summary_check() != 0:
         return 1
     if run_operator_state_status_context_check() != 0:
         return 1
