@@ -168,6 +168,7 @@ from gritlib.line_resources import (
     record_line_history, write_line_makerc,
 )
 from gritlib.line_repl_runtime import (
+    build_line_workbench_quit_stopped_callback,
     setup_line_repl_io,
     install_readline_completer, run_configured_line_repl_loop, run_line_console_lifecycle,
     restore_signal_handlers,
@@ -6409,9 +6410,10 @@ def run_line_repl(cfg):
         print_queue_func=print_line_command_queue_view,
     )
 
-    def mark_line_workbench_quit_stopped():
-        mark_service_stopped(cfg, "workbench", "quit")
-
+    mark_line_workbench_quit_stopped = build_line_workbench_quit_stopped_callback(
+        cfg,
+        mark_service_stopped,
+    )
     try:
         result = run_configured_line_repl_loop(
             cfg,

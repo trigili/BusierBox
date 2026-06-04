@@ -543,6 +543,13 @@ def setup_line_repl_io(
     }
 
 
+def build_line_workbench_quit_stopped_callback(cfg, mark_stopped_func):
+    def mark_line_workbench_quit_stopped():
+        mark_stopped_func(cfg, "workbench", "quit")
+
+    return mark_line_workbench_quit_stopped
+
+
 def read_next_repl_line(
     cfg,
     *,
