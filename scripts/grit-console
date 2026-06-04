@@ -120,7 +120,7 @@ from gritlib.line_actions import (
     split_line_run_args,
 )
 from gritlib.line_build import (
-    run_line_build_command, set_line_global_build_option,
+    parse_line_build_command, run_line_build_command, set_line_global_build_option,
     unset_line_global_build_option,
 )
 from gritlib.line_command_queue import (
@@ -7710,9 +7710,10 @@ def run_line_repl(cfg):
                 continue
             elif cmd == "build":
                 try:
-                    if len(console_args) == 1 or console_args[1] in {"-v", "--verbose"}:
+                    build_cmd = parse_line_build_command(console_args[1:])
+                    if build_cmd["set_context"]:
                         set_line_collection("build")
-                    run_line_build_command(cfg, console_args[1:])
+                    run_line_build_command(cfg, build_cmd["args"])
                 except ValueError as exc:
                     print(exc)
                 continue

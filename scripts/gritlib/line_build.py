@@ -160,6 +160,18 @@ def unset_line_global_build_option(cfg, name):
     return rec
 
 
+def parse_line_build_command(args):
+    args = list(args or [])
+    return {
+        "action": "build",
+        "args": args,
+        "set_context": (
+            not args
+            or (len(args) == 1 and str(args[0]).lower() in {"-v", "--verbose", "verbose"})
+        ),
+    }
+
+
 def run_line_build_command(cfg, args):
     verbose = any(str(arg).lower() in {"-v", "--verbose", "verbose"} for arg in args)
     args = [arg for arg in args if str(arg).lower() not in {"-v", "--verbose", "verbose"}]
