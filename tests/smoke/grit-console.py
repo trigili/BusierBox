@@ -1152,6 +1152,61 @@ def run_target_file_transfer_status_context_check():
     return 0
 
 
+def run_file_service_workflow_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.file_transfers import file_service_workflow_status_context
+
+    service_row = {
+        "name": "file-service",
+        "actual": "stopped",
+        "configured": "enabled",
+        "port": 22444,
+        "bind_address": "127.0.0.1",
+        "pid_alive": False,
+    }
+    staged = [{"request_name": "payload-a", "source_exists": True}]
+    upload = [{"filename": "loot.txt", "status": "stored"}]
+    fetch = [{"request_name": "payload-a", "status": "served"}]
+    transfer = [{"id": "staged:payload-a", "target_id": "target-a"}]
+    targets = [
+        {
+            "target_id": "target-a",
+            "connectivity_state": "offline",
+            "mailbox_pending_work_count": 2,
+            "poll_overdue": True,
+        },
+    ]
+    context = file_service_workflow_status_context(
+        {"_config_path": "local/test-config.json", "GRIT_OPERATOR_FILE_SERVICE_PORT": 22444},
+        service_row,
+        staged,
+        upload,
+        fetch,
+        transfer,
+        targets,
+    )
+    actions = context.get("actions") or []
+    indexes = context.get("index_maps") or {}
+    by_id = indexes.get("file_service_workflow_actions_by_id") or {}
+    inspect = by_id.get("file-service:inspect-file-workflows") or {}
+    stage = by_id.get("file-service:stage-file") or {}
+    if not actions or not inspect or not stage:
+        print("file service workflow context did not preserve actions", file=sys.stderr)
+        return 1
+    if inspect.get("staged_count") != 1 or inspect.get("target_file_transfer_record_count") != 1:
+        print("file service workflow context did not preserve transfer counts", file=sys.stderr)
+        return 1
+    if stage.get("requires_input") is not True:
+        print("file service workflow context did not preserve action metadata", file=sys.stderr)
+        return 1
+    if "file_service_workflow_actions_by_category" not in indexes:
+        print("file service workflow context did not preserve indexes", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_target_command_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -5080,6 +5135,8 @@ def main(argv=None):
     if run_file_transfer_status_context_check() != 0:
         return 1
     if run_target_file_transfer_status_context_check() != 0:
+        return 1
+    if run_file_service_workflow_status_context_check() != 0:
         return 1
     if run_target_command_status_context_check() != 0:
         return 1

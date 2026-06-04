@@ -1060,6 +1060,30 @@ def file_service_workflow_action_indexes(records):
     }
 
 
+def file_service_workflow_status_context(
+    cfg,
+    service_row,
+    staged_records=None,
+    uploads=None,
+    fetches=None,
+    transfer_records=None,
+    targets=None,
+):
+    actions = file_service_workflow_action_records(
+        cfg,
+        service_row,
+        staged_records,
+        uploads,
+        fetches,
+        transfer_records,
+        targets,
+    )
+    return {
+        "actions": actions,
+        "index_maps": file_service_workflow_action_indexes(actions),
+    }
+
+
 def file_service_workflow_action_summary(records):
     return {
         "total_count": len(records or []),

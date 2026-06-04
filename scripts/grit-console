@@ -107,8 +107,7 @@ from gritlib.event_log import (
     print_event_log_summary,
 )
 from gritlib.file_transfers import (
-    fetch_record_summary, file_service_workflow_action_indexes,
-    file_service_workflow_action_records,
+    fetch_record_summary, file_service_workflow_status_context,
     file_service_workflow_status_summary, file_transfer_status_context,
     read_http_body, read_http_headers,
     read_http_upload, recent_fetch_metadata, recent_upload_metadata,
@@ -2868,7 +2867,7 @@ def status_document(cfg):
     target_file_transfer_records = target_file_transfer_context["records"]
     target_file_transfer_index_maps = target_file_transfer_context["index_maps"]
     file_service_row = next((row for row in services if row.get("name") == "file-service"), {})
-    file_service_workflow_actions = file_service_workflow_action_records(
+    file_service_workflow_context = file_service_workflow_status_context(
         cfg,
         file_service_row,
         staged_records,
@@ -2877,7 +2876,10 @@ def status_document(cfg):
         target_file_transfer_records,
         targets,
     )
-    file_service_workflow_action_index_maps = file_service_workflow_action_indexes(file_service_workflow_actions)
+    file_service_workflow_actions = file_service_workflow_context["actions"]
+    file_service_workflow_action_index_maps = file_service_workflow_context[
+        "index_maps"
+    ]
     target_activity_records = target_activity_records_from_sources(
         targets,
         target_mailbox_records,
