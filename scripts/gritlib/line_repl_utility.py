@@ -15,13 +15,14 @@ def build_line_utility_callbacks(
     show_func=None,
     generated_run_func,
     copy_text_func,
-    service_start_command_func,
-    service_stop_command_func,
+    service_start_command_func=None,
+    service_stop_command_func=None,
     service_copy_command_func,
     generated_copy_func,
     completion_callbacks=None,
     search_callbacks=None,
     display_callbacks=None,
+    route_service_callbacks=None,
 ):
     if completion_func is None and completion_callbacks is not None:
         completion_func = completion_callbacks["print_line_completions"]
@@ -29,6 +30,13 @@ def build_line_utility_callbacks(
         search_func = search_callbacks["search_line_resources"]
     if show_func is None and display_callbacks is not None:
         show_func = display_callbacks["show_line_resource"]
+    if route_service_callbacks is not None:
+        if service_start_command_func is None:
+            service_start_command = route_service_callbacks["service_start_command"]
+            service_start_command_func = lambda _cfg, service: service_start_command(service)
+        if service_stop_command_func is None:
+            service_stop_command = route_service_callbacks["service_stop_command"]
+            service_stop_command_func = lambda _cfg, service: service_stop_command(service)
     pending_console_lines = []
     line_history = []
     dispatch_utility = build_line_utility_dispatch_callback(

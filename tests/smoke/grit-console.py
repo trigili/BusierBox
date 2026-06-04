@@ -780,6 +780,42 @@ def run_line_repl_runtime_check():
         print(f"line REPL bridge command adapter did not forward arguments: {bridge_calls}", file=sys.stderr)
         return 1
 
+    route_bundle_calls = []
+    route_bundle = repl_routes.build_line_route_service_callbacks(
+        {"name": "route-cfg"},
+        service_status_rows_func=lambda cfg: route_bundle_calls.append(
+            ("service-rows", cfg.get("name"))
+        ) or [],
+        service_record_func=lambda rows, service: {"rows": rows, "service": service},
+        bridge_profile_records_func=lambda cfg: route_bundle_calls.append(
+            ("bridge-records", cfg.get("name"))
+        ) or [],
+        bridge_command_func=lambda cfg, action, name="", extra=None: "bridge-command",
+        service_start_command_func=lambda cfg, service: route_bundle_calls.append(
+            ("start-command", cfg.get("name"), service)
+        ) or f"start {service}",
+        service_stop_command_func=lambda cfg, service: route_bundle_calls.append(
+            ("stop-command", cfg.get("name"), service)
+        ) or f"stop {service}",
+        service_start_func=lambda *args, **kwargs: None,
+        service_stop_func=lambda *args, **kwargs: None,
+        probe_delivery_func=lambda cfg: None,
+        sleep_func=lambda _seconds: None,
+        quote=lambda value: f"'{value}'",
+    )
+    if (
+        route_bundle["service_start_command"]("svc") != "start svc"
+        or route_bundle["service_stop_command"]("svc") != "stop svc"
+    ):
+        print("line REPL route bundle did not return service command strings", file=sys.stderr)
+        return 1
+    if route_bundle_calls != [
+        ("start-command", "route-cfg", "svc"),
+        ("stop-command", "route-cfg", "svc"),
+    ]:
+        print(f"line REPL route bundle service command wiring changed: {route_bundle_calls}", file=sys.stderr)
+        return 1
+
     action_bundle_calls = []
     original_run_line_module_or_service = repl_actions.run_line_module_or_service
 
@@ -1282,12 +1318,6 @@ def run_line_repl_runtime_check():
             copy_text_func=lambda cfg, command_text, label=None: adapter_calls.append(
                 ("copy-text", cfg.get("name"), command_text, label)
             ),
-            service_start_command_func=lambda cfg, service: adapter_calls.append(
-                ("start-command", cfg.get("name"), service)
-            ) or f"start {service}",
-            service_stop_command_func=lambda cfg, service: adapter_calls.append(
-                ("stop-command", cfg.get("name"), service)
-            ) or f"stop {service}",
             service_copy_command_func=lambda cfg, subcmd, copy_func, start_command, stop_command: (
                 adapter_calls.append(("service-copy", cfg.get("name"), subcmd)),
                 copy_func(start_command("svc"), "start"),
@@ -1296,6 +1326,14 @@ def run_line_repl_runtime_check():
             generated_copy_func=lambda cfg, selector: adapter_calls.append(
                 ("generated-copy", cfg.get("name"), selector)
             ),
+            route_service_callbacks={
+                "service_start_command": lambda service: adapter_calls.append(
+                    ("route-start-command", service)
+                ) or f"start {service}",
+                "service_stop_command": lambda service: adapter_calls.append(
+                    ("route-stop-command", service)
+                ) or f"stop {service}",
+            },
             completion_callbacks={
                 "print_line_completions": lambda prefix: adapter_calls.append(("completion", prefix)),
             },
@@ -1349,9 +1387,9 @@ def run_line_repl_runtime_check():
         ("show", "jobs"),
         ("generated-run", "bundle-cfg", ("--verbose",)),
         ("service-copy", "bundle-cfg", "start"),
-        ("start-command", "bundle-cfg", "svc"),
+        ("route-start-command", "svc"),
         ("copy-text", "bundle-cfg", "start svc", "start"),
-        ("stop-command", "bundle-cfg", "svc"),
+        ("route-stop-command", "svc"),
         ("copy-text", "bundle-cfg", "stop svc", "stop"),
         ("generated-copy", "bundle-cfg", "3"),
     ]
@@ -1440,6 +1478,7 @@ def run_line_repl_runtime_check():
             probe_bundle_calls.append(("probe-start", queue, start_service))
             kwargs["service_rows_func"]({"name": "ignored"})
             kwargs["service_record_func"]([], "probe")
+            kwargs["service_start_command_func"]({"name": "ignored"}, "probe")
             kwargs["target_filter_func"]({"name": "ignored"})
             kwargs["target_context_func"]({"name": "ignored"})
             return "probe-command"
@@ -1455,7 +1494,6 @@ def run_line_repl_runtime_check():
             interactive_func=lambda: True,
             render_probe_command_func=lambda cfg: "probe-command",
             workbench_snapshot_func=lambda cfg: {},
-            service_start_command_func=lambda cfg, service: "start-probe",
             service_start_func=lambda *args, **kwargs: None,
             queue_command_func=lambda *args, **kwargs: {},
             probe_delivery_func=lambda cfg: probe_bundle_calls.append(("probe-delivery", cfg.get("name"))),
@@ -1465,6 +1503,9 @@ def run_line_repl_runtime_check():
                 "service_record": lambda rows, service: probe_bundle_calls.append(
                     ("service-record", rows, service)
                 ),
+                "service_start_command": lambda service: probe_bundle_calls.append(
+                    ("service-start-command", service)
+                ) or "start-probe",
             },
             target_callbacks={
                 "target_filter": lambda: probe_bundle_calls.append("target-filter") or "target1",
@@ -1489,6 +1530,7 @@ def run_line_repl_runtime_check():
         ("probe-start", True, True),
         "service-rows",
         ("service-record", [], "probe"),
+        ("service-start-command", "probe"),
         "target-filter",
         "target-context",
         ("probe-delivery", "probe-cfg"),
@@ -1501,6 +1543,7 @@ def run_line_repl_runtime_check():
     original_download_target = repl_files.download_line_target
     original_fetch_staged = repl_files.fetch_line_staged
     original_print_files = repl_files.print_current_line_files
+    original_stage_file = repl_files.stage_line_file
 
     def fake_download_target(cfg, target_path, **kwargs):
         file_bundle_calls.append(("download", cfg.get("name"), target_path))
@@ -1518,20 +1561,30 @@ def run_line_repl_runtime_check():
         file_bundle_calls.append(("files", cfg.get("name"), staged, kwargs.get("target_filter_id")))
         return "files"
 
+    def fake_stage_file(cfg, path_text, request_name, **kwargs):
+        file_bundle_calls.append(("stage-file", cfg.get("name"), path_text, request_name))
+        kwargs["start_file_service_fn"]()
+        return "staged-file"
+
     repl_files.download_line_target = fake_download_target
     repl_files.fetch_line_staged = fake_fetch_staged
     repl_files.print_current_line_files = fake_print_files
+    repl_files.stage_line_file = fake_stage_file
     try:
         file_bundle = repl_files.build_line_file_workflow_callbacks(
             {"name": "file-cfg"},
             line_input_fn=lambda prompt: "",
             start_service_func=lambda *args, **kwargs: None,
-            service_start_command_func=lambda cfg, service: "start-file",
             target_callbacks={
                 "target_filter": lambda: file_bundle_calls.append("target-filter") or "target1",
                 "target_context": lambda: file_bundle_calls.append("target-context") or {
                     "target_label": "Target 1",
                 },
+            },
+            route_service_callbacks={
+                "service_start_command": lambda service: file_bundle_calls.append(
+                    ("service-start-command", service)
+                ) or "start-file",
             },
             scoped_target_cfg_func=lambda cfg, target_id, target_label="": cfg,
             queue_command_func=lambda *args, **kwargs: {},
@@ -1549,10 +1602,14 @@ def run_line_repl_runtime_check():
         if file_bundle["print_line_files"]() != "files":
             print("line REPL file bundle did not return files result", file=sys.stderr)
             return 1
+        if file_bundle["stage_file"]("local.bin", start_file_service=True) != "staged-file":
+            print("line REPL file bundle did not return stage-file result", file=sys.stderr)
+            return 1
     finally:
         repl_files.download_line_target = original_download_target
         repl_files.fetch_line_staged = original_fetch_staged
         repl_files.print_current_line_files = original_print_files
+        repl_files.stage_line_file = original_stage_file
     expected_file_bundle_calls = [
         ("download", "file-cfg", "remote.bin"),
         "target-filter",
@@ -1566,6 +1623,8 @@ def run_line_repl_runtime_check():
         ("fetch-target-context", {"target_label": "Target 1"}),
         "target-filter",
         ("files", "file-cfg", {"bin": {"name": "bin"}}, "target1"),
+        ("stage-file", "file-cfg", "local.bin", ""),
+        ("service-start-command", "file-service"),
     ]
     if file_bundle_calls != expected_file_bundle_calls:
         print(f"line REPL file bundle wiring changed: {file_bundle_calls}", file=sys.stderr)

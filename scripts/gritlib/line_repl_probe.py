@@ -11,7 +11,7 @@ def build_line_probe_callbacks(
     workbench_snapshot_func,
     service_record_func=None,
     service_rows_func=None,
-    service_start_command_func,
+    service_start_command_func=None,
     service_start_func,
     queue_command_func,
     target_filter_func=None,
@@ -30,6 +30,9 @@ def build_line_probe_callbacks(
         service_record_func = route_service_callbacks["service_record"]
     if service_rows_func is None and route_service_callbacks is not None:
         service_rows_func = lambda _cfg: route_service_callbacks["service_rows"]()
+    if service_start_command_func is None and route_service_callbacks is not None:
+        service_start_command = route_service_callbacks["service_start_command"]
+        service_start_command_func = lambda _cfg, service: service_start_command(service)
     if target_callbacks is not None:
         if target_filter_func is None:
             target_filter = target_callbacks["target_filter"]

@@ -68,6 +68,12 @@ def build_line_route_service_callbacks(
     def service_completion_names():
         return line_service_completion_names(service_rows())
 
+    def service_start_command(service):
+        return service_start_command_func(cfg, service)
+
+    def service_stop_command(service):
+        return service_stop_command_func(cfg, service)
+
     def print_routes(verbose=False):
         return print_line_routes(
             cfg,
@@ -128,8 +134,8 @@ def build_line_route_service_callbacks(
             cfg,
             selector,
             service_rows(),
-            start_command=lambda name: service_start_command_func(cfg, name),
-            stop_command=lambda name: service_stop_command_func(cfg, name),
+            start_command=service_start_command,
+            stop_command=service_stop_command,
         )
 
     def print_services(verbose=False):
@@ -137,8 +143,8 @@ def build_line_route_service_callbacks(
             cfg,
             service_rows(),
             verbose=verbose,
-            start_command=lambda name: service_start_command_func(cfg, name),
-            stop_command=lambda name: service_stop_command_func(cfg, name),
+            start_command=service_start_command,
+            stop_command=service_stop_command,
             quote=quote,
         )
 
@@ -149,7 +155,7 @@ def build_line_route_service_callbacks(
             service_rows_func=service_rows,
             route_record_func=route_record,
             route_start_func=start_route,
-            service_start_command_func=lambda name: service_start_command_func(cfg, name),
+            service_start_command_func=service_start_command,
             service_start_func=service_start_func,
             probe_delivery_func=lambda: probe_delivery_func(cfg),
             sleep_func=sleep_func,
@@ -162,7 +168,7 @@ def build_line_route_service_callbacks(
             service_rows_func=service_rows,
             route_record_func=route_record,
             route_stop_func=stop_route,
-            service_stop_command_func=lambda name: service_stop_command_func(cfg, name),
+            service_stop_command_func=service_stop_command,
             service_stop_func=service_stop_func,
         )
 
@@ -174,6 +180,8 @@ def build_line_route_service_callbacks(
         "service_names": service_names,
         "service_completion_names": service_completion_names,
         "service_record": service_record_func,
+        "service_start_command": service_start_command,
+        "service_stop_command": service_stop_command,
         "print_line_routes": print_routes,
         "select_line_route": select_route,
         "add_line_route": add_route,

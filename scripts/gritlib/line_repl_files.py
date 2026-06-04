@@ -18,17 +18,21 @@ def build_line_file_workflow_callbacks(
     *,
     line_input_fn,
     start_service_func,
-    service_start_command_func,
+    service_start_command_func=None,
     target_id_func=None,
     target_context_func=None,
     scoped_target_cfg_func,
     queue_command_func,
     target_callbacks=None,
+    route_service_callbacks=None,
     load_staged_func,
     fetch_command_func,
     append_event_fn,
     quote,
 ):
+    if service_start_command_func is None and route_service_callbacks is not None:
+        service_start_command = route_service_callbacks["service_start_command"]
+        service_start_command_func = lambda _cfg, service: service_start_command(service)
     if target_callbacks is not None:
         if target_id_func is None:
             target_filter = target_callbacks["target_filter"]
