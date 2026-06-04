@@ -206,6 +206,7 @@ from gritlib.line_services import (
     select_line_service as line_services_select_line_service,
     resolve_line_service_selector as line_services_resolve_selector,
 )
+from gritlib.line_show import parse_line_show_resource, split_line_verbose_args
 from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
     print_line_session_interaction,
@@ -7434,13 +7435,12 @@ def run_line_repl(cfg):
         )
 
     def show_line_resource(resource):
-        parts = shlex.split(str(resource or "").strip()) if str(resource or "").strip() else []
-        verbose_flags = {"-v", "--verbose", "verbose", "details"}
-        verbose = any(str(part).lower() in verbose_flags for part in parts)
-        filtered_parts = [part for part in parts if str(part).lower() not in verbose_flags]
-        filtered_key = (filtered_parts[0] if filtered_parts else "").lower()
-        key = filtered_key
-        filter_text = " ".join(filtered_parts[1:]).strip()
+        parsed = parse_line_show_resource(resource)
+        verbose = parsed["verbose"]
+        filtered_parts = parsed["filtered_parts"]
+        filtered_key = parsed["filtered_key"]
+        key = parsed["key"]
+        filter_text = parsed["filter_text"]
         if len(filtered_parts) >= 2 and filtered_parts[1].lower() in ("module", "modules"):
             print_line_actions(" ".join(filtered_parts[2:]).strip(), kind_filter=filtered_key, verbose=verbose)
         elif key in ("target", "targets", "agent", "agents", "host", "hosts"):
@@ -7832,12 +7832,8 @@ def run_line_repl(cfg):
             elif cmd in {"modules", "module"}:
                 set_line_collection("modules")
                 module_args = list(console_args[1:])
-                verbose_flags = {"-v", "--verbose", "verbose", "details"}
-                verbose = any(str(part).lower() in verbose_flags for part in module_args)
-                filter_text = " ".join(
-                    part for part in module_args
-                    if str(part).lower() not in verbose_flags
-                ).strip()
+                verbose, filtered_parts = split_line_verbose_args(module_args)
+                filter_text = " ".join(filtered_parts).strip()
                 print_line_actions(filter_text, verbose=verbose)
                 continue
             elif cmd in {"services", "listeners"}:
