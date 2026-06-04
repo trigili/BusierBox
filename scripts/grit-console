@@ -145,6 +145,10 @@ from gritlib.line_context import (
     clear_line_console_context, clear_line_module_context,
     set_line_collection_context,
 )
+from gritlib.line_daemon import (
+    print_line_daemon_actions as line_daemon_print_actions,
+    run_line_daemon_action as line_daemon_run_action,
+)
 from gritlib.line_events import print_line_events_view
 from gritlib.line_state import line_action_state_text
 from gritlib.line_files import (
@@ -407,7 +411,6 @@ from gritlib.workflow_actions import (
     operator_console_workflow_records,
     operator_console_workflow_indexes,
     operator_console_workflow_summary,
-    print_line_daemon_action_records,
     print_workbench_action_summary,
     probe_workflow_action_indexes,
     probe_workflow_run_command,
@@ -422,7 +425,6 @@ from gritlib.workflow_actions import (
     workbench_action_summary,
     workbench_job_indexes,
     workbench_job_summary,
-    run_line_daemon_action as workflow_run_line_daemon_action,
 )
 
 try:
@@ -6606,26 +6608,6 @@ def run_line_repl(cfg):
             start_job_func=start_workbench_job_record,
         )
 
-    def print_line_daemon_actions(verbose=False):
-        snap = workbench_snapshot(cfg)
-        actions = snap.get("operator_daemon_workflow_actions") or []
-        print_line_daemon_action_records(actions, verbose=verbose)
-
-    def run_line_daemon_action(args):
-        return workflow_run_line_daemon_action(
-            args,
-            print_actions_func=print_line_daemon_actions,
-            run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
-                run_operator_daemon_workflow_action(
-                    cfg,
-                    selector,
-                    dry_run=dry_run,
-                    confirmed=confirmed,
-                    show_commands=show_commands,
-                )
-            ),
-        )
-
     def line_action_records():
         return line_action_records_from_snapshot(workbench_snapshot(cfg))
 
@@ -6963,7 +6945,10 @@ def run_line_repl(cfg):
             "listeners": lambda p: show_collection("listeners", lambda: print_line_services(verbose=p["verbose"])),
             "files": lambda _p: show_collection("files", print_line_files),
             "jobs": lambda _p: show_collection("jobs", print_line_jobs),
-            "daemon": lambda _p: show_collection("daemon", print_line_daemon_actions),
+            "daemon": lambda _p: show_collection(
+                "daemon",
+                lambda: line_daemon_print_actions(workbench_snapshot(cfg)),
+            ),
             "categories": lambda _p: show_collection("categories", print_line_module_categories),
             "modules": lambda p: show_collection(
                 "modules", lambda: print_line_actions(p["filter_text"], verbose=p["verbose"])),
@@ -7298,7 +7283,19 @@ def run_line_repl(cfg):
                 console_args[1:],
                 set_context_func=lambda module: set_line_collection_context(cfg, module),
                 download_func=download_line_target,
-                daemon_run_func=run_line_daemon_action,
+                daemon_run_func=lambda args: line_daemon_run_action(
+                    args,
+                    snapshot_func=lambda: workbench_snapshot(cfg),
+                    run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
+                        run_operator_daemon_workflow_action(
+                            cfg,
+                            selector,
+                            dry_run=dry_run,
+                            confirmed=confirmed,
+                            show_commands=show_commands,
+                        )
+                    ),
+                ),
                 release_list_func=lambda: (
                     set_line_collection_context(cfg, "release"),
                     line_release_print_line_release(cfg, append_event_fn=append_event),
