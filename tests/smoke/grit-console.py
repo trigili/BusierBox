@@ -2319,6 +2319,7 @@ def run_line_repl_runtime_check():
         kwargs["workflow_dispatch_func"]("files", [])
         kwargs["legacy_dispatch_func"]("v")
         kwargs["clear_context_func"](quiet=True)
+        kwargs["mark_stopped_func"]()
         return 0
 
     repl_runtime.run_line_repl_loop = fake_loop_runner
@@ -2329,6 +2330,9 @@ def run_line_repl_runtime_check():
                 target_filter_func=lambda cfg: cfg.get("target"),
                 clear_console_context_func=lambda cfg, quiet=False: configured_calls.append(
                     ("clear", cfg.get("_line_console_module"), quiet)
+                ),
+                workbench_mark_stopped_func=lambda cfg, service, reason: configured_calls.append(
+                    ("stopped", cfg.get("_line_console_module"), service, reason)
                 ),
                 shutdown_event=threading.Event(),
                 shutdown_reason_func=lambda: "",
@@ -2373,8 +2377,7 @@ def run_line_repl_runtime_check():
                 readline_module=None,
                 command_help_printer=lambda topic: None,
                 context_help_printer=lambda module, target_selected=False, command_help_printer=None: None,
-                unknown_message_func=lambda command, module, target_selected=False: "",
-                mark_stopped_func=lambda: None) != 0:
+                unknown_message_func=lambda command, module, target_selected=False: "") != 0:
             print("configured line REPL loop did not return wrapped loop result", file=sys.stderr)
             return 1
     finally:
@@ -2392,6 +2395,7 @@ def run_line_repl_runtime_check():
         ("workflow", "files", ()),
         ("legacy", "v"),
         ("clear", "targets", True),
+        ("stopped", "targets", "workbench", "quit"),
     ]:
         print(f"configured line REPL loop wiring changed: {configured_calls}", file=sys.stderr)
         return 1

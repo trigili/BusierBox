@@ -353,6 +353,7 @@ def run_configured_line_repl_loop(
     navigation_callbacks = kwargs.pop("navigation_callbacks", None)
     workflow_callbacks = kwargs.pop("workflow_callbacks", None)
     legacy_callbacks = kwargs.pop("legacy_callbacks", None)
+    workbench_mark_stopped_func = kwargs.pop("workbench_mark_stopped_func", None)
 
     if utility_callbacks is not None:
         kwargs.setdefault("line_history", utility_callbacks["line_history"])
@@ -368,6 +369,14 @@ def run_configured_line_repl_loop(
         kwargs.setdefault("workflow_dispatch_func", workflow_callbacks["dispatch_line_workflow"])
     if legacy_callbacks is not None:
         kwargs.setdefault("legacy_dispatch_func", legacy_callbacks["dispatch_line_legacy"])
+    if workbench_mark_stopped_func is not None:
+        kwargs.setdefault(
+            "mark_stopped_func",
+            build_line_workbench_quit_stopped_callback(
+                cfg,
+                workbench_mark_stopped_func,
+            ),
+        )
 
     def line_module(repl_cfg):
         return repl_cfg.get("_line_console_module")
