@@ -288,6 +288,18 @@ def record_line_target_metadata_update(cfg, target_id, action="", field="", defa
     return headless
 
 
+def parse_line_option_assignment(args):
+    args = list(args or [])
+    if args and "=" in str(args[0]):
+        key, value = str(args[0]).split("=", 1)
+        if len(args) > 1:
+            value = value + " " + " ".join(str(item) for item in args[1:])
+    else:
+        key = str(args[0]) if args else ""
+        value = " ".join(str(item) for item in args[1:]).strip()
+    return key, value
+
+
 def set_line_target_option(cfg, name, value):
     key = str(name or "").strip()
     text = str(value or "")
