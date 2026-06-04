@@ -1268,7 +1268,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "resource ",
         "Workspace",
         "Events  (",
-        "Raw JSONL: view ",
+        "Event log: view ",
         "filters: limit 2 service workbench",
         "Delivery options (pick what the target has):",
         "nc:    printf 'GET /probe.sh HTTP/1.0",
@@ -1530,7 +1530,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         return 1
     if ("command_id=" in line_console_stdout or
             "matching_count=" in line_console_stdout or
-            "filters: limit=" in line_console_stdout):
+            "filters: limit=" in line_console_stdout or
+            "Raw JSONL:" in line_console_stdout):
         print("line-oriented events output exposed raw summary fields", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
@@ -2522,7 +2523,7 @@ def main(argv=None):
         print("grit-console: stdin EOF/log-only handling not found", file=sys.stderr)
         return 1
     for word in ("open_path_in_pager", "view_path_headless_command", "workbench_path_viewed", "pager_command", "view_line_path", "view PATH", "copy_generated_command", "clipboard_command",
-                 "print_line_events_view", "line_event_summary", "Raw JSONL: view", "record_workbench_refresh",
+                 "print_line_events_view", "line_event_summary", "Event log: view", "record_workbench_refresh",
                  "workbench_refreshed", '"action": "refresh"', "operator_state_unhealthy",
                  "operator_state_unhealthy_count", "target_legacy_single_target_activity_present",
                  "target_id:", "target_label:", "target_filter_summary_text",
