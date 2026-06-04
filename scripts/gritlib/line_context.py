@@ -116,6 +116,23 @@ def parse_line_interact_command(cmd, args=None, target_selected=False, module=""
     return {"kind": "session", "selector": " ".join(args).strip()}
 
 
+def dispatch_line_interact_command(
+    interact_cmd,
+    *,
+    target_func=None,
+    session_func=None,
+):
+    try:
+        if interact_cmd.get("kind") == "target" and target_func:
+            return target_func(interact_cmd.get("selector", ""))
+        if session_func:
+            return session_func(interact_cmd.get("selector", ""))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported interact command")
+
+
 def parse_line_context_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = [str(item).lower() for item in (args or [])]

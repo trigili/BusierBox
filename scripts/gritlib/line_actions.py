@@ -154,6 +154,33 @@ def parse_line_action_command(cmd, args):
     return {}
 
 
+def dispatch_line_action_command(
+    action_cmd,
+    *,
+    alias_recorder=None,
+    start_job_func=None,
+    cancel_job_func=None,
+    run_func=None,
+):
+    try:
+        if action_cmd.get("alias") and alias_recorder:
+            alias_recorder(action_cmd["alias"], action_cmd["canonical"])
+        action = action_cmd.get("action")
+        if action == "start-job" and start_job_func:
+            return start_job_func(action_cmd.get("selector", ""))
+        if action == "cancel-job" and cancel_job_func:
+            return cancel_job_func(action_cmd.get("selector", ""))
+        if action == "run" and run_func:
+            return run_func(
+                action_cmd.get("args") or [],
+                dry_run_default=bool(action_cmd.get("dry_run")),
+            )
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported action command")
+
+
 def print_line_action_result(rc):
     try:
         code = int(rc)

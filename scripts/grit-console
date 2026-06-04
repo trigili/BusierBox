@@ -113,6 +113,7 @@ from gritlib.file_transfers import (
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.line_actions import (
+    dispatch_line_action_command,
     line_action_records_from_snapshot,
     parse_line_action_command,
     print_line_actions as line_actions_print_line_actions,
@@ -145,6 +146,7 @@ from gritlib.line_context import (
     back_line_module_context,
     clear_line_console_context, clear_line_module_context,
     dispatch_line_context_command,
+    dispatch_line_interact_command,
     dispatch_line_use_command,
     parse_line_context_command,
     parse_line_interact_command,
@@ -7791,20 +7793,13 @@ def run_line_repl(cfg):
                 )
                 continue
             elif (action_cmd := parse_line_action_command(cmd, console_args[1:])):
-                try:
-                    if action_cmd.get("alias"):
-                        record_line_alias(action_cmd["alias"], action_cmd["canonical"])
-                    if action_cmd["action"] == "start-job":
-                        start_line_job(action_cmd["selector"])
-                    elif action_cmd["action"] == "cancel-job":
-                        cancel_line_job(action_cmd["selector"])
-                    else:
-                        run_line_module_or_service(
-                            action_cmd["args"],
-                            dry_run_default=action_cmd["dry_run"],
-                        )
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_action_command(
+                    action_cmd,
+                    alias_recorder=record_line_alias,
+                    start_job_func=start_line_job,
+                    cancel_job_func=cancel_line_job,
+                    run_func=run_line_module_or_service,
+                )
                 continue
             elif (interact_cmd := parse_line_interact_command(
                 cmd,
@@ -7812,13 +7807,11 @@ def run_line_repl(cfg):
                 target_selected=bool(configured_target_filter(cfg)),
                 module=cfg.get("_line_console_module"),
             )):
-                try:
-                    if interact_cmd["kind"] == "target":
-                        interact_line_target(interact_cmd["selector"])
-                    else:
-                        interact_line_session(interact_cmd["selector"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_interact_command(
+                    interact_cmd,
+                    target_func=interact_line_target,
+                    session_func=interact_line_session,
+                )
                 continue
             elif (download_cmd := parse_line_download_command(cmd, console_args[1:])):
                 try:
