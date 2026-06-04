@@ -182,6 +182,7 @@ from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_line_job_callbacks
 from gritlib.line_repl_legacy import build_line_legacy_callbacks
 from gritlib.line_repl_navigation import build_line_navigation_callbacks
+from gritlib.line_repl_options import build_line_option_callbacks
 from gritlib.line_repl_probe import build_line_probe_callbacks
 from gritlib.line_repl_queue import build_line_queue_callbacks
 from gritlib.line_repl_routes import (
@@ -6200,6 +6201,17 @@ def run_line_repl(cfg):
         append_event_fn=append_event,
     )
 
+    line_option_callbacks = build_line_option_callbacks(
+        cfg,
+        clear_module_func=clear_line_module_context,
+        set_global_option_func=set_line_global_build_option,
+        set_context_option_func=line_options_set_line_option,
+        unset_global_option_func=unset_line_global_build_option,
+        rename_target_func=line_options_rename_line_target,
+        note_target_func=line_options_note_line_target,
+        alias_target_func=line_options_alias_line_target,
+    )
+
     line_utility_callbacks = build_line_utility_callbacks(
         cfg,
         completion_callbacks=line_completion_callbacks,
@@ -6222,6 +6234,7 @@ def run_line_repl(cfg):
         probe_callbacks=line_probe_callbacks,
         file_callbacks=line_file_callbacks,
         display_callbacks=line_display_show_callbacks,
+        option_callbacks=line_option_callbacks,
         default_config=DEFAULT_CONFIG,
         load_config_func=load_config,
         defaults=DEFAULTS,
@@ -6232,12 +6245,6 @@ def run_line_repl(cfg):
         clear_console_context_func=clear_line_console_context,
         set_context_func=set_line_collection_context,
         build_run_func=run_line_build_command,
-        set_global_option_func=set_line_global_build_option,
-        set_context_option_func=line_options_set_line_option,
-        unset_global_option_func=unset_line_global_build_option,
-        rename_target_func=line_options_rename_line_target,
-        note_target_func=line_options_note_line_target,
-        alias_target_func=line_options_alias_line_target,
         local_ips_func=print_line_local_ips,
         probe_results_func=probe_results_print_line_probe_results,
         probe_config_func=configure_line_probe_config,

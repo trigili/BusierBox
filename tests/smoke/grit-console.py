@@ -1607,6 +1607,15 @@ def run_line_repl_runtime_check():
         core_bundle_calls.append(
             ("dispatch-builder", cfg.get("name"), kwargs.get("default_config"))
         )
+        core_bundle_calls.append((
+            "option-callbacks",
+            kwargs["set_global_option_func"] is option_callbacks["set_global_option"],
+            kwargs["set_context_option_func"] is option_callbacks["set_context_option"],
+            kwargs["unset_global_option_func"] is option_callbacks["unset_global_option"],
+            kwargs["rename_target_func"] is option_callbacks["rename_target"],
+            kwargs["note_target_func"] is option_callbacks["note_target"],
+            kwargs["alias_target_func"] is option_callbacks["alias_target"],
+        ))
 
         def dispatch_core_bundle(command, args):
             core_bundle_calls.append(("dispatch", command, tuple(args)))
@@ -1626,6 +1635,34 @@ def run_line_repl_runtime_check():
     )
     repl_core.build_line_core_dispatch_callback = fake_core_dispatch_builder
     try:
+        option_callbacks = repl_options.build_line_option_callbacks(
+            {"name": "bundle-core"},
+            clear_module_func=lambda cfg, quiet=False: core_bundle_calls.append(
+                ("option-clear", cfg.get("name"), quiet)
+            ),
+            set_global_option_func=lambda cfg, key, value: core_bundle_calls.append(
+                ("setg", cfg.get("name"), key, value)
+            ),
+            set_context_option_func=lambda cfg, key, value: core_bundle_calls.append(
+                ("set", cfg.get("name"), key, value)
+            ),
+            unset_global_option_func=lambda cfg, key: core_bundle_calls.append(
+                ("unsetg", cfg.get("name"), key)
+            ),
+            rename_target_func=lambda cfg, value: core_bundle_calls.append(
+                ("rename", cfg.get("name"), value)
+            ),
+            note_target_func=lambda cfg, value: core_bundle_calls.append(
+                ("note", cfg.get("name"), value)
+            ),
+            alias_target_func=lambda cfg, value: core_bundle_calls.append(
+                ("alias", cfg.get("name"), value)
+            ),
+            unset_target_option_func=lambda cfg, key, clear_module: (
+                core_bundle_calls.append(("unset-target", cfg.get("name"), key)),
+                clear_module(quiet=True),
+            ),
+        )
         core_bundle = repl_core.build_line_core_callbacks(
             {"name": "bundle-core"},
             clear_module_func=lambda cfg, quiet=False: core_bundle_calls.append(
@@ -1642,6 +1679,7 @@ def run_line_repl_runtime_check():
                 "print_line_next": lambda: core_bundle_calls.append("next"),
                 "print_line_options": lambda: core_bundle_calls.append("options"),
             },
+            option_callbacks=option_callbacks,
             default_config="bundle-default.json",
         )
         if core_bundle["dispatch_line_core"]("status", []) != "bundle-refresh":
@@ -1652,16 +1690,18 @@ def run_line_repl_runtime_check():
         repl_core.build_line_core_dispatch_callback = original_core_dispatch_builder
         repl_core.build_unset_line_option_callback = original_unset_builder
     expected_core_bundle_calls = [
-        ("unset-builder", "bundle-core", True),
         ("dispatch-builder", "bundle-core", "bundle-default.json"),
+        ("option-callbacks", True, True, True, True, True, True),
         ("dispatch", "status", ()),
-        ("unset", "bundle-core", "B"),
+        ("unset-target", "bundle-core", "B"),
+        ("option-clear", "bundle-core", True),
         ("probe-start", "probe-started"),
         ("stage-release", "staged-release-id"),
         "info",
         "next",
         "options",
-        ("unset", "bundle-core", "C"),
+        ("unset-target", "bundle-core", "C"),
+        ("option-clear", "bundle-core", True),
     ]
     if core_bundle_calls != expected_core_bundle_calls:
         print(f"line REPL core bundle wiring changed: {core_bundle_calls}", file=sys.stderr)

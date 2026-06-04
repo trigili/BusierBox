@@ -13,12 +13,22 @@ def build_line_core_callbacks(
     probe_callbacks=None,
     file_callbacks=None,
     display_callbacks=None,
+    option_callbacks=None,
     **dispatch_kwargs,
 ):
-    unset_line_option = build_unset_line_option_callback(
-        cfg,
-        clear_module_func=clear_module_func,
-    )
+    if option_callbacks is not None:
+        unset_line_option = option_callbacks["unset_line_option"]
+        dispatch_kwargs.setdefault("set_global_option_func", option_callbacks["set_global_option"])
+        dispatch_kwargs.setdefault("set_context_option_func", option_callbacks["set_context_option"])
+        dispatch_kwargs.setdefault("unset_global_option_func", option_callbacks["unset_global_option"])
+        dispatch_kwargs.setdefault("rename_target_func", option_callbacks["rename_target"])
+        dispatch_kwargs.setdefault("note_target_func", option_callbacks["note_target"])
+        dispatch_kwargs.setdefault("alias_target_func", option_callbacks["alias_target"])
+    else:
+        unset_line_option = build_unset_line_option_callback(
+            cfg,
+            clear_module_func=clear_module_func,
+        )
     if probe_callbacks is not None:
         dispatch_kwargs.setdefault("probe_start_func", probe_callbacks["probe_line_start"])
     if file_callbacks is not None:
