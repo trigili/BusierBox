@@ -584,6 +584,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_show as repl_show
     import gritlib.line_repl_utility as repl_utility
     import gritlib.line_repl_workflow as repl_workflow
+    import gritlib.line_repl_workspace as repl_workspace
     from gritlib.line_repl_runtime import (
         build_line_repl_input_callback,
         dispatch_line_help_command,
@@ -1608,6 +1609,17 @@ def run_line_repl_runtime_check():
             ("dispatch-builder", cfg.get("name"), kwargs.get("default_config"))
         )
         core_bundle_calls.append((
+            "workspace-callbacks",
+            kwargs["load_config_func"] is workspace_callbacks["load_config"],
+            kwargs["defaults"] is workspace_callbacks["defaults"],
+            kwargs["workbench_snapshot_func"] is workspace_callbacks["workbench_snapshot"],
+            kwargs["clear_module_context_func"] is workspace_callbacks["clear_module_context"],
+            kwargs["print_workspace_snapshot_func"] is workspace_callbacks["print_workspace_snapshot"],
+            kwargs["reload_config_func"] is workspace_callbacks["reload_config"],
+            kwargs["clear_console_context_func"] is workspace_callbacks["clear_console_context"],
+            kwargs["local_ips_func"] is workspace_callbacks["local_ips"],
+        ))
+        core_bundle_calls.append((
             "option-callbacks",
             kwargs["set_global_option_func"] is option_callbacks["set_global_option"],
             kwargs["set_context_option_func"] is option_callbacks["set_context_option"],
@@ -1663,6 +1675,28 @@ def run_line_repl_runtime_check():
                 clear_module(quiet=True),
             ),
         )
+        workspace_callbacks = repl_workspace.build_line_workspace_callbacks(
+            {"name": "bundle-core"},
+            default_config="bundle-default.json",
+            load_config_func=lambda path: {"path": path},
+            defaults={"ok": True},
+            workbench_snapshot_func=lambda cfg: {"snapshot": cfg.get("name")},
+            clear_module_context_func=lambda cfg, quiet=False: core_bundle_calls.append(
+                ("workspace-clear", cfg.get("name"), quiet)
+            ),
+            print_workspace_snapshot_func=lambda snapshot: core_bundle_calls.append(
+                ("workspace-print", snapshot)
+            ),
+            reload_config_func=lambda cfg, **kwargs: core_bundle_calls.append(
+                ("workspace-reload", cfg.get("name"), sorted(kwargs))
+            ),
+            clear_console_context_func=lambda cfg, quiet=False: core_bundle_calls.append(
+                ("workspace-root", cfg.get("name"), quiet)
+            ),
+            local_ips_func=lambda snapshot: core_bundle_calls.append(
+                ("workspace-ips", snapshot)
+            ),
+        )
         core_bundle = repl_core.build_line_core_callbacks(
             {"name": "bundle-core"},
             clear_module_func=lambda cfg, quiet=False: core_bundle_calls.append(
@@ -1680,7 +1714,7 @@ def run_line_repl_runtime_check():
                 "print_line_options": lambda: core_bundle_calls.append("options"),
             },
             option_callbacks=option_callbacks,
-            default_config="bundle-default.json",
+            workspace_callbacks=workspace_callbacks,
         )
         if core_bundle["dispatch_line_core"]("status", []) != "bundle-refresh":
             print("line REPL core bundle did not return core dispatch result", file=sys.stderr)
@@ -1691,6 +1725,7 @@ def run_line_repl_runtime_check():
         repl_core.build_unset_line_option_callback = original_unset_builder
     expected_core_bundle_calls = [
         ("dispatch-builder", "bundle-core", "bundle-default.json"),
+        ("workspace-callbacks", True, True, True, True, True, True, True, True),
         ("option-callbacks", True, True, True, True, True, True),
         ("dispatch", "status", ()),
         ("unset-target", "bundle-core", "B"),

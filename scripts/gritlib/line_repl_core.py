@@ -14,8 +14,19 @@ def build_line_core_callbacks(
     file_callbacks=None,
     display_callbacks=None,
     option_callbacks=None,
+    workspace_callbacks=None,
     **dispatch_kwargs,
 ):
+    if workspace_callbacks is not None:
+        dispatch_kwargs.setdefault("default_config", workspace_callbacks["default_config"])
+        dispatch_kwargs.setdefault("load_config_func", workspace_callbacks["load_config"])
+        dispatch_kwargs.setdefault("defaults", workspace_callbacks["defaults"])
+        dispatch_kwargs.setdefault("workbench_snapshot_func", workspace_callbacks["workbench_snapshot"])
+        dispatch_kwargs.setdefault("clear_module_context_func", workspace_callbacks["clear_module_context"])
+        dispatch_kwargs.setdefault("print_workspace_snapshot_func", workspace_callbacks["print_workspace_snapshot"])
+        dispatch_kwargs.setdefault("reload_config_func", workspace_callbacks["reload_config"])
+        dispatch_kwargs.setdefault("clear_console_context_func", workspace_callbacks["clear_console_context"])
+        dispatch_kwargs.setdefault("local_ips_func", workspace_callbacks["local_ips"])
     if option_callbacks is not None:
         unset_line_option = option_callbacks["unset_line_option"]
         dispatch_kwargs.setdefault("set_global_option_func", option_callbacks["set_global_option"])

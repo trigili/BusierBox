@@ -194,6 +194,7 @@ from gritlib.line_repl_show import build_line_display_show_callbacks
 from gritlib.line_repl_targets import build_line_target_callbacks
 from gritlib.line_repl_utility import build_line_utility_callbacks
 from gritlib.line_repl_workflow import build_line_workflow_callbacks
+from gritlib.line_repl_workspace import build_line_workspace_callbacks
 from gritlib.line_release import (
     print_line_release as line_release_print_line_release,
 )
@@ -6212,6 +6213,19 @@ def run_line_repl(cfg):
         alias_target_func=line_options_alias_line_target,
     )
 
+    line_workspace_callbacks = build_line_workspace_callbacks(
+        cfg,
+        default_config=DEFAULT_CONFIG,
+        load_config_func=load_config,
+        defaults=DEFAULTS,
+        workbench_snapshot_func=workbench_snapshot,
+        clear_module_context_func=clear_line_module_context,
+        print_workspace_snapshot_func=print_line_workspace_snapshot,
+        reload_config_func=line_workspace_reload_line_config_for_repl,
+        clear_console_context_func=clear_line_console_context,
+        local_ips_func=print_line_local_ips,
+    )
+
     line_utility_callbacks = build_line_utility_callbacks(
         cfg,
         completion_callbacks=line_completion_callbacks,
@@ -6235,17 +6249,9 @@ def run_line_repl(cfg):
         file_callbacks=line_file_callbacks,
         display_callbacks=line_display_show_callbacks,
         option_callbacks=line_option_callbacks,
-        default_config=DEFAULT_CONFIG,
-        load_config_func=load_config,
-        defaults=DEFAULTS,
-        workbench_snapshot_func=workbench_snapshot,
-        clear_module_context_func=clear_line_module_context,
-        print_workspace_snapshot_func=print_line_workspace_snapshot,
-        reload_config_func=line_workspace_reload_line_config_for_repl,
-        clear_console_context_func=clear_line_console_context,
+        workspace_callbacks=line_workspace_callbacks,
         set_context_func=set_line_collection_context,
         build_run_func=run_line_build_command,
-        local_ips_func=print_line_local_ips,
         probe_results_func=probe_results_print_line_probe_results,
         probe_config_func=configure_line_probe_config,
         probe_clear_func=probe_results_clear_line_probe_results,
