@@ -62,6 +62,29 @@ def copy_line_generated_command(cfg, selector):
     return rec
 
 
+def copy_line_service_command(cfg, subcmd, copy_func, start_command=None, stop_command=None):
+    subcmd = str(subcmd or "").strip().lower()
+    if subcmd not in {"start", "stop"}:
+        raise ValueError("usage: copy start|stop|N")
+    key = f"_service_{subcmd}_command"
+    command = str(cfg.get(key) or "")
+    if not command:
+        module = str(cfg.get("_line_console_module") or "")
+        if module.startswith(("listener/", "service/")):
+            svc = module.split("/", 1)[1]
+            if subcmd == "start" and start_command:
+                command = start_command(svc)
+            elif subcmd == "stop" and stop_command:
+                command = stop_command(svc)
+    if not command:
+        print(f"no {subcmd} command available - select a listener first")
+        return {}
+    rec = copy_func(command, label=f"{subcmd} command")
+    print(f"copied {subcmd} command  clipboard={'yes' if rec.get('clipboard') else 'no'}")
+    print(f"  {command}")
+    return rec
+
+
 def run_line_generated_command(cfg, args):
     subcmd = str(args[0] if args else "").lower()
     if not subcmd or subcmd in {"list", "show"}:
