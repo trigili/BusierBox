@@ -132,6 +132,21 @@ def select_line_command_queue_action(cfg, records, selector, append_event_fn=app
     return selected
 
 
+def select_current_line_command_queue_action(
+    cfg,
+    snapshot_func,
+    selector,
+    append_event_fn=append_event,
+):
+    snapshot = snapshot_func() if snapshot_func else {}
+    return select_line_command_queue_action(
+        cfg,
+        snapshot.get("command_queue_workflow_actions") or [],
+        selector,
+        append_event_fn=append_event_fn,
+    )
+
+
 def line_command_queue_mailbox_detail(rec):
     details = []
     work = rec.get("work_kind") or rec.get("request_name") or rec.get("bridge_profile") or ""

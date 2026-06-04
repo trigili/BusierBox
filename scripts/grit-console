@@ -130,7 +130,7 @@ from gritlib.line_command_queue import (
     print_line_command_queue_view as line_command_queue_print_view,
     queue_line_command as line_command_queue_queue_command,
     run_line_queue_command as line_command_queue_run_command,
-    select_line_command_queue_action as line_command_queue_select_action,
+    select_current_line_command_queue_action as line_command_queue_select_current_action,
 )
 from gritlib.line_configure import (
     configure_line_artifact as configure_line_artifact_impl,
@@ -6669,9 +6669,9 @@ def run_line_repl(cfg):
         return select_current_line_action(cfg, lambda: workbench_snapshot(cfg), selector)
 
     def select_line_command_queue_action(selector):
-        return line_command_queue_select_action(
+        return line_command_queue_select_current_action(
             cfg,
-            (workbench_snapshot(cfg).get("command_queue_workflow_actions") or []),
+            lambda: workbench_snapshot(cfg),
             selector,
             append_event_fn=append_event,
         )
