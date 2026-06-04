@@ -144,10 +144,10 @@ def build_line_legacy_callbacks(
     input_func,
     use_result_func=None,
     clear_results_func,
-    start_service_func,
-    stop_service_func,
-    service_rows_func,
-    service_record_func,
+    start_service_func=None,
+    stop_service_func=None,
+    service_rows_func=None,
+    service_record_func=None,
     sleep_func,
     append_event_fn,
     print_staged_func,
@@ -172,6 +172,14 @@ def build_line_legacy_callbacks(
         use_result_func = search_callbacks["use_line_search_result"]
     if bridge_command_builder is None:
         bridge_command_builder = route_service_callbacks["bridge_profile_headless_command"]
+    if start_service_func is None:
+        start_service_func = route_service_callbacks["start_line_service"]
+    if stop_service_func is None:
+        stop_service_func = route_service_callbacks["stop_line_service"]
+    if service_rows_func is None:
+        service_rows_func = lambda _cfg: route_service_callbacks["service_rows"]()
+    if service_record_func is None:
+        service_record_func = route_service_callbacks["service_record"]
     if action_callbacks is not None:
         if actions_func is None:
             actions_func = lambda _cfg: action_callbacks["workbench_actions"]()

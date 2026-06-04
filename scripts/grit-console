@@ -6057,6 +6057,7 @@ def run_line_repl(cfg):
     line_route_service_callbacks = build_line_route_service_callbacks(
         cfg,
         service_status_rows_func=service_status_rows,
+        service_record_func=line_service_record,
         bridge_profile_records_func=bridge_profile_records,
         bridge_command_func=bridge_routes_bridge_profile_headless_command,
         service_start_command_func=service_start_headless_command,
@@ -6307,10 +6308,6 @@ def run_line_repl(cfg):
         input_func=line_input,
         search_callbacks=line_search_callbacks,
         clear_results_func=clear_line_search_results,
-        start_service_func=start_service_process,
-        stop_service_func=stop_recorded_service,
-        service_rows_func=service_status_rows,
-        service_record_func=line_service_record,
         sleep_func=time.sleep,
         append_event_fn=append_event,
         print_staged_func=print_staged,

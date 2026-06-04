@@ -33,6 +33,7 @@ def build_line_route_service_callbacks(
     cfg,
     *,
     service_status_rows_func,
+    service_record_func=None,
     bridge_profile_records_func,
     bridge_command_func,
     service_start_command_func,
@@ -50,6 +51,9 @@ def build_line_route_service_callbacks(
 
     def route_record(name):
         return line_route_record(bridge_profile_records_func(cfg), name)
+
+    def service_rows():
+        return service_status_rows_func(cfg)
 
     def print_routes(verbose=False):
         return print_line_routes(
@@ -104,7 +108,7 @@ def build_line_route_service_callbacks(
         return select_line_service(
             cfg,
             selector,
-            service_status_rows_func(cfg),
+            service_rows(),
             start_command=lambda name: service_start_command_func(cfg, name),
             stop_command=lambda name: service_stop_command_func(cfg, name),
         )
@@ -112,7 +116,7 @@ def build_line_route_service_callbacks(
     def print_services(verbose=False):
         return print_line_services(
             cfg,
-            service_status_rows_func(cfg),
+            service_rows(),
             verbose=verbose,
             start_command=lambda name: service_start_command_func(cfg, name),
             stop_command=lambda name: service_stop_command_func(cfg, name),
@@ -123,7 +127,7 @@ def build_line_route_service_callbacks(
         return start_line_service(
             cfg,
             service,
-            service_rows_func=lambda: service_status_rows_func(cfg),
+            service_rows_func=service_rows,
             route_record_func=route_record,
             route_start_func=start_route,
             service_start_command_func=lambda name: service_start_command_func(cfg, name),
@@ -136,7 +140,7 @@ def build_line_route_service_callbacks(
         return stop_line_service(
             cfg,
             service,
-            service_rows_func=lambda: service_status_rows_func(cfg),
+            service_rows_func=service_rows,
             route_record_func=route_record,
             route_stop_func=stop_route,
             service_stop_command_func=lambda name: service_stop_command_func(cfg, name),
@@ -146,6 +150,8 @@ def build_line_route_service_callbacks(
     return {
         "bridge_profile_headless_command": bridge_profile_headless_command,
         "line_route_record": route_record,
+        "service_rows": service_rows,
+        "service_record": service_record_func,
         "print_line_routes": print_routes,
         "select_line_route": select_route,
         "add_line_route": add_route,

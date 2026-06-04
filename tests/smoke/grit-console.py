@@ -2927,6 +2927,8 @@ def run_line_repl_runtime_check():
             legacy_bundle_calls.append(("dispatch", choice))
             kwargs["line_start_service_func"]("svc")
             kwargs["line_stop_service_func"]("svc")
+            kwargs["service_rows_func"]({"name": "ignored"})
+            kwargs["service_record_func"]([], "svc")
             kwargs["use_result_func"]("1")
             kwargs["actions_func"]({"name": "ignored"})
             kwargs["run_workbench_action_func"]("workbench-action")
@@ -2947,10 +2949,6 @@ def run_line_repl_runtime_check():
                 "use_line_search_result": lambda selector: legacy_bundle_calls.append(("use", selector)),
             },
             clear_results_func=lambda cfg: legacy_bundle_calls.append(("clear", cfg.get("name"))),
-            start_service_func=lambda service: legacy_bundle_calls.append(("start-service", service)),
-            stop_service_func=lambda service: legacy_bundle_calls.append(("stop-service", service)),
-            service_rows_func=lambda cfg: legacy_bundle_calls.append(("service-rows", cfg.get("name"))) or [],
-            service_record_func=lambda rows, service: legacy_bundle_calls.append(("service-record", rows, service)),
             sleep_func=lambda seconds: legacy_bundle_calls.append(("sleep", seconds)),
             append_event_fn=lambda cfg, service, event: legacy_bundle_calls.append(
                 ("event", cfg.get("name"), service, event)
@@ -2974,6 +2972,10 @@ def run_line_repl_runtime_check():
                 ),
                 "start_line_service": lambda selector: legacy_bundle_calls.append(("line-start", selector)),
                 "stop_line_service": lambda selector: legacy_bundle_calls.append(("line-stop", selector)),
+                "service_rows": lambda: legacy_bundle_calls.append("service-rows") or [],
+                "service_record": lambda rows, service: legacy_bundle_calls.append(
+                    ("service-record", rows, service)
+                ),
             },
             file_callbacks={
                 "stage_binary": lambda selector: legacy_bundle_calls.append(("stage", selector)),
@@ -2992,6 +2994,8 @@ def run_line_repl_runtime_check():
         ("dispatch", "1"),
         ("line-start", "svc"),
         ("line-stop", "svc"),
+        "service-rows",
+        ("service-record", [], "svc"),
         ("use", "1"),
         "actions",
         ("workbench-action", "workbench-action"),
