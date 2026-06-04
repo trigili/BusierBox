@@ -1293,6 +1293,17 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented bare ? did not use probe breadcrumb context", file=sys.stderr)
         print(probe_context_help_text or line_console_stdout, file=sys.stderr)
         return 1
+    probe_queue_start = line_console_stdout.find("grit[Console Router]/probe> probe --queue")
+    probe_queue_end = line_console_stdout.find("grit[Console Router]/probe> download --queue", probe_queue_start + 1)
+    probe_queue_text = line_console_stdout[probe_queue_start:probe_queue_end] if probe_queue_start != -1 and probe_queue_end != -1 else ""
+    if (not probe_queue_text or
+            "  queued: cq-" not in probe_queue_text or
+            "  target: line-console-target (Console Router)" not in probe_queue_text or
+            "for target=" in probe_queue_text or
+            " label=" in probe_queue_text):
+        print("line-oriented probe queue output did not use concise labels", file=sys.stderr)
+        print(probe_queue_text or line_console_stdout, file=sys.stderr)
+        return 1
     target_back_start = line_console_stdout.find("grit[Console Router]/targets> b")
     target_back_end = line_console_stdout.find("grit[all]> use agent Console Router", target_back_start + 1)
     target_back_text = line_console_stdout[target_back_start:target_back_end] if target_back_start != -1 and target_back_end != -1 else ""

@@ -7374,7 +7374,8 @@ def run_line_repl(cfg):
                 "route_kind": "bridge" if cfg.get("bridge_profile") else "direct",
                 "bridge_profile": str(cfg.get("bridge_profile") or ""),
             })
-            print(f"  queued {queued['id']} for target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+            print(f"  queued: {queued['id']}")
+            print(f"  target: {queued.get('target_id', '')} ({queued.get('target_label', '') or '-'})")
 
         if already_listening or started:
             _print_probe_delivery()
