@@ -280,11 +280,11 @@ def print_line_command_help(topic):
             "title": "queue — command queue and target mailbox",
             "entries": [
                 ("queue COMMAND", "queue a shell command for the selected target"),
-                ("queue list", "show the target mailbox"),
+                ("queue list", "review command queue, mailbox records, and queue actions"),
                 ("queue targets, mailbox targets", "show only target mailbox records"),
                 ("queue result ID|N", "inspect a queued command result"),
                 ("queue clear --confirm", "remove all queued commands"),
-                ("mailbox", "show command queue and mailbox state"),
+                ("mailbox", "show selected-target mailbox records"),
                 ("download [--queue] PATH", "queue a target-to-operator upload command"),
                 ("fetch [--queue] NAME", "queue a target fetch command"),
                 ("probe [--queue]", "queue the probe command"),

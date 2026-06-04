@@ -428,7 +428,7 @@ def parse_line_queue_command(cmd, args):
         return {}
     if args:
         return {"action": "run", "args": args}
-    return {"action": "view", "args": []}
+    return {"action": "view", "args": [], "mailbox_only": cmd == "mailbox"}
 
 
 def dispatch_line_queue_command(
@@ -447,7 +447,7 @@ def dispatch_line_queue_command(
         if action == "run" and run_func:
             return run_func(queue_cmd.get("args") or [])
         if action == "view" and view_func:
-            return view_func()
+            return view_func(mailbox_only=bool((queue_cmd or {}).get("mailbox_only")))
     except ValueError as exc:
         print(exc)
         return None
@@ -473,8 +473,11 @@ def run_line_queue_command(
         view_func()
         return None
     subcmd = str(args[0] or "").lower()
-    if subcmd in {"list", "show", "mailbox", "ls"}:
+    if subcmd in {"list", "show", "ls"}:
         view_func()
+        return None
+    if subcmd == "mailbox":
+        view_func(mailbox_only=True)
         return None
     if subcmd in {"target", "targets", "agent", "agents"}:
         view_func(mailbox_only=True)

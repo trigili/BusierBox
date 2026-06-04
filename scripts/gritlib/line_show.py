@@ -137,7 +137,13 @@ def build_line_show_resource_callback(
                 "modules", lambda: print_actions_func(p["filter_text"], verbose=p["verbose"])),
             "sessions": lambda _p: show_collection("sessions", print_sessions_func),
             "routes": lambda p: show_collection("routes", lambda: print_routes_func(verbose=p["verbose"])),
-            "queue": lambda p: show_collection("queue", lambda: print_queue_func(detailed=p["verbose"])),
+            "queue": lambda p: show_collection(
+                "queue",
+                lambda: print_queue_func(
+                    detailed=p["verbose"],
+                    mailbox_only=p["key"] == "mailbox",
+                ),
+            ),
             "events": show_events,
             "release": lambda _p: show_collection("release", print_release_func),
             "options": lambda _p: print_options_func(),

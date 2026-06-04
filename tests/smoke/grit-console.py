@@ -6683,9 +6683,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     queue_verbose_text = line_console_stdout[queue_verbose_start:queue_verbose_end] if queue_verbose_start != -1 and queue_verbose_end != -1 else ""
     mailbox_queue_text = mailbox_text + mailbox_targets_text + queue_view_text + queue_verbose_text
     if (not mailbox_text or not mailbox_targets_text or not queue_view_text or not queue_verbose_text or
-            "Command queue  (" not in mailbox_text or
-            "enabled no" not in mailbox_text or
-            "mailbox pending 0" not in mailbox_text or
+            "Target mailbox  (" not in mailbox_text or
+            "Command queue  (" in mailbox_text or
+            "Queue actions" in mailbox_text or
             "Target mailbox  (" not in mailbox_targets_text or
             "Command queue  (" in mailbox_targets_text or
             "Queue actions" in mailbox_targets_text or
