@@ -6713,9 +6713,6 @@ def run_line_repl(cfg):
             quote=shquote,
         )
 
-    def clear_line_selectable_results():
-        clear_line_search_results(cfg)
-
     def run_line_queue_command(args):
         return line_command_queue_run_command(
             cfg,
@@ -6725,7 +6722,7 @@ def run_line_repl(cfg):
             clear_queue_func=clear_command_queue,
             view_func=print_line_command_queue_view,
             target_filter_func=configured_target_filter,
-            clear_selectable_results_func=clear_line_selectable_results,
+            clear_selectable_results_func=lambda: clear_line_search_results(cfg),
             quote=shquote,
         )
 
@@ -7040,7 +7037,7 @@ def run_line_repl(cfg):
             continue
         record_line_history(line_history, choice, readline_module=_readline if HAVE_READLINE else None)
         if replayed_history and choice.isdigit():
-            clear_line_selectable_results()
+            clear_line_search_results(cfg)
         console_args = []
         if should_parse_line_command(choice):
             try:
@@ -7052,7 +7049,7 @@ def run_line_repl(cfg):
             compact_next_prompt = True
             preserve_line_results = cmd == "use" and len(console_args) == 2 and console_args[1].isdigit()
             if not preserve_line_results:
-                clear_line_selectable_results()
+                clear_line_search_results(cfg)
             # Handle "<topic> ?" syntax, e.g. "files ?", "routes ?"
             if len(console_args) >= 2 and console_args[-1] == "?":
                 print_line_command_help(cmd)
@@ -7185,7 +7182,7 @@ def run_line_repl(cfg):
                 target_selected=bool(configured_target_filter(cfg)),
                 module=cfg.get("_line_console_module"),
                 record_alias_func=record_line_alias,
-                clear_results_func=clear_line_selectable_results,
+                clear_results_func=lambda: clear_line_search_results(cfg),
                 set_listeners_context_func=lambda: set_line_collection_context(cfg, "listeners"),
                 print_listeners_func=print_line_services,
                 select_listener_func=select_line_service,
@@ -7289,7 +7286,7 @@ def run_line_repl(cfg):
             choice,
             cfg,
             use_result_func=use_line_search_result,
-            clear_results_func=clear_line_selectable_results,
+            clear_results_func=lambda: clear_line_search_results(cfg),
             require_active_results=True,
         ):
             compact_next_prompt = True
@@ -7411,7 +7408,7 @@ def run_line_repl(cfg):
             choice,
             cfg,
             use_result_func=use_line_search_result,
-            clear_results_func=clear_line_selectable_results,
+            clear_results_func=lambda: clear_line_search_results(cfg),
         ):
             compact_next_prompt = True
             continue
