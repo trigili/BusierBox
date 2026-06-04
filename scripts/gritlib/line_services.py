@@ -37,6 +37,24 @@ def parse_line_listener_command(cmd, args):
     return {"action": "select" if selector else "list", "selector": selector, "verbose": False}
 
 
+def dispatch_line_listener_command(
+    listener_cmd,
+    *,
+    list_func=None,
+    select_func=None,
+):
+    action = (listener_cmd or {}).get("action")
+    try:
+        if action == "list" and list_func:
+            return list_func(verbose=bool(listener_cmd.get("verbose")))
+        if action == "select" and select_func:
+            return select_func(listener_cmd.get("selector", ""))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported listener command")
+
+
 def parse_line_service_control_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     if cmd not in {"start", "stop"}:
@@ -45,6 +63,24 @@ def parse_line_service_control_command(cmd, args):
         "action": cmd,
         "selector": " ".join(args or []).strip(),
     }
+
+
+def dispatch_line_service_control_command(
+    service_cmd,
+    *,
+    start_func=None,
+    stop_func=None,
+):
+    action = (service_cmd or {}).get("action")
+    try:
+        if action == "start" and start_func:
+            return start_func(service_cmd.get("selector", ""))
+        if action == "stop" and stop_func:
+            return stop_func(service_cmd.get("selector", ""))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported service control command")
 
 
 def line_service_display_name(name):

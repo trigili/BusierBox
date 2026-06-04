@@ -216,6 +216,8 @@ from gritlib.line_search import (
     use_line_search_result as line_search_use_line_search_result,
 )
 from gritlib.line_services import (
+    dispatch_line_listener_command,
+    dispatch_line_service_control_command,
     line_service_display_name,
     line_service_completion_names, line_service_names, line_service_record,
     parse_line_listener_command,
@@ -7711,14 +7713,14 @@ def run_line_repl(cfg):
                         print(exc)
                 continue
             elif (listener_cmd := parse_line_listener_command(cmd, console_args[1:])):
-                if listener_cmd["action"] == "list":
-                    set_line_collection("listeners")
-                    print_line_services(verbose=listener_cmd["verbose"])
-                    continue
-                try:
-                    select_line_service(listener_cmd["selector"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_listener_command(
+                    listener_cmd,
+                    list_func=lambda verbose=False: (
+                        set_line_collection("listeners"),
+                        print_line_services(verbose=verbose),
+                    ),
+                    select_func=select_line_service,
+                )
                 continue
             elif (target_cmd := parse_line_target_command(cmd, console_args[1:])):
                 dispatch_line_target_command(
@@ -7797,13 +7799,11 @@ def run_line_repl(cfg):
                     back_line_module()
                 continue
             elif (service_cmd := parse_line_service_control_command(cmd, console_args[1:])):
-                try:
-                    if service_cmd["action"] == "start":
-                        start_line_service(service_cmd["selector"])
-                    else:
-                        stop_line_service(service_cmd["selector"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_service_control_command(
+                    service_cmd,
+                    start_func=start_line_service,
+                    stop_func=stop_line_service,
+                )
                 continue
             elif (action_cmd := parse_line_action_command(cmd, console_args[1:])):
                 try:
