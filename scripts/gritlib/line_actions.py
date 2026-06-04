@@ -2,6 +2,7 @@
 
 from gritlib.console_display import console_table, print_dry_run_notice
 from gritlib.event_log import append_event
+from gritlib.line_search import clear_line_search_results, set_line_search_results
 from gritlib.line_state import line_action_state_text
 
 
@@ -404,7 +405,7 @@ def print_line_module_category_records(actions):
 
 def print_line_module_categories(cfg, actions):
     event_details = print_line_module_category_records(actions)
-    cfg["_line_console_search_results"] = []
+    clear_line_search_results(cfg)
     append_event(
         cfg,
         "workbench",
@@ -422,7 +423,7 @@ def print_line_actions(cfg, actions, filter_text="", kind_filter="", quote=None,
         quote=quote,
         verbose=verbose,
     )
-    cfg["_line_console_search_results"] = search_records
+    set_line_search_results(cfg, search_records)
     append_event(
         cfg,
         "workbench",

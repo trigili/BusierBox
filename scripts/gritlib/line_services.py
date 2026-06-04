@@ -1,6 +1,7 @@
 """Line-console service display and selector helpers."""
 
 from gritlib.event_log import append_event
+from gritlib.line_search import set_line_search_results
 
 
 LINE_SERVICE_CATEGORIES = [
@@ -429,7 +430,7 @@ def print_line_services(
         stop_command=stop_command,
         quote=quote,
     )
-    cfg["_line_console_search_results"] = search_records
+    set_line_search_results(cfg, search_records)
     append_event(cfg, "workbench", "workbench_listeners_listed", details={
         "listener_count": len(rows),
         "verbose": bool(verbose),

@@ -8,6 +8,7 @@ from gritlib.build_config import (
     workbench_config_field_records,
 )
 from gritlib.event_log import append_event
+from gritlib.line_search import set_line_search_results
 from gritlib.shell_utils import shquote
 
 
@@ -94,7 +95,7 @@ def print_line_build_config(cfg, verbose=False):
     if verbose:
         hint = "build set KEY VALUE  |  build unset KEY  |  build ? for help"
     print(f"  {hint}")
-    cfg["_line_console_search_results"] = [
+    search_records = [
         {
             "kind": "build-config",
             "label": str(rec.get("key") or ""),
@@ -104,6 +105,7 @@ def print_line_build_config(cfg, verbose=False):
         }
         for rec in fields
     ]
+    set_line_search_results(cfg, search_records)
     append_event(cfg, "workbench", "workbench_build_config_listed", details={
         "config_path": str(build_config_path(cfg)),
         "field_count": len(fields),

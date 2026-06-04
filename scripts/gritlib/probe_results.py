@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from gritlib.console_display import console_table
+from gritlib.line_search import set_line_search_results
 from gritlib.session_state import atomic_write_json, read_json_file
 
 
@@ -183,7 +184,7 @@ def line_probe_result_search_records(records):
 def print_line_probe_results(cfg, append_event_fn=None):
     records = probe_all_results(cfg)
     print_probe_result_records(records)
-    cfg["_line_console_search_results"] = line_probe_result_search_records(records)
+    set_line_search_results(cfg, line_probe_result_search_records(records))
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_probe_results_viewed", details={
             "result_count": len(records),

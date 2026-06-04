@@ -4,6 +4,7 @@ from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
 from gritlib.line_files import parse_line_release_stage_args
+from gritlib.line_search import set_line_search_results
 from gritlib.release_artifacts import (
     discover_release_context, release_context, release_nav_records, stage_release_selection,
 )
@@ -216,7 +217,7 @@ def print_line_release(cfg, append_event_fn=None):
     print("")
     print("  release stage SELECTOR  |  release ? for help")
 
-    cfg["_line_console_search_results"] = search_records
+    set_line_search_results(cfg, search_records)
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_release_console_viewed", details={
             "release_dir": rel.get("release_dir", ""),

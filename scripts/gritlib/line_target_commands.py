@@ -3,6 +3,7 @@
 from gritlib.command_copy import command_copy_path
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
+from gritlib.line_search import set_line_search_results
 from gritlib.target_commands import (
     copy_generated_command,
     generated_target_command_records,
@@ -53,7 +54,7 @@ def print_line_generated_commands(cfg):
             "command": str(rec.get("command") or ""),
             "use_hint": f"copy {rec.get('ordinal', '')}",
         })
-    cfg["_line_console_search_results"] = search_records
+    set_line_search_results(cfg, search_records)
     append_event(cfg, "workbench", "workbench_generated_commands_listed", details={
         "command_count": len(records),
         "copy_supported_count": len([rec for rec in records if rec.get("copy_supported")]),

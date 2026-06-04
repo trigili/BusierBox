@@ -5,6 +5,7 @@ from pathlib import Path
 
 from gritlib.event_log import append_event
 from gritlib.console_display import console_table
+from gritlib.line_search import set_line_search_results
 from gritlib.operator_network import target_visible_host
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key
 from gritlib.session_state import atomic_write_json, read_json_file, state_file_path, utc_now
@@ -508,7 +509,7 @@ def print_line_routes(
         command_builder=command_builder,
         quote=quote,
     )
-    cfg["_line_console_search_results"] = search_records
+    set_line_search_results(cfg, search_records)
     append_event(cfg, "workbench", "workbench_routes_listed", details={
         "route_count": len(records),
         "verbose": bool(verbose),
@@ -759,9 +760,9 @@ def delete_line_route(cfg, route_name, records, headless_command_builder=None):
         "route_path": rec.get("route_path", ""),
         "headless_command": headless,
     })
-    cfg["_line_console_search_results"] = bridge_route_search_records(
-        bridge_profile_records(cfg),
-        headless_command_builder,
+    set_line_search_results(
+        cfg,
+        bridge_route_search_records(bridge_profile_records(cfg), headless_command_builder),
     )
     return rec
 

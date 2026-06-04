@@ -4,6 +4,7 @@ from pathlib import Path
 
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
+from gritlib.line_search import set_line_search_results
 from gritlib.target_records import (
     configured_target_filter,
     set_workbench_target_filter,
@@ -117,7 +118,7 @@ def print_line_targets(cfg, snapshot_func, quote=None):
     targets = snap.get("targets") or []
     current = configured_target_filter(cfg)
     search_records = print_line_target_records(targets, current_target_id=current, quote=quote)
-    cfg["_line_console_search_results"] = search_records
+    set_line_search_results(cfg, search_records)
     return targets
 
 

@@ -10,6 +10,7 @@ from pathlib import Path
 
 from gritlib.console_display import console_table, print_dry_run_notice
 from gritlib.event_log import append_event
+from gritlib.line_search import set_line_search_results
 from gritlib.process_status import pid_alive, pid_environ_contains
 from gritlib.record_utils import format_counts, records_by_key
 from gritlib.session_state import (
@@ -236,7 +237,7 @@ def print_line_jobs(
         command_builder=command_builder,
         quote=quote,
     )
-    cfg["_line_console_search_results"] = search_records
+    set_line_search_results(cfg, search_records)
     append_event(cfg, "workbench", "workbench_jobs_listed", details={
         "job_count": len(jobs),
         "verbose": bool(verbose),
