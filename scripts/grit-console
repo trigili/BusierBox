@@ -6389,6 +6389,8 @@ def run_line_repl(cfg):
         clear_results_func=clear_line_search_results,
         start_service_func=start_service_process,
         stop_service_func=stop_recorded_service,
+        line_start_service_func=start_line_service,
+        line_stop_service_func=stop_line_service,
         service_rows_func=service_status_rows,
         service_record_func=line_service_record,
         sleep_func=time.sleep,

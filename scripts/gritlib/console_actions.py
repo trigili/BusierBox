@@ -15,7 +15,12 @@ def handle_console_utility_args(cfg, args, append_event_fn=None):
         print(rec["text"])
         return 0
     if args.view_path:
-        view_line_path(cfg, args.view_path, append_event_fn=append_event_fn)
+        view_line_path(
+            cfg,
+            args.view_path,
+            append_event_fn=append_event_fn,
+            via="server-view-path",
+        )
         return 0
     if args.set_target_label:
         if args.target_label is None:

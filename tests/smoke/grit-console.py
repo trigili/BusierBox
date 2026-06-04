@@ -4110,9 +4110,14 @@ def run_console_utility_dispatch_check():
 
         view_calls = []
         events = []
-        console_actions.view_line_path = lambda cfg, path, append_event_fn=None: (
+        console_actions.view_line_path = lambda cfg, path, append_event_fn=None, via="": (
             view_calls.append((cfg, path)),
-            append_event_fn and append_event_fn(cfg, "workbench", "workbench_path_viewed", details={"path": path}),
+            append_event_fn and append_event_fn(
+                cfg,
+                "workbench",
+                "workbench_path_viewed",
+                details={"path": path, "via": via},
+            ),
             "viewed",
         )[-1]
         args.copy_target_command = None

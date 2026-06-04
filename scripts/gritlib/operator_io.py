@@ -109,7 +109,7 @@ def dispatch_line_view_command(view_cmd, *, view_func=None):
     raise ValueError("unsupported view command")
 
 
-def view_line_path(cfg, path_text, append_event_fn=None):
+def view_line_path(cfg, path_text, append_event_fn=None, via=""):
     path = str(path_text or "").strip()
     if not path:
         raise ValueError("usage: view PATH")
@@ -121,6 +121,7 @@ def view_line_path(cfg, path_text, append_event_fn=None):
             "headless_command": headless,
             "path": path,
             "result": result,
+            "via": via,
             "viewable": viewable_path(path) is not None,
         })
     return result
