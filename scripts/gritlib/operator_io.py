@@ -90,3 +90,20 @@ def view_path_headless_command(cfg, path, default_config=Path("local/server-conf
         + " --view-path "
         + shquote(str(path or ""))
     )
+
+
+def view_line_path(cfg, path_text, append_event_fn=None):
+    path = str(path_text or "").strip()
+    if not path:
+        raise ValueError("usage: view PATH")
+    headless = view_path_headless_command(cfg, path)
+    result = open_path_in_pager(path)
+    print(result)
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_path_viewed", details={
+            "headless_command": headless,
+            "path": path,
+            "result": result,
+            "viewable": viewable_path(path) is not None,
+        })
+    return result

@@ -214,7 +214,8 @@ from gritlib.line_workspace import (
 )
 from gritlib.operator_io import (
     clipboard_command, open_path_in_pager, restore_interactive_tty,
-    set_interactive_tty_raw, view_path_headless_command, viewable_path,
+    set_interactive_tty_raw, view_line_path as operator_io_view_line_path,
+    view_path_headless_command, viewable_path,
 )
 from gritlib.operator_network import (
     local_ip_choice_candidates, local_ips, operator_advertised_host, print_candidates,
@@ -7849,19 +7850,7 @@ def run_line_repl(cfg):
         return line_files_unstage_line_file(cfg, request_name, append_event_fn=append_event)
 
     def view_line_path(path_text):
-        path = str(path_text or "").strip()
-        if not path:
-            raise ValueError("usage: view PATH")
-        headless = view_path_headless_command(cfg, path)
-        result = open_path_in_pager(path)
-        print(result)
-        append_event(cfg, "workbench", "workbench_path_viewed", details={
-            "headless_command": headless,
-            "path": path,
-            "result": result,
-            "viewable": viewable_path(path) is not None,
-        })
-        return result
+        return operator_io_view_line_path(cfg, path_text, append_event_fn=append_event)
 
     if HAVE_READLINE:
         _rl_completion_cache = {"line": None, "candidates": []}
@@ -8836,15 +8825,7 @@ def run_line_repl(cfg):
             path_line = line_input("local path> ")
             path = path_line.strip() if path_line is not None else ""
             if path:
-                headless = view_path_headless_command(cfg, path)
-                result = open_path_in_pager(path)
-                print(result)
-                append_event(cfg, "workbench", "workbench_path_viewed", details={
-                    "headless_command": headless,
-                    "path": path,
-                    "result": result,
-                    "viewable": viewable_path(path) is not None,
-                })
+                operator_io_view_line_path(cfg, path, append_event_fn=append_event)
         elif choice == "10":
             rel = release_context(cfg)
             if not rel:
