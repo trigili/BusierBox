@@ -739,7 +739,7 @@ def stop_line_route(
     headless = headless_command_builder("stop", name)
     if stop_service is None:
         raise ValueError("route stop requires a service stopper")
-    stop_service(cfg, bridge_profile_service_name(name), headless_command=headless)
+    stop_service(cfg, bridge_profile_service_name(name), headless_command=headless, quiet=True)
     print(f"stopped route {name}")
     append_event(cfg, "workbench", "workbench_route_stopped", details={
         "name": name,

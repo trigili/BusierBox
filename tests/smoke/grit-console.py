@@ -8481,8 +8481,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("verbose daemon section:", file=sys.stderr)
         print(daemon_verbose_text[:4000], file=sys.stderr)
         return 1
-    jobs_verbose_start = line_console_stdout.find("grit[all]/jobs> jobs -v")
-    jobs_verbose_end = line_console_stdout.find("grit[all]/jobs> jobs -i 1", jobs_verbose_start + 1)
+    jobs_verbose_start = line_console_stdout.find("jobs -v", line_console_stdout.find("jobs -k missing-job"))
+    jobs_verbose_end = line_console_stdout.find("jobs -i 99", jobs_verbose_start + 1)
     jobs_verbose_text = line_console_stdout[jobs_verbose_start:jobs_verbose_end] if jobs_verbose_start != -1 and jobs_verbose_end != -1 else ""
     job_info_start = line_console_stdout.find("grit[all]/job/line-console-job> info")
     job_info_end = line_console_stdout.find("grit[all]/job/line-console-job> ?", job_info_start + 1)
@@ -8857,6 +8857,7 @@ def main(argv=None):
     # Paramiko key comparison must use get_name/get_base64, not object equality
     src = (ROOT / "scripts" / "grit-console").read_text()
     bridge_routes_src = (ROOT / "scripts" / "gritlib" / "bridge_routes.py").read_text()
+    console_args_src = (ROOT / "scripts" / "gritlib" / "console_args.py").read_text()
     command_queue_src = (ROOT / "scripts" / "gritlib" / "command_queue.py").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
     line_command_queue_src = (ROOT / "scripts" / "gritlib" / "line_command_queue.py").read_text()
@@ -8877,6 +8878,7 @@ def main(argv=None):
     workbench_pager_src = "\n".join((
         src,
         bridge_routes_src,
+        console_args_src,
         command_queue_src,
         file_transfer_src,
         line_command_queue_src,
@@ -8911,7 +8913,7 @@ def main(argv=None):
     if "GRIT_RSHELL_SOCAT_PORT" not in src:
         print("grit-console: shell_listen_port not found (expected rename from socat_listen_port)", file=sys.stderr)
         return 1
-    if "sys.stdin.isatty()" not in src or "--no-stdin" not in src or "--log-only" not in src:
+    if "sys.stdin.isatty()" not in workbench_pager_src or "--no-stdin" not in workbench_pager_src or "--log-only" not in workbench_pager_src:
         print("grit-console: stdin EOF/log-only handling not found", file=sys.stderr)
         return 1
     for word in ("open_path_in_pager", "view_path_headless_command", "workbench_path_viewed", "pager_command", "view_line_path", "view PATH", "copy_generated_command", "clipboard_command",
@@ -8978,7 +8980,7 @@ def main(argv=None):
     for word in ("tty.setraw", "tcsetattr", "SSLWantReadError", "SSLWantWriteError",
                  "bytearray", "--one-shot", "listener remains open", 'reason = "active"',
                  "TLSVersion.TLSv1_2"):
-        if word not in src + operator_io_src + tls_io_src:
+        if word not in src + console_args_src + operator_io_src + tls_io_src:
             print(f"grit-console: robust interactive relay feature missing: {word}", file=sys.stderr)
             return 1
     for reason in ("stdin_eof", "remote_eof", "socket_error", "tls_error", "keyboard_interrupt", "timeout"):

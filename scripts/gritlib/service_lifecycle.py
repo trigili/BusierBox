@@ -224,7 +224,7 @@ def stop_workbench_started_services(cfg, *, stop_service):
     cfg["_workbench_started_services"] = []
 
 
-def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="", shutdown_reason=""):
+def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="", shutdown_reason="", quiet=False):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     rec = (state.get("services") or {}).get(service, {})
     pid = rec.get("pid")
@@ -243,7 +243,8 @@ def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="
         append_event(cfg, service, "service_stop", details=details)
         return
     if not pid_alive(pid):
-        print(f"{service}: stale pid {pid}; marked stopped")
+        if not quiet:
+            print(f"{service}: stale pid {pid}; marked stopped")
         reason = "stale-pid"
         stopped_reason = f"{via}:stale-pid"
         details = {**details_base, "pid": pid, "reason": reason}
