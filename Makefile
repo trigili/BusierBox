@@ -216,7 +216,7 @@ smoke-test:
 	$(call run_if_python3,python3 tests/smoke/operator-upload.py dist/grit-native-full,python3 operator upload smoke unavailable)
 	$(call run_if_python3,tests/smoke/command-queue.sh dist/grit-native-full,python3 command queue smoke unavailable)
 	@tests/smoke/zero-arg-autorun.sh dist/grit-native-full
-	@./dist/grit-native-full list >/dev/null
+	@tests/smoke/native-basic-commands.sh dist/grit-native-full
 	$(call run_if_python3,tests/smoke/native-json-commands.sh dist/grit-native-full,python3 native JSON smoke unavailable)
 	$(call run_if_python3,tests/smoke/manifest-metadata.sh dist/grit-native-full,python3 manifest metadata smoke unavailable)
 	$(call run_if_python3,tests/smoke/open-memstream-fallback.sh,python3 open_memstream fallback smoke unavailable)
@@ -224,15 +224,6 @@ smoke-test:
 	$(call run_if_python3,tests/smoke/doctor-json.sh dist/grit-native-full,python3 doctor json smoke unavailable)
 	$(call run_if_python3,tests/smoke/reality-test.sh dist/grit-native-full,python3 reality-test smoke unavailable)
 	@tests/smoke/core-extraction.sh dist/grit-native-full
-	@./dist/grit-native-full survey >/dev/null
-	@./dist/grit-native-full envfix >/dev/null
-	@./dist/grit-native-full extract >/dev/null
-	@./dist/grit-native-full extract >/dev/null
-	@./dist/grit-native-full sh -c 'echo ok' >/dev/null
-	@./dist/grit-native-full cp --help >/dev/null 2>&1
-	@./dist/grit-native-full dd --help >/dev/null 2>&1
-	@./dist/grit-native-full nc --help >/dev/null 2>&1
-	@./dist/grit-native-full config-info >/dev/null
 	$(call run_if_python3,tests/smoke/survey-config-validation.sh dist/grit-native-full,python3 survey config validation unavailable)
 	@tests/smoke/out-of-cwd-extraction.sh dist/grit-native-full
 	@printf '%s\n' "smoke-test ok"
