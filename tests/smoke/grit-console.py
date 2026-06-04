@@ -1156,8 +1156,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     line_console_session_markers = [
         "selected session ",
         "grit[all]/session/",
-        "session.id=",
-        "session.service=",
+        "Session: 20260101T000000-file-service",
+        "service: file-service",
         "commands: info, options, interact, sessions -v, background",
     ]
     line_console_missing_markers = [
@@ -1657,6 +1657,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     if (not session_info_text or
             "view=scripts/grit-console --config" in session_info_text or
             not session_options_text or
+            "Session: 20260101T000000-file-service" not in session_options_text or
+            "session log:" not in session_options_text or
+            "event log:" not in session_options_text or
+            "session.id=" in session_options_text or
+            "session.service=" in session_options_text or
+            "session.session_log=" in session_options_text or
+            "session.event_log=" in session_options_text or
             "session.view_command=scripts/grit-console --config" in session_options_text):
         print("line-oriented selected session context exposed generated view command by default", file=sys.stderr)
         print("session info:", file=sys.stderr)

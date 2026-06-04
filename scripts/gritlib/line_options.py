@@ -203,22 +203,25 @@ def print_line_context_options(
     if module.startswith("session/"):
         session_id = module.split("/", 1)[1]
         rec = session_record
-        print(f"  session.id={session_id}")
+        print(f"Session: {session_id}")
         if rec:
             path = str(rec.get("path") or "")
-            print(f"  session.service={rec.get('service', '') or '-'}")
-            print(f"  session.state={rec.get('state', '') or '-'}")
-            print(f"  session.exit_reason={rec.get('exit_reason', '') or '-'}")
-            print(f"  session.updated_at={rec.get('updated_at', '') or '-'}")
-            print(f"  session.path={path}")
-            print(f"  session.upload_count={rec.get('upload_count', 0)}")
-            print(f"  session.fetch_count={rec.get('fetch_count', 0)}")
-            print(f"  session.event_count={rec.get('event_count', 0)}")
+            print(f"  service: {rec.get('service', '') or '-'}")
+            print(f"  state: {rec.get('state', '') or '-'}")
+            print(f"  exit reason: {rec.get('exit_reason', '') or '-'}")
+            print(f"  updated: {rec.get('updated_at', '') or '-'}")
+            print(f"  path: {path}")
+            print(
+                "  activity: "
+                f"{rec.get('upload_count', 0)} uploads, "
+                f"{rec.get('fetch_count', 0)} fetches, "
+                f"{rec.get('event_count', 0)} events"
+            )
             if rec.get("session_log"):
-                print(f"  session.session_log={rec.get('session_log', '')}")
+                print(f"  session log: {rec.get('session_log', '')}")
             if rec.get("event_log"):
-                print(f"  session.event_log={rec.get('event_log', '')}")
-        print("  session.next=info, interact, sessions -v, view PATH, back")
+                print(f"  event log: {rec.get('event_log', '')}")
+        print("  next: info, interact, sessions -v, view PATH, back")
 
     if module.startswith("job/"):
         job_id = module.split("/", 1)[1]
