@@ -1726,7 +1726,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     generated_copy_start = line_console_stdout.find("grit[all]> copy 1")
     generated_copy_end = line_console_stdout.find("grit[all]> build", generated_copy_start + 1)
     generated_copy_text = line_console_stdout[generated_copy_start:generated_copy_end] if generated_copy_start != -1 and generated_copy_end != -1 else ""
-    if (not generated_copy_text or "copied command to " not in generated_copy_text or
+    if (not generated_copy_text or
+            "Copied command to " not in generated_copy_text or
+            "  clipboard: yes" not in generated_copy_text or
+            "  command: ./grit put /etc/config/network" not in generated_copy_text or
+            "clipboard=yes" in generated_copy_text or
+            "command=./grit" in generated_copy_text or
             "headless_command:" in generated_copy_text):
         print("line-oriented generated command copy exposed noisy headless command", file=sys.stderr)
         print(generated_copy_text or line_console_stdout, file=sys.stderr)

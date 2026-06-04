@@ -58,8 +58,9 @@ def copy_line_generated_command(cfg, selector):
     if not text:
         raise ValueError("usage: copy N")
     rec = copy_generated_command(cfg, text)
-    print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
-    print(f"command={rec.get('text', '')}")
+    print(f"Copied command to {rec['path']}")
+    print(f"  clipboard: {'yes' if rec['clipboard'] else 'no'}")
+    print(f"  command: {rec.get('text', '')}")
     return rec
 
 
@@ -74,7 +75,8 @@ def dispatch_legacy_copy_choice(choice, cfg, *, input_func):
     if chosen:
         try:
             rec = copy_generated_command(cfg, chosen)
-            print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
+            print(f"Copied command to {rec['path']}")
+            print(f"  clipboard: {'yes' if rec['clipboard'] else 'no'}")
         except ValueError as exc:
             print(exc)
     return True
@@ -146,8 +148,9 @@ def copy_line_service_command(cfg, subcmd, copy_func, start_command=None, stop_c
         print(f"no {subcmd} command available - select a listener first")
         return {}
     rec = copy_func(command, label=f"{subcmd} command")
-    print(f"copied {subcmd} command  clipboard={'yes' if rec.get('clipboard') else 'no'}")
-    print(f"  {command}")
+    print(f"Copied {subcmd} command")
+    print(f"  clipboard: {'yes' if rec.get('clipboard') else 'no'}")
+    print(f"  command: {command}")
     return rec
 
 
