@@ -6395,9 +6395,6 @@ def run_line_repl(cfg):
             headless_command_builder=bridge_profile_headless_command,
         )
 
-    def line_repl_prompt():
-        return line_repl_prompt_for_config(cfg)
-
     def record_line_alias(alias, canonical):
         append_event(cfg, "workbench", "workbench_console_alias_used", details={
             "alias": str(alias or ""),
@@ -6426,9 +6423,6 @@ def run_line_repl(cfg):
             selected_action=selected_line_action,
             job_record=line_job_record,
         )
-
-    def print_line_workspace():
-        return print_line_workspace_snapshot(workbench_snapshot(cfg))
 
     def print_line_options():
         module = str(cfg.get("_line_console_module") or "root")
@@ -7059,9 +7053,9 @@ def run_line_repl(cfg):
             print_line_console_banner(snap, grit_version())
         if pending_console_lines:
             line = pending_console_lines.pop(0)
-            print(f"{line_repl_prompt()}{line}")
+            print(f"{line_repl_prompt_for_config(cfg)}{line}")
         else:
-            line = line_input(line_repl_prompt())
+            line = line_input(line_repl_prompt_for_config(cfg))
         if line is None:
             break
         choice = line.strip()
@@ -7154,7 +7148,10 @@ def run_line_repl(cfg):
                     console_args[1:],
                     status_func=lambda: print(line_repl_status_bar(workbench_snapshot(cfg))),
                     ips_func=lambda: print_line_local_ips(workbench_snapshot(cfg)),
-                    workspace_func=lambda: (clear_line_module_context(cfg, quiet=True), print_line_workspace()),
+                    workspace_func=lambda: (
+                        clear_line_module_context(cfg, quiet=True),
+                        print_line_workspace_snapshot(workbench_snapshot(cfg)),
+                    ),
                     reload_func=lambda: line_workspace_reload_line_config_for_repl(
                         cfg,
                         default_config=DEFAULT_CONFIG,
