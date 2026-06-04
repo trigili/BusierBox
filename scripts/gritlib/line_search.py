@@ -24,6 +24,37 @@ def dispatch_line_search_command(search_cmd, *, search_func=None):
     raise ValueError("unsupported search command")
 
 
+def dispatch_line_number_selection(
+    choice,
+    cfg,
+    *,
+    use_result_func=None,
+    clear_results_func=None,
+    require_active_results=False,
+):
+    text = str(choice or "").strip()
+    if not text.isdigit():
+        return False
+    search_results = list((cfg or {}).get("_line_console_search_results") or [])
+    if not search_results:
+        if require_active_results:
+            return False
+        print("no numbered result is active; run a list command first, then use N")
+        return True
+    idx = int(text) - 1
+    if idx < 0 or idx >= len(search_results):
+        print(f"numbered result not found: {text}; run a list command first, then use N")
+        return True
+    try:
+        if use_result_func:
+            use_result_func(text)
+        if clear_results_func:
+            clear_results_func()
+    except ValueError as exc:
+        print(exc)
+    return True
+
+
 def clear_line_search_results(cfg):
     cfg["_line_console_search_results"] = []
 

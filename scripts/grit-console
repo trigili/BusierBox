@@ -191,7 +191,7 @@ from gritlib.line_release import (
     stage_line_release as line_release_stage_line_release,
 )
 from gritlib.line_search import (
-    clear_line_search_results,
+    clear_line_search_results, dispatch_line_number_selection,
     print_line_search_results,
     use_line_search_result as line_search_use_line_search_result,
 )
@@ -7398,21 +7398,13 @@ def run_line_repl(cfg):
                 continue
             mark_service_stopped(cfg, "workbench", "quit")
             return 0
-        # If a number was entered and there are active search results (e.g. from
-        # `listeners`, `targets`, `search`, etc.), use those — the numbers shown
-        # in any list command correspond to search result positions.
-        if choice.isdigit() and cfg.get("_line_console_search_results"):
-            search_results = cfg.get("_line_console_search_results") or []
-            idx = int(choice) - 1
-            if 0 <= idx < len(search_results):
-                try:
-                    use_line_search_result(choice)
-                    clear_line_selectable_results()
-                except ValueError as exc:
-                    print(exc)
-                compact_next_prompt = True
-                continue
-            print(f"numbered result not found: {choice}; run a list command first, then use N")
+        if dispatch_line_number_selection(
+            choice,
+            cfg,
+            use_result_func=use_line_search_result,
+            clear_results_func=clear_line_selectable_results,
+            require_active_results=True,
+        ):
             compact_next_prompt = True
             continue
         if choice in {"1", "2", "3", "4"}:
@@ -8171,8 +8163,14 @@ def run_line_repl(cfg):
                     })
             except ValueError as exc:
                 print(exc)
-        elif choice.isdigit():
-            print("no numbered result is active; run a list command first, then use N")
+        elif dispatch_line_number_selection(
+            choice,
+            cfg,
+            use_result_func=use_line_search_result,
+            clear_results_func=clear_line_selectable_results,
+        ):
+            compact_next_prompt = True
+            continue
     restore_signal_handlers(signal_handlers)
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
