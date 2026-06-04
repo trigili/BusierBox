@@ -157,6 +157,30 @@ def dispatch_line_help_command(
     return True
 
 
+def dispatch_line_quit_choice(
+    choice,
+    *,
+    module=None,
+    target_selected=False,
+    clear_context_func,
+    mark_stopped_func,
+):
+    """Handle q/quit/exit and return REPL state updates."""
+    if choice not in {"q", "quit", "exit"}:
+        return {"handled": False}
+    if str(module or "") or target_selected:
+        clear_context_func(quiet=True)
+        return {
+            "handled": True,
+            "compact_next_prompt": True,
+        }
+    mark_stopped_func()
+    return {
+        "handled": True,
+        "exit_code": 0,
+    }
+
+
 def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull):
     stream = stdin if stdin is not None else sys.stdin
     null_fd = None

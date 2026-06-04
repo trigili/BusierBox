@@ -418,6 +418,7 @@ def run_line_repl_runtime_check():
         sys.path.insert(0, scripts_dir)
     from gritlib.line_repl_runtime import (
         dispatch_line_help_command,
+        dispatch_line_quit_choice,
         prepare_repl_choice,
         read_line,
         read_next_repl_line,
@@ -688,6 +689,44 @@ def run_line_repl_runtime_check():
         ),
     ):
         print("line REPL runtime consumed a non-help command", file=sys.stderr)
+        return 1
+
+    quit_calls = []
+    context_quit = dispatch_line_quit_choice(
+        "q",
+        module="targets",
+        target_selected=False,
+        clear_context_func=lambda quiet=False: quit_calls.append(("clear", quiet)),
+        mark_stopped_func=lambda: quit_calls.append("stop"),
+    )
+    if (
+        context_quit.get("handled") is not True
+        or context_quit.get("compact_next_prompt") is not True
+        or "exit_code" in context_quit
+        or quit_calls != [("clear", True)]
+    ):
+        print(f"line REPL runtime did not clear context on scoped quit: {context_quit} {quit_calls}", file=sys.stderr)
+        return 1
+
+    quit_calls.clear()
+    root_quit = dispatch_line_quit_choice(
+        "exit",
+        module="",
+        target_selected=False,
+        clear_context_func=lambda quiet=False: quit_calls.append(("clear", quiet)),
+        mark_stopped_func=lambda: quit_calls.append("stop"),
+    )
+    if root_quit != {"handled": True, "exit_code": 0} or quit_calls != ["stop"]:
+        print(f"line REPL runtime did not stop workbench on root quit: {root_quit} {quit_calls}", file=sys.stderr)
+        return 1
+
+    non_quit = dispatch_line_quit_choice(
+        "status",
+        clear_context_func=lambda quiet=False: quit_calls.append(("clear", quiet)),
+        mark_stopped_func=lambda: quit_calls.append("stop"),
+    )
+    if non_quit != {"handled": False}:
+        print(f"line REPL runtime consumed non-quit choice: {non_quit}", file=sys.stderr)
         return 1
     return 0
 

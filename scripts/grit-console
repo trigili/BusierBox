@@ -174,7 +174,7 @@ from gritlib.line_resources import (
 )
 from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
-    dispatch_line_help_command, prepare_repl_choice,
+    dispatch_line_help_command, dispatch_line_quit_choice, prepare_repl_choice,
     read_line as line_repl_read_line, read_next_repl_line,
     restore_signal_handlers,
 )
@@ -6540,14 +6540,18 @@ def run_line_repl(cfg):
                     target_selected=bool(configured_target_filter(cfg)),
                 ))
                 continue
-        if choice in {"q", "quit", "exit"}:
-            # Return directly to the root prompt first; q/quit at root exits.
-            if str(cfg.get("_line_console_module") or "") or configured_target_filter(cfg):
-                clear_line_console_context(cfg, quiet=True)
+        quit_result = dispatch_line_quit_choice(
+            choice,
+            module=cfg.get("_line_console_module"),
+            target_selected=bool(configured_target_filter(cfg)),
+            clear_context_func=lambda quiet=False: clear_line_console_context(cfg, quiet=quiet),
+            mark_stopped_func=lambda: mark_service_stopped(cfg, "workbench", "quit"),
+        )
+        if quit_result.get("handled"):
+            if quit_result.get("compact_next_prompt"):
                 compact_next_prompt = True
                 continue
-            mark_service_stopped(cfg, "workbench", "quit")
-            return 0
+            return quit_result.get("exit_code", 0)
         legacy_result = dispatch_legacy_line_choice(
             choice,
             cfg,
