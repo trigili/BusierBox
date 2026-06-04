@@ -128,6 +128,32 @@ def split_line_run_args(values):
     return " ".join(selector_parts).strip(), flags
 
 
+def parse_line_action_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    if cmd in {"run", "execute", "exploit"}:
+        if any(item in {"-j", "--job"} for item in args):
+            selector = " ".join(item for item in args if item not in {"-j", "--job"}).strip()
+            return {
+                "action": "start-job",
+                "selector": selector,
+                "alias": cmd if cmd != "run" else "",
+                "canonical": "run",
+            }
+        return {
+            "action": "run",
+            "args": args,
+            "dry_run": False,
+            "alias": cmd if cmd != "run" else "",
+            "canonical": "run",
+        }
+    if cmd == "check":
+        return {"action": "run", "args": args, "dry_run": True}
+    if cmd in {"kill", "cancel"}:
+        return {"action": "cancel-job", "selector": " ".join(args).strip()}
+    return {}
+
+
 def print_line_action_result(rc):
     try:
         code = int(rc)

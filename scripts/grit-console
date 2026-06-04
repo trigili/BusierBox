@@ -111,6 +111,7 @@ from gritlib.file_transfers import (
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.line_actions import (
     line_action_records_from_snapshot,
+    parse_line_action_command,
     print_line_actions as line_actions_print_line_actions,
     print_line_module_categories as line_actions_print_line_module_categories,
     run_line_selected_action as line_actions_run_line_selected_action,
@@ -7912,21 +7913,20 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"run", "execute", "exploit"}:
+            elif cmd in {"run", "execute", "exploit", "check", "kill", "cancel"}:
                 try:
-                    if cmd != "run":
-                        record_line_alias(cmd, "run")
-                    if any(item in {"-j", "--job"} for item in console_args[1:]):
-                        action_selector = " ".join(item for item in console_args[1:] if item not in {"-j", "--job"}).strip()
-                        start_line_job(action_selector)
+                    action_cmd = parse_line_action_command(cmd, console_args[1:])
+                    if action_cmd.get("alias"):
+                        record_line_alias(action_cmd["alias"], action_cmd["canonical"])
+                    if action_cmd["action"] == "start-job":
+                        start_line_job(action_cmd["selector"])
+                    elif action_cmd["action"] == "cancel-job":
+                        cancel_line_job(action_cmd["selector"])
                     else:
-                        run_line_module_or_service(console_args[1:])
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "check":
-                try:
-                    run_line_module_or_service(console_args[1:], dry_run_default=True)
+                        run_line_module_or_service(
+                            action_cmd["args"],
+                            dry_run_default=action_cmd["dry_run"],
+                        )
                 except ValueError as exc:
                     print(exc)
                 continue
@@ -7941,12 +7941,6 @@ def run_line_repl(cfg):
                         interact_line_target(interact_cmd["selector"])
                     else:
                         interact_line_session(interact_cmd["selector"])
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd in {"kill", "cancel"}:
-                try:
-                    cancel_line_job(" ".join(console_args[1:]).strip())
                 except ValueError as exc:
                     print(exc)
                 continue
