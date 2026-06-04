@@ -1800,6 +1800,39 @@ def run_target_filter_status_context_check():
     return 0
 
 
+def run_target_attribution_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.target_records import target_attribution_status
+
+    context = target_attribution_status(
+        uploads=[{"target_id": "target-a"}, {"filename": "legacy-upload.bin"}],
+        fetches=[{"target_id": "target-a"}],
+        sessions=[
+            {"session_id": "sess-a"},
+            {"session_id": "sess-b", "target_id": "target-b"},
+        ],
+    )
+    attribution = context.get("target_attribution") or {}
+    records = context.get("target_attribution_records") or []
+    index_maps = context.get("target_attribution_index_maps") or {}
+    if (attribution.get("upload_with_target_count") != 1 or
+            attribution.get("upload_without_target_count") != 1 or
+            attribution.get("session_without_target_count") != 1 or
+            attribution.get("without_target_count") != 2):
+        print("target attribution context did not preserve attribution counts", file=sys.stderr)
+        return 1
+    if len(records) != 4:
+        print("target attribution context did not preserve attribution records", file=sys.stderr)
+        return 1
+    if ((index_maps.get("target_attribution_records_by_scope") or {}).get("uploads", {}).get("has_legacy_activity") is not True or
+            not (index_maps.get("target_attribution_records_by_has_legacy_activity") or {}).get("True")):
+        print("target attribution context did not expose attribution indexes", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_workbench_action_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -5241,6 +5274,8 @@ def main(argv=None):
     if run_workbench_config_status_context_check() != 0:
         return 1
     if run_target_filter_status_context_check() != 0:
+        return 1
+    if run_target_attribution_status_context_check() != 0:
         return 1
     if run_workbench_action_status_context_check() != 0:
         return 1

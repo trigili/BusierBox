@@ -1990,6 +1990,7 @@ def target_attribution_status(uploads=None, fetches=None, sessions=None):
     return {
         "target_attribution": attribution,
         "target_attribution_records": records,
+        "target_attribution_index_maps": target_attribution_record_indexes(records),
     }
 
 
