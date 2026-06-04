@@ -805,6 +805,163 @@ def command_queue_expired(rec, now_epoch=None):
     return int(now_epoch) >= int(expires_epoch)
 
 
+def command_queue_status_summary(command_queue):
+    command_queue = command_queue or {}
+    policy_summary = command_queue.get("policy_summary") or {}
+    mode_summary = command_queue.get("mode_summary") or {}
+    return {
+        "command_queue_total_count": command_queue.get("total_count", 0),
+        "command_queue_queued_count": command_queue.get("queued_count", 0),
+        "command_queue_delivered_count": command_queue.get("delivered_count", 0),
+        "command_queue_result_count": command_queue.get("result_count", 0),
+        "command_queue_result_output_exceeded_count": command_queue.get(
+            "result_output_exceeded_count", 0
+        ),
+        "command_queue_status_counts": command_queue.get("status_counts") or {},
+        "command_queue_target_counts": command_queue.get("target_counts") or {},
+        "command_queue_timeout_sec_counts": (
+            command_queue.get("timeout_sec_counts") or {}
+        ),
+        "command_queue_max_output_bytes_counts": (
+            command_queue.get("max_output_bytes_counts") or {}
+        ),
+        "command_queue_expire_sec_counts": command_queue.get("expire_sec_counts")
+        or {},
+        "command_queue_expired_counts": command_queue.get("expired_counts") or {},
+        "command_queue_execution_decision_counts": (
+            command_queue.get("execution_decision_counts") or {}
+        ),
+        "command_queue_result_status_counts": (
+            command_queue.get("result_status_counts") or {}
+        ),
+        "command_queue_result_exit_code_counts": (
+            command_queue.get("result_exit_code_counts") or {}
+        ),
+        "command_queue_result_output_size_bucket_counts": (
+            command_queue.get("result_output_size_bucket_counts") or {}
+        ),
+        "command_queue_queue_policy_enabled_counts": (
+            command_queue.get("queue_policy_enabled_counts") or {}
+        ),
+        "command_queue_queue_policy_valid_counts": (
+            command_queue.get("queue_policy_valid_counts") or {}
+        ),
+        "command_queue_queue_policy_execution_mode_counts": (
+            command_queue.get("queue_policy_execution_mode_counts") or {}
+        ),
+        "command_queue_queue_policy_allowed_commands_counts": (
+            command_queue.get("queue_policy_allowed_commands_counts") or {}
+        ),
+        "command_queue_delivery_policy_enabled_counts": (
+            command_queue.get("delivery_policy_enabled_counts") or {}
+        ),
+        "command_queue_delivery_policy_valid_counts": (
+            command_queue.get("delivery_policy_valid_counts") or {}
+        ),
+        "command_queue_delivery_policy_execution_mode_counts": (
+            command_queue.get("delivery_policy_execution_mode_counts") or {}
+        ),
+        "command_queue_delivery_policy_delivery_supported_counts": (
+            command_queue.get("delivery_policy_delivery_supported_counts") or {}
+        ),
+        "command_queue_delivery_policy_result_upload_supported_counts": (
+            command_queue.get("delivery_policy_result_upload_supported_counts") or {}
+        ),
+        "command_queue_delivery_policy_active_control_channel_counts": (
+            command_queue.get("delivery_policy_active_control_channel_counts") or {}
+        ),
+        "command_queue_latest_created_at": command_queue.get("latest_created_at", ""),
+        "command_queue_latest_result_received_at": command_queue.get(
+            "latest_result_received_at", ""
+        ),
+        "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
+        "command_queue_policy_error_count": len(
+            command_queue.get("policy_errors") or []
+        ),
+        "command_queue_enabled": bool(policy_summary.get("enabled", False)),
+        "command_queue_configured_for_polling": bool(
+            policy_summary.get("configured_for_polling", False)
+        ),
+        "command_queue_active_control_channel": bool(
+            policy_summary.get("active_control_channel", False)
+        ),
+        "command_queue_token_required": bool(
+            policy_summary.get("token_required", False)
+        ),
+        "command_queue_token_configured": bool(
+            policy_summary.get("token_configured", False)
+        ),
+        "command_queue_execution_mode": policy_summary.get(
+            "execution_mode", "metadata-only"
+        ),
+        "command_queue_metadata_only_default": bool(
+            policy_summary.get("metadata_only_default", False)
+        ),
+        "command_queue_execution_supported": bool(
+            policy_summary.get("execution_supported", False)
+        ),
+        "command_queue_delivery_supported": bool(
+            policy_summary.get("delivery_supported", False)
+        ),
+        "command_queue_result_upload_supported": bool(
+            policy_summary.get("result_upload_supported", False)
+        ),
+        "command_queue_poll_transport_supported": bool(
+            policy_summary.get("poll_transport_supported", False)
+        ),
+        "command_queue_live_polling_supported": bool(
+            policy_summary.get("live_polling_supported", False)
+        ),
+        "GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC": policy_summary.get(
+            "poll_interval_sec", "5"
+        ),
+        "GRIT_COMMAND_QUEUE_POLL_JITTER_PCT": policy_summary.get(
+            "poll_jitter_pct", "0"
+        ),
+        "GRIT_COMMAND_QUEUE_POLL_BACKOFF": policy_summary.get(
+            "poll_backoff", "none"
+        ),
+        "GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC": policy_summary.get(
+            "poll_max_interval_sec", "300"
+        ),
+        "GRIT_COMMAND_QUEUE_MAX_POLLS": policy_summary.get("max_polls", "0"),
+        "command_queue_arbitrary_policy_requested": bool(
+            policy_summary.get("arbitrary_policy_requested", False)
+        ),
+        "command_queue_arbitrary_execution_allowed": bool(
+            policy_summary.get("arbitrary_execution_allowed", False)
+        ),
+        "command_queue_safe_disabled_default": bool(
+            policy_summary.get("safe_disabled_default", False)
+        ),
+        "command_queue_mode_count": mode_summary.get("mode_count", 0),
+        "command_queue_polling_mode_count": mode_summary.get(
+            "polling_mode_count", 0
+        ),
+        "command_queue_operator_host_required_mode_count": mode_summary.get(
+            "operator_host_required_mode_count", 0
+        ),
+        "command_queue_live_supported_mode_count": mode_summary.get(
+            "live_supported_mode_count", 0
+        ),
+        "command_queue_delivery_supported_mode_count": mode_summary.get(
+            "delivery_supported_mode_count", 0
+        ),
+        "command_queue_result_upload_supported_mode_count": mode_summary.get(
+            "result_upload_supported_mode_count", 0
+        ),
+        "command_queue_execution_supported_mode_count": mode_summary.get(
+            "execution_supported_mode_count", 0
+        ),
+        "command_queue_active_control_channel_mode_count": mode_summary.get(
+            "active_control_channel_mode_count", 0
+        ),
+        "command_queue_operator_supplied_command_execution_mode_count": (
+            mode_summary.get("operator_supplied_command_execution_mode_count", 0)
+        ),
+    }
+
+
 def yes_no(value):
     return "yes" if value is True else "no"
 
