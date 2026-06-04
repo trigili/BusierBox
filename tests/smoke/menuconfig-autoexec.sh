@@ -12,7 +12,11 @@ grep -q 'GRIT_ZERO_ARG_LOG_MODE=' "$menu"
 grep -q 'GRIT_ZERO_ARG_CUSTOM_COMMAND=' "$menu"
 grep -q 'GRIT_TRAILER_OVERRIDES_ENABLE=' "$menu"
 grep -q 'Artifact runtime overrides' "$menu"
-grep -q 'scripts/lib/artifact-config' "$menu"
+grep -q 'scripts/grit-console artifact config' "$menu"
+if grep -q 'scripts/lib/artifact-config' "$menu"; then
+    printf '%s\n' "menuconfig-autoexec: runtime override UX still recommends direct artifact-config helper" >&2
+    exit 1
+fi
 grep -q 'GRIT_RSHELL_TRANSPORT=' "$menu"
 grep -q 'GRIT_RSHELL_AUTHKEYS_MODE=' "$menu"
 grep -q 'GRIT_DOTFILE_ZSH_MODE=' "$menu"

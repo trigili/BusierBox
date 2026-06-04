@@ -126,7 +126,7 @@ if grep -Eq 'scripts/grit-bringup --recommend-only --json|scripts/lib/artifact-c
     printf '%s\n' "stale-ux-text: release docs still recommend wrapper/helper commands for bringup/artifact config" >&2
     exit 1
 fi
-if grep -Eq 'scripts/lib/artifact-config (show|set|export|import|clear)|scripts/lib/artifact-config`' docs/artifact-runtime-overrides.md docs/manifest.md docs/bringup.md docs/integration-glinet.md; then
+if grep -Eq 'scripts/lib/artifact-config (show|set|export|import|clear)|scripts/lib/artifact-config`' docs/artifact-runtime-overrides.md docs/manifest.md docs/bringup.md docs/integration-glinet.md scripts/menuconfig; then
     printf '%s\n' "stale-ux-text: operator docs still recommend direct artifact-config helper usage" >&2
     exit 1
 fi
