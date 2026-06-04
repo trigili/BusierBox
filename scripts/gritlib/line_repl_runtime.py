@@ -12,6 +12,29 @@ def configure_readline_history(readline_module, have_readline, limit=500):
         readline_module.set_history_length(limit)
 
 
+def install_readline_completer(readline_module, have_readline, candidate_func):
+    if not have_readline or readline_module is None:
+        return
+    completion_cache = {"line": None, "candidates": []}
+
+    def _rl_completer(_text, state):
+        try:
+            line = readline_module.get_line_buffer()
+            if line != completion_cache["line"]:
+                completion_cache["line"] = line
+                completion_cache["candidates"] = list(candidate_func(line) or [])
+            candidates = completion_cache["candidates"]
+            if state < len(candidates):
+                return candidates[state]
+        except Exception:
+            pass
+        return None
+
+    readline_module.set_completer(_rl_completer)
+    readline_module.set_completer_delims("\t\n")
+    readline_module.parse_and_bind("tab: complete")
+
+
 def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull):
     stream = stdin if stdin is not None else sys.stdin
     null_fd = None

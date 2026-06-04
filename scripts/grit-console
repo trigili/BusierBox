@@ -188,7 +188,7 @@ from gritlib.line_resources import (
     record_line_history, write_line_makerc,
 )
 from gritlib.line_repl_runtime import (
-    configure_readline_history, install_line_repl_signal_handlers,
+    configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
     read_line as line_repl_read_line, restore_signal_handlers,
 )
 from gritlib.line_release import (
@@ -7612,25 +7612,7 @@ def run_line_repl(cfg):
     def view_line_path(path_text):
         return operator_io_view_line_path(cfg, path_text, append_event_fn=append_event)
 
-    if HAVE_READLINE:
-        _rl_completion_cache = {"line": None, "candidates": []}
-
-        def _rl_completer(text, state):
-            try:
-                line = _readline.get_line_buffer()
-                if line != _rl_completion_cache["line"]:
-                    _rl_completion_cache["line"] = line
-                    _rl_completion_cache["candidates"] = line_completion_candidates(line)
-                candidates = _rl_completion_cache["candidates"]
-                if state < len(candidates):
-                    return candidates[state]
-            except Exception:
-                pass
-            return None
-
-        _readline.set_completer(_rl_completer)
-        _readline.set_completer_delims("\t\n")
-        _readline.parse_and_bind("tab: complete")
+    install_readline_completer(_readline, HAVE_READLINE, line_completion_candidates)
 
     render_full = False
     compact_next_prompt = False
