@@ -416,7 +416,7 @@ def run_line_repl_runtime_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from gritlib.line_repl_runtime import read_line
+    from gritlib.line_repl_runtime import read_line, read_next_repl_line
 
     reasons = []
 
@@ -482,6 +482,76 @@ def run_line_repl_runtime_check():
     )
     if error_line is not None or reasons != ["input_error"]:
         print(f"line REPL runtime fallback did not preserve input error reason: line={error_line!r} reasons={reasons}", file=sys.stderr)
+        return 1
+
+    calls = []
+    pending = ["workspace"]
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        prompt_result = read_next_repl_line(
+            {"_line_console_module": "targets"},
+            compact_next_prompt=False,
+            render_full=False,
+            pending_console_lines=pending,
+            workbench_snapshot_func=lambda _cfg: calls.append("snapshot") or {"ok": True},
+            print_workbench_func=lambda _cfg, include_api_summary=False: calls.append(("workbench", include_api_summary)),
+            print_banner_func=lambda snap, version: calls.append(("banner", snap, version)),
+            version_func=lambda: "v-test",
+            prompt_func=lambda _cfg: "grit> ",
+            input_func=lambda _prompt: "ignored",
+        )
+    if (
+        prompt_result.get("line") != "workspace"
+        or pending
+        or prompt_result.get("snapshot") != {"ok": True}
+        or prompt_result.get("compact_next_prompt") is not False
+        or prompt_result.get("render_full") is not False
+        or calls != ["snapshot", ("banner", {"ok": True}, "v-test")]
+        or "grit> workspace" not in out.getvalue()
+    ):
+        print("line REPL runtime did not preserve normal prompt frame", file=sys.stderr)
+        return 1
+
+    calls.clear()
+    compact_result = read_next_repl_line(
+        {},
+        compact_next_prompt=True,
+        render_full=True,
+        pending_console_lines=[],
+        workbench_snapshot_func=lambda _cfg: calls.append("snapshot") or {},
+        print_workbench_func=lambda _cfg, include_api_summary=False: calls.append(("workbench", include_api_summary)),
+        print_banner_func=lambda _snap, _version: calls.append("banner"),
+        prompt_func=lambda _cfg: "grit> ",
+        input_func=lambda prompt: prompt + "status",
+    )
+    if (
+        compact_result.get("line") != "grit> status"
+        or compact_result.get("snapshot") is not None
+        or compact_result.get("compact_next_prompt") is not False
+        or compact_result.get("render_full") is not True
+        or calls
+    ):
+        print("line REPL runtime did not preserve compact prompt frame", file=sys.stderr)
+        return 1
+
+    calls.clear()
+    full_result = read_next_repl_line(
+        {},
+        compact_next_prompt=False,
+        render_full=True,
+        pending_console_lines=[],
+        workbench_snapshot_func=lambda _cfg: calls.append("snapshot") or {"full": True},
+        print_workbench_func=lambda _cfg, include_api_summary=False: calls.append(("workbench", include_api_summary)),
+        prompt_func=lambda _cfg: "grit> ",
+        input_func=lambda _prompt: "status",
+    )
+    if (
+        full_result.get("line") != "status"
+        or full_result.get("snapshot") != {"full": True}
+        or full_result.get("render_full") is not False
+        or calls != [("workbench", False), "snapshot"]
+    ):
+        print("line REPL runtime did not preserve full prompt frame", file=sys.stderr)
         return 1
     return 0
 

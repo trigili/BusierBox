@@ -181,8 +181,8 @@ from gritlib.line_resources import (
 )
 from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
-    parse_line_command_args, read_line as line_repl_read_line, resolve_replay_command,
-    restore_signal_handlers, should_parse_line_command,
+    parse_line_command_args, read_line as line_repl_read_line, read_next_repl_line,
+    resolve_replay_command, restore_signal_handlers, should_parse_line_command,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
 from gritlib.line_repl_display import build_line_display_callbacks
@@ -6299,23 +6299,21 @@ def run_line_repl(cfg):
     pending_console_lines = []
     line_history = []
     while not SHUTDOWN.is_set():
-        snap = None
-        if compact_next_prompt:
-            compact_next_prompt = False
-        elif render_full:
-            print("")
-            print_workbench(cfg, include_api_summary=False)
-            render_full = False
-            snap = workbench_snapshot(cfg)
-        else:
-            print("")
-            snap = workbench_snapshot(cfg)
-            print_line_console_banner(snap, grit_version())
-        if pending_console_lines:
-            line = pending_console_lines.pop(0)
-            print(f"{line_repl_prompt_for_config(cfg)}{line}")
-        else:
-            line = line_input(line_repl_prompt_for_config(cfg))
+        prompt_result = read_next_repl_line(
+            cfg,
+            compact_next_prompt=compact_next_prompt,
+            render_full=render_full,
+            pending_console_lines=pending_console_lines,
+            workbench_snapshot_func=workbench_snapshot,
+            print_workbench_func=print_workbench,
+            print_banner_func=print_line_console_banner,
+            version_func=grit_version,
+            prompt_func=line_repl_prompt_for_config,
+            input_func=line_input,
+        )
+        line = prompt_result["line"]
+        compact_next_prompt = prompt_result["compact_next_prompt"]
+        render_full = prompt_result["render_full"]
         if line is None:
             break
         choice = line.strip()

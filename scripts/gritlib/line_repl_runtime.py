@@ -141,3 +141,50 @@ def read_line(prompt, *, shutdown_event, request_shutdown_func, have_readline,
             return None
         return line.rstrip("\n")
     return None
+
+
+def read_next_repl_line(
+    cfg,
+    *,
+    compact_next_prompt=False,
+    render_full=False,
+    pending_console_lines=None,
+    workbench_snapshot_func=None,
+    print_workbench_func=None,
+    print_banner_func=None,
+    version_func=None,
+    prompt_func=None,
+    input_func=None,
+):
+    """Render the next prompt frame and return the entered line plus updated state."""
+    pending_console_lines = pending_console_lines if pending_console_lines is not None else []
+    workbench_snapshot_func = workbench_snapshot_func or (lambda _cfg: {})
+    print_workbench_func = print_workbench_func or (lambda _cfg, include_api_summary=False: None)
+    print_banner_func = print_banner_func or (lambda _snap, _version: None)
+    version_func = version_func or (lambda: "")
+    prompt_func = prompt_func or (lambda _cfg: "> ")
+    input_func = input_func or input
+    snap = None
+    if compact_next_prompt:
+        compact_next_prompt = False
+    elif render_full:
+        print("")
+        print_workbench_func(cfg, include_api_summary=False)
+        render_full = False
+        snap = workbench_snapshot_func(cfg)
+    else:
+        print("")
+        snap = workbench_snapshot_func(cfg)
+        print_banner_func(snap, version_func())
+    prompt = prompt_func(cfg)
+    if pending_console_lines:
+        line = pending_console_lines.pop(0)
+        print(f"{prompt}{line}")
+    else:
+        line = input_func(prompt)
+    return {
+        "line": line,
+        "snapshot": snap,
+        "compact_next_prompt": compact_next_prompt,
+        "render_full": render_full,
+    }
