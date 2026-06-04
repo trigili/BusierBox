@@ -165,6 +165,7 @@ from gritlib.line_help import (
 from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
     note_line_target as line_options_note_line_target,
+    print_line_context_options as line_options_print_line_context_options,
     print_line_service_options as line_options_print_line_service_options,
     rename_line_target as line_options_rename_line_target,
     set_line_option as line_options_set_line_option,
@@ -6473,8 +6474,6 @@ def run_line_repl(cfg):
 
     def print_line_options():
         module = str(cfg.get("_line_console_module") or "root")
-        target_id = configured_target_filter(cfg)
-        all_fields = {r.get("key", ""): r for r in workbench_config_field_records(cfg)}
 
         if module.startswith(("listener/", "service/")):
             service = module.split("/", 1)[1]
@@ -6483,85 +6482,21 @@ def run_line_repl(cfg):
                 service,
                 service_record=line_service_record(service_status_rows(cfg), service),
                 display_name_func=line_service_display_name,
-                build_fields=all_fields,
+                build_fields={r.get("key", ""): r for r in workbench_config_field_records(cfg)},
                 target_command_records=[
                     rec for rec in generated_target_command_records(cfg)
                     if str(rec.get("service") or "") == service
                 ],
             )
             return
-        elif module.startswith("route/"):
-            route_name = module.split("/", 1)[1]
-            rec = line_route_record(route_name)
-            print(f"  route.name={route_name}")
-            if rec:
-                print(f"  route.listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
-                print(f"  route.destination={rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
-                print(f"  route.route_path={rec.get('route_path', '') or '-'}")
-                print(f"  route.state={rec.get('current_state', '') or '-'}")
-                print(f"  route.active={'yes' if rec.get('active') else 'no'}")
-                print(f"  route.hop_count={rec.get('hop_count', 0)}")
-                print(f"  route.multi_hop={'yes' if rec.get('multi_hop') else 'no'}")
-                print(f"  route.target_id={rec.get('target_id', '') or '-'}")
-                print(f"  route.last_success={rec.get('last_successful_relay_at', '') or '-'}")
-                print(f"  route.last_failure={rec.get('last_failure_reason', '') or '-'}")
-            print(f"  route.commands=route {route_name}, route start {route_name}, route stop {route_name}, route delete {route_name}")
-            print("  route.next=options, start, stop, routes -v, back")
-        elif module.startswith("session/"):
-            session_id = module.split("/", 1)[1]
-            rec = line_session_record(session_id)
-            print(f"  session.id={session_id}")
-            if rec:
-                path = str(rec.get("path") or "")
-                print(f"  session.service={rec.get('service', '') or '-'}")
-                print(f"  session.state={rec.get('state', '') or '-'}")
-                print(f"  session.exit_reason={rec.get('exit_reason', '') or '-'}")
-                print(f"  session.updated_at={rec.get('updated_at', '') or '-'}")
-                print(f"  session.path={path}")
-                print(f"  session.upload_count={rec.get('upload_count', 0)}")
-                print(f"  session.fetch_count={rec.get('fetch_count', 0)}")
-                print(f"  session.event_count={rec.get('event_count', 0)}")
-                if rec.get("session_log"):
-                    print(f"  session.session_log={rec.get('session_log', '')}")
-                if rec.get("event_log"):
-                    print(f"  session.event_log={rec.get('event_log', '')}")
-            print("  session.next=info, interact, sessions -v, view PATH, back")
-        elif module.startswith("job/"):
-            job_id = module.split("/", 1)[1]
-            rec = line_job_record(job_id)
-            print(f"  job.id={job_id}")
-            if rec:
-                print(f"  job.action={rec.get('action_id', '') or '-'}")
-                print(f"  job.state={rec.get('state', '') or '-'}")
-                print(f"  job.effective_state={rec.get('effective_state', '') or '-'}")
-                print(f"  job.pid={rec.get('pid', '') or '-'}")
-                print(f"  job.pid_managed={'yes' if rec.get('pid_managed') else 'no'}")
-                print(f"  job.cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}")
-                print(f"  job.log_path={rec.get('log_path', '') or '-'}")
-                print(f"  job.log_exists={'yes' if rec.get('log_exists') else 'no'}")
-                print(f"  job.elapsed_sec={rec.get('elapsed_sec', '') if rec.get('elapsed_sec') != '' else '-'}")
-                print(f"  job.exit_status={rec.get('exit_status', '') if rec.get('exit_status') != '' else '-'}")
-            print("  job.next=info, jobs, jobs -v, back")
-        action = selected_line_action()
-        if action:
-            print(f"  action.kind={action.get('kind', '')}")
-            print(f"  action.id={action.get('id', '')}")
-            print(f"  action.label={action.get('label', '') or '-'}")
-            print(f"  action.category={action.get('category', '') or '-'}")
-            print(f"  action.workflow={action.get('workflow', '') or '-'}")
-            print(f"  action.state={action.get('operator_action_state', '') or '-'}")
-            print(f"  action.reason={action.get('operator_action_reason', '') or '-'}")
-            print(f"  action.requires_confirmation={'yes' if action.get('requires_confirmation') else 'no'}")
-            print(f"  action.background_supported={'yes' if action.get('background_supported') else 'no'}")
-            print("  action.commands=check, run, run --dry-run, run --confirm")
-            if action.get("background_supported"):
-                print("  action.background=run -j")
-            print("  action.next=info, check, run, back")
-        else:
-            print("  action.id=none")
-        fields = workbench_config_field_records(cfg)
-        if fields:
-            print(f"  Build options: {len(fields)} configured  (run: build to view/edit)")
+        line_options_print_line_context_options(
+            cfg,
+            module,
+            route_record=line_route_record(module.split("/", 1)[1]) if module.startswith("route/") else {},
+            session_record=line_session_record(module.split("/", 1)[1]) if module.startswith("session/") else {},
+            job_record=line_job_record(module.split("/", 1)[1]) if module.startswith("job/") else {},
+            selected_action=selected_line_action(),
+        )
 
     def unset_line_option(name):
         unset_line_target_option(cfg, name, clear_module=clear_line_module)

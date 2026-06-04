@@ -168,6 +168,98 @@ def print_line_service_options(
     print("  set KEY VALUE  /  build  /  back")
 
 
+def print_line_context_options(
+    cfg,
+    module,
+    route_record=None,
+    session_record=None,
+    job_record=None,
+    selected_action=None,
+):
+    module = str(module or "root")
+    route_record = route_record if isinstance(route_record, dict) else {}
+    session_record = session_record if isinstance(session_record, dict) else {}
+    job_record = job_record if isinstance(job_record, dict) else {}
+    selected_action = selected_action if isinstance(selected_action, dict) else {}
+
+    if module.startswith("route/"):
+        route_name = module.split("/", 1)[1]
+        rec = route_record
+        print(f"  route.name={route_name}")
+        if rec:
+            print(f"  route.listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
+            print(f"  route.destination={rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
+            print(f"  route.route_path={rec.get('route_path', '') or '-'}")
+            print(f"  route.state={rec.get('current_state', '') or '-'}")
+            print(f"  route.active={'yes' if rec.get('active') else 'no'}")
+            print(f"  route.hop_count={rec.get('hop_count', 0)}")
+            print(f"  route.multi_hop={'yes' if rec.get('multi_hop') else 'no'}")
+            print(f"  route.target_id={rec.get('target_id', '') or '-'}")
+            print(f"  route.last_success={rec.get('last_successful_relay_at', '') or '-'}")
+            print(f"  route.last_failure={rec.get('last_failure_reason', '') or '-'}")
+        print(f"  route.commands=route {route_name}, route start {route_name}, route stop {route_name}, route delete {route_name}")
+        print("  route.next=options, start, stop, routes -v, back")
+
+    if module.startswith("session/"):
+        session_id = module.split("/", 1)[1]
+        rec = session_record
+        print(f"  session.id={session_id}")
+        if rec:
+            path = str(rec.get("path") or "")
+            print(f"  session.service={rec.get('service', '') or '-'}")
+            print(f"  session.state={rec.get('state', '') or '-'}")
+            print(f"  session.exit_reason={rec.get('exit_reason', '') or '-'}")
+            print(f"  session.updated_at={rec.get('updated_at', '') or '-'}")
+            print(f"  session.path={path}")
+            print(f"  session.upload_count={rec.get('upload_count', 0)}")
+            print(f"  session.fetch_count={rec.get('fetch_count', 0)}")
+            print(f"  session.event_count={rec.get('event_count', 0)}")
+            if rec.get("session_log"):
+                print(f"  session.session_log={rec.get('session_log', '')}")
+            if rec.get("event_log"):
+                print(f"  session.event_log={rec.get('event_log', '')}")
+        print("  session.next=info, interact, sessions -v, view PATH, back")
+
+    if module.startswith("job/"):
+        job_id = module.split("/", 1)[1]
+        rec = job_record
+        print(f"  job.id={job_id}")
+        if rec:
+            print(f"  job.action={rec.get('action_id', '') or '-'}")
+            print(f"  job.state={rec.get('state', '') or '-'}")
+            print(f"  job.effective_state={rec.get('effective_state', '') or '-'}")
+            print(f"  job.pid={rec.get('pid', '') or '-'}")
+            print(f"  job.pid_managed={'yes' if rec.get('pid_managed') else 'no'}")
+            print(f"  job.cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}")
+            print(f"  job.log_path={rec.get('log_path', '') or '-'}")
+            print(f"  job.log_exists={'yes' if rec.get('log_exists') else 'no'}")
+            print(f"  job.elapsed_sec={rec.get('elapsed_sec', '') if rec.get('elapsed_sec') != '' else '-'}")
+            print(f"  job.exit_status={rec.get('exit_status', '') if rec.get('exit_status') != '' else '-'}")
+        print("  job.next=info, jobs, jobs -v, back")
+
+    action = selected_action
+    if action:
+        print(f"  action.kind={action.get('kind', '')}")
+        print(f"  action.id={action.get('id', '')}")
+        print(f"  action.label={action.get('label', '') or '-'}")
+        print(f"  action.category={action.get('category', '') or '-'}")
+        print(f"  action.workflow={action.get('workflow', '') or '-'}")
+        print(f"  action.state={action.get('operator_action_state', '') or '-'}")
+        print(f"  action.reason={action.get('operator_action_reason', '') or '-'}")
+        print(f"  action.requires_confirmation={'yes' if action.get('requires_confirmation') else 'no'}")
+        print(f"  action.background_supported={'yes' if action.get('background_supported') else 'no'}")
+        print("  action.commands=check, run, run --dry-run, run --confirm")
+        if action.get("background_supported"):
+            print("  action.background=run -j")
+        print("  action.next=info, check, run, back")
+    else:
+        print("  action.id=none")
+
+    fields = workbench_config_field_records(cfg)
+    if fields:
+        print(f"  Build options: {len(fields)} configured  (run: build to view/edit)")
+
+
 def record_line_target_metadata_update(cfg, target_id, action="", field="", default_config=DEFAULT_CONFIG):
     rec = (load_targets(cfg).get("targets") or {}).get(target_id, {})
     headless = (
