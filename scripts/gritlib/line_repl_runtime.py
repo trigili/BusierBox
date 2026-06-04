@@ -369,14 +369,20 @@ def run_configured_line_repl_loop(
     if legacy_callbacks is not None:
         kwargs.setdefault("legacy_dispatch_func", legacy_callbacks["dispatch_line_legacy"])
 
+    def line_module(repl_cfg):
+        return repl_cfg.get("_line_console_module")
+
+    def target_selected(repl_cfg):
+        return bool(target_filter_func(repl_cfg))
+
+    def clear_context(quiet=False):
+        return clear_console_context_func(cfg, quiet=quiet)
+
     return run_line_repl_loop(
         cfg,
-        module_func=lambda repl_cfg: repl_cfg.get("_line_console_module"),
-        target_selected_func=lambda repl_cfg: bool(target_filter_func(repl_cfg)),
-        clear_context_func=lambda quiet=False: clear_console_context_func(
-            cfg,
-            quiet=quiet,
-        ),
+        module_func=line_module,
+        target_selected_func=target_selected,
+        clear_context_func=clear_context,
         **kwargs,
     )
 

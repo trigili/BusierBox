@@ -513,6 +513,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_legacy as repl_legacy
     import gritlib.line_repl_navigation as repl_navigation
     import gritlib.line_repl_options as repl_options
+    import gritlib.line_repl_queue as repl_queue
     import gritlib.line_repl_routes as repl_routes
     import gritlib.line_repl_search as repl_search
     import gritlib.line_repl_show as repl_show
@@ -1269,6 +1270,71 @@ def run_line_repl_runtime_check():
             f"line REPL utility bundle wiring changed: {adapter_calls} pending={bundle_pending_lines}",
             file=sys.stderr,
         )
+        return 1
+
+    queue_bundle_calls = []
+    original_queue_view = repl_queue.print_line_command_queue_view
+    original_queue_line = repl_queue.queue_line_command
+    original_queue_runner = repl_queue.run_line_queue_command
+    original_queue_clear = repl_queue.clear_line_search_results
+
+    def fake_queue_view(cfg, **kwargs):
+        queue_bundle_calls.append(("view", cfg.get("name"), kwargs.get("detailed"), kwargs.get("mailbox_only")))
+        kwargs["clear_results_func"](cfg)
+        kwargs["set_results_func"](cfg, ["result"])
+        return "queue-view"
+
+    def fake_queue_line(cfg, command, queue_func, **kwargs):
+        queue_bundle_calls.append(("queue", cfg.get("name"), command, kwargs["target_filter_func"](cfg)))
+        return queue_func(cfg, command)
+
+    def fake_queue_runner(cfg, args, **kwargs):
+        queue_bundle_calls.append(("run", cfg.get("name"), tuple(args)))
+        kwargs["clear_selectable_results_func"]()
+        return kwargs["view_func"](detailed=True, mailbox_only=False)
+
+    repl_queue.print_line_command_queue_view = fake_queue_view
+    repl_queue.queue_line_command = fake_queue_line
+    repl_queue.run_line_queue_command = fake_queue_runner
+    repl_queue.clear_line_search_results = lambda cfg: queue_bundle_calls.append(("clear", cfg.get("name")))
+    try:
+        queue_bundle = repl_queue.build_line_queue_callbacks(
+            {"name": "queue-cfg", "target": "target1"},
+            workbench_snapshot_func=lambda cfg: {"cfg": cfg.get("name")},
+            queue_summary_func=lambda cfg: {"cfg": cfg.get("name")},
+            queue_func=lambda cfg, command: queue_bundle_calls.append(
+                ("queue-func", cfg.get("name"), command)
+            ) or {"id": "cq1"},
+            clear_queue_func=lambda cfg: queue_bundle_calls.append(("clear-queue", cfg.get("name"))),
+            target_filter_func=lambda cfg: cfg.get("target"),
+            append_event_fn=lambda *args, **kwargs: None,
+            quote=lambda value: f"'{value}'",
+        )
+        if queue_bundle["clear_line_selectable_results"]() is not None:
+            print("line REPL queue bundle clear callback returned unexpected value", file=sys.stderr)
+            return 1
+        if queue_bundle["queue_line_command"]("whoami") != {"id": "cq1"}:
+            print("line REPL queue bundle did not return queue result", file=sys.stderr)
+            return 1
+        if queue_bundle["run_line_queue_command"](["list"]) != "queue-view":
+            print("line REPL queue bundle did not return queue runner result", file=sys.stderr)
+            return 1
+    finally:
+        repl_queue.print_line_command_queue_view = original_queue_view
+        repl_queue.queue_line_command = original_queue_line
+        repl_queue.run_line_queue_command = original_queue_runner
+        repl_queue.clear_line_search_results = original_queue_clear
+    expected_queue_bundle_calls = [
+        ("clear", "queue-cfg"),
+        ("queue", "queue-cfg", "whoami", "target1"),
+        ("queue-func", "queue-cfg", "whoami"),
+        ("run", "queue-cfg", ("list",)),
+        ("clear", "queue-cfg"),
+        ("view", "queue-cfg", True, False),
+        ("clear", "queue-cfg"),
+    ]
+    if queue_bundle_calls != expected_queue_bundle_calls:
+        print(f"line REPL queue bundle wiring changed: {queue_bundle_calls}", file=sys.stderr)
         return 1
 
     core_calls = []

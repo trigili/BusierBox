@@ -41,6 +41,9 @@ def build_line_queue_callbacks(
             quote=quote,
         )
 
+    def clear_selectable_results():
+        return clear_line_search_results(cfg)
+
     def run_queue_command(args):
         return run_line_queue_command(
             cfg,
@@ -50,11 +53,12 @@ def build_line_queue_callbacks(
             clear_queue_func=clear_queue_func,
             view_func=print_queue_view,
             target_filter_func=target_filter_func,
-            clear_selectable_results_func=lambda: clear_line_search_results(cfg),
+            clear_selectable_results_func=clear_selectable_results,
             quote=quote,
         )
 
     return {
+        "clear_line_selectable_results": clear_selectable_results,
         "print_line_command_queue_view": print_queue_view,
         "queue_line_command": queue_command,
         "run_line_queue_command": run_queue_command,
