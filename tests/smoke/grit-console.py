@@ -451,9 +451,11 @@ def run_line_repl_runtime_check():
         dispatch_line_help_command,
         dispatch_line_parsed_command,
         dispatch_line_quit_choice,
+        install_line_repl_signal_handlers,
         prepare_repl_choice,
         read_line,
         read_next_repl_line,
+        restore_signal_handlers,
         run_configured_line_repl_loop,
         run_line_console_lifecycle,
         run_line_repl_loop,
@@ -568,6 +570,45 @@ def run_line_repl_runtime_check():
     ):
         print(f"line REPL IO setup did not configure callbacks cleanly: {setup_calls}", file=sys.stderr)
         return 1
+
+    sig_reasons = []
+    read_fd, write_fd = os.pipe()
+    try:
+        os.write(write_fd, b"x")
+        os.close(write_fd)
+        write_fd = -1
+
+        class PipeStdin:
+            def fileno(self):
+                return read_fd
+
+        previous = install_line_repl_signal_handlers(
+            lambda reason: sig_reasons.append(reason),
+            stdin=PipeStdin(),
+            shutdown_delay_sec=0,
+        )
+        try:
+            handler = signal.getsignal(signal.SIGINT)
+            if not callable(handler):
+                print("line REPL SIGINT handler was not installed", file=sys.stderr)
+                return 1
+            handler(signal.SIGINT, None)
+            replaced = os.read(read_fd, 1)
+        finally:
+            restore_signal_handlers(previous)
+        if sig_reasons != ["keyboard_interrupt"] or replaced != b"":
+            print(
+                f"line REPL SIGINT handler did not request clean shutdown/devnull stdin: reasons={sig_reasons} read={replaced!r}",
+                file=sys.stderr,
+            )
+            return 1
+    finally:
+        if write_fd != -1:
+            os.close(write_fd)
+        try:
+            os.close(read_fd)
+        except OSError:
+            pass
 
     bridge_calls = []
     bridge_callback = repl_routes.build_bridge_profile_headless_command_callback(
