@@ -6049,6 +6049,7 @@ def run_line_repl(cfg):
     line_target_callbacks = build_line_target_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
+        target_filter_func=configured_target_filter,
         print_target_summary_func=print_target_summary,
         quote=shquote,
     )
@@ -6113,7 +6114,7 @@ def run_line_repl(cfg):
         queue_summary_func=command_queue_summary,
         queue_func=queue_command,
         clear_queue_func=clear_command_queue,
-        target_filter_func=configured_target_filter,
+        target_callbacks=line_target_callbacks,
         append_event_fn=append_event,
         quote=shquote,
     )

@@ -1395,7 +1395,9 @@ def run_line_repl_runtime_check():
                 ("queue-func", cfg.get("name"), command)
             ) or {"id": "cq1"},
             clear_queue_func=lambda cfg: queue_bundle_calls.append(("clear-queue", cfg.get("name"))),
-            target_filter_func=lambda cfg: cfg.get("target"),
+            target_callbacks={
+                "target_filter": lambda: queue_bundle_calls.append("target-filter") or "target1",
+            },
             append_event_fn=lambda *args, **kwargs: None,
             quote=lambda value: f"'{value}'",
         )
@@ -1415,6 +1417,7 @@ def run_line_repl_runtime_check():
         repl_queue.clear_line_search_results = original_queue_clear
     expected_queue_bundle_calls = [
         ("clear", "queue-cfg"),
+        "target-filter",
         ("queue", "queue-cfg", "whoami", "target1"),
         ("queue-func", "queue-cfg", "whoami"),
         ("run", "queue-cfg", ("list",)),

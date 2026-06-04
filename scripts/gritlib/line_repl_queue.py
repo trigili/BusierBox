@@ -15,10 +15,15 @@ def build_line_queue_callbacks(
     queue_summary_func,
     queue_func,
     clear_queue_func,
-    target_filter_func,
+    target_filter_func=None,
+    target_callbacks=None,
     append_event_fn,
     quote,
 ):
+    if target_filter_func is None and target_callbacks is not None:
+        target_filter = target_callbacks["target_filter"]
+        target_filter_func = lambda _cfg: target_filter()
+
     def print_queue_view(detailed=False, mailbox_only=False):
         return print_line_command_queue_view(
             cfg,
