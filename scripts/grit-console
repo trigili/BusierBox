@@ -40,6 +40,7 @@ from gritlib.bridge_routes import (
     attach_target_route_fields,
     bridge_hop_indexes, bridge_hop_records_from_profiles, bridge_hops_from_args,
     bridge_profile_indexes, bridge_profile_record, bridge_profile_records,
+    bridge_profile_headless_command as bridge_routes_bridge_profile_headless_command,
     bridge_profile_record_summary,
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_records,
     bridge_profile_workflow_action_status_summary, bridge_profiles_path, bridge_route_path,
@@ -6382,19 +6383,11 @@ def run_line_repl(cfg):
             have_readline=HAVE_READLINE,
         )
 
-    def bridge_profile_headless_command(action, name="", extra=None):
-        cmd = ["scripts/grit-console", "--config", str(cfg.get("_config_path", DEFAULT_CONFIG))]
-        if action == "inspect":
-            cmd.extend(["--inspect-bridge-profile", name])
-        elif action == "start":
-            cmd.extend(["--transport", "bridge", "--bridge-profile", name])
-        elif action == "stop":
-            cmd.extend(["--stop", "--transport", "bridge"])
-        elif action == "delete":
-            cmd.extend(["--delete-bridge-profile", name])
-        elif action == "save":
-            cmd.extend(extra or [])
-        return " ".join(shquote(str(item)) for item in cmd)
+    bridge_profile_headless_command = (
+        lambda action, name="", extra=None: bridge_routes_bridge_profile_headless_command(
+            cfg, action, name=name, extra=extra,
+        )
+    )
 
     def prompt_bridge_profile_save():
         name_line = line_input("bridge profile name> ")

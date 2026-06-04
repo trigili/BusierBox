@@ -13,6 +13,7 @@ from gritlib.target_records import selected_target_context
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
+DEFAULT_CONFIG = DEFAULT_OPERATOR_SESSION_DIR / "config.json"
 DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 ROUTE_HELP_LINES = [
     "Route model: the target connects to LPORT on the operator; the operator bridge forwards to DEST_HOST:DEST_PORT.",
@@ -24,6 +25,21 @@ ROUTE_HELP_LINES = [
     "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
     "  Meaning: target reaches jump:9001, jump reaches operator:8080; operator forwards to 192.168.1.1:80.",
 ]
+
+
+def bridge_profile_headless_command(cfg, action, name="", extra=None):
+    cmd = ["scripts/grit-console", "--config", str((cfg or {}).get("_config_path", DEFAULT_CONFIG))]
+    if action == "inspect":
+        cmd.extend(["--inspect-bridge-profile", name])
+    elif action == "start":
+        cmd.extend(["--transport", "bridge", "--bridge-profile", name])
+    elif action == "stop":
+        cmd.extend(["--stop", "--transport", "bridge"])
+    elif action == "delete":
+        cmd.extend(["--delete-bridge-profile", name])
+    elif action == "save":
+        cmd.extend(extra or [])
+    return " ".join(shquote(str(item)) for item in cmd)
 
 
 def parse_line_route_command(cmd, args):
