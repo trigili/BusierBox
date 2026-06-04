@@ -419,6 +419,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_core as repl_core
     import gritlib.line_repl_navigation as repl_navigation
     import gritlib.line_repl_utility as repl_utility
+    import gritlib.line_repl_workflow as repl_workflow
     from gritlib.line_repl_runtime import (
         dispatch_line_help_command,
         dispatch_line_parsed_command,
@@ -1221,6 +1222,102 @@ def run_line_repl_runtime_check():
     ]
     if navigation_calls != expected_navigation_calls:
         print(f"line REPL navigation adapter wiring changed: {navigation_calls}", file=sys.stderr)
+        return 1
+
+    workflow_calls = []
+    original_workflow_dispatch = repl_workflow.dispatch_line_workflow_command
+
+    def fake_workflow_dispatch(command, args, **kwargs):
+        workflow_calls.append(("dispatch", command, tuple(args)))
+        kwargs["set_context_func"]("queue")
+        kwargs["download_func"]("target1")
+        kwargs["daemon_run_func"](["start"])
+        kwargs["release_list_func"]()
+        kwargs["release_stage_func"]("artifact1", start_file_service=True)
+        kwargs["release_help_func"]("release")
+        kwargs["upload_file_func"]("local.bin")
+        kwargs["fetch_file_func"]("remote.bin")
+        kwargs["unstage_file_func"]("staged.bin")
+        kwargs["view_path_func"]("loot.txt")
+        kwargs["clear_files_func"](confirm=True)
+        kwargs["list_files_func"](verbose=True)
+        kwargs["run_queue_func"](["list"])
+        kwargs["view_queue_func"]()
+        kwargs["cancel_job_func"]("job1")
+        kwargs["select_job_func"]("job1")
+        kwargs["list_jobs_func"](verbose=True)
+        kwargs["stage_binary_func"]("bin")
+        kwargs["configure_func"](["name", "key=value"])
+        return True
+
+    repl_workflow.dispatch_line_workflow_command = fake_workflow_dispatch
+    try:
+        workflow_cfg = {"name": "workflow-cfg", "target": "target1"}
+        dispatch_workflow = repl_workflow.build_line_workflow_dispatch_callback(
+            workflow_cfg,
+            workbench_snapshot_func=lambda cfg: workflow_calls.append(("snapshot", cfg.get("name"))) or {"ok": True},
+            set_context_func=lambda cfg, module: workflow_calls.append(("context", cfg.get("name"), module)),
+            download_func=lambda selector: workflow_calls.append(("download", selector)),
+            daemon_action_func=lambda args, snapshot_func: workflow_calls.append(
+                ("daemon", tuple(args), snapshot_func())
+            ),
+            release_print_func=lambda cfg, append_event_fn: workflow_calls.append(
+                ("release-list", cfg.get("name"), append_event_fn is not None)
+            ),
+            release_stage_func=lambda selector, start_file_service=False: workflow_calls.append(
+                ("release-stage", selector, start_file_service)
+            ),
+            release_help_func=lambda topic: workflow_calls.append(("release-help", topic)),
+            upload_file_func=lambda path: workflow_calls.append(("upload", path)),
+            fetch_file_func=lambda path: workflow_calls.append(("fetch", path)),
+            unstage_file_func=lambda path: workflow_calls.append(("unstage", path)),
+            view_path_func=lambda path: workflow_calls.append(("view", path)),
+            clear_files_func=lambda cfg, confirm=False, target_filter_id="", append_event_fn=None: workflow_calls.append(
+                ("clear-files", cfg.get("name"), confirm, target_filter_id, append_event_fn is not None)
+            ),
+            target_filter_func=lambda cfg: cfg.get("target"),
+            list_files_func=lambda verbose=False: workflow_calls.append(("files", verbose)),
+            run_queue_func=lambda args: workflow_calls.append(("queue-run", tuple(args))),
+            view_queue_func=lambda: workflow_calls.append("queue-view"),
+            cancel_job_func=lambda selector: workflow_calls.append(("cancel-job", selector)),
+            select_job_func=lambda selector: workflow_calls.append(("select-job", selector)),
+            list_jobs_func=lambda verbose=False: workflow_calls.append(("jobs", verbose)),
+            stage_binary_func=lambda selector: workflow_calls.append(("stage-binary", selector)),
+            configure_func=lambda args: workflow_calls.append(("configure", tuple(args))),
+            append_event_fn=lambda *args, **kwargs: None,
+        )
+        if dispatch_workflow("queue", ["list"]) is not True:
+            print("line REPL workflow adapter did not return workflow dispatch result", file=sys.stderr)
+            return 1
+    finally:
+        repl_workflow.dispatch_line_workflow_command = original_workflow_dispatch
+    expected_workflow_calls = [
+        ("dispatch", "queue", ("list",)),
+        ("context", "workflow-cfg", "queue"),
+        ("download", "target1"),
+        ("snapshot", "workflow-cfg"),
+        ("daemon", ("start",), {"ok": True}),
+        ("context", "workflow-cfg", "release"),
+        ("release-list", "workflow-cfg", True),
+        ("release-stage", "artifact1", True),
+        ("context", "workflow-cfg", "files"),
+        ("release-help", "release"),
+        ("upload", "local.bin"),
+        ("fetch", "remote.bin"),
+        ("unstage", "staged.bin"),
+        ("view", "loot.txt"),
+        ("clear-files", "workflow-cfg", True, "target1", True),
+        ("files", True),
+        ("queue-run", ("list",)),
+        "queue-view",
+        ("cancel-job", "job1"),
+        ("select-job", "job1"),
+        ("jobs", True),
+        ("stage-binary", "bin"),
+        ("configure", ("name", "key=value")),
+    ]
+    if workflow_calls != expected_workflow_calls:
+        print(f"line REPL workflow adapter wiring changed: {workflow_calls}", file=sys.stderr)
         return 1
     return 0
 

@@ -191,6 +191,7 @@ from gritlib.line_repl_search import build_line_search_callbacks
 from gritlib.line_repl_sessions import build_line_session_callbacks
 from gritlib.line_repl_targets import build_line_target_callbacks
 from gritlib.line_repl_utility import build_line_utility_dispatch_callback
+from gritlib.line_repl_workflow import build_line_workflow_dispatch_callback
 from gritlib.line_release import (
     print_line_release as line_release_print_line_release,
 )
@@ -205,7 +206,6 @@ from gritlib.line_show import build_line_show_resource_callback
 from gritlib.line_target_commands import (
     copy_line_generated_command, copy_line_service_command, run_line_generated_command,
 )
-from gritlib.line_workflow_commands import dispatch_line_workflow_command
 from gritlib.line_workspace import (
     line_repl_prompt_for_config,
     print_line_console_banner,
@@ -6391,6 +6391,43 @@ def run_line_repl(cfg):
         run_action_func=run_line_module_or_service,
         interact_target_func=interact_line_target,
     )
+    dispatch_line_workflow = build_line_workflow_dispatch_callback(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        set_context_func=set_line_collection_context,
+        download_func=download_line_target,
+        daemon_action_func=lambda args, snapshot_func: line_daemon_run_action(
+            args,
+            snapshot_func=snapshot_func,
+            run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
+                run_operator_daemon_workflow_action(
+                    cfg,
+                    selector,
+                    dry_run=dry_run,
+                    confirmed=confirmed,
+                    show_commands=show_commands,
+                )
+            ),
+        ),
+        release_print_func=line_release_print_line_release,
+        release_stage_func=stage_line_release,
+        release_help_func=print_line_command_help,
+        upload_file_func=stage_line_file,
+        fetch_file_func=fetch_line_staged,
+        unstage_file_func=unstage_line_file,
+        view_path_func=view_line_path,
+        clear_files_func=line_files_clear_line_files,
+        target_filter_func=configured_target_filter,
+        list_files_func=print_line_files,
+        run_queue_func=run_line_queue_command,
+        view_queue_func=print_line_command_queue_view,
+        cancel_job_func=cancel_line_job,
+        select_job_func=select_line_job,
+        list_jobs_func=print_line_jobs,
+        stage_binary_func=stage_line_binary,
+        configure_func=configure_line_artifact,
+        append_event_fn=append_event,
+    )
     while not SHUTDOWN.is_set():
         prompt_result = read_next_repl_line(
             cfg,
@@ -6435,55 +6472,7 @@ def run_line_repl(cfg):
                 utility_dispatch_func=dispatch_line_utility,
                 core_dispatch_func=dispatch_line_core,
                 navigation_dispatch_func=dispatch_line_navigation,
-                workflow_dispatch_func=lambda command, args: dispatch_line_workflow_command(
-                    command,
-                    args,
-                    set_context_func=lambda module: set_line_collection_context(cfg, module),
-                    download_func=download_line_target,
-                    daemon_run_func=lambda args: line_daemon_run_action(
-                        args,
-                        snapshot_func=lambda: workbench_snapshot(cfg),
-                        run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
-                            run_operator_daemon_workflow_action(
-                                cfg,
-                                selector,
-                                dry_run=dry_run,
-                                confirmed=confirmed,
-                                show_commands=show_commands,
-                            )
-                        ),
-                    ),
-                    release_list_func=lambda: (
-                        set_line_collection_context(cfg, "release"),
-                        line_release_print_line_release(cfg, append_event_fn=append_event),
-                    ),
-                    release_stage_func=lambda selector, start_file_service=False: (
-                        stage_line_release(
-                            selector,
-                            start_file_service=start_file_service,
-                        ),
-                        set_line_collection_context(cfg, "files"),
-                    ),
-                    release_help_func=print_line_command_help,
-                    upload_file_func=stage_line_file,
-                    fetch_file_func=fetch_line_staged,
-                    unstage_file_func=unstage_line_file,
-                    view_path_func=view_line_path,
-                    clear_files_func=lambda confirm=False: line_files_clear_line_files(
-                        cfg,
-                        confirm=confirm,
-                        target_filter_id=configured_target_filter(cfg),
-                        append_event_fn=append_event,
-                    ),
-                    list_files_func=lambda verbose=False: print_line_files(verbose=verbose),
-                    run_queue_func=run_line_queue_command,
-                    view_queue_func=print_line_command_queue_view,
-                    cancel_job_func=cancel_line_job,
-                    select_job_func=select_line_job,
-                    list_jobs_func=print_line_jobs,
-                    stage_binary_func=stage_line_binary,
-                    configure_func=configure_line_artifact,
-                ),
+                workflow_dispatch_func=dispatch_line_workflow,
                 unknown_message_func=line_unknown_command_message,
             )
             if "choice" in parsed_result:
