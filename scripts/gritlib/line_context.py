@@ -56,6 +56,16 @@ def parse_line_use_command(cmd, args):
     }
 
 
+def parse_line_interact_command(args, target_selected=False, module=""):
+    args = list(args or [])
+    first = str(args[0]).lower() if args else ""
+    if first in {"agent", "target", "host"}:
+        return {"kind": "target", "selector": " ".join(args[1:]).strip()}
+    if not args and target_selected and not str(module or "").startswith("session/"):
+        return {"kind": "target", "selector": ""}
+    return {"kind": "session", "selector": " ".join(args).strip()}
+
+
 def clear_line_module_context(cfg, quiet=True):
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)

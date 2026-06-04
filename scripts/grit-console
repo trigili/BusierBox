@@ -138,6 +138,7 @@ from gritlib.line_configure import (
 from gritlib.line_context import (
     back_line_module_context,
     clear_line_console_context, clear_line_module_context,
+    parse_line_interact_command,
     parse_line_use_command,
     set_line_collection_context,
 )
@@ -7955,12 +7956,15 @@ def run_line_repl(cfg):
                 continue
             elif cmd == "interact":
                 try:
-                    if len(console_args) >= 2 and console_args[1].lower() in {"agent", "target", "host"}:
-                        interact_line_target(" ".join(console_args[2:]).strip())
-                    elif len(console_args) == 1 and configured_target_filter(cfg) and not str(cfg.get("_line_console_module") or "").startswith("session/"):
-                        interact_line_target()
+                    interact_cmd = parse_line_interact_command(
+                        console_args[1:],
+                        target_selected=bool(configured_target_filter(cfg)),
+                        module=cfg.get("_line_console_module"),
+                    )
+                    if interact_cmd["kind"] == "target":
+                        interact_line_target(interact_cmd["selector"])
                     else:
-                        interact_line_session(" ".join(console_args[1:]).strip())
+                        interact_line_session(interact_cmd["selector"])
                 except ValueError as exc:
                     print(exc)
                 continue
