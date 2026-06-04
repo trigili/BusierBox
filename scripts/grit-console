@@ -6701,7 +6701,7 @@ def run_line_repl(cfg):
             job_cancel_command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
             quote=shquote,
         )
-        cfg["_line_console_search_results"] = search_records
+        set_line_search_results(cfg, search_records)
         append_event(cfg, "workbench", "workbench_console_searched", details={
             "query": str(query or ""),
             "match_count": len(search_records),
@@ -6912,7 +6912,7 @@ def run_line_repl(cfg):
             view_command=lambda path: view_path_headless_command(cfg, path),
             quote=shquote,
         )
-        cfg["_line_console_search_results"] = search_records
+        set_line_search_results(cfg, search_records)
         append_event(cfg, "workbench", "workbench_sessions_listed", details={
             "session_count": total,
             "shown_count": len(search_records),
@@ -6928,7 +6928,7 @@ def run_line_repl(cfg):
             fetch_command=lambda name: render_fetch_command(name, cfg),
             quote=shquote,
         )
-        cfg["_line_console_search_results"] = search_records
+        set_line_search_results(cfg, search_records)
         append_event(cfg, "workbench", "workbench_files_listed", details={
             "staged_count": len(records),
             "verbose": bool(verbose),
