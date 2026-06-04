@@ -320,6 +320,17 @@ def parse_line_option_command(cmd, args):
     return {}
 
 
+def parse_line_target_metadata_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    if cmd == "rename":
+        return {"action": "rename", "value": " ".join(args or []).strip()}
+    if cmd in {"note", "notes"}:
+        return {"action": "note", "value": " ".join(args or []).strip()}
+    if cmd == "alias":
+        return {"action": "alias", "value": " ".join(args or []).strip()}
+    return {}
+
+
 def set_line_target_option(cfg, name, value):
     key = str(name or "").strip()
     text = str(value or "")

@@ -177,6 +177,7 @@ from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
     note_line_target as line_options_note_line_target,
     parse_line_option_command,
+    parse_line_target_metadata_command,
     print_line_context_options as line_options_print_line_context_options,
     print_line_service_options as line_options_print_line_service_options,
     rename_line_target as line_options_rename_line_target,
@@ -7730,21 +7731,15 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "rename":
+            elif cmd in {"rename", "note", "notes", "alias"}:
                 try:
-                    line_options_rename_line_target(cfg, " ".join(console_args[1:]).strip())
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd in {"note", "notes"}:
-                try:
-                    line_options_note_line_target(cfg, " ".join(console_args[1:]).strip())
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "alias":
-                try:
-                    line_options_alias_line_target(cfg, " ".join(console_args[1:]).strip())
+                    metadata_cmd = parse_line_target_metadata_command(cmd, console_args[1:])
+                    if metadata_cmd["action"] == "rename":
+                        line_options_rename_line_target(cfg, metadata_cmd["value"])
+                    elif metadata_cmd["action"] == "note":
+                        line_options_note_line_target(cfg, metadata_cmd["value"])
+                    else:
+                        line_options_alias_line_target(cfg, metadata_cmd["value"])
                 except ValueError as exc:
                     print(exc)
                 continue
