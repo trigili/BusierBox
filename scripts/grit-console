@@ -190,7 +190,7 @@ from gritlib.line_repl_search import build_line_search_callbacks
 from gritlib.line_repl_sessions import build_line_session_callbacks
 from gritlib.line_repl_show import build_line_display_show_callbacks
 from gritlib.line_repl_targets import build_line_target_callbacks
-from gritlib.line_repl_utility import build_line_utility_dispatch_callback
+from gritlib.line_repl_utility import build_line_utility_callbacks
 from gritlib.line_repl_workflow import build_line_workflow_dispatch_callback
 from gritlib.line_release import (
     print_line_release as line_release_print_line_release,
@@ -6262,12 +6262,8 @@ def run_line_repl(cfg):
 
     install_readline_completer(_readline, HAVE_READLINE, line_completion_candidates)
 
-    pending_console_lines = []
-    line_history = []
-    dispatch_line_utility = build_line_utility_dispatch_callback(
+    line_utility_callbacks = build_line_utility_callbacks(
         cfg,
-        line_history=line_history,
-        pending_console_lines=pending_console_lines,
         completion_func=print_line_completions,
         resource_history_func=line_resources_print_line_history,
         resource_load_func=load_line_resource,
@@ -6282,6 +6278,9 @@ def run_line_repl(cfg):
         service_copy_command_func=copy_line_service_command,
         generated_copy_func=copy_line_generated_command,
     )
+    dispatch_line_utility = line_utility_callbacks["dispatch_line_utility"]
+    line_history = line_utility_callbacks["line_history"]
+    pending_console_lines = line_utility_callbacks["pending_console_lines"]
     dispatch_line_core = build_line_core_dispatch_callback(
         cfg,
         default_config=DEFAULT_CONFIG,

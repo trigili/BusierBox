@@ -1127,6 +1127,51 @@ def run_line_repl_runtime_check():
         if dispatch_utility("history", ["2"]) is not True:
             print("line REPL utility adapter did not return utility dispatch result", file=sys.stderr)
             return 1
+        dispatch_adapter_calls = list(adapter_calls)
+        adapter_calls.clear()
+        utility_bundle = repl_utility.build_line_utility_callbacks(
+            {"name": "bundle-cfg"},
+            completion_func=lambda prefix: adapter_calls.append(("completion", prefix)),
+            resource_history_func=lambda line_history, limit: adapter_calls.append(
+                ("history", list(line_history), limit)
+            ),
+            resource_load_func=lambda cfg, path: adapter_calls.append(
+                ("load", cfg.get("name"), path)
+            ) or ["status", "targets"],
+            resource_save_func=lambda cfg, path, line_history: adapter_calls.append(
+                ("save", cfg.get("name"), path, list(line_history))
+            ),
+            events_func=lambda cfg, args: adapter_calls.append(("events", cfg.get("name"), tuple(args))),
+            search_func=lambda query: adapter_calls.append(("search", query)),
+            show_func=lambda resource: adapter_calls.append(("show", resource)),
+            generated_run_func=lambda cfg, args: adapter_calls.append(
+                ("generated-run", cfg.get("name"), tuple(args))
+            ),
+            copy_text_func=lambda cfg, command_text, label=None: adapter_calls.append(
+                ("copy-text", cfg.get("name"), command_text, label)
+            ),
+            service_start_command_func=lambda cfg, service: adapter_calls.append(
+                ("start-command", cfg.get("name"), service)
+            ) or f"start {service}",
+            service_stop_command_func=lambda cfg, service: adapter_calls.append(
+                ("stop-command", cfg.get("name"), service)
+            ) or f"stop {service}",
+            service_copy_command_func=lambda cfg, subcmd, copy_func, start_command, stop_command: (
+                adapter_calls.append(("service-copy", cfg.get("name"), subcmd)),
+                copy_func(start_command("svc"), "start"),
+                copy_func(stop_command("svc"), "stop"),
+            ),
+            generated_copy_func=lambda cfg, selector: adapter_calls.append(
+                ("generated-copy", cfg.get("name"), selector)
+            ),
+        )
+        if utility_bundle["line_history"] != [] or utility_bundle["pending_console_lines"] != []:
+            print(f"line REPL utility bundle did not initialize empty state: {utility_bundle}", file=sys.stderr)
+            return 1
+        if utility_bundle["dispatch_line_utility"]("history", ["2"]) is not True:
+            print("line REPL utility bundle did not return utility dispatch result", file=sys.stderr)
+            return 1
+        bundle_pending_lines = utility_bundle["pending_console_lines"]
     finally:
         repl_utility.dispatch_line_utility_command = original_utility_dispatch
     expected_adapter_calls = [
@@ -1146,8 +1191,34 @@ def run_line_repl_runtime_check():
         ("copy-text", "cfg", "stop svc", "stop"),
         ("generated-copy", "cfg", "3"),
     ]
-    if adapter_calls != expected_adapter_calls or pending_lines != ["status", "targets"]:
-        print(f"line REPL utility adapter wiring changed: {adapter_calls} pending={pending_lines}", file=sys.stderr)
+    if dispatch_adapter_calls != expected_adapter_calls or pending_lines != ["status", "targets"]:
+        print(
+            f"line REPL utility adapter wiring changed: {dispatch_adapter_calls} pending={pending_lines}",
+            file=sys.stderr,
+        )
+        return 1
+    expected_bundle_calls = [
+        ("dispatch", "history", ("2",)),
+        ("completion", "pr"),
+        ("history", [], "2"),
+        ("load", "bundle-cfg", "ops.rc"),
+        ("save", "bundle-cfg", "save.rc", []),
+        ("events", "bundle-cfg", ("--limit", "1")),
+        ("search", "target"),
+        ("show", "jobs"),
+        ("generated-run", "bundle-cfg", ("--verbose",)),
+        ("service-copy", "bundle-cfg", "start"),
+        ("start-command", "bundle-cfg", "svc"),
+        ("copy-text", "bundle-cfg", "start svc", "start"),
+        ("stop-command", "bundle-cfg", "svc"),
+        ("copy-text", "bundle-cfg", "stop svc", "stop"),
+        ("generated-copy", "bundle-cfg", "3"),
+    ]
+    if adapter_calls != expected_bundle_calls or bundle_pending_lines != ["status", "targets"]:
+        print(
+            f"line REPL utility bundle wiring changed: {adapter_calls} pending={bundle_pending_lines}",
+            file=sys.stderr,
+        )
         return 1
 
     core_calls = []

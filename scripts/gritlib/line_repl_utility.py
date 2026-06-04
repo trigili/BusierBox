@@ -3,6 +3,50 @@
 from gritlib.line_utility_commands import dispatch_line_utility_command
 
 
+def build_line_utility_callbacks(
+    cfg,
+    *,
+    completion_func,
+    resource_history_func,
+    resource_load_func,
+    resource_save_func,
+    events_func,
+    search_func,
+    show_func,
+    generated_run_func,
+    copy_text_func,
+    service_start_command_func,
+    service_stop_command_func,
+    service_copy_command_func,
+    generated_copy_func,
+):
+    pending_console_lines = []
+    line_history = []
+    dispatch_utility = build_line_utility_dispatch_callback(
+        cfg,
+        line_history=line_history,
+        pending_console_lines=pending_console_lines,
+        completion_func=completion_func,
+        resource_history_func=resource_history_func,
+        resource_load_func=resource_load_func,
+        resource_save_func=resource_save_func,
+        events_func=events_func,
+        search_func=search_func,
+        show_func=show_func,
+        generated_run_func=generated_run_func,
+        copy_text_func=copy_text_func,
+        service_start_command_func=service_start_command_func,
+        service_stop_command_func=service_stop_command_func,
+        service_copy_command_func=service_copy_command_func,
+        generated_copy_func=generated_copy_func,
+    )
+    return {
+        "dispatch_line_utility": dispatch_utility,
+        "line_history": line_history,
+        "pending_console_lines": pending_console_lines,
+    }
+
+
 def build_line_utility_dispatch_callback(
     cfg,
     *,
