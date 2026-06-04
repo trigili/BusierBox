@@ -339,6 +339,26 @@ def run_line_repl_loop(
     return 130 if shutdown_reason_func() in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
+def run_configured_line_repl_loop(
+    cfg,
+    *,
+    target_filter_func,
+    clear_console_context_func,
+    **kwargs,
+):
+    """Run the standard config-backed line REPL loop."""
+    return run_line_repl_loop(
+        cfg,
+        module_func=lambda repl_cfg: repl_cfg.get("_line_console_module"),
+        target_selected_func=lambda repl_cfg: bool(target_filter_func(repl_cfg)),
+        clear_context_func=lambda quiet=False: clear_console_context_func(
+            cfg,
+            quiet=quiet,
+        ),
+        **kwargs,
+    )
+
+
 def run_line_console_lifecycle(
     cfg,
     *,

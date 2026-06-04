@@ -433,6 +433,7 @@ def run_line_repl_runtime_check():
         prepare_repl_choice,
         read_line,
         read_next_repl_line,
+        run_configured_line_repl_loop,
         run_line_console_lifecycle,
         run_line_repl_loop,
         setup_line_repl_io,
@@ -1488,6 +1489,62 @@ def run_line_repl_runtime_check():
         if expected not in loop_calls:
             print(f"line REPL loop missed expected transition {expected}: {loop_calls}", file=sys.stderr)
             return 1
+
+    configured_calls = []
+    import gritlib.line_repl_runtime as repl_runtime
+    original_loop_runner = repl_runtime.run_line_repl_loop
+
+    def fake_loop_runner(cfg, **kwargs):
+        configured_calls.append(("runner", cfg.get("_line_console_module")))
+        configured_calls.append(("module", kwargs["module_func"](cfg)))
+        configured_calls.append(("target", kwargs["target_selected_func"](cfg)))
+        kwargs["clear_context_func"](quiet=True)
+        return 0
+
+    repl_runtime.run_line_repl_loop = fake_loop_runner
+    try:
+        configured_cfg = {"_line_console_module": "targets", "target": "target1"}
+        if run_configured_line_repl_loop(
+                configured_cfg,
+                target_filter_func=lambda cfg: cfg.get("target"),
+                clear_console_context_func=lambda cfg, quiet=False: configured_calls.append(
+                    ("clear", cfg.get("_line_console_module"), quiet)
+                ),
+                shutdown_event=threading.Event(),
+                shutdown_reason_func=lambda: "",
+                line_history=[],
+                pending_console_lines=[],
+                workbench_snapshot_func=lambda cfg: {},
+                print_workbench_func=lambda cfg, include_api_summary=False: None,
+                print_banner_func=lambda snapshot, version: None,
+                version_func=lambda: "",
+                prompt_func=lambda cfg: "> ",
+                input_func=lambda prompt: None,
+                history_command_func=lambda history, selector: "",
+                record_history_func=lambda history, command, readline_module=None: None,
+                clear_results_func=lambda: None,
+                readline_module=None,
+                command_help_printer=lambda topic: None,
+                context_help_printer=lambda module, target_selected=False, command_help_printer=None: None,
+                utility_dispatch_func=lambda command, args: False,
+                core_dispatch_func=lambda command, args: False,
+                navigation_dispatch_func=lambda command, args: False,
+                workflow_dispatch_func=lambda command, args: False,
+                unknown_message_func=lambda command, module, target_selected=False: "",
+                mark_stopped_func=lambda: None,
+                legacy_dispatch_func=lambda choice: {"handled": False}) != 0:
+            print("configured line REPL loop did not return wrapped loop result", file=sys.stderr)
+            return 1
+    finally:
+        repl_runtime.run_line_repl_loop = original_loop_runner
+    if configured_calls != [
+        ("runner", "targets"),
+        ("module", "targets"),
+        ("target", True),
+        ("clear", "targets", True),
+    ]:
+        print(f"configured line REPL loop wiring changed: {configured_calls}", file=sys.stderr)
+        return 1
 
     shutdown_loop = threading.Event()
     shutdown_loop.set()
