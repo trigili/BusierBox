@@ -158,14 +158,16 @@ def build_line_legacy_callbacks(
     run_target_workflow_func,
     scoped_target_cfg_func,
     print_target_summary_func,
-    bridge_command_builder,
     print_bridge_profile_func,
     delete_bridge_profile_func,
     action_state_text_func,
     route_service_callbacks,
     file_callbacks,
     queue_callbacks,
+    bridge_command_builder=None,
 ):
+    if bridge_command_builder is None:
+        bridge_command_builder = route_service_callbacks["bridge_profile_headless_command"]
     dispatch_legacy = build_line_legacy_dispatch_callback(
         cfg,
         input_func=input_func,

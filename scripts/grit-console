@@ -6062,7 +6062,6 @@ def run_line_repl(cfg):
         sleep_func=time.sleep,
         quote=shquote,
     )
-    bridge_profile_headless_command = line_route_service_callbacks["bridge_profile_headless_command"]
 
     line_completion_candidates, print_line_completions = build_line_completion_adapter(
         cfg,
@@ -6165,7 +6164,6 @@ def run_line_repl(cfg):
         workbench_snapshot_func=workbench_snapshot,
         service_records_func=service_status_rows,
         route_records_func=bridge_profile_records,
-        route_command_builder=bridge_profile_headless_command,
         target_callbacks=line_target_callbacks,
         route_service_callbacks=line_route_service_callbacks,
         action_callbacks=line_action_callbacks,
@@ -6322,7 +6320,6 @@ def run_line_repl(cfg):
         run_target_workflow_func=run_target_workflow_action,
         scoped_target_cfg_func=scoped_target_cfg,
         print_target_summary_func=print_target_summary,
-        bridge_command_builder=bridge_profile_headless_command,
         print_bridge_profile_func=print_bridge_profile,
         delete_bridge_profile_func=delete_bridge_profile,
         action_state_text_func=line_action_state_text,
