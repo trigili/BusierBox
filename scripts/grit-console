@@ -7917,9 +7917,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "probe":
+            elif (probe_cmd := parse_line_probe_command(cmd, console_args[1:])):
                 try:
-                    probe_cmd = parse_line_probe_command(console_args[1:])
                     if probe_cmd["action"] == "results":
                         set_line_collection("probe")
                         probe_results_print_line_probe_results(cfg, append_event_fn=append_event)
@@ -7953,9 +7952,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "survey":
+            elif (survey_cmd := parse_line_survey_command(cmd, console_args[1:])):
                 try:
-                    survey_cmd = parse_line_survey_command(console_args[1:])
                     if survey_cmd["action"] == "results":
                         set_line_collection("survey")
                         configure_print_line_survey_status(cfg, append_event_fn=append_event)

@@ -184,7 +184,12 @@ def parse_line_probe_args(args):
     return queue, start_service
 
 
-def parse_line_probe_command(args):
+def parse_line_probe_command(cmd, args=None):
+    if args is None:
+        args = cmd
+    else:
+        if str(cmd or "").strip().lower() != "probe":
+            return {}
     args = list(args or [])
     subcmd = str(args[0]).lower() if args else ""
     rest = args[1:]
@@ -228,7 +233,12 @@ def parse_line_survey_args(args):
     return parse_line_probe_args(args)
 
 
-def parse_line_survey_command(args):
+def parse_line_survey_command(cmd, args=None):
+    if args is None:
+        args = cmd
+    else:
+        if str(cmd or "").strip().lower() != "survey":
+            return {}
     args = list(args or [])
     subcmd = str(args[0]).lower() if args else ""
     rest = args[1:]
