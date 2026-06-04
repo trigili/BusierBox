@@ -927,6 +927,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "show listeners\n"
                 "use 1\n"
                 "back\n"
+                "listeners\n"
                 "999\n"
                 f"route add zz-console-added {line_console_added_route_port} 127.0.0.1 {line_console_added_route_dest_port} operator:{line_console_added_route_port}=rack-hop:9100 rack-hop:9100=127.0.0.1:{line_console_added_route_dest_port}\n"
                 "show routes\n"
@@ -1226,7 +1227,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
         "Meaning: target reaches jump:9001, jump reaches operator:8080; operator forwards to 192.168.1.1:80.",
         "Completions for <root>:",
-        "no numbered result is active; run a list command first, then use N",
+        "numbered result not found: 999; run a list command first, then use N",
         "resource ",
         "Workspace",
         "Events  (",

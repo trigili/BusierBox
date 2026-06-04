@@ -7412,7 +7412,7 @@ def run_line_repl(cfg):
                     print(exc)
                 compact_next_prompt = True
                 continue
-            print(f"search result number out of range: {choice}")
+            print(f"numbered result not found: {choice}; run a list command first, then use N")
             compact_next_prompt = True
             continue
         if choice in {"1", "2", "3", "4"}:
