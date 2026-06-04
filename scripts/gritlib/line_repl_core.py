@@ -68,7 +68,7 @@ def build_line_core_dispatch_callback(
             info_func=info_func,
             next_func=next_func,
             options_func=options_func,
-            set_context_func=set_context_func,
+            set_context_func=lambda module: set_context_func(cfg, module),
             build_run_func=lambda build_args: build_run_func(cfg, build_args),
             set_global_option_func=lambda key, value: set_global_option_func(cfg, key, value),
             set_context_option_func=lambda key, value: set_context_option_func(cfg, key, value),

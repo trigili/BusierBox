@@ -6289,7 +6289,7 @@ def run_line_repl(cfg):
         info_func=print_line_info,
         next_func=print_line_next,
         options_func=print_line_options,
-        set_context_func=lambda module: set_line_collection_context(cfg, module),
+        set_context_func=set_line_collection_context,
         build_run_func=run_line_build_command,
         set_global_option_func=set_line_global_build_option,
         set_context_option_func=line_options_set_line_option,
