@@ -44,6 +44,11 @@ def bridge_profile_headless_command(cfg, action, name="", extra=None):
     return " ".join(shquote(str(item)) for item in cmd)
 
 
+def bridge_profile_service_name(name):
+    text = str(name or "").strip()
+    return f"bridge:{text}" if text else "bridge"
+
+
 def parse_line_route_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
@@ -392,9 +397,14 @@ def attach_target_route_fields(record, route):
 def bridge_profile_records(cfg):
     profiles = load_bridge_profiles(cfg).get("profiles") or {}
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
-    bridge_state = ((state.get("services") or {}).get("bridge") or {}) if isinstance(state, dict) else {}
+    services = (state.get("services") or {}) if isinstance(state, dict) else {}
     return [
-        bridge_profile_record(cfg, name, rec, service_state=bridge_state)
+        bridge_profile_record(
+            cfg,
+            name,
+            rec,
+            service_state=services.get(bridge_profile_service_name(name)) or services.get("bridge") or {},
+        )
         for name, rec in sorted(profiles.items())
         if isinstance(rec, dict)
     ]
@@ -698,6 +708,7 @@ def start_line_route(
         "bridge",
         argv_extra=["--bridge-profile", name],
         headless_command=headless,
+        state_service=bridge_profile_service_name(name),
     )
     print(f"started route {name}")
     append_event(cfg, "workbench", "workbench_route_started", details={
@@ -726,7 +737,7 @@ def stop_line_route(
     headless = headless_command_builder("stop", name)
     if stop_service is None:
         raise ValueError("route stop requires a service stopper")
-    stop_service(cfg, "bridge", headless_command=headless)
+    stop_service(cfg, bridge_profile_service_name(name), headless_command=headless)
     print(f"stopped route {name}")
     append_event(cfg, "workbench", "workbench_route_stopped", details={
         "name": name,

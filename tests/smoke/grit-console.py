@@ -989,7 +989,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 f"route add zz-console-added {line_console_added_route_port} 127.0.0.1 {line_console_added_route_dest_port} operator:{line_console_added_route_port}=rack-hop:9100 rack-hop:9100=127.0.0.1:{line_console_added_route_dest_port}\n"
                 "show routes\n"
                 "show routes -v\n"
+                "route start 1\n"
                 "route start 2\n"
+                "route stop 1\n"
                 "route stop 2\n"
                 "routes -v\n"
                 "route delete 2\n"
@@ -1757,9 +1759,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "  destination: 127.0.0.1:" not in route_text or
             "  hops: 2" not in route_text or
             "  multi-hop: yes" not in route_text or
+            "started route console-route" not in route_text or
             "started route zz-console-added" not in route_text or
+            "stopped route console-route" not in route_text or
             "stopped route zz-console-added" not in route_text or
             "deleted route zz-console-added" not in route_text or
+            "stale pid" in route_text or
+            "failed to stop" in route_text or
+            "Address already in use" in route_text or
             "listen=" in route_text or
             "dest=" in route_text or
             "hops=" in route_text or
@@ -1772,7 +1779,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     routes_verbose_end = line_console_stdout.find("grit[all]/routes> route delete 2", routes_verbose_start + 1)
     routes_verbose_text = line_console_stdout[routes_verbose_start:routes_verbose_end] if routes_verbose_start != -1 and routes_verbose_end != -1 else ""
     show_routes_verbose_start = line_console_stdout.find("grit[all]/routes> show routes -v")
-    show_routes_verbose_end = line_console_stdout.find("grit[all]/routes> route start 2", show_routes_verbose_start + 1)
+    show_routes_verbose_end = line_console_stdout.find("grit[all]/routes> route start 1", show_routes_verbose_start + 1)
     show_routes_verbose_text = (
         line_console_stdout[show_routes_verbose_start:show_routes_verbose_end]
         if show_routes_verbose_start != -1 and show_routes_verbose_end != -1 else ""

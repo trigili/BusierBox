@@ -198,6 +198,8 @@ def run_service_workflow_action_headless_command(
 
 
 def service_tls_enabled(cfg, service):
+    if str(service or "").startswith("bridge:"):
+        return False
     if service == "tls-shell":
         return True
     if service == "file-service":
@@ -252,9 +254,15 @@ def wait_service_port_released(cfg, service, pid=None, timeout=3.0):
 def raw_service_snapshot(cfg):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     services = {}
-    for name in DAEMON_SERVICE_CHOICES:
-        port = service_port(cfg, name)
-        bind_address = str(cfg.get("listen_host", ""))
+    state_services = (state.get("services") or {}) if isinstance(state, dict) else {}
+    names = list(DAEMON_SERVICE_CHOICES)
+    for name in sorted(state_services):
+        if name.startswith("bridge:") and name not in names:
+            names.append(name)
+    for name in names:
+        rec = state_services.get(name, {}) if isinstance(state_services.get(name, {}), dict) else {}
+        port = int(rec.get("port") or 0) if name.startswith("bridge:") else service_port(cfg, name)
+        bind_address = str(rec.get("listen_host") or cfg.get("listen_host", ""))
         protocol = "udp" if name in {"probe-tftp", "probe-dns"} else "tcp"
         endpoints = listener_endpoints(port, protocol=protocol)
         matching_endpoints = [
@@ -272,7 +280,7 @@ def raw_service_snapshot(cfg):
             "matching_listener_endpoints": matching_endpoints,
             "listener_pids": listener_pids,
             "matching_listener_pids": matching_listener_pids,
-            "state": (state.get("services") or {}).get(name, {}),
+            "state": rec,
         }
     return {"state": state, "staged": load_staged(cfg).get("staged", {}), "services": services}
 

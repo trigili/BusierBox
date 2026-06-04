@@ -145,16 +145,18 @@ def start_service_process(
     argv_extra=None,
     headless_command="",
     *,
+    state_service=None,
     start_child_process,
     script_path,
     default_config=DEFAULT_CONFIG,
 ):
+    state_service = str(state_service or service)
     headless_command = headless_command or service_start_headless_command(cfg, service, argv_extra)
-    current = {row["name"]: row for row in service_status_rows(cfg)}.get(service)
+    current = {row["name"]: row for row in service_status_rows(cfg)}.get(state_service)
     if current and current.get("actual") == "listening":
         append_event(
             cfg,
-            service,
+            state_service,
             "service_start_skipped",
             details={
                 "reason": "already-listening",
@@ -164,8 +166,8 @@ def start_service_process(
                 "headless_command": headless_command,
             },
         )
-        print(f"{service} already listening on port {current.get('port', '')}; not starting duplicate")
-        print(f"  recent events: filter events by service {service}")
+        print(f"{state_service} already listening on port {current.get('port', '')}; not starting duplicate")
+        print(f"  recent events: filter events by service {state_service}")
         return None
     cmd = [
         sys.executable,
@@ -190,14 +192,15 @@ def start_service_process(
         cmd.extend(argv_extra)
     log_root = Path(str(cfg.get("session_root", "local/sessions")))
     log_root.mkdir(parents=True, exist_ok=True)
-    log_path = log_root / f"operator-{service}-{int(time.time())}.log"
+    log_name = state_service.replace("/", "_").replace(":", "-")
+    log_path = log_root / f"operator-{log_name}-{int(time.time())}.log"
     cmd.extend(["--managed-by", str(os.getpid()), "--process-log", str(log_path)])
     with log_path.open("ab") as log:
         proc = start_child_process(cmd, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-    update_server_state(cfg, service, "starting", {"pid": proc.pid, "managed_by": os.getpid(), "process_log": str(log_path)})
+    update_server_state(cfg, state_service, "starting", {"pid": proc.pid, "managed_by": os.getpid(), "process_log": str(log_path)})
     append_event(
         cfg,
-        service,
+        state_service,
         "service_start_requested",
         details={
             "pid": proc.pid,
@@ -207,11 +210,11 @@ def start_service_process(
         },
     )
     started = cfg.setdefault("_workbench_started_services", [])
-    if service not in started:
-        started.append(service)
-    print(f"{service} started")
+    if state_service not in started:
+        started.append(state_service)
+    print(f"{state_service} started")
     print(f"  pid {proc.pid}  log {log_path}")
-    print(f"  recent events: filter events by service {service}")
+    print(f"  recent events: filter events by service {state_service}")
     return proc
 
 

@@ -149,7 +149,8 @@ def update_server_state(cfg, action, status="configured", extra=None, default_co
     for key in (
         "managed_by", "process_log", "session_log", "staged_file", "workbench_mode",
         "url", "target_command", "target_route", "route_kind", "route_host",
-        "route_port", "bridge_profile", "bridge_route_path", "requires_bridge",
+        "route_port", "port", "bridge_profile", "bridge_route_path",
+        "bridge_dest_host", "bridge_dest_port", "requires_bridge",
         "selected_target_id", "selected_target_label", "selected_target_at",
     ):
         if previous.get(key):

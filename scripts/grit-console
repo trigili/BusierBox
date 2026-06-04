@@ -40,6 +40,7 @@ from gritlib.bridge_routes import (
     bridge_hop_indexes, bridge_hop_records_from_profiles, bridge_hops_from_args,
     bridge_profile_indexes, bridge_profile_record, bridge_profile_records,
     bridge_profile_headless_command as bridge_routes_bridge_profile_headless_command,
+    bridge_profile_service_name,
     bridge_profile_record_summary,
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_records,
     bridge_profile_workflow_action_status_summary, bridge_profiles_path, bridge_route_path,
@@ -1682,11 +1683,11 @@ def bridge_relay(client, upstream, log_dir, session_timeout=0):
 
 
 def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
-    service = "bridge"
     port = int(cfg.get("bridge_listen_port", 22206))
     dest_host = str(cfg.get("bridge_dest_host", "127.0.0.1"))
     dest_port = int(cfg.get("bridge_dest_port", 0))
     profile_name = str(cfg.get("bridge_profile") or "")
+    service = bridge_profile_service_name(profile_name)
     bridge_route_path = ""
     if profile_name:
         try:
@@ -5143,12 +5144,13 @@ def print_workbench(cfg, include_api_summary=True):
     return print_workbench_snapshot(cfg, workbench_snapshot(cfg), include_api_summary=include_api_summary)
 
 
-def start_service_process(cfg, service, argv_extra=None, headless_command=""):
+def start_service_process(cfg, service, argv_extra=None, headless_command="", state_service=None):
     return lifecycle_start_service_process(
         cfg,
         service,
         argv_extra=argv_extra,
         headless_command=headless_command,
+        state_service=state_service,
         start_child_process=start_child_process,
         script_path=__file__,
     )
@@ -5801,14 +5803,20 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
     if action_id == "inspect-profile":
         return print_bridge_profile(cfg, profile, json_output=False)
     if action_id == "start-profile":
-        start_service_process(cfg, "bridge", argv_extra=["--bridge-profile", profile], headless_command=run_command or command)
+        start_service_process(
+            cfg,
+            "bridge",
+            argv_extra=["--bridge-profile", profile],
+            headless_command=run_command or command,
+            state_service=bridge_profile_service_name(profile),
+        )
         rc = 0
     elif action_id == "stop-profile":
         if rec.get("requires_confirmation") is True and not confirmed:
             raise ValueError(f"bridge profile workflow action requires --confirm-bridge-profile-workflow-action: {rec_id}")
         stop_recorded_service(
             cfg,
-            "bridge",
+            bridge_profile_service_name(profile),
             via="bridge-profile-workflow-action",
             headless_command=run_command or command,
         )
@@ -6263,7 +6271,12 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         profile = str(rec.get("bridge_profile") or action_id.split(":", 1)[1])
         if not profile:
             raise ValueError("start-bridge target workflow action is missing a bridge profile")
-        start_service_process(scoped, "bridge", argv_extra=["--bridge-profile", profile])
+        start_service_process(
+            scoped,
+            "bridge",
+            argv_extra=["--bridge-profile", profile],
+            state_service=bridge_profile_service_name(profile),
+        )
         append_event(cfg, "workbench", "target_workflow_action_completed", details={
             "id": rec.get("id", ""),
             "action_id": action_id,
