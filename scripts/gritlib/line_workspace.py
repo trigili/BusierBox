@@ -376,41 +376,42 @@ def print_line_next(
     selected_action = selected_action or (lambda: {})
     job_record = job_record or (lambda _job_id: {})
     print("Next actions:")
-    print(f"  context={str(prompt_text or '').strip()}")
+    print(f"  context: {str(prompt_text or '').strip()}")
     if module.startswith("action/"):
         action = selected_action()
         if action:
-            print(f"  selected module={action.get('kind', '')}:{action.get('id', '')}")
+            print(f"  selected module: {action.get('kind', '')}:{action.get('id', '')}")
             print("  commands: options, check, run, run --dry-run, run --confirm, background")
             if action.get("background_supported"):
-                print("  background_job: run -j")
+                print("  background job: run -j")
         else:
             print("  selected module is stale; commands: show modules, search TERM, back")
     elif line_listener_module_name(module):
         service = line_listener_module_name(module)
-        print(f"  selected listener={service}")
+        print(f"  selected listener: {service}")
         print("  options / start / stop / listeners -v / back")
     elif module.startswith("route/"):
         route_name = module.split("/", 1)[1]
-        print(f"  selected route={route_name}")
+        print(f"  selected route: {route_name}")
         print("  options / start / stop / routes -v / back")
     elif module.startswith("session/"):
         session_id = module.split("/", 1)[1]
-        print(f"  selected session={session_id}")
+        print(f"  selected session: {session_id}")
         print("  commands: info, options, interact, sessions -v, background")
     elif module.startswith("job/"):
         job_id = module.split("/", 1)[1]
         rec = job_record(job_id)
-        print(f"  selected job={job_id}")
+        print(f"  selected job: {job_id}")
         if rec:
-            print(f"  action={rec.get('action_id', '') or '-'} state={rec.get('effective_state', '') or rec.get('state', '') or '-'}")
+            print(f"  action: {rec.get('action_id', '') or '-'}")
+            print(f"  state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}")
         print("  commands: info, options, jobs, jobs -i ID, background")
     elif target_id:
         target_filter = snap.get("target_filter") or {}
         print(target_filter_summary_text(target_filter, prefix="  selected agent:"))
         print("  commands: interact, queue COMMAND, probe --queue, download --queue TARGET_PATH, upload --start LOCAL NAME, fetch --queue NAME, show activity, serve-binary --start PATH NAME, clear target")
     else:
-        print("  selected agent=all")
+        print("  selected agent: all")
         print("  commands: workspace, agents, listeners, routes, sessions, show categories, search TERM")
     sessions = snap.get("sessions") or []
     if sessions:

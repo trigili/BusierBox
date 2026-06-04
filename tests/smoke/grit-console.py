@@ -1864,6 +1864,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     job_options_start = line_console_stdout.find("grit[all]/job/line-console-job> options")
     job_options_end = line_console_stdout.find("grit[all]/job/line-console-job> next", job_options_start + 1)
     job_options_text = line_console_stdout[job_options_start:job_options_end] if job_options_start != -1 and job_options_end != -1 else ""
+    job_next_start = line_console_stdout.find("grit[all]/job/line-console-job> next")
+    job_next_end = line_console_stdout.find("grit[all]/job/line-console-job> back", job_next_start + 1)
+    job_next_text = line_console_stdout[job_next_start:job_next_end] if job_next_start != -1 and job_next_end != -1 else ""
     if (not jobs_verbose_text or
             "cancel: scripts/grit-console" not in jobs_verbose_text or
             not job_info_text or
@@ -1882,7 +1885,15 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "job.id=" in job_options_text or
             "job.action=" in job_options_text or
             "job.log_path=" in job_options_text or
-            "job.cancel_command=scripts/grit-console" in job_options_text):
+            "job.cancel_command=scripts/grit-console" in job_options_text or
+            not job_next_text or
+            "  context: grit[all]/job/line-console-job>" not in job_next_text or
+            "  selected job: line-console-job" not in job_next_text or
+            "  action: package-artifact" not in job_next_text or
+            "  state: running" not in job_next_text or
+            "context=" in job_next_text or
+            "selected job=" in job_next_text or
+            "action=" in job_next_text):
         print("line-oriented selected job context exposed generated cancel command by default", file=sys.stderr)
         print("jobs -v:", file=sys.stderr)
         print(jobs_verbose_text or line_console_stdout, file=sys.stderr)
@@ -1890,6 +1901,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(job_info_text, file=sys.stderr)
         print("job options:", file=sys.stderr)
         print(job_options_text, file=sys.stderr)
+        print("job next:", file=sys.stderr)
+        print(job_next_text, file=sys.stderr)
         return 1
     collection_prompt_expectations = [
         "grit[all]/build> build -v",
