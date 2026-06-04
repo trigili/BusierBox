@@ -1299,7 +1299,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "set GRIT_OPERATOR_FILE_SERVICE_TLS=\"no\"",
         "operator daemon workflow action: operator-daemon-status",
         "Session interaction:",
-        "Agent interaction: line-console-target label=Console Router state=online",
+        "Agent interaction: Console Router (line-console-target)",
+        "  state: online",
         "status: line-console-target (Console Router)  state online  mailbox 0 pending",
         "renamed target: line-console-target",
         "noted target: line-console-target",
@@ -1537,7 +1538,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         )
         target_search_pos = target_interaction_start + 1
     if (len(target_interactions) < 2 or
-            any(not text or "Agent interaction: line-console-target label=Console Router state=online" not in text
+            any(not text or "Agent interaction: Console Router (line-console-target)" not in text
+                for text in target_interactions[:2]) or
+            any("  state: online" not in text for text in target_interactions[:2]) or
+            any("label=Console Router" in text or "state=online" in text
                 for text in target_interactions[:2]) or
             any("status: line-console-target (Console Router)  state online  mailbox 0 pending" not in text
                 for text in target_interactions[:2]) or
