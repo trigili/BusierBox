@@ -100,9 +100,9 @@ from gritlib.build_config import (
     workbench_config_field_records, workbench_config_field_summary,
 )
 from gritlib.event_log import (
-    EventLog, append_event, compact_event_details, event_log_state_status,
-    event_log_stats, event_record_indexes, event_tail,
-    event_status_summary, event_summary_stats_for_records,
+    EventLog, append_event, compact_event_details, event_log_status_context,
+    event_tail,
+    event_status_summary,
     event_tail_availability_text,
     print_event_log_summary,
 )
@@ -2634,18 +2634,18 @@ def status_document(cfg):
      sessions_by_metadata_exists,
      sessions_by_event_log_exists,
      sessions_by_session_log_exists) = session_context["indexes"]
-    event_stats = event_log_stats(cfg, event_limit)
-    event_log_status = event_log_state_status(cfg, event_stats)
-    event_log_state = event_log_status["state_record"]
-    event_log_state_records = event_log_status["state_records"]
-    event_log_state_index_maps = event_log_status["state_index_maps"]
-    events = event_stats["tail"]
-    unfiltered_counts["event_tail"] = len(events)
-    if target_filter_id:
-        events = [
-            event for event in events
-            if event_for_target(event, target_filter_id, target_filter_session_ids)
-        ]
+    event_context = event_log_status_context(
+        cfg,
+        event_limit,
+        target_filter_id=target_filter_id,
+        target_filter_session_ids=target_filter_session_ids,
+    )
+    event_stats = event_context["stats"]
+    event_log_state = event_context["state_record"]
+    event_log_state_records = event_context["state_records"]
+    event_log_state_index_maps = event_context["state_index_maps"]
+    events = event_context["events"]
+    unfiltered_counts["event_tail"] = event_context["unfiltered_tail_count"]
     (events_by_id,
      events_by_session,
      events_by_service,
@@ -2718,10 +2718,8 @@ def status_document(cfg):
      events_by_event_detail_target_identity_source,
      events_by_service_detail_target_identity_source,
      events_by_event_detail_target_identity_confidence,
-    events_by_service_detail_target_identity_confidence) = event_record_indexes(events)
-    event_summary_stats = event_stats
-    if target_filter_id:
-        event_summary_stats = event_summary_stats_for_records(event_stats, events)
+    events_by_service_detail_target_identity_confidence) = event_context["indexes"]
+    event_summary_stats = event_context["summary_stats"]
     command_queue = command_queue_summary(cfg)
     target_mailbox_now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
     target_mailbox_records = target_mailbox_records_from_commands(

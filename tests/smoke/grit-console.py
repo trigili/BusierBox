@@ -1223,6 +1223,91 @@ def run_session_status_context_check():
     return 0
 
 
+def run_event_log_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.event_log import event_log_status_context
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        operator_dir = root / "operator-session"
+        operator_dir.mkdir(parents=True)
+        events_path = operator_dir / "events.jsonl"
+        events = [
+            {
+                "schema": 1,
+                "id": "evt-a",
+                "ts": "2026-06-04T00:00:01Z",
+                "service": "probe",
+                "session": "sess-a",
+                "event": "target_probe",
+                "level": "info",
+                "remote": "127.0.0.1:1",
+                "details": {"target_id": "target-a", "status": "ok"},
+            },
+            {
+                "schema": 1,
+                "id": "evt-b",
+                "ts": "2026-06-04T00:00:02Z",
+                "service": "probe",
+                "session": "sess-b",
+                "event": "target_probe",
+                "level": "warning",
+                "remote": "127.0.0.1:2",
+                "details": {"target_id": "target-b", "status": "failed"},
+            },
+            {
+                "schema": 1,
+                "id": "evt-c",
+                "ts": "2026-06-04T00:00:03Z",
+                "service": "queue",
+                "session": "sess-a",
+                "event": "command_completed",
+                "level": "info",
+                "remote": "127.0.0.1:3",
+                "details": {"status": "done"},
+            },
+        ]
+        events_path.write_text(
+            "".join(json.dumps(event, sort_keys=True) + "\n" for event in events),
+            encoding="utf-8",
+        )
+        context = event_log_status_context(
+            {"operator_session_dir": str(operator_dir)},
+            limit=10,
+            target_filter_id="target-a",
+            target_filter_session_ids={"sess-a"},
+        )
+        records = context.get("events") or []
+        indexes = context.get("indexes") or ()
+        summary = context.get("summary_stats") or {}
+        state = context.get("state_record") or {}
+        if context.get("unfiltered_tail_count") != 3 or len(records) != 2:
+            print("event log status context did not preserve unfiltered count/filtering", file=sys.stderr)
+            return 1
+        if [rec.get("id") for rec in records] != ["evt-a", "evt-c"]:
+            print("event log status context did not filter by target/session", file=sys.stderr)
+            return 1
+        if summary.get("total_count") != 2 or summary.get("by_event", {}).get("target_probe") != 1:
+            print("event log status context did not preserve filtered summary", file=sys.stderr)
+            return 1
+        if not state.get("exists") or state.get("event_count") != 3:
+            print("event log status context did not preserve state record", file=sys.stderr)
+            return 1
+        if len(indexes) != 73:
+            print("event log status context returned unexpected index tuple", file=sys.stderr)
+            return 1
+        by_id, by_session, _by_service, by_event, *_rest = indexes
+        if by_id.get("evt-a") != records[0] or by_session.get("sess-a") != records:
+            print("event log status context did not preserve event indexes", file=sys.stderr)
+            return 1
+        if "event_log_state_records_by_path" not in (context.get("state_index_maps") or {}):
+            print("event log status context did not preserve state indexes", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4451,6 +4536,8 @@ def main(argv=None):
     if run_service_status_context_check() != 0:
         return 1
     if run_session_status_context_check() != 0:
+        return 1
+    if run_event_log_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1

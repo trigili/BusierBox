@@ -318,6 +318,33 @@ def event_log_state_status(cfg, stats=None):
     }
 
 
+def event_log_status_context(cfg, limit=12, target_filter_id="", target_filter_session_ids=None):
+    event_stats = event_log_stats(cfg, limit)
+    event_log_status = event_log_state_status(cfg, event_stats)
+    events = event_stats["tail"]
+    unfiltered_tail_count = len(events)
+    if target_filter_id:
+        from gritlib.target_records import event_for_target
+
+        events = [
+            event for event in events
+            if event_for_target(event, target_filter_id, target_filter_session_ids)
+        ]
+    event_summary_stats = event_stats
+    if target_filter_id:
+        event_summary_stats = event_summary_stats_for_records(event_stats, events)
+    return {
+        "stats": event_stats,
+        "summary_stats": event_summary_stats,
+        "events": events,
+        "unfiltered_tail_count": unfiltered_tail_count,
+        "state_record": event_log_status["state_record"],
+        "state_records": event_log_status["state_records"],
+        "state_index_maps": event_log_status["state_index_maps"],
+        "indexes": event_record_indexes(events),
+    }
+
+
 def event_tail_availability_text(doc):
     state = (doc or {}).get("event_log_state") or {}
     return (
