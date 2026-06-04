@@ -2029,6 +2029,103 @@ def run_operator_state_status_context_check():
     return 0
 
 
+def run_path_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.status_indexes import path_status_context
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        operator_dir = root / "operator-session"
+        operator_dir.mkdir()
+        staged_source = root / "payload.bin"
+        staged_source.write_text("payload", encoding="utf-8")
+        upload_metadata = root / "upload.metadata.json"
+        upload_metadata.write_text("{}", encoding="utf-8")
+        upload_stored = root / "upload.bin"
+        upload_stored.write_text("upload", encoding="utf-8")
+        session_dir = root / "session-a"
+        session_dir.mkdir()
+        release_dir = root / "release"
+        release_dir.mkdir()
+        release_json = release_dir / "release.json"
+        release_json.write_text("{}", encoding="utf-8")
+        artifact = release_dir / "bin" / "grit"
+        artifact.parent.mkdir()
+        artifact.write_text("artifact", encoding="utf-8")
+        paths = {
+            "operator_session_dir": str(operator_dir),
+            "state_file": str(root / "state.json"),
+            "command_copy_file": str(root / "command-copy"),
+        }
+        context = path_status_context(
+            {"operator_session_dir": str(operator_dir)},
+            paths,
+            [
+                {
+                    "request_name": "payload.bin",
+                    "source_path": str(staged_source),
+                    "stage_kind": "operator-upload",
+                },
+            ],
+            [
+                {
+                    "filename": "upload.bin",
+                    "metadata_path": str(upload_metadata),
+                    "stored_path": str(upload_stored),
+                    "session_path": str(session_dir),
+                    "session_id": "session-a",
+                },
+            ],
+            [],
+            [
+                {
+                    "session_id": "session-a",
+                    "path": str(session_dir),
+                    "metadata_path": str(session_dir / "session.json"),
+                    "event_log": str(session_dir / "events.jsonl"),
+                },
+            ],
+            {
+                "release_name": "test-release",
+                "release_dir": str(release_dir),
+                "release_json": str(release_json),
+                "release_index": str(release_dir / "release-index.json"),
+                "artifacts": [
+                    {
+                        "name": "grit",
+                        "path": str(artifact),
+                        "release_path": "bin/grit",
+                    },
+                ],
+            },
+        )
+        path_status = context.get("path_status") or {}
+        path_records = context.get("path_status_records") or []
+        path_indexes = context.get("path_status_index_maps") or {}
+        browser_paths = context.get("browser_paths") or []
+        browser_indexes = context.get("browser_path_indexes") or ()
+        browser_summary = context.get("browser_summary") or {}
+        if not path_status or len(path_records) != len(paths):
+            print("path status context did not preserve operator path records", file=sys.stderr)
+            return 1
+        if "operator_session_dir" not in (path_indexes.get("path_status_by_name") or {}):
+            print("path status context did not preserve operator path indexes", file=sys.stderr)
+            return 1
+        if len(browser_indexes) != 10 or not browser_paths:
+            print("path status context did not preserve browser path indexes", file=sys.stderr)
+            return 1
+        if browser_summary.get("total_count") != len(browser_paths):
+            print("path status context did not preserve browser summary", file=sys.stderr)
+            return 1
+        browser_by_kind = browser_indexes[0]
+        if not browser_by_kind.get("staged-source") or not browser_by_kind.get("release-artifact"):
+            print("path status context did not preserve browser path kinds", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_operator_daemon_workflow_action_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -5385,6 +5482,8 @@ def main(argv=None):
     if run_workbench_job_status_context_check() != 0:
         return 1
     if run_operator_state_status_context_check() != 0:
+        return 1
+    if run_path_status_context_check() != 0:
         return 1
     if run_operator_daemon_workflow_action_status_context_check() != 0:
         return 1

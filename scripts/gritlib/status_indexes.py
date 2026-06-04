@@ -645,6 +645,29 @@ def browser_path_summary(records):
     }
 
 
+def path_status_context(cfg, paths, staged_records, uploads, fetches, sessions, release):
+    path_status = status_path_records(paths)
+    path_status_records = status_path_record_list(path_status)
+    browser_paths = operator_browser_path_records(
+        cfg,
+        paths,
+        staged_records,
+        uploads,
+        fetches,
+        sessions,
+        release,
+    )
+    return {
+        "path_status": path_status,
+        "path_status_records": path_status_records,
+        "path_status_index_maps": status_path_record_indexes(path_status_records),
+        "path_summary": status_path_summary(path_status),
+        "browser_paths": browser_paths,
+        "browser_path_indexes": browser_path_indexes(browser_paths),
+        "browser_summary": browser_path_summary(browser_paths),
+    }
+
+
 def api_collection_record(name, records, primary_key="", indexes=None, summary_key=""):
     index_names = sorted(indexes or [])
     warning_indexes = [

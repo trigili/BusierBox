@@ -304,12 +304,11 @@ from gritlib.systemd_user import (
 )
 from gritlib.status_indexes import (
     api_collection_record, api_resource_record_indexes,
-    api_resource_records, browser_path_indexes, browser_path_summary,
+    api_resource_records, browser_path_summary,
     operator_network_status, operator_state_status_context,
-    operator_browser_path_records, print_activity_summary,
+    path_status_context, print_activity_summary,
     print_api_resource_summary, print_operator_state_records,
-    status_path_record_indexes, status_path_record_list, status_path_records,
-    status_path_summary, warning_health_indexes,
+    warning_health_indexes,
 )
 from gritlib.status_print import print_status_document, print_workbench_snapshot
 from gritlib.target_activity import (
@@ -2973,11 +2972,20 @@ def status_document(cfg):
     operator_state_records_list = operator_state_context["records"]
     operator_state_index_maps = operator_state_context["index_maps"]
     operator_state_summary = operator_state_context["summary"]
-    path_status = status_path_records(paths)
-    path_status_records = status_path_record_list(path_status)
-    path_status_indexes = status_path_record_indexes(path_status_records)
-    path_summary = status_path_summary(path_status)
-    browser_paths = operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, sessions, release)
+    path_context = path_status_context(
+        cfg,
+        paths,
+        staged_records,
+        uploads,
+        fetches,
+        sessions,
+        release,
+    )
+    path_status = path_context["path_status"]
+    path_status_records = path_context["path_status_records"]
+    path_status_indexes = path_context["path_status_index_maps"]
+    path_summary = path_context["path_summary"]
+    browser_paths = path_context["browser_paths"]
     (browser_paths_by_kind,
      browser_paths_by_path,
      browser_paths_by_source_id,
@@ -2987,8 +2995,8 @@ def status_document(cfg):
      browser_paths_by_exists,
      browser_paths_by_readable,
      browser_paths_by_writable,
-     browser_paths_by_expected_kind_mismatch) = browser_path_indexes(browser_paths)
-    browser_summary = browser_path_summary(browser_paths)
+     browser_paths_by_expected_kind_mismatch) = path_context["browser_path_indexes"]
+    browser_summary = path_context["browser_summary"]
     services_by_name = service_context["services_by_name"]
     command_queue_workflow_actions = command_queue_workflow_action_records(
         cfg,
