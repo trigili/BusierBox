@@ -28,6 +28,13 @@ from gritlib.staged_files import (
 )
 
 
+def parse_line_configure_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    if cmd not in {"configure", "trailer"}:
+        return {}
+    return {"action": "configure", "args": list(args or [])}
+
+
 def parse_line_config_args(args, cmd_name):
     survey_path = None
     write_config_path = None

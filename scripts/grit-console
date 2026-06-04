@@ -132,6 +132,7 @@ from gritlib.line_command_queue import (
 from gritlib.line_configure import (
     configure_line_artifact as configure_line_artifact_impl,
     find_survey_uploads as configure_find_survey_uploads,
+    parse_line_configure_command,
     print_line_survey_status as configure_print_line_survey_status,
     run_line_probe_config as configure_line_probe_config,
     run_line_survey_config as configure_line_survey_config,
@@ -8175,7 +8176,8 @@ def run_line_repl(cfg):
                 continue
             elif cmd in {"configure", "trailer"}:
                 try:
-                    configure_line_artifact(console_args[1:])
+                    configure_cmd = parse_line_configure_command(cmd, console_args[1:])
+                    configure_line_artifact(configure_cmd["args"])
                     set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
