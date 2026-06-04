@@ -330,7 +330,8 @@ from gritlib.status_indexes import (
 )
 from gritlib.status_print import print_status_document, print_workbench_snapshot
 from gritlib.target_activity import (
-    apply_target_phone_home_summary, mailbox_wait_bucket,
+    apply_target_phone_home_summary, dispatch_legacy_target_activity_number,
+    mailbox_wait_bucket,
     print_target_activity_records, print_workbench_phone_home_attempts,
     record_selected_target_activity,
     target_activity_record_indexes, target_activity_records_from_sources,
@@ -7799,60 +7800,15 @@ def run_line_repl(cfg):
                 )
         elif dispatch_legacy_line_queue_number(choice, view_func=print_line_command_queue_view):
             continue
-        elif choice == "21":
-            unfiltered_cfg = dict(cfg)
-            unfiltered_cfg.pop("_target_id_filter", None)
-            unfiltered_cfg.pop("_target_label_filter", None)
-            snap = workbench_snapshot(unfiltered_cfg)
-            targets = snap.get("targets") or []
-            current = configured_target_filter(cfg)
-            print_workbench_target_selector(targets, current_target_id=current)
-            selected_line = line_input("target number/id/label, current, or all> ")
-            selected = selected_line.strip() if selected_line is not None else ""
-            if not selected:
-                continue
-            try:
-                selection = select_workbench_target_record(selected, targets, current_target_id=current)
-                target = selection.get("target") or {}
-                if selection.get("scope") == "all":
-                    headless = (
-                        "scripts/grit-console --config "
-                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                        + " --json-status"
-                    )
-                    activity_doc = snap
-                    print("Target activity feed: all")
-                    print_target_activity_records(activity_doc, limit=12)
-                    activity_count = len(activity_doc.get("target_activity_records") or [])
-                    append_event(cfg, "workbench", "workbench_target_activity_inspected", details={
-                        "headless_command": headless,
-                        "scope": "all",
-                        "target_activity_record_count": activity_count,
-                    })
-                else:
-                    target_id = str(target.get("target_id") or "")
-                    target_label = str(target.get("label") or target.get("target_label") or "")
-                    scoped = scoped_target_cfg(cfg, target_id, target_label=target_label)
-                    activity_doc = workbench_snapshot(scoped)
-                    headless = (
-                        "scripts/grit-console --config "
-                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                        + " --target-id "
-                        + shquote(target_id)
-                        + " --json-status"
-                    )
-                    print(f"Target activity feed: {target_id} label={target_label or '-'}")
-                    print_target_activity_records(activity_doc, target_id=target_id, limit=12)
-                    activity_count = len(activity_doc.get("target_activity_records") or [])
-                    append_event(cfg, "workbench", "workbench_target_activity_inspected", details={
-                        "headless_command": headless,
-                        "scope": "target",
-                        "target_id": target_id,
-                        "target_label": target_label,
-                        "target_activity_record_count": activity_count,
-                    })
-            except ValueError as exc:
-                print(exc)
+        elif dispatch_legacy_target_activity_number(
+            choice,
+            cfg,
+            input_func=line_input,
+            snapshot_func=workbench_snapshot,
+            append_event_fn=append_event,
+            scoped_target_cfg_func=scoped_target_cfg,
+        ):
+            continue
         elif dispatch_line_number_selection(
             choice,
             cfg,

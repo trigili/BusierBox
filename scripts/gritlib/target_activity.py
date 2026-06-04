@@ -15,6 +15,86 @@ from gritlib.record_utils import (
 from gritlib.session_state import parse_utc_timestamp, utc_now
 
 
+def dispatch_legacy_target_activity_number(
+    choice,
+    cfg,
+    *,
+    input_func=None,
+    snapshot_func=None,
+    append_event_fn=None,
+    scoped_target_cfg_func=None,
+):
+    if str(choice or "").strip() != "21":
+        return False
+    from gritlib.config_utils import DEFAULT_CONFIG
+    from gritlib.shell_utils import shquote
+    from gritlib.target_records import (
+        configured_target_filter,
+        print_workbench_target_selector,
+        select_workbench_target_record,
+    )
+
+    unfiltered_cfg = dict(cfg)
+    unfiltered_cfg.pop("_target_id_filter", None)
+    unfiltered_cfg.pop("_target_label_filter", None)
+    snap = snapshot_func(unfiltered_cfg) if snapshot_func else {}
+    targets = snap.get("targets") or []
+    current = configured_target_filter(cfg)
+    print_workbench_target_selector(targets, current_target_id=current)
+    selected_line = input_func("target number/id/label, current, or all> ") if input_func else None
+    selected = selected_line.strip() if selected_line is not None else ""
+    if not selected:
+        return True
+    try:
+        selection = select_workbench_target_record(selected, targets, current_target_id=current)
+        target = selection.get("target") or {}
+        if selection.get("scope") == "all":
+            headless = (
+                "scripts/grit-console --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --json-status"
+            )
+            activity_doc = snap
+            print("Target activity feed: all")
+            print_target_activity_records(activity_doc, limit=12)
+            activity_count = len(activity_doc.get("target_activity_records") or [])
+            if append_event_fn:
+                append_event_fn(cfg, "workbench", "workbench_target_activity_inspected", details={
+                    "headless_command": headless,
+                    "scope": "all",
+                    "target_activity_record_count": activity_count,
+                })
+        else:
+            target_id = str(target.get("target_id") or "")
+            target_label = str(target.get("label") or target.get("target_label") or "")
+            scoped = (
+                scoped_target_cfg_func(cfg, target_id, target_label=target_label)
+                if scoped_target_cfg_func else cfg
+            )
+            activity_doc = snapshot_func(scoped) if snapshot_func else {}
+            headless = (
+                "scripts/grit-console --config "
+                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + " --target-id "
+                + shquote(target_id)
+                + " --json-status"
+            )
+            print(f"Target activity feed: {target_id} label={target_label or '-'}")
+            print_target_activity_records(activity_doc, target_id=target_id, limit=12)
+            activity_count = len(activity_doc.get("target_activity_records") or [])
+            if append_event_fn:
+                append_event_fn(cfg, "workbench", "workbench_target_activity_inspected", details={
+                    "headless_command": headless,
+                    "scope": "target",
+                    "target_id": target_id,
+                    "target_label": target_label,
+                    "target_activity_record_count": activity_count,
+                })
+    except ValueError as exc:
+        print(exc)
+    return True
+
+
 def mailbox_wait_bucket(seconds):
     if seconds in ("", None):
         return ""
