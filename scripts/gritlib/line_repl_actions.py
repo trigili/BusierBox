@@ -18,7 +18,8 @@ def build_line_action_callbacks(
     workbench_snapshot_func,
     service_status_rows_func,
     service_names_func,
-    start_service_func,
+    start_service_func=None,
+    route_service_callbacks=None,
     service_runner,
     daemon_runner,
     workbench_runner,
@@ -57,6 +58,9 @@ def build_line_action_callbacks(
 
     def service_names():
         return service_names_func(service_status_rows_func(cfg))
+
+    if start_service_func is None and route_service_callbacks is not None:
+        start_service_func = route_service_callbacks["start_line_service"]
 
     def run_line_selected_action_callback(args=None, dry_run_default=False):
         return run_line_selected_action(

@@ -506,6 +506,7 @@ def run_line_repl_runtime_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
+    import gritlib.line_repl_actions as repl_actions
     import gritlib.line_repl_completions as repl_completions
     import gritlib.line_repl_core as repl_core
     import gritlib.line_repl_jobs as repl_jobs
@@ -693,6 +694,47 @@ def run_line_repl_runtime_check():
         return 1
     if bridge_calls != [("bridge-cfg", "save", "lab", {"port": 2222})]:
         print(f"line REPL bridge command adapter did not forward arguments: {bridge_calls}", file=sys.stderr)
+        return 1
+
+    action_bundle_calls = []
+    original_run_line_module_or_service = repl_actions.run_line_module_or_service
+
+    def fake_run_line_module_or_service(values, dry_run_default, selected_action_func, select_action_func,
+                                        service_names_func, start_service_func, run_selected_action_func):
+        action_bundle_calls.append(("module-service", tuple(values), dry_run_default))
+        action_bundle_calls.append(("start", start_service_func("svc-1")))
+        return "action-refresh"
+
+    repl_actions.run_line_module_or_service = fake_run_line_module_or_service
+    try:
+        action_bundle = repl_actions.build_line_action_callbacks(
+            {"name": "action-cfg"},
+            workbench_snapshot_func=lambda cfg: {"name": cfg.get("name")},
+            service_status_rows_func=lambda cfg: [{"service": cfg.get("name")}],
+            service_names_func=lambda rows: [row["service"] for row in rows],
+            route_service_callbacks={
+                "start_line_service": lambda selector: action_bundle_calls.append(("route-start", selector)) or "started",
+            },
+            service_runner=lambda *args, **kwargs: None,
+            daemon_runner=lambda *args, **kwargs: None,
+            workbench_runner=lambda *args, **kwargs: None,
+            target_runner=lambda *args, **kwargs: None,
+            workbench_actions_func=lambda cfg: [],
+            target_input_func=lambda prompt: "",
+            append_event_fn=lambda *args, **kwargs: None,
+            quote=lambda text: text,
+        )
+        if action_bundle["run_line_module_or_service"](["svc-1"], dry_run_default=True) != "action-refresh":
+            print("line REPL action bundle did not return module/service dispatch result", file=sys.stderr)
+            return 1
+    finally:
+        repl_actions.run_line_module_or_service = original_run_line_module_or_service
+    if action_bundle_calls != [
+        ("module-service", ("svc-1",), True),
+        ("route-start", "svc-1"),
+        ("start", "started"),
+    ]:
+        print(f"line REPL action bundle did not consume route service callbacks: {action_bundle_calls}", file=sys.stderr)
         return 1
 
     option_calls = []

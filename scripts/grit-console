@@ -6063,7 +6063,6 @@ def run_line_repl(cfg):
         quote=shquote,
     )
     bridge_profile_headless_command = line_route_service_callbacks["bridge_profile_headless_command"]
-    start_line_service = line_route_service_callbacks["start_line_service"]
 
     line_completion_candidates, print_line_completions = build_line_completion_adapter(
         cfg,
@@ -6087,7 +6086,7 @@ def run_line_repl(cfg):
         workbench_snapshot_func=workbench_snapshot,
         service_status_rows_func=service_status_rows,
         service_names_func=line_service_names,
-        start_service_func=start_line_service,
+        route_service_callbacks=line_route_service_callbacks,
         service_runner=run_service_workflow_action,
         daemon_runner=run_operator_daemon_workflow_action,
         workbench_runner=run_workbench_action_record,
