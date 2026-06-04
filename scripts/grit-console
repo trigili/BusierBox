@@ -7696,9 +7696,8 @@ def run_line_repl(cfg):
                 elif workspace_cmd["action"] == "options":
                     print_line_options()
                 continue
-            elif cmd == "build":
+            elif (build_cmd := parse_line_build_command(cmd, console_args[1:])):
                 try:
-                    build_cmd = parse_line_build_command(console_args[1:])
                     if build_cmd["set_context"]:
                         set_line_collection("build")
                     run_line_build_command(cfg, build_cmd["args"])

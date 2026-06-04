@@ -160,7 +160,12 @@ def unset_line_global_build_option(cfg, name):
     return rec
 
 
-def parse_line_build_command(args):
+def parse_line_build_command(cmd, args=None):
+    if args is None:
+        args = cmd
+    else:
+        if str(cmd or "").strip().lower() != "build":
+            return None
     args = list(args or [])
     return {
         "action": "build",
