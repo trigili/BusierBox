@@ -1,6 +1,7 @@
 """Line-console completion vocabulary helpers."""
 
 import shlex
+from pathlib import Path
 
 
 BASE_COMMANDS = [
@@ -66,6 +67,142 @@ def completion_provider(providers, name, default=None):
     if callable(value):
         value = value()
     return list(value or [])
+
+
+def build_line_completion_providers(
+    cfg,
+    *,
+    workbench_snapshot_func,
+    line_action_records_func,
+    bridge_profile_records_func,
+    release_context_func,
+    command_queue_summary_func,
+    generated_target_command_records_func,
+    workbench_config_field_records_func,
+    service_status_rows_func,
+    service_completion_names_func,
+    service_names_func,
+    load_staged_func,
+    find_survey_uploads_func,
+):
+    def target_names():
+        names = []
+        unfiltered_cfg = dict(cfg)
+        unfiltered_cfg.pop("_target_id_filter", None)
+        unfiltered_cfg.pop("_target_label_filter", None)
+        for rec in workbench_snapshot_func(unfiltered_cfg).get("targets") or []:
+            for item in [rec.get("target_id"), rec.get("label"), *(rec.get("aliases") or [])]:
+                value = str(item or "").strip()
+                if value:
+                    names.append(value)
+        return names
+
+    def session_names():
+        names = []
+        for rec in workbench_snapshot_func(cfg).get("sessions") or []:
+            value = str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
+            if value:
+                names.append(value)
+        return names
+
+    def action_names():
+        names = []
+        for rec in line_action_records_func():
+            rec_id = str(rec.get("id") or "")
+            kind = str(rec.get("kind") or "")
+            if rec_id:
+                names.append(rec_id)
+                if kind:
+                    names.append(f"{kind}:{rec_id}")
+        return names
+
+    def release_selectors():
+        rel = release_context_func(cfg)
+        if not rel:
+            return []
+        selectors = []
+        for rec in rel.get("artifacts") or []:
+            selectors.extend([rec.get("release_path"), rec.get("name"), rec.get("path")])
+        for rec in rel.get("recommendation_records") or []:
+            selectors.extend([rec.get("id"), rec.get("artifact")])
+        for rec in rel.get("devices") or []:
+            name = str(rec.get("name") or "")
+            if name:
+                selectors.append(f"by_device:{name}")
+        for rec in rel.get("tuples") or []:
+            path = str(rec.get("path") or "")
+            if path:
+                selectors.append(f"by_tuple_path:{path}")
+        return [str(item or "") for item in selectors if str(item or "")]
+
+    def command_queue_ids():
+        ids = []
+        for idx, rec in enumerate((command_queue_summary_func(cfg).get("commands") or []), 1):
+            ids.append(str(idx))
+            command_id = str(rec.get("id") or "")
+            if command_id:
+                ids.append(command_id)
+        return ids
+
+    def daemon_action_ids():
+        snap = workbench_snapshot_func(cfg)
+        return [
+            str(rec.get("id") or "") for rec in (snap.get("operator_daemon_workflow_actions") or [])
+            if rec.get("id")
+        ]
+
+    def staged_names_snapshot():
+        return [
+            str(name or "")
+            for name in sorted((workbench_snapshot_func(cfg).get("staged") or {}).keys())
+            if str(name or "")
+        ]
+
+    def session_paths():
+        path_values = []
+        for rec in workbench_snapshot_func(cfg).get("sessions") or []:
+            for key in ("path", "session_log", "event_log"):
+                value = str(rec.get(key) or "").strip()
+                if value:
+                    path_values.append(value)
+        return path_values
+
+    def survey_upload_paths():
+        return [
+            rec.get("stored_path") or ""
+            for rec in find_survey_uploads_func()
+            if rec.get("stored_path")
+        ]
+
+    return {
+        "target_names": target_names,
+        "session_names": session_names,
+        "job_names": lambda: [
+            str(rec.get("id") or "") for rec in workbench_snapshot_func(cfg).get("workbench_jobs") or []
+            if str(rec.get("id") or "")
+        ],
+        "route_names": lambda: [
+            str(rec.get("name") or "") for rec in bridge_profile_records_func(cfg)
+            if str(rec.get("name") or "")
+        ],
+        "action_names": action_names,
+        "release_selectors": release_selectors,
+        "command_queue_ids": command_queue_ids,
+        "generated_command_ids": lambda: [
+            str(idx) for idx, _rec in enumerate(generated_target_command_records_func(cfg), 1)
+        ],
+        "build_config_keys": lambda: [
+            str(rec.get("key") or "") for rec in workbench_config_field_records_func(cfg)
+            if str(rec.get("key") or "")
+        ],
+        "service_completion_names": lambda: service_completion_names_func(service_status_rows_func(cfg)),
+        "service_names": lambda: service_names_func(service_status_rows_func(cfg)),
+        "daemon_action_ids": daemon_action_ids,
+        "staged_names_load": lambda: sorted((load_staged_func(cfg).get("staged") or {}).keys()),
+        "staged_names_snapshot": staged_names_snapshot,
+        "session_paths": session_paths,
+        "survey_upload_paths": survey_upload_paths,
+    }
 
 
 def line_completion_candidates(prefix="", providers=None):
