@@ -1900,11 +1900,17 @@ def run_line_repl_runtime_check():
             alias_target_func=lambda cfg, value: core_bundle_calls.append(
                 ("alias", cfg.get("name"), value)
             ),
+            build_fields_func=lambda cfg: core_bundle_calls.append(
+                ("fields", cfg.get("name"))
+            ) or [],
             unset_target_option_func=lambda cfg, key, clear_module: (
                 core_bundle_calls.append(("unset-target", cfg.get("name"), key)),
                 clear_module(quiet=True),
             ),
         )
+        if option_callbacks["workbench_config_fields"]() != []:
+            print("line REPL option bundle did not return build field records", file=sys.stderr)
+            return 1
         workspace_callbacks = repl_workspace.build_line_workspace_callbacks(
             {"name": "bundle-core"},
             default_config="bundle-default.json",
@@ -2004,6 +2010,7 @@ def run_line_repl_runtime_check():
         repl_core.build_line_core_dispatch_callback = original_core_dispatch_builder
         repl_core.build_unset_line_option_callback = original_unset_builder
     expected_core_bundle_calls = [
+        ("fields", "bundle-core"),
         ("dispatch-builder", "bundle-core", "bundle-default.json"),
         ("workspace-callbacks", True, True, True, True, True, True, True, True),
         ("option-callbacks", True, True, True, True, True, True),
@@ -2401,6 +2408,7 @@ def run_line_repl_runtime_check():
         kwargs["job_record_func"]("job1")
         kwargs["probe_delivery_func"]({"name": "ignored"})
         kwargs["bridge_command_builder"]("inspect", "route1")
+        kwargs["build_fields_func"]({"name": "ignored"})
         return (
             lambda: display_bundle_calls.append("info"),
             lambda: display_bundle_calls.append("next"),
@@ -2422,7 +2430,9 @@ def run_line_repl_runtime_check():
             {"name": "display-cfg"},
             workbench_snapshot_func=lambda cfg: {},
             display_name_func=lambda name: name,
-            build_fields_func=lambda cfg: [],
+            option_callbacks={
+                "workbench_config_fields": lambda: display_bundle_calls.append("build-fields") or [],
+            },
             target_command_records_func=lambda cfg: [],
             set_context_func=lambda cfg, module: None,
             action_callbacks={
@@ -2478,6 +2488,7 @@ def run_line_repl_runtime_check():
         ("job-record", "job1"),
         ("probe-delivery", "ignored"),
         ("bridge-command", "inspect", "route1", None),
+        "build-fields",
         "target-filter",
         ("show-builder", "display-cfg", 3, "target1"),
         ("show", "jobs"),
@@ -2972,6 +2983,7 @@ def run_line_repl_runtime_check():
         kwargs["bridge_profile_records_func"](cfg)
         kwargs["service_completion_names_func"](kwargs["service_status_rows_func"](cfg))
         kwargs["service_names_func"](kwargs["service_status_rows_func"](cfg))
+        kwargs["workbench_config_field_records_func"](cfg)
         kwargs["find_survey_uploads_func"](limit=7)
         kwargs["append_event_func"]("workbench", "complete", details={"prefix": "st"})
         return (
@@ -2991,12 +3003,14 @@ def run_line_repl_runtime_check():
             release_context_func=lambda cfg: {},
             command_queue_summary_func=lambda cfg: {},
             generated_target_command_records_func=lambda cfg: [],
-            workbench_config_field_records_func=lambda cfg: [],
             route_service_callbacks={
                 "bridge_profile_records": lambda: completion_calls.append("bridge-records") or [],
                 "service_rows": lambda: completion_calls.append("service-rows") or [],
                 "service_completion_names": lambda: completion_calls.append("service-completion-names") or [],
                 "service_names": lambda: completion_calls.append("service-names") or [],
+            },
+            option_callbacks={
+                "workbench_config_fields": lambda: completion_calls.append("config-fields") or [],
             },
             load_staged_func=lambda cfg: {},
             find_survey_uploads_func=lambda cfg, limit=20: completion_calls.append(
@@ -3025,12 +3039,14 @@ def run_line_repl_runtime_check():
             release_context_func=lambda cfg: {},
             command_queue_summary_func=lambda cfg: {},
             generated_target_command_records_func=lambda cfg: [],
-            workbench_config_field_records_func=lambda cfg: [],
             route_service_callbacks={
                 "bridge_profile_records": lambda: completion_calls.append("setup-bridge-records") or [],
                 "service_rows": lambda: completion_calls.append("setup-service-rows") or [],
                 "service_completion_names": lambda: completion_calls.append("setup-service-completion-names") or [],
                 "service_names": lambda: completion_calls.append("setup-service-names") or [],
+            },
+            option_callbacks={
+                "workbench_config_fields": lambda: completion_calls.append("setup-config-fields") or [],
             },
             load_staged_func=lambda cfg: {},
             find_survey_uploads_func=lambda cfg, limit=20: [],
@@ -3073,6 +3089,7 @@ def run_line_repl_runtime_check():
         "service-rows",
         "service-completion-names",
         "service-names",
+        "config-fields",
         ("survey", "completion-cfg", 7),
         ("event", "completion-cfg", "workbench", "complete", {"prefix": "st"}),
         ("candidates", "st"),

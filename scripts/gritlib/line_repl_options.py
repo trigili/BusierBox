@@ -29,6 +29,7 @@ def build_line_option_callbacks(
     rename_target_func,
     note_target_func,
     alias_target_func,
+    build_fields_func=None,
     unset_target_option_func=unset_line_target_option,
 ):
     unset_line_option = build_unset_line_option_callback(
@@ -36,6 +37,10 @@ def build_line_option_callbacks(
         clear_module_func=clear_module_func,
         unset_target_option_func=unset_target_option_func,
     )
+
+    def workbench_config_fields():
+        return build_fields_func(cfg) if build_fields_func is not None else []
+
     return {
         "set_global_option": set_global_option_func,
         "set_context_option": set_context_option_func,
@@ -44,4 +49,5 @@ def build_line_option_callbacks(
         "rename_target": rename_target_func,
         "note_target": note_target_func,
         "alias_target": alias_target_func,
+        "workbench_config_fields": workbench_config_fields,
     }

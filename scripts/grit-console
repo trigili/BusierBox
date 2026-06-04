@@ -6070,6 +6070,18 @@ def run_line_repl(cfg):
         quote=shquote,
     )
 
+    line_option_callbacks = build_line_option_callbacks(
+        cfg,
+        clear_module_func=clear_line_module_context,
+        set_global_option_func=set_line_global_build_option,
+        set_context_option_func=line_options_set_line_option,
+        unset_global_option_func=unset_line_global_build_option,
+        rename_target_func=line_options_rename_line_target,
+        note_target_func=line_options_note_line_target,
+        alias_target_func=line_options_alias_line_target,
+        build_fields_func=workbench_config_field_records,
+    )
+
     line_completion_callbacks = setup_line_completion_bundle(
         cfg,
         readline_module=_readline,
@@ -6079,8 +6091,8 @@ def run_line_repl(cfg):
         release_context_func=release_context,
         command_queue_summary_func=command_queue_summary,
         generated_target_command_records_func=generated_target_command_records,
-        workbench_config_field_records_func=workbench_config_field_records,
         route_service_callbacks=line_route_service_callbacks,
+        option_callbacks=line_option_callbacks,
         load_staged_func=load_staged,
         find_survey_uploads_func=configure_find_survey_uploads,
         append_event_fn=append_event,
@@ -6177,10 +6189,10 @@ def run_line_repl(cfg):
         cfg,
         workbench_snapshot_func=workbench_snapshot,
         display_name_func=line_service_display_name,
-        build_fields_func=workbench_config_field_records,
         target_command_records_func=generated_target_command_records,
         set_context_func=set_line_collection_context,
         action_callbacks=line_action_callbacks,
+        option_callbacks=line_option_callbacks,
         target_callbacks=line_target_callbacks,
         route_service_callbacks=line_route_service_callbacks,
         probe_callbacks=line_probe_callbacks,
@@ -6193,17 +6205,6 @@ def run_line_repl(cfg):
         print_events_func=print_target_activity_records,
         print_release_func=line_release_print_line_release,
         append_event_fn=append_event,
-    )
-
-    line_option_callbacks = build_line_option_callbacks(
-        cfg,
-        clear_module_func=clear_line_module_context,
-        set_global_option_func=set_line_global_build_option,
-        set_context_option_func=line_options_set_line_option,
-        unset_global_option_func=unset_line_global_build_option,
-        rename_target_func=line_options_rename_line_target,
-        note_target_func=line_options_note_line_target,
-        alias_target_func=line_options_alias_line_target,
     )
 
     line_workspace_callbacks = build_line_workspace_callbacks(

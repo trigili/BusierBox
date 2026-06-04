@@ -12,11 +12,12 @@ def build_line_display_show_callbacks(
     service_record_func=None,
     probe_delivery_func=None,
     display_name_func,
-    build_fields_func,
+    build_fields_func=None,
     target_command_records_func,
     set_context_func,
     target_filter_func=None,
     action_callbacks,
+    option_callbacks=None,
     target_callbacks,
     route_service_callbacks,
     probe_callbacks=None,
@@ -30,6 +31,9 @@ def build_line_display_show_callbacks(
     print_release_func,
     append_event_fn,
 ):
+    if build_fields_func is None and option_callbacks is not None:
+        build_fields = option_callbacks["workbench_config_fields"]
+        build_fields_func = lambda _cfg: build_fields()
     if target_filter_func is None:
         target_filter = target_callbacks["target_filter"]
         target_filter_func = lambda _cfg: target_filter()
