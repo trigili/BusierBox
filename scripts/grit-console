@@ -28,6 +28,7 @@ import subprocess
 import sys
 import threading
 import time
+import textwrap
 import urllib.parse
 from pathlib import Path
 
@@ -7074,53 +7075,53 @@ def run_line_console(cfg):
         append_event(cfg, "workbench", "shutdown", details={"reason": SHUTDOWN_REASON or "quit"})
 
 
-def main(argv=None):
-    raw_argv = list(sys.argv[1:] if argv is None else argv)
+
+def build_arg_parser():
     parser = argparse.ArgumentParser(
         description="Catch griTTYkit reverse-access transports from a target.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""\
-Transport modes:
-  ssh         — Paramiko reverse-forward listener for Dropbear/dbclient (GRIT_RSHELL_TRANSPORT=ssh)
-  tls-shell   — TLS shell listener accepting builtin+tls AND socat+tls transports
-  plain-shell — Plaintext shell listener (debug/insecure; socat+none or builtin+none)
-  file-service — Receive-only TLS upload service for target-initiated files/evidence
-  command-queue — Explicit command queue poll listener
-  bridge      — Explicit TCP bridge from a local listener to a configured host:port
-  probe — Serve a /bin/sh probe script over HTTP and receive its result
-  probe-tftp — Serve the same probe script over UDP TFTP for first-contact fallback
-  probe-ftp — Serve the same probe script over simple FTP RETR
-  probe-dns — Serve the same probe script as DNS TXT chunks
+        epilog=textwrap.dedent("""\
+    Transport modes:
+      ssh         — Paramiko reverse-forward listener for Dropbear/dbclient (GRIT_RSHELL_TRANSPORT=ssh)
+      tls-shell   — TLS shell listener accepting builtin+tls AND socat+tls transports
+      plain-shell — Plaintext shell listener (debug/insecure; socat+none or builtin+none)
+      file-service — Receive-only TLS upload service for target-initiated files/evidence
+      command-queue — Explicit command queue poll listener
+      bridge      — Explicit TCP bridge from a local listener to a configured host:port
+      probe — Serve a /bin/sh probe script over HTTP and receive its result
+      probe-tftp — Serve the same probe script over UDP TFTP for first-contact fallback
+      probe-ftp — Serve the same probe script over simple FTP RETR
+      probe-dns — Serve the same probe script as DNS TXT chunks
 
-File staging:
-  --transport file-service --serve-file ./tool --as /tmp/tool
-  --transport file-service --serve-dir local/operator-files
-  --stage-release-artifact by-tuple/.../bin/grit-target-full
-  --release-dir dist/releases/lab --stage-release-artifact bin/grit-target-full
-  --transport file-service --list-staged
-  --save-bridge-profile lab-http --bridge-port 22206 --bridge-dest-host 10.0.0.8 --bridge-dest-port 80
-  --inspect-bridge-profile lab-http
-  --delete-bridge-profile lab-http
-  --transport bridge --bridge-profile lab-http
+    File staging:
+      --transport file-service --serve-file ./tool --as /tmp/tool
+      --transport file-service --serve-dir local/operator-files
+      --stage-release-artifact by-tuple/.../bin/grit-target-full
+      --release-dir dist/releases/lab --stage-release-artifact bin/grit-target-full
+      --transport file-service --list-staged
+      --save-bridge-profile lab-http --bridge-port 22206 --bridge-dest-host 10.0.0.8 --bridge-dest-port 80
+      --inspect-bridge-profile lab-http
+      --delete-bridge-profile lab-http
+      --transport bridge --bridge-profile lab-http
 
-Command queue:
-  --queue-command 'grit reality-test --json'
-  --list-command-queue
-  --record-command-result cq-id --result-json result.json
-  --clear-command-queue
+    Command queue:
+      --queue-command 'grit reality-test --json'
+      --list-command-queue
+      --record-command-result cq-id --result-json result.json
+      --clear-command-queue
 
-Operator daemon:
-  --daemon --daemon-service file-service --daemon-service command-queue
-  --daemon --timeout 60
-  --systemd-user-action print --daemon-service file-service
-  --systemd-user-action install --systemd-user-unit-dir ~/.config/systemd/user
+    Operator daemon:
+      --daemon --daemon-service file-service --daemon-service command-queue
+      --daemon --timeout 60
+      --systemd-user-action print --daemon-service file-service
+      --systemd-user-action install --systemd-user-unit-dir ~/.config/systemd/user
 
-Build configuration:
-  --build-config configs/grit.conf --list-build-config
-  --build-config configs/grit.conf --set-build-config GRIT_NORESIDUE_LEVEL=aggressive
+    Build configuration:
+      --build-config configs/grit.conf --list-build-config
+      --build-config configs/grit.conf --set-build-config GRIT_NORESIDUE_LEVEL=aggressive
 
-Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
-""",
+    Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
+    """),
     )
     parser.add_argument("--config", default=str(DEFAULT_CONFIG),
                         help="JSON config written by menuconfig")
@@ -7365,6 +7366,12 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="seconds to allow a scripted shell session; 0 disables the limit")
     parser.add_argument("--managed-by", help=argparse.SUPPRESS)
     parser.add_argument("--process-log", help=argparse.SUPPRESS)
+    return parser
+
+
+def main(argv=None):
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    parser = build_arg_parser()
     early_args = handle_early_console_args(
         raw_argv,
         parser,
