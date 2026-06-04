@@ -2299,6 +2299,7 @@ def run_path_status_context_check():
         path_status = context.get("path_status") or {}
         path_records = context.get("path_status_records") or []
         path_indexes = context.get("path_status_index_maps") or {}
+        path_summary = context.get("path_summary") or {}
         browser_paths = context.get("browser_paths") or []
         browser_indexes = context.get("browser_path_indexes") or ()
         browser_summary = context.get("browser_summary") or {}
@@ -2308,6 +2309,13 @@ def run_path_status_context_check():
             return 1
         if "operator_session_dir" not in (path_indexes.get("path_status_by_name") or {}):
             print("path status context did not preserve operator path indexes", file=sys.stderr)
+            return 1
+        if (
+            path_summary.get("path_status_count") != len(paths)
+            or path_summary.get("path_parent_missing_count") != 0
+            or path_summary.get("path_kind_mismatch_count") != 0
+        ):
+            print("path status context did not preserve path summary", file=sys.stderr)
             return 1
         if len(browser_indexes) != 10 or not browser_paths:
             print("path status context did not preserve browser path indexes", file=sys.stderr)

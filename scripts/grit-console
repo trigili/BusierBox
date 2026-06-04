@@ -2999,7 +2999,6 @@ def status_document(cfg):
     path_status = path_context["path_status"]
     path_status_records = path_context["path_status_records"]
     path_status_indexes = path_context["path_status_index_maps"]
-    path_summary = path_context["path_summary"]
     browser_paths = path_context["browser_paths"]
     (browser_paths_by_kind,
      browser_paths_by_path,
@@ -3176,11 +3175,7 @@ def status_document(cfg):
     operator_console_workflow_stats = operator_console_workflow_summary(operator_console_workflows)
     warning_summary = warning_stats(warnings)
     summary.update({
-        "path_status_count": path_summary.get("path_status_count", 0),
-        "path_missing_count": path_summary.get("path_missing_count", 0),
-        "path_parent_missing_count": path_summary.get("path_parent_missing_count", 0),
-        "path_not_writable_count": path_summary.get("path_not_writable_count", 0),
-        "path_kind_mismatch_count": path_summary.get("path_kind_mismatch_count", 0),
+        **path_context["path_summary"],
         **path_context["browser_status_summary"],
         **path_warning_context["summary"],
         **operator_state_file_summary_doc,
