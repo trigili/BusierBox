@@ -249,7 +249,6 @@ from gritlib.process_status import (
 )
 from gritlib.record_utils import (
     int_value, latest_record_value,
-    record_count_by_key,
     records_by_bool, records_by_composite, records_by_key,
     records_by_list_item, records_by_nested_key, records_by_session,
 )
@@ -275,6 +274,7 @@ from gritlib.service_status import (
     DAEMON_SERVICE_CHOICES, configured_daemon_services, daemon_child_command,
     operator_daemon_headless_command, operator_stop_headless_command,
     resolve_transport, service_port,
+    port_status_summary,
     service_status_context, service_status_rows, service_status_summary,
     service_start_headless_command,
     service_stop_headless_command,
@@ -3186,8 +3186,7 @@ def status_document(cfg):
         **operator_state_summary,
         **staged_status_summary(staged_records, staged_file_workflow_actions),
         **service_status_summary(services, service_manager, service_manager_status_doc),
-        "port_count": len(ports),
-        "port_actual_counts": record_count_by_key(ports, "actual"),
+        **port_status_summary(ports),
         **warning_status_summary(
             warning_summary,
             services_by_has_warnings,

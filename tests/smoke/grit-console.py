@@ -1281,7 +1281,7 @@ def run_service_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from gritlib.service_status import service_status_context
+    from gritlib.service_status import port_status_summary, service_status_context
 
     manager_snapshot = {
         "shutdown_requested": False,
@@ -1321,6 +1321,13 @@ def run_service_status_context_check():
             return 1
     if not isinstance(context.get("ports"), list) or len(context.get("port_indexes") or ()) != 3:
         print("service status context did not preserve port context", file=sys.stderr)
+        return 1
+    port_summary = port_status_summary(context.get("ports") or [])
+    if (
+        port_summary.get("port_count") != len(context.get("ports") or [])
+        or not port_summary.get("port_actual_counts")
+    ):
+        print("service status context did not preserve port summary", file=sys.stderr)
         return 1
     if not isinstance(context.get("summary"), dict) or not isinstance(context.get("warnings"), list):
         print("service status context did not preserve summary/warnings", file=sys.stderr)

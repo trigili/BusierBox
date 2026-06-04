@@ -566,6 +566,14 @@ def _index_counts(index):
     return {key: len(value) for key, value in (index or {}).items()}
 
 
+def port_status_summary(ports):
+    ports = ports or []
+    return {
+        "port_count": len(ports),
+        "port_actual_counts": record_count_by_key(ports, "actual"),
+    }
+
+
 def service_status_summary(services, manager_snapshot=None, manager_status=None):
     services = services or []
     manager_snapshot = manager_snapshot or {}
