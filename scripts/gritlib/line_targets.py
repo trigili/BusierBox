@@ -22,6 +22,24 @@ def parse_line_target_command(cmd, args):
     return {"action": "select" if selector else "list", "selector": selector}
 
 
+def dispatch_line_target_command(
+    target_cmd,
+    *,
+    list_func=None,
+    select_func=None,
+):
+    action = (target_cmd or {}).get("action")
+    try:
+        if action == "list" and list_func:
+            return list_func()
+        if action == "select" and select_func:
+            return select_func(target_cmd.get("selector", ""))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported target command")
+
+
 def line_target_seen_text(rec):
     iso = rec.get("last_seen") or rec.get("last_seen_at") or ""
     if iso and len(iso) >= 16 and "T" in iso:

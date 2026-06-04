@@ -233,6 +233,7 @@ from gritlib.line_sessions import (
     parse_line_sessions_command, print_selected_line_session,
 )
 from gritlib.line_targets import (
+    dispatch_line_target_command,
     interact_line_target as line_targets_interact_line_target,
     parse_line_target_command,
     print_line_targets as line_targets_print_line_targets,
@@ -7720,14 +7721,14 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif (target_cmd := parse_line_target_command(cmd, console_args[1:])):
-                if target_cmd["action"] == "list":
-                    set_line_collection("targets")
-                    print_line_targets()
-                else:
-                    try:
-                        select_line_target(target_cmd["selector"])
-                    except ValueError as exc:
-                        print(exc)
+                dispatch_line_target_command(
+                    target_cmd,
+                    list_func=lambda: (
+                        set_line_collection("targets"),
+                        print_line_targets(),
+                    ),
+                    select_func=select_line_target,
+                )
                 continue
             elif (session_cmd := parse_line_sessions_command(cmd, console_args[1:])):
                 dispatch_line_sessions_command(
