@@ -1021,6 +1021,7 @@ def run_line_repl_runtime_check():
 
     core_calls = []
     original_core_dispatch = repl_core.dispatch_line_core_command
+    original_probe_serve_runner = repl_core.run_line_probe_serve
 
     def fake_core_dispatch(command, args, **kwargs):
         core_calls.append(("dispatch", command, tuple(args)))
@@ -1056,6 +1057,16 @@ def run_line_repl_runtime_check():
         return "refresh"
 
     repl_core.dispatch_line_core_command = fake_core_dispatch
+    repl_core.run_line_probe_serve = lambda cfg, args, line_input_fn, stage_line_release_fn, append_event_fn=None: (
+        core_calls.append((
+            "probe-serve",
+            cfg.get("name"),
+            tuple(args),
+            line_input_fn("probe> "),
+            stage_line_release_fn("release-id"),
+            append_event_fn is not None,
+        ))
+    )
     try:
         snapshots = [{"status_bar": "ready"}, {"workspace": True}, {"ips": True}]
 
@@ -1102,9 +1113,10 @@ def run_line_repl_runtime_check():
             probe_clear_func=lambda cfg, args, append_event_fn: core_calls.append(
                 ("probe-clear", cfg.get("name"), tuple(args), append_event_fn is not None)
             ),
-            probe_serve_func=lambda cfg, args, append_event_fn: core_calls.append(
-                ("probe-serve", cfg.get("name"), tuple(args), append_event_fn is not None)
-            ),
+            probe_serve_input_func=lambda prompt: core_calls.append(("probe-input", prompt)) or "choice",
+            probe_serve_stage_release_func=lambda selector: core_calls.append(
+                ("probe-stage", selector)
+            ) or "staged",
             probe_delivery_func=lambda cfg: core_calls.append(("probe-delivery", cfg.get("name"))),
             probe_paste_func=lambda cfg, paste=False, base64_mode=False: core_calls.append(
                 ("probe-paste", cfg.get("name"), paste, base64_mode)
@@ -1146,6 +1158,7 @@ def run_line_repl_runtime_check():
             return 1
     finally:
         repl_core.dispatch_line_core_command = original_core_dispatch
+        repl_core.run_line_probe_serve = original_probe_serve_runner
     expected_core_calls = [
         ("dispatch", "status", ()),
         ("snapshot", "core-cfg"),
@@ -1171,7 +1184,9 @@ def run_line_repl_runtime_check():
         ("probe-results", "core-cfg", True),
         ("probe-config", "core-cfg", ("--host", "127.0.0.1"), True),
         ("probe-clear", "core-cfg", ("--all",), True),
-        ("probe-serve", "core-cfg", ("--once",), True),
+        ("probe-input", "probe> "),
+        ("probe-stage", "release-id"),
+        ("probe-serve", "core-cfg", ("--once",), "choice", "staged", True),
         ("probe-delivery", "core-cfg"),
         ("probe-paste", "core-cfg", True, True),
         ("probe-script", "core-cfg", False),

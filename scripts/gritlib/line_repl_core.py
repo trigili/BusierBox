@@ -1,6 +1,7 @@
 """Line REPL core command callback adapters."""
 
 from gritlib.line_core_commands import dispatch_line_core_command
+from gritlib.line_probe_serve import run_line_probe_serve
 from gritlib.line_workspace import line_repl_status_bar
 
 
@@ -31,7 +32,8 @@ def build_line_core_dispatch_callback(
     probe_results_func,
     probe_config_func,
     probe_clear_func,
-    probe_serve_func,
+    probe_serve_input_func,
+    probe_serve_stage_release_func,
     probe_delivery_func,
     probe_paste_func,
     probe_script_func,
@@ -88,9 +90,11 @@ def build_line_core_dispatch_callback(
                 probe_args,
                 append_event_fn=append_event_fn,
             ),
-            probe_serve_func=lambda probe_args: probe_serve_func(
+            probe_serve_func=lambda probe_args: run_line_probe_serve(
                 cfg,
                 probe_args,
+                probe_serve_input_func,
+                probe_serve_stage_release_func,
                 append_event_fn=append_event_fn,
             ),
             probe_delivery_func=lambda: probe_delivery_func(cfg),

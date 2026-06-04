@@ -161,7 +161,6 @@ from gritlib.line_options import (
     set_line_option as line_options_set_line_option,
 )
 from gritlib.line_network import print_line_local_ips
-from gritlib.line_probe_serve import run_line_probe_serve as probe_serve_run_line_probe_serve
 from gritlib.line_resources import (
     line_history_command, load_line_resource,
     print_line_history as line_resources_print_line_history,
@@ -6302,13 +6301,8 @@ def run_line_repl(cfg):
         probe_results_func=probe_results_print_line_probe_results,
         probe_config_func=configure_line_probe_config,
         probe_clear_func=probe_results_clear_line_probe_results,
-        probe_serve_func=lambda repl_cfg, args, append_event_fn: probe_serve_run_line_probe_serve(
-            repl_cfg,
-            args,
-            line_input,
-            stage_line_release,
-            append_event_fn=append_event_fn,
-        ),
+        probe_serve_input_func=line_input,
+        probe_serve_stage_release_func=stage_line_release,
         probe_delivery_func=print_probe_delivery,
         probe_paste_func=probe_commands_print_line_probe_script,
         probe_script_func=probe_commands_print_line_probe_script,
