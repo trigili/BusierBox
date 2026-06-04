@@ -28,6 +28,7 @@ def line_command_queue_humanize(text):
 
 def line_command_queue_action_text(rec):
     action_id = str((rec or {}).get("action_id") or "")
+    action_key = action_id.rsplit(":", 1)[-1]
     labels = {
         "inspect-command-queue": "Review queue",
         "list-command-queue": "Show mailbox",
@@ -36,10 +37,10 @@ def line_command_queue_action_text(rec):
         "start-command-queue-listener": "Start mailbox listener",
         "stop-command-queue-listener": "Stop mailbox listener",
     }
-    if action_id in labels:
-        return labels[action_id]
+    if action_key in labels:
+        return labels[action_key]
     label = str((rec or {}).get("label") or "").strip()
-    return label or line_command_queue_humanize(action_id) or "-"
+    return label or line_command_queue_humanize(action_key) or "-"
 
 
 def line_command_queue_state_text(rec):

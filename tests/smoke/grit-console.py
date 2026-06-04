@@ -1506,6 +1506,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Command queue  (" in mailbox_targets_text or
             "Queue actions" in mailbox_targets_text or
             "Command queue  (" not in queue_view_text or
+            "Review queue" not in queue_view_text or
+            "Queue command" not in queue_view_text or
+            "Start mailbox listener" not in queue_view_text or
+            "command-queue:" in queue_view_text or
             "allowed_commands=" in mailbox_queue_text or
             "delivery_policy_counts:" in mailbox_queue_text):
         print("line-oriented mailbox/queue view used verbose policy dump", file=sys.stderr)
