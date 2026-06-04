@@ -185,20 +185,20 @@ def print_line_context_options(
     if module.startswith("route/"):
         route_name = module.split("/", 1)[1]
         rec = route_record
-        print(f"  route.name={route_name}")
+        print(f"Route: {route_name}")
         if rec:
-            print(f"  route.listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
-            print(f"  route.destination={rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
-            print(f"  route.route_path={rec.get('route_path', '') or '-'}")
-            print(f"  route.state={rec.get('current_state', '') or '-'}")
-            print(f"  route.active={'yes' if rec.get('active') else 'no'}")
-            print(f"  route.hop_count={rec.get('hop_count', 0)}")
-            print(f"  route.multi_hop={'yes' if rec.get('multi_hop') else 'no'}")
-            print(f"  route.target_id={rec.get('target_id', '') or '-'}")
-            print(f"  route.last_success={rec.get('last_successful_relay_at', '') or '-'}")
-            print(f"  route.last_failure={rec.get('last_failure_reason', '') or '-'}")
-        print(f"  route.commands=route {route_name}, route start {route_name}, route stop {route_name}, route delete {route_name}")
-        print("  route.next=options, start, stop, routes -v, back")
+            print(f"  listen: {rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
+            print(f"  destination: {rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
+            print(f"  path: {rec.get('route_path', '') or '-'}")
+            print(f"  state: {rec.get('current_state', '') or '-'}")
+            print(f"  active: {'yes' if rec.get('active') else 'no'}")
+            print(f"  hops: {rec.get('hop_count', 0)}")
+            print(f"  multi-hop: {'yes' if rec.get('multi_hop') else 'no'}")
+            print(f"  target: {rec.get('target_id', '') or '-'}")
+            print(f"  last success: {rec.get('last_successful_relay_at', '') or '-'}")
+            print(f"  last failure: {rec.get('last_failure_reason', '') or '-'}")
+        print(f"  commands: route {route_name}, route start {route_name}, route stop {route_name}, route delete {route_name}")
+        print("  next: options, start, stop, routes -v, back")
 
     if module.startswith("session/"):
         session_id = module.split("/", 1)[1]
