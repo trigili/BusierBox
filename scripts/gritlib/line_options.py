@@ -300,6 +300,26 @@ def parse_line_option_assignment(args):
     return key, value
 
 
+def parse_line_option_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    if cmd in {"set", "setg"}:
+        key, value = parse_line_option_assignment(args)
+        return {
+            "action": "set",
+            "scope": "global" if cmd == "setg" else "context",
+            "key": key,
+            "value": value,
+        }
+    if cmd in {"unset", "unsetg"}:
+        return {
+            "action": "unset",
+            "scope": "global" if cmd == "unsetg" else "context",
+            "key": args[0] if args else "",
+        }
+    return {}
+
+
 def set_line_target_option(cfg, name, value):
     key = str(name or "").strip()
     text = str(value or "")

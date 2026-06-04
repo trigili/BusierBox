@@ -176,7 +176,7 @@ from gritlib.line_completions import (
 from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
     note_line_target as line_options_note_line_target,
-    parse_line_option_assignment,
+    parse_line_option_command,
     print_line_context_options as line_options_print_line_context_options,
     print_line_service_options as line_options_print_line_service_options,
     rename_line_target as line_options_rename_line_target,
@@ -7712,11 +7712,22 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "set":
+            elif cmd in {"set", "setg", "unset", "unsetg"}:
                 try:
-                    opt_key, opt_value = parse_line_option_assignment(console_args[1:])
-                    line_options_set_line_option(cfg, opt_key, opt_value)
-                except (IndexError, ValueError) as exc:
+                    option_cmd = parse_line_option_command(cmd, console_args[1:])
+                    if option_cmd["action"] == "set" and option_cmd["scope"] == "global":
+                        set_line_global_build_option(
+                            cfg, option_cmd["key"], option_cmd["value"],
+                        )
+                    elif option_cmd["action"] == "set":
+                        line_options_set_line_option(
+                            cfg, option_cmd["key"], option_cmd["value"],
+                        )
+                    elif option_cmd["scope"] == "global":
+                        unset_line_global_build_option(cfg, option_cmd["key"])
+                    else:
+                        unset_line_option(option_cmd["key"])
+                except ValueError as exc:
                     print(exc)
                 continue
             elif cmd == "rename":
@@ -7734,25 +7745,6 @@ def run_line_repl(cfg):
             elif cmd == "alias":
                 try:
                     line_options_alias_line_target(cfg, " ".join(console_args[1:]).strip())
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "setg":
-                try:
-                    opt_key, opt_value = parse_line_option_assignment(console_args[1:])
-                    set_line_global_build_option(cfg, opt_key, opt_value)
-                except (IndexError, ValueError) as exc:
-                    print(exc)
-                continue
-            elif cmd == "unset":
-                try:
-                    unset_line_option(console_args[1] if len(console_args) >= 2 else "")
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "unsetg":
-                try:
-                    unset_line_global_build_option(cfg, console_args[1] if len(console_args) >= 2 else "")
                 except ValueError as exc:
                     print(exc)
                 continue
