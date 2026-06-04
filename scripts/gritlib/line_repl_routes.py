@@ -17,6 +17,18 @@ from gritlib.line_services import (
 )
 
 
+def build_bridge_profile_headless_command_callback(cfg, bridge_command_func):
+    def bridge_profile_headless_command(action, name="", extra=None):
+        return bridge_command_func(
+            cfg,
+            action,
+            name=name,
+            extra=extra,
+        )
+
+    return bridge_profile_headless_command
+
+
 def build_line_route_service_callbacks(
     cfg,
     *,

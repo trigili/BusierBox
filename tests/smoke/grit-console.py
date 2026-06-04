@@ -420,6 +420,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_core as repl_core
     import gritlib.line_repl_legacy as repl_legacy
     import gritlib.line_repl_navigation as repl_navigation
+    import gritlib.line_repl_routes as repl_routes
     import gritlib.line_repl_show as repl_show
     import gritlib.line_repl_utility as repl_utility
     import gritlib.line_repl_workflow as repl_workflow
@@ -513,6 +514,20 @@ def run_line_repl_runtime_check():
     )
     if line_input("grit> ") != "typed" or input_calls != [("read", "grit> ", True, True)]:
         print(f"line REPL input callback did not forward read_line state: {input_calls}", file=sys.stderr)
+        return 1
+
+    bridge_calls = []
+    bridge_callback = repl_routes.build_bridge_profile_headless_command_callback(
+        {"name": "bridge-cfg"},
+        lambda cfg, action, name="", extra=None: bridge_calls.append(
+            (cfg.get("name"), action, name, extra)
+        ) or "bridge-command",
+    )
+    if bridge_callback("save", name="lab", extra={"port": 2222}) != "bridge-command":
+        print("line REPL bridge command adapter did not return command builder result", file=sys.stderr)
+        return 1
+    if bridge_calls != [("bridge-cfg", "save", "lab", {"port": 2222})]:
+        print(f"line REPL bridge command adapter did not forward arguments: {bridge_calls}", file=sys.stderr)
         return 1
 
     calls = []

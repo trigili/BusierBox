@@ -183,7 +183,10 @@ from gritlib.line_repl_legacy import build_line_legacy_dispatch_callback
 from gritlib.line_repl_navigation import build_line_navigation_dispatch_callback
 from gritlib.line_repl_probe import build_line_probe_start_callback
 from gritlib.line_repl_queue import build_line_queue_callbacks
-from gritlib.line_repl_routes import build_line_route_service_callbacks
+from gritlib.line_repl_routes import (
+    build_bridge_profile_headless_command_callback,
+    build_line_route_service_callbacks,
+)
 from gritlib.line_repl_search import build_line_search_callbacks
 from gritlib.line_repl_sessions import build_line_session_callbacks
 from gritlib.line_repl_show import build_line_show_resource_adapter
@@ -6030,10 +6033,9 @@ def run_line_repl(cfg):
         have_readline=HAVE_READLINE,
     )
 
-    bridge_profile_headless_command = (
-        lambda action, name="", extra=None: bridge_routes_bridge_profile_headless_command(
-            cfg, action, name=name, extra=extra,
-        )
+    bridge_profile_headless_command = build_bridge_profile_headless_command_callback(
+        cfg,
+        bridge_routes_bridge_profile_headless_command,
     )
 
     def unset_line_option(name):
