@@ -11948,57 +11948,57 @@ def main(argv=None):
             print(capability_workbench.stdout, file=sys.stderr)
             return 1
 
-        tui_sigint_state = Path(tmp) / "operator-session" / "tui-sigint-state.json"
-        tui_master, tui_slave = pty.openpty()
+        line_sigint_state = Path(tmp) / "operator-session" / "line-sigint-state.json"
+        line_master, line_slave = pty.openpty()
         try:
-            tui_proc = subprocess.Popen(
+            line_proc = subprocess.Popen(
                 [
                     str(server),
                     "--config", str(upload_cfg),
-                    "--state-file", str(tui_sigint_state),
+                    "--state-file", str(line_sigint_state),
                     "--staged-file", str(staged_file),
                 ],
                 cwd=ROOT,
-                stdin=tui_slave,
-                stdout=tui_slave,
+                stdin=line_slave,
+                stdout=line_slave,
                 stderr=subprocess.PIPE,
                 text=True,
                 env={**os.environ, "TERM": "xterm"},
             )
-            os.close(tui_slave)
-            tui_slave = -1
+            os.close(line_slave)
+            line_slave = -1
             time.sleep(0.5)
-            tui_proc.send_signal(signal.SIGINT)
-            _tui_stdout, tui_stderr = tui_proc.communicate(timeout=5)
+            line_proc.send_signal(signal.SIGINT)
+            _line_stdout, line_stderr = line_proc.communicate(timeout=5)
         finally:
-            if tui_slave != -1:
-                os.close(tui_slave)
+            if line_slave != -1:
+                os.close(line_slave)
             try:
-                os.close(tui_master)
+                os.close(line_master)
             except OSError:
                 pass
-        if tui_proc.returncode not in (0, 130) or "Traceback" in (tui_stderr or ""):
+        if line_proc.returncode not in (0, 130) or "Traceback" in (line_stderr or ""):
             print("interactive console SIGINT did not exit cleanly", file=sys.stderr)
-            print(tui_stderr or "", file=sys.stderr)
+            print(line_stderr or "", file=sys.stderr)
             return 1
-        tui_sigint_doc = json.loads(tui_sigint_state.read_text(encoding="utf-8"))
-        if tui_sigint_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
+        line_sigint_doc = json.loads(line_sigint_state.read_text(encoding="utf-8"))
+        if line_sigint_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
             print("interactive console SIGINT did not mark workbench stopped", file=sys.stderr)
-            print(json.dumps(tui_sigint_doc, indent=2), file=sys.stderr)
+            print(json.dumps(line_sigint_doc, indent=2), file=sys.stderr)
             return 1
-        if tui_sigint_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "line":
+        if line_sigint_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "line":
             print("interactive console SIGINT did not preserve line workbench mode", file=sys.stderr)
-            print(json.dumps(tui_sigint_doc, indent=2), file=sys.stderr)
+            print(json.dumps(line_sigint_doc, indent=2), file=sys.stderr)
             return 1
 
-        dumb_tui_state = Path(tmp) / "operator-session" / "tui-dumb-state.json"
+        dumb_line_state = Path(tmp) / "operator-session" / "line-dumb-state.json"
         dumb_master, dumb_slave = pty.openpty()
         try:
             dumb_proc = subprocess.Popen(
                 [
                     str(server),
                     "--config", str(upload_cfg),
-                    "--state-file", str(dumb_tui_state),
+                    "--state-file", str(dumb_line_state),
                     "--staged-file", str(staged_file),
                 ],
                 cwd=ROOT,
@@ -12024,17 +12024,17 @@ def main(argv=None):
             print("TERM=dumb line-oriented console fallback did not exit cleanly", file=sys.stderr)
             print(dumb_stderr or "", file=sys.stderr)
             return 1
-        dumb_tui_doc = json.loads(dumb_tui_state.read_text(encoding="utf-8"))
-        if dumb_tui_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
+        dumb_line_doc = json.loads(dumb_line_state.read_text(encoding="utf-8"))
+        if dumb_line_doc.get("services", {}).get("workbench", {}).get("status") != "stopped":
             print("TERM=dumb line-oriented console fallback did not mark workbench stopped", file=sys.stderr)
-            print(json.dumps(dumb_tui_doc, indent=2), file=sys.stderr)
+            print(json.dumps(dumb_line_doc, indent=2), file=sys.stderr)
             return 1
-        if dumb_tui_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "line":
+        if dumb_line_doc.get("services", {}).get("workbench", {}).get("workbench_mode") != "line":
             print("TERM=dumb line-oriented console fallback did not preserve line workbench mode", file=sys.stderr)
-            print(json.dumps(dumb_tui_doc, indent=2), file=sys.stderr)
+            print(json.dumps(dumb_line_doc, indent=2), file=sys.stderr)
             return 1
-        dumb_invalid_state = Path(tmp) / "operator-session" / "tui-dumb-invalid-state.json"
-        dumb_invalid_staged = Path(tmp) / "operator-session" / "tui-dumb-invalid-staged.json"
+        dumb_invalid_state = Path(tmp) / "operator-session" / "line-dumb-invalid-state.json"
+        dumb_invalid_staged = Path(tmp) / "operator-session" / "line-dumb-invalid-staged.json"
         dumb_invalid_master, dumb_invalid_slave = pty.openpty()
         try:
             dumb_invalid_proc = subprocess.Popen(
