@@ -373,6 +373,7 @@ from gritlib.warnings import (
 from gritlib.workbench_jobs import (
     cancel_workbench_job_headless_command, cancel_workbench_job_record,
     cancel_line_job as workbench_jobs_cancel_line_job,
+    dispatch_legacy_line_job_number,
     line_job_record as workbench_jobs_line_job_record,
     load_workbench_jobs,
     reconcile_workbench_job_completion_events,
@@ -7601,54 +7602,14 @@ def run_line_repl(cfg):
                         print("target filter cleared")
                 except ValueError as exc:
                     print(exc)
-        elif choice == "12":
-            snap = workbench_snapshot(cfg)
-            runnable = [rec for rec in snap.get("workbench_actions") or [] if rec.get("background_supported")]
-            for idx, rec in enumerate(runnable, 1):
-                print(f"{idx}: {rec.get('id', '')} {rec.get('command', '')}")
-            selected_line = line_input("background action id or number> ")
-            selected = selected_line.strip() if selected_line is not None else ""
-            if selected:
-                try:
-                    action = runnable[int(selected) - 1]["id"] if selected.isdigit() else selected
-                    headless = (
-                        "scripts/grit-console --config "
-                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                        + " --start-workbench-job "
-                        + shquote(action)
-                    )
-                    rec = start_workbench_job_record(
-                        cfg,
-                        workbench_action_records(cfg),
-                        action,
-                        headless_command=headless,
-                    )
-                    print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
-                except (ValueError, IndexError) as exc:
-                    print(exc)
-        elif choice == "13":
-            snap = workbench_snapshot(cfg)
-            for rec in snap.get("workbench_jobs") or []:
-                print(f"{rec.get('id', '')}: action={rec.get('action_id', '')} state={rec.get('effective_state', '')} managed={'yes' if rec.get('pid_managed') else 'no'} cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}")
-            job_line = line_input("job id> ")
-            job_id = job_line.strip() if job_line is not None else ""
-            if job_id:
-                try:
-                    headless = (
-                        "scripts/grit-console --config "
-                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                        + " --cancel-workbench-job "
-                        + shquote(job_id)
-                    )
-                    rec = cancel_workbench_job_record(
-                        cfg,
-                        workbench_action_records(cfg),
-                        job_id,
-                        headless_command=headless,
-                    )
-                    print(f"cancel requested for {rec.get('id', job_id)}")
-                except ValueError as exc:
-                    print(exc)
+        elif dispatch_legacy_line_job_number(
+            choice,
+            cfg,
+            input_func=line_input,
+            snapshot_func=workbench_snapshot,
+            actions_func=lambda: workbench_action_records(cfg),
+        ):
+            continue
         elif choice == "14":
             fields = workbench_config_field_records(cfg)
             num_w = len(str(len(fields))) if fields else 1
