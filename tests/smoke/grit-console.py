@@ -1303,9 +1303,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Agent interaction: Console Router (line-console-target)",
         "  state: online",
         "status: line-console-target (Console Router)  state online  mailbox 0 pending",
-        "renamed target: line-console-target",
-        "noted target: line-console-target",
-        "aliased target: line-console-target",
+        "target renamed: line-console-target",
+        "target note updated: line-console-target",
+        "target alias updated: line-console-target",
         "Command queue  (",
         "queued: cq-",
         "Command result:",
@@ -1863,17 +1863,21 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     metadata_start = line_console_stdout.find("notes: Rack shelf A")
     metadata_end = line_console_stdout.find("show activity", metadata_start + 1)
     metadata_text = line_console_stdout[metadata_start:metadata_end] if metadata_start != -1 and metadata_end != -1 else ""
-    direct_metadata_start = line_console_stdout.find("renamed target: line-console-target")
+    direct_metadata_start = line_console_stdout.find("target renamed: line-console-target")
     direct_metadata_end = line_console_stdout.find("Search results for Console Router", direct_metadata_start + 1)
     direct_metadata_text = line_console_stdout[direct_metadata_start:direct_metadata_end] if direct_metadata_start != -1 and direct_metadata_end != -1 else ""
     if (not metadata_text or
             "aliases: console-alias" not in metadata_text or
-            "unset notes for target: line-console-target" not in metadata_text or
-            "target: line-console-target (Console Router)" not in metadata_text or
+            "target notes cleared: line-console-target" not in metadata_text or
+            "target line-console-target (Console Router)" not in metadata_text or
             "target=" in metadata_text or
+            "unset notes for target:" in metadata_text or
             "headless_command:" in metadata_text or
             not direct_metadata_text or
-            "aliased target: line-console-target" not in direct_metadata_text or
+            "target alias updated: line-console-target" not in direct_metadata_text or
+            "renamed target:" in direct_metadata_text or
+            "noted target:" in direct_metadata_text or
+            "aliased target:" in direct_metadata_text or
             "label=Console Router" in direct_metadata_text or
             "notes=Console quick note" in direct_metadata_text or
             "aliases=console-alias" in direct_metadata_text or

@@ -547,7 +547,7 @@ def rename_line_target(cfg, label):
         notes=rec.get("notes", ""),
     )
     cfg["_target_label_filter"] = str(updated.get("label") or "")
-    print(f"renamed target: {target_id}")
+    print(f"target renamed: {target_id}")
     print(f"  label: {updated.get('label', '') or '-'}")
     record_line_target_metadata_update(cfg, target_id, action="rename", field="target.label")
     return updated
@@ -566,7 +566,7 @@ def note_line_target(cfg, notes):
         aliases=rec.get("aliases") or [],
         notes=text,
     )
-    print(f"noted target: {target_id}")
+    print(f"target note updated: {target_id}")
     print(f"  notes: {str(updated.get('notes') or '') or '-'}")
     record_line_target_metadata_update(cfg, target_id, action="note", field="target.notes")
     return updated
@@ -584,7 +584,7 @@ def alias_line_target(cfg, alias):
         aliases=[text],
         notes=rec.get("notes", ""),
     )
-    print(f"aliased target: {target_id}")
+    print(f"target alias updated: {target_id}")
     print(f"  aliases: {', '.join(str(item) for item in updated.get('aliases') or []) or '-'}")
     record_line_target_metadata_update(cfg, target_id, action="alias", field="target.aliases")
     return updated
@@ -606,7 +606,7 @@ def unset_line_target_option(cfg, name, clear_module=None):
             notes=rec.get("notes", ""),
         )
         cfg.pop("_target_label_filter", None)
-        print(f"unset label for target: {target_id}")
+        print(f"target label cleared: {target_id}")
     elif key in ("notes", "target.notes"):
         updated = set_target_label(
             cfg,
@@ -615,8 +615,8 @@ def unset_line_target_option(cfg, name, clear_module=None):
             aliases=rec.get("aliases") or [],
             notes="",
         )
-        print(f"unset notes for target: {target_id}")
+        print(f"target notes cleared: {target_id}")
     else:
         raise ValueError(f"unknown unset option: {name}")
-    print(f"target: {target_id} ({updated.get('label', '') or '-'})")
+    print(f"  target {target_id} ({updated.get('label', '') or '-'})")
     return updated
