@@ -1307,7 +1307,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "noted target: line-console-target",
         "aliased target: line-console-target",
         "Command queue  (",
-        "queued cq-",
+        "queued: cq-",
         "Command result:",
         "result: none",
         "Probe  ",
@@ -1829,7 +1829,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented build config commands exposed noisy headless commands", file=sys.stderr)
         print(build_set_text or line_console_stdout, file=sys.stderr)
         return 1
-    queue_start = line_console_stdout.find("queued cq-")
+    queue_start = line_console_stdout.find("queued: cq-")
     queue_end = line_console_stdout.find("Command result:", queue_start + 1)
     queue_text = line_console_stdout[queue_start:queue_end] if queue_start != -1 and queue_end != -1 else ""
     queue_result_start = line_console_stdout.find("Command result:", queue_start + 1)
@@ -1839,7 +1839,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     clear_start = line_console_stdout.find("cleared ", clear_command_start + 1)
     clear_end = line_console_stdout.find("no queued commands", clear_start + 1)
     clear_text = line_console_stdout[clear_start:clear_end] if clear_start != -1 and clear_end != -1 else ""
-    if (not queue_text or "queued cq-" not in queue_text or
+    if (not queue_text or "queued: cq-" not in queue_text or
+            "command: grit survey --json" not in queue_text or
+            "queued cq-" in queue_text or
             "target: line-console-target (Console Router)" not in queue_text or
             "execution supported: no" not in queue_text or
             "delivery supported: no" not in queue_text or

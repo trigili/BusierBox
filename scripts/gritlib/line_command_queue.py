@@ -296,7 +296,8 @@ def queue_line_command(
         headless += " --target-id " + quote(target_id)
     headless += " --queue-command " + quote(text) + " --list-command-queue"
     rec = queue_func(cfg, text)
-    print(f"queued {rec['id']}: {rec['command']}")
+    print(f"queued: {rec['id']}")
+    print(f"command: {rec['command']}")
     if rec.get("target_id"):
         print(f"target: {rec.get('target_id', '')} ({rec.get('target_label', '') or '-'})")
     print(f"execution supported: {'yes' if rec.get('execution_supported') else 'no'}")
