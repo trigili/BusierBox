@@ -1493,10 +1493,48 @@ def target_registry_state_status(target_summary, selected_target=None, target_fi
         "target_registry_state_records_by_has_capability_reports": records_by_key(state_records, "has_capability_reports"),
         "target_registry_state_records_by_has_compatibility_reports": records_by_key(state_records, "has_compatibility_reports"),
     }
+    summary = target_registry_state_summary(state_record, state_records)
     return {
         "state_record": state_record,
         "state_records": state_records,
         "state_index_maps": state_index_maps,
+        "summary": summary,
+    }
+
+
+def target_registry_state_summary(state_record=None, state_records=None):
+    state_record = state_record or {}
+    state_records = state_records or []
+    return {
+        "target_registry_state_record_count": len(state_records),
+        "target_registry_has_targets": bool(state_record.get("has_targets", False)),
+        "target_registry_has_unfiltered_targets": bool(
+            state_record.get("has_unfiltered_targets", False)
+        ),
+        "target_registry_has_selected_target": bool(
+            state_record.get("has_selected_target", False)
+        ),
+        "target_registry_has_latest_activity": bool(
+            state_record.get("has_latest_activity", False)
+        ),
+        "target_registry_has_next_expected_polls": bool(
+            state_record.get("has_next_expected_polls", False)
+        ),
+        "target_registry_has_poll_overdue": bool(
+            state_record.get("has_poll_overdue", False)
+        ),
+        "target_registry_has_mailbox_pending_work": bool(
+            state_record.get("has_mailbox_pending_work", False)
+        ),
+        "target_registry_has_identity_sources": bool(
+            state_record.get("has_identity_sources", False)
+        ),
+        "target_registry_has_capability_reports": bool(
+            state_record.get("has_capability_reports", False)
+        ),
+        "target_registry_has_compatibility_reports": bool(
+            state_record.get("has_compatibility_reports", False)
+        ),
     }
 
 

@@ -2600,6 +2600,7 @@ def status_document(cfg):
     target_registry_state_record = target_registry_state["state_record"]
     target_registry_state_records = target_registry_state["state_records"]
     target_registry_state_index_maps = target_registry_state["state_index_maps"]
+    target_registry_summary = target_registry_state["summary"]
     session_context = session_status_context(
         cfg,
         SESSION_MANAGER.recent_records(cfg),
@@ -3200,17 +3201,7 @@ def status_document(cfg):
         **file_service_workflow_status_summary(file_service_workflow_actions),
         **target_activity_record_summary(target_activity_records),
         **target_summary,
-        "target_registry_state_record_count": len(target_registry_state_records),
-        "target_registry_has_targets": bool(target_registry_state_record.get("has_targets", False)),
-        "target_registry_has_unfiltered_targets": bool(target_registry_state_record.get("has_unfiltered_targets", False)),
-        "target_registry_has_selected_target": bool(target_registry_state_record.get("has_selected_target", False)),
-        "target_registry_has_latest_activity": bool(target_registry_state_record.get("has_latest_activity", False)),
-        "target_registry_has_next_expected_polls": bool(target_registry_state_record.get("has_next_expected_polls", False)),
-        "target_registry_has_poll_overdue": bool(target_registry_state_record.get("has_poll_overdue", False)),
-        "target_registry_has_mailbox_pending_work": bool(target_registry_state_record.get("has_mailbox_pending_work", False)),
-        "target_registry_has_identity_sources": bool(target_registry_state_record.get("has_identity_sources", False)),
-        "target_registry_has_capability_reports": bool(target_registry_state_record.get("has_capability_reports", False)),
-        "target_registry_has_compatibility_reports": bool(target_registry_state_record.get("has_compatibility_reports", False)),
+        **target_registry_summary,
         **target_filter_context["summary"],
         **target_attribution_record_summary(
             target_attribution_records, target_attribution

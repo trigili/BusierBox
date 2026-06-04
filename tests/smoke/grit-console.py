@@ -14592,6 +14592,8 @@ def main(argv=None):
                 multi_target_registry.get("latest_activity_service_counts", {}).get("file-service") != 2 or
                 multi_target_doc.get("summary", {}).get("target_registry_state_record_count") != 1 or
                 multi_target_doc.get("summary", {}).get("target_registry_has_targets") is not True or
+                multi_target_doc.get("summary", {}).get("target_registry_has_unfiltered_targets") is not True or
+                multi_target_doc.get("summary", {}).get("target_registry_has_latest_activity") is not True or
                 multi_target_doc.get("summary", {}).get("target_registry_has_identity_sources") is not True or
                 multi_target_doc.get("target_registry_state_records_by_has_targets", {}).get("True", [{}])[0].get("id") != "target-registry" or
                 "target_registry_state_records_by_selected_target_found" not in ((multi_target_doc.get("api_collections") or {}).get("target_registry_state_records") or {}).get("indexes", []) or
