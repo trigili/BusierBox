@@ -28,6 +28,27 @@ def parse_line_resource_command(cmd, args):
     return None
 
 
+def dispatch_line_resource_command(
+    resource_cmd,
+    *,
+    history_func=None,
+    load_func=None,
+    save_func=None,
+):
+    action = (resource_cmd or {}).get("action")
+    try:
+        if action == "history" and history_func:
+            return history_func(resource_cmd.get("limit", ""))
+        if action == "load" and load_func:
+            return load_func(resource_cmd.get("path", ""))
+        if action == "save" and save_func:
+            return save_func(resource_cmd.get("path", ""))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported resource command")
+
+
 def load_line_resource(cfg, path_text):
     text = str(path_text or "").strip()
     if not text:

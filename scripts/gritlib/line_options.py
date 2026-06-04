@@ -320,6 +320,31 @@ def parse_line_option_command(cmd, args):
     return {}
 
 
+def dispatch_line_option_command(
+    option_cmd,
+    *,
+    set_global_func=None,
+    set_context_func=None,
+    unset_global_func=None,
+    unset_context_func=None,
+):
+    try:
+        action = (option_cmd or {}).get("action")
+        scope = (option_cmd or {}).get("scope")
+        if action == "set" and scope == "global" and set_global_func:
+            return set_global_func(option_cmd.get("key", ""), option_cmd.get("value", ""))
+        if action == "set" and set_context_func:
+            return set_context_func(option_cmd.get("key", ""), option_cmd.get("value", ""))
+        if scope == "global" and unset_global_func:
+            return unset_global_func(option_cmd.get("key", ""))
+        if unset_context_func:
+            return unset_context_func(option_cmd.get("key", ""))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported option command")
+
+
 def parse_line_target_metadata_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     if cmd == "rename":
@@ -329,6 +354,28 @@ def parse_line_target_metadata_command(cmd, args):
     if cmd == "alias":
         return {"action": "alias", "value": " ".join(args or []).strip()}
     return {}
+
+
+def dispatch_line_target_metadata_command(
+    metadata_cmd,
+    *,
+    rename_func=None,
+    note_func=None,
+    alias_func=None,
+):
+    try:
+        action = (metadata_cmd or {}).get("action")
+        value = (metadata_cmd or {}).get("value", "")
+        if action == "rename" and rename_func:
+            return rename_func(value)
+        if action == "note" and note_func:
+            return note_func(value)
+        if action == "alias" and alias_func:
+            return alias_func(value)
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported target metadata command")
 
 
 def set_line_target_option(cfg, name, value):

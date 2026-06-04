@@ -188,6 +188,8 @@ from gritlib.line_completions import (
 )
 from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
+    dispatch_line_option_command,
+    dispatch_line_target_metadata_command,
     note_line_target as line_options_note_line_target,
     parse_line_option_command,
     parse_line_target_metadata_command,
@@ -200,6 +202,7 @@ from gritlib.line_options import (
 from gritlib.line_network import print_line_local_ips
 from gritlib.line_probe_serve import run_line_probe_serve as probe_serve_run_line_probe_serve
 from gritlib.line_resources import (
+    dispatch_line_resource_command,
     line_history_command, load_line_resource,
     parse_line_resource_command,
     print_line_history as line_resources_print_line_history,
@@ -7618,15 +7621,17 @@ def run_line_repl(cfg):
                 print_line_completions(completion_cmd["prefix"])
                 continue
             elif (resource_cmd := parse_line_resource_command(cmd, console_args[1:])):
-                try:
-                    if resource_cmd["action"] == "history":
-                        line_resources_print_line_history(line_history, resource_cmd["limit"])
-                    elif resource_cmd["action"] == "load":
-                        pending_console_lines.extend(load_line_resource(cfg, resource_cmd["path"]))
-                    else:
-                        write_line_makerc(cfg, resource_cmd["path"], line_history)
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_resource_command(
+                    resource_cmd,
+                    history_func=lambda limit="": line_resources_print_line_history(
+                        line_history,
+                        limit,
+                    ),
+                    load_func=lambda path: pending_console_lines.extend(
+                        load_line_resource(cfg, path)
+                    ),
+                    save_func=lambda path: write_line_makerc(cfg, path, line_history),
+                )
                 continue
             elif (events_cmd := parse_line_events_command(cmd, console_args[1:])):
                 try:
@@ -7665,32 +7670,25 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif (option_cmd := parse_line_option_command(cmd, console_args[1:])):
-                try:
-                    if option_cmd["action"] == "set" and option_cmd["scope"] == "global":
-                        set_line_global_build_option(
-                            cfg, option_cmd["key"], option_cmd["value"],
-                        )
-                    elif option_cmd["action"] == "set":
-                        line_options_set_line_option(
-                            cfg, option_cmd["key"], option_cmd["value"],
-                        )
-                    elif option_cmd["scope"] == "global":
-                        unset_line_global_build_option(cfg, option_cmd["key"])
-                    else:
-                        unset_line_option(option_cmd["key"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_option_command(
+                    option_cmd,
+                    set_global_func=lambda key, value: set_line_global_build_option(
+                        cfg, key, value,
+                    ),
+                    set_context_func=lambda key, value: line_options_set_line_option(
+                        cfg, key, value,
+                    ),
+                    unset_global_func=lambda key: unset_line_global_build_option(cfg, key),
+                    unset_context_func=unset_line_option,
+                )
                 continue
             elif (metadata_cmd := parse_line_target_metadata_command(cmd, console_args[1:])):
-                try:
-                    if metadata_cmd["action"] == "rename":
-                        line_options_rename_line_target(cfg, metadata_cmd["value"])
-                    elif metadata_cmd["action"] == "note":
-                        line_options_note_line_target(cfg, metadata_cmd["value"])
-                    else:
-                        line_options_alias_line_target(cfg, metadata_cmd["value"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_target_metadata_command(
+                    metadata_cmd,
+                    rename_func=lambda value: line_options_rename_line_target(cfg, value),
+                    note_func=lambda value: line_options_note_line_target(cfg, value),
+                    alias_func=lambda value: line_options_alias_line_target(cfg, value),
+                )
                 continue
             elif (show_cmd := parse_line_show_command(cmd, console_args[1:])):
                 try:
