@@ -16,6 +16,8 @@ def parse_line_target_command(cmd, args):
     args = list(args or [])
     if cmd in {"targets", "agents", "hosts"}:
         return {"action": "list"}
+    if cmd not in {"target", "agent", "host"}:
+        return {}
     selector = " ".join(args).strip()
     return {"action": "select" if selector else "list", "selector": selector}
 

@@ -7759,8 +7759,7 @@ def run_line_repl(cfg):
                     except ValueError as exc:
                         print(exc)
                 continue
-            elif cmd in {"services", "listeners", "listener"}:
-                listener_cmd = parse_line_listener_command(cmd, console_args[1:])
+            elif (listener_cmd := parse_line_listener_command(cmd, console_args[1:])):
                 if listener_cmd["action"] == "list":
                     set_line_collection("listeners")
                     print_line_services(verbose=listener_cmd["verbose"])
@@ -7770,8 +7769,7 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"targets", "agents", "hosts", "target", "agent", "host"}:
-                target_cmd = parse_line_target_command(cmd, console_args[1:])
+            elif (target_cmd := parse_line_target_command(cmd, console_args[1:])):
                 if target_cmd["action"] == "list":
                     set_line_collection("targets")
                     print_line_targets()

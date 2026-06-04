@@ -29,6 +29,8 @@ def parse_line_listener_command(cmd, args):
             "action": "list",
             "verbose": any(str(item).lower() in {"-v", "--verbose"} for item in args),
         }
+    if cmd != "listener":
+        return {}
     if args and str(args[0]).lower() in {"-v", "--verbose"}:
         return {"action": "list", "verbose": True}
     selector = " ".join(args).strip()
