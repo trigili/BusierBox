@@ -40,6 +40,11 @@ def line_action_records_from_snapshot(snap):
     return records
 
 
+def current_line_action_records(snapshot_func):
+    snap = snapshot_func() if snapshot_func else {}
+    return line_action_records_from_snapshot(snap)
+
+
 def line_action_matches_term(rec, term):
     text = str(term or "").strip().lower()
     if not text:
@@ -106,6 +111,10 @@ def select_line_action(cfg, actions, selector):
     return selected
 
 
+def select_current_line_action(cfg, snapshot_func, selector):
+    return select_line_action(cfg, current_line_action_records(snapshot_func), selector)
+
+
 def selected_line_action(cfg, actions):
     kind = str(cfg.get("_line_console_action_kind") or "")
     action_id = str(cfg.get("_line_console_action_id") or "")
@@ -115,6 +124,10 @@ def selected_line_action(cfg, actions):
         if str(rec.get("kind") or "") == kind and str(rec.get("id") or "") == action_id:
             return rec
     return {}
+
+
+def selected_current_line_action(cfg, snapshot_func):
+    return selected_line_action(cfg, current_line_action_records(snapshot_func))
 
 
 def split_line_run_args(values):
@@ -414,6 +427,10 @@ def print_line_module_categories(cfg, actions):
     return event_details
 
 
+def print_current_line_module_categories(cfg, snapshot_func):
+    return print_line_module_categories(cfg, current_line_action_records(snapshot_func))
+
+
 def print_line_actions(cfg, actions, filter_text="", kind_filter="", quote=None, verbose=False):
     search_records, event_details = print_line_action_records(
         actions,
@@ -430,3 +447,16 @@ def print_line_actions(cfg, actions, filter_text="", kind_filter="", quote=None,
         details=event_details,
     )
     return search_records, event_details
+
+
+def print_current_line_actions(
+    cfg, snapshot_func, filter_text="", kind_filter="", quote=None, verbose=False
+):
+    return print_line_actions(
+        cfg,
+        current_line_action_records(snapshot_func),
+        filter_text=filter_text,
+        kind_filter=kind_filter,
+        quote=quote,
+        verbose=verbose,
+    )

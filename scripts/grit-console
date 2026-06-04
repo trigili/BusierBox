@@ -112,13 +112,13 @@ from gritlib.file_transfers import (
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.line_actions import (
-    line_action_records_from_snapshot,
-    print_line_actions as line_actions_print_line_actions,
-    print_line_module_categories as line_actions_print_line_module_categories,
+    current_line_action_records,
+    print_current_line_actions,
+    print_current_line_module_categories,
     run_line_module_or_service as line_actions_run_line_module_or_service,
     run_line_selected_action as line_actions_run_line_selected_action,
-    select_line_action as line_actions_select_line_action,
-    selected_line_action as line_actions_selected_line_action,
+    select_current_line_action,
+    selected_current_line_action,
 )
 from gritlib.line_build import (
     dispatch_legacy_line_build_number,
@@ -6595,14 +6595,11 @@ def run_line_repl(cfg):
             start_job_func=start_workbench_job_record,
         )
 
-    def line_action_records():
-        return line_action_records_from_snapshot(workbench_snapshot(cfg))
-
     def line_completion_providers():
         return build_line_completion_providers(
             cfg,
             workbench_snapshot_func=workbench_snapshot,
-            line_action_records_func=line_action_records,
+            line_action_records_func=lambda: current_line_action_records(lambda: workbench_snapshot(cfg)),
             bridge_profile_records_func=bridge_profile_records,
             release_context_func=release_context,
             command_queue_summary_func=command_queue_summary,
@@ -6637,7 +6634,7 @@ def run_line_repl(cfg):
             snapshot=workbench_snapshot(cfg),
             service_records=service_status_rows(cfg),
             route_records=bridge_profile_records(cfg),
-            action_records=line_action_records(),
+            action_records=current_line_action_records(lambda: workbench_snapshot(cfg)),
             route_command_builder=bridge_profile_headless_command,
             job_cancel_command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
             quote=shquote,
@@ -6662,12 +6659,12 @@ def run_line_repl(cfg):
         )
 
     def print_line_module_categories():
-        return line_actions_print_line_module_categories(cfg, line_action_records())
+        return print_current_line_module_categories(cfg, lambda: workbench_snapshot(cfg))
 
     def print_line_actions(filter_text="", kind_filter="", verbose=False):
-        return line_actions_print_line_actions(
+        return print_current_line_actions(
             cfg,
-            line_action_records(),
+            lambda: workbench_snapshot(cfg),
             filter_text=filter_text,
             kind_filter=kind_filter,
             verbose=verbose,
@@ -6675,7 +6672,7 @@ def run_line_repl(cfg):
         )
 
     def select_line_action(selector):
-        return line_actions_select_line_action(cfg, line_action_records(), selector)
+        return select_current_line_action(cfg, lambda: workbench_snapshot(cfg), selector)
 
     def select_line_command_queue_action(selector):
         return line_command_queue_select_action(
@@ -6686,7 +6683,7 @@ def run_line_repl(cfg):
         )
 
     def selected_line_action():
-        return line_actions_selected_line_action(cfg, line_action_records())
+        return selected_current_line_action(cfg, lambda: workbench_snapshot(cfg))
 
     def run_line_module_or_service(values=None, dry_run_default=False):
         return line_actions_run_line_module_or_service(
