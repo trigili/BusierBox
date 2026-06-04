@@ -234,7 +234,7 @@ from gritlib.line_target_commands import (
 )
 from gritlib.line_workspace import (
     line_repl_prompt as line_workspace_repl_prompt,
-    line_repl_status_bar, print_line_console_banner,
+    line_repl_status_bar, parse_line_workspace_command, print_line_console_banner,
     print_line_info as line_workspace_print_line_info,
     print_line_next as line_workspace_print_line_next,
     print_line_workspace_snapshot,
@@ -7688,24 +7688,20 @@ def run_line_repl(cfg):
                 except Exception as exc:
                     print(f"reload failed: {exc}")
                 continue
-            elif cmd in {"ips", "local-ips", "list-local-ips"}:
-                print_line_local_ips(workbench_snapshot(cfg))
-                continue
-            elif cmd in {"workspace", "overview", "dashboard"}:
-                clear_line_module(quiet=True)
-                print_line_workspace()
-                continue
-            elif cmd in {"main", "home", "root"}:
-                clear_line_context()
-                continue
-            elif cmd == "info":
-                print_line_info()
-                continue
-            elif cmd == "next":
-                print_line_next()
-                continue
-            elif cmd in {"options", "opts"}:
-                print_line_options()
+            elif (workspace_cmd := parse_line_workspace_command(cmd, console_args[1:])):
+                if workspace_cmd["action"] == "ips":
+                    print_line_local_ips(workbench_snapshot(cfg))
+                elif workspace_cmd["action"] == "workspace":
+                    clear_line_module(quiet=True)
+                    print_line_workspace()
+                elif workspace_cmd["action"] == "root":
+                    clear_line_context()
+                elif workspace_cmd["action"] == "info":
+                    print_line_info()
+                elif workspace_cmd["action"] == "next":
+                    print_line_next()
+                elif workspace_cmd["action"] == "options":
+                    print_line_options()
                 continue
             elif cmd == "build":
                 try:

@@ -8,6 +8,23 @@ from gritlib.target_records import (
 )
 
 
+def parse_line_workspace_command(cmd, args=None):
+    cmd = str(cmd or "").strip().lower()
+    if cmd in {"ips", "local-ips", "list-local-ips"}:
+        return {"action": "ips"}
+    if cmd in {"workspace", "overview", "dashboard"}:
+        return {"action": "workspace"}
+    if cmd in {"main", "home", "root"}:
+        return {"action": "root"}
+    if cmd == "info":
+        return {"action": "info"}
+    if cmd == "next":
+        return {"action": "next"}
+    if cmd in {"options", "opts"}:
+        return {"action": "options"}
+    return {}
+
+
 def line_listener_module_name(module):
     module = str(module or "").strip()
     if module.startswith("listener/") or module.startswith("service/"):
