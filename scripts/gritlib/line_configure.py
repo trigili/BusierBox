@@ -230,12 +230,12 @@ def configure_line_artifact(cfg, args, append_event_fn=None):
         atomic_write_json(staged_file_path(cfg), data)
     fetch_command = render_fetch_command(request_name, cfg) if request_name else ""
     print("Artifact trailer configured:" if action == "set" else f"Artifact trailer {action}:")
-    print(f"  artifact={artifact}")
+    print(f"  artifact: {artifact}")
     if request_name:
-        print(f"  request_name={request_name}")
+        print(f"  name: {request_name}")
         print(f"  target fetch: {fetch_command}")
     if kv:
-        print("  keys=" + ", ".join(item.split("=", 1)[0] for item in kv))
+        print("  keys: " + ", ".join(item.split("=", 1)[0] for item in kv))
     headless = " ".join(shquote(part) for part in cmd)
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_artifact_trailer_configured", details={

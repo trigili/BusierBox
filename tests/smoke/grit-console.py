@@ -1244,7 +1244,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Staged fetch command:",
         "griTTYkit binary staged for target fetch:",
         "Artifact trailer configured:",
-        "keys=GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC",
+        "keys: GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC",
         "target fetch: grit fetch grit-console",
         "run hint: chmod +x ./grit-console && ./grit-console --help",
         "unstaged console-upload",
@@ -1720,9 +1720,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     configure_end = line_console_stdout.find("grit[Console Router]/files> stop file-service", configure_start + 1)
     configure_text = line_console_stdout[configure_start:configure_end] if configure_start != -1 and configure_end != -1 else ""
     if (not configure_text or
+            "artifact: " not in configure_text or
+            "name: grit-console" not in configure_text or
             "target fetch: grit fetch grit-console" not in configure_text or
-            "keys=GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC" not in configure_text or
+            "keys: GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC" not in configure_text or
             "headless_command:" in configure_text or
+            "artifact=" in configure_text or
+            "request_name=" in configure_text or
+            "keys=" in configure_text or
             "target_fetch_command=" in configure_text):
         print("line-oriented configure command exposed noisy headless command", file=sys.stderr)
         print(configure_text or line_console_stdout, file=sys.stderr)
