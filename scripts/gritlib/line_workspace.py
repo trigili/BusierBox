@@ -275,23 +275,26 @@ def print_line_info(
     cancel_job_command_builder = cancel_job_command_builder or (lambda _job_id: "")
 
     print("Console context:")
-    print(f"  prompt={str(prompt_text or '').strip()}")
+    print(f"  prompt: {str(prompt_text or '').strip()}")
     module = str(module or "root")
-    print(f"  module={module}")
+    print(f"  module: {module}")
     action = selected_action()
     if action:
-        print(
-            f"  action={action.get('kind', '')}:{action.get('id', '')} "
-            f"state={action.get('operator_action_state', '') or '-'} "
-            f"reason={action.get('operator_action_reason', '') or '-'}"
-        )
-        print(f"    label={action.get('label', '') or '-'}")
-        print(f"    category={action.get('category', '') or '-'} workflow={action.get('workflow', '') or '-'}")
-        print(f"    confirm={'yes' if action.get('requires_confirmation') else 'no'} background={'yes' if action.get('background_supported') else 'no'}")
-        print("    commands: check, run, run --dry-run, run --confirm")
+        action_kind = action.get("kind", "")
+        action_id = action.get("id", "")
+        action_name = f"{action_kind}:{action_id}" if action_kind else action_id
+        print(f"Action: {action_name}")
+        print(f"  state: {action.get('operator_action_state', '') or '-'}")
+        print(f"  reason: {action.get('operator_action_reason', '') or '-'}")
+        print(f"  label: {action.get('label', '') or '-'}")
+        print(f"  category: {action.get('category', '') or '-'}")
+        print(f"  workflow: {action.get('workflow', '') or '-'}")
+        print(f"  confirmation: {'required' if action.get('requires_confirmation') else 'not required'}")
+        print(f"  background: {'supported' if action.get('background_supported') else 'not supported'}")
+        print("  commands: check, run, run --dry-run, run --confirm")
         if action.get("background_supported"):
-            print("    background: run -j")
-        print("    next: options, check, run, back")
+            print("  background command: run -j")
+        print("  next: options, check, run, back")
     elif line_listener_module_name(module):
         service = line_listener_module_name(module)
         rec = service_record(service)
@@ -354,14 +357,14 @@ def print_line_info(
                     print(f"    {line}")
         print("  next: options, jobs, jobs -v, back")
     else:
-        print("  action=none")
+        print("Action: none")
     target_filter = (snap or {}).get("target_filter") or {}
     if target_filter.get("active"):
         print(target_filter_summary_text(target_filter, prefix="  target:"))
         for line in target_filter_evidence_lines(target_filter):
             print(f"    {line}")
     else:
-        print("  target=all")
+        print("  target: all")
 
 
 def print_line_next(

@@ -1389,6 +1389,25 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("verbose service modules:", file=sys.stderr)
         print(service_modules_verbose_text, file=sys.stderr)
         return 1
+    action_info_start = line_console_stdout.find("grit[all]/action/bridge:inspect-status> info")
+    action_info_end = line_console_stdout.find("grit[all]/action/bridge:inspect-status> next", action_info_start + 1)
+    action_info_text = line_console_stdout[action_info_start:action_info_end] if action_info_start != -1 and action_info_end != -1 else ""
+    if (not action_info_text or
+            "Console context:" not in action_info_text or
+            "  prompt: grit[all]/action/bridge:inspect-status>" not in action_info_text or
+            "  module: action/bridge:inspect-status" not in action_info_text or
+            "Action: service:bridge:inspect-status" not in action_info_text or
+            "  state: ready" not in action_info_text or
+            "  reason: run-now" not in action_info_text or
+            "  confirmation: not required" not in action_info_text or
+            "  background: not supported" not in action_info_text or
+            "prompt=" in action_info_text or
+            "module=" in action_info_text or
+            "action=" in action_info_text or
+            "confirm=" in action_info_text):
+        print("line-oriented action info did not use concise labels", file=sys.stderr)
+        print(action_info_text or line_console_stdout, file=sys.stderr)
+        return 1
     action_options_start = line_console_stdout.find("grit[all]/action/bridge:inspect-status> options")
     action_options_end = line_console_stdout.find("grit[all]/action/bridge:inspect-status> background", action_options_start + 1)
     action_options_text = line_console_stdout[action_options_start:action_options_end] if action_options_start != -1 and action_options_end != -1 else ""
