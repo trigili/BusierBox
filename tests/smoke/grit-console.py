@@ -512,6 +512,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_navigation as repl_navigation
     import gritlib.line_repl_options as repl_options
     import gritlib.line_repl_routes as repl_routes
+    import gritlib.line_repl_search as repl_search
     import gritlib.line_repl_show as repl_show
     import gritlib.line_repl_utility as repl_utility
     import gritlib.line_repl_workflow as repl_workflow
@@ -1681,6 +1682,88 @@ def run_line_repl_runtime_check():
     ]
     if navigation_bundle_calls != expected_navigation_bundle_calls:
         print(f"line REPL navigation bundle wiring changed: {navigation_bundle_calls}", file=sys.stderr)
+        return 1
+
+    search_bundle_calls = []
+    original_search_builder = repl_search.build_line_search_callbacks
+
+    def fake_search_builder(cfg, **kwargs):
+        search_bundle_calls.append(
+            ("builder", cfg.get("name"), kwargs.get("route_command_builder")("inspect", "route1"))
+        )
+
+        def search_bundle_search(query):
+            search_bundle_calls.append(("search", query))
+            kwargs["select_target_func"]("target1")
+            kwargs["select_service_func"]("service1")
+            kwargs["select_route_func"]("route1")
+            kwargs["select_action_func"]("action1")
+            kwargs["select_queue_action_func"]("queue1")
+            kwargs["select_session_func"]("session1")
+            kwargs["select_job_func"]("job1")
+            return "search-bundle"
+
+        return {
+            "clear_line_search_results": lambda: search_bundle_calls.append("clear"),
+            "search_line_resources": search_bundle_search,
+            "use_line_search_result": lambda selector: search_bundle_calls.append(("use", selector)),
+        }
+
+    repl_search.build_line_search_callbacks = fake_search_builder
+    try:
+        search_bundle = repl_search.build_line_search_bundle(
+            {"name": "search-bundle-cfg"},
+            workbench_snapshot_func=lambda cfg: search_bundle_calls.append(("snapshot", cfg.get("name"))) or {},
+            service_records_func=lambda cfg: search_bundle_calls.append(("services", cfg.get("name"))) or [],
+            route_records_func=lambda cfg: search_bundle_calls.append(("routes", cfg.get("name"))) or [],
+            route_command_builder=lambda action, name="", extra=None: (
+                f"route {action} {name}".strip()
+            ),
+            target_callbacks={
+                "select_line_target": lambda selector: search_bundle_calls.append(("target", selector)),
+            },
+            route_service_callbacks={
+                "select_line_service": lambda selector: search_bundle_calls.append(("service", selector)),
+                "select_line_route": lambda selector: search_bundle_calls.append(("route", selector)),
+            },
+            action_callbacks={
+                "select_line_action": lambda selector: search_bundle_calls.append(("action", selector)),
+                "select_line_command_queue_action": lambda selector: search_bundle_calls.append(("action-queue", selector)),
+            },
+            session_callbacks={
+                "select_line_session": lambda selector: search_bundle_calls.append(("session", selector)),
+            },
+            job_callbacks={
+                "select_line_job": lambda selector: search_bundle_calls.append(("job", selector)),
+            },
+            queue_callbacks={
+                "select_line_command_queue_action": lambda selector: search_bundle_calls.append(("queue", selector)),
+            },
+            append_event_fn=lambda *args, **kwargs: None,
+            quote=lambda text: f"'{text}'",
+        )
+        if search_bundle["search_line_resources"]("target") != "search-bundle":
+            print("line REPL search bundle did not return search result", file=sys.stderr)
+            return 1
+        search_bundle["clear_line_search_results"]()
+        search_bundle["use_line_search_result"]("1")
+    finally:
+        repl_search.build_line_search_callbacks = original_search_builder
+    expected_search_bundle_calls = [
+        ("builder", "search-bundle-cfg", "route inspect route1"),
+        ("search", "target"),
+        ("target", "target1"),
+        ("service", "service1"),
+        ("route", "route1"),
+        ("action", "action1"),
+        ("queue", "queue1"),
+        ("session", "session1"),
+        ("job", "job1"),
+        "clear",
+        ("use", "1"),
+    ]
+    if search_bundle_calls != expected_search_bundle_calls:
+        print(f"line REPL search bundle wiring changed: {search_bundle_calls}", file=sys.stderr)
         return 1
 
     workflow_calls = []

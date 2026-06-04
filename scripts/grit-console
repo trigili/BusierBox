@@ -185,7 +185,7 @@ from gritlib.line_repl_queue import build_line_queue_callbacks
 from gritlib.line_repl_routes import (
     build_line_route_service_callbacks,
 )
-from gritlib.line_repl_search import build_line_search_callbacks
+from gritlib.line_repl_search import build_line_search_bundle
 from gritlib.line_repl_sessions import build_line_session_callbacks
 from gritlib.line_repl_show import build_line_display_show_callbacks
 from gritlib.line_repl_targets import build_line_target_callbacks
@@ -6048,7 +6048,6 @@ def run_line_repl(cfg):
         workbench_snapshot_func=workbench_snapshot,
         quote=shquote,
     )
-    select_line_target = line_target_callbacks["select_line_target"]
 
     line_route_service_callbacks = build_line_route_service_callbacks(
         cfg,
@@ -6065,8 +6064,6 @@ def run_line_repl(cfg):
     )
     bridge_profile_headless_command = line_route_service_callbacks["bridge_profile_headless_command"]
     line_route_record = line_route_service_callbacks["line_route_record"]
-    select_line_route = line_route_service_callbacks["select_line_route"]
-    select_line_service = line_route_service_callbacks["select_line_service"]
     start_line_service = line_route_service_callbacks["start_line_service"]
 
     line_completion_candidates, print_line_completions = build_line_completion_adapter(
@@ -6101,21 +6098,18 @@ def run_line_repl(cfg):
         append_event_fn=append_event,
         quote=shquote,
     )
-    select_line_action = line_action_callbacks["select_line_action"]
-    select_line_command_queue_action = line_action_callbacks["select_line_command_queue_action"]
     selected_line_action = line_action_callbacks["selected_line_action"]
 
     line_job_callbacks = build_line_job_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
         workbench_actions_func=workbench_action_records,
-        select_action_func=select_line_action,
+        select_action_func=line_action_callbacks["select_line_action"],
         selected_action_func=selected_line_action,
         start_job_func=start_workbench_job_record,
         quote=shquote,
     )
     line_job_record = line_job_callbacks["line_job_record"]
-    select_line_job = line_job_callbacks["select_line_job"]
     cancel_line_job = line_job_callbacks["cancel_line_job"]
 
     line_queue_callbacks = build_line_queue_callbacks(
@@ -6157,7 +6151,6 @@ def run_line_repl(cfg):
         quote=shquote,
     )
     line_session_record = line_session_callbacks["line_session_record"]
-    select_line_session = line_session_callbacks["select_line_session"]
 
     line_file_callbacks = build_line_file_workflow_callbacks(
         cfg,
@@ -6175,19 +6168,18 @@ def run_line_repl(cfg):
     )
     stage_line_release = line_file_callbacks["stage_release"]
 
-    line_search_callbacks = build_line_search_callbacks(
+    line_search_callbacks = build_line_search_bundle(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
         service_records_func=service_status_rows,
         route_records_func=bridge_profile_records,
         route_command_builder=bridge_profile_headless_command,
-        select_target_func=select_line_target,
-        select_service_func=select_line_service,
-        select_route_func=select_line_route,
-        select_action_func=select_line_action,
-        select_queue_action_func=select_line_command_queue_action,
-        select_session_func=select_line_session,
-        select_job_func=select_line_job,
+        target_callbacks=line_target_callbacks,
+        route_service_callbacks=line_route_service_callbacks,
+        action_callbacks=line_action_callbacks,
+        session_callbacks=line_session_callbacks,
+        job_callbacks=line_job_callbacks,
+        queue_callbacks=line_queue_callbacks,
         append_event_fn=append_event,
         quote=shquote,
     )

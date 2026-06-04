@@ -11,6 +11,43 @@ from gritlib.line_search import (
 from gritlib.workbench_jobs import cancel_workbench_job_headless_command
 
 
+def build_line_search_bundle(
+    cfg,
+    *,
+    workbench_snapshot_func,
+    service_records_func,
+    route_records_func,
+    route_command_builder,
+    target_callbacks,
+    route_service_callbacks,
+    action_callbacks,
+    session_callbacks,
+    job_callbacks,
+    queue_callbacks=None,
+    append_event_fn,
+    quote,
+):
+    return build_line_search_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot_func,
+        service_records_func=service_records_func,
+        route_records_func=route_records_func,
+        route_command_builder=route_command_builder,
+        select_target_func=target_callbacks["select_line_target"],
+        select_service_func=route_service_callbacks["select_line_service"],
+        select_route_func=route_service_callbacks["select_line_route"],
+        select_action_func=action_callbacks["select_line_action"],
+        select_queue_action_func=(
+            (queue_callbacks or {}).get("select_line_command_queue_action")
+            or action_callbacks["select_line_command_queue_action"]
+        ),
+        select_session_func=session_callbacks["select_line_session"],
+        select_job_func=job_callbacks["select_line_job"],
+        append_event_fn=append_event_fn,
+        quote=quote,
+    )
+
+
 def build_line_search_callbacks(
     cfg,
     *,
