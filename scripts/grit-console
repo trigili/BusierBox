@@ -179,6 +179,7 @@ from gritlib.line_repl_runtime import (
 )
 from gritlib.line_repl_display import build_line_display_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
+from gritlib.line_repl_jobs import build_line_job_callbacks
 from gritlib.line_repl_routes import build_line_route_service_callbacks
 from gritlib.line_release import (
     dispatch_legacy_line_release_number,
@@ -362,18 +363,13 @@ from gritlib.warnings import (
 )
 from gritlib.workbench_jobs import (
     cancel_workbench_job_headless_command, cancel_workbench_job_record,
-    cancel_current_line_job,
     dispatch_legacy_line_job_number,
     dispatch_legacy_refresh_choice,
-    current_line_job_record,
     load_workbench_jobs,
     reconcile_workbench_job_completion_events,
-    print_current_line_jobs,
     print_workbench_job_ownership, print_workbench_job_summary,
     run_workbench_action_headless_command,
     run_workbench_action_record,
-    select_current_line_job,
-    start_line_job as workbench_jobs_start_line_job,
     start_workbench_job_record,
     start_workbench_job_headless_command,
     workbench_job_records,
@@ -6413,41 +6409,6 @@ def run_line_repl(cfg):
     start_line_service = line_route_service_callbacks["start_line_service"]
     stop_line_service = line_route_service_callbacks["stop_line_service"]
 
-    def line_job_record(selector):
-        return current_line_job_record(lambda: workbench_snapshot(cfg), selector)
-
-    def print_line_jobs(verbose=False):
-        return print_current_line_jobs(
-            cfg,
-            lambda: workbench_snapshot(cfg),
-            verbose=verbose,
-            command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
-            quote=shquote,
-        )
-
-    def select_line_job(selector):
-        return select_current_line_job(cfg, lambda: workbench_snapshot(cfg), selector)
-
-    def cancel_line_job(selector):
-        return cancel_current_line_job(
-            cfg,
-            lambda: workbench_snapshot(cfg),
-            lambda: workbench_action_records(cfg),
-            selector,
-            command_builder=cancel_workbench_job_headless_command,
-        )
-
-    def start_line_job(action_selector=""):
-        return workbench_jobs_start_line_job(
-            cfg,
-            action_selector,
-            select_action_func=select_line_action,
-            selected_action_func=selected_line_action,
-            actions_func=lambda: workbench_action_records(cfg),
-            headless_command_func=start_workbench_job_headless_command,
-            start_job_func=start_workbench_job_record,
-        )
-
     line_completion_candidates, print_line_completions = build_line_completion_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
@@ -6521,6 +6482,21 @@ def run_line_repl(cfg):
 
     def selected_line_action():
         return selected_current_line_action(cfg, lambda: workbench_snapshot(cfg))
+
+    line_job_callbacks = build_line_job_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        workbench_actions_func=workbench_action_records,
+        select_action_func=select_line_action,
+        selected_action_func=selected_line_action,
+        start_job_func=start_workbench_job_record,
+        quote=shquote,
+    )
+    line_job_record = line_job_callbacks["line_job_record"]
+    print_line_jobs = line_job_callbacks["print_line_jobs"]
+    select_line_job = line_job_callbacks["select_line_job"]
+    cancel_line_job = line_job_callbacks["cancel_line_job"]
+    start_line_job = line_job_callbacks["start_line_job"]
 
     def run_line_module_or_service(values=None, dry_run_default=False):
         return line_actions_run_line_module_or_service(
