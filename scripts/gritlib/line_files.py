@@ -119,7 +119,12 @@ def parse_line_download_args(args):
     return target_path, queue, start_file_service
 
 
-def parse_line_download_command(args):
+def parse_line_download_command(cmd, args=None):
+    if args is None:
+        args = cmd
+    else:
+        if str(cmd or "").strip().lower() not in {"download", "get"}:
+            return {}
     target_path, queue, start_service = parse_line_download_args(args)
     return {
         "action": "download",

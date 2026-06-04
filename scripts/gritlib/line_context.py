@@ -56,7 +56,12 @@ def parse_line_use_command(cmd, args):
     }
 
 
-def parse_line_interact_command(args, target_selected=False, module=""):
+def parse_line_interact_command(cmd, args=None, target_selected=False, module=""):
+    if args is None:
+        args = cmd
+    else:
+        if str(cmd or "").strip().lower() != "interact":
+            return {}
     args = list(args or [])
     first = str(args[0]).lower() if args else ""
     if first in {"agent", "target", "host"}:

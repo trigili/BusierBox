@@ -7892,13 +7892,13 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "interact":
+            elif (interact_cmd := parse_line_interact_command(
+                cmd,
+                console_args[1:],
+                target_selected=bool(configured_target_filter(cfg)),
+                module=cfg.get("_line_console_module"),
+            )):
                 try:
-                    interact_cmd = parse_line_interact_command(
-                        console_args[1:],
-                        target_selected=bool(configured_target_filter(cfg)),
-                        module=cfg.get("_line_console_module"),
-                    )
                     if interact_cmd["kind"] == "target":
                         interact_line_target(interact_cmd["selector"])
                     else:
@@ -7906,9 +7906,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"download", "get"}:
+            elif (download_cmd := parse_line_download_command(cmd, console_args[1:])):
                 try:
-                    download_cmd = parse_line_download_command(console_args[1:])
                     download_line_target(
                         download_cmd["target_path"],
                         queue=download_cmd["queue"],
