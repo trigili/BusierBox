@@ -15,7 +15,12 @@ from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged, stage_file, unstage_file
 
 
-def parse_line_files_command(args):
+def parse_line_files_command(cmd, args=None):
+    if args is None:
+        args = cmd
+    else:
+        if str(cmd or "").strip().lower() not in {"files", "staged", "stagers", "loot", "downloads"}:
+            return {}
     args = list(args or [])
     subcmd = str(args[0]).lower() if args else ""
     rest = args[1:]
@@ -147,7 +152,12 @@ def parse_line_release_stage_args(args):
     return selector, start_file_service
 
 
-def parse_line_binary_command(args):
+def parse_line_binary_command(cmd, args=None):
+    if args is None:
+        args = cmd
+    else:
+        if str(cmd or "").strip().lower() not in {"serve-binary", "binary"}:
+            return {}
     selector, request_name, start_service, no_start = parse_line_binary_args(args)
     return {
         "action": "stage_binary",

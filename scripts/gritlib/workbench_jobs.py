@@ -27,6 +27,8 @@ DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 def parse_line_jobs_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
+    if cmd not in {"jobs", "job"}:
+        return {}
     first = str(args[0]).lower() if args else ""
     if cmd == "job":
         return {"action": "select", "selector": " ".join(args).strip()}

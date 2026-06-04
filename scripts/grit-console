@@ -8022,8 +8022,7 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"files", "staged", "stagers", "loot", "downloads"}:
-                files_cmd = parse_line_files_command(console_args[1:])
+            elif (files_cmd := parse_line_files_command(cmd, console_args[1:])):
                 if files_cmd["action"] == "upload":
                     try:
                         stage_line_file(
@@ -8062,9 +8061,8 @@ def run_line_repl(cfg):
                     set_line_collection("files")
                     print_line_files(verbose=files_cmd["verbose"])
                 continue
-            elif cmd in {"mailbox", "queue"}:
+            elif (queue_cmd := parse_line_queue_command(cmd, console_args[1:])):
                 try:
-                    queue_cmd = parse_line_queue_command(cmd, console_args[1:])
                     if not (cmd == "queue" and queue_cmd["action"] == "run"):
                         set_line_collection("queue")
                     if queue_cmd["action"] == "run":
@@ -8074,9 +8072,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"jobs", "job"}:
+            elif (jobs_cmd := parse_line_jobs_command(cmd, console_args[1:])):
                 try:
-                    jobs_cmd = parse_line_jobs_command(cmd, console_args[1:])
                     if jobs_cmd["action"] == "cancel":
                         cancel_line_job(jobs_cmd["selector"])
                     elif jobs_cmd["action"] == "select":
@@ -8087,9 +8084,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"serve-binary", "binary"}:
+            elif (binary_cmd := parse_line_binary_command(cmd, console_args[1:])):
                 try:
-                    binary_cmd = parse_line_binary_command(console_args[1:])
                     stage_line_binary(
                         binary_cmd["selector"],
                         binary_cmd["request_name"],
@@ -8103,9 +8099,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"configure", "trailer"}:
+            elif (configure_cmd := parse_line_configure_command(cmd, console_args[1:])):
                 try:
-                    configure_cmd = parse_line_configure_command(cmd, console_args[1:])
                     configure_line_artifact(configure_cmd["args"])
                     set_line_collection("files")
                 except ValueError as exc:
