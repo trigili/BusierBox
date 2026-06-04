@@ -1852,13 +1852,17 @@ def handle_probe_http(cfg, conn, method, target, headers, body, addr, script_tex
             "script_name": script_name,
             "size": len(payload),
         }, route_doc), headers)
-    if method == "POST" and parsed.path in {"/probe/result", "/probe/result/"}:
-        payload_body = read_http_body(conn, headers, body)
-        form = urllib.parse.parse_qs(payload_body.decode("utf-8", errors="replace"), keep_blank_values=True)
+    if method in {"GET", "POST"} and parsed.path in {"/probe/result", "/probe/result/"}:
+        if method == "GET":
+            form = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+        else:
+            payload_body = read_http_body(conn, headers, body)
+            form = urllib.parse.parse_qs(payload_body.decode("utf-8", errors="replace"), keep_blank_values=True)
         result = {
             "schema": 1,
             "operation": "probe_result",
             "status": "received",
+            "method": method,
             "remote_addr": remote,
             "received_at": utc_now(),
         }

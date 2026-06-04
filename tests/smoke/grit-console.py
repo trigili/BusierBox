@@ -5801,6 +5801,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Serial/manual paste:",
         "sh <<'GRIT_PROBE_SCRIPT'",
         "bb_payload=\"schema=1&script=probe.sh",
+        "wget -qO- \"http://",
+        "/probe/result?$bb_payload\"",
         "Serial/manual base64 paste:",
         "bb_probe_b64=$(cat <<'GRIT_PROBE_B64'",
         "base64 decoder not found",
@@ -8094,6 +8096,18 @@ def main(argv=None):
             print("probe result response missing received metadata", file=sys.stderr)
             print(survey_post.decode("utf-8", errors="replace"), file=sys.stderr)
             return 1
+        survey_get_result = connect_with_retry(
+            survey_port,
+            b"GET /probe/result?schema=1&script=yourfile.sh&uname_s=Linux&uname_m=armv7l&uname_r=4.1.8&word_bits=32&endian=little HTTP/1.1\r\n"
+            b"Host: 127.0.0.1\r\n"
+            b"X-Grit-Target-Id: target-survey\r\n"
+            b"X-Grit-Target-Label: Survey Target\r\n"
+            b"Connection: close\r\n\r\n",
+        )
+        if b'"status": "received"' not in survey_get_result or b'"architecture": "armv7l"' not in survey_get_result:
+            print("probe GET result response missing received metadata", file=sys.stderr)
+            print(survey_get_result.decode("utf-8", errors="replace"), file=sys.stderr)
+            return 1
         out, err = survey_proc.communicate(timeout=5)
         if (survey_proc.returncode != 0 or
                 f"Probe listener. Binding on http://127.0.0.1:{survey_port}/yourfile.sh" not in out or
@@ -8103,7 +8117,8 @@ def main(argv=None):
             print(err, file=sys.stderr)
             return 1
         survey_results = json.loads((survey_operator_dir / "probe-results.json").read_text(encoding="utf-8"))
-        if survey_results.get("results", [{}])[0].get("architecture") != "mipsel":
+        survey_arches = [item.get("architecture") for item in survey_results.get("results") or []]
+        if "mipsel" not in survey_arches or "armv7l" not in survey_arches:
             print("probe result ledger missing target architecture", file=sys.stderr)
             print(json.dumps(survey_results, indent=2, sort_keys=True), file=sys.stderr)
             return 1
