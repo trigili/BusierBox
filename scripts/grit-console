@@ -172,8 +172,7 @@ from gritlib.line_core_commands import dispatch_line_core_command
 from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
     note_line_target as line_options_note_line_target,
-    print_line_context_options as line_options_print_line_context_options,
-    print_line_service_options as line_options_print_line_service_options,
+    print_line_options as line_options_print_line_options,
     rename_line_target as line_options_rename_line_target,
     set_line_option as line_options_set_line_option,
     unset_line_target_option,
@@ -6457,28 +6456,17 @@ def run_line_repl(cfg):
 
     def print_line_options():
         module = str(cfg.get("_line_console_module") or "root")
-
-        if module.startswith(("listener/", "service/")):
-            service = module.split("/", 1)[1]
-            line_options_print_line_service_options(
-                cfg,
-                service,
-                service_record=line_service_record(service_status_rows(cfg), service),
-                display_name_func=line_service_display_name,
-                build_fields={r.get("key", ""): r for r in workbench_config_field_records(cfg)},
-                target_command_records=[
-                    rec for rec in generated_target_command_records(cfg)
-                    if str(rec.get("service") or "") == service
-                ],
-            )
-            return
-        line_options_print_line_context_options(
+        return line_options_print_line_options(
             cfg,
-            module,
-            route_record=line_route_record(module.split("/", 1)[1]) if module.startswith("route/") else {},
-            session_record=line_session_record(module.split("/", 1)[1]) if module.startswith("session/") else {},
-            job_record=line_job_record(module.split("/", 1)[1]) if module.startswith("job/") else {},
-            selected_action=selected_line_action(),
+            module=module,
+            service_record_func=lambda service: line_service_record(service_status_rows(cfg), service),
+            display_name_func=line_service_display_name,
+            build_fields_func=lambda: workbench_config_field_records(cfg),
+            target_command_records_func=lambda: generated_target_command_records(cfg),
+            route_record_func=line_route_record,
+            session_record_func=line_session_record,
+            job_record_func=line_job_record,
+            selected_action_func=selected_line_action,
         )
 
     def unset_line_option(name):

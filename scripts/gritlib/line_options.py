@@ -266,6 +266,46 @@ def print_line_context_options(
         print(f"  Build options: {len(fields)} configured  (run: build to view/edit)")
 
 
+def print_line_options(
+    cfg,
+    *,
+    module="",
+    service_record_func=None,
+    display_name_func=None,
+    build_fields_func=None,
+    target_command_records_func=None,
+    route_record_func=None,
+    session_record_func=None,
+    job_record_func=None,
+    selected_action_func=None,
+):
+    module = str(module or "root")
+    if module.startswith(("listener/", "service/")):
+        service = module.split("/", 1)[1]
+        build_records = build_fields_func() if build_fields_func else workbench_config_field_records(cfg)
+        target_records = target_command_records_func() if target_command_records_func else []
+        print_line_service_options(
+            cfg,
+            service,
+            service_record=service_record_func(service) if service_record_func else {},
+            display_name_func=display_name_func,
+            build_fields={r.get("key", ""): r for r in build_records},
+            target_command_records=[
+                rec for rec in target_records
+                if str(rec.get("service") or "") == service
+            ],
+        )
+        return
+    print_line_context_options(
+        cfg,
+        module,
+        route_record=route_record_func(module.split("/", 1)[1]) if module.startswith("route/") and route_record_func else {},
+        session_record=session_record_func(module.split("/", 1)[1]) if module.startswith("session/") and session_record_func else {},
+        job_record=job_record_func(module.split("/", 1)[1]) if module.startswith("job/") and job_record_func else {},
+        selected_action=selected_action_func() if selected_action_func else {},
+    )
+
+
 def record_line_target_metadata_update(cfg, target_id, action="", field="", default_config=DEFAULT_CONFIG):
     rec = (load_targets(cfg).get("targets") or {}).get(target_id, {})
     headless = (
