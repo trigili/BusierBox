@@ -175,6 +175,7 @@ from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers,
     read_line as line_repl_read_line, restore_signal_handlers,
 )
+from gritlib.line_release import print_line_release as line_release_print_line_release
 from gritlib.line_search import print_line_search_results
 from gritlib.line_services import (
     line_service_display_name,
@@ -7756,120 +7757,13 @@ def run_line_repl(cfg):
             print_target_activity_records(snap, target_id=configured_target_filter(cfg), limit=12)
         elif key in ("release", "releases", "artifact", "artifacts"):
             set_line_collection("release")
-            print_line_release()
+            line_release_print_line_release(cfg, append_event_fn=append_event)
         elif key in ("options", "option"):
             print_line_options()
         elif key in ("context", "info"):
             print_line_info()
         else:
             raise ValueError("usage: show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options")
-
-    def print_line_release():
-        rel, checked_releases = discover_release_context(cfg)
-        if not rel:
-            print("Release  (none detected)")
-            print("")
-            print("  Looked for a release bundle in:")
-            for state in checked_releases[:8]:
-                markers = state.get("detection_reason") or "not-a-release"
-                print(f"    {state.get('release_dir', '')}  ({markers})")
-            if len(checked_releases) > 8:
-                print(f"    ... {len(checked_releases) - 8} more")
-            print("")
-            print("  Run make release-full, extract the tarball, or set a release root here:")
-            print("    set release_dir /path/to/extracted-release")
-            return
-        if rel.get("release_discovery_source") == "auto":
-            cfg["release_dir"] = rel.get("release_dir", "")
-        name = rel.get("release_name") or "-"
-        rdir = rel.get("release_dir") or "-"
-        recommendations = rel.get("recommendation_records") or []
-        artifacts = rel.get("artifacts") or []
-        devices = rel.get("devices") or []
-        tuples = rel.get("tuples") or []
-
-        def _compat(rec):
-            return (rec.get("compatibility") or {}).get("label") or "-"
-
-        def _rec_selector(rec):
-            return str(rec.get("id") or rec.get("artifact") or "")
-
-        def _art_selector(rec):
-            return str(rec.get("release_path") or rec.get("name") or rec.get("path") or "")
-
-        print(f"Release  {name}  ({rdir})")
-        print(f"  {len(recommendations)} recommendations  {len(artifacts)} artifacts  {len(devices)} devices  {len(tuples)} tuples")
-        print("")
-
-        search_records = []
-        if recommendations:
-            rec_cols = [
-                ("Selector",     _rec_selector),
-                ("Scope:Key",    lambda r: f"{r.get('scope','')}:{r.get('key','')}"),
-                ("Artifact",     lambda r: r.get("artifact") or r.get("artifact_name") or "-"),
-                ("Preset",       lambda r: r.get("payload_preset") or "-"),
-                ("Compat",       _compat),
-            ]
-            _console_table(
-                f"Recommendations  ({len(recommendations[:8])} shown)",
-                recommendations[:8], rec_cols,
-            )
-            search_records += [
-                {
-                    "kind": "release-recommendation",
-                    "label": f"{r.get('scope','')}:{r.get('key','')} -> {r.get('artifact') or r.get('artifact_name') or ''}",
-                    "rec": r,
-                    "command": f"release stage {_rec_selector(r)}",
-                    "use_hint": f"release stage {_rec_selector(r)}",
-                }
-                for r in recommendations[:8]
-            ]
-        if artifacts:
-            art_cols = [
-                ("Name",   lambda r: r.get("name") or "-"),
-                ("Tuple",  lambda r: r.get("tuple_path") or "-"),
-                ("Preset", lambda r: r.get("payload_preset") or "-"),
-                ("Compat", _compat),
-            ]
-            _console_table(
-                f"Artifacts  ({len(artifacts[:8])} shown)",
-                artifacts[:8], art_cols,
-            )
-            search_records += [
-                {
-                    "kind": "release-artifact",
-                    "label": r.get("name") or _art_selector(r),
-                    "rec": r,
-                    "command": f"release stage {_art_selector(r)}",
-                    "use_hint": f"release stage {_art_selector(r)}",
-                }
-                for r in artifacts[:8]
-            ]
-        if devices:
-            sels = "  ".join(f"by_device:{r.get('name')}" for r in devices[:8] if r.get("name"))
-            print(f"  Device selectors:  {sels}")
-        if tuples:
-            sels = "  ".join(f"by_tuple_path:{r.get('path')}" for r in tuples[:6] if r.get("path"))
-            print(f"  Tuple selectors:   {sels}")
-        preset_sels = [
-            str(r.get("id") or "")
-            for r in recommendations
-            if str(r.get("scope") or "") in {"by_device_payload_preset", "by_tuple_payload_preset"}
-        ]
-        if preset_sels:
-            print(f"  Preset selectors:  {'  '.join(preset_sels[:6])}")
-        print("")
-        print("  release stage SELECTOR  |  release ? for help")
-
-        cfg["_line_console_search_results"] = search_records
-        append_event(cfg, "workbench", "workbench_release_console_viewed", details={
-            "release_dir": rel.get("release_dir", ""),
-            "release_name": name,
-            "artifact_count": len(artifacts),
-            "recommendation_count": len(recommendations),
-            "device_count": len(devices),
-            "tuple_count": len(tuples),
-        })
 
     def stage_line_release(selector, start_file_service=False):
         selector = str(selector or "").strip()
@@ -8913,7 +8807,7 @@ def run_line_repl(cfg):
                 subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
                 if not subcmd or subcmd in {"list", "show", "recommendations", "artifacts"}:
                     set_line_collection("release")
-                    print_line_release()
+                    line_release_print_line_release(cfg, append_event_fn=append_event)
                 elif subcmd in {"stage", "use", "select"}:
                     try:
                         selector, start_release_service = parse_line_release_stage_args(console_args[2:])
