@@ -13218,7 +13218,8 @@ def main(argv=None):
                 pass
         if (line_proc.returncode != 0 or
                 "Traceback" in (line_stderr or "") or
-                "Help: files" not in _line_stdout or
+                "Help: release" not in _line_stdout or
+                "stage-release [--start] SELECTOR" not in _line_stdout or
                 "release stage SELECTOR  |  release ? for help" not in _line_stdout or
                 "Preset selectors:" not in _line_stdout or
                 "by_tuple_payload_preset:by-tuple/native/host/host/host:default" not in _line_stdout or

@@ -135,7 +135,8 @@ def print_line_command_help(topic):
         "session": "sessions", "interact": "sessions",
         "file": "files", "staged": "files", "stagers": "files", "loot": "files",
         "upload": "files", "fetch": "files", "download": "files",
-        "release": "files", "serve-binary": "files", "binary": "files",
+        "release": "release", "releases": "release", "stage-release": "release",
+        "serve-binary": "files", "binary": "files",
         "configure": "files", "trailer": "files",
         "view": "files", "cat": "files", "unstage": "files",
         "route": "routes", "bridge": "routes", "bridges": "routes",
@@ -250,6 +251,22 @@ def print_line_command_help(topic):
                 "release stage by_device:gl-mt3000",
                 "serve-binary --start",
                 "configure grit --operator-host 192.168.8.241 --zero-arg-mode rshell",
+            ],
+        },
+        "release": {
+            "title": "release — bundle recommendations and artifact staging",
+            "entries": [
+                ("release", "list detected release artifact recommendations"),
+                ("release stage [--start] SELECTOR", "stage a release artifact for target fetch"),
+                ("stage-release [--start] SELECTOR", "legacy alias for release stage"),
+                ("show release", "show release recommendations and artifact metadata"),
+                ("files", "show staged release artifacts after staging"),
+                ("fetch [--queue] NAME", "show or queue the target fetch command"),
+            ],
+            "examples": [
+                "release stage by_device:gl-mt3000",
+                "release stage by_tuple_path:by-tuple/native/host/host/host",
+                "stage-release --start grit-target-full",
             ],
         },
         "queue": {
