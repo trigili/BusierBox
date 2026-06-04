@@ -11,16 +11,13 @@ Transport model:
   plain-shell — plaintext shell (debug/insecure; socat+none or builtin+none)
 """
 
-import atexit
 import base64
 import contextlib
 import io
-import itertools
 import hashlib
 import json
 import os
 import select
-import signal
 import socket
 import ssl
 import subprocess
@@ -231,11 +228,29 @@ from gritlib.probe_results import (
     clear_line_probe_results as probe_results_clear_line_probe_results,
     print_line_probe_results as probe_results_print_line_probe_results,
 )
-from gritlib.runtime import Service, ServiceManager, Session, relay_pipe
+from gritlib.service_runtime import (
+    EVENT_COUNTER,
+    RECORDED_SHUTDOWNS,
+    SERVICE_MANAGER,
+    SESSION_MANAGER,
+    SHUTDOWN,
+    bind_listen_socket,
+    current_shutdown_reason,
+    current_stop_reason,
+    install_shutdown_handlers,
+    pipe,
+    record_shutdown_event,
+    register_socket,
+    register_thread,
+    register_transport,
+    request_shutdown,
+    start_child_process,
+    unregister_socket,
+    unregister_transport,
+)
 from gritlib.process_status import (
     endpoint_matches_bind_address, listener_endpoints, managed_server_evidence,
-    matching_listener_endpoints, pid_alive, pid_process_record,
-    port_listener_pids, port_listening,
+    matching_listener_endpoints, pid_alive, port_listening,
 )
 from gritlib.record_utils import (
     int_value, latest_record_value,
@@ -252,8 +267,8 @@ from gritlib.release_artifacts import (
     release_artifact_workflow_action_status_summary, release_status_context,
 )
 from gritlib.session_state import (
-    SessionManager, atomic_write_json, count_file_lines, elapsed_seconds,
-    mark_service_error, mark_service_stopped, parse_utc_timestamp,
+    atomic_write_json, count_file_lines, elapsed_seconds, mark_service_error,
+    mark_service_stopped, parse_utc_timestamp,
     read_json_file, server_state_status, state_file_path, update_server_state,
     utc_from_epoch, utc_now, utc_now_from_mtime,
 )
@@ -388,123 +403,10 @@ except ImportError:
     HAVE_PARAMIKO = False
 
 
-SHUTDOWN = threading.Event()
-SHUTDOWN_REASON = ""
-OWNED_SOCKETS = []
-OWNED_TRANSPORTS = []
-RECORDED_SHUTDOWNS = set()
-EVENT_COUNTER = itertools.count(1)
 
 
-SERVICE_MANAGER = ServiceManager(SHUTDOWN, OWNED_SOCKETS, OWNED_TRANSPORTS, shutdown_reason=lambda: SHUTDOWN_REASON)
-SESSION_MANAGER = SessionManager()
 
 
-def pipe(src, dst):
-    return relay_pipe(src, dst, SERVICE_MANAGER)
-
-
-def current_stop_reason(default="complete"):
-    return SHUTDOWN_REASON or default
-
-
-def current_shutdown_reason():
-    return SHUTDOWN_REASON
-
-
-def register_socket(sock):
-    return SERVICE_MANAGER.register_socket(sock)
-
-
-def unregister_socket(sock):
-    SERVICE_MANAGER.unregister_socket(sock)
-
-
-def register_transport(transport):
-    return SERVICE_MANAGER.register_transport(transport)
-
-
-def unregister_transport(transport):
-    SERVICE_MANAGER.unregister_transport(transport)
-
-
-def register_thread(thread):
-    return SERVICE_MANAGER.register_thread(thread)
-
-
-def start_child_process(cmd, **kwargs):
-    return SERVICE_MANAGER.start_child_process(cmd, **kwargs)
-
-
-def close_registered_resources():
-    SERVICE_MANAGER.shutdown()
-
-
-def request_shutdown(reason="shutdown"):
-    global SHUTDOWN_REASON
-    if reason and not SHUTDOWN_REASON:
-        SHUTDOWN_REASON = reason
-    close_registered_resources()
-
-
-def _signal_shutdown(_signum, _frame):
-    try:
-        signame = signal.Signals(_signum).name
-    except ValueError:
-        signame = str(_signum)
-    request_shutdown(signame)
-
-
-def install_shutdown_handlers():
-    atexit.register(close_registered_resources)
-    for sig in (signal.SIGINT, signal.SIGTERM):
-        try:
-            signal.signal(sig, _signal_shutdown)
-        except (OSError, ValueError):
-            pass
-
-
-def bind_listen_socket(cfg, service, port, backlog):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        sock.bind((str(cfg["listen_host"]), int(port)))
-        sock.listen(backlog)
-        register_socket(sock)
-        return sock
-    except OSError as exc:
-        try:
-            sock.close()
-        except OSError:
-            pass
-        owners = [pid_process_record(pid) for pid in port_listener_pids(port)]
-        mark_service_error(cfg, service, exc, {"listen_host": str(cfg["listen_host"]), "port": int(port), "owners": owners}, event_name="bind_error")
-        print(f"{service}: unable to bind {cfg['listen_host']}:{port}: {exc}", file=sys.stderr)
-        if owners:
-            print("possible listener owners:", file=sys.stderr)
-            for owner in owners:
-                details = []
-                if owner.get("process_name"):
-                    details.append(f"process={owner.get('process_name')}")
-                if owner.get("exe"):
-                    details.append(f"exe={owner.get('exe')}")
-                if owner.get("cmdline"):
-                    details.append(f"cmdline={owner.get('cmdline')}")
-                print(f"  pid={owner['pid']} {' '.join(details)}", file=sys.stderr)
-        print("Run: scripts/grit-console --status", file=sys.stderr)
-        print("Or stop managed listeners with: scripts/grit-console --stop", file=sys.stderr)
-        raise
-
-
-def record_shutdown_event(cfg, service, session=None):
-    reason = SHUTDOWN_REASON
-    if not reason:
-        return
-    key = (service, str(session or ""), reason)
-    if key in RECORDED_SHUTDOWNS:
-        return
-    RECORDED_SHUTDOWNS.add(key)
-    append_event(cfg, service, "shutdown", session=str(session) if session else None, details={"reason": reason})
 
 
 class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
@@ -1664,7 +1566,7 @@ def bridge_relay(client, upstream, log_dir, session_timeout=0):
                     sockets = []
                     break
         if SHUTDOWN.is_set():
-            reason = SHUTDOWN_REASON or "shutdown"
+            reason = current_shutdown_reason() or "shutdown"
     finally:
         (Path(log_dir) / "bridge-result.json").write_text(json.dumps({
             "schema": 1,
@@ -2081,7 +1983,7 @@ def serve_probe_tftp(cfg, timeout, max_sessions=0):
             sock.close()
         except OSError:
             pass
-        stop_reason = SHUTDOWN_REASON or "server-exit"
+        stop_reason = current_shutdown_reason() or "server-exit"
         if stop_reason != "bind_error":
             mark_service_stopped(cfg, service, stop_reason)
             SESSION_MANAGER.finish_record(cfg, service, log_dir, state="ended", exit_reason=stop_reason)
@@ -2341,7 +2243,7 @@ def serve_probe_dns(cfg, timeout, max_sessions=0):
             sock.close()
         except OSError:
             pass
-        stop_reason = SHUTDOWN_REASON or "server-exit"
+        stop_reason = current_shutdown_reason() or "server-exit"
         if stop_reason != "bind_error":
             mark_service_stopped(cfg, service, stop_reason)
             SESSION_MANAGER.finish_record(cfg, service, log_dir, state="ended", exit_reason=stop_reason)
@@ -2412,7 +2314,7 @@ def run_operator_daemon(cfg, services, timeout=None):
                 break
             time.sleep(0.1)
     finally:
-        request_shutdown(SHUTDOWN_REASON or "daemon-stop")
+        request_shutdown(current_shutdown_reason() or "daemon-stop")
         for item in children:
             proc = item["process"]
             if proc.poll() is None:
@@ -2442,7 +2344,7 @@ def run_operator_daemon(cfg, services, timeout=None):
                 "headless_command": item.get("headless_command", ""),
                 "daemon_headless_command": headless,
             })
-        mark_service_stopped(cfg, "operator-daemon", SHUTDOWN_REASON or "daemon-stop")
+        mark_service_stopped(cfg, "operator-daemon", current_shutdown_reason() or "daemon-stop")
         append_event(cfg, "operator-daemon", "daemon_stopped", details={"services": services, "exit_code": exit_code, "headless_command": headless})
     return exit_code
 
@@ -4855,7 +4757,7 @@ def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="
         service,
         via=via,
         headless_command=headless_command,
-        shutdown_reason=SHUTDOWN_REASON,
+        shutdown_reason=current_shutdown_reason(),
         quiet=quiet,
     )
 

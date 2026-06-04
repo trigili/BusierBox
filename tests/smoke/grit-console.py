@@ -8868,6 +8868,7 @@ def main(argv=None):
     process_status_src = (ROOT / "scripts" / "gritlib" / "process_status.py").read_text()
     release_artifacts_src = (ROOT / "scripts" / "gritlib" / "release_artifacts.py").read_text()
     service_lifecycle_src = (ROOT / "scripts" / "gritlib" / "service_lifecycle.py").read_text()
+    service_runtime_src = (ROOT / "scripts" / "gritlib" / "service_runtime.py").read_text()
     service_status_src = (ROOT / "scripts" / "gritlib" / "service_status.py").read_text()
     status_indexes_src = (ROOT / "scripts" / "gritlib" / "status_indexes.py").read_text()
     ssh_keys_src = (ROOT / "scripts" / "gritlib" / "ssh_keys.py").read_text()
@@ -8887,6 +8888,7 @@ def main(argv=None):
         operator_io_src,
         probe_commands_src,
         release_artifacts_src,
+        service_runtime_src,
         service_status_src,
         status_indexes_src,
         target_records_src,
@@ -9018,10 +9020,10 @@ def main(argv=None):
                  "start_child_process", "from gritlib.runtime import", "EventLog", "Service",
                  "Session", "SessionManager", "SESSION_MANAGER = SessionManager()",
                  "SESSION_MANAGER.start_record", "SESSION_MANAGER.finish_record"):
-        if word not in src:
+        if word not in src + service_runtime_src:
             print(f"grit-console: service/session manager primitive missing: {word}", file=sys.stderr)
             return 1
-    if "OWNED_TRANSPORTS.append(transport)" in src:
+    if "OWNED_TRANSPORTS.append(transport)" in src + service_runtime_src:
         print("grit-console: transport ownership bypasses ServiceManager", file=sys.stderr)
         return 1
     if "proc = subprocess.Popen(cmd" in src:
