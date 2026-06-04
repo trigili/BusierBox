@@ -224,7 +224,7 @@ def start_line_service(
     headless = service_start_command_func(service)
     cfg["_service_start_command"] = headless
     service_start_func(cfg, service, headless_command=headless)
-    print("  copy start  — copy the headless start command")
+    print("  copy start  — copy the start command")
     if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"} and probe_delivery_func:
         for _ in range(10):
             if sleep_func:

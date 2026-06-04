@@ -1516,6 +1516,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented event summaries exposed headless command internals", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
+    if "copy the headless start command" in line_console_stdout:
+        print("line-oriented service hint exposed headless command language", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
     if "dry_run=yes" in line_console_stdout or "preview only: no changes applied" not in line_console_stdout:
         print("line-oriented action previews exposed raw dry-run status", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
@@ -8732,7 +8736,7 @@ def main(argv=None):
             print(tui_owned_text, file=sys.stderr)
             return 1
         if ("copy start" not in tui_owned_text or
-                "copy the headless start command" not in tui_owned_text or
+                "copy the start command" not in tui_owned_text or
                 "recent events: filter events by service file-service" not in tui_owned_text):
             print("line console service start did not expose transport command", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
