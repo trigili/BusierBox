@@ -17,6 +17,7 @@ Common operator workflows:
   --systemd-user-action print|install|start|stop|restart|status
   --serve-file ./grit --as grit
   --stage-release-artifact SELECTOR
+  artifact inspect|verify|config ARTIFACT
   --list-staged
   --target-id TARGET --queue-command COMMAND
   --list-command-queue

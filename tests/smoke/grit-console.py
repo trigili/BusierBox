@@ -7129,9 +7129,24 @@ def main(argv=None):
     if ("griTTYkit operator control plane." not in concise_help or
             "--help-console prints interactive console commands and examples." not in concise_help or
             "--help-all prints every compatibility/API flag." not in concise_help or
+            "artifact inspect|verify|config ARTIFACT" not in concise_help or
             "--run-target-workflow-action" in concise_help):
         print("grit-console concise help did not stay operator-focused", file=sys.stderr)
         print(concise_help, file=sys.stderr)
+        return 1
+    artifact_help_out = run("scripts/grit-console", "artifact", "inspect", "--help")
+    if (artifact_help_out.returncode != 0 or
+            "usage: grit-console artifact inspect ARTIFACT" not in artifact_help_out.stdout):
+        print("grit-console artifact inspect help did not route through console artifact dispatcher", file=sys.stderr)
+        print(artifact_help_out.stdout, file=sys.stderr)
+        print(artifact_help_out.stderr, file=sys.stderr)
+        return 1
+    artifact_wrapper_help_out = run("scripts/grit-artifact", "inspect", "--help")
+    if (artifact_wrapper_help_out.returncode != 0 or
+            "usage: grit-artifact inspect ARTIFACT" not in artifact_wrapper_help_out.stdout):
+        print("grit-artifact compatibility wrapper did not share artifact dispatcher", file=sys.stderr)
+        print(artifact_wrapper_help_out.stdout, file=sys.stderr)
+        print(artifact_wrapper_help_out.stderr, file=sys.stderr)
         return 1
     help_console_out = run("scripts/grit-console", "--help-console")
     if help_console_out.returncode != 0:
@@ -12252,21 +12267,21 @@ def main(argv=None):
                 actions_by_id.get("systemd-user-status", {}).get("requires_confirmation") is not False or
                 actions_by_id.get("systemd-user-status", {}).get("command", "").endswith("--systemd-user-action status") is not True or
                 actions_by_id.get("systemd-user-status", {}).get("operator_action_state") != "ready" or
-                actions_by_id.get("inspect-artifact", {}).get("script") != "scripts/grit-artifact" or
-                actions_by_id.get("inspect-artifact", {}).get("command") != "scripts/grit-artifact inspect ARTIFACT" or
+                actions_by_id.get("inspect-artifact", {}).get("script") != "scripts/grit-console" or
+                actions_by_id.get("inspect-artifact", {}).get("command") != "scripts/grit-console artifact inspect ARTIFACT" or
                 actions_by_id.get("inspect-artifact", {}).get("operator_action_state") != "needs-input" or
-                actions_by_id.get("verify-artifact", {}).get("script") != "scripts/grit-artifact" or
-                actions_by_id.get("verify-artifact", {}).get("command") != "scripts/grit-artifact verify ARTIFACT" or
+                actions_by_id.get("verify-artifact", {}).get("script") != "scripts/grit-console" or
+                actions_by_id.get("verify-artifact", {}).get("command") != "scripts/grit-console artifact verify ARTIFACT" or
                 actions_by_id.get("verify-artifact", {}).get("operator_action_state") != "needs-input" or
-                actions_by_id.get("configure-trailer", {}).get("script") != "scripts/grit-artifact" or
-                actions_by_id.get("configure-trailer", {}).get("command") != "scripts/grit-artifact config set ARTIFACT KEY=VALUE" or
+                actions_by_id.get("configure-trailer", {}).get("script") != "scripts/grit-console" or
+                actions_by_id.get("configure-trailer", {}).get("command") != "scripts/grit-console artifact config set ARTIFACT KEY=VALUE" or
                 actions_by_id.get("configure-trailer", {}).get("operator_action_state") != "needs-input" or
                 not actions_by_category.get("configuration") or
                 len(actions_by_category.get("daemon", [])) < 9 or
                 len(actions_by_category.get("tooling", [])) < 4 or
                 len(actions_by_category.get("offline", [])) < 7 or
                 not actions_by_script.get("scripts/grit-bringup") or
-                len(actions_by_script.get("scripts/grit-artifact", [])) < 3 or
+                len(actions_by_script.get("scripts/grit-console", [])) < 3 or
                 len(actions_by_script.get("scripts/tools/dropin-tool-status", [])) < 1 or
                 len(actions_by_script.get("scripts/tools/install-dropin-tool", [])) < 1 or
                 len(actions_by_script.get("scripts/lib/fetch-sources", [])) < 1 or

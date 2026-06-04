@@ -1,77 +1,13 @@
 #!/usr/bin/env python3
-"""griTTYkit artifact tool — inspect, verify, and configure artifacts."""
+"""Compatibility wrapper for grit-console artifact commands."""
 
-import subprocess
 import sys
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
-LIB = ROOT / "scripts" / "lib"
-
-
-def usage():
-    print("""\
-usage: grit-artifact <command> [options] ARTIFACT
-
-Commands:
-  inspect PATH              parse and display artifact metadata
-  verify  PATH [options]    verify artifact integrity and execution
-  config  PATH [options]    inspect or edit runtime override trailer
-
-  inspect --help, verify --help, config --help  for per-command options
-
-Examples:
-  grit-artifact inspect dist/grit-native-full
-  grit-artifact verify  dist/grit-native-full
-  grit-artifact config  dist/grit-native-full
-  grit-artifact config set dist/grit-native-full GRIT_OPERATOR_SERVER_HOST=192.168.1.10
-""")
-
-
-def command_usage(cmd):
-    if cmd == "inspect":
-        print("""\
-usage: grit-artifact inspect ARTIFACT
-
-Parse embedded payload/trailer metadata without executing the artifact.
-""")
-        return 0
-    if cmd == "verify":
-        print("""\
-usage: grit-artifact verify ARTIFACT [options]
-
-Verify payload structure, checksums, and executable behavior.
-""")
-        return 0
-    if cmd == "config":
-        return subprocess.run([sys.executable, str(LIB / "artifact-config"), "--help"]).returncode
-    usage()
-    return 2
+from gritlib.console_artifact import handle_artifact_command
 
 
 def main():
-    args = sys.argv[1:]
-    if not args or args[0] in ("-h", "--help", "help"):
-        usage()
-        return 0
-
-    cmd = args[0]
-    rest = args[1:]
-    if rest and rest[0] in ("-h", "--help", "help"):
-        return command_usage(cmd)
-
-    dispatch = {
-        "inspect": LIB / "inspect-artifact",
-        "verify":  LIB / "verify-artifact",
-        "config":  LIB / "artifact-config",
-    }
-
-    target = dispatch.get(cmd)
-    if target is None:
-        print(f"grit-artifact: unknown command '{cmd}'  —  see --help", file=sys.stderr)
-        return 2
-
-    return subprocess.run([sys.executable, str(target)] + rest).returncode
+    return handle_artifact_command(sys.argv[1:], program="grit-artifact")
 
 
 if __name__ == "__main__":
