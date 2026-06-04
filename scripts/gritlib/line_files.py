@@ -10,6 +10,7 @@ from gritlib.file_transfers import (
     render_fetch_command,
     render_file_service_command,
 )
+from gritlib.line_search import set_line_search_results
 from gritlib.release_artifacts import release_context, release_nav_records, stage_release_selection
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged, stage_file, unstage_file
@@ -607,6 +608,31 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
         }
         for record in records
     ]
+
+
+def print_current_line_files(
+    cfg,
+    staged,
+    target_filter_id="",
+    verbose=False,
+    fetch_command=None,
+    quote=None,
+    append_event_fn=None,
+):
+    records = line_file_records_from_staged(staged, target_filter_id)
+    search_records = print_line_file_records(
+        records,
+        verbose=verbose,
+        fetch_command=fetch_command,
+        quote=quote,
+    )
+    set_line_search_results(cfg, search_records)
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_files_listed", details={
+            "staged_count": len(records),
+            "verbose": bool(verbose),
+        })
+    return search_records
 
 
 def stage_line_file(

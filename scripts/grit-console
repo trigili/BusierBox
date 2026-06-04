@@ -155,8 +155,7 @@ from gritlib.line_files import (
     clear_line_files as line_files_clear_line_files,
     dispatch_legacy_line_file_number,
     download_line_target as line_files_download_line_target,
-    line_file_records_from_staged,
-    print_line_file_records,
+    print_current_line_files,
     fetch_line_staged as line_files_fetch_line_staged,
     stage_line_binary as line_files_stage_line_binary,
     stage_line_file as line_files_stage_line_file,
@@ -6827,19 +6826,15 @@ def run_line_repl(cfg):
         )
 
     def print_line_files(verbose=False):
-        staged = load_staged(cfg).get("staged", {})
-        records = line_file_records_from_staged(staged, configured_target_filter(cfg))
-        search_records = print_line_file_records(
-            records,
+        return print_current_line_files(
+            cfg,
+            load_staged(cfg).get("staged", {}),
+            target_filter_id=configured_target_filter(cfg),
             verbose=verbose,
             fetch_command=lambda name: render_fetch_command(name, cfg),
             quote=shquote,
+            append_event_fn=append_event,
         )
-        set_line_search_results(cfg, search_records)
-        append_event(cfg, "workbench", "workbench_files_listed", details={
-            "staged_count": len(records),
-            "verbose": bool(verbose),
-        })
 
     def clear_line_sessions(all_sessions=False, confirm=False):
         return line_sessions_clear_line_sessions(
