@@ -1200,6 +1200,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented status command exposed raw status-bar fields", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
+    if "headless_command=" in line_console_stdout:
+        print("line-oriented event summaries exposed headless command internals", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
     for noisy in ("route.inspect_command=scripts/grit-console", "route.start_command=scripts/grit-console",
                   "route.stop_command=scripts/grit-console", "action.command=scripts/grit-console",
                   "action.dry_run_command=scripts/grit-console", "action.start_job_command=scripts/grit-console"):

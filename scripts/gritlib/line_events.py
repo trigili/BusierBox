@@ -48,13 +48,12 @@ def line_event_matches_filter(event, key, expected):
 def line_event_summary(event):
     details = event.get("details") if isinstance(event.get("details"), dict) else {}
     summary = compact_event_details(event)
-    if not summary and details.get("headless_command"):
-        summary = "headless_command=" + str(details.get("headless_command") or "")
-    elif details.get("headless_command"):
-        summary = summary + " headless_command=" + str(details.get("headless_command") or "")
     if not summary:
         interesting = []
+        hidden_keys = {"command", "dry_run_command", "headless_command", "run_command", "start_job_command"}
         for key in sorted(details):
+            if key in hidden_keys:
+                continue
             value = details.get(key)
             if value in (None, "", [], {}):
                 continue
