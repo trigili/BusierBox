@@ -225,6 +225,43 @@ def cancel_line_job(
     return cancelled
 
 
+def start_line_job(
+    cfg,
+    action_selector="",
+    *,
+    select_action_func=None,
+    selected_action_func=None,
+    actions_func=None,
+    headless_command_func=None,
+    start_job_func=None,
+):
+    selector = str(action_selector or "").strip()
+    if selector:
+        if not select_action_func:
+            raise ValueError("action selection support is unavailable")
+        action = select_action_func(selector)
+    else:
+        if not selected_action_func:
+            raise ValueError("selected action support is unavailable")
+        action = selected_action_func()
+    if not action or str(action.get("kind") or "") != "workbench":
+        raise ValueError("no selected background-capable workbench action; use module ACTION first")
+    if action.get("background_supported") is not True:
+        raise ValueError(f"workbench action is not background-capable: {action.get('id', '')}")
+    action_id = str(action.get("id") or "")
+    if not headless_command_func or not start_job_func or not actions_func:
+        raise ValueError("workbench job start support is unavailable")
+    headless = headless_command_func(cfg, action_id)
+    rec = start_job_func(
+        cfg,
+        actions_func(),
+        action_id,
+        headless_command=headless,
+    )
+    print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
+    return rec
+
+
 def record_workbench_refresh(cfg, reason="manual", default_config=DEFAULT_SERVER_CONFIG):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     services = state.setdefault("services", {})

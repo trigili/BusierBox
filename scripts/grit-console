@@ -425,6 +425,7 @@ from gritlib.workbench_jobs import (
     record_workbench_refresh, run_workbench_action_headless_command,
     run_workbench_action_record,
     select_line_job as workbench_jobs_select_line_job,
+    start_line_job as workbench_jobs_start_line_job,
     start_workbench_job_record,
     start_workbench_job_headless_command,
     workbench_job_records,
@@ -6683,25 +6684,15 @@ def run_line_repl(cfg):
         )
 
     def start_line_job(action_selector=""):
-        selector = str(action_selector or "").strip()
-        action = {}
-        if selector:
-            action = select_line_action(selector)
-        else:
-            action = selected_line_action()
-        if not action or str(action.get("kind") or "") != "workbench":
-            raise ValueError("no selected background-capable workbench action; use module ACTION first")
-        if action.get("background_supported") is not True:
-            raise ValueError(f"workbench action is not background-capable: {action.get('id', '')}")
-        action_id = str(action.get("id") or "")
-        headless = start_workbench_job_headless_command(cfg, action_id)
-        rec = start_workbench_job_record(
+        return workbench_jobs_start_line_job(
             cfg,
-            workbench_action_records(cfg),
-            action_id,
-            headless_command=headless,
+            action_selector,
+            select_action_func=select_line_action,
+            selected_action_func=selected_line_action,
+            actions_func=lambda: workbench_action_records(cfg),
+            headless_command_func=start_workbench_job_headless_command,
+            start_job_func=start_workbench_job_record,
         )
-        print(f"started job {rec.get('id', '')}: pid={rec.get('pid', '')} log={rec.get('log_path', '')}")
 
     def print_line_daemon_actions(verbose=False):
         snap = workbench_snapshot(cfg)
