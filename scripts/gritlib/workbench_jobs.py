@@ -351,6 +351,14 @@ def record_workbench_refresh(cfg, reason="manual", default_config=DEFAULT_SERVER
     return rec
 
 
+def dispatch_legacy_refresh_choice(choice, cfg):
+    if str(choice or "").strip() != "r":
+        return False
+    rec = record_workbench_refresh(cfg)
+    print(f"refreshed workbench at {rec.get('last_refresh_at', '')}")
+    return True
+
+
 def workbench_jobs_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
     return Path(str(
         cfg.get("workbench_jobs_file") or

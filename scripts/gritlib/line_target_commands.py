@@ -6,6 +6,7 @@ from gritlib.event_log import append_event
 from gritlib.target_commands import (
     copy_generated_command,
     generated_target_command_records,
+    generated_target_commands,
     target_command_route_text,
 )
 
@@ -60,6 +61,23 @@ def copy_line_generated_command(cfg, selector):
     print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
     print(f"command={rec.get('text', '')}")
     return rec
+
+
+def dispatch_legacy_copy_choice(choice, cfg, *, input_func):
+    if str(choice or "").strip() != "c":
+        return False
+    commands = generated_target_commands(cfg)
+    for idx, cmd in enumerate(commands, 1):
+        print(f"{idx}: {cmd}")
+    chosen_line = input_func("copy command number, or blank to skip> ")
+    chosen = chosen_line.strip() if chosen_line is not None else ""
+    if chosen:
+        try:
+            rec = copy_generated_command(cfg, chosen)
+            print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
+        except ValueError as exc:
+            print(exc)
+    return True
 
 
 def parse_line_copy_command(cmd, args=None):

@@ -222,7 +222,7 @@ from gritlib.line_targets import (
     select_line_target as line_targets_select_line_target,
 )
 from gritlib.line_target_commands import (
-    copy_line_generated_command, copy_line_service_command,
+    copy_line_generated_command, copy_line_service_command, dispatch_legacy_copy_choice,
     run_line_generated_command,
 )
 from gritlib.line_navigation_commands import dispatch_line_navigation_command
@@ -343,7 +343,7 @@ from gritlib.target_activity import (
 )
 from gritlib.target_commands import (
     copy_generated_command,
-    generated_target_command_records, generated_target_commands,
+    generated_target_command_records,
     rshell_session_policy_record, rshell_session_policy_status,
     shell_listener_max_sessions,
     print_target_command_summary, target_command_display_line,
@@ -378,12 +378,13 @@ from gritlib.workbench_jobs import (
     cancel_workbench_job_headless_command, cancel_workbench_job_record,
     cancel_line_job as workbench_jobs_cancel_line_job,
     dispatch_legacy_line_job_number,
+    dispatch_legacy_refresh_choice,
     line_job_record as workbench_jobs_line_job_record,
     load_workbench_jobs,
     reconcile_workbench_job_completion_events,
     print_line_jobs as workbench_jobs_print_line_jobs,
     print_workbench_job_ownership, print_workbench_job_summary,
-    record_workbench_refresh, run_workbench_action_headless_command,
+    run_workbench_action_headless_command,
     run_workbench_action_record,
     select_line_job as workbench_jobs_select_line_job,
     start_line_job as workbench_jobs_start_line_job,
@@ -7482,22 +7483,10 @@ def run_line_repl(cfg):
             continue
         elif dispatch_legacy_line_build_number(choice, cfg, input_func=line_input):
             continue
-        elif choice == "r":
-            rec = record_workbench_refresh(cfg)
-            print(f"refreshed workbench at {rec.get('last_refresh_at', '')}")
+        elif dispatch_legacy_refresh_choice(choice, cfg):
             render_full = True
-        elif choice == "c":
-            commands = generated_target_commands(cfg)
-            for idx, cmd in enumerate(commands, 1):
-                print(f"{idx}: {cmd}")
-            chosen_line = line_input("copy command number, or blank to skip> ")
-            chosen = chosen_line.strip() if chosen_line is not None else ""
-            if chosen:
-                try:
-                    rec = copy_generated_command(cfg, chosen)
-                    print(f"copied command to {rec['path']} clipboard={'yes' if rec['clipboard'] else 'no'}")
-                except ValueError as exc:
-                    print(exc)
+        elif dispatch_legacy_copy_choice(choice, cfg, input_func=line_input):
+            continue
         elif dispatch_legacy_bridge_profile_number(
             choice,
             cfg,
