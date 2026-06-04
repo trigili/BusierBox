@@ -785,6 +785,7 @@ def run_line_repl_runtime_check():
     def fake_run_line_module_or_service(values, dry_run_default, selected_action_func, select_action_func,
                                         service_names_func, start_service_func, run_selected_action_func):
         action_bundle_calls.append(("module-service", tuple(values), dry_run_default))
+        action_bundle_calls.append(("service-names", service_names_func()))
         action_bundle_calls.append(("start", start_service_func("svc-1")))
         return "action-refresh"
 
@@ -793,9 +794,8 @@ def run_line_repl_runtime_check():
         action_bundle = repl_actions.build_line_action_callbacks(
             {"name": "action-cfg"},
             workbench_snapshot_func=lambda cfg: {"name": cfg.get("name")},
-            service_status_rows_func=lambda cfg: [{"service": cfg.get("name")}],
-            service_names_func=lambda rows: [row["service"] for row in rows],
             route_service_callbacks={
+                "service_names": lambda: action_bundle_calls.append("route-service-names") or ["svc-1"],
                 "start_line_service": lambda selector: action_bundle_calls.append(("route-start", selector)) or "started",
             },
             service_runner=lambda *args, **kwargs: None,
@@ -817,11 +817,13 @@ def run_line_repl_runtime_check():
         repl_actions.run_line_module_or_service = original_run_line_module_or_service
     expected_action_bundle_prefix = [
         ("module-service", ("svc-1",), True),
+        "route-service-names",
+        ("service-names", ["svc-1"]),
         ("route-start", "svc-1"),
         ("start", "started"),
         ("workbench-actions", "action-cfg"),
     ]
-    if action_bundle_calls[:4] != expected_action_bundle_prefix or action_bundle_calls[4][0] != "workbench-runner" or action_bundle_calls[5][0] != "target-runner":
+    if action_bundle_calls[:6] != expected_action_bundle_prefix or action_bundle_calls[6][0] != "workbench-runner" or action_bundle_calls[7][0] != "target-runner":
         print(f"line REPL action bundle did not consume route service callbacks: {action_bundle_calls}", file=sys.stderr)
         return 1
 
