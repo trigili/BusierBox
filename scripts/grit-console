@@ -240,7 +240,7 @@ from gritlib.operator_network import (
     target_visible_host,
 )
 from gritlib.probe_commands import (
-    parse_line_probe_args,
+    parse_line_probe_command,
     probe_route_context, probe_script_fn, render_probe_base64_paste,
     render_probe_command, render_probe_delivery, render_probe_dns_command, render_probe_ftp_command,
     render_probe_paste, render_probe_tftp_command, probe_workflow_action_records,
@@ -8116,47 +8116,38 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif cmd == "probe":
-                subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
                 try:
-                    if subcmd in {"results", "result"}:
+                    probe_cmd = parse_line_probe_command(console_args[1:])
+                    if probe_cmd["action"] == "results":
                         set_line_collection("probe")
                         probe_results_print_line_probe_results(cfg, append_event_fn=append_event)
-                    elif subcmd == "config":
-                        configure_line_probe_config(cfg, console_args[2:], append_event_fn=append_event)
-                    elif subcmd == "clear":
+                    elif probe_cmd["action"] == "config":
+                        configure_line_probe_config(cfg, probe_cmd["args"], append_event_fn=append_event)
+                    elif probe_cmd["action"] == "clear":
                         probe_results_clear_line_probe_results(
-                            cfg, console_args[2:], append_event_fn=append_event,
+                            cfg, probe_cmd["args"], append_event_fn=append_event,
                         )
-                    elif subcmd == "serve":
+                    elif probe_cmd["action"] == "serve":
                         probe_serve_run_line_probe_serve(
-                            cfg, console_args[2:], line_input, stage_line_release,
+                            cfg, probe_cmd["args"], line_input, stage_line_release,
                             append_event_fn=append_event,
                         )
-                    elif subcmd in {"delivery", "deliver", "commands"}:
-                        if len(console_args) > 2:
-                            raise ValueError("usage: probe delivery")
+                    elif probe_cmd["action"] == "delivery":
                         set_line_collection("probe")
                         _print_probe_delivery()
-                    elif subcmd in {"paste", "serial", "heredoc"}:
-                        paste_args = [str(item).lower() for item in console_args[2:]]
-                        base64_mode = False
-                        for item in paste_args:
-                            if item in {"--base64", "base64", "-b"}:
-                                base64_mode = True
-                            else:
-                                raise ValueError("usage: probe paste [--base64]")
-                        print_line_probe_script(paste=True, base64_mode=base64_mode)
-                    elif subcmd in {"script", "raw"}:
-                        if len(console_args) > 2:
-                            raise ValueError("usage: probe script")
+                    elif probe_cmd["action"] == "paste":
+                        print_line_probe_script(paste=True, base64_mode=probe_cmd["base64"])
+                    elif probe_cmd["action"] == "script":
                         print_line_probe_script(paste=False)
-                    elif subcmd in {"help", "-h", "--help"}:
+                    elif probe_cmd["action"] == "help":
                         print_line_command_help("probe")
                     else:
-                        if not subcmd:
+                        if probe_cmd["set_context"]:
                             set_line_collection("probe")
-                        queue_probe, start_probe = parse_line_probe_args(console_args[1:])
-                        probe_line_start(queue=queue_probe, start_service=start_probe)
+                        probe_line_start(
+                            queue=probe_cmd["queue"],
+                            start_service=probe_cmd["start_service"],
+                        )
                 except ValueError as exc:
                     print(exc)
                 continue

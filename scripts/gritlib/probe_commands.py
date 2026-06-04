@@ -184,6 +184,46 @@ def parse_line_probe_args(args):
     return queue, start_service
 
 
+def parse_line_probe_command(args):
+    args = list(args or [])
+    subcmd = str(args[0]).lower() if args else ""
+    rest = args[1:]
+    if subcmd in {"results", "result"}:
+        return {"action": "results"}
+    if subcmd == "config":
+        return {"action": "config", "args": rest}
+    if subcmd == "clear":
+        return {"action": "clear", "args": rest}
+    if subcmd == "serve":
+        return {"action": "serve", "args": rest}
+    if subcmd in {"delivery", "deliver", "commands"}:
+        if rest:
+            raise ValueError("usage: probe delivery")
+        return {"action": "delivery"}
+    if subcmd in {"paste", "serial", "heredoc"}:
+        base64_mode = False
+        for item in rest:
+            lower = str(item).lower()
+            if lower in {"--base64", "base64", "-b"}:
+                base64_mode = True
+            else:
+                raise ValueError("usage: probe paste [--base64]")
+        return {"action": "paste", "base64": base64_mode}
+    if subcmd in {"script", "raw"}:
+        if rest:
+            raise ValueError("usage: probe script")
+        return {"action": "script"}
+    if subcmd in {"help", "-h", "--help"}:
+        return {"action": "help"}
+    queue_probe, start_probe = parse_line_probe_args(args)
+    return {
+        "action": "start",
+        "set_context": not subcmd,
+        "queue": queue_probe,
+        "start_service": start_probe,
+    }
+
+
 def parse_line_survey_args(args):
     return parse_line_probe_args(args)
 
