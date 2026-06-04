@@ -130,7 +130,7 @@ def print_line_command_help(topic):
     # Aliases map alternate spellings to canonical topic keys
     _topic_aliases = {
         "agent": "targets", "agents": "targets", "target": "targets",
-        "host": "targets", "hosts": "targets", "mailbox": "targets",
+        "host": "targets", "hosts": "targets", "mailbox": "queue",
         "listener": "listeners", "services": "listeners", "service": "listeners",
         "session": "sessions", "interact": "sessions",
         "file": "files", "staged": "files", "stagers": "files", "loot": "files",
