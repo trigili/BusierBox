@@ -6163,7 +6163,7 @@ def run_line_repl(cfg):
     line_session_callbacks = build_line_session_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        session_root_func=lambda session_cfg: SESSION_MANAGER.root(session_cfg),
+        session_root_func=SESSION_MANAGER.root,
         append_event_fn=append_event,
         quote=shquote,
     )
