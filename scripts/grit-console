@@ -217,9 +217,10 @@ from gritlib.line_services import (
 from gritlib.line_show import dispatch_line_show_resource
 from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
-    print_line_session_interaction,
-    line_session_record_by_selector, print_line_session_records,
-    print_selected_line_session,
+    current_line_session_record,
+    interact_current_line_session,
+    print_current_line_sessions,
+    select_current_line_session,
 )
 from gritlib.line_targets import (
     interact_line_target as line_targets_interact_line_target,
@@ -6805,45 +6806,25 @@ def run_line_repl(cfg):
         return configure_find_survey_uploads(cfg, limit=limit)
 
     def line_session_record(selector):
-        return line_session_record_by_selector(
-            workbench_snapshot(cfg).get("sessions") or [],
-            selector,
-        )
+        return current_line_session_record(lambda: workbench_snapshot(cfg), selector)
 
     def select_line_session(selector):
-        text = str(selector or "").strip()
-        if not text:
-            raise ValueError("usage: use session SESSION")
-        selected = line_session_record(text)
-        if not selected:
-            raise ValueError(f"session not found: {text}")
-        session_id = str(selected.get("session_id") or Path(str(selected.get("path", ""))).name)
-        path = str(selected.get("path") or "")
-        set_line_collection_context(cfg, f"session/{session_id}")
-        print_selected_line_session(selected)
-        append_event(cfg, "workbench", "workbench_session_selected", details={
-            "session_id": session_id,
-            "session_path": path,
-            "service": selected.get("service", ""),
-            "state": selected.get("state", ""),
-        })
-        return selected
+        return select_current_line_session(
+            cfg,
+            lambda: workbench_snapshot(cfg),
+            selector,
+            append_event_fn=append_event,
+        )
 
     def print_line_sessions(verbose=False):
-        all_sessions = workbench_snapshot(cfg).get("sessions") or []
-        total = len(all_sessions)
-        search_records = print_line_session_records(
-            all_sessions,
+        return print_current_line_sessions(
+            cfg,
+            lambda: workbench_snapshot(cfg),
             verbose=verbose,
             view_command=lambda path: view_path_headless_command(cfg, path),
             quote=shquote,
+            append_event_fn=append_event,
         )
-        set_line_search_results(cfg, search_records)
-        append_event(cfg, "workbench", "workbench_sessions_listed", details={
-            "session_count": total,
-            "shown_count": len(search_records),
-            "verbose": bool(verbose),
-        })
 
     def print_line_files(verbose=False):
         staged = load_staged(cfg).get("staged", {})
@@ -6870,24 +6851,13 @@ def run_line_repl(cfg):
         )
 
     def interact_line_session(selector):
-        text = str(selector or "").strip()
-        if not text:
-            module = str(cfg.get("_line_console_module") or "")
-            if module.startswith("session/"):
-                text = module.split("/", 1)[1]
-        if not text:
-            raise ValueError("usage: interact SESSION")
-        selected = line_session_record(text)
-        if not selected:
-            raise ValueError(f"session not found: {text}")
-        path = str(selected.get("path") or "")
-        headless = view_path_headless_command(cfg, path)
-        print_line_session_interaction(selected, headless)
-        append_event(cfg, "workbench", "workbench_session_interaction_viewed", details={
-            "session_id": selected.get("session_id") or Path(path).name,
-            "session_path": path,
-            "headless_command": headless,
-        })
+        return interact_current_line_session(
+            cfg,
+            lambda: workbench_snapshot(cfg),
+            selector,
+            view_command_builder=lambda path: view_path_headless_command(cfg, path),
+            append_event_fn=append_event,
+        )
 
     def print_line_command_queue_view(detailed=False, mailbox_only=False):
         return line_command_queue_print_view(

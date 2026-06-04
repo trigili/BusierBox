@@ -4,6 +4,8 @@ from pathlib import Path
 import shutil
 
 from gritlib.console_display import console_table
+from gritlib.line_context import set_line_collection_context
+from gritlib.line_search import set_line_search_results
 from gritlib.shell_utils import shquote
 from gritlib.session_state import read_json_file
 
@@ -104,6 +106,14 @@ def line_session_record_by_selector(sessions, selector):
         if text == session_id or text == str(item.get("path", "")):
             return item
     return {}
+
+
+def current_line_session_record(snapshot_func, selector):
+    snapshot = snapshot_func() if snapshot_func else {}
+    return line_session_record_by_selector(
+        (snapshot or {}).get("sessions") or [],
+        selector,
+    )
 
 
 def line_session_clear_candidates(root, all_sessions=False):
@@ -247,3 +257,81 @@ def print_line_session_records(sessions, verbose=False, view_command=None, quote
         }
         for rec in shown
     ]
+
+
+def print_current_line_sessions(
+    cfg,
+    snapshot_func,
+    verbose=False,
+    view_command=None,
+    quote=None,
+    append_event_fn=None,
+):
+    snapshot = snapshot_func() if snapshot_func else {}
+    all_sessions = snapshot.get("sessions") or []
+    search_records = print_line_session_records(
+        all_sessions,
+        verbose=verbose,
+        view_command=view_command,
+        quote=quote,
+    )
+    set_line_search_results(cfg, search_records)
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_sessions_listed", details={
+            "session_count": len(all_sessions),
+            "shown_count": len(search_records),
+            "verbose": bool(verbose),
+        })
+    return search_records
+
+
+def select_current_line_session(cfg, snapshot_func, selector, append_event_fn=None):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("usage: use session SESSION")
+    selected = current_line_session_record(snapshot_func, text)
+    if not selected:
+        raise ValueError(f"session not found: {text}")
+    session_id = str(selected.get("session_id") or Path(str(selected.get("path", ""))).name)
+    path = str(selected.get("path") or "")
+    set_line_collection_context(cfg, f"session/{session_id}")
+    print_selected_line_session(selected)
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_session_selected", details={
+            "session_id": session_id,
+            "session_path": path,
+            "service": selected.get("service", ""),
+            "state": selected.get("state", ""),
+        })
+    return selected
+
+
+def interact_current_line_session(
+    cfg,
+    snapshot_func,
+    selector,
+    *,
+    view_command_builder=None,
+    append_event_fn=None,
+):
+    text = str(selector or "").strip()
+    if not text:
+        module = str((cfg or {}).get("_line_console_module") or "")
+        if module.startswith("session/"):
+            text = module.split("/", 1)[1]
+    if not text:
+        raise ValueError("usage: interact SESSION")
+    selected = current_line_session_record(snapshot_func, text)
+    if not selected:
+        raise ValueError(f"session not found: {text}")
+    path = str(selected.get("path") or "")
+    view_command_builder = view_command_builder or (lambda _path: "")
+    headless = view_command_builder(path)
+    print_line_session_interaction(selected, headless)
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_session_interaction_viewed", details={
+            "session_id": selected.get("session_id") or Path(path).name,
+            "session_path": path,
+            "headless_command": headless,
+        })
+    return selected
