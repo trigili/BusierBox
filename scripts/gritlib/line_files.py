@@ -6,7 +6,7 @@ from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
 from gritlib.shell_utils import shquote
-from gritlib.staged_files import stage_file
+from gritlib.staged_files import load_staged, stage_file, unstage_file
 
 
 def parse_line_download_args(args):
@@ -229,3 +229,42 @@ def stage_line_file(
             "target_label": rec.get("target_label", ""),
         })
     return rec
+
+
+def staged_line_record(cfg, request_name):
+    name = str(request_name or "").strip()
+    if not name:
+        return "", {}
+    staged = load_staged(cfg).get("staged") or {}
+    if name in staged and isinstance(staged.get(name), dict):
+        return name, staged[name]
+    if name.isdigit():
+        names = sorted(str(item or "") for item in staged.keys() if str(item or ""))
+        idx = int(name) - 1
+        if 0 <= idx < len(names):
+            selected = names[idx]
+            rec = staged.get(selected) or {}
+            return selected, rec if isinstance(rec, dict) else {}
+    return name, {}
+
+
+def unstage_line_file(cfg, request_name, append_event_fn=None):
+    name = str(request_name or "").strip()
+    if not name:
+        raise ValueError("usage: unstage NAME")
+    headless = (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --unstage "
+        + shquote(name)
+        + " --list-staged"
+    )
+    existed = unstage_file(cfg, name)
+    print(f"unstaged {name}" if existed else f"not staged {name}")
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_file_unstaged", details={
+            "headless_command": headless,
+            "request_name": name,
+            "existed": existed,
+        })
+    return existed

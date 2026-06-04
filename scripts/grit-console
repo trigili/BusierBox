@@ -152,6 +152,8 @@ from gritlib.line_files import (
     parse_line_release_stage_args,
     print_line_file_records,
     stage_line_file as line_files_stage_line_file,
+    staged_line_record as line_files_staged_line_record,
+    unstage_line_file as line_files_unstage_line_file,
 )
 from gritlib.line_help import (
     print_line_command_help as line_help_print_line_command_help,
@@ -7946,20 +7948,7 @@ def run_line_repl(cfg):
         )
 
     def staged_line_record(request_name):
-        name = str(request_name or "").strip()
-        if not name:
-            return "", {}
-        staged = load_staged(cfg).get("staged") or {}
-        if name in staged and isinstance(staged.get(name), dict):
-            return name, staged[name]
-        if name.isdigit():
-            names = sorted(str(item or "") for item in staged.keys() if str(item or ""))
-            idx = int(name) - 1
-            if 0 <= idx < len(names):
-                selected = names[idx]
-                rec = staged.get(selected) or {}
-                return selected, rec if isinstance(rec, dict) else {}
-        return name, {}
+        return line_files_staged_line_record(cfg, request_name)
 
     def fetch_line_staged(request_name, queue=False, start_file_service=False):
         name, rec = staged_line_record(request_name)
@@ -8031,24 +8020,7 @@ def run_line_repl(cfg):
         return fetch_command
 
     def unstage_line_file(request_name):
-        name = str(request_name or "").strip()
-        if not name:
-            raise ValueError("usage: unstage NAME")
-        headless = (
-            "scripts/grit-console --config "
-            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-            + " --unstage "
-            + shquote(name)
-            + " --list-staged"
-        )
-        existed = unstage_file(cfg, name)
-        print(f"unstaged {name}" if existed else f"not staged {name}")
-        append_event(cfg, "workbench", "workbench_file_unstaged", details={
-            "headless_command": headless,
-            "request_name": name,
-            "existed": existed,
-        })
-        return existed
+        return line_files_unstage_line_file(cfg, request_name, append_event_fn=append_event)
 
     def view_line_path(path_text):
         path = str(path_text or "").strip()
