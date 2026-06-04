@@ -157,7 +157,6 @@ from gritlib.line_help import (
 from gritlib.line_completions import (
     build_line_completion_callbacks,
 )
-from gritlib.line_core_commands import dispatch_line_core_command
 from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
     note_line_target as line_options_note_line_target,
@@ -179,6 +178,7 @@ from gritlib.line_repl_runtime import (
     restore_signal_handlers,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
+from gritlib.line_repl_core import build_line_core_dispatch_callback
 from gritlib.line_repl_display import build_line_display_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_line_job_callbacks
@@ -208,7 +208,7 @@ from gritlib.line_navigation_commands import dispatch_line_navigation_command
 from gritlib.line_workflow_commands import dispatch_line_workflow_command
 from gritlib.line_workspace import (
     line_repl_prompt_for_config,
-    line_repl_status_bar, print_line_console_banner,
+    print_line_console_banner,
     print_line_workspace_snapshot, reload_line_config_for_repl as line_workspace_reload_line_config_for_repl,
 )
 from gritlib.operator_io import (
@@ -6303,6 +6303,59 @@ def run_line_repl(cfg):
         service_copy_command_func=copy_line_service_command,
         generated_copy_func=copy_line_generated_command,
     )
+    dispatch_line_core = build_line_core_dispatch_callback(
+        cfg,
+        default_config=DEFAULT_CONFIG,
+        load_config_func=load_config,
+        defaults=DEFAULTS,
+        workbench_snapshot_func=workbench_snapshot,
+        clear_module_context_func=clear_line_module_context,
+        print_workspace_snapshot_func=print_line_workspace_snapshot,
+        reload_config_func=line_workspace_reload_line_config_for_repl,
+        clear_console_context_func=clear_line_console_context,
+        info_func=print_line_info,
+        next_func=print_line_next,
+        options_func=print_line_options,
+        set_context_func=lambda module: set_line_collection_context(cfg, module),
+        build_run_func=run_line_build_command,
+        set_global_option_func=set_line_global_build_option,
+        set_context_option_func=line_options_set_line_option,
+        unset_global_option_func=unset_line_global_build_option,
+        unset_context_option_func=unset_line_option,
+        rename_target_func=line_options_rename_line_target,
+        note_target_func=line_options_note_line_target,
+        alias_target_func=line_options_alias_line_target,
+        local_ips_func=print_line_local_ips,
+        probe_results_func=probe_results_print_line_probe_results,
+        probe_config_func=configure_line_probe_config,
+        probe_clear_func=probe_results_clear_line_probe_results,
+        probe_serve_func=lambda repl_cfg, args, append_event_fn: probe_serve_run_line_probe_serve(
+            repl_cfg,
+            args,
+            line_input,
+            stage_line_release,
+            append_event_fn=append_event_fn,
+        ),
+        probe_delivery_func=print_probe_delivery,
+        probe_paste_func=probe_commands_print_line_probe_script,
+        probe_script_func=probe_commands_print_line_probe_script,
+        help_func=print_line_command_help,
+        probe_start_func=probe_line_start,
+        survey_results_func=configure_print_line_survey_status,
+        survey_config_func=lambda repl_cfg, args, append_event_fn: configure_line_survey_config(
+            repl_cfg,
+            args,
+            lambda limit=20: configure_find_survey_uploads(repl_cfg, limit=limit),
+            append_event_fn=append_event_fn,
+        ),
+        survey_preset_func=lambda repl_cfg, args, append_event_fn: configure_line_survey_preset(
+            repl_cfg,
+            args,
+            lambda limit=20: configure_find_survey_uploads(repl_cfg, limit=limit),
+            append_event_fn=append_event_fn,
+        ),
+        append_event_fn=append_event,
+    )
     while not SHUTDOWN.is_set():
         prompt_result = read_next_repl_line(
             cfg,
@@ -6345,77 +6398,7 @@ def run_line_repl(cfg):
                 command_help_printer=print_line_command_help,
                 context_help_printer=print_context_line_help,
                 utility_dispatch_func=dispatch_line_utility,
-                core_dispatch_func=lambda command, args: dispatch_line_core_command(
-                    command,
-                    args,
-                    status_func=lambda: print(line_repl_status_bar(workbench_snapshot(cfg))),
-                    ips_func=lambda: print_line_local_ips(workbench_snapshot(cfg)),
-                    workspace_func=lambda: (
-                        clear_line_module_context(cfg, quiet=True),
-                        print_line_workspace_snapshot(workbench_snapshot(cfg)),
-                    ),
-                    reload_func=lambda: line_workspace_reload_line_config_for_repl(
-                        cfg,
-                        default_config=DEFAULT_CONFIG,
-                        load_config_fn=load_config,
-                        defaults=DEFAULTS,
-                        append_event_fn=append_event,
-                    ),
-                    root_func=lambda quiet=False: clear_line_console_context(cfg, quiet=quiet),
-                    info_func=print_line_info,
-                    next_func=print_line_next,
-                    options_func=print_line_options,
-                    set_context_func=lambda module: set_line_collection_context(cfg, module),
-                    build_run_func=lambda args: run_line_build_command(cfg, args),
-                    set_global_option_func=lambda key, value: set_line_global_build_option(
-                        cfg, key, value,
-                    ),
-                    set_context_option_func=lambda key, value: line_options_set_line_option(
-                        cfg, key, value,
-                    ),
-                    unset_global_option_func=lambda key: unset_line_global_build_option(cfg, key),
-                    unset_context_option_func=unset_line_option,
-                    rename_target_func=lambda value: line_options_rename_line_target(cfg, value),
-                    note_target_func=lambda value: line_options_note_line_target(cfg, value),
-                    alias_target_func=lambda value: line_options_alias_line_target(cfg, value),
-                    probe_results_func=lambda: probe_results_print_line_probe_results(
-                        cfg, append_event_fn=append_event,
-                    ),
-                    probe_config_func=lambda args: configure_line_probe_config(
-                        cfg, args, append_event_fn=append_event,
-                    ),
-                    probe_clear_func=lambda args: probe_results_clear_line_probe_results(
-                        cfg, args, append_event_fn=append_event,
-                    ),
-                    probe_serve_func=lambda args: probe_serve_run_line_probe_serve(
-                        cfg, args, line_input, stage_line_release,
-                        append_event_fn=append_event,
-                    ),
-                    probe_delivery_func=lambda: print_probe_delivery(cfg),
-                    probe_paste_func=lambda base64_mode=False: probe_commands_print_line_probe_script(
-                        cfg,
-                        paste=True,
-                        base64_mode=base64_mode,
-                    ),
-                    probe_script_func=lambda: probe_commands_print_line_probe_script(cfg, paste=False),
-                    help_func=print_line_command_help,
-                    probe_start_func=probe_line_start,
-                    survey_results_func=lambda: configure_print_line_survey_status(
-                        cfg, append_event_fn=append_event,
-                    ),
-                    survey_config_func=lambda args: configure_line_survey_config(
-                        cfg,
-                        args,
-                        lambda limit=20: configure_find_survey_uploads(cfg, limit=limit),
-                        append_event_fn=append_event,
-                    ),
-                    survey_preset_func=lambda args: configure_line_survey_preset(
-                        cfg,
-                        args,
-                        lambda limit=20: configure_find_survey_uploads(cfg, limit=limit),
-                        append_event_fn=append_event,
-                    ),
-                ),
+                core_dispatch_func=dispatch_line_core,
                 navigation_dispatch_func=lambda command, args: dispatch_line_navigation_command(
                     command,
                     args,

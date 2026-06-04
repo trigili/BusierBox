@@ -416,6 +416,7 @@ def run_line_repl_runtime_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
+    import gritlib.line_repl_core as repl_core
     import gritlib.line_repl_utility as repl_utility
     from gritlib.line_repl_runtime import (
         dispatch_line_help_command,
@@ -928,6 +929,157 @@ def run_line_repl_runtime_check():
     ]
     if adapter_calls != expected_adapter_calls or pending_lines != ["status", "targets"]:
         print(f"line REPL utility adapter wiring changed: {adapter_calls} pending={pending_lines}", file=sys.stderr)
+        return 1
+
+    core_calls = []
+    original_core_dispatch = repl_core.dispatch_line_core_command
+
+    def fake_core_dispatch(command, args, **kwargs):
+        core_calls.append(("dispatch", command, tuple(args)))
+        kwargs["status_func"]()
+        kwargs["ips_func"]()
+        kwargs["workspace_func"]()
+        kwargs["reload_func"]()
+        kwargs["root_func"](quiet=True)
+        kwargs["info_func"]()
+        kwargs["next_func"]()
+        kwargs["options_func"]()
+        kwargs["set_context_func"]("targets")
+        kwargs["build_run_func"](["--fast"])
+        kwargs["set_global_option_func"]("A", "1")
+        kwargs["set_context_option_func"]("B", "2")
+        kwargs["unset_global_option_func"]("A")
+        kwargs["unset_context_option_func"]("B")
+        kwargs["rename_target_func"]("router")
+        kwargs["note_target_func"]("note")
+        kwargs["alias_target_func"]("edge")
+        kwargs["probe_results_func"]()
+        kwargs["probe_config_func"](["--host", "127.0.0.1"])
+        kwargs["probe_clear_func"](["--all"])
+        kwargs["probe_serve_func"](["--once"])
+        kwargs["probe_delivery_func"]()
+        kwargs["probe_paste_func"](base64_mode=True)
+        kwargs["probe_script_func"]()
+        kwargs["help_func"]("probe")
+        kwargs["probe_start_func"]()
+        kwargs["survey_results_func"]()
+        kwargs["survey_config_func"](["--latest"])
+        kwargs["survey_preset_func"](["lab"])
+        return "refresh"
+
+    repl_core.dispatch_line_core_command = fake_core_dispatch
+    try:
+        snapshots = [{"status_bar": "ready"}, {"workspace": True}, {"ips": True}]
+
+        def snapshot_func(cfg):
+            core_calls.append(("snapshot", cfg.get("name")))
+            return snapshots.pop(0) if snapshots else {}
+
+        core_out = io.StringIO()
+        dispatch_core = repl_core.build_line_core_dispatch_callback(
+            {"name": "core-cfg"},
+            default_config="default.json",
+            load_config_func=lambda path: core_calls.append(("load-config", path)),
+            defaults={"ok": True},
+            workbench_snapshot_func=snapshot_func,
+            clear_module_context_func=lambda cfg, quiet=False: core_calls.append(
+                ("clear-module", cfg.get("name"), quiet)
+            ),
+            print_workspace_snapshot_func=lambda snapshot: core_calls.append(("workspace", snapshot)),
+            reload_config_func=lambda cfg, default_config, load_config_fn, defaults, append_event_fn: core_calls.append(
+                ("reload", cfg.get("name"), default_config, defaults, append_event_fn is not None)
+            ),
+            clear_console_context_func=lambda cfg, quiet=False: core_calls.append(
+                ("root", cfg.get("name"), quiet)
+            ),
+            info_func=lambda: core_calls.append("info"),
+            next_func=lambda: core_calls.append("next"),
+            options_func=lambda: core_calls.append("options"),
+            set_context_func=lambda module: core_calls.append(("context", module)),
+            build_run_func=lambda cfg, args: core_calls.append(("build", cfg.get("name"), tuple(args))),
+            set_global_option_func=lambda cfg, key, value: core_calls.append(("setg", cfg.get("name"), key, value)),
+            set_context_option_func=lambda cfg, key, value: core_calls.append(("set", cfg.get("name"), key, value)),
+            unset_global_option_func=lambda cfg, key: core_calls.append(("unsetg", cfg.get("name"), key)),
+            unset_context_option_func=lambda key: core_calls.append(("unset", key)),
+            rename_target_func=lambda cfg, value: core_calls.append(("rename", cfg.get("name"), value)),
+            note_target_func=lambda cfg, value: core_calls.append(("note", cfg.get("name"), value)),
+            alias_target_func=lambda cfg, value: core_calls.append(("alias", cfg.get("name"), value)),
+            local_ips_func=lambda snapshot: core_calls.append(("ips", snapshot)),
+            probe_results_func=lambda cfg, append_event_fn: core_calls.append(
+                ("probe-results", cfg.get("name"), append_event_fn is not None)
+            ),
+            probe_config_func=lambda cfg, args, append_event_fn: core_calls.append(
+                ("probe-config", cfg.get("name"), tuple(args), append_event_fn is not None)
+            ),
+            probe_clear_func=lambda cfg, args, append_event_fn: core_calls.append(
+                ("probe-clear", cfg.get("name"), tuple(args), append_event_fn is not None)
+            ),
+            probe_serve_func=lambda cfg, args, append_event_fn: core_calls.append(
+                ("probe-serve", cfg.get("name"), tuple(args), append_event_fn is not None)
+            ),
+            probe_delivery_func=lambda cfg: core_calls.append(("probe-delivery", cfg.get("name"))),
+            probe_paste_func=lambda cfg, paste=False, base64_mode=False: core_calls.append(
+                ("probe-paste", cfg.get("name"), paste, base64_mode)
+            ),
+            probe_script_func=lambda cfg, paste=False: core_calls.append(
+                ("probe-script", cfg.get("name"), paste)
+            ),
+            help_func=lambda topic: core_calls.append(("help", topic)),
+            probe_start_func=lambda: core_calls.append("probe-start"),
+            survey_results_func=lambda cfg, append_event_fn: core_calls.append(
+                ("survey-results", cfg.get("name"), append_event_fn is not None)
+            ),
+            survey_config_func=lambda cfg, args, append_event_fn: core_calls.append(
+                ("survey-config", cfg.get("name"), tuple(args), append_event_fn is not None)
+            ),
+            survey_preset_func=lambda cfg, args, append_event_fn: core_calls.append(
+                ("survey-preset", cfg.get("name"), tuple(args), append_event_fn is not None)
+            ),
+            append_event_fn=lambda *args, **kwargs: None,
+            print_func=lambda text: core_out.write(text + "\n"),
+        )
+        if dispatch_core("status", []) != "refresh":
+            print("line REPL core adapter did not return core dispatch result", file=sys.stderr)
+            return 1
+    finally:
+        repl_core.dispatch_line_core_command = original_core_dispatch
+    expected_core_calls = [
+        ("dispatch", "status", ()),
+        ("snapshot", "core-cfg"),
+        ("snapshot", "core-cfg"),
+        ("ips", {"workspace": True}),
+        ("clear-module", "core-cfg", True),
+        ("snapshot", "core-cfg"),
+        ("workspace", {"ips": True}),
+        ("reload", "core-cfg", "default.json", {"ok": True}, True),
+        ("root", "core-cfg", True),
+        "info",
+        "next",
+        "options",
+        ("context", "targets"),
+        ("build", "core-cfg", ("--fast",)),
+        ("setg", "core-cfg", "A", "1"),
+        ("set", "core-cfg", "B", "2"),
+        ("unsetg", "core-cfg", "A"),
+        ("unset", "B"),
+        ("rename", "core-cfg", "router"),
+        ("note", "core-cfg", "note"),
+        ("alias", "core-cfg", "edge"),
+        ("probe-results", "core-cfg", True),
+        ("probe-config", "core-cfg", ("--host", "127.0.0.1"), True),
+        ("probe-clear", "core-cfg", ("--all",), True),
+        ("probe-serve", "core-cfg", ("--once",), True),
+        ("probe-delivery", "core-cfg"),
+        ("probe-paste", "core-cfg", True, True),
+        ("probe-script", "core-cfg", False),
+        ("help", "probe"),
+        "probe-start",
+        ("survey-results", "core-cfg", True),
+        ("survey-config", "core-cfg", ("--latest",), True),
+        ("survey-preset", "core-cfg", ("lab",), True),
+    ]
+    if core_calls != expected_core_calls or "Workspace:" not in core_out.getvalue():
+        print(f"line REPL core adapter wiring changed: {core_calls} output={core_out.getvalue()!r}", file=sys.stderr)
         return 1
     return 0
 
