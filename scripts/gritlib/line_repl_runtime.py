@@ -481,6 +481,24 @@ def read_line(prompt, *, shutdown_event, request_shutdown_func, have_readline,
     return None
 
 
+def build_line_repl_input_callback(
+    *,
+    shutdown_event,
+    request_shutdown_func,
+    have_readline,
+    read_line_func=read_line,
+):
+    def line_input(prompt):
+        return read_line_func(
+            prompt,
+            shutdown_event=shutdown_event,
+            request_shutdown_func=request_shutdown_func,
+            have_readline=have_readline,
+        )
+
+    return line_input
+
+
 def read_next_repl_line(
     cfg,
     *,

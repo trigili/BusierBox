@@ -424,6 +424,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_utility as repl_utility
     import gritlib.line_repl_workflow as repl_workflow
     from gritlib.line_repl_runtime import (
+        build_line_repl_input_callback,
         dispatch_line_help_command,
         dispatch_line_parsed_command,
         dispatch_line_quit_choice,
@@ -498,6 +499,20 @@ def run_line_repl_runtime_check():
     )
     if error_line is not None or reasons != ["input_error"]:
         print(f"line REPL runtime fallback did not preserve input error reason: line={error_line!r} reasons={reasons}", file=sys.stderr)
+        return 1
+
+    input_calls = []
+    callback_shutdown = threading.Event()
+    line_input = build_line_repl_input_callback(
+        shutdown_event=callback_shutdown,
+        request_shutdown_func=lambda reason: input_calls.append(("shutdown", reason)),
+        have_readline=True,
+        read_line_func=lambda prompt, shutdown_event, request_shutdown_func, have_readline: input_calls.append(
+            ("read", prompt, shutdown_event is callback_shutdown, have_readline)
+        ) or "typed",
+    )
+    if line_input("grit> ") != "typed" or input_calls != [("read", "grit> ", True, True)]:
+        print(f"line REPL input callback did not forward read_line state: {input_calls}", file=sys.stderr)
         return 1
 
     calls = []

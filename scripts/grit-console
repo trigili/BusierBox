@@ -169,8 +169,8 @@ from gritlib.line_resources import (
     record_line_history, write_line_makerc,
 )
 from gritlib.line_repl_runtime import (
-    configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
-    read_line as line_repl_read_line, run_line_console_lifecycle, run_line_repl_loop,
+    build_line_repl_input_callback, configure_readline_history, install_line_repl_signal_handlers,
+    install_readline_completer, run_line_console_lifecycle, run_line_repl_loop,
     restore_signal_handlers,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
@@ -6024,14 +6024,11 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
 def run_line_repl(cfg):
     configure_readline_history(_readline, HAVE_READLINE)
     signal_handlers = install_line_repl_signal_handlers(request_shutdown)
-
-    def line_input(prompt):
-        return line_repl_read_line(
-            prompt,
-            shutdown_event=SHUTDOWN,
-            request_shutdown_func=request_shutdown,
-            have_readline=HAVE_READLINE,
-        )
+    line_input = build_line_repl_input_callback(
+        shutdown_event=SHUTDOWN,
+        request_shutdown_func=request_shutdown,
+        have_readline=HAVE_READLINE,
+    )
 
     bridge_profile_headless_command = (
         lambda action, name="", extra=None: bridge_routes_bridge_profile_headless_command(
