@@ -488,6 +488,7 @@ if [ "$PREPARE_ONLY" -eq 1 ]; then
     exit 0
 fi
 mkdir -p "$out_dir" $PAYLOAD_ROOT/bin $PAYLOAD_ROOT/lib $PAYLOAD_ROOT/share $PAYLOAD_ROOT/home "${PAYLOAD_ARCHIVE_PREFIX%/*}"
+scripts/lib/repair-buildroot-host-tools "$out_dir"
 
 printf '%s\n' "configuring Buildroot payload for $TARGET..."
 cp "$defconfig" "$out_dir/.config"

@@ -169,6 +169,7 @@ smoke-test:
 	@tests/smoke/artifact-tiers.sh
 	@tests/smoke/native-help.sh dist/grit-native-full
 	@tests/smoke/target-resolution.sh
+	@tests/smoke/buildroot-host-tools.sh
 	@tests/smoke/tuple-consistency.sh
 	@tests/smoke/busybox-selection.sh
 	@tests/smoke/payload-reality.sh
