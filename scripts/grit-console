@@ -6649,9 +6649,6 @@ def run_line_repl(cfg):
             probe_result_config=lambda args: configure_line_probe_config(cfg, args, append_event_fn=append_event),
         )
 
-    def print_line_module_categories():
-        return print_current_line_module_categories(cfg, lambda: workbench_snapshot(cfg))
-
     def print_line_actions(filter_text="", kind_filter="", verbose=False):
         return print_current_line_actions(
             cfg,
@@ -6882,7 +6879,10 @@ def run_line_repl(cfg):
                 "daemon",
                 lambda: line_daemon_print_actions(workbench_snapshot(cfg)),
             ),
-            "categories": lambda _p: show_collection("categories", print_line_module_categories),
+            "categories": lambda _p: show_collection(
+                "categories",
+                lambda: print_current_line_module_categories(cfg, lambda: workbench_snapshot(cfg)),
+            ),
             "modules": lambda p: show_collection(
                 "modules", lambda: print_line_actions(p["filter_text"], verbose=p["verbose"])),
             "sessions": lambda _p: show_collection("sessions", print_line_sessions),
