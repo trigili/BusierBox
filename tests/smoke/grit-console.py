@@ -1255,7 +1255,6 @@ def run_line_repl_runtime_check():
         dispatch_navigation = repl_navigation.build_line_navigation_dispatch_callback(
             nav_cfg,
             target_filter_func=lambda cfg: cfg.get("target"),
-            module_func=lambda cfg: cfg.get("_line_console_module"),
             append_event_fn=lambda cfg, service, event, details=None: navigation_calls.append(
                 ("event", cfg.get("name"), service, event, details)
             ),
