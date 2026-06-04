@@ -174,7 +174,8 @@ from gritlib.line_resources import (
 )
 from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
-    prepare_repl_choice, read_line as line_repl_read_line, read_next_repl_line,
+    dispatch_line_help_command, prepare_repl_choice,
+    read_line as line_repl_read_line, read_next_repl_line,
     restore_signal_handlers,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
@@ -6318,31 +6319,16 @@ def run_line_repl(cfg):
         console_args = prepared["console_args"]
         cmd = prepared["cmd"]
         if console_args:
-            # Handle "<topic> ?" syntax, e.g. "files ?", "routes ?"
-            if len(console_args) >= 2 and console_args[-1] == "?":
-                print_line_command_help(cmd)
-                continue
             if cmd in {"q", "quit", "exit"}:
                 choice = "q"
-            elif cmd == "?":
-                if len(console_args) >= 2:
-                    print_line_command_help(console_args[1])
-                else:
-                    print_context_line_help(
-                        cfg.get("_line_console_module"),
-                        target_selected=bool(configured_target_filter(cfg)),
-                        command_help_printer=print_line_command_help,
-                    )
-                continue
-            elif cmd == "help":
-                if len(console_args) >= 2:
-                    print_line_command_help(console_args[1])
-                else:
-                    print_context_line_help(
-                        cfg.get("_line_console_module"),
-                        target_selected=bool(configured_target_filter(cfg)),
-                        command_help_printer=print_line_command_help,
-                    )
+            elif dispatch_line_help_command(
+                cmd,
+                console_args,
+                module=cfg.get("_line_console_module"),
+                target_selected=bool(configured_target_filter(cfg)),
+                command_help_printer=print_line_command_help,
+                context_help_printer=print_context_line_help,
+            ):
                 continue
             elif dispatch_line_utility_command(
                 cmd,

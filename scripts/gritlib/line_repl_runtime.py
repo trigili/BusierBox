@@ -130,6 +130,33 @@ def prepare_repl_choice(
     }
 
 
+def dispatch_line_help_command(
+    cmd,
+    console_args,
+    *,
+    module=None,
+    target_selected=False,
+    command_help_printer,
+    context_help_printer,
+):
+    """Handle line-console help commands and return True when consumed."""
+    args = list(console_args or [])
+    if args and len(args) >= 2 and args[-1] == "?":
+        command_help_printer(cmd)
+        return True
+    if cmd not in {"?", "help"}:
+        return False
+    if len(args) >= 2:
+        command_help_printer(args[1])
+    else:
+        context_help_printer(
+            module,
+            target_selected=target_selected,
+            command_help_printer=command_help_printer,
+        )
+    return True
+
+
 def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull):
     stream = stdin if stdin is not None else sys.stdin
     null_fd = None

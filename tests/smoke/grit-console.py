@@ -416,7 +416,12 @@ def run_line_repl_runtime_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from gritlib.line_repl_runtime import prepare_repl_choice, read_line, read_next_repl_line
+    from gritlib.line_repl_runtime import (
+        dispatch_line_help_command,
+        prepare_repl_choice,
+        read_line,
+        read_next_repl_line,
+    )
 
     reasons = []
 
@@ -621,6 +626,68 @@ def run_line_repl_runtime_check():
     )
     if use_result.get("console_args") != ["use", "3"] or cleared:
         print("line REPL runtime did not preserve use-number result context", file=sys.stderr)
+        return 1
+
+    help_calls = []
+    if not dispatch_line_help_command(
+        "files",
+        ["files", "?"],
+        module="files",
+        target_selected=True,
+        command_help_printer=lambda topic: help_calls.append(("command", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: help_calls.append(
+            ("context", module, target_selected, command_help_printer is not None)
+        ),
+    ):
+        print("line REPL runtime did not handle topic question-mark help", file=sys.stderr)
+        return 1
+    if help_calls != [("command", "files")]:
+        print(f"line REPL runtime routed topic question-mark help incorrectly: {help_calls}", file=sys.stderr)
+        return 1
+
+    help_calls.clear()
+    if not dispatch_line_help_command(
+        "?",
+        ["?"],
+        module="targets",
+        target_selected=False,
+        command_help_printer=lambda topic: help_calls.append(("command", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: help_calls.append(
+            ("context", module, target_selected, command_help_printer is not None)
+        ),
+    ):
+        print("line REPL runtime did not handle context help", file=sys.stderr)
+        return 1
+    if help_calls != [("context", "targets", False, True)]:
+        print(f"line REPL runtime routed context help incorrectly: {help_calls}", file=sys.stderr)
+        return 1
+
+    help_calls.clear()
+    if not dispatch_line_help_command(
+        "help",
+        ["help", "routes"],
+        module=None,
+        target_selected=False,
+        command_help_printer=lambda topic: help_calls.append(("command", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: help_calls.append(
+            ("context", module, target_selected, command_help_printer is not None)
+        ),
+    ):
+        print("line REPL runtime did not handle help topic command", file=sys.stderr)
+        return 1
+    if help_calls != [("command", "routes")]:
+        print(f"line REPL runtime routed help topic incorrectly: {help_calls}", file=sys.stderr)
+        return 1
+
+    if dispatch_line_help_command(
+        "status",
+        ["status"],
+        command_help_printer=lambda topic: help_calls.append(("command", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: help_calls.append(
+            ("context", module, target_selected, command_help_printer is not None)
+        ),
+    ):
+        print("line REPL runtime consumed a non-help command", file=sys.stderr)
         return 1
     return 0
 
