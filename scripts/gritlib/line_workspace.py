@@ -89,6 +89,28 @@ def reload_line_config(cfg, config_path="", load_config_fn=None, defaults=None, 
     return new_cfg
 
 
+def reload_line_config_for_repl(
+    cfg,
+    *,
+    default_config,
+    load_config_fn=None,
+    defaults=None,
+    append_event_fn=None,
+):
+    config_path = str(cfg.get("_config_path") or default_config)
+    try:
+        return reload_line_config(
+            cfg,
+            config_path=config_path,
+            load_config_fn=load_config_fn,
+            defaults=defaults,
+            append_event_fn=append_event_fn,
+        )
+    except Exception as exc:
+        print(f"reload failed: {exc}")
+        return None
+
+
 def line_listener_module_name(module):
     module = str(module or "").strip()
     if module.startswith("listener/") or module.startswith("service/"):

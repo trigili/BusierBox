@@ -233,7 +233,7 @@ from gritlib.line_workspace import (
     line_repl_status_bar, print_line_console_banner,
     print_line_info as line_workspace_print_line_info,
     print_line_next as line_workspace_print_line_next,
-    print_line_workspace_snapshot, reload_line_config,
+    print_line_workspace_snapshot, reload_line_config_for_repl as line_workspace_reload_line_config_for_repl,
 )
 from gritlib.operator_io import (
     clipboard_command, open_path_in_pager,
@@ -6455,19 +6455,6 @@ def run_line_repl(cfg):
     def print_line_workspace():
         return print_line_workspace_snapshot(workbench_snapshot(cfg))
 
-    def reload_line_config_for_repl():
-        config_path = str(cfg.get("_config_path") or DEFAULT_CONFIG)
-        try:
-            reload_line_config(
-                cfg,
-                config_path=config_path,
-                load_config_fn=load_config,
-                defaults=DEFAULTS,
-                append_event_fn=append_event,
-            )
-        except Exception as exc:
-            print(f"reload failed: {exc}")
-
     def print_line_options():
         module = str(cfg.get("_line_console_module") or "root")
 
@@ -7224,7 +7211,13 @@ def run_line_repl(cfg):
                     status_func=lambda: print(line_repl_status_bar(workbench_snapshot(cfg))),
                     ips_func=lambda: print_line_local_ips(workbench_snapshot(cfg)),
                     workspace_func=lambda: (clear_line_module(quiet=True), print_line_workspace()),
-                    reload_func=reload_line_config_for_repl,
+                    reload_func=lambda: line_workspace_reload_line_config_for_repl(
+                        cfg,
+                        default_config=DEFAULT_CONFIG,
+                        load_config_fn=load_config,
+                        defaults=DEFAULTS,
+                        append_event_fn=append_event,
+                    ),
                     root_func=clear_line_context,
                     info_func=print_line_info,
                     next_func=print_line_next,
