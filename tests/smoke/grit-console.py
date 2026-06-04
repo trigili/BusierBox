@@ -386,6 +386,17 @@ def run_line_local_ips_check():
         print("line config helpers did not find source-tree survey scripts", file=sys.stderr)
         return 1
     with tempfile.TemporaryDirectory() as tmpdir:
+        release_scripts = Path(tmpdir) / "release" / "scripts"
+        release_scripts.mkdir(parents=True)
+        helper = release_scripts / "config-from-survey"
+        helper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        helper.chmod(0o755)
+        found = find_config_from_survey([release_scripts.parent])
+        if found != helper:
+            print("line config helper did not find release scripts/config-from-survey", file=sys.stderr)
+            print(found, file=sys.stderr)
+            return 1
+    with tempfile.TemporaryDirectory() as tmpdir:
         session_root = Path(tmpdir) / "sessions"
         upload_dir = session_root / "sess-1" / "files"
         upload_dir.mkdir(parents=True)

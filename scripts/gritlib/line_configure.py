@@ -304,6 +304,7 @@ def _config_from_survey_candidates(search_roots=None):
     for root in roots:
         _add(root / "lib" / "config-from-survey")
         _add(root / "scripts" / "lib" / "config-from-survey")
+        _add(root / "scripts" / "config-from-survey")
         _add(root / "config-from-survey")
     return candidates
 
