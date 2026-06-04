@@ -6440,6 +6440,14 @@ def run_line_repl(cfg):
             return print_line_command_help("targets")
         return print_line_console_help()
 
+    def line_unknown_command_message(cmd):
+        topic = line_help_topic_for_module(cfg.get("_line_console_module"))
+        if not topic and configured_target_filter(cfg):
+            topic = "targets"
+        if topic:
+            return f"unknown command: {cmd}; type ? for {topic} help"
+        return f"unknown command: {cmd}; type ? for help topics"
+
     def print_line_info():
         snap = workbench_snapshot(cfg)
         module = str(cfg.get("_line_console_module") or "root")
@@ -8473,7 +8481,7 @@ def run_line_repl(cfg):
                 compact_next_prompt = False
                 choice = "r"
             else:
-                print(f"unknown command: {cmd}; type help")
+                print(line_unknown_command_message(cmd))
                 continue
         if choice in {"q", "quit", "exit"}:
             # Leave any selected context first; a second q/quit at root exits.

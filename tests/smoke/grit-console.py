@@ -1067,6 +1067,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "events -n 3\n"
                 "events service=workbench -n 2\n"
                 "probe\n"
+                "wat\n"
                 "?\n"
                 "help\n"
                 "back\n"
@@ -1318,6 +1319,18 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Console help topics:" in probe_context_help_text):
         print("line-oriented bare ? did not use probe breadcrumb context", file=sys.stderr)
         print(probe_context_help_text or line_console_stdout, file=sys.stderr)
+        return 1
+    probe_unknown_start = line_console_stdout.find("grit[Console Router]/probe> wat")
+    probe_unknown_end = line_console_stdout.find("grit[Console Router]/probe> ?", probe_unknown_start + 1)
+    probe_unknown_text = (
+        line_console_stdout[probe_unknown_start:probe_unknown_end]
+        if probe_unknown_start != -1 and probe_unknown_end != -1 else ""
+    )
+    if (not probe_unknown_text or
+            "unknown command: wat; type ? for probe help" not in probe_unknown_text or
+            "type help" in probe_unknown_text):
+        print("line-oriented unknown command did not point at contextual help", file=sys.stderr)
+        print(probe_unknown_text or line_console_stdout, file=sys.stderr)
         return 1
     probe_context_bare_help_start = line_console_stdout.find("grit[Console Router]/probe> help")
     probe_context_bare_help_end = line_console_stdout.find("grit[Console Router]/probe> back", probe_context_bare_help_start + 1)
