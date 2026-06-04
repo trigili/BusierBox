@@ -318,8 +318,7 @@ from gritlib.target_activity import (
     mailbox_wait_bucket,
     print_target_activity_records, print_workbench_phone_home_attempts,
     record_selected_target_activity,
-    target_activity_record_indexes, target_activity_records_from_sources,
-    target_activity_status_context,
+    target_activity_feed_status_context, target_activity_status_context,
     target_activity_record_summary,
     target_mailbox_record_summary,
     target_phone_home_record_summary, target_phone_home_records_from_events,
@@ -2880,7 +2879,7 @@ def status_document(cfg):
     file_service_workflow_action_index_maps = file_service_workflow_context[
         "index_maps"
     ]
-    target_activity_records = target_activity_records_from_sources(
+    target_activity_feed_context = target_activity_feed_status_context(
         targets,
         target_mailbox_records,
         target_phone_home_records,
@@ -2888,7 +2887,8 @@ def status_document(cfg):
         bridge_profiles,
         sessions,
     )
-    target_activity_index_maps = target_activity_record_indexes(target_activity_records)
+    target_activity_records = target_activity_feed_context["records"]
+    target_activity_index_maps = target_activity_feed_context["index_maps"]
     summary, warnings = status_summary_and_warnings(services)
     summary.update({
         **bridge_profile_record_summary(bridge_profiles, bridge_hop_records),

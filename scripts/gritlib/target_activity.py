@@ -750,6 +750,28 @@ def target_activity_record_indexes(records):
     }
 
 
+def target_activity_feed_status_context(
+    targets=None,
+    mailbox_records=None,
+    phone_home_records=None,
+    file_transfer_records=None,
+    bridge_profiles=None,
+    sessions=None,
+):
+    records = target_activity_records_from_sources(
+        targets,
+        mailbox_records,
+        phone_home_records,
+        file_transfer_records,
+        bridge_profiles,
+        sessions,
+    )
+    return {
+        "records": records,
+        "index_maps": target_activity_record_indexes(records),
+    }
+
+
 def target_activity_record_summary(records):
     records = records or []
     return {

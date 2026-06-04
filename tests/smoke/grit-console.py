@@ -1568,6 +1568,83 @@ def run_target_activity_status_context_check():
     return 0
 
 
+def run_target_activity_feed_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.target_activity import target_activity_feed_status_context
+
+    target = {
+        "target_id": "target-a",
+        "label": "Router A",
+        "connectivity_state": "offline",
+        "last_seen": "2026-06-04T00:00:00Z",
+        "last_seen_via": "poll",
+        "mailbox_pending_work_count": 1,
+        "poll_overdue": True,
+    }
+    mailbox = {
+        "command_id": "cmd-a",
+        "target_id": "target-a",
+        "status": "queued",
+        "created_at": "2026-06-04T00:00:01Z",
+        "pending_work": True,
+        "waiting_for": "target-poll",
+    }
+    phone_home = {
+        "id": "evt-a",
+        "target_id": "target-a",
+        "kind": "poll",
+        "status": "delivered",
+        "timestamp": "2026-06-04T00:00:02Z",
+    }
+    transfer = {
+        "id": "staged:payload-a",
+        "target_id": "target-a",
+        "operation": "staged-fetch",
+        "status": "available",
+        "timestamp": "2026-06-04T00:00:03Z",
+        "request_name": "payload-a",
+    }
+    bridge = {
+        "name": "lab-http",
+        "target_id": "target-a",
+        "current_state": "failed",
+        "last_failure_at": "2026-06-04T00:00:04Z",
+        "last_failure_reason": "timeout",
+    }
+    session = {
+        "session_id": "sess-a",
+        "target_id": "target-a",
+        "service": "tls-shell",
+        "state": "closed",
+        "updated_at": "2026-06-04T00:00:05Z",
+    }
+    context = target_activity_feed_status_context(
+        [target],
+        [mailbox],
+        [phone_home],
+        [transfer],
+        [bridge],
+        [session],
+    )
+    records = context.get("records") or []
+    indexes = context.get("index_maps") or {}
+    categories = indexes.get("target_activity_records_by_category") or {}
+    by_target = indexes.get("target_activity_records_by_target_id") or {}
+    if len(records) < 6:
+        print("target activity feed context did not preserve source records", file=sys.stderr)
+        return 1
+    for category in ("heartbeat", "mailbox", "phone-home", "file-transfer", "bridge", "session"):
+        if not categories.get(category):
+            print(f"target activity feed context missing category: {category}", file=sys.stderr)
+            return 1
+    if by_target.get("target-a") != records:
+        print("target activity feed context did not preserve target indexes", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_release_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -5021,7 +5098,7 @@ def main(argv=None):
                  "Targets:", "select_line_target", "set_workbench_target_filter",
                  "Files", "target_file_transfer_records", "target_file_transfer_record_summary", "view_line_path",
                  "target_activity_records", "target_activity_records_by_target_id", "show activity",
-                 "target_activity_record_summary", "target_activity_record_indexes",
+                 "target_activity_record_summary", "target_activity_feed_status_context",
                  "Target workflow actions:", "run_line_selected_action", "select_line_action",
                  "operator_action_state", "operator_action_reason", "can_run_from_curses_enter",
                  "service_workflow_actions", "service_workflow_actions_by_service", "line_action_records_from_snapshot",
@@ -5147,6 +5224,8 @@ def main(argv=None):
     if run_event_log_status_context_check() != 0:
         return 1
     if run_target_activity_status_context_check() != 0:
+        return 1
+    if run_target_activity_feed_status_context_check() != 0:
         return 1
     if run_release_status_context_check() != 0:
         return 1
