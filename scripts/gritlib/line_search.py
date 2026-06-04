@@ -180,6 +180,7 @@ def use_line_search_result(
     select_service,
     select_route,
     select_action,
+    select_queue_action=None,
     select_session,
     select_job,
     probe_result_config,
@@ -204,6 +205,10 @@ def use_line_search_result(
         return select_route(str(rec.get("name") or ""))
     if kind == "action":
         return select_action(str(rec.get("id") or ""))
+    if kind == "queue-action":
+        if select_queue_action:
+            return select_queue_action(str(rec.get("id") or ""))
+        raise ValueError("command queue action selection is unavailable")
     if kind == "session":
         session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
         return select_session(str(session_id))

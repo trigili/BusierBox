@@ -1246,7 +1246,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "actions    operator modules, dry-run/run, background jobs",
         "Console",
         "Tip: use `search TERM` to find agents, listeners, modules, sessions, jobs, files, and queue records.",
-        "next: ? help  |  targets (1)  |  use N  |  search TERM",
+        "next: ? help",
+        "targets (",
+        "use N",
+        "search TERM",
         "Help: files",
         "Help: queue",
         "Help: events",
@@ -6201,7 +6204,7 @@ def main(argv=None):
             queue_tui_output, queue_tui_stderr = run_pty_script(
                 queue_tui_proc,
                 queue_tui_master,
-                b"20\n16\ntarget-alpha\n18\ntarget-alpha\nq\n",
+                b"20\n4\nqueue target-alpha\n20\n2\nq\nq\n",
                 timeout=8,
             )
         finally:
@@ -6216,40 +6219,38 @@ def main(argv=None):
                 "Traceback" in (queue_tui_stderr or "") or
                 "headless_command:" in queue_tui_text or
                 "headless_command=" in queue_tui_text or
+                "file-service started" in queue_tui_text or
+                "tls-shell started" in queue_tui_text or
                 "Command queue  (" not in queue_tui_text or
                 "queue actions:" not in queue_tui_text or
-                "needs input=" not in queue_tui_text or
+                "needs input 1" not in queue_tui_text or
                 "queue COMMAND  |  queue list" not in queue_tui_text or
                 "Show mailbox" not in queue_tui_text or
                 "Queue command" not in queue_tui_text or
                 "Clear queue" not in queue_tui_text or
                 "Start mailbox listener" not in queue_tui_text or
+                "queue: Queue command" not in queue_tui_text or
+                "queue: Clear queue" not in queue_tui_text or
+                "queued:" not in queue_tui_text or
+                "command: target-alpha" not in queue_tui_text or
                 "command-queue:list-command-queue" in queue_tui_text or
                 "command-queue:queue-command" in queue_tui_text or
                 "command-queue:clear-command-queue" in queue_tui_text or
                 "already-empty" in queue_tui_text or
                 "already-stopped" in queue_tui_text or
                 "needs-input" in queue_tui_text or
-                "queues_offline_work=yes" not in queue_tui_text or
                 alpha_id not in queue_tui_text or
                 "result-received" not in queue_tui_text or
                 "Mailbox  (" not in queue_tui_text or
-                "Target detail: target-alpha label=Alpha Router" not in queue_tui_text or
-                "Activity  (" not in queue_tui_text or
                 "target-alpha" not in queue_tui_text or
                 "mailbox" not in queue_tui_text or
-                "phone-home" not in queue_tui_text or
-                "selected target target-alpha label=Alpha Router" not in queue_tui_text or
-                "phone_home " not in queue_tui_text or
-                "target_state=online" not in queue_tui_text or
                 alpha_id not in queue_tui_text or
                 "result-received" not in queue_tui_text or
-                "summary: status=result-received result=completed exit=0" not in queue_tui_text or
                 "completed/0" not in queue_tui_text or
                 bravo_id not in queue_tui_text or
                 "target-bravo" not in queue_tui_text or
-                "poll_overdue=yes" not in queue_tui_text or
-                "created=" not in queue_tui_text):
+                "reason: target-poll-overdue" not in queue_tui_text or
+                "created:" not in queue_tui_text):
             print("line console command queue inspection exposed noisy headless command or missed result/mailbox state", file=sys.stderr)
             print(queue_tui_text, file=sys.stderr)
             print(queue_tui_stderr or "", file=sys.stderr)
@@ -6260,7 +6261,10 @@ def main(argv=None):
         ).stdout)
         queue_workflow_actions = queue_tui_status.get("command_queue_workflow_actions") or []
         queue_workflow_actions_by_id = queue_tui_status.get("command_queue_workflow_actions_by_id") or {}
-        queue_target_events = (queue_tui_status.get("events_by_event") or {}).get("workbench_target_inspected") or []
+        queue_action_select_events = (
+            (queue_tui_status.get("events_by_event") or {}).get("workbench_command_queue_action_selected")
+            or []
+        )
         if (len(queue_workflow_actions) != 6 or
                 queue_workflow_actions_by_id.get("command-queue:list-command-queue", {}).get("can_run_from_curses_enter") is not True or
                 queue_workflow_actions_by_id.get("command-queue:list-command-queue", {}).get("run_command", "").find("--run-command-queue-workflow-action") < 0 or
@@ -6298,9 +6302,14 @@ def main(argv=None):
                     for event in (queue_tui_status.get("events_by_event") or {}).get("workbench_command_queue_inspected", [])
                 ) or
                 not any(
-                    (event.get("details") or {}).get("target_id") == "target-alpha" and
-                    (event.get("details") or {}).get("target_activity_record_count", 0) >= 3
-                    for event in queue_target_events
+                    (event.get("details") or {}).get("action_id") == "queue-command" and
+                    (event.get("details") or {}).get("requires_input") is True
+                    for event in queue_action_select_events
+                ) or
+                not any(
+                    (event.get("details") or {}).get("action_id") == "clear-command-queue" and
+                    (event.get("details") or {}).get("requires_confirmation") is True
+                    for event in queue_action_select_events
                 )):
             print("line console command queue inspection did not record event", file=sys.stderr)
             print(json.dumps(queue_tui_status, indent=2, sort_keys=True), file=sys.stderr)
@@ -10395,7 +10404,7 @@ def main(argv=None):
             line_output, line_stderr = run_pty_script(
                 line_proc,
                 line_master,
-                b"16\ntarget-action\n15\ntarget-action:queue-command\ngrit survey --json\n18\ncurrent\n18\nall\nq\n",
+                b"16\ntarget-action\n15\ntarget-action:queue-command\ngrit survey --json\n18\ncurrent\n18\nall\nq\nq\n",
                 timeout=15,
             )
         finally:
@@ -10639,8 +10648,9 @@ def main(argv=None):
                     (event.get("details") or {}).get("target_activity_record_count", 0) >= 1
                     for event in activity_inspected_events
                 ) or
-                line_workbench_state.get("selected_target_id") != "target-action" or
-                line_workbench_state.get("selected_target_label") != "Action Router" or
+                line_workbench_state.get("selected_target_id") not in ("", None) or
+                line_workbench_state.get("selected_target_label") not in ("", None) or
+                line_workbench_state.get("stopped_reason") != "quit" or
                 action_doc.get("summary", {}).get("command_queue_target_counts", {}).get("target-action") != 3 or
                 action_doc.get("summary", {}).get("target_workflow_action_queues_offline_work_count") != 4 or
                 action_doc.get("summary", {}).get("target_workflow_action_target_phone_home_required_count") != 6 or

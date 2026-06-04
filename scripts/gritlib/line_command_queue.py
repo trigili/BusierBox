@@ -76,6 +76,63 @@ def line_command_queue_action_summary(records):
     return "  queue actions: " + "  ".join(parts) if parts else ""
 
 
+def line_command_queue_action_search_records(records, quote=shquote):
+    search_records = []
+    for rec in list(records or []):
+        rec_id = str(rec.get("id") or "")
+        search_records.append({
+            "kind": "queue-action",
+            "label": f"command queue {line_command_queue_action_text(rec)}",
+            "rec": rec,
+            "command": str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or ""),
+            "use_hint": f"use {quote(rec_id)}",
+        })
+    return search_records
+
+
+def select_line_command_queue_action_record(records, selector):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("usage: use N")
+    records = list(records or [])
+    if text.isdigit():
+        idx = int(text) - 1
+        if 0 <= idx < len(records):
+            return records[idx]
+        raise ValueError(f"command queue action number out of range: {text}")
+    for rec in records:
+        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
+            return rec
+    raise ValueError(f"command queue action not found: {text}")
+
+
+def select_line_command_queue_action(cfg, records, selector, append_event_fn=append_event):
+    selected = select_line_command_queue_action_record(records, selector)
+    rec_id = str(selected.get("id") or "")
+    action_id = str(selected.get("action_id") or "")
+    cfg["_line_console_module"] = f"queue/{action_id or rec_id}"
+    cfg.pop("_line_console_action_kind", None)
+    cfg.pop("_line_console_action_id", None)
+    flags = []
+    if selected.get("requires_input"):
+        flags.append("needs command")
+    if selected.get("requires_confirmation"):
+        flags.append("confirm required")
+    state = line_command_queue_state_text(selected)
+    label = line_command_queue_action_text(selected)
+    suffix = f"  |  {', '.join(flags)}" if flags else ""
+    print(f"  queue: {label}  -  {state}{suffix}")
+    print("  queue COMMAND  |  queue list  |  queue clear --confirm  |  back")
+    append_event_fn(cfg, "workbench", "workbench_command_queue_action_selected", details={
+        "id": rec_id,
+        "action_id": action_id,
+        "operator_action_state": selected.get("operator_action_state", ""),
+        "requires_input": bool(selected.get("requires_input")),
+        "requires_confirmation": bool(selected.get("requires_confirmation")),
+    })
+    return selected
+
+
 def line_command_queue_mailbox_detail(rec):
     details = []
     work = rec.get("work_kind") or rec.get("request_name") or rec.get("bridge_profile") or ""
@@ -201,7 +258,9 @@ def print_line_command_queue_view(
     snapshot_func,
     queue_summary_func,
     clear_results_func,
+    set_results_func=None,
     append_event_fn=append_event,
+    quote=shquote,
 ):
     clear_results_func(cfg)
     snap = snapshot_func(cfg)
@@ -218,6 +277,11 @@ def print_line_command_queue_view(
             command_queue_actions,
             detailed=detailed,
         )
+        if set_results_func:
+            set_results_func(
+                cfg,
+                line_command_queue_action_search_records(command_queue_actions, quote=quote),
+            )
 
     append_event_fn(cfg, "workbench", "workbench_command_queue_inspected", details={
         "command_count": len((queue_summary.get("commands") or [])),

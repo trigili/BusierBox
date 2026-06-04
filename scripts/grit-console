@@ -130,6 +130,7 @@ from gritlib.line_command_queue import (
     print_line_command_queue_view as line_command_queue_print_view,
     queue_line_command as line_command_queue_queue_command,
     run_line_queue_command as line_command_queue_run_command,
+    select_line_command_queue_action as line_command_queue_select_action,
 )
 from gritlib.line_configure import (
     configure_line_artifact as configure_line_artifact_impl,
@@ -6717,6 +6718,7 @@ def run_line_repl(cfg):
             select_service=select_line_service,
             select_route=select_line_route,
             select_action=select_line_action,
+            select_queue_action=select_line_command_queue_action,
             select_session=select_line_session,
             select_job=select_line_job,
             probe_result_config=lambda args: configure_line_probe_config(cfg, args, append_event_fn=append_event),
@@ -6737,6 +6739,14 @@ def run_line_repl(cfg):
 
     def select_line_action(selector):
         return line_actions_select_line_action(cfg, line_action_records(), selector)
+
+    def select_line_command_queue_action(selector):
+        return line_command_queue_select_action(
+            cfg,
+            (workbench_snapshot(cfg).get("command_queue_workflow_actions") or []),
+            selector,
+            append_event_fn=append_event,
+        )
 
     def selected_line_action():
         return line_actions_selected_line_action(cfg, line_action_records())
@@ -6777,6 +6787,9 @@ def run_line_repl(cfg):
 
     def clear_line_selectable_results():
         clear_line_search_results(cfg)
+
+    def set_line_selectable_results(state, records):
+        state["_line_console_search_results"] = records
 
     def run_line_queue_command(args):
         return line_command_queue_run_command(
@@ -6961,7 +6974,9 @@ def run_line_repl(cfg):
             snapshot_func=workbench_snapshot,
             queue_summary_func=command_queue_summary,
             clear_results_func=clear_line_search_results,
+            set_results_func=set_line_selectable_results,
             append_event_fn=append_event,
+            quote=shquote,
         )
 
     def show_line_resource(resource):
