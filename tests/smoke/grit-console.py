@@ -1590,6 +1590,99 @@ def run_line_repl_runtime_check():
         print(f"line REPL navigation adapter wiring changed: {navigation_calls}", file=sys.stderr)
         return 1
 
+    navigation_bundle_calls = []
+    original_navigation_builder = repl_navigation.build_line_navigation_dispatch_callback
+
+    def fake_navigation_builder(cfg, **kwargs):
+        navigation_bundle_calls.append(("builder", cfg.get("name")))
+
+        def dispatch_navigation_bundle(command, args):
+            navigation_bundle_calls.append(("dispatch", command, tuple(args)))
+            kwargs["print_targets_func"]()
+            kwargs["print_routes_func"](verbose=True)
+            kwargs["print_sessions_func"](verbose=True)
+            kwargs["select_queue_action_func"]("q1")
+            kwargs["start_job_func"]("job1")
+            kwargs["run_action_func"]("action1")
+            kwargs["interact_target_func"]("target1")
+            return "nav-bundle"
+
+        return dispatch_navigation_bundle
+
+    repl_navigation.build_line_navigation_dispatch_callback = fake_navigation_builder
+    try:
+        navigation_bundle = repl_navigation.build_line_navigation_callbacks(
+            {"name": "nav-bundle-cfg"},
+            target_filter_func=lambda cfg: cfg.get("target"),
+            append_event_fn=lambda cfg, service, event, details=None: navigation_bundle_calls.append(
+                ("event", cfg.get("name"), service, event)
+            ),
+            clear_results_func=lambda cfg: navigation_bundle_calls.append(("clear", cfg.get("name"))),
+            set_context_func=lambda cfg, module: navigation_bundle_calls.append(("context", module)),
+            clear_console_context_func=lambda cfg, quiet=False: navigation_bundle_calls.append(("root", quiet)),
+            back_func=lambda cfg: navigation_bundle_calls.append(("back", cfg.get("name"))),
+            session_help_func=lambda topic: navigation_bundle_calls.append(("session-help", topic)),
+            route_help_func=lambda topic: navigation_bundle_calls.append(("route-help", topic)),
+            number_func=lambda selector: navigation_bundle_calls.append(("number", selector)),
+            target_callbacks={
+                "print_line_targets": lambda: navigation_bundle_calls.append("targets"),
+                "select_line_target": lambda selector, targets=None: navigation_bundle_calls.append(
+                    ("target", selector, targets)
+                ),
+                "interact_line_target": lambda selector: navigation_bundle_calls.append(("interact-target", selector)),
+            },
+            route_service_callbacks={
+                "print_line_services": lambda verbose=False: navigation_bundle_calls.append(("services", verbose)),
+                "select_line_service": lambda selector: navigation_bundle_calls.append(("service", selector)),
+                "print_line_routes": lambda verbose=False: navigation_bundle_calls.append(("routes", verbose)),
+                "add_line_route": lambda args: navigation_bundle_calls.append(("add-route", tuple(args))),
+                "start_line_route": lambda selector: navigation_bundle_calls.append(("start-route", selector)),
+                "stop_line_route": lambda selector: navigation_bundle_calls.append(("stop-route", selector)),
+                "delete_line_route": lambda selector: navigation_bundle_calls.append(("delete-route", selector)),
+                "select_line_route": lambda selector: navigation_bundle_calls.append(("route", selector)),
+                "start_line_service": lambda selector: navigation_bundle_calls.append(("start-service", selector)),
+                "stop_line_service": lambda selector: navigation_bundle_calls.append(("stop-service", selector)),
+            },
+            session_callbacks={
+                "print_line_sessions": lambda verbose=False: navigation_bundle_calls.append(("sessions", verbose)),
+                "clear_line_sessions": lambda: navigation_bundle_calls.append("clear-sessions"),
+                "select_line_session": lambda selector: navigation_bundle_calls.append(("session", selector)),
+                "interact_line_session": lambda selector: navigation_bundle_calls.append(("interact-session", selector)),
+            },
+            job_callbacks={
+                "select_line_job": lambda selector: navigation_bundle_calls.append(("job", selector)),
+                "start_line_job": lambda selector: navigation_bundle_calls.append(("start-job", selector)),
+                "cancel_line_job": lambda selector: navigation_bundle_calls.append(("cancel-job", selector)),
+            },
+            action_callbacks={
+                "select_line_action": lambda selector: navigation_bundle_calls.append(("action", selector)),
+                "select_line_command_queue_action": lambda selector: navigation_bundle_calls.append(("action-queue", selector)),
+                "run_line_module_or_service": lambda selector: navigation_bundle_calls.append(("run-action", selector)),
+            },
+            queue_callbacks={
+                "select_line_command_queue_action": lambda selector: navigation_bundle_calls.append(("queue", selector)),
+            },
+        )
+        if navigation_bundle["dispatch_line_navigation"]("targets", ["list"]) != "nav-bundle":
+            print("line REPL navigation bundle did not return navigation dispatch result", file=sys.stderr)
+            return 1
+    finally:
+        repl_navigation.build_line_navigation_dispatch_callback = original_navigation_builder
+    expected_navigation_bundle_calls = [
+        ("builder", "nav-bundle-cfg"),
+        ("dispatch", "targets", ("list",)),
+        "targets",
+        ("routes", True),
+        ("sessions", True),
+        ("queue", "q1"),
+        ("start-job", "job1"),
+        ("run-action", "action1"),
+        ("interact-target", "target1"),
+    ]
+    if navigation_bundle_calls != expected_navigation_bundle_calls:
+        print(f"line REPL navigation bundle wiring changed: {navigation_bundle_calls}", file=sys.stderr)
+        return 1
+
     workflow_calls = []
     original_workflow_dispatch = repl_workflow.dispatch_line_workflow_command
     original_daemon_action = repl_workflow.run_line_daemon_action
