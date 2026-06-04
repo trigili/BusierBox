@@ -1340,6 +1340,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     help_routes_start = line_console_stdout.find("grit[all]> help routes")
     help_routes_end = line_console_stdout.find("grit[all]> help next", help_routes_start + 1)
     help_routes_text = line_console_stdout[help_routes_start:help_routes_end] if help_routes_start != -1 and help_routes_end != -1 else ""
+    help_events_start = line_console_stdout.find("grit[all]> help events")
+    help_events_end = line_console_stdout.find("grit[all]> help view", help_events_start + 1)
+    help_events_text = line_console_stdout[help_events_start:help_events_end] if help_events_start != -1 and help_events_end != -1 else ""
     if (not help_modules_text or
             "show modules -v [FILTER]" not in help_modules_text or
             not help_routes_text or
@@ -1350,6 +1353,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(help_modules_text or line_console_stdout, file=sys.stderr)
         print("help routes:", file=sys.stderr)
         print(help_routes_text, file=sys.stderr)
+        return 1
+    if (not help_events_text or
+            "Summaries hide generated commands by default" not in help_events_text or
+            "including headless_command when present" in help_events_text):
+        print("line-oriented events help did not explain concise default event summaries", file=sys.stderr)
+        print(help_events_text or line_console_stdout, file=sys.stderr)
         return 1
     probe_context_help_start = line_console_stdout.find("grit[Console Router]/probe> ?")
     probe_context_help_end = line_console_stdout.find("grit[Console Router]/probe> back", probe_context_help_start + 1)

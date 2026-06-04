@@ -306,7 +306,7 @@ def print_line_command_help(topic):
                 ("view local/operator-session/events.jsonl", "open the raw JSONL event log"),
             ],
             "notes": [
-                "Summary condenses common detail fields, including headless_command when present.",
+                "Summaries hide generated commands by default; use the raw JSONL view for full event details.",
             ],
         },
         "probe": {
