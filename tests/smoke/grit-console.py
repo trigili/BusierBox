@@ -1094,6 +1094,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "unstage console-upload\n"
                 "rmfile missing-upload\n"
                 "stagers\n"
+                "?\n"
+                "back\n"
                 "show mailbox\n"
                 "queue clear --confirm\n"
                 "queue list\n"
@@ -1358,6 +1360,18 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Console help topics:" in target_context_help_text):
         print("line-oriented bare ? did not use selected target context", file=sys.stderr)
         print(target_context_help_text or line_console_stdout, file=sys.stderr)
+        return 1
+    files_context_help_start = line_console_stdout.find("grit[Console Router]/files> ?")
+    files_context_help_end = line_console_stdout.find("grit[Console Router]/files> back", files_context_help_start + 1)
+    files_context_help_text = (
+        line_console_stdout[files_context_help_start:files_context_help_end]
+        if files_context_help_start != -1 and files_context_help_end != -1 else ""
+    )
+    if (not files_context_help_text or
+            "Help: files" not in files_context_help_text or
+            "Console help topics:" in files_context_help_text):
+        print("line-oriented bare ? did not use files breadcrumb context", file=sys.stderr)
+        print(files_context_help_text or line_console_stdout, file=sys.stderr)
         return 1
     probe_queue_start = line_console_stdout.find("grit[Console Router]/probe> probe --queue")
     probe_queue_end = line_console_stdout.find("grit[Console Router]/probe> download --queue", probe_queue_start + 1)
