@@ -246,7 +246,8 @@ from gritlib.operator_network import (
 )
 from gritlib.probe_commands import (
     dispatch_legacy_probe_number, probe_route_context, probe_script_fn,
-    render_probe_command, render_probe_delivery, render_probe_dns_command, render_probe_ftp_command,
+    print_probe_delivery,
+    render_probe_command, render_probe_dns_command, render_probe_ftp_command,
     print_line_probe_script as probe_commands_print_line_probe_script,
     render_probe_tftp_command, probe_workflow_action_records,
 )
@@ -6431,7 +6432,7 @@ def run_line_repl(cfg):
             route_record=line_route_record,
             session_record=line_session_record,
             job_record=line_job_record,
-            probe_delivery_printer=_print_probe_delivery,
+            probe_delivery_printer=lambda: print_probe_delivery(cfg),
             bridge_command_builder=bridge_profile_headless_command,
             view_command_builder=lambda path: view_path_headless_command(cfg, path),
             cancel_job_command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
@@ -6516,10 +6517,6 @@ def run_line_repl(cfg):
             quote=shquote,
         )
 
-    def _print_probe_delivery():
-        """Print all the ways to get probe.sh running on a target."""
-        print(render_probe_delivery(cfg))
-
     def start_line_service(service):
         return line_services_start_line_service(
             cfg,
@@ -6529,7 +6526,7 @@ def run_line_repl(cfg):
             route_start_func=start_line_route,
             service_start_command_func=lambda name: service_start_headless_command(cfg, name),
             service_start_func=start_service_process,
-            probe_delivery_func=_print_probe_delivery,
+            probe_delivery_func=lambda: print_probe_delivery(cfg),
             sleep_func=time.sleep,
         )
 
@@ -6843,7 +6840,7 @@ def run_line_repl(cfg):
             print(f"  target: {queued.get('target_id', '')} ({queued.get('target_label', '') or '-'})")
 
         if already_listening or started:
-            _print_probe_delivery()
+            print_probe_delivery(cfg)
 
         append_event(cfg, "workbench", "workbench_probe_command_shown", details={
             "target_command": command,
@@ -7236,7 +7233,7 @@ def run_line_repl(cfg):
                         cfg, args, line_input, stage_line_release,
                         append_event_fn=append_event,
                     ),
-                    probe_delivery_func=_print_probe_delivery,
+                    probe_delivery_func=lambda: print_probe_delivery(cfg),
                     probe_paste_func=lambda base64_mode=False: probe_commands_print_line_probe_script(
                         cfg,
                         paste=True,

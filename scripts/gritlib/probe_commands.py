@@ -182,6 +182,11 @@ def render_probe_delivery(cfg):
     ])
 
 
+def print_probe_delivery(cfg):
+    """Print all the ways to get probe.sh running on a target."""
+    print(render_probe_delivery(cfg))
+
+
 def parse_line_probe_args(args):
     queue = False
     start_service = False
