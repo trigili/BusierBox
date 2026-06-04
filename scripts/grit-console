@@ -7437,52 +7437,51 @@ def run_line_repl(cfg):
     def show_line_resource(resource):
         parsed = parse_line_show_resource(resource)
         verbose = parsed["verbose"]
-        filtered_parts = parsed["filtered_parts"]
-        filtered_key = parsed["filtered_key"]
-        key = parsed["key"]
+        kind = parsed["kind"]
+        kind_filter = parsed["kind_filter"]
         filter_text = parsed["filter_text"]
-        if len(filtered_parts) >= 2 and filtered_parts[1].lower() in ("module", "modules"):
-            print_line_actions(" ".join(filtered_parts[2:]).strip(), kind_filter=filtered_key, verbose=verbose)
-        elif key in ("target", "targets", "agent", "agents", "host", "hosts"):
+        if kind == "module-kind":
+            print_line_actions(filter_text, kind_filter=kind_filter, verbose=verbose)
+        elif kind == "targets":
             set_line_collection("targets")
             print_line_targets()
-        elif key in ("service", "services", "listener", "listeners"):
+        elif kind == "listeners":
             set_line_collection("listeners")
             print_line_services()
-        elif key in ("file", "files", "staged", "stager", "stagers", "loot", "download", "downloads"):
+        elif kind == "files":
             set_line_collection("files")
             print_line_files()
-        elif key in ("job", "jobs"):
+        elif kind == "jobs":
             set_line_collection("jobs")
             print_line_jobs()
-        elif key in ("daemon", "daemons"):
+        elif kind == "daemon":
             set_line_collection("daemon")
             print_line_daemon_actions()
-        elif key in ("category", "categories", "module-category", "module-categories"):
+        elif kind == "categories":
             set_line_collection("categories")
             print_line_module_categories()
-        elif key in ("action", "actions", "module", "modules"):
+        elif kind == "modules":
             set_line_collection("modules")
             print_line_actions(filter_text, verbose=verbose)
-        elif key in ("session", "sessions"):
+        elif kind == "sessions":
             set_line_collection("sessions")
             print_line_sessions()
-        elif key in ("route", "routes"):
+        elif kind == "routes":
             set_line_collection("routes")
             print_line_routes(verbose=verbose)
-        elif key in ("queue", "mailbox", "commands"):
+        elif kind == "queue":
             set_line_collection("queue")
             print_line_command_queue_view(detailed=verbose)
-        elif key in ("activity", "events"):
+        elif kind == "events":
             set_line_collection("events")
             snap = workbench_snapshot(cfg)
             print_target_activity_records(snap, target_id=configured_target_filter(cfg), limit=12)
-        elif key in ("release", "releases", "artifact", "artifacts"):
+        elif kind == "release":
             set_line_collection("release")
             line_release_print_line_release(cfg, append_event_fn=append_event)
-        elif key in ("options", "option"):
+        elif kind == "options":
             print_line_options()
-        elif key in ("context", "info"):
+        elif kind == "context":
             print_line_info()
         else:
             raise ValueError("usage: show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options")
