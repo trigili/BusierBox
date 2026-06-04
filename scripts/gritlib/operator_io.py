@@ -99,6 +99,16 @@ def parse_line_view_command(cmd, args):
     return {"action": "view", "path": " ".join(args or []).strip()}
 
 
+def dispatch_line_view_command(view_cmd, *, view_func=None):
+    try:
+        if view_func:
+            return view_func((view_cmd or {}).get("path", ""))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported view command")
+
+
 def view_line_path(cfg, path_text, append_event_fn=None):
     path = str(path_text or "").strip()
     if not path:

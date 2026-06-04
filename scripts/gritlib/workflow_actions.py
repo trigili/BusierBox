@@ -124,6 +124,23 @@ def parse_line_daemon_command(cmd, args=None):
     }
 
 
+def dispatch_line_daemon_command(
+    daemon_cmd,
+    *,
+    set_context_func=None,
+    run_func=None,
+):
+    try:
+        if daemon_cmd.get("set_context") and set_context_func:
+            set_context_func("daemon")
+        if run_func:
+            return run_func(daemon_cmd.get("args") or [])
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported daemon command")
+
+
 def print_line_daemon_action_records(records, verbose=False):
     records = list(records or [])
 

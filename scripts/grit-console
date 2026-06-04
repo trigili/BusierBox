@@ -124,6 +124,7 @@ from gritlib.line_actions import (
     split_line_run_args,
 )
 from gritlib.line_build import (
+    dispatch_line_build_command,
     parse_line_build_command, run_line_build_command, set_line_global_build_option,
     unset_line_global_build_option,
 )
@@ -272,7 +273,7 @@ from gritlib.line_workspace import (
     print_line_workspace_snapshot, reload_line_config,
 )
 from gritlib.operator_io import (
-    clipboard_command, open_path_in_pager, parse_line_view_command,
+    clipboard_command, dispatch_line_view_command, open_path_in_pager, parse_line_view_command,
     restore_interactive_tty, set_interactive_tty_raw,
     view_line_path as operator_io_view_line_path,
     view_path_headless_command, viewable_path,
@@ -429,6 +430,7 @@ from gritlib.workbench_jobs import (
     workbench_jobs_path, workbench_jobs_state_status,
 )
 from gritlib.workflow_actions import (
+    dispatch_line_daemon_command,
     operator_daemon_workflow_action_indexes,
     operator_daemon_workflow_action_records,
     operator_daemon_workflow_action_status_summary,
@@ -7666,12 +7668,11 @@ def run_line_repl(cfg):
                     choice = "r"
                 continue
             elif (build_cmd := parse_line_build_command(cmd, console_args[1:])):
-                try:
-                    if build_cmd["set_context"]:
-                        set_line_collection("build")
-                    run_line_build_command(cfg, build_cmd["args"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_build_command(
+                    build_cmd,
+                    set_context_func=set_line_collection,
+                    run_func=lambda args: run_line_build_command(cfg, args),
+                )
                 continue
             elif (option_cmd := parse_line_option_command(cmd, console_args[1:])):
                 dispatch_line_option_command(
@@ -7869,12 +7870,11 @@ def run_line_repl(cfg):
                 )
                 continue
             elif (daemon_cmd := parse_line_daemon_command(cmd, console_args[1:])):
-                try:
-                    if daemon_cmd["set_context"]:
-                        set_line_collection("daemon")
-                    run_line_daemon_action(daemon_cmd["args"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_daemon_command(
+                    daemon_cmd,
+                    set_context_func=set_line_collection,
+                    run_func=run_line_daemon_action,
+                )
                 continue
             elif (release_cmd := parse_line_release_alias_command(cmd, console_args[1:])):
                 dispatch_line_release_command(
@@ -7894,41 +7894,32 @@ def run_line_repl(cfg):
                 )
                 continue
             elif (file_cmd := parse_line_file_transfer_command(cmd, console_args[1:])):
-                try:
-                    dispatch_line_file_command(
-                        file_cmd,
-                        upload_func=stage_line_file,
-                        fetch_func=fetch_line_staged,
-                        unstage_func=unstage_line_file,
-                    )
-                    set_line_collection("files")
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_file_command(
+                    file_cmd,
+                    upload_func=stage_line_file,
+                    fetch_func=fetch_line_staged,
+                    unstage_func=unstage_line_file,
+                    set_context_func=lambda: set_line_collection("files"),
+                )
                 continue
             elif (view_cmd := parse_line_view_command(cmd, console_args[1:])):
-                try:
-                    view_line_path(view_cmd["path"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_view_command(view_cmd, view_func=view_line_path)
                 continue
             elif (files_cmd := parse_line_files_command(cmd, console_args[1:])):
-                try:
-                    dispatch_line_file_command(
-                        files_cmd,
-                        upload_func=stage_line_file,
-                        fetch_func=fetch_line_staged,
-                        unstage_func=unstage_line_file,
-                        clear_func=lambda confirm=False: line_files_clear_line_files(
-                            cfg,
-                            confirm=confirm,
-                            target_filter_id=configured_target_filter(cfg),
-                            append_event_fn=append_event,
-                        ),
-                        list_func=lambda verbose=False: print_line_files(verbose=verbose),
-                    )
-                    set_line_collection("files")
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_file_command(
+                    files_cmd,
+                    upload_func=stage_line_file,
+                    fetch_func=fetch_line_staged,
+                    unstage_func=unstage_line_file,
+                    clear_func=lambda confirm=False: line_files_clear_line_files(
+                        cfg,
+                        confirm=confirm,
+                        target_filter_id=configured_target_filter(cfg),
+                        append_event_fn=append_event,
+                    ),
+                    list_func=lambda verbose=False: print_line_files(verbose=verbose),
+                    set_context_func=lambda: set_line_collection("files"),
+                )
                 continue
             elif (queue_cmd := parse_line_queue_command(cmd, console_args[1:])):
                 dispatch_line_queue_command(

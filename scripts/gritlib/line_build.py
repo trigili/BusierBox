@@ -177,6 +177,23 @@ def parse_line_build_command(cmd, args=None):
     }
 
 
+def dispatch_line_build_command(
+    build_cmd,
+    *,
+    set_context_func=None,
+    run_func=None,
+):
+    try:
+        if build_cmd.get("set_context") and set_context_func:
+            set_context_func("build")
+        if run_func:
+            return run_func(build_cmd.get("args") or [])
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported build command")
+
+
 def run_line_build_command(cfg, args):
     verbose = any(str(arg).lower() in {"-v", "--verbose", "verbose"} for arg in args)
     args = [arg for arg in args if str(arg).lower() not in {"-v", "--verbose", "verbose"}]
