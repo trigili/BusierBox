@@ -476,6 +476,32 @@ def run_capture(cmd, path, env=None, required=False):
     return proc.returncode
 
 
+def json_file_valid(path):
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            json.load(fh)
+        return True
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
+def release_runtime_env(release_dir):
+    env = os.environ.copy()
+    lib_dirs = []
+    for candidate in (
+        release_dir / "lib",
+        release_dir / "runtime" / "payload" / "lib",
+        release_dir / "payload" / "lib",
+        ROOT / "runtime" / "payload" / "lib",
+    ):
+        if candidate.is_dir():
+            lib_dirs.append(str(candidate))
+    existing = env.get("LD_LIBRARY_PATH")
+    if lib_dirs:
+        env["LD_LIBRARY_PATH"] = ":".join(lib_dirs + ([existing] if existing else []))
+    return env
+
+
 def write_release_helpers(script_dir):
     write_executable(
         script_dir / "verify-checksums",
@@ -1216,8 +1242,26 @@ def write_release_helpers(script_dir):
             if info.get("path") != tuple_path_for(info):
                 fail(f"{context}: tuple path drift {info.get('path')} != {tuple_path_for(info)}")
 
-        def run(cmd, required=True):
-            proc = subprocess.run(cmd, cwd=root, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
+        def release_runtime_env():
+            env = os.environ.copy()
+            lib_dirs = []
+            for candidate in (
+                root / "lib",
+                root / "runtime" / "payload" / "lib",
+                root / "payload" / "lib",
+            ):
+                if candidate.is_dir():
+                    lib_dirs.append(str(candidate))
+            for candidate in root.glob("by-tuple/**/lib"):
+                if candidate.is_dir():
+                    lib_dirs.append(str(candidate))
+            existing = env.get("LD_LIBRARY_PATH")
+            if lib_dirs:
+                env["LD_LIBRARY_PATH"] = ":".join(lib_dirs + ([existing] if existing else []))
+            return env
+
+        def run(cmd, required=True, env=None):
+            proc = subprocess.run(cmd, cwd=root, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
             if required and proc.returncode != 0:
                 fail(f"{' '.join(map(str, cmd))} failed:\n{proc.stdout}")
             return proc
@@ -1510,7 +1554,11 @@ def write_release_helpers(script_dir):
             if rec.get("tuple_artifact") and not (root / rec["tuple_artifact"]).exists():
                 fail(f"missing tuple artifact: {rec['tuple_artifact']}")
             if rec.get("tuple", {}).get("arch") == "native" and os.access(artifact, os.X_OK):
-                run([str(artifact), "manifest", "--json"])
+                manifest_rel = rec.get("manifest_path")
+                if manifest_rel:
+                    load_json(root / manifest_rel)
+                else:
+                    run([str(artifact), "manifest", "--json"], env=release_runtime_env())
                 diagnostics["native_manifest_checked_count"] += 1
             with tempfile.TemporaryDirectory(prefix=".self-test-", dir=root) as tmp:
                 test_artifact = pathlib.Path(tmp) / artifact.name
@@ -2547,8 +2595,11 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
             write_build_missing_report(build_missing, rec, payload_manifest)
             rec["build_missing_path"] = f"manifests/{build_missing.name}"
     if resolved.get("TARGET_ARCH") == "native" and os.access(dest, os.X_OK):
-        run_capture([str(dest), "manifest", "--json"], manifest)
-        run_capture([str(dest), "config-info"], config_info)
+        native_env = release_runtime_env(release_dir)
+        if run_capture([str(dest), "manifest", "--json"], manifest, env=native_env) != 0 or not json_file_valid(manifest):
+            manifest.unlink(missing_ok=True)
+        if run_capture([str(dest), "config-info"], config_info, env=native_env) != 0:
+            config_info.unlink(missing_ok=True)
     rec["manifest_path"] = f"manifests/{manifest.name}" if manifest.exists() and manifest.stat().st_size else None
     rec["payload_manifest_path"] = f"manifests/{payload_manifest_path.name}" if payload_manifest_path.exists() and payload_manifest_path.stat().st_size else None
     rec["config_info_path"] = f"manifests/{config_info.name}" if config_info.exists() and config_info.stat().st_size else None
