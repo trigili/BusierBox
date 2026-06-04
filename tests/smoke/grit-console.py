@@ -1332,7 +1332,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "deleted route zz-console-added",
         "selected route console-route",
         "configured: ",
-        "command-queue (",
+        "command-queue  (13 fields)",
         "build option set: GRIT_RUNTIME_ROOT",
         "global build option set: GRIT_RUNTIME_ROOT",
         "set GRIT_OPERATOR_FILE_SERVICE_PORT=\"22231\"",
@@ -1899,11 +1899,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     if (not build_view_text or
             "configured: " not in build_view_text or
             "state: set=configured" not in build_view_text or
-            "runtime (" not in build_view_text or
-            "command-queue (" not in build_view_text or
+            "runtime  (" not in build_view_text or
+            "command-queue  (" not in build_view_text or
             "State" not in build_view_text or
-            "Opts" not in build_view_text or
+            "Choices" not in build_view_text or
             "Purpose" not in build_view_text or
+            "GRIT_RUNTIME_ROOT" not in build_view_text or
+            "runtime root" not in build_view_text or
             "options:" in build_view_text or
             "set: build set" in build_view_text or
             "--set-build-config" in build_view_text or

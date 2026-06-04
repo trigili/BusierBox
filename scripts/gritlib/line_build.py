@@ -7,6 +7,7 @@ from gritlib.build_config import (
     unset_workbench_build_config,
     workbench_config_field_records,
 )
+from gritlib.console_display import console_table
 from gritlib.event_log import append_event
 from gritlib.line_search import set_line_search_results
 from gritlib.shell_utils import shquote
@@ -53,43 +54,52 @@ def _build_field_options_text(rec):
     return "-"
 
 
+def _build_field_name(rec):
+    return str(rec.get("key") or "")
+
+
+def _build_field_purpose(rec):
+    return str(rec.get("label") or "")
+
+
 def print_line_build_config(cfg, verbose=False):
     fields = workbench_config_field_records(cfg)
     configured_count = len([rec for rec in fields if rec.get("configured")])
-    num_w = len(str(len(fields))) if fields else 1
-    key_w = max([len("Key")] + [len(str(rec.get("key") or "")) for rec in fields])
-    state_w = max([len("State")] + [len(_build_field_state(rec)) for rec in fields])
-    value_w = max([len("Value")] + [len(_build_field_value(rec)) for rec in fields])
-    opts_w = max([len("Opts")] + [len(_build_field_options_text(rec)) for rec in fields])
-    label_w = max([len("Purpose")] + [len(str(rec.get("label") or "")) for rec in fields])
 
     print(f"Build config  ({build_config_path(cfg)})")
     print(f"  configured: {configured_count}/{len(fields)}")
     print("  state: set=configured  default=using generated default  choose=operator choice recommended")
     print("")
+
+    def _detail(rec):
+        details = []
+        if verbose:
+            options = [str(o) for o in rec.get("options") or []]
+            examples = [str(o) for o in rec.get("examples") or []]
+            if options:
+                details.append(("options", "  ".join(options)))
+            elif examples:
+                details.append(("examples", "  ".join(examples)))
+            safety = str(rec.get("safety_note") or "")
+            if safety:
+                details.append(("note", safety))
+            details.append(("set", f"build set {rec.get('key', '')} VALUE"))
+        return details
+
     for category, records in _group_build_fields(fields):
-        print(f"  {category} ({len(records)})")
-        print("  " + " " * num_w + "  "
-              + f"{'Key':{key_w}}  {'State':{state_w}}  {'Value':{value_w}}  {'Opts':{opts_w}}  {'Purpose':{label_w}}")
-        print("  " + "-" * num_w + "  "
-              + f"{'-' * key_w}  {'-' * state_w}  {'-' * value_w}  {'-' * opts_w}  {'-' * label_w}")
-        for idx, rec in records:
-            value = _build_field_value(rec)
-            state = _build_field_state(rec)
-            opts = _build_field_options_text(rec)
-            label = str(rec.get("label") or "")
-            print(f"  {idx:{num_w}}  {str(rec.get('key') or ''):{key_w}}  {state:{state_w}}  {value:{value_w}}  {opts:{opts_w}}  {label:{label_w}}".rstrip())
-            if verbose:
-                options = [str(o) for o in rec.get("options") or []]
-                examples = [str(o) for o in rec.get("examples") or []]
-                if options:
-                    print("      options: " + "  ".join(options))
-                elif examples:
-                    print("      examples: " + "  ".join(examples))
-                safety = str(rec.get("safety_note") or "")
-                if safety:
-                    print("      note: " + safety)
-                print(f"      set: build set {rec.get('key', '')} VALUE")
+        category_records = [rec for _idx, rec in records]
+        console_table(
+            f"{category}  ({len(category_records)} fields)",
+            category_records,
+            [
+                ("Key", _build_field_name),
+                ("State", _build_field_state),
+                ("Value", _build_field_value),
+                ("Choices", _build_field_options_text),
+                ("Purpose", _build_field_purpose),
+            ],
+            detail_fn=_detail,
+        )
         print("")
     hint = "build set KEY VALUE  |  build unset KEY  |  build -v for options  |  build ? for help"
     if verbose:
