@@ -1303,7 +1303,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Session interaction:",
         "Agent interaction: Console Router (line-console-target)",
         "  state: online",
-        "status: line-console-target (Console Router)  state online  mailbox 0 pending",
+        "selected agent: line-console-target (Console Router)  state online  mailbox 0 pending",
         "target renamed: line-console-target",
         "target note updated: line-console-target",
         "target alias updated: line-console-target",
@@ -1582,7 +1582,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             any("  state: online" not in text for text in target_interactions[:2]) or
             any("label=Console Router" in text or "state=online" in text
                 for text in target_interactions[:2]) or
-            any("status: line-console-target (Console Router)  state online  mailbox 0 pending" not in text
+            any("selected agent: line-console-target (Console Router)  state online  mailbox 0 pending" not in text
+                for text in target_interactions[:2]) or
+            any("  status: line-console-target" in text
                 for text in target_interactions[:2]) or
             any("mailbox_pending=" in text or "target_cmds=" in text or "poll_overdue=" in text
                 for text in target_interactions[:2]) or
