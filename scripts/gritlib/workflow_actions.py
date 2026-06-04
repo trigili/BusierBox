@@ -2443,6 +2443,17 @@ def workbench_job_summary(records):
     }
 
 
+def workbench_job_status_context(cfg, workbench_actions=None):
+    from gritlib.workbench_jobs import workbench_job_records
+
+    jobs = workbench_job_records(cfg, workbench_actions)
+    return {
+        "jobs": jobs,
+        "index_maps": workbench_job_indexes(jobs),
+        "stats": workbench_job_summary(jobs),
+    }
+
+
 def operator_daemon_workflow_action_indexes(records):
     return {
         "operator_daemon_workflow_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},

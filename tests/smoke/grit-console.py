@@ -1535,6 +1535,68 @@ def run_workbench_action_status_context_check():
     return 0
 
 
+def run_workbench_job_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.workflow_actions import workbench_job_status_context
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        jobs_path = root / "workbench-jobs.json"
+        log_path = root / "job.log"
+        log_path.write_text("started\nfinished\n", encoding="utf-8")
+        jobs_path.write_text(
+            json.dumps({
+                "schema": 1,
+                "jobs": [
+                    {
+                        "id": "job-a",
+                        "action_id": "configure-binary",
+                        "state": "finished",
+                        "started_at": "2026-06-04T00:00:00Z",
+                        "finished_at": "2026-06-04T00:00:05Z",
+                        "exit_status": 0,
+                        "log_path": str(log_path),
+                    },
+                ],
+            }),
+            encoding="utf-8",
+        )
+        actions = [
+            {
+                "id": "configure-binary",
+                "label": "Configure binary",
+                "category": "configuration",
+                "script": "scripts/menuconfig",
+                "background_supported": True,
+                "long_running": False,
+            },
+        ]
+        context = workbench_job_status_context(
+            {"workbench_jobs_file": str(jobs_path)},
+            actions,
+        )
+        jobs = context.get("jobs") or []
+        indexes = context.get("index_maps") or {}
+        stats = context.get("stats") or {}
+        by_id = indexes.get("workbench_jobs_by_id") or {}
+        job = by_id.get("job-a") or {}
+        if jobs != [job] or not job:
+            print("workbench job status context did not preserve job records", file=sys.stderr)
+            return 1
+        if job.get("action_label") != "Configure binary" or job.get("outcome") != "succeeded":
+            print("workbench job status context did not preserve job enrichment", file=sys.stderr)
+            return 1
+        if stats.get("total_count") != 1 or stats.get("log_exists_count") != 1:
+            print("workbench job status context did not preserve summary", file=sys.stderr)
+            return 1
+        if "workbench_jobs_by_outcome" not in indexes:
+            print("workbench job status context did not preserve indexes", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_operator_daemon_workflow_action_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4873,6 +4935,8 @@ def main(argv=None):
     if run_workbench_config_status_context_check() != 0:
         return 1
     if run_workbench_action_status_context_check() != 0:
+        return 1
+    if run_workbench_job_status_context_check() != 0:
         return 1
     if run_operator_daemon_workflow_action_status_context_check() != 0:
         return 1
