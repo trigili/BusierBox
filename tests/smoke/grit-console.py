@@ -557,7 +557,7 @@ def run_probe_delivery_section(server):
 
 def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     sys.path.insert(0, str(ROOT / "scripts"))
-    from gritlib.line_workspace import print_line_workspace_snapshot
+    from gritlib.line_workspace import line_banner_hint, print_line_workspace_snapshot
 
     workspace_empty_buf = io.StringIO()
     with contextlib.redirect_stdout(workspace_empty_buf):
@@ -571,6 +571,31 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     ):
         print("line-oriented workspace empty state did not expose getting-started guidance", file=sys.stderr)
         print(workspace_empty_text, file=sys.stderr)
+        return 1
+    banner_hint_text = line_banner_hint({
+        "summary": {
+            "target_count": 2,
+            "mailbox_pending_work_count": 3,
+            "poll_overdue_count": 1,
+            "staged_count": 2,
+            "session_count": 1,
+            "bridge_profile_count": 1,
+            "listening_count": 0,
+        },
+        "target_filter": {},
+        "warnings": [{"message": "listener down"}],
+    })
+    if (
+        "workspace overview" not in banner_hint_text or
+        "status (1 warning)" not in banner_hint_text or
+        "targets (2)" not in banner_hint_text or
+        "queue (3 pending, 1 overdue)" not in banner_hint_text or
+        "files (2)" not in banner_hint_text or
+        "sessions (1)" not in banner_hint_text or
+        "routes (1)" not in banner_hint_text
+    ):
+        print("line-oriented banner hint did not expose useful counts", file=sys.stderr)
+        print(banner_hint_text, file=sys.stderr)
         return 1
 
     line_console_binary = Path(tmp) / "grit-line-console"
@@ -1142,7 +1167,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Control plane",
         "Console",
         "Tip: use `search TERM` to find agents, listeners, modules, sessions, jobs, files, and queue records.",
-        "next: ? help  |  next  |  workspace",
+        "next: ? help  |  next  |  workspace overview",
         "Help: files",
         "Help: queue",
         "Help: events",

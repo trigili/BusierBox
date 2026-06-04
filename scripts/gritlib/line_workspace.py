@@ -93,7 +93,7 @@ def line_banner_hint(snap):
     summary = snap.get("summary") or {}
     warnings = snap.get("warnings") or []
     target_filter = snap.get("target_filter") or {}
-    hints = ["? help", "next", "workspace"]
+    hints = ["? help", "next", "workspace overview"]
 
     pending_work = _count_value(
         summary.get("mailbox_pending_work_count")
@@ -110,21 +110,30 @@ def line_banner_hint(snap):
     route_count = _count_value(summary.get("bridge_profile_count"))
 
     if warnings:
-        hints.append("status")
+        hints.append(f"status ({len(warnings)} warning{'s' if len(warnings) != 1 else ''})")
     if target_filter.get("active"):
-        hints.extend(["mailbox", "sessions", "clear target"])
+        if pending_work:
+            hints.append(f"mailbox ({pending_work} pending)")
+        else:
+            hints.append("mailbox")
+        hints.extend(["sessions", "clear target"])
     elif target_count:
-        hints.append("targets")
+        hints.append(f"targets ({target_count})")
     else:
         hints.append("probe --start")
     if pending_work or poll_overdue:
-        hints.append("queue")
+        if pending_work and poll_overdue:
+            hints.append(f"queue ({pending_work} pending, {poll_overdue} overdue)")
+        elif pending_work:
+            hints.append(f"queue ({pending_work} pending)")
+        else:
+            hints.append(f"queue ({poll_overdue} overdue)")
     if staged_count:
-        hints.append("files")
+        hints.append(f"files ({staged_count})")
     if session_count:
-        hints.append("sessions")
+        hints.append(f"sessions ({session_count})")
     if route_count:
-        hints.append("routes")
+        hints.append(f"routes ({route_count})")
     if not listening:
         hints.append("listeners")
 
@@ -132,7 +141,7 @@ def line_banner_hint(snap):
     for hint in hints:
         if hint not in deduped:
             deduped.append(hint)
-    return "  next: " + "  |  ".join(deduped[:8])
+    return "  next: " + "  |  ".join(deduped[:10])
 
 
 def print_line_console_banner(snap, version):
