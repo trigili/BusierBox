@@ -84,8 +84,8 @@ from gritlib.command_copy import (
     command_copy_state_status, copy_text_for_operator,
 )
 from gritlib.console_runtime import (
-    listener_action_from_args, script_bytes_from_args, session_timeout_from_args,
-    serve_listener_action, timeout_from_args,
+    handle_operator_daemon_args, listener_action_from_args, script_bytes_from_args,
+    serve_listener_action, session_timeout_from_args, timeout_from_args,
 )
 from gritlib.console_help import print_concise_help, print_console_help_reference
 from gritlib.config_utils import (
@@ -7458,12 +7458,18 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         return 2
 
     timeout = timeout_from_args(args)
-    if args.daemon:
-        try:
-            return run_operator_daemon(cfg, args.daemon_service, timeout=timeout)
-        except ValueError as exc:
-            print(f"grit-console: {exc}", file=sys.stderr)
-            return 2
+    try:
+        daemon_code = handle_operator_daemon_args(
+            cfg,
+            args,
+            timeout=timeout,
+            run_operator_daemon_func=run_operator_daemon,
+        )
+        if daemon_code is not None:
+            return daemon_code
+    except ValueError as exc:
+        print(f"grit-console: {exc}", file=sys.stderr)
+        return 2
     action = listener_action_from_args(cfg, args, resolve_transport)
     script_bytes = script_bytes_from_args(args)
     session_timeout = session_timeout_from_args(args)

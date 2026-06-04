@@ -650,6 +650,7 @@ def run_console_runtime_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.console_runtime import (
+        handle_operator_daemon_args,
         listener_action_from_args,
         script_bytes_from_args,
         serve_listener_action,
@@ -678,6 +679,44 @@ def run_console_runtime_check():
     args.file_service = True
     if listener_action_from_args({}, args, lambda _cfg, _transport: "resolved") != "file-service":
         print("console runtime helper did not prefer --file-service action", file=sys.stderr)
+        return 1
+    daemon_calls = []
+    daemon_args = argparse.Namespace(daemon=True, daemon_service=["shell", "file"])
+    daemon_code = handle_operator_daemon_args(
+        {"cfg": "yes"},
+        daemon_args,
+        timeout=12,
+        run_operator_daemon_func=lambda cfg, services, timeout=None: daemon_calls.append(
+            ("daemon", cfg, services, timeout)
+        ) or 43,
+    )
+    if daemon_code != 43 or daemon_calls != [("daemon", {"cfg": "yes"}, ["shell", "file"], 12)]:
+        print("console runtime helper did not dispatch operator daemon", file=sys.stderr)
+        return 1
+    daemon_calls.clear()
+    daemon_args.daemon = False
+    if handle_operator_daemon_args(
+        {},
+        daemon_args,
+        timeout=None,
+        run_operator_daemon_func=lambda *args, **kwargs: daemon_calls.append((args, kwargs)),
+    ) is not None or daemon_calls:
+        print("console runtime helper handled empty daemon args", file=sys.stderr)
+        return 1
+    daemon_args.daemon = True
+    try:
+        handle_operator_daemon_args(
+            {},
+            daemon_args,
+            timeout=None,
+            run_operator_daemon_func=lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("bad daemon")),
+        )
+    except ValueError as exc:
+        if "bad daemon" not in str(exc):
+            print("console runtime helper raised wrong daemon error", file=sys.stderr)
+            return 1
+    else:
+        print("console runtime helper swallowed daemon error", file=sys.stderr)
         return 1
     with tempfile.TemporaryDirectory() as tmpdir:
         script_path = Path(tmpdir) / "script.sh"

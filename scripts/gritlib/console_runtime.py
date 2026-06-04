@@ -26,6 +26,12 @@ def listener_action_from_args(cfg, args, resolve_transport_func):
     return resolve_transport_func(cfg, args.transport)
 
 
+def handle_operator_daemon_args(cfg, args, *, timeout, run_operator_daemon_func):
+    if args.daemon:
+        return run_operator_daemon_func(cfg, args.daemon_service, timeout=timeout)
+    return None
+
+
 def serve_listener_action(
     cfg,
     args,
