@@ -1787,6 +1787,100 @@ def run_line_repl_runtime_check():
         print(f"line REPL workflow adapter wiring changed: {workflow_calls}", file=sys.stderr)
         return 1
 
+    workflow_bundle_calls = []
+    original_workflow_builder = repl_workflow.build_line_workflow_dispatch_callback
+
+    def fake_workflow_builder(cfg, **kwargs):
+        workflow_bundle_calls.append(("builder", cfg.get("name")))
+
+        def dispatch_workflow_bundle(command, args):
+            workflow_bundle_calls.append(("dispatch", command, tuple(args)))
+            kwargs["download_func"]("target1")
+            kwargs["release_stage_func"]("artifact1", start_file_service=True)
+            kwargs["upload_file_func"]("local.bin")
+            kwargs["fetch_file_func"]("remote.bin")
+            kwargs["unstage_file_func"]("staged.bin")
+            kwargs["view_path_func"]("loot.txt")
+            kwargs["list_files_func"](verbose=True)
+            kwargs["run_queue_func"](["list"])
+            kwargs["view_queue_func"]()
+            kwargs["cancel_job_func"]("job1")
+            kwargs["select_job_func"]("job1")
+            kwargs["list_jobs_func"](verbose=True)
+            kwargs["stage_binary_func"]("bin")
+            kwargs["configure_func"](["name", "key=value"])
+            return "workflow-bundle"
+
+        return dispatch_workflow_bundle
+
+    repl_workflow.build_line_workflow_dispatch_callback = fake_workflow_builder
+    try:
+        workflow_bundle = repl_workflow.build_line_workflow_callbacks(
+            {"name": "workflow-bundle-cfg"},
+            workbench_snapshot_func=lambda cfg: workflow_bundle_calls.append(("snapshot", cfg.get("name"))),
+            set_context_func=lambda cfg, module: workflow_bundle_calls.append(("context", module)),
+            daemon_runner_func=lambda cfg, selector, dry_run=False, confirmed=False, show_commands=False: (
+                workflow_bundle_calls.append(("daemon", selector, dry_run, confirmed, show_commands))
+            ),
+            release_print_func=lambda cfg, append_event_fn: workflow_bundle_calls.append(
+                ("release-list", cfg.get("name"), append_event_fn is not None)
+            ),
+            release_help_func=lambda topic: workflow_bundle_calls.append(("release-help", topic)),
+            target_filter_func=lambda cfg: cfg.get("target"),
+            clear_files_func=lambda cfg, confirm=False, target_filter_id="", append_event_fn=None: (
+                workflow_bundle_calls.append(("clear-files", confirm, target_filter_id, append_event_fn is not None))
+            ),
+            file_callbacks={
+                "download_target": lambda selector: workflow_bundle_calls.append(("download", selector)),
+                "stage_release": lambda selector, start_file_service=False: workflow_bundle_calls.append(
+                    ("release-stage", selector, start_file_service)
+                ),
+                "stage_file": lambda path: workflow_bundle_calls.append(("upload", path)),
+                "fetch_staged": lambda path: workflow_bundle_calls.append(("fetch", path)),
+                "unstage_file": lambda path: workflow_bundle_calls.append(("unstage", path)),
+                "view_path": lambda path: workflow_bundle_calls.append(("view", path)),
+                "print_line_files": lambda verbose=False: workflow_bundle_calls.append(("files", verbose)),
+                "stage_binary": lambda selector: workflow_bundle_calls.append(("stage-binary", selector)),
+                "configure_artifact": lambda args: workflow_bundle_calls.append(("configure", tuple(args))),
+            },
+            queue_callbacks={
+                "run_line_queue_command": lambda args: workflow_bundle_calls.append(("queue-run", tuple(args))),
+                "print_line_command_queue_view": lambda: workflow_bundle_calls.append("queue-view"),
+            },
+            job_callbacks={
+                "cancel_line_job": lambda selector: workflow_bundle_calls.append(("cancel-job", selector)),
+                "select_line_job": lambda selector: workflow_bundle_calls.append(("select-job", selector)),
+                "print_line_jobs": lambda verbose=False: workflow_bundle_calls.append(("jobs", verbose)),
+            },
+            append_event_fn=lambda *args, **kwargs: None,
+        )
+        if workflow_bundle["dispatch_line_workflow"]("queue", ["list"]) != "workflow-bundle":
+            print("line REPL workflow bundle did not return workflow dispatch result", file=sys.stderr)
+            return 1
+    finally:
+        repl_workflow.build_line_workflow_dispatch_callback = original_workflow_builder
+    expected_workflow_bundle_calls = [
+        ("builder", "workflow-bundle-cfg"),
+        ("dispatch", "queue", ("list",)),
+        ("download", "target1"),
+        ("release-stage", "artifact1", True),
+        ("upload", "local.bin"),
+        ("fetch", "remote.bin"),
+        ("unstage", "staged.bin"),
+        ("view", "loot.txt"),
+        ("files", True),
+        ("queue-run", ("list",)),
+        "queue-view",
+        ("cancel-job", "job1"),
+        ("select-job", "job1"),
+        ("jobs", True),
+        ("stage-binary", "bin"),
+        ("configure", ("name", "key=value")),
+    ]
+    if workflow_bundle_calls != expected_workflow_bundle_calls:
+        print(f"line REPL workflow bundle wiring changed: {workflow_bundle_calls}", file=sys.stderr)
+        return 1
+
     loop_calls = []
     loop_shutdown = threading.Event()
     loop_lines = iter(["", "status", "q", "v", None])

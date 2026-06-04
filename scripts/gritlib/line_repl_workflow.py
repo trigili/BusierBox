@@ -4,6 +4,49 @@ from gritlib.line_daemon import run_line_daemon_action
 from gritlib.line_workflow_commands import dispatch_line_workflow_command
 
 
+def build_line_workflow_callbacks(
+    cfg,
+    *,
+    workbench_snapshot_func,
+    set_context_func,
+    daemon_runner_func,
+    release_print_func,
+    release_help_func,
+    target_filter_func,
+    clear_files_func,
+    file_callbacks,
+    queue_callbacks,
+    job_callbacks,
+    append_event_fn,
+):
+    dispatch_workflow = build_line_workflow_dispatch_callback(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot_func,
+        set_context_func=set_context_func,
+        download_func=file_callbacks["download_target"],
+        daemon_runner_func=daemon_runner_func,
+        release_print_func=release_print_func,
+        release_stage_func=file_callbacks["stage_release"],
+        release_help_func=release_help_func,
+        upload_file_func=file_callbacks["stage_file"],
+        fetch_file_func=file_callbacks["fetch_staged"],
+        unstage_file_func=file_callbacks["unstage_file"],
+        view_path_func=file_callbacks["view_path"],
+        clear_files_func=clear_files_func,
+        target_filter_func=target_filter_func,
+        list_files_func=file_callbacks["print_line_files"],
+        run_queue_func=queue_callbacks["run_line_queue_command"],
+        view_queue_func=queue_callbacks["print_line_command_queue_view"],
+        cancel_job_func=job_callbacks["cancel_line_job"],
+        select_job_func=job_callbacks["select_line_job"],
+        list_jobs_func=job_callbacks["print_line_jobs"],
+        stage_binary_func=file_callbacks["stage_binary"],
+        configure_func=file_callbacks["configure_artifact"],
+        append_event_fn=append_event_fn,
+    )
+    return {"dispatch_line_workflow": dispatch_workflow}
+
+
 def build_line_workflow_dispatch_callback(
     cfg,
     *,

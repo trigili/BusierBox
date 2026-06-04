@@ -190,7 +190,7 @@ from gritlib.line_repl_sessions import build_line_session_callbacks
 from gritlib.line_repl_show import build_line_display_show_callbacks
 from gritlib.line_repl_targets import build_line_target_callbacks
 from gritlib.line_repl_utility import build_line_utility_callbacks
-from gritlib.line_repl_workflow import build_line_workflow_dispatch_callback
+from gritlib.line_repl_workflow import build_line_workflow_callbacks
 from gritlib.line_release import (
     print_line_release as line_release_print_line_release,
 )
@@ -6116,7 +6116,6 @@ def run_line_repl(cfg):
         quote=shquote,
     )
     line_job_record = line_job_callbacks["line_job_record"]
-    print_line_jobs = line_job_callbacks["print_line_jobs"]
     select_line_job = line_job_callbacks["select_line_job"]
     cancel_line_job = line_job_callbacks["cancel_line_job"]
 
@@ -6131,7 +6130,6 @@ def run_line_repl(cfg):
         quote=shquote,
     )
     print_line_command_queue_view = line_queue_callbacks["print_line_command_queue_view"]
-    run_line_queue_command = line_queue_callbacks["run_line_queue_command"]
 
     line_probe_callbacks = build_line_probe_callbacks(
         cfg,
@@ -6178,13 +6176,6 @@ def run_line_repl(cfg):
     )
     stage_line_release = line_file_callbacks["stage_release"]
     stage_line_binary = line_file_callbacks["stage_binary"]
-    configure_line_artifact = line_file_callbacks["configure_artifact"]
-    stage_line_file = line_file_callbacks["stage_file"]
-    download_line_target = line_file_callbacks["download_target"]
-    fetch_line_staged = line_file_callbacks["fetch_staged"]
-    unstage_line_file = line_file_callbacks["unstage_file"]
-    view_line_path = line_file_callbacks["view_path"]
-    print_line_files = line_file_callbacks["print_line_files"]
 
     line_search_callbacks = build_line_search_callbacks(
         cfg,
@@ -6320,31 +6311,21 @@ def run_line_repl(cfg):
         queue_callbacks=line_queue_callbacks,
     )
     dispatch_line_navigation = line_navigation_callbacks["dispatch_line_navigation"]
-    dispatch_line_workflow = build_line_workflow_dispatch_callback(
+    line_workflow_callbacks = build_line_workflow_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
         set_context_func=set_line_collection_context,
-        download_func=download_line_target,
         daemon_runner_func=run_operator_daemon_workflow_action,
         release_print_func=line_release_print_line_release,
-        release_stage_func=stage_line_release,
         release_help_func=print_line_command_help,
-        upload_file_func=stage_line_file,
-        fetch_file_func=fetch_line_staged,
-        unstage_file_func=unstage_line_file,
-        view_path_func=view_line_path,
-        clear_files_func=line_files_clear_line_files,
         target_filter_func=configured_target_filter,
-        list_files_func=print_line_files,
-        run_queue_func=run_line_queue_command,
-        view_queue_func=print_line_command_queue_view,
-        cancel_job_func=cancel_line_job,
-        select_job_func=select_line_job,
-        list_jobs_func=print_line_jobs,
-        stage_binary_func=stage_line_binary,
-        configure_func=configure_line_artifact,
+        clear_files_func=line_files_clear_line_files,
+        file_callbacks=line_file_callbacks,
+        queue_callbacks=line_queue_callbacks,
+        job_callbacks=line_job_callbacks,
         append_event_fn=append_event,
     )
+    dispatch_line_workflow = line_workflow_callbacks["dispatch_line_workflow"]
     dispatch_line_legacy = build_line_legacy_dispatch_callback(
         cfg,
         input_func=line_input,
