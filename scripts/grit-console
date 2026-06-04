@@ -6819,12 +6819,11 @@ def run_line_repl(cfg):
         script_name = cfg.get("GRIT_PROBE_NAME", "probe.sh")
 
         if not already_listening and not started:
-            print(f"[!] Probe listener is NOT running on port {port}.")
-            print(f"    The target command below will fail until you start it.")
-            print(f"    Run:  probe --start")
+            print(f"Probe listener is not running on port {port}.")
+            print("  start it with: probe --start")
             print("")
 
-        print(f"Probe  —  port {port}  |  script {script_name}  |  {'listening' if (already_listening or started) else 'NOT listening'}")
+        print(f"Probe  —  port {port}  |  script {script_name}  |  {'listening' if (already_listening or started) else 'not listening'}")
 
         queued = {}
         target_id = configured_target_filter(cfg)
