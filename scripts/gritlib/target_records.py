@@ -532,6 +532,24 @@ def select_workbench_target_record(selector, targets, *, current_target_id=""):
     raise ValueError(f"target not found: {text}")
 
 
+def print_workbench_target_selector(targets, *, current_target_id="", empty_message="no known targets"):
+    records = [rec for rec in targets or [] if isinstance(rec, dict)]
+    current = str(current_target_id or "").strip()
+    if not records:
+        print(empty_message)
+        return
+    for idx, rec in enumerate(records, 1):
+        marker = "*" if str(rec.get("target_id") or "") == current else " "
+        print(
+            f"{idx}:{marker} {rec.get('target_id', '')} "
+            f"label={rec.get('label', '') or '-'} "
+            f"state={rec.get('connectivity_state', '') or '-'} "
+            f"mailbox_pending={rec.get('mailbox_pending_work_count', 0)} "
+            f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
+            f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
+        )
+
+
 def target_identity_from_headers(headers):
     headers = headers or {}
     target_id = str(headers.get("x-grit-target-id") or headers.get("x-grittykit-target-id") or headers.get("x-grit-target") or "").strip()

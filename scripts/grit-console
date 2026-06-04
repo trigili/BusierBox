@@ -356,7 +356,8 @@ from gritlib.target_records import (
     target_filter_record_indexes,
     target_filter_summary_text,
     target_identity_from_headers, target_record_indexes, target_record_summary,
-    target_registry_state_status, print_target_summary, target_records, targets_path,
+    target_registry_state_status, print_target_summary, print_workbench_target_selector,
+    target_records, targets_path,
 )
 from gritlib.tftp import parse_tftp_rrq, send_tftp_file, tftp_error_packet
 from gritlib.tls_io import recv_ssl_nonblocking, send_ssl_nonblocking
@@ -7703,19 +7704,11 @@ def run_line_repl(cfg):
             snap = workbench_snapshot(unfiltered_cfg)
             targets = snap.get("targets") or []
             current = configured_target_filter(cfg)
-            if targets:
-                for idx, rec in enumerate(targets, 1):
-                    marker = "*" if str(rec.get("target_id") or "") == current else " "
-                    print(
-                        f"{idx}:{marker} {rec.get('target_id', '')} "
-                        f"label={rec.get('label', '') or '-'} "
-                        f"state={rec.get('connectivity_state', '') or '-'} "
-                        f"mailbox_pending={rec.get('mailbox_pending_work_count', 0)} "
-                        f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
-                        f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
-                    )
-            else:
-                print("no known targets; use all/clear to remove any current filter")
+            print_workbench_target_selector(
+                targets,
+                current_target_id=current,
+                empty_message="no known targets; use all/clear to remove any current filter",
+            )
             selected_line = line_input("target number/id/label, or all to clear> ")
             selected = selected_line.strip() if selected_line is not None else ""
             if selected:
@@ -7928,19 +7921,7 @@ def run_line_repl(cfg):
             snap = workbench_snapshot(unfiltered_cfg)
             targets = snap.get("targets") or []
             current = configured_target_filter(cfg)
-            if targets:
-                for idx, rec in enumerate(targets, 1):
-                    marker = "*" if str(rec.get("target_id") or "") == current else " "
-                    print(
-                        f"{idx}:{marker} {rec.get('target_id', '')} "
-                        f"label={rec.get('label', '') or '-'} "
-                        f"state={rec.get('connectivity_state', '') or '-'} "
-                        f"mailbox_pending={rec.get('mailbox_pending_work_count', 0)} "
-                        f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
-                        f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
-                    )
-            else:
-                print("no known targets")
+            print_workbench_target_selector(targets, current_target_id=current)
             selected_line = line_input("target number/id/label, current, or all> ")
             selected = selected_line.strip() if selected_line is not None else ""
             if not selected:
@@ -8051,19 +8032,7 @@ def run_line_repl(cfg):
             snap = workbench_snapshot(unfiltered_cfg)
             targets = snap.get("targets") or []
             current = configured_target_filter(cfg)
-            if targets:
-                for idx, rec in enumerate(targets, 1):
-                    marker = "*" if str(rec.get("target_id") or "") == current else " "
-                    print(
-                        f"{idx}:{marker} {rec.get('target_id', '')} "
-                        f"label={rec.get('label', '') or '-'} "
-                        f"state={rec.get('connectivity_state', '') or '-'} "
-                        f"mailbox_pending={rec.get('mailbox_pending_work_count', 0)} "
-                        f"poll_overdue={'yes' if rec.get('poll_overdue') else 'no'} "
-                        f"last_seen={rec.get('last_seen', '') or rec.get('last_seen_at', '') or '-'}"
-                    )
-            else:
-                print("no known targets")
+            print_workbench_target_selector(targets, current_target_id=current)
             selected_line = line_input("target number/id/label, current, or all> ")
             selected = selected_line.strip() if selected_line is not None else ""
             if not selected:
