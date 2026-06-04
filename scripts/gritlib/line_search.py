@@ -5,6 +5,10 @@ from pathlib import Path
 from gritlib.line_state import line_action_state_text
 
 
+def clear_line_search_results(cfg):
+    cfg["_line_console_search_results"] = []
+
+
 def line_searchable_text(rec):
     parts = []
     if isinstance(rec, dict):

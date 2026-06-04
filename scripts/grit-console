@@ -196,6 +196,7 @@ from gritlib.line_release import (
     stage_line_release as line_release_stage_line_release,
 )
 from gritlib.line_search import (
+    clear_line_search_results,
     print_line_search_results,
     use_line_search_result as line_search_use_line_search_result,
 )
@@ -7209,7 +7210,7 @@ def run_line_repl(cfg):
         )
 
     def clear_line_selectable_results():
-        cfg["_line_console_search_results"] = []
+        clear_line_search_results(cfg)
 
     def run_line_queue_command(args):
         return line_command_queue_run_command(
@@ -7423,7 +7424,7 @@ def run_line_repl(cfg):
         })
 
     def print_line_command_queue_view(detailed=False, mailbox_only=False):
-        cfg["_line_console_search_results"] = []
+        clear_line_search_results(cfg)
         snap = workbench_snapshot(cfg)
         command_queue_actions = snap.get("command_queue_workflow_actions") or []
         mailbox_records = snap.get("target_mailbox_records") or []
