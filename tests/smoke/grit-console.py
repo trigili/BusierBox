@@ -119,23 +119,33 @@ def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=N
     artifact_dir.mkdir(parents=True, exist_ok=True)
     (artifact_dir / "transcript.txt").write_text(stdout_text or "", encoding="utf-8")
     (artifact_dir / "stderr.txt").write_text(stderr_text or "", encoding="utf-8")
+    transcript_text = stdout_text or ""
+    first_prompt = transcript_text.find("grit[all]>")
+    help_prompt = transcript_text.find("grit[all]> help", first_prompt + 1)
+    blank_enter_text = (
+        transcript_text[first_prompt:help_prompt]
+        if first_prompt != -1 and help_prompt != -1 else ""
+    )
     summary_doc = {
         "kind": "line-console-transcript",
         "returncode": returncode,
         "artifact_dir": str(artifact_dir),
         "transcript": str(artifact_dir / "transcript.txt"),
         "stderr": str(artifact_dir / "stderr.txt"),
-        "prompt_count": (stdout_text or "").count("grit["),
-        "traceback_present": "Traceback" in ((stdout_text or "") + (stderr_text or "")),
-        "raw_python_repr_present": line_console_raw_python_repr_present(stdout_text),
-        "raw_action_state_present": line_console_raw_action_state_present(stdout_text),
-        "literal_ctrl_c_present": "^C" in (stdout_text or ""),
-        "headless_command_default_spam_present": "headless_command:" in (stdout_text or ""),
-        "headless_command_event_summary_present": "headless_command=" in (stdout_text or ""),
-        "stale_numbered_result_error_present": "search result number out of range" in (stdout_text or ""),
-        "raw_queue_action_name_present": "command-queue:inspect-command-queue" in (stdout_text or ""),
+        "prompt_count": transcript_text.count("grit["),
+        "traceback_present": "Traceback" in (transcript_text + (stderr_text or "")),
+        "raw_python_repr_present": line_console_raw_python_repr_present(transcript_text),
+        "raw_action_state_present": line_console_raw_action_state_present(transcript_text),
+        "literal_ctrl_c_present": "^C" in transcript_text,
+        "headless_command_default_spam_present": "headless_command:" in transcript_text,
+        "headless_command_event_summary_present": "headless_command=" in transcript_text,
+        "stale_numbered_result_error_present": "search result number out of range" in transcript_text,
+        "raw_queue_action_name_present": "command-queue:inspect-command-queue" in transcript_text,
+        "blank_enter_dashboard_rerender_present": bool(
+            blank_enter_text and "griTTYkit v" in blank_enter_text
+        ),
         "verbose_policy_dump_present": any(
-            marker in (stdout_text or "")
+            marker in transcript_text
             for marker in ("allowed_commands=", "delivery_policy_counts:", "mode status:")
         ),
     }
@@ -5679,7 +5689,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "raw_queue_action_name_present",
             "literal_ctrl_c_present",
             "headless_command_default_spam_present",
+            "headless_command_event_summary_present",
             "stale_numbered_result_error_present",
+            "blank_enter_dashboard_rerender_present",
             "verbose_policy_dump_present",
         )
         if line_console_artifact_summary.get(key)
