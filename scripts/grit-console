@@ -206,6 +206,7 @@ from gritlib.line_search import (
 from gritlib.line_services import (
     line_service_display_name,
     line_service_completion_names, line_service_names, line_service_record,
+    parse_line_listener_command,
     print_line_services as line_services_print_line_services,
     select_line_service as line_services_select_line_service,
     resolve_line_service_selector as line_services_resolve_selector,
@@ -219,6 +220,7 @@ from gritlib.line_sessions import (
 )
 from gritlib.line_targets import (
     interact_line_target as line_targets_interact_line_target,
+    parse_line_target_command,
     print_line_targets as line_targets_print_line_targets,
     select_line_target as line_targets_select_line_target,
 )
@@ -7788,37 +7790,37 @@ def run_line_repl(cfg):
                 show_line_resource(" ".join(["modules", *console_args[1:]]).strip())
                 continue
             elif cmd in {"services", "listeners"}:
-                show_line_resource(" ".join(["listeners", *console_args[1:]]).strip())
+                listener_cmd = parse_line_listener_command(cmd, console_args[1:])
+                set_line_collection("listeners")
+                print_line_services(verbose=listener_cmd["verbose"])
                 continue
             elif cmd == "listener":
-                if len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
+                listener_cmd = parse_line_listener_command(cmd, console_args[1:])
+                if listener_cmd["action"] == "list":
                     set_line_collection("listeners")
-                    print_line_services(verbose=True)
-                    continue
-                selector = " ".join(console_args[1:]).strip()
-                if not selector:
-                    set_line_collection("listeners")
-                    print_line_services()
+                    print_line_services(verbose=listener_cmd["verbose"])
                     continue
                 try:
-                    select_line_service(selector)
+                    select_line_service(listener_cmd["selector"])
                 except ValueError as exc:
                     print(exc)
                 continue
             elif cmd in {"targets", "agents", "hosts"}:
-                set_line_collection("targets")
-                print_line_targets()
-                continue
-            elif cmd in {"target", "agent", "host"}:
-                selector = " ".join(console_args[1:]).strip()
-                if not selector:
+                target_cmd = parse_line_target_command(cmd, console_args[1:])
+                if target_cmd["action"] == "list":
                     set_line_collection("targets")
                     print_line_targets()
-                    continue
-                try:
-                    select_line_target(selector)
-                except ValueError as exc:
-                    print(exc)
+                continue
+            elif cmd in {"target", "agent", "host"}:
+                target_cmd = parse_line_target_command(cmd, console_args[1:])
+                if target_cmd["action"] == "list":
+                    set_line_collection("targets")
+                    print_line_targets()
+                else:
+                    try:
+                        select_line_target(target_cmd["selector"])
+                    except ValueError as exc:
+                        print(exc)
                 continue
             elif cmd in {"sessions", "session"}:
                 session_cmd = parse_line_sessions_command(cmd, console_args[1:])

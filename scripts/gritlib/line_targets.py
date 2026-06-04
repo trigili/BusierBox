@@ -11,6 +11,15 @@ from gritlib.target_records import (
 )
 
 
+def parse_line_target_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    if cmd in {"targets", "agents", "hosts"}:
+        return {"action": "list"}
+    selector = " ".join(args).strip()
+    return {"action": "select" if selector else "list", "selector": selector}
+
+
 def line_target_seen_text(rec):
     iso = rec.get("last_seen") or rec.get("last_seen_at") or ""
     if iso and len(iso) >= 16 and "T" in iso:

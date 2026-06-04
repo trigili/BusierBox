@@ -21,6 +21,20 @@ LINE_SERVICE_ALIASES = {
 }
 
 
+def parse_line_listener_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    if cmd in {"services", "listeners"}:
+        return {
+            "action": "list",
+            "verbose": any(str(item).lower() in {"-v", "--verbose"} for item in args),
+        }
+    if args and str(args[0]).lower() in {"-v", "--verbose"}:
+        return {"action": "list", "verbose": True}
+    selector = " ".join(args).strip()
+    return {"action": "select" if selector else "list", "selector": selector, "verbose": False}
+
+
 def line_service_display_name(name):
     text = str(name or "").strip()
     return LINE_SERVICE_DISPLAY_NAMES.get(text, text)
