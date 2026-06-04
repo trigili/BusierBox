@@ -2264,7 +2264,12 @@ def run_line_repl_runtime_check():
 
     repl_show.build_line_display_callbacks = fake_display_builder
     repl_show.build_line_show_resource_adapter = lambda cfg, **kwargs: (
-        display_bundle_calls.append(("show-builder", cfg.get("name"), len(kwargs.get("display_callbacks") or ())))
+        display_bundle_calls.append((
+            "show-builder",
+            cfg.get("name"),
+            len(kwargs.get("display_callbacks") or ()),
+            kwargs["target_filter_func"](cfg),
+        ))
         or (lambda resource: display_bundle_calls.append(("show", resource)))
     )
     try:
@@ -2275,12 +2280,14 @@ def run_line_repl_runtime_check():
             build_fields_func=lambda cfg: [],
             target_command_records_func=lambda cfg: [],
             set_context_func=lambda cfg, module: None,
-            target_filter_func=lambda cfg: "",
             action_callbacks={
                 "selected_line_action": lambda: display_bundle_calls.append("selected-action") or {},
                 "print_line_actions": lambda verbose=False: None,
             },
-            target_callbacks={"print_line_targets": lambda: None},
+            target_callbacks={
+                "print_line_targets": lambda: None,
+                "target_filter": lambda: display_bundle_calls.append("target-filter") or "target1",
+            },
             route_service_callbacks={
                 "line_route_record": lambda route: display_bundle_calls.append(("route-record", route)),
                 "bridge_profile_headless_command": lambda action, name="", extra=None: display_bundle_calls.append(
@@ -2326,7 +2333,8 @@ def run_line_repl_runtime_check():
         ("job-record", "job1"),
         ("probe-delivery", "ignored"),
         ("bridge-command", "inspect", "route1", None),
-        ("show-builder", "display-cfg", 3),
+        "target-filter",
+        ("show-builder", "display-cfg", 3, "target1"),
         ("show", "jobs"),
     ]
     if display_bundle_calls != expected_display_bundle_calls:

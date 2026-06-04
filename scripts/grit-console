@@ -6183,7 +6183,6 @@ def run_line_repl(cfg):
         build_fields_func=workbench_config_field_records,
         target_command_records_func=generated_target_command_records,
         set_context_func=set_line_collection_context,
-        target_filter_func=configured_target_filter,
         action_callbacks=line_action_callbacks,
         target_callbacks=line_target_callbacks,
         route_service_callbacks=line_route_service_callbacks,

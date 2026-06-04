@@ -15,7 +15,7 @@ def build_line_display_show_callbacks(
     build_fields_func,
     target_command_records_func,
     set_context_func,
-    target_filter_func,
+    target_filter_func=None,
     action_callbacks,
     target_callbacks,
     route_service_callbacks,
@@ -30,6 +30,10 @@ def build_line_display_show_callbacks(
     print_release_func,
     append_event_fn,
 ):
+    if target_filter_func is None:
+        target_filter = target_callbacks["target_filter"]
+        target_filter_func = lambda _cfg: target_filter()
+
     selected_action_func = action_callbacks["selected_line_action"]
     route_record_func = route_service_callbacks["line_route_record"]
     session_record_func = session_callbacks["line_session_record"]
