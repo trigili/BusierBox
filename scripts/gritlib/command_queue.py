@@ -805,11 +805,13 @@ def command_queue_expired(rec, now_epoch=None):
     return int(now_epoch) >= int(expires_epoch)
 
 
-def command_queue_status_summary(command_queue):
+def command_queue_status_summary(command_queue, policy_records=None):
     command_queue = command_queue or {}
+    policy_records = policy_records or []
     policy_summary = command_queue.get("policy_summary") or {}
     mode_summary = command_queue.get("mode_summary") or {}
     return {
+        "command_queue_policy_record_count": len(policy_records),
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
         "command_queue_delivered_count": command_queue.get("delivered_count", 0),
