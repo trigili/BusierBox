@@ -143,6 +143,56 @@ def line_console_scripted_command_coverage(commands):
     }
 
 
+def line_console_scripted_command_records(commands):
+    records = []
+    for index, command in enumerate(commands or (), start=1):
+        text = str(command)
+        stripped = text.strip()
+        if stripped:
+            parts = stripped.split(None, 1)
+            primary = parts[0]
+            args_text = parts[1] if len(parts) > 1 else ""
+        else:
+            primary = "<blank>"
+            args_text = ""
+        records.append({
+            "ordinal": index,
+            "command": text,
+            "primary": primary,
+            "args_text": args_text,
+            "blank": not stripped,
+        })
+    return records
+
+
+def line_console_scripted_command_indexes(records):
+    by_primary = {}
+    by_blank = {"yes": [], "no": []}
+    for record in records or ():
+        by_primary.setdefault(record.get("primary", ""), []).append(record)
+        by_blank["yes" if record.get("blank") else "no"].append(record)
+    return {
+        "scripted_command_records_by_primary": dict(sorted(by_primary.items())),
+        "scripted_command_records_by_blank": by_blank,
+    }
+
+
+def line_console_scripted_command_api(records):
+    return {
+        "scripted_command_records": {
+            "name": "scripted_command_records",
+            "count": len(records or ()),
+            "primary_key": "ordinal",
+            "summary_key": "scripted_command_summary.total_count",
+            "count_summary_key": "scripted_command_summary.total_count",
+            "indexes": [
+                "scripted_command_records_by_primary",
+                "scripted_command_records_by_blank",
+            ],
+        },
+    }
+
+
 def run(*args):
     return subprocess.run(args, cwd=ROOT, text=True, capture_output=True)
 
@@ -6603,6 +6653,15 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         line_console_scripted_command_summary = line_console_scripted_command_coverage(
             line_console_scripted_commands
         )
+        line_console_scripted_records = line_console_scripted_command_records(
+            line_console_scripted_commands
+        )
+        line_console_scripted_indexes = line_console_scripted_command_indexes(
+            line_console_scripted_records
+        )
+        line_console_scripted_api = line_console_scripted_command_api(
+            line_console_scripted_records
+        )
         os.write(
             line_console_master,
             line_console_script.encode("utf-8"),
@@ -6658,6 +6717,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "scripted_command_count": len(line_console_scripted_commands),
             "scripted_commands": line_console_scripted_commands,
             "scripted_command_summary": line_console_scripted_command_summary,
+            "scripted_command_records": line_console_scripted_records,
+            "scripted_command_records_by_primary": line_console_scripted_indexes[
+                "scripted_command_records_by_primary"
+            ],
+            "scripted_command_records_by_blank": line_console_scripted_indexes[
+                "scripted_command_records_by_blank"
+            ],
+            "api_collections": line_console_scripted_api,
         },
     )
     if (not (line_console_artifact_dir_path / "transcript.txt").is_file() or
@@ -6691,13 +6758,46 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     scripted_commands = line_console_artifact_summary.get("scripted_commands") or []
     scripted_command_summary = line_console_artifact_summary.get("scripted_command_summary") or {}
     scripted_commands_by_primary = scripted_command_summary.get("by_primary") or {}
+    scripted_command_records = line_console_artifact_summary.get("scripted_command_records") or []
+    scripted_command_records_by_primary = (
+        line_console_artifact_summary.get("scripted_command_records_by_primary") or {}
+    )
+    scripted_command_records_by_blank = (
+        line_console_artifact_summary.get("scripted_command_records_by_blank") or {}
+    )
+    scripted_command_api = (
+        (line_console_artifact_summary.get("api_collections") or {})
+        .get("scripted_command_records") or {}
+    )
     if (
             line_console_artifact_summary.get("scripted_command_count") != len(scripted_commands)
             or scripted_command_summary.get("total_count") != len(scripted_commands)
+            or len(scripted_command_records) != len(scripted_commands)
+            or scripted_command_api.get("count") != len(scripted_commands)
+            or scripted_command_api.get("primary_key") != "ordinal"
+            or "scripted_command_records_by_primary" not in scripted_command_api.get("indexes", [])
+            or "scripted_command_records_by_blank" not in scripted_command_api.get("indexes", [])
             or len(scripted_commands) < 150
             or scripted_command_summary.get("primary_count", 0) < 45):
         print("line-console transcript artifact did not record enough scripted command coverage", file=sys.stderr)
         print(json.dumps(line_console_artifact_summary, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
+    if (
+            not scripted_command_records
+            or scripted_command_records[0] != {
+                "ordinal": 1,
+                "command": "",
+                "primary": "<blank>",
+                "args_text": "",
+                "blank": True,
+            }
+            or len(scripted_command_records_by_blank.get("yes") or []) != 1
+            or len(scripted_command_records_by_blank.get("no") or []) != len(scripted_commands) - 1):
+        print("line-console transcript artifact scripted command records are inconsistent", file=sys.stderr)
+        print(json.dumps({
+            "records_head": scripted_command_records[:3],
+            "by_blank": scripted_command_records_by_blank,
+        }, indent=2, sort_keys=True), file=sys.stderr)
         return 1
     required_primary_commands = (
         "<blank>",
@@ -6771,10 +6871,15 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         command for command in required_primary_commands
         if command not in scripted_commands_by_primary
     ]
-    if missing_primary_commands:
+    missing_primary_record_indexes = [
+        command for command in required_primary_commands
+        if command not in scripted_command_records_by_primary
+    ]
+    if missing_primary_commands or missing_primary_record_indexes:
         print("line-console transcript artifact missing primary command coverage", file=sys.stderr)
         print(json.dumps({
             "missing": missing_primary_commands,
+            "missing_record_indexes": missing_primary_record_indexes,
             "by_primary": scripted_commands_by_primary,
         }, indent=2, sort_keys=True), file=sys.stderr)
         return 1
