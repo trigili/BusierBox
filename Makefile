@@ -125,11 +125,19 @@ detect-host:
 
 smoke: smoke-test
 
+define run_if_python3
+	@if command -v python3 >/dev/null 2>&1; then $(1); else printf '%s\n' "skip: $(2)"; fi
+endef
+
+define validate_json_with_python3
+	$(call run_if_python3,$(1) | python3 -m json.tool >/dev/null,$(2))
+endef
+
 smoke-grit-console:
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/grit-console.py $(if $(GRIT_CONSOLE_SMOKE_SECTION),--section "$(GRIT_CONSOLE_SMOKE_SECTION)",); else printf '%s\n' "skip: python3 server smoke unavailable"; fi
+	$(call run_if_python3,tests/smoke/grit-console.py $(if $(GRIT_CONSOLE_SMOKE_SECTION),--section "$(GRIT_CONSOLE_SMOKE_SECTION)",),python3 server smoke unavailable)
 
 smoke-grit-console-sections:
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/grit-console.py --list-sections; else printf '%s\n' "skip: python3 server smoke unavailable"; fi
+	$(call run_if_python3,tests/smoke/grit-console.py --list-sections,python3 server smoke unavailable)
 
 smoke-grit-console-preflight:
 	@$(MAKE) smoke-grit-console GRIT_CONSOLE_SMOKE_SECTION=preflight
@@ -166,54 +174,54 @@ smoke-test:
 	@tests/smoke/menuconfig-validation.sh
 	@tests/smoke/validation-matrix.sh
 	@tests/smoke/rehosted-router-presets.sh
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/config-from-survey.sh; else printf '%s\n' "skip: python3 config-from-survey smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/preset-from-survey.sh; else printf '%s\n' "skip: python3 preset-from-survey smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/survey-shell.sh dist/grit-native-full; else printf '%s\n' "skip: python3 shell survey smoke unavailable"; fi
+	$(call run_if_python3,tests/smoke/config-from-survey.sh,python3 config-from-survey smoke unavailable)
+	$(call run_if_python3,tests/smoke/preset-from-survey.sh,python3 preset-from-survey smoke unavailable)
+	$(call run_if_python3,tests/smoke/survey-shell.sh dist/grit-native-full,python3 shell survey smoke unavailable)
 	@tests/smoke/payload-presets.sh
 	@tests/smoke/wolfssl-detection.sh
 	@tests/smoke/wolfssl-cross-preflight.sh
 	@tests/smoke/build-native-wolfssl.sh
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/artifact-config.sh dist/grit-native-full; else printf '%s\n' "skip: python3 artifact-config smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/heavy-tool-triage.sh; else printf '%s\n' "skip: python3 heavy-tool-triage smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/gdbserver-workflow.sh; else printf '%s\n' "skip: python3 gdbserver workflow smoke unavailable"; fi
+	$(call run_if_python3,tests/smoke/artifact-config.sh dist/grit-native-full,python3 artifact-config smoke unavailable)
+	$(call run_if_python3,tests/smoke/heavy-tool-triage.sh,python3 heavy-tool-triage smoke unavailable)
+	$(call run_if_python3,tests/smoke/gdbserver-workflow.sh,python3 gdbserver workflow smoke unavailable)
 	@tests/smoke/rshell-menu-structure.sh
 	@tests/smoke/rshell-transport-names.sh
 	@tests/smoke/rshell-external-writes.sh
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/rshell-status-json.sh dist/grit-native-full; else printf '%s\n' "skip: python3 rshell status json smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/plan-json.sh dist/grit-native-full; else printf '%s\n' "skip: python3 plan json smoke unavailable"; fi
+	$(call run_if_python3,tests/smoke/rshell-status-json.sh dist/grit-native-full,python3 rshell status json smoke unavailable)
+	$(call run_if_python3,tests/smoke/plan-json.sh dist/grit-native-full,python3 plan json smoke unavailable)
 	@tests/smoke/stale-ux-text.sh
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/integration-glinet-harness.sh; else printf '%s\n' "skip: python3 integration harness smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/integration-report.sh; else printf '%s\n' "skip: python3 integration report smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/build-matrix.sh; else printf '%s\n' "skip: python3 build matrix smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/qemu-matrix.sh; else printf '%s\n' "skip: python3 qemu matrix smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/qemu-flaky-network-lab.sh; else printf '%s\n' "skip: python3 qemu flaky network lab smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/release-bundles.sh; else printf '%s\n' "skip: python3 release bundle smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/release-repo-index.sh; else printf '%s\n' "skip: python3 release repo index smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/offline-tools.sh; else printf '%s\n' "skip: python3 offline tools smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/licensing.sh; else printf '%s\n' "skip: python3 licensing smoke unavailable"; fi
+	$(call run_if_python3,tests/smoke/integration-glinet-harness.sh,python3 integration harness smoke unavailable)
+	$(call run_if_python3,tests/smoke/integration-report.sh,python3 integration report smoke unavailable)
+	$(call run_if_python3,tests/smoke/build-matrix.sh,python3 build matrix smoke unavailable)
+	$(call run_if_python3,tests/smoke/qemu-matrix.sh,python3 qemu matrix smoke unavailable)
+	$(call run_if_python3,tests/smoke/qemu-flaky-network-lab.sh,python3 qemu flaky network lab smoke unavailable)
+	$(call run_if_python3,tests/smoke/release-bundles.sh,python3 release bundle smoke unavailable)
+	$(call run_if_python3,tests/smoke/release-repo-index.sh,python3 release repo index smoke unavailable)
+	$(call run_if_python3,tests/smoke/offline-tools.sh,python3 offline tools smoke unavailable)
+	$(call run_if_python3,tests/smoke/licensing.sh,python3 licensing smoke unavailable)
 	@tests/smoke/dotfiles-by-app.sh
 	@tests/smoke/zsh-dotfiles.sh
 	@tests/smoke/runtime-modes.sh
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/clean-json.sh dist/grit-native-full; else printf '%s\n' "skip: python3 clean json smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/recovery.sh dist/grit-native-full; else printf '%s\n' "skip: python3 recovery smoke unavailable"; fi
+	$(call run_if_python3,tests/smoke/clean-json.sh dist/grit-native-full,python3 clean json smoke unavailable)
+	$(call run_if_python3,tests/smoke/recovery.sh dist/grit-native-full,python3 recovery smoke unavailable)
 	@tests/smoke/rshell-lifecycle.sh
 	@$(MAKE) smoke-grit-console
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/flaky-network-harness.sh; else printf '%s\n' "skip: python3 flaky network harness smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then python3 tests/smoke/operator-upload.py dist/grit-native-full; else printf '%s\n' "skip: python3 operator upload smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/command-queue.sh dist/grit-native-full; else printf '%s\n' "skip: python3 command queue smoke unavailable"; fi
+	$(call run_if_python3,tests/smoke/flaky-network-harness.sh,python3 flaky network harness smoke unavailable)
+	$(call run_if_python3,python3 tests/smoke/operator-upload.py dist/grit-native-full,python3 operator upload smoke unavailable)
+	$(call run_if_python3,tests/smoke/command-queue.sh dist/grit-native-full,python3 command queue smoke unavailable)
 	@tests/smoke/zero-arg-autorun.sh dist/grit-native-full
 	@./dist/grit-native-full list >/dev/null
-	@if command -v python3 >/dev/null 2>&1; then ./dist/grit-native-full survey --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 json validation unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then ./dist/grit-native-full survey --json --shell-probe | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 shell survey json validation unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then ./dist/grit-native-full manifest --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 manifest json validation unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/manifest-metadata.sh dist/grit-native-full; else printf '%s\n' "skip: python3 manifest metadata smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/open-memstream-fallback.sh; else printf '%s\n' "skip: python3 open_memstream fallback smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/support-token.sh dist/grit-native-full; else printf '%s\n' "skip: python3 support token smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/doctor-json.sh dist/grit-native-full; else printf '%s\n' "skip: python3 doctor json smoke unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then tests/smoke/reality-test.sh dist/grit-native-full; else printf '%s\n' "skip: python3 reality-test smoke unavailable"; fi
+	$(call validate_json_with_python3,./dist/grit-native-full survey --json,python3 json validation unavailable)
+	$(call validate_json_with_python3,./dist/grit-native-full survey --json --shell-probe,python3 shell survey json validation unavailable)
+	$(call validate_json_with_python3,./dist/grit-native-full manifest --json,python3 manifest json validation unavailable)
+	$(call run_if_python3,tests/smoke/manifest-metadata.sh dist/grit-native-full,python3 manifest metadata smoke unavailable)
+	$(call run_if_python3,tests/smoke/open-memstream-fallback.sh,python3 open_memstream fallback smoke unavailable)
+	$(call run_if_python3,tests/smoke/support-token.sh dist/grit-native-full,python3 support token smoke unavailable)
+	$(call run_if_python3,tests/smoke/doctor-json.sh dist/grit-native-full,python3 doctor json smoke unavailable)
+	$(call run_if_python3,tests/smoke/reality-test.sh dist/grit-native-full,python3 reality-test smoke unavailable)
 	@tests/smoke/core-extraction.sh dist/grit-native-full
-	@if command -v python3 >/dev/null 2>&1; then ./dist/grit-native-full cleanup-ledger --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 cleanup ledger json validation unavailable"; fi
-	@if command -v python3 >/dev/null 2>&1; then ./dist/grit-native-full rshell status --json | python3 -m json.tool >/dev/null; else printf '%s\n' "skip: python3 rshell status json validation unavailable"; fi
+	$(call validate_json_with_python3,./dist/grit-native-full cleanup-ledger --json,python3 cleanup ledger json validation unavailable)
+	$(call validate_json_with_python3,./dist/grit-native-full rshell status --json,python3 rshell status json validation unavailable)
 	@./dist/grit-native-full survey >/dev/null
 	@./dist/grit-native-full envfix >/dev/null
 	@./dist/grit-native-full extract >/dev/null
@@ -223,7 +231,7 @@ smoke-test:
 	@./dist/grit-native-full dd --help >/dev/null 2>&1
 	@./dist/grit-native-full nc --help >/dev/null 2>&1
 	@./dist/grit-native-full config-info >/dev/null
-	@if command -v python3 >/dev/null 2>&1; then tmp=$$(mktemp -d); ./dist/grit-native-full survey --json > $$tmp/survey.json; python3 tests/smoke/validate-survey-json.py $$tmp/survey.json >/dev/null; scripts/lib/config-from-survey $$tmp/survey.json >/dev/null; rm -rf $$tmp; else printf '%s\n' "skip: python3 survey config validation unavailable"; fi
+	$(call run_if_python3,tmp=$$(mktemp -d); ./dist/grit-native-full survey --json > $$tmp/survey.json; python3 tests/smoke/validate-survey-json.py $$tmp/survey.json >/dev/null; scripts/lib/config-from-survey $$tmp/survey.json >/dev/null; rm -rf $$tmp,python3 survey config validation unavailable)
 	@printf '%s\n' "smoke: testing out-of-cwd embedded extraction (catches exe-wipe bugs)..."
 	@_grit_tmp=$$(mktemp -d) && \
 	  cp dist/grit-native-full "$$_grit_tmp/grit" && \
