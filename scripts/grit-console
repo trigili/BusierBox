@@ -120,8 +120,7 @@ from gritlib.line_actions import (
     split_line_run_args,
 )
 from gritlib.line_build import (
-    dispatch_line_build_command,
-    parse_line_build_command, run_line_build_command, set_line_global_build_option,
+    run_line_build_command, set_line_global_build_option,
     unset_line_global_build_option,
 )
 from gritlib.line_command_queue import (
@@ -165,13 +164,10 @@ from gritlib.line_completions import (
     line_completion_candidates as line_completions_candidates,
     print_line_completions as line_completions_print_line_completions,
 )
+from gritlib.line_core_commands import dispatch_line_core_command
 from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
-    dispatch_line_option_command,
-    dispatch_line_target_metadata_command,
     note_line_target as line_options_note_line_target,
-    parse_line_option_command,
-    parse_line_target_metadata_command,
     print_line_context_options as line_options_print_line_context_options,
     print_line_service_options as line_options_print_line_service_options,
     rename_line_target as line_options_rename_line_target,
@@ -226,8 +222,8 @@ from gritlib.line_navigation_commands import dispatch_line_navigation_command
 from gritlib.line_utility_commands import dispatch_line_utility_command
 from gritlib.line_workflow_commands import dispatch_line_workflow_command
 from gritlib.line_workspace import (
-    dispatch_line_workspace_command, line_repl_prompt as line_workspace_repl_prompt,
-    line_repl_status_bar, parse_line_workspace_command, print_line_console_banner,
+    line_repl_prompt as line_workspace_repl_prompt,
+    line_repl_status_bar, print_line_console_banner,
     print_line_info as line_workspace_print_line_info,
     print_line_next as line_workspace_print_line_next,
     print_line_workspace_snapshot, reload_line_config,
@@ -243,8 +239,6 @@ from gritlib.operator_network import (
     target_visible_host,
 )
 from gritlib.probe_commands import (
-    dispatch_line_probe_command, dispatch_line_survey_command,
-    parse_line_probe_command, parse_line_survey_command,
     probe_route_context, probe_script_fn, render_probe_base64_paste,
     render_probe_command, render_probe_delivery, render_probe_dns_command, render_probe_ftp_command,
     render_probe_paste, render_probe_tftp_command, probe_workflow_action_records,
@@ -7360,9 +7354,9 @@ def run_line_repl(cfg):
                 ),
             ):
                 continue
-            elif (workspace_cmd := parse_line_workspace_command(cmd, console_args[1:])):
-                workspace_result = dispatch_line_workspace_command(
-                    workspace_cmd,
+            elif (core_result := dispatch_line_core_command(
+                    cmd,
+                    console_args[1:],
                     status_func=lambda: print(line_repl_status_bar(workbench_snapshot(cfg))),
                     ips_func=lambda: print_line_local_ips(workbench_snapshot(cfg)),
                     workspace_func=lambda: (clear_line_module(quiet=True), print_line_workspace()),
@@ -7371,38 +7365,55 @@ def run_line_repl(cfg):
                     info_func=print_line_info,
                     next_func=print_line_next,
                     options_func=print_line_options,
-                )
-                if workspace_result == "refresh":
+                    set_context_func=set_line_collection,
+                    build_run_func=lambda args: run_line_build_command(cfg, args),
+                    set_global_option_func=lambda key, value: set_line_global_build_option(
+                        cfg, key, value,
+                    ),
+                    set_context_option_func=lambda key, value: line_options_set_line_option(
+                        cfg, key, value,
+                    ),
+                    unset_global_option_func=lambda key: unset_line_global_build_option(cfg, key),
+                    unset_context_option_func=unset_line_option,
+                    rename_target_func=lambda value: line_options_rename_line_target(cfg, value),
+                    note_target_func=lambda value: line_options_note_line_target(cfg, value),
+                    alias_target_func=lambda value: line_options_alias_line_target(cfg, value),
+                    probe_results_func=lambda: probe_results_print_line_probe_results(
+                        cfg, append_event_fn=append_event,
+                    ),
+                    probe_config_func=lambda args: configure_line_probe_config(
+                        cfg, args, append_event_fn=append_event,
+                    ),
+                    probe_clear_func=lambda args: probe_results_clear_line_probe_results(
+                        cfg, args, append_event_fn=append_event,
+                    ),
+                    probe_serve_func=lambda args: probe_serve_run_line_probe_serve(
+                        cfg, args, line_input, stage_line_release,
+                        append_event_fn=append_event,
+                    ),
+                    probe_delivery_func=_print_probe_delivery,
+                    probe_paste_func=lambda base64_mode=False: print_line_probe_script(
+                        paste=True,
+                        base64_mode=base64_mode,
+                    ),
+                    probe_script_func=lambda: print_line_probe_script(paste=False),
+                    help_func=print_line_command_help,
+                    probe_start_func=probe_line_start,
+                    survey_results_func=lambda: configure_print_line_survey_status(
+                        cfg, append_event_fn=append_event,
+                    ),
+                    survey_config_func=lambda args: configure_line_survey_config(
+                        cfg, args, find_survey_uploads,
+                        append_event_fn=append_event,
+                    ),
+                    survey_preset_func=lambda args: configure_line_survey_preset(
+                        cfg, args, find_survey_uploads,
+                        append_event_fn=append_event,
+                    ),
+            )):
+                if core_result == "refresh":
                     compact_next_prompt = False
                     choice = "r"
-                continue
-            elif (build_cmd := parse_line_build_command(cmd, console_args[1:])):
-                dispatch_line_build_command(
-                    build_cmd,
-                    set_context_func=set_line_collection,
-                    run_func=lambda args: run_line_build_command(cfg, args),
-                )
-                continue
-            elif (option_cmd := parse_line_option_command(cmd, console_args[1:])):
-                dispatch_line_option_command(
-                    option_cmd,
-                    set_global_func=lambda key, value: set_line_global_build_option(
-                        cfg, key, value,
-                    ),
-                    set_context_func=lambda key, value: line_options_set_line_option(
-                        cfg, key, value,
-                    ),
-                    unset_global_func=lambda key: unset_line_global_build_option(cfg, key),
-                    unset_context_func=unset_line_option,
-                )
-                continue
-            elif (metadata_cmd := parse_line_target_metadata_command(cmd, console_args[1:])):
-                dispatch_line_target_metadata_command(
-                    metadata_cmd,
-                    rename_func=lambda value: line_options_rename_line_target(cfg, value),
-                    note_func=lambda value: line_options_note_line_target(cfg, value),
-                    alias_func=lambda value: line_options_alias_line_target(cfg, value),
-                )
                 continue
             elif dispatch_line_navigation_command(
                 cmd,
@@ -7482,51 +7493,6 @@ def run_line_repl(cfg):
                 stage_binary_func=stage_line_binary,
                 configure_func=configure_line_artifact,
             ):
-                continue
-            elif (probe_cmd := parse_line_probe_command(cmd, console_args[1:])):
-                dispatch_line_probe_command(
-                    probe_cmd,
-                    set_context_func=set_line_collection,
-                    results_func=lambda: probe_results_print_line_probe_results(
-                        cfg, append_event_fn=append_event,
-                    ),
-                    config_func=lambda args: configure_line_probe_config(
-                        cfg, args, append_event_fn=append_event,
-                    ),
-                    clear_func=lambda args: probe_results_clear_line_probe_results(
-                        cfg, args, append_event_fn=append_event,
-                    ),
-                    serve_func=lambda args: probe_serve_run_line_probe_serve(
-                        cfg, args, line_input, stage_line_release,
-                        append_event_fn=append_event,
-                    ),
-                    delivery_func=_print_probe_delivery,
-                    paste_func=lambda base64_mode=False: print_line_probe_script(
-                        paste=True,
-                        base64_mode=base64_mode,
-                    ),
-                    script_func=lambda: print_line_probe_script(paste=False),
-                    help_func=print_line_command_help,
-                    start_func=probe_line_start,
-                )
-                continue
-            elif (survey_cmd := parse_line_survey_command(cmd, console_args[1:])):
-                dispatch_line_survey_command(
-                    survey_cmd,
-                    set_context_func=set_line_collection,
-                    results_func=lambda: configure_print_line_survey_status(
-                        cfg, append_event_fn=append_event,
-                    ),
-                    config_func=lambda args: configure_line_survey_config(
-                        cfg, args, find_survey_uploads,
-                        append_event_fn=append_event,
-                    ),
-                    preset_func=lambda args: configure_line_survey_preset(
-                        cfg, args, find_survey_uploads,
-                        append_event_fn=append_event,
-                    ),
-                    help_func=print_line_command_help,
-                )
                 continue
             else:
                 print(line_unknown_command_message(cmd))
