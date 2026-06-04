@@ -69,7 +69,10 @@ from gritlib.command_queue import (
     save_command_queue, yes_no,
 )
 from gritlib.console_display import print_dry_run_notice
-from gritlib.console_actions import handle_console_control_args, handle_console_utility_args
+from gritlib.console_actions import (
+    handle_console_control_args, handle_console_utility_args,
+    handle_file_staging_args,
+)
 from gritlib.console_args import (
     apply_console_arg_overrides, handle_early_console_args,
     has_explicit_console_action,
@@ -7546,35 +7549,19 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     session_timeout = session_timeout_from_args(args)
 
     try:
-        if args.serve_file:
-            request_name = args.serve_as or Path(args.serve_file).name
-            rec = stage_file(cfg, args.serve_file, request_name)
-            print(f"staged {rec['request_name']} <- {rec['source_path']}")
-            if rec.get("target_id"):
-                print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
-            print(render_fetch_command(rec["request_name"], cfg))
-            action = "file-service"
-        if args.serve_dir:
-            records = stage_dir(cfg, args.serve_dir)
-            for rec in records:
-                print(f"staged {rec['request_name']} <- {rec['source_path']}")
-                if rec.get("target_id"):
-                    print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
-                print(render_fetch_command(rec["request_name"], cfg))
-            action = "file-service"
-        if args.stage_release_artifact:
-            rec = stage_release_artifact(cfg, args.stage_release_artifact)
-            print(f"staged {rec['request_name']} <- {rec['source_path']}")
-            if rec.get("target_id"):
-                print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
-            print(render_fetch_command(rec["request_name"], cfg))
-            action = "file-service"
-        if args.unstage:
-            existed = unstage_file(cfg, args.unstage)
-            print(f"unstaged {args.unstage}" if existed else f"not staged {args.unstage}")
-        if args.list_staged:
-            print_staged(cfg)
-            return 0
+        staging_code, action = handle_file_staging_args(
+            cfg,
+            args,
+            action,
+            stage_file_func=stage_file,
+            stage_dir_func=stage_dir,
+            stage_release_artifact_func=stage_release_artifact,
+            unstage_file_func=unstage_file,
+            print_staged_func=print_staged,
+            render_fetch_command_func=render_fetch_command,
+        )
+        if staging_code is not None:
+            return staging_code
     except ValueError as exc:
         print(f"grit-console: {exc}", file=sys.stderr)
         return 2

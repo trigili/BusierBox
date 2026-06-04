@@ -1265,6 +1265,143 @@ def run_console_control_dispatch_check():
     return 0
 
 
+def run_file_staging_dispatch_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import gritlib.console_actions as console_actions
+
+    def args_for(**overrides):
+        values = {
+            "serve_file": "",
+            "serve_as": "",
+            "serve_dir": "",
+            "stage_release_artifact": "",
+            "unstage": "",
+            "list_staged": False,
+        }
+        values.update(overrides)
+        return argparse.Namespace(**values)
+
+    def rec(name, source, target_id="", label=""):
+        return {
+            "request_name": name,
+            "source_path": source,
+            "target_id": target_id,
+            "target_label": label,
+        }
+
+    calls = []
+
+    def dispatch(args, action="tls-shell"):
+        return console_actions.handle_file_staging_args(
+            {"cfg": "yes"},
+            args,
+            action,
+            stage_file_func=lambda cfg, path, request: calls.append(
+                ("stage-file", cfg, path, request)
+            ) or rec(request, path, "target-1", "Router"),
+            stage_dir_func=lambda cfg, path: calls.append(("stage-dir", cfg, path)) or [
+                rec("one.bin", f"{path}/one.bin"),
+                rec("two.bin", f"{path}/two.bin", "target-2", "Switch"),
+            ],
+            stage_release_artifact_func=lambda cfg, artifact: calls.append(
+                ("stage-release", cfg, artifact)
+            ) or rec("grit", f"release/{artifact}"),
+            unstage_file_func=lambda cfg, request: calls.append(
+                ("unstage", cfg, request)
+            ) or request == "old.bin",
+            print_staged_func=lambda cfg: calls.append(("print-staged", cfg)) or print("staged list"),
+            render_fetch_command_func=lambda request, cfg: f"fetch {request} cfg={cfg['cfg']}",
+        )
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code, action = dispatch(args_for(serve_file="/tmp/tool.bin"))
+    text = buf.getvalue()
+    if (code is not None or
+            action != "file-service" or
+            calls != [("stage-file", {"cfg": "yes"}, "/tmp/tool.bin", "tool.bin")] or
+            "staged tool.bin <- /tmp/tool.bin" not in text or
+            "target=target-1 label=Router" not in text or
+            "fetch tool.bin cfg=yes" not in text):
+        print("file staging dispatch helper did not preserve --serve-file behavior", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code, action = dispatch(args_for(serve_file="/tmp/tool.bin", serve_as="payload"), action="ssh")
+    if code is not None or action != "file-service" or calls != [("stage-file", {"cfg": "yes"}, "/tmp/tool.bin", "payload")]:
+        print("file staging dispatch helper did not preserve --serve-as behavior", file=sys.stderr)
+        return 1
+
+    calls.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code, action = dispatch(args_for(serve_dir="/tmp/out"), action="bridge")
+    text = buf.getvalue()
+    if (code is not None or
+            action != "file-service" or
+            calls != [("stage-dir", {"cfg": "yes"}, "/tmp/out")] or
+            "staged one.bin <- /tmp/out/one.bin" not in text or
+            "staged two.bin <- /tmp/out/two.bin" not in text or
+            "target=target-2 label=Switch" not in text):
+        print("file staging dispatch helper did not preserve --serve-dir behavior", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code, action = dispatch(args_for(stage_release_artifact="native/grit"), action="probe")
+    text = buf.getvalue()
+    if (code is not None or
+            action != "file-service" or
+            calls != [("stage-release", {"cfg": "yes"}, "native/grit")] or
+            "staged grit <- release/native/grit" not in text):
+        print("file staging dispatch helper did not preserve release artifact behavior", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code, action = dispatch(args_for(unstage="old.bin"), action="tls-shell")
+    text = buf.getvalue()
+    if code is not None or action != "tls-shell" or calls != [("unstage", {"cfg": "yes"}, "old.bin")] or "unstaged old.bin" not in text:
+        print("file staging dispatch helper did not preserve successful unstage behavior", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code, action = dispatch(args_for(unstage="missing.bin"), action="tls-shell")
+    text = buf.getvalue()
+    if code is not None or action != "tls-shell" or calls != [("unstage", {"cfg": "yes"}, "missing.bin")] or "not staged missing.bin" not in text:
+        print("file staging dispatch helper did not preserve missing unstage behavior", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        code, action = dispatch(args_for(list_staged=True), action="plain-shell")
+    text = buf.getvalue()
+    if code != 0 or action != "plain-shell" or calls != [("print-staged", {"cfg": "yes"})] or "staged list" not in text:
+        print("file staging dispatch helper did not preserve list behavior", file=sys.stderr)
+        print(text, file=sys.stderr)
+        return 1
+
+    calls.clear()
+    if dispatch(args_for(), action="ssh") != (None, "ssh") or calls:
+        print("file staging dispatch helper handled empty args", file=sys.stderr)
+        return 1
+    return 0
+
+
 def request_with_retry(port, payload):
     deadline = time.time() + 5
     last = None
@@ -3627,6 +3764,8 @@ def main(argv=None):
     if run_command_queue_dispatch_check() != 0:
         return 1
     if run_console_control_dispatch_check() != 0:
+        return 1
+    if run_file_staging_dispatch_check() != 0:
         return 1
 
     if args.section == "preflight":

@@ -1,5 +1,7 @@
 """Small headless console action dispatch helpers."""
 
+from pathlib import Path
+
 from gritlib.operator_io import view_line_path
 from gritlib.target_commands import copy_generated_command
 from gritlib.target_records import set_target_label, targets_path
@@ -62,3 +64,45 @@ def handle_console_control_args(
             dry_run=args.systemd_user_dry_run,
         )
     return None
+
+
+def print_staged_fetch_record(cfg, rec, render_fetch_command_func):
+    print(f"staged {rec['request_name']} <- {rec['source_path']}")
+    if rec.get("target_id"):
+        print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
+    print(render_fetch_command_func(rec["request_name"], cfg))
+
+
+def handle_file_staging_args(
+    cfg,
+    args,
+    action,
+    *,
+    stage_file_func,
+    stage_dir_func,
+    stage_release_artifact_func,
+    unstage_file_func,
+    print_staged_func,
+    render_fetch_command_func,
+):
+    if args.serve_file:
+        request_name = args.serve_as or Path(args.serve_file).name
+        rec = stage_file_func(cfg, args.serve_file, request_name)
+        print_staged_fetch_record(cfg, rec, render_fetch_command_func)
+        action = "file-service"
+    if args.serve_dir:
+        records = stage_dir_func(cfg, args.serve_dir)
+        for rec in records:
+            print_staged_fetch_record(cfg, rec, render_fetch_command_func)
+        action = "file-service"
+    if args.stage_release_artifact:
+        rec = stage_release_artifact_func(cfg, args.stage_release_artifact)
+        print_staged_fetch_record(cfg, rec, render_fetch_command_func)
+        action = "file-service"
+    if args.unstage:
+        existed = unstage_file_func(cfg, args.unstage)
+        print(f"unstaged {args.unstage}" if existed else f"not staged {args.unstage}")
+    if args.list_staged:
+        print_staged_func(cfg)
+        return 0, action
+    return None, action
