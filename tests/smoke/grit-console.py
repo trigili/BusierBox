@@ -1233,7 +1233,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Probe  ",
         "wget:  wget -O- ",
         "Target download command:",
-        "target_upload_path=/etc/config/network",
+        "target path: /etc/config/network",
         "File staged for target fetch:",
         "Staged fetch command:",
         "griTTYkit binary staged for target fetch:",
@@ -1545,7 +1545,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(unstage_text or line_console_stdout, file=sys.stderr)
         return 1
     if ("file_service_started=" in upload_text or "file_service_started=" in fetch_text or
-            "target_fetch_command=" in upload_text or "target_fetch_command=" in fetch_text):
+            "target_fetch_command=" in upload_text or "target_fetch_command=" in fetch_text or
+            "request_name=" in upload_text or "request_name=" in fetch_text or
+            "source_path=" in upload_text or "source_path=" in fetch_text or
+            "file service:" in upload_text or "file service:" in fetch_text or
+            "target=" in fetch_text):
         print("line-oriented file transfer output exposed raw generated-command/status fields", file=sys.stderr)
         print("upload section:", file=sys.stderr)
         print(upload_text or line_console_stdout, file=sys.stderr)
@@ -1555,7 +1559,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     download_start = line_console_stdout.find("Target download command:")
     download_end = line_console_stdout.find("grit[Console Router]/files> show mailbox", download_start + 1)
     download_text = line_console_stdout[download_start:download_end] if download_start != -1 and download_end != -1 else ""
-    if not download_text or "target_upload_path=/etc/config/network" not in download_text or "headless_command:" in download_text:
+    if not download_text or "target path: /etc/config/network" not in download_text or "headless_command:" in download_text:
         print("line-oriented download command exposed noisy headless command", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
@@ -1563,7 +1567,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented download output missed target command summary", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
-    if "file_service_started=" in download_text or "target_command=" in download_text:
+    if ("file_service_started=" in download_text or "target_command=" in download_text or
+            "target_upload_path=" in download_text or "file service:" in download_text or
+            "target=" in download_text):
         print("line-oriented download output exposed raw generated-command/status fields", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
@@ -1574,7 +1580,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented serve-binary command exposed noisy headless command", file=sys.stderr)
         print(binary_text or line_console_stdout, file=sys.stderr)
         return 1
-    if "file_service_started=" in binary_text or "target_fetch_command=" in binary_text or "target_run_hint=" in binary_text:
+    if ("file_service_started=" in binary_text or "target_fetch_command=" in binary_text or
+            "target_run_hint=" in binary_text or "request_name=" in binary_text or
+            "source_path=" in binary_text or "file service:" in binary_text):
         print("line-oriented serve-binary output exposed raw generated-command/status fields", file=sys.stderr)
         print(binary_text or line_console_stdout, file=sys.stderr)
         return 1
@@ -11771,7 +11779,7 @@ def main(argv=None):
                 "Traceback" in (line_stage_stderr or "") or
                 "headless_command:" in line_stage_stdout or
                 "griTTYkit binary staged for target fetch:" not in line_stage_stdout or
-                "request_name=grit" not in line_stage_stdout or
+                "name: grit" not in line_stage_stdout or
                 "target fetch: grit fetch grit" not in line_stage_stdout or
                 "run hint: chmod +x ./grit && ./grit --help" not in line_stage_stdout or
                 "Target fetch options:" not in line_stage_stdout or

@@ -138,14 +138,14 @@ def download_line_target(
             start_file_service_fn()
         started = True
     print("Target download command:")
-    print(f"  target={target_id}")
+    print(f"  target: {target_id}")
     target_ctx = target_context_fn() if target_context_fn else {}
     label = str((target_ctx or {}).get("target_label") or "")
     if label:
-        print(f"  label={label}")
-    print(f"  target_upload_path={path}")
+        print(f"  label: {label}")
+    print(f"  target path: {path}")
     print(f"  target command: {command}")
-    print(f"  file service: {'started' if started else 'not started'}")
+    print(f"  service: file-service {'started' if started else 'not started'}")
     queued = {}
     if queue:
         if not queue_command_fn:
@@ -158,7 +158,11 @@ def download_line_target(
             "bridge_profile": str(cfg.get("bridge_profile") or ""),
         })
         print(f"queued {queued['id']}: {queued['command']}")
-        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        queued_target = queued.get("target_id", "")
+        queued_label = queued.get("target_label", "")
+        if queued_label:
+            queued_target = f"{queued_target} ({queued_label})"
+        print(f"target: {queued_target}")
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_target_download_command_shown", details={
             "headless_command": headless,
@@ -280,9 +284,9 @@ def stage_line_file(
     rec = stage_file(cfg, path, name, metadata={"stage_kind": "operator-upload"})
     fetch_command = render_fetch_command(rec["request_name"], cfg)
     print("File staged for target fetch:")
-    print(f"  request_name={rec.get('request_name', '')}")
-    print(f"  source_path={rec.get('source_path', '')}")
-    print(f"  sha256={rec.get('sha256', '')}")
+    print(f"  name: {rec.get('request_name', '')}")
+    print(f"  source: {rec.get('source_path', '')}")
+    print(f"  sha256: {str(rec.get('sha256', ''))[:16]}...")
     print(f"  target fetch: {fetch_command}")
     fetch_options = print_staged_fetch_target_options(rec.get("request_name", ""), cfg)
     started = False
@@ -290,7 +294,7 @@ def stage_line_file(
         if start_file_service_fn:
             start_file_service_fn()
         started = True
-    print(f"  file service: {'started' if started else 'not started'}")
+    print(f"  service: file-service {'started' if started else 'not started'}")
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_file_uploaded", details={
             "headless_command": headless,
@@ -398,13 +402,16 @@ def fetch_line_staged(
             start_file_service_fn()
         started = True
     print("Staged fetch command:")
-    print(f"  request_name={name}")
-    print(f"  source_path={rec.get('source_path', '')}")
+    print(f"  name: {name}")
+    print(f"  source: {rec.get('source_path', '')}")
     if target_id:
-        print(f"  target={target_id} label={target_label}")
+        target_text = target_id
+        if target_label:
+            target_text += f" ({target_label})"
+        print(f"  target: {target_text}")
     print(f"  target fetch: {fetch_command}")
     print_staged_fetch_target_options(name, scoped)
-    print(f"  file service: {'started' if started else 'not started'}")
+    print(f"  service: file-service {'started' if started else 'not started'}")
     queued = {}
     if queue:
         if not queue_command_fn:
@@ -418,7 +425,11 @@ def fetch_line_staged(
             "bridge_route_path": str(rec.get("bridge_route_path") or ""),
         })
         print(f"queued {queued['id']}: {queued['command']}")
-        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        queued_target = queued.get("target_id", "")
+        queued_label = queued.get("target_label", "")
+        if queued_label:
+            queued_target = f"{queued_target} ({queued_label})"
+        print(f"target: {queued_target}")
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_staged_fetch_command_shown", details={
             "headless_command": headless,
@@ -490,9 +501,9 @@ def stage_line_binary(
     run_name = "./" + Path(rec["request_name"]).name
     run_hint = "chmod +x " + shquote(run_name) + " && " + shquote(run_name) + " --help"
     print("griTTYkit binary staged for target fetch:")
-    print(f"  request_name={rec.get('request_name', '')}")
-    print(f"  source_path={rec.get('source_path', '')}")
-    print(f"  sha256={rec.get('sha256', '')}")
+    print(f"  name: {rec.get('request_name', '')}")
+    print(f"  source: {rec.get('source_path', '')}")
+    print(f"  sha256: {str(rec.get('sha256', ''))[:16]}...")
     print(f"  target fetch: {fetch_command}")
     print(f"  run hint: {run_hint}")
     fetch_options = print_staged_fetch_target_options(
@@ -513,7 +524,7 @@ def stage_line_binary(
         started = start_line is not None and start_line.strip().lower() in ("y", "yes")
         if started and start_file_service_fn:
             start_file_service_fn()
-    print(f"  file service: {'started' if started else 'not started'}")
+    print(f"  service: file-service {'started' if started else 'not started'}")
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_binary_served", details={
             "headless_command": headless,
