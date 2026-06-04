@@ -7704,9 +7704,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"set", "setg", "unset", "unsetg"}:
+            elif (option_cmd := parse_line_option_command(cmd, console_args[1:])):
                 try:
-                    option_cmd = parse_line_option_command(cmd, console_args[1:])
                     if option_cmd["action"] == "set" and option_cmd["scope"] == "global":
                         set_line_global_build_option(
                             cfg, option_cmd["key"], option_cmd["value"],
@@ -7722,9 +7721,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"rename", "note", "notes", "alias"}:
+            elif (metadata_cmd := parse_line_target_metadata_command(cmd, console_args[1:])):
                 try:
-                    metadata_cmd = parse_line_target_metadata_command(cmd, console_args[1:])
                     if metadata_cmd["action"] == "rename":
                         line_options_rename_line_target(cfg, metadata_cmd["value"])
                     elif metadata_cmd["action"] == "note":
