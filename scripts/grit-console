@@ -138,6 +138,7 @@ from gritlib.line_configure import (
 from gritlib.line_context import (
     back_line_module_context,
     clear_line_console_context, clear_line_module_context,
+    parse_line_context_command,
     parse_line_interact_command,
     parse_line_use_command,
     set_line_collection_context,
@@ -7905,17 +7906,16 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "clear" and len(console_args) >= 2 and console_args[1].lower() == "target":
-                try:
-                    select_line_target("all", targets=[])
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "back" and len(console_args) >= 2 and console_args[1].lower() in {"all", "main", "root"}:
-                clear_line_context()
-                continue
-            elif cmd in {"b", "back", "background", "bg", "unset"}:
-                back_line_module()
+            elif (context_cmd := parse_line_context_command(cmd, console_args[1:])):
+                if context_cmd["action"] == "clear-target":
+                    try:
+                        select_line_target("all", targets=[])
+                    except ValueError as exc:
+                        print(exc)
+                elif context_cmd["action"] == "root":
+                    clear_line_context()
+                else:
+                    back_line_module()
                 continue
             elif cmd == "start":
                 try:

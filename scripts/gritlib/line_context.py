@@ -66,6 +66,18 @@ def parse_line_interact_command(args, target_selected=False, module=""):
     return {"kind": "session", "selector": " ".join(args).strip()}
 
 
+def parse_line_context_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = [str(item).lower() for item in (args or [])]
+    if cmd == "clear" and args[:1] == ["target"]:
+        return {"action": "clear-target"}
+    if cmd == "back" and args[:1] and args[0] in {"all", "main", "root"}:
+        return {"action": "root"}
+    if cmd in {"b", "back", "background", "bg", "unset"}:
+        return {"action": "back"}
+    return {}
+
+
 def clear_line_module_context(cfg, quiet=True):
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
