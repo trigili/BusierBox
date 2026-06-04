@@ -137,6 +137,7 @@ from gritlib.line_configure import (
     run_line_survey_preset as configure_line_survey_preset,
 )
 from gritlib.line_context import (
+    back_line_module_context,
     clear_line_console_context, clear_line_module_context,
     set_line_collection_context,
 )
@@ -158,6 +159,7 @@ from gritlib.line_files import (
     unstage_line_file as line_files_unstage_line_file,
 )
 from gritlib.line_help import (
+    line_help_topic_for_module,
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
 )
@@ -6429,6 +6431,12 @@ def run_line_repl(cfg):
     def print_line_command_help(topic):
         return line_help_print_line_command_help(topic)
 
+    def print_context_line_help():
+        topic = line_help_topic_for_module(cfg.get("_line_console_module"))
+        if topic:
+            return print_line_command_help(topic)
+        return print_line_console_help()
+
     def print_line_info():
         snap = workbench_snapshot(cfg)
         module = str(cfg.get("_line_console_module") or "root")
@@ -6625,6 +6633,9 @@ def run_line_repl(cfg):
 
     def clear_line_module(quiet=False):
         clear_line_module_context(cfg, quiet=quiet)
+
+    def back_line_module():
+        return back_line_module_context(cfg)
 
     def clear_line_context():
         clear_line_console_context(cfg)
@@ -7901,8 +7912,17 @@ def run_line_repl(cfg):
                 continue
             if cmd in {"q", "quit", "exit"}:
                 choice = "q"
-            elif cmd in {"help", "?"}:
-                print_line_command_help(console_args[1] if len(console_args) >= 2 else "")
+            elif cmd == "?":
+                if len(console_args) >= 2:
+                    print_line_command_help(console_args[1])
+                else:
+                    print_context_line_help()
+                continue
+            elif cmd == "help":
+                if len(console_args) >= 2:
+                    print_line_command_help(console_args[1])
+                else:
+                    print_line_console_help()
                 continue
             elif cmd in {"complete", "completions"}:
                 print_line_completions(" ".join(console_args[1:]).strip())
@@ -8354,7 +8374,7 @@ def run_line_repl(cfg):
                 clear_line_context()
                 continue
             elif cmd in {"back", "background", "bg", "unset"}:
-                clear_line_module(quiet=True)
+                back_line_module()
                 continue
             elif cmd == "start":
                 try:
@@ -8659,7 +8679,7 @@ def run_line_repl(cfg):
         if choice in {"q", "quit", "exit"}:
             # If in a subcontext, go back one level instead of quitting
             if str(cfg.get("_line_console_module") or ""):
-                clear_line_module(quiet=True)
+                back_line_module()
                 compact_next_prompt = True
                 continue
             mark_service_stopped(cfg, "workbench", "quit")

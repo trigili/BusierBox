@@ -3,6 +3,55 @@
 from gritlib.bridge_routes import ROUTE_HELP_LINES
 
 
+def line_help_topic_for_module(module):
+    module = str(module or "").strip().lower()
+    if not module:
+        return ""
+    head = module.split("/", 1)[0]
+    return {
+        "agent": "targets",
+        "agents": "targets",
+        "target": "targets",
+        "targets": "targets",
+        "host": "targets",
+        "hosts": "targets",
+        "listener": "listeners",
+        "listeners": "listeners",
+        "service": "listeners",
+        "services": "listeners",
+        "session": "sessions",
+        "sessions": "sessions",
+        "file": "files",
+        "files": "files",
+        "staged": "files",
+        "stagers": "files",
+        "loot": "files",
+        "download": "files",
+        "downloads": "files",
+        "release": "files",
+        "route": "routes",
+        "routes": "routes",
+        "bridge": "routes",
+        "bridges": "routes",
+        "job": "jobs",
+        "jobs": "jobs",
+        "action": "console",
+        "actions": "console",
+        "module": "workspace",
+        "modules": "workspace",
+        "category": "workspace",
+        "categories": "workspace",
+        "build": "build",
+        "daemon": "daemon",
+        "events": "events",
+        "probe": "probe",
+        "queue": "queue",
+        "mailbox": "queue",
+        "survey": "survey",
+        "workspace": "workspace",
+    }.get(head, head)
+
+
 def print_line_console_help():
     print("Console help topics:")
     print("")
@@ -150,7 +199,7 @@ def print_line_command_help(topic):
                 ("sessions clear --confirm", "remove finished empty sessions"),
                 ("sessions clear --all --confirm", "remove all sessions"),
                 ("info", "show selected session context"),
-                ("back", "deselect session context"),
+                ("back", "go up one breadcrumb level"),
             ],
             "notes": [
                 "command-queue sessions accumulate quickly — they're created per poll cycle.",
@@ -307,7 +356,7 @@ def print_line_command_help(topic):
                 ("use job ID", "select a job context"),
                 ("run -j, run --job", "start selected action module as a background job"),
                 ("info, next", "show selected job context and suggested commands"),
-                ("back", "deselect job context"),
+                ("back", "go up one breadcrumb level"),
             ],
         },
         "build": {
@@ -335,7 +384,7 @@ def print_line_command_help(topic):
                 ("search TERM", "search targets, services, actions, sessions, jobs, files"),
                 ("use N", "select a numbered result from the last list or search"),
                 ("main, home, root", "clear target and module context"),
-                ("back", "clear module context only"),
+                ("back", "go up one breadcrumb level"),
                 ("quit, exit", "quit"),
             ],
             "notes": [

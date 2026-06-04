@@ -40,3 +40,32 @@ def clear_line_console_context(cfg):
         "cleared_module": had_module,
         "cleared_target": had_target,
     })
+
+
+def line_module_parent(module):
+    module = str(module or "").strip()
+    if not module:
+        return ""
+    if "/" not in module:
+        return ""
+    parent = module.split("/", 1)[0]
+    return {
+        "action": "",
+        "job": "jobs",
+        "listener": "listeners",
+        "service": "listeners",
+        "route": "routes",
+        "session": "sessions",
+    }.get(parent, parent)
+
+
+def back_line_module_context(cfg):
+    module = str(cfg.get("_line_console_module") or "").strip()
+    parent = line_module_parent(module)
+    cfg.pop("_line_console_action_kind", None)
+    cfg.pop("_line_console_action_id", None)
+    if parent:
+        cfg["_line_console_module"] = parent
+        return parent
+    cfg.pop("_line_console_module", None)
+    return ""

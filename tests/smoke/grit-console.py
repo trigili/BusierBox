@@ -712,7 +712,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         time.sleep(0.3)
         os.write(
             numeric_master,
-            b"listener probe-http\noptions\nback\nlisteners\nstart 1\nlistener 1\noptions\nback\nstop 1\nlistener 1\noptions\nback\nq\n",
+            b"listener probe-http\n?\noptions\nback\nlisteners\nstart 1\nlistener 1\noptions\nback\nstop 1\nlistener 1\noptions\nback\nq\nq\n",
         )
         numeric_chunks = []
         deadline = time.time() + 8
@@ -741,8 +741,21 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             pass
     numeric_options_start = numeric_stdout.find("grit[all]/listener/probe> options")
     numeric_options_end = numeric_stdout.find("grit[all]/listener/probe> back", numeric_options_start + 1)
+    numeric_listener_help_start = numeric_stdout.find("grit[all]/listener/probe> ?")
+    numeric_listener_help_end = numeric_stdout.find("grit[all]/listener/probe> options", numeric_listener_help_start + 1)
+    numeric_listener_help_text = (
+        numeric_stdout[numeric_listener_help_start:numeric_listener_help_end]
+        if numeric_listener_help_start != -1 and numeric_listener_help_end != -1 else ""
+    )
     if "grit[all]/service/probe>" in numeric_stdout:
         print("line console listener selection still used service/probe prompt", file=sys.stderr)
+        print(numeric_stdout, file=sys.stderr)
+        return 1
+    if (not numeric_listener_help_text or
+            "Help: listeners" not in numeric_listener_help_text or
+            "Console help topics:" in numeric_listener_help_text or
+            "grit[all]/listeners> listeners" not in numeric_stdout):
+        print("line console context help/back did not follow listener breadcrumbs", file=sys.stderr)
         print(numeric_stdout, file=sys.stderr)
         return 1
     numeric_options_text = (
@@ -995,6 +1008,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "queue list\n"
                 "events -n 3\n"
                 "events service=workbench -n 2\n"
+                "probe\n"
+                "?\n"
+                "back\n"
                 "probe delivery\n"
                 "probe paste\n"
                 "probe paste --base64\n"
@@ -1227,6 +1243,18 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("help routes:", file=sys.stderr)
         print(help_routes_text, file=sys.stderr)
         return 1
+    probe_context_help_start = line_console_stdout.find("grit[Console Router]/probe> ?")
+    probe_context_help_end = line_console_stdout.find("grit[Console Router]/probe> back", probe_context_help_start + 1)
+    probe_context_help_text = (
+        line_console_stdout[probe_context_help_start:probe_context_help_end]
+        if probe_context_help_start != -1 and probe_context_help_end != -1 else ""
+    )
+    if (not probe_context_help_text or
+            "Help: probe" not in probe_context_help_text or
+            "Console help topics:" in probe_context_help_text):
+        print("line-oriented bare ? did not use probe breadcrumb context", file=sys.stderr)
+        print(probe_context_help_text or line_console_stdout, file=sys.stderr)
+        return 1
     line_console_config = json.loads(upload_cfg.read_text(encoding="utf-8"))
     if (line_console_config.get("GRIT_OPERATOR_FILE_SERVICE_PORT") != 22231 or
             line_console_config.get("GRIT_OPERATOR_FILE_SERVICE_TLS") != "no"):
@@ -1323,7 +1351,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     routes_verbose_start = line_console_stdout.find("grit[all]/routes> routes -v")
     routes_verbose_end = line_console_stdout.find("grit[all]/routes> route delete 2", routes_verbose_start + 1)
     routes_verbose_text = line_console_stdout[routes_verbose_start:routes_verbose_end] if routes_verbose_start != -1 and routes_verbose_end != -1 else ""
-    route_print_start = line_console_stdout.find("grit[all]> route print")
+    route_print_start = line_console_stdout.find("grit[all]/routes> route print")
     route_print_end = line_console_stdout.find("grit[all]/routes> route console-route", route_print_start + 1)
     route_print_text = line_console_stdout[route_print_start:route_print_end] if route_print_start != -1 and route_print_end != -1 else ""
     if (not routes_verbose_text or
@@ -1411,7 +1439,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(direct_metadata_text or line_console_stdout, file=sys.stderr)
         return 1
     job_search_start = line_console_stdout.find("Search results for line-console-job:")
-    job_search_end = line_console_stdout.find("grit[all]> use 1", job_search_start + 1)
+    job_search_end = line_console_stdout.find("grit[all]/jobs> use 1", job_search_start + 1)
     job_search_text = line_console_stdout[job_search_start:job_search_end] if job_search_start != -1 and job_search_end != -1 else ""
     target_search_start = line_console_stdout.find("Search results for Console Router:")
     target_search_end = line_console_stdout.find("grit[Console Router]> mailbox", target_search_start + 1)
@@ -1532,7 +1560,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented files view exposed noisy fetch commands", file=sys.stderr)
         print(stagers_text or line_console_stdout, file=sys.stderr)
         return 1
-    daemon_action_start = line_console_stdout.find("grit[all]> daemon status --dry-run")
+    daemon_action_start = line_console_stdout.find("grit[all]/jobs> daemon status --dry-run")
     daemon_action_end = line_console_stdout.find("grit[all]> uselistener", daemon_action_start + 1)
     daemon_action_text = line_console_stdout[daemon_action_start:daemon_action_end] if daemon_action_start != -1 and daemon_action_end != -1 else ""
     if (not daemon_action_text or
