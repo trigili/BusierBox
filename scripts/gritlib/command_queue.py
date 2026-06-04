@@ -117,6 +117,39 @@ def print_command_queue(cfg, json_output=False):
             print(f"  result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
 
 
+def handle_command_queue_args(cfg, args):
+    if args.clear_command_queue:
+        count = clear_command_queue(cfg)
+        print(f"cleared {count} command queue entr{'y' if count == 1 else 'ies'}")
+        if not (args.queue_command or args.list_command_queue or args.json_command_queue):
+            return 0
+    if args.queue_command:
+        rec = queue_command(
+            cfg,
+            args.queue_command,
+            timeout_sec=args.queue_timeout,
+            max_output_bytes=args.queue_max_output,
+            expire_sec=args.queue_expire_sec,
+        )
+        print(f"queued {rec['id']}: {rec['command']}")
+        if rec.get("target_id"):
+            print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
+        print(f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} delivery_supported=no")
+        if not (args.list_command_queue or args.json_command_queue):
+            return 0
+    if args.record_command_result:
+        if not args.result_json:
+            raise ValueError("--record-command-result requires --result-json")
+        rec = record_command_result(cfg, args.record_command_result, args.result_json)
+        print(f"recorded result for {rec['id']}: status={rec.get('result', {}).get('status', '')}")
+        if not (args.list_command_queue or args.json_command_queue):
+            return 0
+    if args.list_command_queue or args.json_command_queue:
+        print_command_queue(cfg, json_output=args.json_command_queue)
+        return 0
+    return None
+
+
 def print_workbench_command_queue_summary(queue, include_polling=False):
     print("Command queue:")
     print(f"  path: {queue.get('path', '')}")

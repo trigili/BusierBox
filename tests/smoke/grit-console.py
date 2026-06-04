@@ -845,6 +845,121 @@ def run_console_utility_dispatch_check():
     return 0
 
 
+def run_command_queue_dispatch_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import gritlib.command_queue as command_queue
+
+    original_clear = command_queue.clear_command_queue
+    original_queue = command_queue.queue_command
+    original_record = command_queue.record_command_result
+    original_print = command_queue.print_command_queue
+    try:
+        calls = []
+        command_queue.clear_command_queue = lambda cfg: calls.append(("clear", cfg)) or 1
+        command_queue.queue_command = lambda cfg, command, timeout_sec=None, max_output_bytes=None, expire_sec=None: calls.append((
+            "queue", cfg, command, timeout_sec, max_output_bytes, expire_sec,
+        )) or {
+            "id": "cq-1",
+            "command": command,
+            "target_id": "target-1",
+            "target_label": "Router",
+            "execution_supported": False,
+        }
+        command_queue.record_command_result = lambda cfg, command_id, result_json: calls.append((
+            "record", cfg, command_id, result_json,
+        )) or {"id": command_id, "result": {"status": "ok"}}
+        command_queue.print_command_queue = lambda cfg, json_output=False: calls.append(("print", cfg, json_output)) or print(f"queue json={json_output}")
+
+        args = argparse.Namespace(
+            clear_command_queue=True,
+            queue_command=None,
+            queue_timeout=None,
+            queue_max_output=None,
+            queue_expire_sec=None,
+            record_command_result=None,
+            result_json=None,
+            list_command_queue=False,
+            json_command_queue=False,
+        )
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = command_queue.handle_command_queue_args({"cfg": "yes"}, args)
+        text = buf.getvalue()
+        if code != 0 or calls != [("clear", {"cfg": "yes"})] or "cleared 1 command queue entry" not in text:
+            print("command queue dispatch helper did not preserve clear output", file=sys.stderr)
+            print(text, file=sys.stderr)
+            return 1
+
+        calls.clear()
+        args.clear_command_queue = False
+        args.queue_command = "grit survey"
+        args.queue_timeout = 9
+        args.queue_max_output = 2048
+        args.queue_expire_sec = 30
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = command_queue.handle_command_queue_args({"cfg": "yes"}, args)
+        text = buf.getvalue()
+        if (code != 0 or
+                calls != [("queue", {"cfg": "yes"}, "grit survey", 9, 2048, 30)] or
+                "queued cq-1: grit survey" not in text or
+                "target=target-1 label=Router" not in text or
+                "delivery_supported=no" not in text):
+            print("command queue dispatch helper did not preserve queue output", file=sys.stderr)
+            print(text, file=sys.stderr)
+            return 1
+
+        calls.clear()
+        args.queue_command = None
+        args.record_command_result = "cq-1"
+        args.result_json = "result.json"
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = command_queue.handle_command_queue_args({}, args)
+        text = buf.getvalue()
+        if code != 0 or calls != [("record", {}, "cq-1", "result.json")] or "recorded result for cq-1: status=ok" not in text:
+            print("command queue dispatch helper did not preserve result-record output", file=sys.stderr)
+            print(text, file=sys.stderr)
+            return 1
+
+        args.result_json = None
+        try:
+            command_queue.handle_command_queue_args({}, args)
+        except ValueError as exc:
+            if "--record-command-result requires --result-json" not in str(exc):
+                print("command queue dispatch helper raised wrong result-json error", file=sys.stderr)
+                return 1
+        else:
+            print("command queue dispatch helper accepted result without JSON", file=sys.stderr)
+            return 1
+
+        calls.clear()
+        args.record_command_result = None
+        args.list_command_queue = True
+        args.json_command_queue = True
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = command_queue.handle_command_queue_args({"cfg": "yes"}, args)
+        text = buf.getvalue()
+        if code != 0 or calls != [("print", {"cfg": "yes"}, True)] or "queue json=True" not in text:
+            print("command queue dispatch helper did not preserve list/json output", file=sys.stderr)
+            return 1
+
+        args.list_command_queue = False
+        args.json_command_queue = False
+        if command_queue.handle_command_queue_args({}, args) is not None:
+            print("command queue dispatch helper handled empty args", file=sys.stderr)
+            return 1
+    finally:
+        command_queue.clear_command_queue = original_clear
+        command_queue.queue_command = original_queue
+        command_queue.record_command_result = original_record
+        command_queue.print_command_queue = original_print
+    return 0
+
+
 def request_with_retry(port, payload):
     deadline = time.time() + 5
     last = None
@@ -3203,6 +3318,8 @@ def main(argv=None):
     if run_build_config_dispatch_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
+        return 1
+    if run_command_queue_dispatch_check() != 0:
         return 1
 
     if args.section == "preflight":
