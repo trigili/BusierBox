@@ -1389,6 +1389,40 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("verbose service modules:", file=sys.stderr)
         print(service_modules_verbose_text, file=sys.stderr)
         return 1
+    action_options_start = line_console_stdout.find("grit[all]/action/bridge:inspect-status> options")
+    action_options_end = line_console_stdout.find("grit[all]/action/bridge:inspect-status> background", action_options_start + 1)
+    action_options_text = line_console_stdout[action_options_start:action_options_end] if action_options_start != -1 and action_options_end != -1 else ""
+    action_option_labels = (
+        "Action: service:bridge:inspect-status",
+        "  label: Inspect bridge service status",
+        "  category: inspect",
+        "  workflow: service-lifecycle",
+        "  state: ready",
+        "  reason: run-now",
+        "  confirmation: not required",
+        "  background: not supported",
+        "  commands: check, run, run --dry-run, run --confirm",
+        "  next: info, check, run, back",
+    )
+    action_options_noisy = (
+        "action.kind=",
+        "action.id=",
+        "action.label=",
+        "action.category=",
+        "action.workflow=",
+        "action.state=",
+        "action.reason=",
+        "action.requires_confirmation=",
+        "action.background_supported=",
+        "action.commands=",
+        "action.next=",
+    )
+    if (not action_options_text or
+            any(label not in action_options_text for label in action_option_labels) or
+            any(noisy in action_options_text for noisy in action_options_noisy)):
+        print("line-oriented action options did not use concise labels", file=sys.stderr)
+        print(action_options_text or line_console_stdout, file=sys.stderr)
+        return 1
     route_start = line_console_stdout.find("saved route zz-console-added")
     route_end = line_console_stdout.find("selected route console-route", route_start + 1)
     route_text = line_console_stdout[route_start:route_end] if route_start != -1 and route_end != -1 else ""

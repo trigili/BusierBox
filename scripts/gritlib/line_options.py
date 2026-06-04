@@ -243,21 +243,23 @@ def print_line_context_options(
 
     action = selected_action
     if action:
-        print(f"  action.kind={action.get('kind', '')}")
-        print(f"  action.id={action.get('id', '')}")
-        print(f"  action.label={action.get('label', '') or '-'}")
-        print(f"  action.category={action.get('category', '') or '-'}")
-        print(f"  action.workflow={action.get('workflow', '') or '-'}")
-        print(f"  action.state={action.get('operator_action_state', '') or '-'}")
-        print(f"  action.reason={action.get('operator_action_reason', '') or '-'}")
-        print(f"  action.requires_confirmation={'yes' if action.get('requires_confirmation') else 'no'}")
-        print(f"  action.background_supported={'yes' if action.get('background_supported') else 'no'}")
-        print("  action.commands=check, run, run --dry-run, run --confirm")
+        action_kind = action.get("kind", "")
+        action_id = action.get("id", "")
+        action_name = f"{action_kind}:{action_id}" if action_kind else action_id
+        print(f"Action: {action_name}")
+        print(f"  label: {action.get('label', '') or '-'}")
+        print(f"  category: {action.get('category', '') or '-'}")
+        print(f"  workflow: {action.get('workflow', '') or '-'}")
+        print(f"  state: {action.get('operator_action_state', '') or '-'}")
+        print(f"  reason: {action.get('operator_action_reason', '') or '-'}")
+        print(f"  confirmation: {'required' if action.get('requires_confirmation') else 'not required'}")
+        print(f"  background: {'supported' if action.get('background_supported') else 'not supported'}")
+        print("  commands: check, run, run --dry-run, run --confirm")
         if action.get("background_supported"):
-            print("  action.background=run -j")
-        print("  action.next=info, check, run, back")
+            print("  background command: run -j")
+        print("  next: info, check, run, back")
     else:
-        print("  action.id=none")
+        print("Action: none")
 
     fields = workbench_config_field_records(cfg)
     if fields:
