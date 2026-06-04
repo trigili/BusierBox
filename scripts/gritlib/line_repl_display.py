@@ -2,6 +2,8 @@
 
 from gritlib.line_options import print_line_options
 from gritlib.line_workspace import print_current_line_info, print_current_line_next
+from gritlib.operator_io import view_path_headless_command
+from gritlib.workbench_jobs import cancel_workbench_job_headless_command
 
 
 def build_line_display_callbacks(
@@ -16,8 +18,6 @@ def build_line_display_callbacks(
     job_record_func,
     probe_delivery_printer,
     bridge_command_builder,
-    view_command_builder,
-    cancel_job_command_builder,
     display_name_func,
     build_fields_func,
     target_command_records_func,
@@ -33,8 +33,8 @@ def build_line_display_callbacks(
             job_record=job_record_func,
             probe_delivery_printer=probe_delivery_printer,
             bridge_command_builder=bridge_command_builder,
-            view_command_builder=view_command_builder,
-            cancel_job_command_builder=cancel_job_command_builder,
+            view_command_builder=lambda path: view_path_headless_command(cfg, path),
+            cancel_job_command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
         )
 
     def print_next():

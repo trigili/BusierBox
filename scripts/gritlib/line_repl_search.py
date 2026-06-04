@@ -1,10 +1,13 @@
 """Line REPL search callback adapters."""
 
+from gritlib.line_actions import current_line_action_records
+from gritlib.line_configure import run_line_probe_config
 from gritlib.line_search import (
     line_search_results,
     run_line_search,
     use_line_search_result,
 )
+from gritlib.workbench_jobs import cancel_workbench_job_headless_command
 
 
 def build_line_search_callbacks(
@@ -13,9 +16,7 @@ def build_line_search_callbacks(
     workbench_snapshot_func,
     service_records_func,
     route_records_func,
-    action_records_func,
     route_command_builder,
-    job_cancel_command_builder,
     select_target_func,
     select_service_func,
     select_route_func,
@@ -23,20 +24,22 @@ def build_line_search_callbacks(
     select_queue_action_func,
     select_session_func,
     select_job_func,
-    probe_result_config_func,
     append_event_fn,
     quote,
 ):
+    def snapshot():
+        return workbench_snapshot_func(cfg)
+
     def search_line_resources(query):
         run_line_search(
             cfg,
             query,
-            snapshot=workbench_snapshot_func(cfg),
+            snapshot=snapshot(),
             service_records=service_records_func(cfg),
             route_records=route_records_func(cfg),
-            action_records=action_records_func(),
+            action_records=current_line_action_records(snapshot),
             route_command_builder=route_command_builder,
-            job_cancel_command_builder=job_cancel_command_builder,
+            job_cancel_command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
             quote=quote,
             append_event_fn=append_event_fn,
         )
@@ -52,7 +55,11 @@ def build_line_search_callbacks(
             select_queue_action=select_queue_action_func,
             select_session=select_session_func,
             select_job=select_job_func,
-            probe_result_config=probe_result_config_func,
+            probe_result_config=lambda args: run_line_probe_config(
+                cfg,
+                args,
+                append_event_fn=append_event_fn,
+            ),
         )
 
     return {
