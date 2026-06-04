@@ -1182,8 +1182,8 @@ The generic details view lists missing, invalid, or error state records when no
 selected pane item has more specific details. Status JSON and both workbench views
 also expose `workbench_actions` records for operator-side configuration and
 build workflows such as `scripts/menuconfig`, `make package`,
-`scripts/grit-bringup --recommend-only --json`,
-`scripts/lib/artifact-config set ARTIFACT KEY=VALUE`, and release self-tests. These
+`scripts/grit-console bringup --recommend-only --json`,
+`scripts/grit-console artifact config set ARTIFACT KEY=VALUE`, and release self-tests. These
 records are show-command descriptors by default, include confirmation,
 background-job, and target-execution flags, and are indexed through
 `workbench_actions_by_id`, `workbench_actions_by_category`,

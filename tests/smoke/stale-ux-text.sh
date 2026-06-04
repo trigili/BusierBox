@@ -104,6 +104,9 @@ require_text docs/survey-and-bringup.md 'without changing target tuple compatibi
 require_text docs/bringup.md 'scripts/grit-console bringup --host root@192\.168\.8\.1 --operator-host auto'
 require_text docs/survey-and-bringup.md 'scripts/grit-console bringup --host root@192\.168\.8\.1 --operator-host auto'
 require_text docs/integration-glinet.md 'best-effort ephemeral runtime cleanup'
+require_text docs/integration-glinet.md 'Use `scripts/grit-console bringup` first'
+require_text docs/release-bundles.md 'scripts/grit-console bringup --recommend-only --json'
+require_text docs/release-bundles.md 'scripts/grit-console artifact config set ARTIFACT KEY=VALUE'
 
 if grep -q 'grit-artifact config set' README.md; then
     printf '%s\n' "stale-ux-text: README still recommends grit-artifact config set" >&2
@@ -111,6 +114,14 @@ if grep -q 'grit-artifact config set' README.md; then
 fi
 if grep -Eq 'scripts/grit-bringup --host|scripts/grit-bringup[[:space:]]*\\' docs/bringup.md docs/survey-and-bringup.md; then
     printf '%s\n' "stale-ux-text: bringup docs still recommend scripts/grit-bringup examples" >&2
+    exit 1
+fi
+if grep -q 'Use `scripts/grit-bringup` first' docs/integration-glinet.md; then
+    printf '%s\n' "stale-ux-text: integration docs still recommend scripts/grit-bringup first" >&2
+    exit 1
+fi
+if grep -Eq 'scripts/grit-bringup --recommend-only --json|scripts/lib/artifact-config set ARTIFACT KEY=VALUE' docs/release-bundles.md; then
+    printf '%s\n' "stale-ux-text: release docs still recommend wrapper/helper commands for bringup/artifact config" >&2
     exit 1
 fi
 

@@ -2,7 +2,7 @@
 
 `scripts/lib/integration-glinet` builds griTTYkit artifacts, copies them to a
 GL.iNet exemplar, runs selected cases, captures logs, and writes a JSON summary.
-Use `scripts/grit-bringup` first when onboarding an unknown target; use
+Use `scripts/grit-console bringup` first when onboarding an unknown target; use
 this integration harness when validating known cases repeatedly.
 
 The default target is `root@192.168.8.1` and the default target preset is
