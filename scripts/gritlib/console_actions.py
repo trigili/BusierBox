@@ -28,3 +28,37 @@ def handle_console_utility_args(cfg, args, append_event_fn=None):
         print(f"targets_file={targets_path(cfg)}")
         return 0
     return None
+
+
+def handle_console_control_args(
+    cfg,
+    args,
+    *,
+    print_status_func,
+    stop_recorded_service_func,
+    stop_managed_services_func,
+    service_stop_headless_command_func,
+    systemd_user_action_func,
+):
+    if args.status or args.json_status or args.api_status:
+        return print_status_func(cfg, json_output=args.json_status or args.api_status)
+    if args.stop_service:
+        stop_recorded_service_func(
+            cfg,
+            args.stop_service,
+            via="server-stop-service",
+            headless_command=service_stop_headless_command_func(cfg, args.stop_service),
+        )
+        return 0
+    if args.stop:
+        return stop_managed_services_func(cfg)
+    if args.systemd_user_action:
+        return systemd_user_action_func(
+            cfg,
+            args.systemd_user_action,
+            args.daemon_service,
+            args.systemd_user_unit_name,
+            unit_dir=args.systemd_user_unit_dir,
+            dry_run=args.systemd_user_dry_run,
+        )
+    return None

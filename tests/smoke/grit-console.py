@@ -960,6 +960,113 @@ def run_command_queue_dispatch_check():
     return 0
 
 
+def run_console_control_dispatch_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import gritlib.console_actions as console_actions
+
+    def args_for(**overrides):
+        values = {
+            "status": False,
+            "json_status": False,
+            "api_status": False,
+            "stop_service": None,
+            "stop": False,
+            "systemd_user_action": None,
+            "daemon_service": [],
+            "systemd_user_unit_name": "grit.service",
+            "systemd_user_unit_dir": None,
+            "systemd_user_dry_run": False,
+        }
+        values.update(overrides)
+        return argparse.Namespace(**values)
+
+    def dispatch(args, calls, systemd_func=None):
+        return console_actions.handle_console_control_args(
+            {"cfg": "yes"},
+            args,
+            print_status_func=lambda cfg, json_output=False: calls.append(
+                ("status", cfg, json_output)
+            ) or 17,
+            stop_recorded_service_func=lambda cfg, name, via=None, headless_command=None: calls.append(
+                ("stop-service", cfg, name, via, headless_command)
+            ),
+            stop_managed_services_func=lambda cfg: calls.append(("stop", cfg)) or 19,
+            service_stop_headless_command_func=lambda cfg, name: calls.append(
+                ("headless", cfg, name)
+            ) or f"stop {name}",
+            systemd_user_action_func=systemd_func or (
+                lambda cfg, action, services, unit_name, unit_dir=None, dry_run=False: calls.append(
+                    ("systemd", cfg, action, services, unit_name, unit_dir, dry_run)
+                ) or 23
+            ),
+        )
+
+    calls = []
+    if dispatch(args_for(status=True), calls) != 17 or calls != [("status", {"cfg": "yes"}, False)]:
+        print("console control dispatch helper did not preserve status output", file=sys.stderr)
+        return 1
+
+    calls = []
+    if dispatch(args_for(json_status=True), calls) != 17 or calls != [("status", {"cfg": "yes"}, True)]:
+        print("console control dispatch helper did not request json status output", file=sys.stderr)
+        return 1
+
+    calls = []
+    code = dispatch(args_for(stop_service="probe-listener"), calls)
+    if code != 0 or calls != [
+        ("headless", {"cfg": "yes"}, "probe-listener"),
+        ("stop-service", {"cfg": "yes"}, "probe-listener", "server-stop-service", "stop probe-listener"),
+    ]:
+        print("console control dispatch helper did not preserve stop-service behavior", file=sys.stderr)
+        return 1
+
+    calls = []
+    if dispatch(args_for(stop=True), calls) != 19 or calls != [("stop", {"cfg": "yes"})]:
+        print("console control dispatch helper did not preserve stop behavior", file=sys.stderr)
+        return 1
+
+    calls = []
+    systemd_args = args_for(
+        systemd_user_action="install",
+        daemon_service=["shell", "file"],
+        systemd_user_unit_name="custom.service",
+        systemd_user_unit_dir="units",
+        systemd_user_dry_run=True,
+    )
+    if dispatch(systemd_args, calls) != 23 or calls != [(
+        "systemd",
+        {"cfg": "yes"},
+        "install",
+        ["shell", "file"],
+        "custom.service",
+        "units",
+        True,
+    )]:
+        print("console control dispatch helper did not preserve systemd behavior", file=sys.stderr)
+        return 1
+
+    try:
+        dispatch(
+            args_for(systemd_user_action="bad"),
+            [],
+            systemd_func=lambda *args, **kwargs: (_ for _ in ()).throw(ValueError("bad systemd")),
+        )
+    except ValueError as exc:
+        if "bad systemd" not in str(exc):
+            print("console control dispatch helper raised wrong systemd error", file=sys.stderr)
+            return 1
+    else:
+        print("console control dispatch helper swallowed systemd errors", file=sys.stderr)
+        return 1
+
+    if dispatch(args_for(), []) is not None:
+        print("console control dispatch helper handled empty args", file=sys.stderr)
+        return 1
+    return 0
+
+
 def request_with_retry(port, payload):
     deadline = time.time() + 5
     last = None
@@ -3320,6 +3427,8 @@ def main(argv=None):
     if run_console_utility_dispatch_check() != 0:
         return 1
     if run_command_queue_dispatch_check() != 0:
+        return 1
+    if run_console_control_dispatch_check() != 0:
         return 1
 
     if args.section == "preflight":

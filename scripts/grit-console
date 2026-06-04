@@ -69,7 +69,7 @@ from gritlib.command_queue import (
     save_command_queue, yes_no,
 )
 from gritlib.console_display import print_dry_run_notice
-from gritlib.console_actions import handle_console_utility_args
+from gritlib.console_actions import handle_console_control_args, handle_console_utility_args
 from gritlib.console_args import (
     apply_console_arg_overrides, handle_early_console_args,
     has_explicit_console_action,
@@ -7518,31 +7518,21 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
         print(f"grit-console: {exc}", file=sys.stderr)
         return 2
 
-    if args.status or args.json_status or args.api_status:
-        return print_status(cfg, json_output=args.json_status or args.api_status)
-    if args.stop_service:
-        stop_recorded_service(
+    try:
+        control_code = handle_console_control_args(
             cfg,
-            args.stop_service,
-            via="server-stop-service",
-            headless_command=service_stop_headless_command(cfg, args.stop_service),
+            args,
+            print_status_func=print_status,
+            stop_recorded_service_func=stop_recorded_service,
+            stop_managed_services_func=stop_managed_services,
+            service_stop_headless_command_func=service_stop_headless_command,
+            systemd_user_action_func=handle_systemd_user_action,
         )
-        return 0
-    if args.stop:
-        return stop_managed_services(cfg)
-    if args.systemd_user_action:
-        try:
-            return handle_systemd_user_action(
-                cfg,
-                args.systemd_user_action,
-                args.daemon_service,
-                args.systemd_user_unit_name,
-                unit_dir=args.systemd_user_unit_dir,
-                dry_run=args.systemd_user_dry_run,
-            )
-        except ValueError as exc:
-            print(f"grit-console: {exc}", file=sys.stderr)
-            return 2
+        if control_code is not None:
+            return control_code
+    except ValueError as exc:
+        print(f"grit-console: {exc}", file=sys.stderr)
+        return 2
 
     timeout = timeout_from_args(args)
     if args.daemon:
