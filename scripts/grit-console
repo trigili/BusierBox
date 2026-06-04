@@ -175,8 +175,7 @@ from gritlib.line_repl_runtime import (
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
 from gritlib.line_repl_completions import (
-    build_line_completion_bundle,
-    install_line_completion_bundle,
+    setup_line_completion_bundle,
 )
 from gritlib.line_repl_core import build_line_core_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
@@ -6066,8 +6065,10 @@ def run_line_repl(cfg):
         quote=shquote,
     )
 
-    line_completion_callbacks = build_line_completion_bundle(
+    line_completion_callbacks = setup_line_completion_bundle(
         cfg,
+        readline_module=_readline,
+        have_readline=HAVE_READLINE,
         workbench_snapshot_func=workbench_snapshot,
         current_action_records_func=current_line_action_records,
         bridge_profile_records_func=bridge_profile_records,
@@ -6197,12 +6198,6 @@ def run_line_repl(cfg):
         print_events_func=print_target_activity_records,
         print_release_func=line_release_print_line_release,
         append_event_fn=append_event,
-    )
-
-    install_line_completion_bundle(
-        _readline,
-        HAVE_READLINE,
-        line_completion_callbacks,
     )
 
     line_utility_callbacks = build_line_utility_callbacks(

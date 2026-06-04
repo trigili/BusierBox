@@ -2620,6 +2620,27 @@ def run_line_repl_runtime_check():
             )
         )
         repl_completions.install_line_completion_bundle("readline", True, completion_bundle)
+        setup_bundle = repl_completions.setup_line_completion_bundle(
+            completion_cfg,
+            readline_module="readline-setup",
+            have_readline=False,
+            workbench_snapshot_func=lambda cfg: {},
+            current_action_records_func=lambda snapshot_func: [],
+            bridge_profile_records_func=lambda cfg: [],
+            release_context_func=lambda cfg: {},
+            command_queue_summary_func=lambda cfg: {},
+            generated_target_command_records_func=lambda cfg: [],
+            workbench_config_field_records_func=lambda cfg: [],
+            service_status_rows_func=lambda cfg: [],
+            service_completion_names_func=lambda rows: [],
+            service_names_func=lambda rows: [],
+            load_staged_func=lambda cfg: {},
+            find_survey_uploads_func=lambda cfg, limit=20: [],
+            append_event_fn=lambda cfg, service, event, details=None: None,
+        )
+        if setup_bundle["line_completion_candidates"]("su") != ["status"]:
+            print("line REPL completion setup helper did not return candidates result", file=sys.stderr)
+            return 1
         adapter_candidates, adapter_printer = repl_completions.build_line_completion_adapter(
             completion_cfg,
             workbench_snapshot_func=lambda cfg: {},
@@ -2643,6 +2664,10 @@ def run_line_repl_runtime_check():
     finally:
         repl_completions.build_line_completion_callbacks = original_completion_builder
         repl_completions.install_readline_completer = original_completion_installer
+    if ("install", "readline-setup", False, ["status"]) not in completion_calls:
+        print("line REPL completion setup helper did not install readline bundle", file=sys.stderr)
+        print(completion_calls, file=sys.stderr)
+        return 1
     expected_completion_markers = [
         ("snapshot", "completion-cfg"),
         ("actions", {"snap": True}),

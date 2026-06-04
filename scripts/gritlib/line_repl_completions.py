@@ -95,3 +95,42 @@ def install_line_completion_bundle(readline_module, have_readline, completion_ca
         have_readline,
         completion_callbacks["line_completion_candidates"],
     )
+
+
+def setup_line_completion_bundle(
+    cfg,
+    *,
+    readline_module,
+    have_readline,
+    workbench_snapshot_func,
+    current_action_records_func,
+    bridge_profile_records_func,
+    release_context_func,
+    command_queue_summary_func,
+    generated_target_command_records_func,
+    workbench_config_field_records_func,
+    service_status_rows_func,
+    service_completion_names_func,
+    service_names_func,
+    load_staged_func,
+    find_survey_uploads_func,
+    append_event_fn,
+):
+    bundle = build_line_completion_bundle(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot_func,
+        current_action_records_func=current_action_records_func,
+        bridge_profile_records_func=bridge_profile_records_func,
+        release_context_func=release_context_func,
+        command_queue_summary_func=command_queue_summary_func,
+        generated_target_command_records_func=generated_target_command_records_func,
+        workbench_config_field_records_func=workbench_config_field_records_func,
+        service_status_rows_func=service_status_rows_func,
+        service_completion_names_func=service_completion_names_func,
+        service_names_func=service_names_func,
+        load_staged_func=load_staged_func,
+        find_survey_uploads_func=find_survey_uploads_func,
+        append_event_fn=append_event_fn,
+    )
+    install_line_completion_bundle(readline_module, have_readline, bundle)
+    return bundle
