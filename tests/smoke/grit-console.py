@@ -1673,6 +1673,7 @@ def run_line_repl_runtime_check():
             kwargs["print_routes_func"](verbose=True)
             kwargs["print_sessions_func"](verbose=True)
             kwargs["select_queue_action_func"]("q1")
+            kwargs["number_func"]("n1")
             kwargs["start_job_func"]("job1")
             kwargs["run_action_func"]("action1")
             kwargs["interact_target_func"]("target1")
@@ -1694,7 +1695,9 @@ def run_line_repl_runtime_check():
             back_func=lambda cfg: navigation_bundle_calls.append(("back", cfg.get("name"))),
             session_help_func=lambda topic: navigation_bundle_calls.append(("session-help", topic)),
             route_help_func=lambda topic: navigation_bundle_calls.append(("route-help", topic)),
-            number_func=lambda selector: navigation_bundle_calls.append(("number", selector)),
+            search_callbacks={
+                "use_line_search_result": lambda selector: navigation_bundle_calls.append(("number", selector)),
+            },
             target_callbacks={
                 "print_line_targets": lambda: navigation_bundle_calls.append("targets"),
                 "select_line_target": lambda selector, targets=None: navigation_bundle_calls.append(
@@ -1746,6 +1749,7 @@ def run_line_repl_runtime_check():
         ("routes", True),
         ("sessions", True),
         ("queue", "q1"),
+        ("number", "n1"),
         ("start-job", "job1"),
         ("run-action", "action1"),
         ("interact-target", "target1"),
@@ -2529,6 +2533,7 @@ def run_line_repl_runtime_check():
             legacy_bundle_calls.append(("dispatch", choice))
             kwargs["line_start_service_func"]("svc")
             kwargs["line_stop_service_func"]("svc")
+            kwargs["use_result_func"]("1")
             kwargs["bridge_command_builder"]("save", "name")
             kwargs["stage_binary_func"]("bin")
             kwargs["print_queue_func"]()
@@ -2541,7 +2546,9 @@ def run_line_repl_runtime_check():
         legacy_bundle = repl_legacy.build_line_legacy_callbacks(
             {"name": "legacy-bundle-cfg"},
             input_func=lambda prompt: legacy_bundle_calls.append(("input", prompt)),
-            use_result_func=lambda selector: legacy_bundle_calls.append(("use", selector)),
+            search_callbacks={
+                "use_line_search_result": lambda selector: legacy_bundle_calls.append(("use", selector)),
+            },
             clear_results_func=lambda cfg: legacy_bundle_calls.append(("clear", cfg.get("name"))),
             start_service_func=lambda service: legacy_bundle_calls.append(("start-service", service)),
             stop_service_func=lambda service: legacy_bundle_calls.append(("stop-service", service)),
@@ -2586,6 +2593,7 @@ def run_line_repl_runtime_check():
         ("dispatch", "1"),
         ("line-start", "svc"),
         ("line-stop", "svc"),
+        ("use", "1"),
         ("bridge-command", "save", "name", None),
         ("stage", "bin"),
         "queue",

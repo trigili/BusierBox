@@ -14,14 +14,17 @@ def build_line_navigation_callbacks(
     back_func,
     session_help_func,
     route_help_func,
-    number_func,
+    number_func=None,
     target_callbacks,
     route_service_callbacks,
     session_callbacks,
     job_callbacks,
     action_callbacks,
     queue_callbacks=None,
+    search_callbacks=None,
 ):
+    if number_func is None and search_callbacks is not None:
+        number_func = search_callbacks["use_line_search_result"]
     dispatch_navigation = build_line_navigation_dispatch_callback(
         cfg,
         target_filter_func=target_filter_func,

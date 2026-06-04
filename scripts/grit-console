@@ -6172,7 +6172,6 @@ def run_line_repl(cfg):
         quote=shquote,
     )
     clear_line_search_results_callback = line_search_callbacks["clear_line_search_results"]
-    use_line_search_result = line_search_callbacks["use_line_search_result"]
 
     line_display_show_callbacks = build_line_display_show_callbacks(
         cfg,
@@ -6270,7 +6269,7 @@ def run_line_repl(cfg):
         back_func=back_line_module_context,
         session_help_func=print_line_command_help,
         route_help_func=print_line_command_help,
-        number_func=use_line_search_result,
+        search_callbacks=line_search_callbacks,
         target_callbacks=line_target_callbacks,
         route_service_callbacks=line_route_service_callbacks,
         session_callbacks=line_session_callbacks,
@@ -6297,7 +6296,7 @@ def run_line_repl(cfg):
     line_legacy_callbacks = build_line_legacy_callbacks(
         cfg,
         input_func=line_input,
-        use_result_func=use_line_search_result,
+        search_callbacks=line_search_callbacks,
         clear_results_func=clear_line_search_results,
         start_service_func=start_service_process,
         stop_service_func=stop_recorded_service,

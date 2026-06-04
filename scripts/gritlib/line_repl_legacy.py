@@ -142,7 +142,7 @@ def build_line_legacy_callbacks(
     cfg,
     *,
     input_func,
-    use_result_func,
+    use_result_func=None,
     clear_results_func,
     start_service_func,
     stop_service_func,
@@ -165,7 +165,10 @@ def build_line_legacy_callbacks(
     file_callbacks,
     queue_callbacks,
     bridge_command_builder=None,
+    search_callbacks=None,
 ):
+    if use_result_func is None and search_callbacks is not None:
+        use_result_func = search_callbacks["use_line_search_result"]
     if bridge_command_builder is None:
         bridge_command_builder = route_service_callbacks["bridge_profile_headless_command"]
     dispatch_legacy = build_line_legacy_dispatch_callback(
