@@ -181,6 +181,7 @@ from gritlib.line_repl_display import build_line_display_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_line_job_callbacks
 from gritlib.line_repl_routes import build_line_route_service_callbacks
+from gritlib.line_repl_sessions import build_line_session_callbacks
 from gritlib.line_release import (
     dispatch_legacy_line_release_number,
     print_line_release as line_release_print_line_release,
@@ -196,13 +197,6 @@ from gritlib.line_services import (
     line_service_completion_names, line_service_names, line_service_record,
 )
 from gritlib.line_show import build_line_show_resource_callback
-from gritlib.line_sessions import (
-    clear_line_sessions as line_sessions_clear_line_sessions,
-    current_line_session_record,
-    interact_current_line_session,
-    print_current_line_sessions,
-    select_current_line_session,
-)
 from gritlib.line_targets import (
     interact_line_target as line_targets_interact_line_target,
     print_line_targets as line_targets_print_line_targets,
@@ -6613,26 +6607,19 @@ def run_line_repl(cfg):
         })
         return command
 
-    def line_session_record(selector):
-        return current_line_session_record(lambda: workbench_snapshot(cfg), selector)
-
-    def select_line_session(selector):
-        return select_current_line_session(
-            cfg,
-            lambda: workbench_snapshot(cfg),
-            selector,
-            append_event_fn=append_event,
-        )
-
-    def print_line_sessions(verbose=False):
-        return print_current_line_sessions(
-            cfg,
-            lambda: workbench_snapshot(cfg),
-            verbose=verbose,
-            view_command=lambda path: view_path_headless_command(cfg, path),
-            quote=shquote,
-            append_event_fn=append_event,
-        )
+    line_session_callbacks = build_line_session_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        session_root_func=lambda session_cfg: SESSION_MANAGER.root(session_cfg),
+        view_command_builder=lambda path: view_path_headless_command(cfg, path),
+        append_event_fn=append_event,
+        quote=shquote,
+    )
+    line_session_record = line_session_callbacks["line_session_record"]
+    select_line_session = line_session_callbacks["select_line_session"]
+    print_line_sessions = line_session_callbacks["print_line_sessions"]
+    clear_line_sessions = line_session_callbacks["clear_line_sessions"]
+    interact_line_session = line_session_callbacks["interact_line_session"]
 
     def print_line_files(verbose=False):
         return print_current_line_files(
@@ -6642,24 +6629,6 @@ def run_line_repl(cfg):
             verbose=verbose,
             fetch_command=lambda name: render_fetch_command(name, cfg),
             quote=shquote,
-            append_event_fn=append_event,
-        )
-
-    def clear_line_sessions(all_sessions=False, confirm=False):
-        return line_sessions_clear_line_sessions(
-            cfg,
-            SESSION_MANAGER.root(cfg),
-            all_sessions=all_sessions,
-            confirm=confirm,
-            append_event_fn=append_event,
-        )
-
-    def interact_line_session(selector):
-        return interact_current_line_session(
-            cfg,
-            lambda: workbench_snapshot(cfg),
-            selector,
-            view_command_builder=lambda path: view_path_headless_command(cfg, path),
             append_event_fn=append_event,
         )
 
