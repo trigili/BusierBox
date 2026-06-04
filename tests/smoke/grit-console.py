@@ -435,6 +435,7 @@ def run_line_repl_runtime_check():
         read_next_repl_line,
         run_line_console_lifecycle,
         run_line_repl_loop,
+        setup_line_repl_io,
     )
 
     reasons = []
@@ -515,6 +516,35 @@ def run_line_repl_runtime_check():
     )
     if line_input("grit> ") != "typed" or input_calls != [("read", "grit> ", True, True)]:
         print(f"line REPL input callback did not forward read_line state: {input_calls}", file=sys.stderr)
+        return 1
+
+    setup_calls = []
+    setup_shutdown = threading.Event()
+    repl_io = setup_line_repl_io(
+        "readline-module",
+        True,
+        shutdown_event=setup_shutdown,
+        request_shutdown_func=request_shutdown,
+        history_configurer=lambda readline_module, have_readline: setup_calls.append(
+            ("history", readline_module, have_readline)
+        ),
+        signal_installer=lambda request_shutdown_func: setup_calls.append(
+            ("signals", request_shutdown_func is request_shutdown)
+        ) or [("SIGINT", "previous")],
+        input_builder=lambda shutdown_event, request_shutdown_func, have_readline: setup_calls.append(
+            ("input", shutdown_event is setup_shutdown, request_shutdown_func is request_shutdown, have_readline)
+        ) or (lambda prompt: f"typed:{prompt}"),
+    )
+    if (
+        repl_io.get("signal_handlers") != [("SIGINT", "previous")]
+        or repl_io.get("line_input")("grit> ") != "typed:grit> "
+        or setup_calls != [
+            ("history", "readline-module", True),
+            ("signals", True),
+            ("input", True, True, True),
+        ]
+    ):
+        print(f"line REPL IO setup did not configure callbacks cleanly: {setup_calls}", file=sys.stderr)
         return 1
 
     bridge_calls = []

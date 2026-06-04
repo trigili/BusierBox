@@ -168,7 +168,7 @@ from gritlib.line_resources import (
     record_line_history, write_line_makerc,
 )
 from gritlib.line_repl_runtime import (
-    build_line_repl_input_callback, configure_readline_history, install_line_repl_signal_handlers,
+    setup_line_repl_io,
     install_readline_completer, run_line_console_lifecycle, run_line_repl_loop,
     restore_signal_handlers,
 )
@@ -6025,13 +6025,13 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
 
 
 def run_line_repl(cfg):
-    configure_readline_history(_readline, HAVE_READLINE)
-    signal_handlers = install_line_repl_signal_handlers(request_shutdown)
-    line_input = build_line_repl_input_callback(
+    repl_io = setup_line_repl_io(
+        _readline,
+        HAVE_READLINE,
         shutdown_event=SHUTDOWN,
         request_shutdown_func=request_shutdown,
-        have_readline=HAVE_READLINE,
     )
+    line_input = repl_io["line_input"]
 
     bridge_profile_headless_command = build_bridge_profile_headless_command_callback(
         cfg,
@@ -6439,36 +6439,38 @@ def run_line_repl(cfg):
         action_state_text_func=line_action_state_text,
         print_queue_func=print_line_command_queue_view,
     )
-    result = run_line_repl_loop(
-        cfg,
-        shutdown_event=SHUTDOWN,
-        shutdown_reason_func=lambda: SHUTDOWN_REASON,
-        line_history=line_history,
-        pending_console_lines=pending_console_lines,
-        workbench_snapshot_func=workbench_snapshot,
-        print_workbench_func=print_workbench,
-        print_banner_func=print_line_console_banner,
-        version_func=grit_version,
-        prompt_func=line_repl_prompt_for_config,
-        input_func=line_input,
-        history_command_func=line_history_command,
-        record_history_func=record_line_history,
-        clear_results_func=lambda: clear_line_search_results(cfg),
-        readline_module=_readline if HAVE_READLINE else None,
-        module_func=lambda repl_cfg: repl_cfg.get("_line_console_module"),
-        target_selected_func=lambda repl_cfg: bool(configured_target_filter(repl_cfg)),
-        command_help_printer=print_line_command_help,
-        context_help_printer=print_context_line_help,
-        utility_dispatch_func=dispatch_line_utility,
-        core_dispatch_func=dispatch_line_core,
-        navigation_dispatch_func=dispatch_line_navigation,
-        workflow_dispatch_func=dispatch_line_workflow,
-        unknown_message_func=line_unknown_command_message,
-        clear_context_func=lambda quiet=False: clear_line_console_context(cfg, quiet=quiet),
-        mark_stopped_func=lambda: mark_service_stopped(cfg, "workbench", "quit"),
-        legacy_dispatch_func=dispatch_line_legacy,
-    )
-    restore_signal_handlers(signal_handlers)
+    try:
+        result = run_line_repl_loop(
+            cfg,
+            shutdown_event=SHUTDOWN,
+            shutdown_reason_func=lambda: SHUTDOWN_REASON,
+            line_history=line_history,
+            pending_console_lines=pending_console_lines,
+            workbench_snapshot_func=workbench_snapshot,
+            print_workbench_func=print_workbench,
+            print_banner_func=print_line_console_banner,
+            version_func=grit_version,
+            prompt_func=line_repl_prompt_for_config,
+            input_func=line_input,
+            history_command_func=line_history_command,
+            record_history_func=record_line_history,
+            clear_results_func=lambda: clear_line_search_results(cfg),
+            readline_module=_readline if HAVE_READLINE else None,
+            module_func=lambda repl_cfg: repl_cfg.get("_line_console_module"),
+            target_selected_func=lambda repl_cfg: bool(configured_target_filter(repl_cfg)),
+            command_help_printer=print_line_command_help,
+            context_help_printer=print_context_line_help,
+            utility_dispatch_func=dispatch_line_utility,
+            core_dispatch_func=dispatch_line_core,
+            navigation_dispatch_func=dispatch_line_navigation,
+            workflow_dispatch_func=dispatch_line_workflow,
+            unknown_message_func=line_unknown_command_message,
+            clear_context_func=lambda quiet=False: clear_line_console_context(cfg, quiet=quiet),
+            mark_stopped_func=lambda: mark_service_stopped(cfg, "workbench", "quit"),
+            legacy_dispatch_func=dispatch_line_legacy,
+        )
+    finally:
+        restore_signal_handlers(repl_io["signal_handlers"])
     return result
 
 

@@ -499,6 +499,30 @@ def build_line_repl_input_callback(
     return line_input
 
 
+def setup_line_repl_io(
+    readline_module,
+    have_readline,
+    *,
+    shutdown_event,
+    request_shutdown_func,
+    history_configurer=configure_readline_history,
+    signal_installer=install_line_repl_signal_handlers,
+    input_builder=build_line_repl_input_callback,
+):
+    """Configure REPL-local input state and return callbacks/cleanup state."""
+    history_configurer(readline_module, have_readline)
+    signal_handlers = signal_installer(request_shutdown_func)
+    line_input = input_builder(
+        shutdown_event=shutdown_event,
+        request_shutdown_func=request_shutdown_func,
+        have_readline=have_readline,
+    )
+    return {
+        "line_input": line_input,
+        "signal_handlers": signal_handlers,
+    }
+
+
 def read_next_repl_line(
     cfg,
     *,
