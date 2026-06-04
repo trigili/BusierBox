@@ -398,14 +398,13 @@ def add_line_route(cfg, args, headless_command_builder=None):
         lambda _action, _name="", extra=None: ""
     )
     headless = headless_command_builder("save", extra=extra)
-    print(f"saved route {rec.get('name', '')}: {rec.get('route_path', '')}")
-    print(
-        f"  listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')} "
-        f"dest={rec.get('dest_host', '')}:{rec.get('dest_port', '')} "
-        f"hops={rec.get('hop_count', 0)} "
-        f"multi_hop={'yes' if rec.get('multi_hop') else 'no'}"
-    )
-    print(f"next: route {rec.get('name', '')}, use route {rec.get('name', '')}, route start {rec.get('name', '')}, route delete {rec.get('name', '')}")
+    print(f"saved route: {rec.get('name', '')}")
+    print(f"  path: {rec.get('route_path', '')}")
+    print(f"  listen: {rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
+    print(f"  destination: {rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
+    print(f"  hops: {rec.get('hop_count', 0)}")
+    print(f"  multi-hop: {'yes' if rec.get('multi_hop') else 'no'}")
+    print(f"  next: route {rec.get('name', '')}, use route {rec.get('name', '')}, route start {rec.get('name', '')}, route delete {rec.get('name', '')}")
     append_event(cfg, "workbench", "workbench_bridge_profile_saved", details={
         "name": rec.get("name", ""),
         "route_path": rec.get("route_path", ""),

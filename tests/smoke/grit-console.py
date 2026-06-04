@@ -1215,7 +1215,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "After it runs, use: probe results",
         "daemon -v for commands",
         "dry-run: scripts/grit-console --config",
-        "saved route zz-console-added",
+        "saved route: zz-console-added",
         "started route zz-console-added",
         "stopped route zz-console-added",
         "deleted route zz-console-added",
@@ -1453,14 +1453,23 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented action options did not use concise labels", file=sys.stderr)
         print(action_options_text or line_console_stdout, file=sys.stderr)
         return 1
-    route_start = line_console_stdout.find("saved route zz-console-added")
+    route_start = line_console_stdout.find("saved route: zz-console-added")
     route_end = line_console_stdout.find("selected route console-route", route_start + 1)
     route_text = line_console_stdout[route_start:route_end] if route_start != -1 and route_end != -1 else ""
     if (not route_text or
-            "saved route zz-console-added" not in route_text or
+            "saved route: zz-console-added" not in route_text or
+            "  path: operator:" not in route_text or
+            "  listen: 127.0.0.1:" not in route_text or
+            "  destination: 127.0.0.1:" not in route_text or
+            "  hops: 2" not in route_text or
+            "  multi-hop: yes" not in route_text or
             "started route zz-console-added" not in route_text or
             "stopped route zz-console-added" not in route_text or
             "deleted route zz-console-added" not in route_text or
+            "listen=" in route_text or
+            "dest=" in route_text or
+            "hops=" in route_text or
+            "multi_hop=" in route_text or
             "headless_command:" in route_text):
         print("line-oriented route commands exposed noisy headless commands", file=sys.stderr)
         print(route_text or line_console_stdout, file=sys.stderr)
