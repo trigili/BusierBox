@@ -67,23 +67,51 @@ def line_command_queue_action_summary(records):
     return "  queue actions: " + "  ".join(parts) if parts else ""
 
 
-def print_line_command_queue_records(queue_summary, mailbox_records, command_queue_actions, include_queue_summary=True, detailed=False):
+def line_command_queue_mailbox_detail(rec):
+    details = []
+    work = rec.get("work_kind") or rec.get("request_name") or rec.get("bridge_profile") or ""
+    if work:
+        details.append(("work", work))
+    if rec.get("pending_reason"):
+        details.append(("reason", rec["pending_reason"]))
+    created = line_command_queue_time_text(rec.get("created_at"))
+    if created != "-":
+        details.append(("created", created))
+    return details
+
+
+def print_line_mailbox_records(mailbox_records, title=None):
+    mailbox_records = list(mailbox_records or [])
+    if mailbox_records:
+        mailbox_cols = [
+            ("Command", lambda r: str(r.get("command_id") or "-")[:20]),
+            ("Target", lambda r: r.get("target_id") or "-"),
+            ("Status", lambda r: r.get("status") or "-"),
+            ("Result", line_command_queue_result_text),
+            ("Waiting", lambda r: r.get("waiting_for") or "-"),
+            ("Seen", lambda r: line_command_queue_time_text(r.get("target_last_seen"))),
+        ]
+        console_table(
+            title or f"Mailbox  ({len(mailbox_records)} records)",
+            mailbox_records[:8], mailbox_cols, detail_fn=line_command_queue_mailbox_detail,
+            footer="queue result N  |  queue COMMAND  |  queue ? for help",
+        )
+    else:
+        console_table(title or "Mailbox  (none)", [], [], footer="queue COMMAND  |  queue ? for help")
+
+
+def print_line_command_queue_records(
+    queue_summary,
+    mailbox_records,
+    command_queue_actions,
+    include_queue_summary=True,
+    include_actions=True,
+    detailed=False,
+):
     queue_summary = queue_summary or {}
     mailbox_records = list(mailbox_records or [])
     command_queue_actions = list(command_queue_actions or [])
     command_records = queue_summary.get("commands") or []
-
-    def _mailbox_detail(rec):
-        details = []
-        work = rec.get("work_kind") or rec.get("request_name") or rec.get("bridge_profile") or ""
-        if work:
-            details.append(("work", work))
-        if rec.get("pending_reason"):
-            details.append(("reason", rec["pending_reason"]))
-        created = line_command_queue_time_text(rec.get("created_at"))
-        if created != "-":
-            details.append(("created", created))
-        return details
 
     if include_queue_summary:
         status_bits = [
@@ -131,21 +159,10 @@ def print_line_command_queue_records(queue_summary, mailbox_records, command_que
         else:
             print("  no queued commands")
 
-    if mailbox_records:
-        mailbox_cols = [
-            ("Command", lambda r: str(r.get("command_id") or "-")[:20]),
-            ("Target", lambda r: r.get("target_id") or "-"),
-            ("Status", lambda r: r.get("status") or "-"),
-            ("Result", line_command_queue_result_text),
-            ("Waiting", lambda r: r.get("waiting_for") or "-"),
-            ("Seen", lambda r: line_command_queue_time_text(r.get("target_last_seen"))),
-        ]
-        console_table(
-            f"Mailbox  ({len(mailbox_records)} records)",
-            mailbox_records[:8], mailbox_cols, detail_fn=_mailbox_detail,
-        )
-    else:
-        print("Mailbox  (none)")
+    print_line_mailbox_records(mailbox_records)
+
+    if not include_actions:
+        return
 
     if command_queue_actions:
         action_summary = line_command_queue_action_summary(command_queue_actions)

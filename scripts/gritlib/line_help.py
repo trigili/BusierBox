@@ -237,6 +237,7 @@ def print_line_command_help(topic):
             "entries": [
                 ("queue COMMAND", "queue a shell command for the selected target"),
                 ("queue list", "show the target mailbox"),
+                ("queue targets, mailbox targets", "show only target mailbox records"),
                 ("queue result ID|N", "inspect a queued command result"),
                 ("queue clear --confirm", "remove all queued commands"),
                 ("mailbox", "show command queue and mailbox state"),

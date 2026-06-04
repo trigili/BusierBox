@@ -124,6 +124,7 @@ from gritlib.line_build import (
     unset_line_global_build_option,
 )
 from gritlib.line_command_queue import (
+    print_line_mailbox_records,
     print_line_command_queue_records,
     print_line_command_result as line_command_queue_print_result,
     queue_line_command as line_command_queue_queue_command,
@@ -7405,6 +7406,9 @@ def run_line_repl(cfg):
         if subcmd in {"list", "show", "mailbox", "ls"}:
             print_line_command_queue_view()
             return
+        if subcmd in {"target", "targets", "agent", "agents"}:
+            print_line_command_queue_view(mailbox_only=True)
+            return
         if subcmd in {"result", "results"}:
             if len(args) == 1 and subcmd == "results":
                 print_line_command_queue_view()
@@ -7657,19 +7661,22 @@ def run_line_repl(cfg):
             "headless_command": headless,
         })
 
-    def print_line_command_queue_view(detailed=False):
+    def print_line_command_queue_view(detailed=False, mailbox_only=False):
         cfg["_line_console_search_results"] = []
         snap = workbench_snapshot(cfg)
         command_queue_actions = snap.get("command_queue_workflow_actions") or []
         mailbox_records = snap.get("target_mailbox_records") or []
         queue_summary = command_queue_summary(cfg)
 
-        print_line_command_queue_records(
-            queue_summary,
-            mailbox_records,
-            command_queue_actions,
-            detailed=detailed,
-        )
+        if mailbox_only:
+            print_line_mailbox_records(mailbox_records, title=f"Target mailbox  ({len(mailbox_records)} records)")
+        else:
+            print_line_command_queue_records(
+                queue_summary,
+                mailbox_records,
+                command_queue_actions,
+                detailed=detailed,
+            )
 
         append_event(cfg, "workbench", "workbench_command_queue_inspected", details={
             "command_count": len((command_queue_summary(cfg).get("commands") or [])),
@@ -8626,7 +8633,13 @@ def run_line_repl(cfg):
                 continue
             elif cmd in {"mailbox", "queue"}:
                 set_line_collection("queue")
-                print_line_command_queue_view()
+                if len(console_args) >= 2:
+                    try:
+                        run_line_queue_command(console_args[1:])
+                    except ValueError as exc:
+                        print(exc)
+                else:
+                    print_line_command_queue_view()
                 continue
             elif cmd == "jobs":
                 try:
