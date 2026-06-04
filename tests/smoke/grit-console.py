@@ -30,6 +30,7 @@ SECTION_DESCRIPTIONS = {
     "integration-command-queue": "integration checkpoint through command queue workflows",
     "integration-daemon-status": "integration checkpoint through daemon, service, status, and event workflows",
     "line-console": "isolated line-oriented console command workflow smoke",
+    "line-console-transcript": "capture the scripted line-console UX transcript artifact",
 }
 SECTIONS = tuple(SECTION_DESCRIPTIONS)
 
@@ -63,6 +64,68 @@ def line_console_raw_action_state_present(text):
         "already-stopped",
     )
     return any(state in text for state in raw_states)
+
+
+def line_console_transcript_coverage(text):
+    text = text or ""
+    first_prompt = text.find("grit[all]>")
+    help_prompt = text.find("grit[all]> help", first_prompt + 1)
+    blank_enter_text = (
+        text[first_prompt:help_prompt]
+        if first_prompt != -1 and help_prompt != -1 else ""
+    )
+    coverage_markers = {
+        "startup": ("griTTYkit v", "Workspace", "grit[all]>"),
+        "blank_enter": ("grit[all]>",),
+        "top_level_help": ("Console commands", "Workspace", "Target Work", "Control Plane"),
+        "major_help_topics": (
+            "Help: workspace",
+            "Help: targets",
+            "Help: files",
+            "Help: routes",
+            "Help: events",
+            "Help: queue",
+            "Help: build",
+            "Help: probe",
+            "Help: jobs",
+            "Help: sessions",
+        ),
+        "numbered_selections": (
+            "use N",
+            "selected agent: line-console-target",
+            "selected route console-route",
+            "selected session ",
+            "numbered result not found: 999;",
+        ),
+        "context_clearing": (
+            "target filter cleared",
+            "returned to main workspace",
+        ),
+        "action_previews": (
+            "preview only: no changes applied",
+            "operator daemon workflow action: operator-daemon-status",
+        ),
+        "queue_workflow": (
+            "Command queue  (",
+            "queued: cq-",
+            "Command result:",
+            "no queued commands",
+        ),
+        "clean_quit": (
+            "grit[all]> q",
+            "file-service: no recorded pid",
+        ),
+    }
+    coverage = {
+        key: all(marker in text for marker in markers)
+        for key, markers in coverage_markers.items()
+    }
+    coverage["blank_enter"] = bool(
+        blank_enter_text
+        and blank_enter_text.count("griTTYkit v") == 0
+        and blank_enter_text.count("grit[all]>") >= 1
+    )
+    return coverage
 
 
 def run(*args):
@@ -149,6 +212,12 @@ def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=N
             for marker in ("allowed_commands=", "delivery_policy_counts:", "mode status:")
         ),
     }
+    coverage = line_console_transcript_coverage(transcript_text)
+    summary_doc["coverage"] = coverage
+    summary_doc["coverage_missing"] = [
+        key for key, covered in sorted(coverage.items())
+        if not covered
+    ]
     if summary:
         summary_doc.update(summary)
     (artifact_dir / "summary.json").write_text(
@@ -5072,10 +5141,10 @@ def write_upload_fixture(tmp):
     return upload_cfg, session_root
 
 
-def run_line_console_section(server):
+def run_line_console_section(server, section="line-console"):
     with tempfile.TemporaryDirectory() as tmp:
         upload_cfg, session_root = write_upload_fixture(Path(tmp))
-        return run_line_console_smoke(server, Path(tmp), upload_cfg, session_root)
+        return run_line_console_smoke(server, Path(tmp), upload_cfg, session_root, section=section)
 
 
 def run_probe_tftp_smoke(tmp, result_port=None):
@@ -5142,7 +5211,7 @@ def run_probe_delivery_section(server):
 
 
 
-def run_line_console_smoke(server, tmp, upload_cfg, session_root):
+def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-console"):
     sys.path.insert(0, str(ROOT / "scripts"))
     from gritlib.line_workspace import line_banner_hint, print_line_workspace_snapshot
 
@@ -5749,7 +5818,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         line_console_stderr,
         line_console_proc.returncode,
         summary={
-            "section": "line-console",
+            "section": section,
             "config": str(upload_cfg),
             "state_file": str(line_console_state),
             "staged_file": str(line_console_staged),
@@ -5779,7 +5848,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         )
         if line_console_artifact_summary.get(key)
     ]
-    if line_console_artifact_summary.get("returncode") != 0 or bad_artifact_flags:
+    coverage_missing = line_console_artifact_summary.get("coverage_missing") or []
+    if line_console_artifact_summary.get("returncode") != 0 or bad_artifact_flags or coverage_missing:
         print("line-console transcript artifact recorded UX regression flags", file=sys.stderr)
         print(json.dumps(line_console_artifact_summary, indent=2, sort_keys=True), file=sys.stderr)
         return 1
@@ -7121,8 +7191,8 @@ def main(argv=None):
 
     server = ROOT / "scripts" / "grit-console"
 
-    if args.section == "line-console":
-        return run_line_console_section(server)
+    if args.section in ("line-console", "line-console-transcript"):
+        return run_line_console_section(server, section=args.section)
     if args.section == "probe-delivery":
         return run_probe_delivery_section(server)
 
