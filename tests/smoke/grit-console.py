@@ -1630,26 +1630,43 @@ def run_line_repl_runtime_check():
             set_context_func=lambda cfg, module: show_calls.append(("context", cfg.get("name"), module)),
             snapshot_func=lambda cfg: show_calls.append(("snapshot", cfg.get("name"))) or {"snap": True},
             target_filter_func=lambda cfg: cfg.get("target", ""),
-            print_actions_func=lambda *args, **kwargs: show_calls.append(("actions", args, kwargs)),
-            print_targets_func=lambda: show_calls.append("targets"),
-            print_services_func=lambda verbose=False: show_calls.append(("services", verbose)),
-            print_files_func=lambda: show_calls.append("files"),
-            print_jobs_func=lambda: show_calls.append("jobs"),
+            action_callbacks={
+                "print_line_actions": lambda *args, **kwargs: show_calls.append(("actions", args, kwargs)),
+            },
+            target_callbacks={
+                "print_line_targets": lambda: show_calls.append("targets"),
+            },
+            route_service_callbacks={
+                "print_line_services": lambda verbose=False: show_calls.append(("services", verbose)),
+                "print_line_routes": lambda verbose=False: show_calls.append(("routes", verbose)),
+            },
+            file_callbacks={
+                "print_line_files": lambda: show_calls.append("files"),
+            },
+            job_callbacks={
+                "print_line_jobs": lambda: show_calls.append("jobs"),
+            },
+            session_callbacks={
+                "print_line_sessions": lambda: show_calls.append("sessions"),
+            },
+            queue_callbacks={
+                "print_line_command_queue_view": lambda detailed=False: show_calls.append(("queue", detailed)),
+            },
+            display_callbacks=(
+                lambda: show_calls.append("info"),
+                lambda: show_calls.append("next"),
+                lambda: show_calls.append("options"),
+            ),
             print_daemon_func=lambda snapshot: show_calls.append(("daemon", snapshot)),
             print_categories_func=lambda cfg, snapshot_fn: show_calls.append(
                 ("categories", cfg.get("name"), snapshot_fn())
             ),
-            print_sessions_func=lambda: show_calls.append("sessions"),
-            print_routes_func=lambda verbose=False: show_calls.append(("routes", verbose)),
-            print_queue_func=lambda detailed=False: show_calls.append(("queue", detailed)),
             print_events_func=lambda snapshot, target_id="", limit=0: show_calls.append(
                 ("events", snapshot, target_id, limit)
             ),
             print_release_func=lambda cfg, append_event_fn: show_calls.append(
                 ("release", cfg.get("name"), append_event_fn is not None)
             ),
-            print_options_func=lambda: show_calls.append("options"),
-            print_info_func=lambda: show_calls.append("info"),
             append_event_fn=lambda *args, **kwargs: None,
         )
         if show_callback("targets") != "shown":
