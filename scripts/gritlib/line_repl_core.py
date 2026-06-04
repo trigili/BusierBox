@@ -10,12 +10,18 @@ def build_line_core_callbacks(
     cfg,
     *,
     clear_module_func,
+    probe_callbacks=None,
+    file_callbacks=None,
     **dispatch_kwargs,
 ):
     unset_line_option = build_unset_line_option_callback(
         cfg,
         clear_module_func=clear_module_func,
     )
+    if probe_callbacks is not None:
+        dispatch_kwargs.setdefault("probe_start_func", probe_callbacks["probe_line_start"])
+    if file_callbacks is not None:
+        dispatch_kwargs.setdefault("probe_serve_stage_release_func", file_callbacks["stage_release"])
     dispatch_line_core = build_line_core_dispatch_callback(
         cfg,
         unset_context_option_func=unset_line_option,

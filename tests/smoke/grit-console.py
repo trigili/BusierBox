@@ -1418,6 +1418,8 @@ def run_line_repl_runtime_check():
         def dispatch_core_bundle(command, args):
             core_bundle_calls.append(("dispatch", command, tuple(args)))
             unset_context_option_func("B")
+            core_bundle_calls.append(("probe-start", kwargs["probe_start_func"]()))
+            core_bundle_calls.append(("stage-release", kwargs["probe_serve_stage_release_func"]("release-id")))
             return "bundle-refresh"
 
         return dispatch_core_bundle
@@ -1433,6 +1435,12 @@ def run_line_repl_runtime_check():
             clear_module_func=lambda cfg, quiet=False: core_bundle_calls.append(
                 ("clear-module", cfg.get("name"), quiet)
             ),
+            probe_callbacks={
+                "probe_line_start": lambda: "probe-started",
+            },
+            file_callbacks={
+                "stage_release": lambda release_id: f"staged-{release_id}",
+            },
             default_config="bundle-default.json",
         )
         if core_bundle["dispatch_line_core"]("status", []) != "bundle-refresh":
@@ -1447,6 +1455,8 @@ def run_line_repl_runtime_check():
         ("dispatch-builder", "bundle-core", "bundle-default.json"),
         ("dispatch", "status", ()),
         ("unset", "bundle-core", "B"),
+        ("probe-start", "probe-started"),
+        ("stage-release", "staged-release-id"),
         ("unset", "bundle-core", "C"),
     ]
     if core_bundle_calls != expected_core_bundle_calls:
@@ -7995,8 +8005,17 @@ def main(argv=None):
         if word not in workbench_pager_src:
             print(f"grit-console: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
-    for word in ("stage_release_nav_item", "stage_release_selection", "stage_line_release", "by_device:", "by_tuple_path:", "stage-release"):
-        if word not in src + release_artifacts_src:
+    for word in (
+        "stage_release_nav_item",
+        "stage_release_selection",
+        '"stage_release": stage_release',
+        "file_callbacks",
+        "probe_serve_stage_release_func",
+        "by_device:",
+        "by_tuple_path:",
+        "stage-release",
+    ):
+        if word not in src + release_artifacts_src + line_module_src:
             print(f"grit-console: release device/tuple staging missing: {word}", file=sys.stderr)
             return 1
     for word in ("tty.setraw", "tcsetattr", "SSLWantReadError", "SSLWantWriteError",
