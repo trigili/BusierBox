@@ -721,6 +721,28 @@ def browser_path_summary(records):
     }
 
 
+def browser_path_status_summary(summary=None):
+    summary = summary or {}
+    return {
+        "browser_path_count": summary.get("total_count", 0),
+        "browser_path_exists_count": summary.get("exists_count", 0),
+        "browser_path_missing_count": summary.get("missing_count", 0),
+        "browser_path_readable_count": summary.get("readable_count", 0),
+        "browser_path_writable_count": summary.get("writable_count", 0),
+        "browser_path_kind_mismatch_count": summary.get("kind_mismatch_count", 0),
+        "browser_path_kind_counts": summary.get("by_kind") or {},
+        "browser_path_stage_kind_counts": summary.get("by_stage_kind") or {},
+        "browser_path_release_path_counts": summary.get("by_release_path") or {},
+        "browser_path_exists_kind_counts": summary.get("exists_by_kind") or {},
+        "browser_path_missing_kind_counts": summary.get("missing_by_kind") or {},
+        "browser_path_readable_kind_counts": summary.get("readable_by_kind") or {},
+        "browser_path_writable_kind_counts": summary.get("writable_by_kind") or {},
+        "browser_path_kind_mismatch_counts": (
+            summary.get("kind_mismatch_by_kind") or {}
+        ),
+    }
+
+
 def path_status_context(cfg, paths, staged_records, uploads, fetches, sessions, release):
     path_status = status_path_records(paths)
     path_status_records = status_path_record_list(path_status)
@@ -733,6 +755,7 @@ def path_status_context(cfg, paths, staged_records, uploads, fetches, sessions, 
         sessions,
         release,
     )
+    browser_summary = browser_path_summary(browser_paths)
     return {
         "path_status": path_status,
         "path_status_records": path_status_records,
@@ -740,7 +763,8 @@ def path_status_context(cfg, paths, staged_records, uploads, fetches, sessions, 
         "path_summary": status_path_summary(path_status),
         "browser_paths": browser_paths,
         "browser_path_indexes": browser_path_indexes(browser_paths),
-        "browser_summary": browser_path_summary(browser_paths),
+        "browser_summary": browser_summary,
+        "browser_status_summary": browser_path_status_summary(browser_summary),
     }
 
 

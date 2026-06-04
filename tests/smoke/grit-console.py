@@ -2295,6 +2295,7 @@ def run_path_status_context_check():
         browser_paths = context.get("browser_paths") or []
         browser_indexes = context.get("browser_path_indexes") or ()
         browser_summary = context.get("browser_summary") or {}
+        browser_status_summary = context.get("browser_status_summary") or {}
         if not path_status or len(path_records) != len(paths):
             print("path status context did not preserve operator path records", file=sys.stderr)
             return 1
@@ -2306,6 +2307,13 @@ def run_path_status_context_check():
             return 1
         if browser_summary.get("total_count") != len(browser_paths):
             print("path status context did not preserve browser summary", file=sys.stderr)
+            return 1
+        if (
+            browser_status_summary.get("browser_path_count") != len(browser_paths)
+            or not browser_status_summary.get("browser_path_kind_counts")
+            or browser_status_summary.get("browser_path_kind_mismatch_count", 0) != 0
+        ):
+            print("path status context did not preserve browser status summary", file=sys.stderr)
             return 1
         browser_by_kind = browser_indexes[0]
         if not browser_by_kind.get("staged-source") or not browser_by_kind.get("release-artifact"):
