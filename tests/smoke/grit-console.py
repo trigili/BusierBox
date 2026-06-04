@@ -1222,8 +1222,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "selected route console-route",
         "configured: ",
         "command-queue (",
-        "set build.GRIT_RUNTIME_ROOT=\"/tmp/grit-build\"",
-        "setg GRIT_RUNTIME_ROOT=\"/tmp/grit-global\"",
+        "build option set: GRIT_RUNTIME_ROOT",
+        "global build option set: GRIT_RUNTIME_ROOT",
         "set GRIT_OPERATOR_FILE_SERVICE_PORT=\"22231\"",
         "set GRIT_OPERATOR_FILE_SERVICE_TLS=\"no\"",
         "operator daemon workflow action: operator-daemon-status",
@@ -1587,8 +1587,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     build_set_end = line_console_stdout.find("grit[all]/build> listeners", build_set_start + 1)
     build_set_text = line_console_stdout[build_set_start:build_set_end] if build_set_start != -1 and build_set_end != -1 else ""
     if (not build_set_text or
-            "set build.GRIT_RUNTIME_ROOT=\"/tmp/grit-build\"" not in build_set_text or
-            "setg GRIT_RUNTIME_ROOT=\"/tmp/grit-global\"" not in build_set_text or
+            "build option set: GRIT_RUNTIME_ROOT" not in build_set_text or
+            "value: \"/tmp/grit-build\"" not in build_set_text or
+            "build option unset: GRIT_RUNTIME_ROOT" not in build_set_text or
+            "global build option set: GRIT_RUNTIME_ROOT" not in build_set_text or
+            "value: \"/tmp/grit-global\"" not in build_set_text or
+            "global build option unset: GRIT_RUNTIME_ROOT" not in build_set_text or
+            "config: " not in build_set_text or
+            "set build." in build_set_text or
+            "setg GRIT_RUNTIME_ROOT=" in build_set_text or
+            "config_path=" in build_set_text or
             "headless_command:" in build_set_text):
         print("line-oriented build config commands exposed noisy headless commands", file=sys.stderr)
         print(build_set_text or line_console_stdout, file=sys.stderr)

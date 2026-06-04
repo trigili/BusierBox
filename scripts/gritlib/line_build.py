@@ -120,8 +120,9 @@ def set_line_build_config(cfg, args):
     if not key or value == "":
         raise ValueError("usage: build set KEY VALUE")
     rec = set_workbench_build_config(cfg, f"{key}={value}")
-    print(f"set build.{rec.get('key', key)}={shell_double_quote(rec.get('value', value))}")
-    print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
+    print(f"build option set: {rec.get('key', key)}")
+    print(f"  value: {shell_double_quote(rec.get('value', value))}")
+    print(f"  config: {rec.get('config_path', build_config_path(cfg))}")
     return rec
 
 
@@ -130,8 +131,8 @@ def unset_line_build_config(cfg, args):
     if not key:
         raise ValueError("usage: build unset KEY")
     rec = unset_workbench_build_config(cfg, key)
-    print(f"unset build.{rec.get('key', key)}")
-    print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
+    print(f"build option unset: {rec.get('key', key)}")
+    print(f"  config: {rec.get('config_path', build_config_path(cfg))}")
     return rec
 
 
@@ -144,7 +145,8 @@ def set_line_global_build_option(cfg, name, value):
     if key not in build_keys:
         raise ValueError(f"setg only supports guided build/workbench options: {name}")
     rec = set_workbench_build_config(cfg, f"{key}={text}")
-    print(f"setg {rec.get('key', key)}={shell_double_quote(rec.get('value', text))}")
+    print(f"global build option set: {rec.get('key', key)}")
+    print(f"  value: {shell_double_quote(rec.get('value', text))}")
     return rec
 
 
@@ -153,8 +155,8 @@ def unset_line_global_build_option(cfg, name):
     if not key:
         raise ValueError("usage: unsetg KEY")
     rec = unset_workbench_build_config(cfg, key)
-    print(f"unsetg {rec.get('key', key)}")
-    print(f"config_path={rec.get('config_path', build_config_path(cfg))}")
+    print(f"global build option unset: {rec.get('key', key)}")
+    print(f"  config: {rec.get('config_path', build_config_path(cfg))}")
     return rec
 
 
