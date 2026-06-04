@@ -176,6 +176,10 @@ def set_line_collection_context(cfg, module):
     module = str(module or "").strip()
     if not module:
         return
+    module = {
+        "listeners": "listener",
+        "services": "listener",
+    }.get(module, module)
     cfg["_line_console_module"] = module
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
@@ -209,8 +213,8 @@ def line_module_parent(module):
     return {
         "action": "",
         "job": "jobs",
-        "listener": "listeners",
-        "service": "listeners",
+        "listener": "listener",
+        "service": "listener",
         "route": "routes",
         "session": "sessions",
     }.get(parent, parent)

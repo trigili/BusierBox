@@ -833,7 +833,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     if (not numeric_listener_help_text or
             "Help: listeners" not in numeric_listener_help_text or
             "Console help topics:" in numeric_listener_help_text or
-            "grit[all]/listeners> listeners" not in numeric_stdout):
+            "grit[all]/listener> listeners" not in numeric_stdout):
         print("line console context help/back did not follow listener breadcrumbs", file=sys.stderr)
         print(numeric_stdout, file=sys.stderr)
         return 1
@@ -2097,7 +2097,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     collection_prompt_expectations = [
         "grit[all]/build> build -v",
         "grit[all]/build> listeners",
-        "grit[all]/listeners> listeners -v",
+        "grit[all]/listener> listeners -v",
         "grit[all]/routes> route start 2",
         "grit[Console Router]/queue> mailbox targets",
         "grit[Console Router]/queue> queue",
