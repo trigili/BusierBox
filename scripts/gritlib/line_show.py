@@ -4,6 +4,7 @@ import shlex
 
 
 VERBOSE_FLAGS = {"-v", "--verbose", "verbose", "details"}
+LINE_SHOW_USAGE = "usage: show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options"
 SHOW_RESOURCE_ALIASES = {
     "targets": ("target", "targets", "agent", "agents", "host", "hosts"),
     "listeners": ("service", "services", "listener", "listeners"),

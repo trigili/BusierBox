@@ -206,7 +206,7 @@ from gritlib.line_services import (
     select_line_service as line_services_select_line_service,
     resolve_line_service_selector as line_services_resolve_selector,
 )
-from gritlib.line_show import parse_line_show_resource, split_line_verbose_args
+from gritlib.line_show import LINE_SHOW_USAGE, parse_line_show_resource, split_line_verbose_args
 from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
     print_line_session_interaction,
@@ -7484,7 +7484,7 @@ def run_line_repl(cfg):
         elif kind == "context":
             print_line_info()
         else:
-            raise ValueError("usage: show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options")
+            raise ValueError(LINE_SHOW_USAGE)
 
     def stage_line_release(selector, start_file_service=False):
         return line_release_stage_line_release(
