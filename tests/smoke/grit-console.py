@@ -1937,6 +1937,98 @@ def run_workbench_job_status_context_check():
     return 0
 
 
+def run_operator_state_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.status_indexes import operator_state_status_context
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        cfg = {
+            "state_file": str(root / "state.json"),
+            "staged_files": str(root / "staged.json"),
+            "command_queue_file": str(root / "queue.json"),
+            "command_copy_file": str(root / "command-copy.txt"),
+            "workbench_jobs_file": str(root / "jobs.json"),
+            "operator_session_dir": str(root / "operator-session"),
+            "session_root": str(root / "sessions"),
+        }
+        context = operator_state_status_context(
+            cfg,
+            {
+                "path": str(root / "state.json"),
+                "exists": True,
+                "valid": True,
+                "service_count": 2,
+                "session_count": 1,
+                "schema": 1,
+            },
+            {
+                "path": str(root / "staged.json"),
+                "exists": True,
+                "valid": False,
+                "staged_count": 3,
+                "error": "bad json",
+                "schema": "",
+            },
+            {
+                "path": str(root / "queue.json"),
+                "exists": False,
+                "valid": False,
+                "command_count": 0,
+                "schema": "",
+            },
+            {
+                "path": str(root / "command-copy.txt"),
+                "exists": True,
+                "readable": True,
+                "has_command": True,
+            },
+            {
+                "path": str(root / "jobs.json"),
+                "exists": True,
+                "valid": True,
+                "job_count": 1,
+                "schema": 1,
+            },
+            {
+                "path": str(root / "events.jsonl"),
+                "exists": True,
+                "valid": True,
+                "event_count": 4,
+                "invalid_count": 0,
+                "tail_count": 2,
+            },
+            {
+                "path": str(root / "sessions"),
+                "exists": True,
+                "recent_session_count": 1,
+                "recent_session_ids": ["sess-a"],
+            },
+        )
+        records = context.get("records") or []
+        indexes = context.get("index_maps") or {}
+        health = context.get("health") or {}
+        summary = context.get("summary") or {}
+        if len(records) != 7 or summary.get("operator_state_count") != 7:
+            print("operator state context did not preserve records", file=sys.stderr)
+            return 1
+        if (indexes.get("operator_state_records_by_name") or {}).get("server_state", {}).get("record_count") != 2:
+            print("operator state context did not preserve name indexes", file=sys.stderr)
+            return 1
+        if health.get("invalid") != 1 or health.get("missing") != 1:
+            print("operator state context did not preserve health counts", file=sys.stderr)
+            return 1
+        if (summary.get("operator_state_status_counts") or {}).get("invalid") != 1:
+            print("operator state context did not preserve summary counts", file=sys.stderr)
+            return 1
+        if "json-state:invalid" not in (summary.get("operator_state_kind_status_counts") or {}):
+            print("operator state context did not preserve composite summary counts", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_operator_daemon_workflow_action_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -5088,6 +5180,7 @@ def main(argv=None):
     release_artifacts_src = (ROOT / "scripts" / "gritlib" / "release_artifacts.py").read_text()
     service_lifecycle_src = (ROOT / "scripts" / "gritlib" / "service_lifecycle.py").read_text()
     service_status_src = (ROOT / "scripts" / "gritlib" / "service_status.py").read_text()
+    status_indexes_src = (ROOT / "scripts" / "gritlib" / "status_indexes.py").read_text()
     ssh_keys_src = (ROOT / "scripts" / "gritlib" / "ssh_keys.py").read_text()
     target_records_src = (ROOT / "scripts" / "gritlib" / "target_records.py").read_text()
     tls_io_src = (ROOT / "scripts" / "gritlib" / "tls_io.py").read_text()
@@ -5105,6 +5198,7 @@ def main(argv=None):
         probe_commands_src,
         release_artifacts_src,
         service_status_src,
+        status_indexes_src,
         target_records_src,
         workbench_jobs_src,
         workflow_actions_src,
@@ -5289,6 +5383,8 @@ def main(argv=None):
     if run_workbench_action_status_context_check() != 0:
         return 1
     if run_workbench_job_status_context_check() != 0:
+        return 1
+    if run_operator_state_status_context_check() != 0:
         return 1
     if run_operator_daemon_workflow_action_status_context_check() != 0:
         return 1

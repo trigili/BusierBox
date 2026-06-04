@@ -243,6 +243,67 @@ def operator_state_health_counts(records):
     }
 
 
+def operator_state_summary(records, index_maps, health):
+    records = records or []
+    index_maps = index_maps or {}
+    health = health or {}
+    return {
+        "operator_state_count": len(records),
+        "operator_state_status_counts": health.get("status_counts") or {},
+        "operator_state_ok_count": health.get("ok", 0),
+        "operator_state_missing_count": health.get("missing", 0),
+        "operator_state_invalid_count": health.get("invalid", 0),
+        "operator_state_error_count": health.get("error", 0),
+        "operator_state_unhealthy_count": health.get("unhealthy", 0),
+        "operator_state_kind_counts": record_count_by_key(records, "kind"),
+        "operator_state_exists_counts": record_count_by_key(records, "exists"),
+        "operator_state_valid_counts": record_count_by_key(records, "valid"),
+        "operator_state_severity_counts": health.get("severity_counts") or {},
+        "operator_state_remediation_class_counts": (
+            health.get("remediation_class_counts") or {}
+        ),
+        "operator_state_requires_operator_action_counts": (
+            health.get("requires_operator_action_counts") or {}
+        ),
+        "operator_state_kind_status_counts": {
+            key: len(value)
+            for key, value in (
+                index_maps.get("operator_state_records_by_kind_status") or {}
+            ).items()
+        },
+    }
+
+
+def operator_state_status_context(
+    cfg,
+    server_state,
+    staged_files_state,
+    command_queue_state,
+    command_copy,
+    workbench_jobs_state,
+    event_log_state,
+    session_root_state,
+):
+    records = operator_state_records(
+        cfg,
+        server_state,
+        staged_files_state,
+        command_queue_state,
+        command_copy,
+        workbench_jobs_state,
+        event_log_state,
+        session_root_state,
+    )
+    index_maps = operator_state_indexes(records)
+    health = operator_state_health_counts(records)
+    return {
+        "records": records,
+        "index_maps": index_maps,
+        "health": health,
+        "summary": operator_state_summary(records, index_maps, health),
+    }
+
+
 def status_path_records(paths):
     records = {}
     dir_keys = {"operator_session_dir", "session_root"}

@@ -305,8 +305,8 @@ from gritlib.systemd_user import (
 from gritlib.status_indexes import (
     api_collection_record, api_resource_record_indexes,
     api_resource_records, browser_path_indexes, browser_path_summary,
-    operator_state_health_counts, operator_network_status, operator_state_indexes,
-    operator_browser_path_records, operator_state_records, print_activity_summary,
+    operator_network_status, operator_state_status_context,
+    operator_browser_path_records, print_activity_summary,
     print_api_resource_summary, print_operator_state_records,
     status_path_record_indexes, status_path_record_list, status_path_records,
     status_path_summary, warning_health_indexes,
@@ -2960,12 +2960,19 @@ def status_document(cfg):
     workbench_jobs_state = workbench_jobs_status["state_record"]
     workbench_jobs_state_records = workbench_jobs_status["state_records"]
     workbench_jobs_state_index_maps = workbench_jobs_status["state_index_maps"]
-    operator_state_records_list = operator_state_records(
-        cfg, server_state, staged_files_state, command_queue_state,
-        command_copy, workbench_jobs_state, event_log_state, session_root_state,
+    operator_state_context = operator_state_status_context(
+        cfg,
+        server_state,
+        staged_files_state,
+        command_queue_state,
+        command_copy,
+        workbench_jobs_state,
+        event_log_state,
+        session_root_state,
     )
-    operator_state_index_maps = operator_state_indexes(operator_state_records_list)
-    operator_state_health = operator_state_health_counts(operator_state_records_list)
+    operator_state_records_list = operator_state_context["records"]
+    operator_state_index_maps = operator_state_context["index_maps"]
+    operator_state_summary = operator_state_context["summary"]
     path_status = status_path_records(paths)
     path_status_records = status_path_record_list(path_status)
     path_status_indexes = status_path_record_indexes(path_status_records)
@@ -3194,20 +3201,7 @@ def status_document(cfg):
         "workbench_jobs_file_job_count": workbench_jobs_state.get("job_count", 0),
         "workbench_jobs_state_record_count": len(workbench_jobs_state_records),
         "workbench_jobs_state_has_jobs": bool(workbench_jobs_state.get("has_jobs", False)),
-        "operator_state_count": len(operator_state_records_list),
-        "operator_state_status_counts": operator_state_health.get("status_counts") or {},
-        "operator_state_ok_count": operator_state_health.get("ok", 0),
-        "operator_state_missing_count": operator_state_health.get("missing", 0),
-        "operator_state_invalid_count": operator_state_health.get("invalid", 0),
-        "operator_state_error_count": operator_state_health.get("error", 0),
-        "operator_state_unhealthy_count": operator_state_health.get("unhealthy", 0),
-        "operator_state_kind_counts": record_count_by_key(operator_state_records_list, "kind"),
-        "operator_state_exists_counts": record_count_by_key(operator_state_records_list, "exists"),
-        "operator_state_valid_counts": record_count_by_key(operator_state_records_list, "valid"),
-        "operator_state_severity_counts": operator_state_health.get("severity_counts") or {},
-        "operator_state_remediation_class_counts": operator_state_health.get("remediation_class_counts") or {},
-        "operator_state_requires_operator_action_counts": operator_state_health.get("requires_operator_action_counts") or {},
-        "operator_state_kind_status_counts": {key: len(value) for key, value in operator_state_index_maps.get("operator_state_records_by_kind_status", {}).items()},
+        **operator_state_summary,
         **staged_status_summary(staged_records, staged_file_workflow_actions),
         **service_status_summary(services, service_manager, service_manager_status_doc),
         "port_count": len(ports),
