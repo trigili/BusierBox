@@ -6513,7 +6513,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "queued cq-" in queue_text or
             "target: line-console-target (Console Router)" not in queue_text or
             "execution supported: no" not in queue_text or
-            "delivery supported: no" not in queue_text or
+            "delivery: queue record only; enable command queue polling for target pickup" not in queue_text or
+            "next: queue list  |  queue result 1" not in queue_text or
             "target=" in queue_text or "execution_supported=" in queue_text or
             "delivery_supported=" in queue_text or "headless_command:" in queue_text or
             not queue_result_text or "result: none" not in queue_result_text or

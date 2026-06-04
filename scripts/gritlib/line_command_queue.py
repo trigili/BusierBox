@@ -379,7 +379,12 @@ def queue_line_command(
     if rec.get("target_id"):
         print(f"target: {rec.get('target_id', '')} ({rec.get('target_label', '') or '-'})")
     print(f"execution supported: {'yes' if rec.get('execution_supported') else 'no'}")
-    print("delivery supported: no")
+    queue_policy = rec.get("queue_policy_snapshot") if isinstance(rec.get("queue_policy_snapshot"), dict) else {}
+    if queue_policy.get("configured_for_polling"):
+        print("delivery: waiting for target poll")
+    else:
+        print("delivery: queue record only; enable command queue polling for target pickup")
+    print("next: queue list  |  queue result 1")
     append_event(cfg, "workbench", "workbench_command_queued", details={
         "command_id": rec.get("id", ""),
         "target_id": rec.get("target_id", ""),
