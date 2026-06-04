@@ -83,6 +83,38 @@ def dispatch_line_service_control_command(
     raise ValueError("unsupported service control command")
 
 
+def dispatch_legacy_line_service_number(
+    choice,
+    *,
+    input_func=None,
+    start_func=None,
+    stop_func=None,
+    service_rows_func=None,
+    service_record_func=None,
+    sleep_func=None,
+):
+    text = str(choice or "").strip()
+    if text in {"1", "2", "3", "4"}:
+        service = {"1": "ssh", "2": "tls-shell", "3": "plain-shell", "4": "file-service"}[text]
+        if start_func:
+            start_func(service)
+        service_rows_func = service_rows_func or (lambda: [])
+        service_record_func = service_record_func or line_service_record
+        for _ in range(10):
+            if sleep_func:
+                sleep_func(0.1)
+            rec = service_record_func(service_rows_func(), service) or {}
+            if str(rec.get("actual") or "") == "listening":
+                break
+        return True
+    if text == "5":
+        service = input_func("service> ") if input_func else None
+        if service is not None and stop_func:
+            stop_func(service.strip())
+        return True
+    return False
+
+
 def line_service_display_name(name):
     text = str(name or "").strip()
     return LINE_SERVICE_DISPLAY_NAMES.get(text, text)

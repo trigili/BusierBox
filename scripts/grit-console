@@ -196,6 +196,7 @@ from gritlib.line_search import (
     use_line_search_result as line_search_use_line_search_result,
 )
 from gritlib.line_services import (
+    dispatch_legacy_line_service_number,
     line_service_display_name,
     line_service_completion_names, line_service_names, line_service_record,
     print_line_services as line_services_print_line_services,
@@ -7408,19 +7409,17 @@ def run_line_repl(cfg):
         ):
             compact_next_prompt = True
             continue
-        if choice in {"1", "2", "3", "4"}:
-            service = {"1": "ssh", "2": "tls-shell", "3": "plain-shell", "4": "file-service"}[choice]
-            start_line_service(service)
-            # Brief poll so the banner reflects actual listening state
-            for _ in range(10):
-                time.sleep(0.1)
-                if str((line_service_record(service_status_rows(cfg), service) or {}).get("actual") or "") == "listening":
-                    break
-        elif choice == "5":
-            service = line_input("service> ")
-            if service is not None:
-                stop_line_service(service.strip())
-        elif choice == "6":
+        if dispatch_legacy_line_service_number(
+            choice,
+            input_func=line_input,
+            start_func=start_line_service,
+            stop_func=stop_line_service,
+            service_rows_func=lambda: service_status_rows(cfg),
+            service_record_func=line_service_record,
+            sleep_func=time.sleep,
+        ):
+            continue
+        if choice == "6":
             path_line = line_input("local file> ")
             name_line = line_input("target request name> ")
             path = path_line.strip() if path_line is not None else ""
