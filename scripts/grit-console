@@ -184,7 +184,7 @@ from gritlib.line_resources import (
 )
 from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
-    read_line as line_repl_read_line, restore_signal_handlers,
+    read_line as line_repl_read_line, resolve_replay_command, restore_signal_handlers,
 )
 from gritlib.line_release import (
     print_line_release as line_release_print_line_release,
@@ -7174,18 +7174,13 @@ def run_line_repl(cfg):
         if not choice:
             compact_next_prompt = True
             continue
-        replayed_history = False
         try:
-            if choice == "!!" or (choice.startswith("!") and choice[1:].isdigit()):
-                choice = line_history_command(line_history, choice)
-                replayed_history = True
-                print(f"replay: {choice}")
-            elif choice.lower().startswith("repeat "):
-                repeat_args = shlex.split(choice)
-                if len(repeat_args) != 2:
-                    raise ValueError("usage: repeat N")
-                choice = line_history_command(line_history, repeat_args[1])
-                replayed_history = True
+            choice, replayed_history = resolve_replay_command(
+                choice,
+                line_history,
+                line_history_command,
+            )
+            if replayed_history:
                 print(f"replay: {choice}")
         except ValueError as exc:
             print(exc)

@@ -3,6 +3,7 @@
 import os
 import select
 import signal
+import shlex
 import sys
 import time
 
@@ -33,6 +34,19 @@ def install_readline_completer(readline_module, have_readline, candidate_func):
     readline_module.set_completer(_rl_completer)
     readline_module.set_completer_delims("\t\n")
     readline_module.parse_and_bind("tab: complete")
+
+
+def resolve_replay_command(choice, line_history, history_command_func):
+    """Return (resolved_choice, replayed) for line-console history replay commands."""
+    text = str(choice or "")
+    if text == "!!" or (text.startswith("!") and text[1:].isdigit()):
+        return history_command_func(line_history, text), True
+    if text.lower().startswith("repeat "):
+        repeat_args = shlex.split(text)
+        if len(repeat_args) != 2:
+            raise ValueError("usage: repeat N")
+        return history_command_func(line_history, repeat_args[1]), True
+    return choice, False
 
 
 def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull):
