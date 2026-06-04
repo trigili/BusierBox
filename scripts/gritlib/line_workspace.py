@@ -307,22 +307,18 @@ def print_line_info(
     elif module.startswith("route/"):
         route_name = module.split("/", 1)[1]
         rec = route_record(route_name)
-        print(f"  route={route_name}")
+        print(f"Route: {route_name}")
         if rec:
-            print(
-                f"    state={rec.get('current_state', '') or '-'} "
-                f"active={'yes' if rec.get('active') else 'no'} "
-                f"listen={rec.get('listen_host', '')}:{rec.get('listen_port', '')} "
-                f"dest={rec.get('dest_host', '')}:{rec.get('dest_port', '')}"
-            )
-            print(f"    route_path={rec.get('route_path', '') or '-'}")
-            print(
-                f"    hops={rec.get('hop_count', 0)} "
-                f"multi_hop={'yes' if rec.get('multi_hop') else 'no'} "
-                f"target={rec.get('target_id', '') or '-'}"
-            )
-        print(f"    commands: route {route_name}, route start {route_name}, route stop {route_name}")
-        print("    next: options, start, stop, routes -v, back")
+            print(f"  state: {rec.get('current_state', '') or '-'}")
+            print(f"  active: {'yes' if rec.get('active') else 'no'}")
+            print(f"  listen: {rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
+            print(f"  destination: {rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
+            print(f"  path: {rec.get('route_path', '') or '-'}")
+            print(f"  hops: {rec.get('hop_count', 0)}")
+            print(f"  multi-hop: {'yes' if rec.get('multi_hop') else 'no'}")
+            print(f"  target: {rec.get('target_id', '') or '-'}")
+        print(f"  commands: route {route_name}, route start {route_name}, route stop {route_name}")
+        print("  next: options, start, stop, routes -v, back")
     elif module.startswith("session/"):
         session_id = module.split("/", 1)[1]
         rec = session_record(session_id)

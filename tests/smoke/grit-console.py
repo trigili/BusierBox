@@ -1468,6 +1468,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "  next: options, start, stop, routes -v, back",
     )
     route_context_noisy = (
+        "state=",
+        "active=",
+        "listen=",
+        "dest=",
+        "route_path=",
+        "hops=",
+        "multi_hop=",
         "route.name=",
         "route.listen=",
         "route.destination=",
