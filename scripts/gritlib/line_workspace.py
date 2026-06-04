@@ -466,7 +466,7 @@ def print_line_info(
         print("Action: none")
     target_filter = (snap or {}).get("target_filter") or {}
     if target_filter.get("active"):
-        print(target_filter_summary_text(target_filter, prefix="  target:"))
+        print(target_filter_brief_text(target_filter, prefix="  target:"))
         for line in target_filter_evidence_lines(target_filter):
             print(f"    {line}")
     else:

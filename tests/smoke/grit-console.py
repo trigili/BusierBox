@@ -1076,6 +1076,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "use agent Console Router\n"
                 "main\n"
                 "use agent Console Router\n"
+                "info\n"
                 "?\n"
                 "rename Console Router\n"
                 "note Console quick note\n"
@@ -1403,6 +1404,20 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         line_console_stdout[target_context_help_start:target_context_help_end]
         if target_context_help_start != -1 and target_context_help_end != -1 else ""
     )
+    target_info_start = line_console_stdout.find("grit[Console Router]> info")
+    target_info_end = line_console_stdout.find("grit[Console Router]> ?", target_info_start + 1)
+    target_info_text = (
+        line_console_stdout[target_info_start:target_info_end]
+        if target_info_start != -1 and target_info_end != -1 else ""
+    )
+    if (not target_info_text or
+            "target: line-console-target (Console Router)  state online  mailbox 0 pending" not in target_info_text or
+            "mailbox_pending=" in target_info_text or
+            "target_cmds=" in target_info_text or
+            "poll_overdue=" in target_info_text):
+        print("line-oriented target info did not use concise target summary", file=sys.stderr)
+        print(target_info_text or line_console_stdout, file=sys.stderr)
+        return 1
     if (not target_context_help_text or
             "Help: targets" not in target_context_help_text or
             "Console help topics:" in target_context_help_text):
