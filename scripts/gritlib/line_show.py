@@ -58,3 +58,12 @@ def parse_line_show_resource(resource):
         "filter_text": filter_text,
         "verbose": verbose,
     }
+
+
+def dispatch_line_show_resource(resource, handlers):
+    parsed = parse_line_show_resource(resource)
+    kind = parsed["kind"]
+    handler = (handlers or {}).get(kind)
+    if not handler:
+        raise ValueError(LINE_SHOW_USAGE)
+    return handler(parsed)

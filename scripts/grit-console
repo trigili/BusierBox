@@ -206,7 +206,7 @@ from gritlib.line_services import (
     select_line_service as line_services_select_line_service,
     resolve_line_service_selector as line_services_resolve_selector,
 )
-from gritlib.line_show import LINE_SHOW_USAGE, parse_line_show_resource, split_line_verbose_args
+from gritlib.line_show import dispatch_line_show_resource, split_line_verbose_args
 from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
     print_line_session_interaction,
@@ -7435,56 +7435,35 @@ def run_line_repl(cfg):
         )
 
     def show_line_resource(resource):
-        parsed = parse_line_show_resource(resource)
-        verbose = parsed["verbose"]
-        kind = parsed["kind"]
-        kind_filter = parsed["kind_filter"]
-        filter_text = parsed["filter_text"]
-        if kind == "module-kind":
-            print_line_actions(filter_text, kind_filter=kind_filter, verbose=verbose)
-        elif kind == "targets":
-            set_line_collection("targets")
-            print_line_targets()
-        elif kind == "listeners":
-            set_line_collection("listeners")
-            print_line_services()
-        elif kind == "files":
-            set_line_collection("files")
-            print_line_files()
-        elif kind == "jobs":
-            set_line_collection("jobs")
-            print_line_jobs()
-        elif kind == "daemon":
-            set_line_collection("daemon")
-            print_line_daemon_actions()
-        elif kind == "categories":
-            set_line_collection("categories")
-            print_line_module_categories()
-        elif kind == "modules":
-            set_line_collection("modules")
-            print_line_actions(filter_text, verbose=verbose)
-        elif kind == "sessions":
-            set_line_collection("sessions")
-            print_line_sessions()
-        elif kind == "routes":
-            set_line_collection("routes")
-            print_line_routes(verbose=verbose)
-        elif kind == "queue":
-            set_line_collection("queue")
-            print_line_command_queue_view(detailed=verbose)
-        elif kind == "events":
+        def show_collection(name, render_fn):
+            set_line_collection(name)
+            return render_fn()
+
+        def show_events(_parsed=None):
             set_line_collection("events")
             snap = workbench_snapshot(cfg)
             print_target_activity_records(snap, target_id=configured_target_filter(cfg), limit=12)
-        elif kind == "release":
-            set_line_collection("release")
-            line_release_print_line_release(cfg, append_event_fn=append_event)
-        elif kind == "options":
-            print_line_options()
-        elif kind == "context":
-            print_line_info()
-        else:
-            raise ValueError(LINE_SHOW_USAGE)
+
+        return dispatch_line_show_resource(resource, {
+            "module-kind": lambda p: print_line_actions(
+                p["filter_text"], kind_filter=p["kind_filter"], verbose=p["verbose"]),
+            "targets": lambda _p: show_collection("targets", print_line_targets),
+            "listeners": lambda _p: show_collection("listeners", print_line_services),
+            "files": lambda _p: show_collection("files", print_line_files),
+            "jobs": lambda _p: show_collection("jobs", print_line_jobs),
+            "daemon": lambda _p: show_collection("daemon", print_line_daemon_actions),
+            "categories": lambda _p: show_collection("categories", print_line_module_categories),
+            "modules": lambda p: show_collection(
+                "modules", lambda: print_line_actions(p["filter_text"], verbose=p["verbose"])),
+            "sessions": lambda _p: show_collection("sessions", print_line_sessions),
+            "routes": lambda p: show_collection("routes", lambda: print_line_routes(verbose=p["verbose"])),
+            "queue": lambda p: show_collection("queue", lambda: print_line_command_queue_view(detailed=p["verbose"])),
+            "events": show_events,
+            "release": lambda _p: show_collection(
+                "release", lambda: line_release_print_line_release(cfg, append_event_fn=append_event)),
+            "options": lambda _p: print_line_options(),
+            "context": lambda _p: print_line_info(),
+        })
 
     def stage_line_release(selector, start_file_service=False):
         return line_release_stage_line_release(
