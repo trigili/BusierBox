@@ -25,6 +25,30 @@ def parse_line_workspace_command(cmd, args=None):
     return {}
 
 
+def reload_line_config(cfg, config_path="", load_config_fn=None, defaults=None, append_event_fn=None):
+    config_path = str(config_path or cfg.get("_config_path") or "")
+    if load_config_fn is None:
+        raise ValueError("config reload support is unavailable")
+    new_cfg = load_config_fn(config_path)
+    internal = {key: value for key, value in cfg.items() if str(key).startswith("_")}
+    cfg.clear()
+    cfg.update(new_cfg)
+    cfg.update(internal)
+    print(f"Config reloaded: {config_path}")
+    defaults = defaults or {}
+    changed = [
+        key for key in new_cfg
+        if not str(key).startswith("_") and new_cfg.get(key) != defaults.get(key)
+    ]
+    print(f"  {len(changed)} setting(s) active from config file")
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_config_reloaded", details={
+            "config_path": config_path,
+            "changed_count": len(changed),
+        })
+    return new_cfg
+
+
 def line_listener_module_name(module):
     module = str(module or "").strip()
     if module.startswith("listener/") or module.startswith("service/"):

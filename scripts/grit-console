@@ -240,7 +240,7 @@ from gritlib.line_workspace import (
     line_repl_status_bar, parse_line_workspace_command, print_line_console_banner,
     print_line_info as line_workspace_print_line_info,
     print_line_next as line_workspace_print_line_next,
-    print_line_workspace_snapshot,
+    print_line_workspace_snapshot, reload_line_config,
 )
 from gritlib.operator_io import (
     clipboard_command, open_path_in_pager, parse_line_view_command,
@@ -7677,19 +7677,13 @@ def run_line_repl(cfg):
             elif cmd == "reload":
                 config_path = str(cfg.get("_config_path") or DEFAULT_CONFIG)
                 try:
-                    new_cfg = load_config(config_path)
-                    # Preserve internal session/console state keys
-                    internal = {k: v for k, v in cfg.items() if k.startswith("_")}
-                    cfg.clear()
-                    cfg.update(new_cfg)
-                    cfg.update(internal)
-                    print(f"Config reloaded: {config_path}")
-                    changed = [k for k in new_cfg if not k.startswith("_") and new_cfg.get(k) != DEFAULTS.get(k)]
-                    print(f"  {len(changed)} setting(s) active from config file")
-                    append_event(cfg, "workbench", "workbench_config_reloaded", details={
-                        "config_path": config_path,
-                        "changed_count": len(changed),
-                    })
+                    reload_line_config(
+                        cfg,
+                        config_path=config_path,
+                        load_config_fn=load_config,
+                        defaults=DEFAULTS,
+                        append_event_fn=append_event,
+                    )
                 except Exception as exc:
                     print(f"reload failed: {exc}")
                 continue
