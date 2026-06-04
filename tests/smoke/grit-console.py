@@ -128,6 +128,21 @@ def line_console_transcript_coverage(text):
     return coverage
 
 
+def line_console_scripted_command_coverage(commands):
+    commands = [str(command) for command in (commands or [])]
+    by_primary = {}
+    for command in commands:
+        stripped = command.strip()
+        primary = "<blank>" if not stripped else stripped.split(None, 1)[0]
+        by_primary[primary] = by_primary.get(primary, 0) + 1
+    return {
+        "total_count": len(commands),
+        "unique_count": len(set(commands)),
+        "primary_count": len(by_primary),
+        "by_primary": dict(sorted(by_primary.items())),
+    }
+
+
 def run(*args):
     return subprocess.run(args, cwd=ROOT, text=True, capture_output=True)
 
@@ -6585,6 +6600,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "q\n"
         )
         line_console_scripted_commands = line_console_script.splitlines()
+        line_console_scripted_command_summary = line_console_scripted_command_coverage(
+            line_console_scripted_commands
+        )
         os.write(
             line_console_master,
             line_console_script.encode("utf-8"),
@@ -6639,6 +6657,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "bridge_profiles_file": str(line_console_routes),
             "scripted_command_count": len(line_console_scripted_commands),
             "scripted_commands": line_console_scripted_commands,
+            "scripted_command_summary": line_console_scripted_command_summary,
         },
     )
     if (not (line_console_artifact_dir_path / "transcript.txt").is_file() or
@@ -6670,11 +6689,94 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(json.dumps(line_console_artifact_summary, indent=2, sort_keys=True), file=sys.stderr)
         return 1
     scripted_commands = line_console_artifact_summary.get("scripted_commands") or []
+    scripted_command_summary = line_console_artifact_summary.get("scripted_command_summary") or {}
+    scripted_commands_by_primary = scripted_command_summary.get("by_primary") or {}
     if (
             line_console_artifact_summary.get("scripted_command_count") != len(scripted_commands)
-            or len(scripted_commands) < 150):
+            or scripted_command_summary.get("total_count") != len(scripted_commands)
+            or len(scripted_commands) < 150
+            or scripted_command_summary.get("primary_count", 0) < 45):
         print("line-console transcript artifact did not record enough scripted command coverage", file=sys.stderr)
         print(json.dumps(line_console_artifact_summary, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
+    required_primary_commands = (
+        "<blank>",
+        "?",
+        "agent",
+        "agents",
+        "alias",
+        "back",
+        "background",
+        "build",
+        "categories",
+        "check",
+        "clear",
+        "commands",
+        "complete",
+        "configure",
+        "copy",
+        "daemon",
+        "download",
+        "downloads",
+        "events",
+        "execute",
+        "fetch",
+        "files",
+        "help",
+        "history",
+        "info",
+        "interact",
+        "job",
+        "jobs",
+        "listener",
+        "listeners",
+        "mailbox",
+        "main",
+        "makerc",
+        "modules",
+        "next",
+        "note",
+        "options",
+        "probe",
+        "queue",
+        "rename",
+        "resource",
+        "route",
+        "routes",
+        "run",
+        "search",
+        "serve-binary",
+        "services",
+        "sessions",
+        "set",
+        "setg",
+        "show",
+        "stagers",
+        "status",
+        "stop",
+        "targets",
+        "unset",
+        "unsetg",
+        "unstage",
+        "upload",
+        "use",
+        "useagent",
+        "uselistener",
+        "usemodule",
+        "useroute",
+        "usesession",
+        "view",
+    )
+    missing_primary_commands = [
+        command for command in required_primary_commands
+        if command not in scripted_commands_by_primary
+    ]
+    if missing_primary_commands:
+        print("line-console transcript artifact missing primary command coverage", file=sys.stderr)
+        print(json.dumps({
+            "missing": missing_primary_commands,
+            "by_primary": scripted_commands_by_primary,
+        }, indent=2, sort_keys=True), file=sys.stderr)
         return 1
     required_scripted_commands = (
         "",
