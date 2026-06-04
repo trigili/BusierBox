@@ -7972,18 +7972,16 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "daemon":
+            elif (daemon_cmd := parse_line_daemon_command(cmd, console_args[1:])):
                 try:
-                    daemon_cmd = parse_line_daemon_command(console_args[1:])
                     if daemon_cmd["set_context"]:
                         set_line_collection("daemon")
                     run_line_daemon_action(daemon_cmd["args"])
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"release", "releases", "stage-release"}:
+            elif (release_cmd := parse_line_release_alias_command(cmd, console_args[1:])):
                 try:
-                    release_cmd = parse_line_release_alias_command(cmd, console_args[1:])
                     if release_cmd["action"] == "list":
                         set_line_collection("release")
                         line_release_print_line_release(cfg, append_event_fn=append_event)
@@ -8018,9 +8016,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"view", "cat", "less"}:
+            elif (view_cmd := parse_line_view_command(cmd, console_args[1:])):
                 try:
-                    view_cmd = parse_line_view_command(cmd, console_args[1:])
                     view_line_path(view_cmd["path"])
                 except ValueError as exc:
                     print(exc)

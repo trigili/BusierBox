@@ -106,7 +106,12 @@ def parse_line_daemon_action_args(args):
     }
 
 
-def parse_line_daemon_command(args):
+def parse_line_daemon_command(cmd, args=None):
+    if args is None:
+        args = cmd
+    else:
+        if str(cmd or "").strip().lower() != "daemon":
+            return {}
     args = list(args or [])
     action = parse_line_daemon_action_args(args)
     return {
