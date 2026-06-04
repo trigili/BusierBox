@@ -96,8 +96,8 @@ from gritlib.crypto import generate_tls_cert
 from gritlib.dns import dns_parse_qname, dns_txt_answer_packet
 from gritlib.build_config import (
     build_config_path, handle_build_config_args,
-    unset_workbench_build_config, workbench_config_field_indexes,
-    workbench_config_field_records, workbench_config_field_summary,
+    unset_workbench_build_config, workbench_config_field_records,
+    workbench_config_status_context,
 )
 from gritlib.event_log import (
     EventLog, append_event, compact_event_details, event_log_status_context,
@@ -2753,9 +2753,10 @@ def status_document(cfg):
     rshell_session_policy_index_maps = rshell_session_policy_status_doc[
         "policy_index_maps"
     ]
-    workbench_config_fields = workbench_config_field_records(cfg)
-    workbench_config_field_index_maps = workbench_config_field_indexes(workbench_config_fields)
-    workbench_config_field_stats = workbench_config_field_summary(workbench_config_fields)
+    workbench_config_context = workbench_config_status_context(cfg)
+    workbench_config_fields = workbench_config_context["fields"]
+    workbench_config_field_index_maps = workbench_config_context["index_maps"]
+    workbench_config_field_stats = workbench_config_context["stats"]
     workbench_actions = workbench_action_records(cfg)
     workbench_action_index_maps = workbench_action_indexes(workbench_actions)
     workbench_action_stats = workbench_action_summary(workbench_actions)

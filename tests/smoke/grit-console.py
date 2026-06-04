@@ -1468,6 +1468,40 @@ def run_release_status_context_check():
     return 0
 
 
+def run_workbench_config_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.build_config import workbench_config_status_context
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        config_path = Path(tmpdir) / "grit.conf"
+        config_path.write_text(
+            'GRIT_RSHELL_TRANSPORT="ssh"\nGRIT_COMMAND_QUEUE_ENABLE=yes\n',
+            encoding="utf-8",
+        )
+        context = workbench_config_status_context({"_build_config_path": str(config_path)})
+        fields = context.get("fields") or []
+        indexes = context.get("index_maps") or {}
+        stats = context.get("stats") or {}
+        by_key = indexes.get("workbench_config_fields_by_key") or {}
+        rshell = by_key.get("GRIT_RSHELL_TRANSPORT") or {}
+        queue = by_key.get("GRIT_COMMAND_QUEUE_ENABLE") or {}
+        if not fields or not rshell.get("configured") or rshell.get("value") != "ssh":
+            print("workbench config status context did not preserve configured field", file=sys.stderr)
+            return 1
+        if not queue.get("configured") or queue.get("value") != "yes":
+            print("workbench config status context did not preserve command queue field", file=sys.stderr)
+            return 1
+        if stats.get("configured_count", 0) < 2:
+            print("workbench config status context did not preserve summary", file=sys.stderr)
+            return 1
+        if "workbench_config_fields_by_category" not in indexes:
+            print("workbench config status context did not preserve indexes", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4702,6 +4736,8 @@ def main(argv=None):
     if run_target_activity_status_context_check() != 0:
         return 1
     if run_release_status_context_check() != 0:
+        return 1
+    if run_workbench_config_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1

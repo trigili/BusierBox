@@ -340,3 +340,12 @@ def workbench_config_field_summary(records):
         "command_queue_related_count": len([rec for rec in records or [] if rec.get("command_queue_related") is True]),
         "requires_explicit_operator_choice_count": len([rec for rec in records or [] if rec.get("requires_explicit_operator_choice") is True]),
     }
+
+
+def workbench_config_status_context(cfg):
+    fields = workbench_config_field_records(cfg)
+    return {
+        "fields": fields,
+        "index_maps": workbench_config_field_indexes(fields),
+        "stats": workbench_config_field_summary(fields),
+    }
