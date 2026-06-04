@@ -1,6 +1,45 @@
 """Line REPL probe callback adapters."""
 
 
+def build_line_probe_callbacks(
+    cfg,
+    *,
+    choose_operator_host_func,
+    input_func,
+    interactive_func,
+    render_probe_command_func,
+    workbench_snapshot_func,
+    service_record_func,
+    service_rows_func,
+    service_start_command_func,
+    service_start_func,
+    queue_command_func,
+    target_filter_func,
+    target_context_func,
+    probe_delivery_func,
+    append_event_fn,
+):
+    return {
+        "probe_line_start": build_line_probe_start_callback(
+            cfg,
+            choose_operator_host_func=choose_operator_host_func,
+            input_func=input_func,
+            interactive_func=interactive_func,
+            render_probe_command_func=render_probe_command_func,
+            workbench_snapshot_func=workbench_snapshot_func,
+            service_record_func=service_record_func,
+            service_rows_func=service_rows_func,
+            service_start_command_func=service_start_command_func,
+            service_start_func=service_start_func,
+            queue_command_func=queue_command_func,
+            target_filter_func=target_filter_func,
+            target_context_func=target_context_func,
+            probe_delivery_func=probe_delivery_func,
+            append_event_fn=append_event_fn,
+        ),
+    }
+
+
 def build_line_probe_start_callback(
     cfg,
     *,

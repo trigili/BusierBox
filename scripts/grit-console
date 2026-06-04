@@ -181,7 +181,7 @@ from gritlib.line_repl_jobs import build_line_job_callbacks
 from gritlib.line_repl_legacy import build_line_legacy_dispatch_callback
 from gritlib.line_repl_navigation import build_line_navigation_dispatch_callback
 from gritlib.line_repl_options import build_unset_line_option_callback
-from gritlib.line_repl_probe import build_line_probe_start_callback
+from gritlib.line_repl_probe import build_line_probe_callbacks
 from gritlib.line_repl_queue import build_line_queue_callbacks
 from gritlib.line_repl_routes import (
     build_bridge_profile_headless_command_callback,
@@ -6151,7 +6151,7 @@ def run_line_repl(cfg):
     print_line_command_queue_view = line_queue_callbacks["print_line_command_queue_view"]
     run_line_queue_command = line_queue_callbacks["run_line_queue_command"]
 
-    probe_line_start = build_line_probe_start_callback(
+    line_probe_callbacks = build_line_probe_callbacks(
         cfg,
         choose_operator_host_func=choose_operator_host_for_target,
         input_func=line_input,
@@ -6168,6 +6168,7 @@ def run_line_repl(cfg):
         probe_delivery_func=print_probe_delivery,
         append_event_fn=append_event,
     )
+    probe_line_start = line_probe_callbacks["probe_line_start"]
 
     line_session_callbacks = build_line_session_callbacks(
         cfg,
