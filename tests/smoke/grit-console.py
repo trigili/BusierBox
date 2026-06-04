@@ -1502,6 +1502,64 @@ def run_workbench_config_status_context_check():
     return 0
 
 
+def run_target_filter_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.target_records import target_filter_status_context
+
+    selected_target = {
+        "target_id": "target-a",
+        "label": "Router A",
+        "connectivity_state": "offline",
+        "poll_overdue": True,
+        "mailbox_pending_work_count": 3,
+        "identity_confidence": "operator-assigned",
+    }
+    context = target_filter_status_context(
+        "target-a",
+        selected_target,
+        {
+            "targets": 3,
+            "uploads": 2,
+            "fetches": 2,
+            "staged": 2,
+            "sessions": 2,
+            "event_tail": 2,
+            "command_queue_commands": 2,
+            "target_command_records": 2,
+            "target_phone_home_records": 2,
+        },
+        {
+            "targets": 1,
+            "uploads": 1,
+            "fetches": 0,
+            "staged": 1,
+            "sessions": 1,
+            "event_tail": 1,
+            "command_queue_commands": 1,
+            "target_command_records": 1,
+            "target_phone_home_records": 1,
+        },
+    )
+    record = context.get("record") or {}
+    records = context.get("records") or []
+    indexes = context.get("index_maps") or {}
+    if records != [record] or record.get("target_id") != "target-a":
+        print("target filter status context did not preserve record", file=sys.stderr)
+        return 1
+    if record.get("selected_target_label") != "Router A" or record.get("selected_target_poll_overdue") is not True:
+        print("target filter status context did not preserve selected target metadata", file=sys.stderr)
+        return 1
+    if record.get("filter_reduced_activity") is not True or record.get("filtered_target_count") != 1:
+        print("target filter status context did not preserve activity counts", file=sys.stderr)
+        return 1
+    if "target-a" not in indexes.get("target_filter_records_by_target_id", {}):
+        print("target filter status context did not preserve indexes", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_workbench_action_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4933,6 +4991,8 @@ def main(argv=None):
     if run_release_status_context_check() != 0:
         return 1
     if run_workbench_config_status_context_check() != 0:
+        return 1
+    if run_target_filter_status_context_check() != 0:
         return 1
     if run_workbench_action_status_context_check() != 0:
         return 1

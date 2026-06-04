@@ -1856,6 +1856,27 @@ def apply_target_filter_activity_counts(record, target_filter_id="", unfiltered=
     return record
 
 
+def target_filter_status_context(
+    target_filter_id="",
+    selected_target=None,
+    unfiltered_counts=None,
+    filtered_counts=None,
+):
+    record = target_filter_record_from_target(target_filter_id, selected_target)
+    apply_target_filter_activity_counts(
+        record,
+        target_filter_id,
+        unfiltered_counts,
+        filtered_counts,
+    )
+    records = [record]
+    return {
+        "record": record,
+        "records": records,
+        "index_maps": target_filter_record_indexes(records),
+    }
+
+
 def target_attribution_record_indexes(records):
     return {
         "target_attribution_records_by_scope": {
