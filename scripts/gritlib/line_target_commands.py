@@ -62,7 +62,12 @@ def copy_line_generated_command(cfg, selector):
     return rec
 
 
-def parse_line_copy_command(args):
+def parse_line_copy_command(cmd, args=None):
+    if args is None:
+        args = cmd
+    else:
+        if str(cmd or "").strip().lower() != "copy":
+            return {}
     args = list(args or [])
     subcmd = str(args[0] if args else "").strip().lower()
     if subcmd in {"start", "stop"}:

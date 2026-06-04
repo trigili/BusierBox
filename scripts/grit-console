@@ -7738,15 +7738,13 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"commands", "target-commands"}:
+            elif (commands_cmd := parse_line_generated_commands_command(cmd, console_args[1:])):
                 try:
-                    commands_cmd = parse_line_generated_commands_command(cmd, console_args[1:])
                     run_line_generated_command(cfg, commands_cmd["args"])
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "copy":
-                copy_cmd = parse_line_copy_command(console_args[1:])
+            elif (copy_cmd := parse_line_copy_command(cmd, console_args[1:])):
                 if copy_cmd["action"] == "service":
                     copy_line_service_command(
                         cfg,
