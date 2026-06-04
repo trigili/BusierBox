@@ -1591,6 +1591,50 @@ def run_operator_daemon_workflow_action_status_context_check():
     return 0
 
 
+def run_target_workflow_action_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.workflow_actions import target_workflow_action_status_context
+
+    target = {
+        "target_id": "target-a",
+        "label": "Router A",
+        "connectivity_state": "offline",
+        "poll_overdue": True,
+        "mailbox_pending_work_count": 3,
+    }
+    bridge_profile = {
+        "profile": "lab-http",
+        "name": "lab-http",
+        "target_id": "target-a",
+        "requires_target_online": False,
+    }
+    context = target_workflow_action_status_context(
+        {"_config_path": "local/test-config.json"},
+        [target],
+        [bridge_profile],
+    )
+    actions = context.get("actions") or []
+    indexes = context.get("index_maps") or {}
+    by_id = indexes.get("target_workflow_actions_by_id") or {}
+    queue_command = by_id.get("target-a:queue-command") or {}
+    bridge_start = by_id.get("target-a:start-bridge:lab-http") or {}
+    if not actions or not queue_command or not bridge_start:
+        print("target workflow context did not preserve target actions", file=sys.stderr)
+        return 1
+    if queue_command.get("queues_offline_work") is not True or queue_command.get("target_phone_home_required") is not True:
+        print("target workflow context did not preserve queue action metadata", file=sys.stderr)
+        return 1
+    if bridge_start.get("bridge_profile") != "lab-http":
+        print("target workflow context did not preserve bridge action metadata", file=sys.stderr)
+        return 1
+    if "target_workflow_actions_by_target_id" not in indexes:
+        print("target workflow context did not preserve indexes", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4831,6 +4875,8 @@ def main(argv=None):
     if run_workbench_action_status_context_check() != 0:
         return 1
     if run_operator_daemon_workflow_action_status_context_check() != 0:
+        return 1
+    if run_target_workflow_action_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1

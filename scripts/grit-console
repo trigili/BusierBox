@@ -384,8 +384,7 @@ from gritlib.workflow_actions import (
     probe_workflow_action_status_summary,
     scoped_service_workflow_run_command,
     select_workflow_action,
-    target_workflow_action_indexes,
-    target_workflow_action_records,
+    target_workflow_action_status_context,
     target_workflow_action_status_summary,
     workbench_action_status_context,
     workbench_action_records,
@@ -2768,8 +2767,13 @@ def status_document(cfg):
     operator_daemon_workflow_action_index_maps = operator_daemon_workflow_context[
         "index_maps"
     ]
-    target_workflow_actions = target_workflow_action_records(cfg, targets, bridge_profiles)
-    target_workflow_action_index_maps = target_workflow_action_indexes(target_workflow_actions)
+    target_workflow_context = target_workflow_action_status_context(
+        cfg,
+        targets,
+        bridge_profiles,
+    )
+    target_workflow_actions = target_workflow_context["actions"]
+    target_workflow_action_index_maps = target_workflow_context["index_maps"]
     workbench_jobs = workbench_job_records(cfg, workbench_actions)
     workbench_job_index_maps = workbench_job_indexes(workbench_jobs)
     workbench_job_stats = workbench_job_summary(workbench_jobs)

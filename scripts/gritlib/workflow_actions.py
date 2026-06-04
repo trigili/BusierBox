@@ -2839,6 +2839,14 @@ def target_workflow_action_indexes(records):
     }
 
 
+def target_workflow_action_status_context(cfg, targets, bridge_profiles=None):
+    actions = target_workflow_action_records(cfg, targets, bridge_profiles)
+    return {
+        "actions": actions,
+        "index_maps": target_workflow_action_indexes(actions),
+    }
+
+
 def target_workflow_action_summary(records):
     return {
         "total_count": len(records or []),
