@@ -146,7 +146,7 @@ from gritlib.line_context import (
     parse_line_use_command,
     set_line_collection_context,
 )
-from gritlib.line_events import print_line_events_view
+from gritlib.line_events import parse_line_events_command, print_line_events_view
 from gritlib.line_state import line_action_state_text
 from gritlib.line_files import (
     clear_line_files as line_files_clear_line_files,
@@ -191,6 +191,7 @@ from gritlib.line_network import print_line_local_ips
 from gritlib.line_probe_serve import run_line_probe_serve as probe_serve_run_line_probe_serve
 from gritlib.line_resources import (
     line_history_command, load_line_resource,
+    parse_line_resource_command,
     print_line_history as line_resources_print_line_history,
     record_line_history, write_line_makerc,
 )
@@ -7641,27 +7642,20 @@ def run_line_repl(cfg):
             elif cmd in {"complete", "completions"}:
                 print_line_completions(" ".join(console_args[1:]).strip())
                 continue
-            elif cmd == "history":
+            elif (resource_cmd := parse_line_resource_command(cmd, console_args[1:])):
                 try:
-                    line_resources_print_line_history(line_history, console_args[1] if len(console_args) >= 2 else "")
+                    if resource_cmd["action"] == "history":
+                        line_resources_print_line_history(line_history, resource_cmd["limit"])
+                    elif resource_cmd["action"] == "load":
+                        pending_console_lines.extend(load_line_resource(cfg, resource_cmd["path"]))
+                    else:
+                        write_line_makerc(cfg, resource_cmd["path"], line_history)
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "events":
+            elif (events_cmd := parse_line_events_command(cmd, console_args[1:])):
                 try:
-                    print_line_events(console_args[1:])
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "resource":
-                try:
-                    pending_console_lines.extend(load_line_resource(cfg, " ".join(console_args[1:]).strip()))
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "makerc":
-                try:
-                    write_line_makerc(cfg, " ".join(console_args[1:]).strip(), line_history)
+                    print_line_events(events_cmd["args"])
                 except ValueError as exc:
                     print(exc)
                 continue

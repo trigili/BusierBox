@@ -108,6 +108,15 @@ def parse_line_events_args(args):
     return limit, since_epoch, filters
 
 
+def parse_line_events_command(cmd, args):
+    if str(cmd or "").strip().lower() != "events":
+        return None
+    return {
+        "action": "list",
+        "args": [str(arg) for arg in (args or [])],
+    }
+
+
 def line_event_time_text(iso):
     text = str(iso or "")
     if len(text) >= 16 and "T" in text:

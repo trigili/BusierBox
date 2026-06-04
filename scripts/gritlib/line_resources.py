@@ -7,6 +7,27 @@ from gritlib.event_log import append_event
 from gritlib.shell_utils import shquote
 
 
+def parse_line_resource_command(cmd, args):
+    name = str(cmd or "").strip().lower()
+    values = [str(arg) for arg in (args or [])]
+    if name == "history":
+        return {
+            "action": "history",
+            "limit": values[0] if values else "",
+        }
+    if name == "resource":
+        return {
+            "action": "load",
+            "path": " ".join(values).strip(),
+        }
+    if name == "makerc":
+        return {
+            "action": "save",
+            "path": " ".join(values).strip(),
+        }
+    return None
+
+
 def load_line_resource(cfg, path_text):
     text = str(path_text or "").strip()
     if not text:
