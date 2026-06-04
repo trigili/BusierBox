@@ -41,6 +41,27 @@ def parse_line_jobs_command(cmd, args):
     return {"action": "list", "verbose": False}
 
 
+def dispatch_line_jobs_command(
+    jobs_cmd,
+    *,
+    cancel_func=None,
+    select_func=None,
+    list_func=None,
+):
+    action = (jobs_cmd or {}).get("action")
+    try:
+        if action == "cancel" and cancel_func:
+            return cancel_func(jobs_cmd.get("selector", ""))
+        if action == "select" and select_func:
+            return select_func(jobs_cmd.get("selector", ""))
+        if action == "list" and list_func:
+            return list_func(verbose=bool(jobs_cmd.get("verbose")))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported jobs command")
+
+
 def print_workbench_job_summary(doc):
     doc = doc or {}
     summary = doc.get("summary") or {}

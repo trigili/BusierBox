@@ -128,6 +128,7 @@ from gritlib.line_build import (
     unset_line_global_build_option,
 )
 from gritlib.line_command_queue import (
+    dispatch_line_queue_command,
     parse_line_queue_command,
     print_line_command_queue_view as line_command_queue_print_view,
     queue_line_command as line_command_queue_queue_command,
@@ -399,6 +400,7 @@ from gritlib.warnings import (
 from gritlib.workbench_jobs import (
     cancel_workbench_job_headless_command, cancel_workbench_job_record,
     cancel_line_job as workbench_jobs_cancel_line_job,
+    dispatch_line_jobs_command,
     line_job_record as workbench_jobs_line_job_record,
     load_workbench_jobs,
     reconcile_workbench_job_completion_events,
@@ -7943,27 +7945,24 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif (queue_cmd := parse_line_queue_command(cmd, console_args[1:])):
-                try:
-                    if not (cmd == "queue" and queue_cmd["action"] == "run"):
-                        set_line_collection("queue")
-                    if queue_cmd["action"] == "run":
-                        run_line_queue_command(queue_cmd["args"])
-                    else:
-                        print_line_command_queue_view()
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_queue_command(
+                    queue_cmd,
+                    original_cmd=cmd,
+                    set_context_func=lambda: set_line_collection("queue"),
+                    run_func=run_line_queue_command,
+                    view_func=print_line_command_queue_view,
+                )
                 continue
             elif (jobs_cmd := parse_line_jobs_command(cmd, console_args[1:])):
-                try:
-                    if jobs_cmd["action"] == "cancel":
-                        cancel_line_job(jobs_cmd["selector"])
-                    elif jobs_cmd["action"] == "select":
-                        select_line_job(jobs_cmd["selector"])
-                    else:
-                        set_line_collection("jobs")
-                        print_line_jobs(verbose=jobs_cmd["verbose"])
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_jobs_command(
+                    jobs_cmd,
+                    cancel_func=cancel_line_job,
+                    select_func=select_line_job,
+                    list_func=lambda verbose=False: (
+                        set_line_collection("jobs"),
+                        print_line_jobs(verbose=verbose),
+                    ),
+                )
                 continue
             elif (binary_cmd := parse_line_binary_command(cmd, console_args[1:])):
                 try:

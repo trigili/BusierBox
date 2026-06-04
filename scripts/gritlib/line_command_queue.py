@@ -338,6 +338,29 @@ def parse_line_queue_command(cmd, args):
     return {"action": "view", "args": []}
 
 
+def dispatch_line_queue_command(
+    queue_cmd,
+    *,
+    original_cmd="",
+    set_context_func=None,
+    run_func=None,
+    view_func=None,
+):
+    action = (queue_cmd or {}).get("action")
+    try:
+        if not (str(original_cmd or "").lower() == "queue" and action == "run"):
+            if set_context_func:
+                set_context_func()
+        if action == "run" and run_func:
+            return run_func(queue_cmd.get("args") or [])
+        if action == "view" and view_func:
+            return view_func()
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported queue command")
+
+
 def run_line_queue_command(
     cfg,
     args,
