@@ -252,6 +252,7 @@ def run_line_local_ips_check():
     from gritlib.line_configure import (
         find_config_from_survey,
         find_preset_from_survey,
+        find_survey_uploads,
         parse_line_config_args,
     )
     from gritlib.line_network import print_line_local_ips
@@ -298,6 +299,21 @@ def run_line_local_ips_check():
     if not find_config_from_survey() or not find_preset_from_survey():
         print("line config helpers did not find source-tree survey scripts", file=sys.stderr)
         return 1
+    with tempfile.TemporaryDirectory() as tmpdir:
+        session_root = Path(tmpdir) / "sessions"
+        upload_dir = session_root / "sess-1" / "files"
+        upload_dir.mkdir(parents=True)
+        survey_path = upload_dir / "survey.json"
+        survey_path.write_text('{"schema":1}\n', encoding="utf-8")
+        (upload_dir / "survey.metadata.json").write_text(json.dumps({
+            "upload_kind": "survey",
+            "stored_path": str(survey_path),
+            "filename": "survey.json",
+        }) + "\n", encoding="utf-8")
+        uploads = find_survey_uploads({"session_root": str(session_root)})
+        if len(uploads) != 1 or uploads[0].get("stored_path") != str(survey_path):
+            print("line config helper did not discover survey uploads", file=sys.stderr)
+            return 1
     return 0
 
 

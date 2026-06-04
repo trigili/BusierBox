@@ -130,7 +130,9 @@ from gritlib.line_command_queue import (
 )
 from gritlib.line_configure import (
     artifact_config_candidates, find_artifact_config,
+    find_survey_uploads as configure_find_survey_uploads,
     parse_line_configure_args,
+    print_line_survey_status as configure_print_line_survey_status,
     run_line_probe_config as configure_line_probe_config,
     run_line_survey_config as configure_line_survey_config,
     run_line_survey_preset as configure_line_survey_preset,
@@ -7576,25 +7578,7 @@ def run_line_repl(cfg):
         return probe_line_start(queue=queue, start_service=start_service)
 
     def find_survey_uploads(limit=20):
-        root = Path(str(cfg.get("session_root", "local/sessions")))
-        if not root.is_dir():
-            return []
-        metas = sorted(root.glob("*/files/*.metadata.json"), key=lambda p: p.stat().st_mtime, reverse=True)
-        results = []
-        for meta_path in metas:
-            data = read_json_file(meta_path, {})
-            if not isinstance(data, dict):
-                continue
-            if str(data.get("upload_kind") or "") != "survey":
-                continue
-            stored = str(data.get("stored_path") or "")
-            if not stored or not Path(stored).is_file():
-                continue
-            data["_meta_path"] = str(meta_path)
-            results.append(data)
-            if len(results) >= limit:
-                break
-        return results
+        return configure_find_survey_uploads(cfg, limit=limit)
 
     # ── probe results / config ───────────────────────────────────────────────
 
@@ -7819,33 +7803,6 @@ def run_line_repl(cfg):
             "start_file_service": start_file_service,
             "release_dir": rel.get("release_dir", ""),
             "release_discovery_source": rel.get("release_discovery_source", ""),
-        })
-
-    # ── survey commands (full griTTYkit survey, post-deployment) ────────────
-
-    def print_line_survey_status():
-        uploads = find_survey_uploads()
-        _console_table(
-            f"Survey uploads  ({len(uploads)} found)",
-            uploads[:8],
-            [
-                ("File",    lambda r: r.get("filename") or "-"),
-                ("Size",    lambda r: str(r.get("size") or "-")),
-                ("Remote",  lambda r: str(r.get("remote_addr") or "-").split(":")[0]),
-                ("At",      lambda r: _fmt_time(r.get("timestamp"))),
-                ("Path",    lambda r: r.get("stored_path") or "-"),
-            ],
-        )
-        print("")
-        if uploads:
-            print("  survey config [PATH]         — generate config from full survey")
-            print("  survey preset [PATH] --name  — save a reusable target preset")
-        else:
-            print("  No full survey uploads yet.")
-            print("  After deploying griTTYkit, run on the target:")
-            print("    grit survey push --host OPERATOR_IP --port FILE_SERVICE_PORT")
-        append_event(cfg, "workbench", "workbench_survey_status_viewed", details={
-            "upload_count": len(uploads),
         })
 
     def line_session_record(selector):
@@ -9146,7 +9103,7 @@ def run_line_repl(cfg):
                 try:
                     if subcmd in {"results", "result"} or not subcmd:
                         set_line_collection("survey")
-                        print_line_survey_status()
+                        configure_print_line_survey_status(cfg, append_event_fn=append_event)
                     elif subcmd == "config":
                         configure_line_survey_config(
                             cfg, console_args[2:], find_survey_uploads,

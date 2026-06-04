@@ -9,6 +9,7 @@ from pathlib import Path
 
 from gritlib.build_config import build_config_path
 from gritlib.config_utils import DEFAULT_CONFIG
+from gritlib.console_display import console_table
 from gritlib.probe_results import (
     probe_effective_arch,
     probe_result_by_ordinal,
@@ -351,6 +352,63 @@ def find_preset_from_survey(search_roots=None):
         if candidate.is_file():
             return candidate
     return None
+
+
+def find_survey_uploads(cfg, limit=20):
+    root = Path(str(cfg.get("session_root", "local/sessions")))
+    if not root.is_dir():
+        return []
+    metas = sorted(root.glob("*/files/*.metadata.json"), key=lambda p: p.stat().st_mtime, reverse=True)
+    results = []
+    for meta_path in metas:
+        data = read_json_file(meta_path, {})
+        if not isinstance(data, dict):
+            continue
+        if str(data.get("upload_kind") or "") != "survey":
+            continue
+        stored = str(data.get("stored_path") or "")
+        if not stored or not Path(stored).is_file():
+            continue
+        data["_meta_path"] = str(meta_path)
+        results.append(data)
+        if len(results) >= limit:
+            break
+    return results
+
+
+def _line_time_text(iso):
+    text = str(iso or "")
+    if len(text) >= 16 and "T" in text:
+        date, rest = text.split("T", 1)
+        return f"{date[5:]} {rest[:5]}"
+    return text or "-"
+
+
+def print_line_survey_status(cfg, append_event_fn=None):
+    uploads = find_survey_uploads(cfg)
+    console_table(
+        f"Survey uploads  ({len(uploads)} found)",
+        uploads[:8],
+        [
+            ("File",    lambda r: r.get("filename") or "-"),
+            ("Size",    lambda r: str(r.get("size") or "-")),
+            ("Remote",  lambda r: str(r.get("remote_addr") or "-").split(":")[0]),
+            ("At",      lambda r: _line_time_text(r.get("timestamp"))),
+            ("Path",    lambda r: r.get("stored_path") or "-"),
+        ],
+    )
+    print("")
+    if uploads:
+        print("  survey config [PATH]         — generate config from full survey")
+        print("  survey preset [PATH] --name  — save a reusable target preset")
+    else:
+        print("  No full survey uploads yet.")
+        print("  After deploying griTTYkit, run on the target:")
+        print("    grit survey push --host OPERATOR_IP --port FILE_SERVICE_PORT")
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_survey_status_viewed", details={
+            "upload_count": len(uploads),
+        })
 
 
 def run_line_survey_preset(cfg, args, find_survey_uploads_fn, append_event_fn=None):
