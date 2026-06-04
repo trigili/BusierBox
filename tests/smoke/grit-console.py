@@ -1055,6 +1055,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "mailbox\n"
                 "mailbox targets\n"
                 "queue\n"
+                "show queue -v\n"
                 "use 1\n"
                 "show options\n"
                 "set target.notes Rack shelf A\n"
@@ -1767,12 +1768,15 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     mailbox_start = line_console_stdout.find("grit[Console Router]> mailbox")
     mailbox_targets_start = line_console_stdout.find("grit[Console Router]/queue> mailbox targets", mailbox_start + 1)
     queue_view_start = line_console_stdout.find("grit[Console Router]/queue> queue", mailbox_targets_start + 1)
-    queue_view_end = line_console_stdout.find("grit[Console Router]/queue> use 1", queue_view_start + 1)
+    queue_verbose_start = line_console_stdout.find("grit[Console Router]/queue> show queue -v", queue_view_start + 1)
+    queue_view_end = queue_verbose_start
+    queue_verbose_end = line_console_stdout.find("grit[Console Router]/queue> use 1", queue_verbose_start + 1)
     mailbox_text = line_console_stdout[mailbox_start:mailbox_targets_start] if mailbox_start != -1 and mailbox_targets_start != -1 else ""
     mailbox_targets_text = line_console_stdout[mailbox_targets_start:queue_view_start] if mailbox_targets_start != -1 and queue_view_start != -1 else ""
     queue_view_text = line_console_stdout[queue_view_start:queue_view_end] if queue_view_start != -1 and queue_view_end != -1 else ""
-    mailbox_queue_text = mailbox_text + mailbox_targets_text + queue_view_text
-    if (not mailbox_text or not mailbox_targets_text or not queue_view_text or
+    queue_verbose_text = line_console_stdout[queue_verbose_start:queue_verbose_end] if queue_verbose_start != -1 and queue_verbose_end != -1 else ""
+    mailbox_queue_text = mailbox_text + mailbox_targets_text + queue_view_text + queue_verbose_text
+    if (not mailbox_text or not mailbox_targets_text or not queue_view_text or not queue_verbose_text or
             "Command queue  (" not in mailbox_text or
             "Target mailbox  (" not in mailbox_targets_text or
             "Command queue  (" in mailbox_targets_text or
@@ -1781,6 +1785,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Review queue" not in queue_view_text or
             "Queue command" not in queue_view_text or
             "Start mailbox listener" not in queue_view_text or
+            "policy details:" not in queue_verbose_text or
             "command-queue:" in queue_view_text or
             "allowed_commands=" in mailbox_queue_text or
             "delivery_policy_counts:" in mailbox_queue_text):
