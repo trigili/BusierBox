@@ -43,15 +43,8 @@ from gritlib.bridge_routes import (
     bridge_profile_record_summary,
     bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_records,
     bridge_profile_workflow_action_status_summary, bridge_profiles_path, bridge_route_path,
-    add_line_route as bridge_routes_add_line_route,
-    delete_line_route as bridge_routes_delete_line_route,
     dispatch_legacy_bridge_profile_number,
-    line_route_record as bridge_routes_line_route_record,
-    print_line_routes as bridge_routes_print_line_routes,
     prompt_line_bridge_profile_save,
-    select_line_route as bridge_routes_select_line_route,
-    start_line_route as bridge_routes_start_line_route,
-    stop_line_route as bridge_routes_stop_line_route,
     default_bridge_hops, load_bridge_profiles, parse_bridge_hop, ROUTE_HELP_LINES,
     target_route_context,
     save_bridge_profile, delete_bridge_profile, apply_bridge_profile,
@@ -186,6 +179,7 @@ from gritlib.line_repl_runtime import (
 )
 from gritlib.line_repl_display import build_line_display_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
+from gritlib.line_repl_routes import build_line_route_service_callbacks
 from gritlib.line_release import (
     dispatch_legacy_line_release_number,
     print_line_release as line_release_print_line_release,
@@ -199,10 +193,6 @@ from gritlib.line_services import (
     dispatch_legacy_line_service_number,
     line_service_display_name,
     line_service_completion_names, line_service_names, line_service_record,
-    print_line_services as line_services_print_line_services,
-    select_line_service as line_services_select_line_service,
-    start_line_service as line_services_start_line_service,
-    stop_line_service as line_services_stop_line_service,
 )
 from gritlib.line_show import build_line_show_resource_callback
 from gritlib.line_sessions import (
@@ -6385,15 +6375,6 @@ def run_line_repl(cfg):
             clear_module=lambda quiet=False: clear_line_module_context(cfg, quiet=quiet),
         )
 
-    def select_line_service(selector):
-        return line_services_select_line_service(
-            cfg,
-            selector,
-            service_status_rows(cfg),
-            start_command=lambda name: service_start_headless_command(cfg, name),
-            stop_command=lambda name: service_stop_headless_command(cfg, name),
-        )
-
     def print_line_targets():
         return line_targets_print_line_targets(cfg, workbench_snapshot, quote=shquote)
 
@@ -6407,91 +6388,30 @@ def run_line_repl(cfg):
             cfg, selector, workbench_snapshot, quote=shquote,
         )
 
-    def print_line_services(verbose=False):
-        return line_services_print_line_services(
-            cfg,
-            service_status_rows(cfg),
-            verbose=verbose,
-            start_command=lambda name: service_start_headless_command(cfg, name),
-            stop_command=lambda name: service_stop_headless_command(cfg, name),
-            quote=shquote,
-        )
-
-    def start_line_service(service):
-        return line_services_start_line_service(
-            cfg,
-            service,
-            service_rows_func=lambda: service_status_rows(cfg),
-            route_record_func=line_route_record,
-            route_start_func=start_line_route,
-            service_start_command_func=lambda name: service_start_headless_command(cfg, name),
-            service_start_func=start_service_process,
-            probe_delivery_func=lambda: print_probe_delivery(cfg),
-            sleep_func=time.sleep,
-        )
-
-    def stop_line_service(service):
-        return line_services_stop_line_service(
-            cfg,
-            service,
-            service_rows_func=lambda: service_status_rows(cfg),
-            route_record_func=line_route_record,
-            route_stop_func=stop_line_route,
-            service_stop_command_func=lambda name: service_stop_headless_command(cfg, name),
-            service_stop_func=stop_recorded_service,
-        )
-
-    def line_route_record(name):
-        return bridge_routes_line_route_record(bridge_profile_records(cfg), name)
-
-    def print_line_routes(verbose=False):
-        return bridge_routes_print_line_routes(
-            cfg,
-            bridge_profile_records(cfg),
-            verbose=verbose,
-            command_builder=bridge_profile_headless_command,
-            quote=shquote,
-        )
-
-    def select_line_route(selector, records=None):
-        return bridge_routes_select_line_route(
-            cfg,
-            selector,
-            records if records is not None else bridge_profile_records(cfg),
-        )
-
-    def add_line_route(args):
-        return bridge_routes_add_line_route(
-            cfg,
-            args,
-            headless_command_builder=bridge_profile_headless_command,
-        )
-
-    def start_line_route(route_name):
-        return bridge_routes_start_line_route(
-            cfg,
-            route_name,
-            bridge_profile_records(cfg),
-            headless_command_builder=bridge_profile_headless_command,
-            start_service=start_service_process,
-        )
-
-    def stop_line_route(route_name):
-        return bridge_routes_stop_line_route(
-            cfg,
-            route_name,
-            bridge_profile_records(cfg),
-            headless_command_builder=bridge_profile_headless_command,
-            stop_service=stop_recorded_service,
-        )
-
-    def delete_line_route(route_name):
-        return bridge_routes_delete_line_route(
-            cfg,
-            route_name,
-            bridge_profile_records(cfg),
-            headless_command_builder=bridge_profile_headless_command,
-        )
+    line_route_service_callbacks = build_line_route_service_callbacks(
+        cfg,
+        service_status_rows_func=service_status_rows,
+        bridge_profile_records_func=bridge_profile_records,
+        bridge_command_builder=bridge_profile_headless_command,
+        service_start_command_func=service_start_headless_command,
+        service_stop_command_func=service_stop_headless_command,
+        service_start_func=start_service_process,
+        service_stop_func=stop_recorded_service,
+        probe_delivery_func=print_probe_delivery,
+        sleep_func=time.sleep,
+        quote=shquote,
+    )
+    line_route_record = line_route_service_callbacks["line_route_record"]
+    print_line_routes = line_route_service_callbacks["print_line_routes"]
+    select_line_route = line_route_service_callbacks["select_line_route"]
+    add_line_route = line_route_service_callbacks["add_line_route"]
+    start_line_route = line_route_service_callbacks["start_line_route"]
+    stop_line_route = line_route_service_callbacks["stop_line_route"]
+    delete_line_route = line_route_service_callbacks["delete_line_route"]
+    select_line_service = line_route_service_callbacks["select_line_service"]
+    print_line_services = line_route_service_callbacks["print_line_services"]
+    start_line_service = line_route_service_callbacks["start_line_service"]
+    stop_line_service = line_route_service_callbacks["stop_line_service"]
 
     def line_job_record(selector):
         return current_line_job_record(lambda: workbench_snapshot(cfg), selector)
