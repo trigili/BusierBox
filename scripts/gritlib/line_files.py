@@ -79,6 +79,37 @@ def parse_line_file_transfer_command(cmd, args):
     return {}
 
 
+def dispatch_line_file_command(
+    file_cmd,
+    *,
+    upload_func=None,
+    fetch_func=None,
+    unstage_func=None,
+    clear_func=None,
+    list_func=None,
+):
+    action = (file_cmd or {}).get("action")
+    if action == "upload" and upload_func:
+        return upload_func(
+            file_cmd["selector"],
+            file_cmd["request_name"],
+            start_file_service=file_cmd["start_service"],
+        )
+    if action == "fetch" and fetch_func:
+        return fetch_func(
+            file_cmd["request_name"],
+            queue=file_cmd["queue"],
+            start_file_service=file_cmd["start_service"],
+        )
+    if action == "unstage" and unstage_func:
+        return unstage_func(file_cmd["selector"])
+    if action == "clear" and clear_func:
+        return clear_func(confirm=file_cmd["confirm"])
+    if action == "list" and list_func:
+        return list_func(verbose=file_cmd["verbose"])
+    raise ValueError("unsupported file command")
+
+
 def clear_line_files(cfg, confirm=False, target_filter_id="", append_event_fn=None):
     staged = load_staged(cfg).get("staged", {})
     target_filter_id = str(target_filter_id or "")

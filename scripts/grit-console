@@ -156,6 +156,7 @@ from gritlib.line_files import (
     parse_line_download_command,
     parse_line_file_transfer_command,
     parse_line_files_command,
+    dispatch_line_file_command,
     print_line_file_records,
     fetch_line_staged as line_files_fetch_line_staged,
     stage_line_binary as line_files_stage_line_binary,
@@ -8001,20 +8002,12 @@ def run_line_repl(cfg):
                 continue
             elif (file_cmd := parse_line_file_transfer_command(cmd, console_args[1:])):
                 try:
-                    if file_cmd["action"] == "upload":
-                        stage_line_file(
-                            file_cmd["selector"],
-                            file_cmd["request_name"],
-                            start_file_service=file_cmd["start_service"],
-                        )
-                    elif file_cmd["action"] == "fetch":
-                        fetch_line_staged(
-                            file_cmd["request_name"],
-                            queue=file_cmd["queue"],
-                            start_file_service=file_cmd["start_service"],
-                        )
-                    else:
-                        unstage_line_file(file_cmd["selector"])
+                    dispatch_line_file_command(
+                        file_cmd,
+                        upload_func=stage_line_file,
+                        fetch_func=fetch_line_staged,
+                        unstage_func=unstage_line_file,
+                    )
                     set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
@@ -8026,43 +8019,23 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif (files_cmd := parse_line_files_command(cmd, console_args[1:])):
-                if files_cmd["action"] == "upload":
-                    try:
-                        stage_line_file(
-                            files_cmd["selector"],
-                            files_cmd["request_name"],
-                            start_file_service=files_cmd["start_service"],
-                        )
-                        set_line_collection("files")
-                    except ValueError as exc:
-                        print(exc)
-                elif files_cmd["action"] == "fetch":
-                    try:
-                        fetch_line_staged(
-                            files_cmd["request_name"],
-                            queue=files_cmd["queue"],
-                            start_file_service=files_cmd["start_service"],
-                        )
-                        set_line_collection("files")
-                    except ValueError as exc:
-                        print(exc)
-                elif files_cmd["action"] == "unstage":
-                    try:
-                        unstage_line_file(files_cmd["selector"])
-                        set_line_collection("files")
-                    except ValueError as exc:
-                        print(exc)
-                elif files_cmd["action"] == "clear":
-                    line_files_clear_line_files(
-                        cfg,
-                        confirm=files_cmd["confirm"],
-                        target_filter_id=configured_target_filter(cfg),
-                        append_event_fn=append_event,
+                try:
+                    dispatch_line_file_command(
+                        files_cmd,
+                        upload_func=stage_line_file,
+                        fetch_func=fetch_line_staged,
+                        unstage_func=unstage_line_file,
+                        clear_func=lambda confirm=False: line_files_clear_line_files(
+                            cfg,
+                            confirm=confirm,
+                            target_filter_id=configured_target_filter(cfg),
+                            append_event_fn=append_event,
+                        ),
+                        list_func=lambda verbose=False: print_line_files(verbose=verbose),
                     )
                     set_line_collection("files")
-                else:
-                    set_line_collection("files")
-                    print_line_files(verbose=files_cmd["verbose"])
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif (queue_cmd := parse_line_queue_command(cmd, console_args[1:])):
                 try:
