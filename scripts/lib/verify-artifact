@@ -238,13 +238,19 @@ with tempfile.TemporaryDirectory(prefix="grit-verify-") as td:
     bb.chmod(0o755)
     cmd_prefix = [backend] if backend != "native" else []
     with (artdir / "verify.log").open("w", encoding="utf-8") as log:
-        for args in (["list", "--plain"], ["config-info"], ["doctor"], ["extract"], ["extract"], ["sh", "-c", "echo verify-ok"]):
+        for args in (["list", "--plain"], ["config-info"], ["doctor"], ["extract"], ["extract"]):
             rc, out = run(cmd_prefix + ["./grit"] + args, td, log)
             if rc != 0:
                 die(f"{args[0]} failed; see {artdir / 'verify.log'}")
-        rc, out = run(cmd_prefix + ["./grit", "sh", "-c", 'p="$(pwd)/.grit/payload/bin"; case ":$PATH:" in *":$p:"*":$p:"*) exit 11;; esac; which ls >/dev/null'], td, log)
-        if rc != 0:
-            die(f"PATH duplicate prevention sanity failed; see {artdir / 'verify.log'}")
+        if has_command(manifest, "sh"):
+            rc, out = run(cmd_prefix + ["./grit", "sh", "-c", "echo verify-ok"], td, log)
+            if rc != 0:
+                die(f"sh failed; see {artdir / 'verify.log'}")
+            rc, out = run(cmd_prefix + ["./grit", "sh", "-c", 'p="$(pwd)/.grit/payload/bin"; case ":$PATH:" in *":$p:"*":$p:"*) exit 11;; esac; which ls >/dev/null'], td, log)
+            if rc != 0:
+                die(f"PATH duplicate prevention sanity failed; see {artdir / 'verify.log'}")
+        else:
+            log.write("shell applet not staged; skipped shell execution probes\n\n")
         if has_command(manifest, "zsh"):
             rc, out = run(cmd_prefix + ["./grit", "zsh", "-fc", "command -v ls >/dev/null"], td, log)
             if rc != 0:

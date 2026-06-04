@@ -267,6 +267,22 @@ PY
 scripts/lib/inspect-artifact "$work/grit" | grep -q '^config_trailer_present=yes$'
 scripts/lib/verify-artifact "$work/grit" >/dev/null
 
+python3 - <<'PY'
+from pathlib import Path
+
+text = Path("scripts/lib/verify-artifact").read_text(encoding="utf-8")
+guard = 'if has_command(manifest, "sh"):'
+shell_probe = '["./grit", "sh", "-c", "echo verify-ok"]'
+path_probe = "PATH duplicate prevention sanity"
+if guard not in text:
+    raise SystemExit("verify-artifact must guard shell probes on advertised sh")
+if shell_probe not in text or path_probe not in text:
+    raise SystemExit("verify-artifact shell probes are missing")
+guard_at = text.index(guard)
+if guard_at > text.index(shell_probe) or guard_at > text.index(path_probe):
+    raise SystemExit("verify-artifact shell guard must cover shell probes")
+PY
+
 cp "$work/grit" "$work/grit-bad"
 python3 - "$work/grit-bad" <<'PY'
 import pathlib, sys
