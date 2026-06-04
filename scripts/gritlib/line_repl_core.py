@@ -1,8 +1,30 @@
 """Line REPL core command callback adapters."""
 
 from gritlib.line_core_commands import dispatch_line_core_command
+from gritlib.line_repl_options import build_unset_line_option_callback
 from gritlib.line_probe_serve import run_line_probe_serve
 from gritlib.line_workspace import line_repl_status_bar
+
+
+def build_line_core_callbacks(
+    cfg,
+    *,
+    clear_module_func,
+    **dispatch_kwargs,
+):
+    unset_line_option = build_unset_line_option_callback(
+        cfg,
+        clear_module_func=clear_module_func,
+    )
+    dispatch_line_core = build_line_core_dispatch_callback(
+        cfg,
+        unset_context_option_func=unset_line_option,
+        **dispatch_kwargs,
+    )
+    return {
+        "dispatch_line_core": dispatch_line_core,
+        "unset_line_option": unset_line_option,
+    }
 
 
 def build_line_core_dispatch_callback(

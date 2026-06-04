@@ -1404,6 +1404,53 @@ def run_line_repl_runtime_check():
         print(f"line REPL core adapter wiring changed: {core_calls} output={core_out.getvalue()!r}", file=sys.stderr)
         return 1
 
+    core_bundle_calls = []
+    original_core_dispatch_builder = repl_core.build_line_core_dispatch_callback
+    original_unset_builder = repl_core.build_unset_line_option_callback
+
+    def fake_core_dispatch_builder(cfg, unset_context_option_func, **kwargs):
+        core_bundle_calls.append(
+            ("dispatch-builder", cfg.get("name"), kwargs.get("default_config"))
+        )
+
+        def dispatch_core_bundle(command, args):
+            core_bundle_calls.append(("dispatch", command, tuple(args)))
+            unset_context_option_func("B")
+            return "bundle-refresh"
+
+        return dispatch_core_bundle
+
+    repl_core.build_unset_line_option_callback = lambda cfg, clear_module_func: (
+        core_bundle_calls.append(("unset-builder", cfg.get("name"), clear_module_func is not None))
+        or (lambda key: core_bundle_calls.append(("unset", cfg.get("name"), key)))
+    )
+    repl_core.build_line_core_dispatch_callback = fake_core_dispatch_builder
+    try:
+        core_bundle = repl_core.build_line_core_callbacks(
+            {"name": "bundle-core"},
+            clear_module_func=lambda cfg, quiet=False: core_bundle_calls.append(
+                ("clear-module", cfg.get("name"), quiet)
+            ),
+            default_config="bundle-default.json",
+        )
+        if core_bundle["dispatch_line_core"]("status", []) != "bundle-refresh":
+            print("line REPL core bundle did not return core dispatch result", file=sys.stderr)
+            return 1
+        core_bundle["unset_line_option"]("C")
+    finally:
+        repl_core.build_line_core_dispatch_callback = original_core_dispatch_builder
+        repl_core.build_unset_line_option_callback = original_unset_builder
+    expected_core_bundle_calls = [
+        ("unset-builder", "bundle-core", True),
+        ("dispatch-builder", "bundle-core", "bundle-default.json"),
+        ("dispatch", "status", ()),
+        ("unset", "bundle-core", "B"),
+        ("unset", "bundle-core", "C"),
+    ]
+    if core_bundle_calls != expected_core_bundle_calls:
+        print(f"line REPL core bundle wiring changed: {core_bundle_calls}", file=sys.stderr)
+        return 1
+
     navigation_calls = []
     original_navigation_dispatch = repl_navigation.dispatch_line_navigation_command
 

@@ -175,12 +175,11 @@ from gritlib.line_repl_runtime import (
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
 from gritlib.line_repl_completions import build_line_completion_adapter
-from gritlib.line_repl_core import build_line_core_dispatch_callback
+from gritlib.line_repl_core import build_line_core_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_line_job_callbacks
 from gritlib.line_repl_legacy import build_line_legacy_dispatch_callback
 from gritlib.line_repl_navigation import build_line_navigation_dispatch_callback
-from gritlib.line_repl_options import build_unset_line_option_callback
 from gritlib.line_repl_probe import build_line_probe_callbacks
 from gritlib.line_repl_queue import build_line_queue_callbacks
 from gritlib.line_repl_routes import (
@@ -6044,11 +6043,6 @@ def run_line_repl(cfg):
     )
     line_input = repl_io["line_input"]
 
-    unset_line_option = build_unset_line_option_callback(
-        cfg,
-        clear_module_func=clear_line_module_context,
-    )
-
     line_target_callbacks = build_line_target_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
@@ -6281,8 +6275,9 @@ def run_line_repl(cfg):
     dispatch_line_utility = line_utility_callbacks["dispatch_line_utility"]
     line_history = line_utility_callbacks["line_history"]
     pending_console_lines = line_utility_callbacks["pending_console_lines"]
-    dispatch_line_core = build_line_core_dispatch_callback(
+    line_core_callbacks = build_line_core_callbacks(
         cfg,
+        clear_module_func=clear_line_module_context,
         default_config=DEFAULT_CONFIG,
         load_config_func=load_config,
         defaults=DEFAULTS,
@@ -6299,7 +6294,6 @@ def run_line_repl(cfg):
         set_global_option_func=set_line_global_build_option,
         set_context_option_func=line_options_set_line_option,
         unset_global_option_func=unset_line_global_build_option,
-        unset_context_option_func=unset_line_option,
         rename_target_func=line_options_rename_line_target,
         note_target_func=line_options_note_line_target,
         alias_target_func=line_options_alias_line_target,
@@ -6320,6 +6314,7 @@ def run_line_repl(cfg):
         survey_preset_func=configure_line_survey_preset,
         append_event_fn=append_event,
     )
+    dispatch_line_core = line_core_callbacks["dispatch_line_core"]
     dispatch_line_navigation = build_line_navigation_dispatch_callback(
         cfg,
         target_filter_func=configured_target_filter,
