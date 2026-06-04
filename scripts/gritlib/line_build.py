@@ -22,29 +22,58 @@ def _group_build_fields(fields):
     return groups
 
 
+def _build_field_state(rec):
+    if rec.get("configured"):
+        return "set"
+    if rec.get("fixed_options"):
+        return "fixed"
+    if rec.get("requires_explicit_operator_choice"):
+        return "choose"
+    return "default"
+
+
+def _build_field_value(rec, limit=34):
+    value = shell_double_quote(str(rec.get("value") or ""))
+    if len(value) <= limit:
+        return value
+    return value[: max(0, limit - 3)] + "..."
+
+
+def _build_field_options_text(rec):
+    count = int(rec.get("option_count") or len(rec.get("options") or []) or 0)
+    if count:
+        return str(count)
+    if rec.get("examples"):
+        return "examples"
+    return "-"
+
+
 def print_line_build_config(cfg, verbose=False):
     fields = workbench_config_field_records(cfg)
     configured_count = len([rec for rec in fields if rec.get("configured")])
     num_w = len(str(len(fields))) if fields else 1
     key_w = max([len("Key")] + [len(str(rec.get("key") or "")) for rec in fields])
-    value_w = max([len("Value")] + [
-        len(shell_double_quote(str(rec.get("value") or ""))) for rec in fields
-    ])
+    state_w = max([len("State")] + [len(_build_field_state(rec)) for rec in fields])
+    value_w = max([len("Value")] + [len(_build_field_value(rec)) for rec in fields])
+    opts_w = max([len("Opts")] + [len(_build_field_options_text(rec)) for rec in fields])
     label_w = max([len("Purpose")] + [len(str(rec.get("label") or "")) for rec in fields])
 
     print(f"Build config  ({build_config_path(cfg)})")
     print(f"  configured: {configured_count}/{len(fields)}")
+    print("  state: set=configured  default=using generated default  choose=operator choice recommended")
     print("")
     for category, records in _group_build_fields(fields):
         print(f"  {category} ({len(records)})")
         print("  " + " " * num_w + "  "
-              + f"{'Key':{key_w}}  {'Value':{value_w}}  {'Purpose':{label_w}}")
+              + f"{'Key':{key_w}}  {'State':{state_w}}  {'Value':{value_w}}  {'Opts':{opts_w}}  {'Purpose':{label_w}}")
         print("  " + "-" * num_w + "  "
-              + f"{'-' * key_w}  {'-' * value_w}  {'-' * label_w}")
+              + f"{'-' * key_w}  {'-' * state_w}  {'-' * value_w}  {'-' * opts_w}  {'-' * label_w}")
         for idx, rec in records:
-            value = shell_double_quote(str(rec.get("value") or ""))
+            value = _build_field_value(rec)
+            state = _build_field_state(rec)
+            opts = _build_field_options_text(rec)
             label = str(rec.get("label") or "")
-            print(f"  {idx:{num_w}}  {str(rec.get('key') or ''):{key_w}}  {value:{value_w}}  {label:{label_w}}".rstrip())
+            print(f"  {idx:{num_w}}  {str(rec.get('key') or ''):{key_w}}  {state:{state_w}}  {value:{value_w}}  {opts:{opts_w}}  {label:{label_w}}".rstrip())
             if verbose:
                 options = [str(o) for o in rec.get("options") or []]
                 examples = [str(o) for o in rec.get("examples") or []]
@@ -52,6 +81,9 @@ def print_line_build_config(cfg, verbose=False):
                     print("      options: " + "  ".join(options))
                 elif examples:
                     print("      examples: " + "  ".join(examples))
+                safety = str(rec.get("safety_note") or "")
+                if safety:
+                    print("      note: " + safety)
                 print(f"      set: build set {rec.get('key', '')} VALUE")
         print("")
     hint = "build set KEY VALUE  |  build unset KEY  |  build -v for options  |  build ? for help"

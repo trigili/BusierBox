@@ -1402,8 +1402,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     build_view_text = line_console_stdout[build_view_start:build_view_end] if build_view_start != -1 and build_view_end != -1 else ""
     if (not build_view_text or
             "configured: " not in build_view_text or
+            "state: set=configured" not in build_view_text or
             "runtime (" not in build_view_text or
             "command-queue (" not in build_view_text or
+            "State" not in build_view_text or
+            "Opts" not in build_view_text or
             "Purpose" not in build_view_text or
             "options:" in build_view_text or
             "set: build set" in build_view_text or
@@ -1418,6 +1421,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     if (not build_verbose_text or
             "options: static-preferred" not in build_verbose_text or
             "examples: ./.grit" not in build_verbose_text or
+            "note: affects generated artifacts or payload contents" not in build_verbose_text or
             "set: build set GRIT_RUNTIME_ROOT VALUE" not in build_verbose_text or
             "--set-build-config" in build_verbose_text or
             "headless_command:" in build_verbose_text):
