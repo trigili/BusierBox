@@ -7732,11 +7732,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "show" or cmd in {
-                "categories", "category", "module-categories", "modules", "module",
-            }:
+            elif (show_cmd := parse_line_show_command(cmd, console_args[1:])):
                 try:
-                    show_cmd = parse_line_show_command(cmd, console_args[1:])
                     show_line_resource(show_cmd["resource"])
                 except ValueError as exc:
                     print(exc)
