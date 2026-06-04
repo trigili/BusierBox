@@ -273,14 +273,13 @@ from gritlib.session_records import (
 from gritlib.service_status import (
     DAEMON_SERVICE_CHOICES, configured_daemon_services, daemon_child_command,
     operator_daemon_headless_command, operator_stop_headless_command,
-    port_record_indexes, port_records_from_services,
-    resolve_transport, service_port, service_record_indexes,
+    resolve_transport, service_port,
     service_status_context, service_status_rows, service_status_summary,
     service_start_headless_command,
     service_stop_headless_command,
     service_tls_enabled, run_service_workflow_action_headless_command,
     service_workflow_action_indexes, service_workflow_action_records,
-    service_workflow_action_status_summary, status_summary_and_warnings,
+    service_workflow_action_status_summary,
     wait_service_port_released,
 )
 from gritlib.service_lifecycle import (
@@ -2523,6 +2522,10 @@ def status_document(cfg):
     service_manager_state_record = service_context["manager_state_record"]
     service_manager_state_records = service_context["manager_state_records"]
     service_manager_state_index_maps = service_context["manager_state_index_maps"]
+    ports = service_context["ports"]
+    (ports_by_number,
+     ports_by_service,
+     ports_by_actual) = service_context["port_indexes"]
     all_event_records, _all_event_invalid = EventLog(cfg).records()
     all_target_phone_home_records = target_phone_home_records_from_events(all_event_records)
     uploads = recent_upload_metadata(cfg)
@@ -2889,7 +2892,8 @@ def status_document(cfg):
     )
     target_activity_records = target_activity_feed_context["records"]
     target_activity_index_maps = target_activity_feed_context["index_maps"]
-    summary, warnings = status_summary_and_warnings(services)
+    summary = service_context["summary"]
+    warnings = service_context["warnings"]
     summary.update({
         **bridge_profile_record_summary(bridge_profiles, bridge_hop_records),
         **bridge_profile_workflow_action_status_summary(bridge_profile_workflow_actions),
@@ -2908,9 +2912,7 @@ def status_document(cfg):
      services_by_session_log_exists,
      services_by_process_log_exists,
      services_by_has_error,
-     services_by_stopped_reason) = service_record_indexes(services)
-    ports = port_records_from_services(services)
-    ports_by_number, ports_by_service, ports_by_actual = port_record_indexes(ports)
+     services_by_stopped_reason) = service_context["service_indexes"]
     target_attribution_status_doc = target_attribution_status(
         uploads, fetches, sessions
     )

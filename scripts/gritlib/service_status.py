@@ -452,8 +452,15 @@ def service_manager_status(snapshot):
 def service_status_context(cfg, manager_snapshot):
     services = service_status_rows(cfg)
     manager_status = service_manager_status(manager_snapshot)
+    summary, warnings = status_summary_and_warnings(services)
+    ports = port_records_from_services(services)
     return {
         "services": services,
+        "service_indexes": service_record_indexes(services),
+        "ports": ports,
+        "port_indexes": port_record_indexes(ports),
+        "summary": summary,
+        "warnings": warnings,
         "manager": manager_snapshot,
         "manager_status": manager_status,
         "manager_resources": manager_status["resources"],

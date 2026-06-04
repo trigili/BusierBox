@@ -1298,6 +1298,15 @@ def run_service_status_context_check():
     if not isinstance(context.get("services"), list):
         print("service status context did not return service rows", file=sys.stderr)
         return 1
+    if len(context.get("service_indexes") or ()) != 15:
+        print("service status context did not preserve service index tuple", file=sys.stderr)
+        return 1
+    if not isinstance(context.get("ports"), list) or len(context.get("port_indexes") or ()) != 3:
+        print("service status context did not preserve port context", file=sys.stderr)
+        return 1
+    if not isinstance(context.get("summary"), dict) or not isinstance(context.get("warnings"), list):
+        print("service status context did not preserve summary/warnings", file=sys.stderr)
+        return 1
     if len(resources) != 4 or state.get("resource_count") != 4:
         print("service status context did not preserve manager resources", file=sys.stderr)
         return 1
