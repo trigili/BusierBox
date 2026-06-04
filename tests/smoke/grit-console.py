@@ -2281,6 +2281,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Daemon actions" not in daemon_plain_text or
             "Start operator daemon" not in daemon_plain_text or
             "Check operator daemon" not in daemon_plain_text or
+            "Run selected listener services in the background" not in daemon_plain_text or
+            "Show daemon health and managed service state" not in daemon_plain_text or
             "operator-daemon-status" in daemon_plain_text or
             "\n     run: scripts/grit-console" in daemon_plain_text or
             "\n     dry-run: scripts/grit-console" in daemon_plain_text or

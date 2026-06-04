@@ -236,6 +236,19 @@ LINE_DAEMON_ACTION_LABELS = {
 }
 
 
+LINE_DAEMON_ACTION_PURPOSES = {
+    "operator-daemon-start": "Run selected listener services in the background",
+    "operator-daemon-status": "Show daemon health and managed service state",
+    "operator-daemon-stop": "Stop the operator daemon and managed services",
+    "systemd-user-print": "Preview a user systemd unit for the daemon",
+    "systemd-user-install": "Install the user systemd unit",
+    "systemd-user-start": "Start the user systemd unit",
+    "systemd-user-stop": "Stop the user systemd unit",
+    "systemd-user-restart": "Restart the user systemd unit",
+    "systemd-user-status": "Show the user systemd unit status",
+}
+
+
 def line_daemon_action_label(rec):
     action_id = str((rec or {}).get("id") or "")
     label, _alias = LINE_DAEMON_ACTION_LABELS.get(action_id, ("", ""))
@@ -248,6 +261,11 @@ def line_daemon_action_alias(rec):
     action_id = str((rec or {}).get("id") or "")
     _label, alias = LINE_DAEMON_ACTION_LABELS.get(action_id, ("", ""))
     return alias or action_id or "-"
+
+
+def line_daemon_action_purpose(rec):
+    action_id = str((rec or {}).get("id") or "")
+    return LINE_DAEMON_ACTION_PURPOSES.get(action_id, str((rec or {}).get("label") or "-"))
 
 
 def parse_line_daemon_action_args(args):
@@ -366,6 +384,7 @@ def print_line_daemon_action_records(records, verbose=False):
     cols = [
         ("Action", line_daemon_action_label),
         ("Use", line_daemon_action_alias),
+        ("Purpose", line_daemon_action_purpose),
         ("Workflow", lambda r: r.get("workflow") or "-"),
         ("State", line_action_state_text),
         ("Attached", lambda r: "yes" if r.get("daemon_attached") else "no"),
