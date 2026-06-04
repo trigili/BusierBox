@@ -7915,9 +7915,9 @@ def run_line_repl(cfg):
                 print(line_unknown_command_message(cmd))
                 continue
         if choice in {"q", "quit", "exit"}:
-            # Leave any selected context first; a second q/quit at root exits.
+            # Leave one selected context level first; q/quit at root exits.
             if str(cfg.get("_line_console_module") or "") or configured_target_filter(cfg):
-                clear_line_context()
+                back_line_module()
                 compact_next_prompt = True
                 continue
             mark_service_stopped(cfg, "workbench", "quit")
