@@ -160,10 +160,10 @@ from gritlib.line_files import (
     unstage_line_file as line_files_unstage_line_file,
 )
 from gritlib.line_help import (
-    line_unknown_command_message as line_help_unknown_command_message,
-    print_context_line_help as line_help_print_context_line_help,
-    print_line_command_help as line_help_print_line_command_help,
-    print_line_console_help as line_help_print_line_console_help,
+    line_unknown_command_message,
+    print_context_line_help,
+    print_line_command_help,
+    print_line_console_help,
 )
 from gritlib.line_completions import (
     build_line_completion_providers,
@@ -6400,31 +6400,11 @@ def run_line_repl(cfg):
         ctx = target_context_fields(cfg, target_id) if target_id else {}
         return line_workspace_repl_prompt(target_id=target_id, module=module, target_context=ctx)
 
-    def print_line_console_help():
-        return line_help_print_line_console_help()
-
     def record_line_alias(alias, canonical):
         append_event(cfg, "workbench", "workbench_console_alias_used", details={
             "alias": str(alias or ""),
             "canonical": str(canonical or ""),
         })
-
-    def print_line_command_help(topic):
-        return line_help_print_line_command_help(topic)
-
-    def print_context_line_help():
-        return line_help_print_context_line_help(
-            cfg.get("_line_console_module"),
-            target_selected=bool(configured_target_filter(cfg)),
-            command_help_printer=print_line_command_help,
-        )
-
-    def line_unknown_command_message(cmd):
-        return line_help_unknown_command_message(
-            cmd,
-            cfg.get("_line_console_module"),
-            target_selected=bool(configured_target_filter(cfg)),
-        )
 
     def print_line_info():
         snap = workbench_snapshot(cfg)
@@ -7167,13 +7147,21 @@ def run_line_repl(cfg):
                 if len(console_args) >= 2:
                     print_line_command_help(console_args[1])
                 else:
-                    print_context_line_help()
+                    print_context_line_help(
+                        cfg.get("_line_console_module"),
+                        target_selected=bool(configured_target_filter(cfg)),
+                        command_help_printer=print_line_command_help,
+                    )
                 continue
             elif cmd == "help":
                 if len(console_args) >= 2:
                     print_line_command_help(console_args[1])
                 else:
-                    print_context_line_help()
+                    print_context_line_help(
+                        cfg.get("_line_console_module"),
+                        target_selected=bool(configured_target_filter(cfg)),
+                        command_help_printer=print_line_command_help,
+                    )
                 continue
             elif dispatch_line_utility_command(
                 cmd,
@@ -7352,7 +7340,11 @@ def run_line_repl(cfg):
             ):
                 continue
             else:
-                print(line_unknown_command_message(cmd))
+                print(line_unknown_command_message(
+                    cmd,
+                    cfg.get("_line_console_module"),
+                    target_selected=bool(configured_target_filter(cfg)),
+                ))
                 continue
         if choice in {"q", "quit", "exit"}:
             # Return directly to the root prompt first; q/quit at root exits.
