@@ -114,10 +114,10 @@ from gritlib.line_actions import (
     line_action_records_from_snapshot,
     print_line_actions as line_actions_print_line_actions,
     print_line_module_categories as line_actions_print_line_module_categories,
+    run_line_module_or_service as line_actions_run_line_module_or_service,
     run_line_selected_action as line_actions_run_line_selected_action,
     select_line_action as line_actions_select_line_action,
     selected_line_action as line_actions_selected_line_action,
-    split_line_run_args,
 )
 from gritlib.line_build import (
     dispatch_legacy_line_build_number,
@@ -6765,21 +6765,15 @@ def run_line_repl(cfg):
         return line_actions_selected_line_action(cfg, line_action_records())
 
     def run_line_module_or_service(values=None, dry_run_default=False):
-        selector, flags = split_line_run_args(values or [])
-        if dry_run_default and "--dry-run" not in flags:
-            flags.append("--dry-run")
-        if selector:
-            if not dry_run_default and not selected_line_action() and selector in line_service_names(service_status_rows(cfg)):
-                start_line_service(selector)
-                return 0
-            select_line_action(selector)
-            return run_line_selected_action(flags)
-        if selected_line_action():
-            return run_line_selected_action(flags)
-        if dry_run_default:
-            raise ValueError("no selected action module; use check MODULE or use module ACTION first")
-        start_line_service("")
-        return 0
+        return line_actions_run_line_module_or_service(
+            values,
+            dry_run_default=dry_run_default,
+            selected_action_func=selected_line_action,
+            select_action_func=select_line_action,
+            service_names_func=lambda: line_service_names(service_status_rows(cfg)),
+            start_service_func=start_line_service,
+            run_selected_action_func=run_line_selected_action,
+        )
 
     def run_line_selected_action(args=None, dry_run_default=False):
         return line_actions_run_line_selected_action(

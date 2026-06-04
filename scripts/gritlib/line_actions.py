@@ -266,6 +266,47 @@ def run_line_selected_action(
     raise ValueError(f"unsupported selected action kind: {kind}")
 
 
+def run_line_module_or_service(
+    values=None,
+    *,
+    dry_run_default=False,
+    selected_action_func=None,
+    select_action_func=None,
+    service_names_func=None,
+    start_service_func=None,
+    run_selected_action_func=None,
+):
+    selector, flags = split_line_run_args(values or [])
+    if dry_run_default and "--dry-run" not in flags:
+        flags.append("--dry-run")
+    selected_action_func = selected_action_func or (lambda: {})
+    service_names_func = service_names_func or (lambda: [])
+    if selector:
+        if (
+            not dry_run_default
+            and not selected_action_func()
+            and selector in service_names_func()
+        ):
+            if start_service_func:
+                start_service_func(selector)
+            return 0
+        if select_action_func:
+            select_action_func(selector)
+        if run_selected_action_func:
+            return run_selected_action_func(flags)
+        raise ValueError("selected action runner is unavailable")
+    if selected_action_func():
+        if run_selected_action_func:
+            return run_selected_action_func(flags)
+        raise ValueError("selected action runner is unavailable")
+    if dry_run_default:
+        raise ValueError("no selected action module; use check MODULE or use module ACTION first")
+    if start_service_func:
+        start_service_func("")
+        return 0
+    raise ValueError("service start support is unavailable")
+
+
 def print_line_action_records(actions, filter_text="", kind_filter="", quote=None, verbose=False):
     actions, kind_text = filtered_line_action_records(actions, filter_text=filter_text, kind_filter=kind_filter)
     quote = quote or (lambda text: str(text))
