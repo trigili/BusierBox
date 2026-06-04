@@ -12499,7 +12499,8 @@ def main(argv=None):
         if (file_action_stage.returncode != 0 or
                 "file service workflow action: file-service:stage-file" not in file_action_stage.stdout or
                 "staged workflow-staged.txt <- " not in file_action_stage.stdout or
-                "target=file-workflow-target label=File Workflow Target" not in file_action_stage.stdout):
+                "target: file-workflow-target (File Workflow Target)" not in file_action_stage.stdout or
+                "target=file-workflow-target label=File Workflow Target" in file_action_stage.stdout):
             print("headless file-service workflow stage action failed", file=sys.stderr)
             print(file_action_stage.stdout, file=sys.stderr)
             print(file_action_stage.stderr, file=sys.stderr)
@@ -12540,9 +12541,10 @@ def main(argv=None):
         )
         if (staged_action_queue.returncode != 0 or
                 "staged file workflow action: workflow-staged.txt:queue-staged-fetch" not in staged_action_queue.stdout or
-                "queued " not in staged_action_queue.stdout or
-                "grit fetch workflow-staged.txt" not in staged_action_queue.stdout or
-                "target=file-workflow-target label=File Workflow Target" not in staged_action_queue.stdout):
+                "queued: " not in staged_action_queue.stdout or
+                "command: grit fetch workflow-staged.txt" not in staged_action_queue.stdout or
+                "target: file-workflow-target (File Workflow Target)" not in staged_action_queue.stdout or
+                "target=file-workflow-target label=File Workflow Target" in staged_action_queue.stdout):
             print("headless staged-file workflow queue action failed", file=sys.stderr)
             print(staged_action_queue.stdout, file=sys.stderr)
             print(staged_action_queue.stderr, file=sys.stderr)

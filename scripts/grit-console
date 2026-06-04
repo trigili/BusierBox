@@ -5644,7 +5644,7 @@ def run_file_service_workflow_action(cfg, selector, local_file="", request_name=
         staged = stage_file(cfg, path, request)
         print(f"staged {staged['request_name']} <- {staged['source_path']}")
         if staged.get("target_id"):
-            print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
+            print(f"target: {staged.get('target_id', '')} ({staged.get('target_label', '') or '-'})")
         print(render_fetch_command(staged["request_name"], cfg))
         rc = 0
         append_event(cfg, "workbench", "file_service_workflow_action_completed", details={
@@ -5982,8 +5982,9 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
             "bridge_profile": str(staged.get("bridge_profile") or ""),
             "bridge_route_path": str(staged.get("bridge_route_path") or ""),
         })
-        print(f"queued {queued['id']}: {queued['command']}")
-        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+        print(f"queued: {queued['id']}")
+        print(f"command: {queued['command']}")
+        print(f"target: {queued.get('target_id', '')} ({queued.get('target_label', '') or '-'})")
         rc = 0
         append_event(cfg, "workbench", "staged_file_workflow_action_completed", details={
             "id": rec_id,
