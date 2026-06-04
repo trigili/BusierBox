@@ -8860,6 +8860,7 @@ def main(argv=None):
     console_args_src = (ROOT / "scripts" / "gritlib" / "console_args.py").read_text()
     command_queue_src = (ROOT / "scripts" / "gritlib" / "command_queue.py").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
+    file_service_src = (ROOT / "scripts" / "gritlib" / "file_service.py").read_text()
     line_command_queue_src = (ROOT / "scripts" / "gritlib" / "line_command_queue.py").read_text()
     line_events_src = (ROOT / "scripts" / "gritlib" / "line_events.py").read_text()
     line_module_src = "\n".join(path.read_text() for path in sorted((ROOT / "scripts" / "gritlib").glob("line_*.py")))
@@ -8881,6 +8882,7 @@ def main(argv=None):
         bridge_routes_src,
         console_args_src,
         command_queue_src,
+        file_service_src,
         file_transfer_src,
         line_command_queue_src,
         line_events_src,
@@ -8997,7 +8999,7 @@ def main(argv=None):
         "serves operator-staged files only when the target explicitly requests them",
         "GRIT_OPERATOR_FILE_SERVICE_PORT",
     ):
-        if word not in src + file_transfer_src:
+        if word not in src + file_service_src + file_transfer_src:
             print(f"grit-console: file service feature missing: {word}", file=sys.stderr)
             return 1
     for word in ("reverse_forward_active", "requested_port", "forward_host",
