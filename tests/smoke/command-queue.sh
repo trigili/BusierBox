@@ -689,8 +689,13 @@ PY
 rm -f "$queued_status_file"
 queued_text_file="${TMPDIR:-/tmp}/grit-command-queue-status.$$.txt"
 scripts/grit-console --config "$queued_cfg" --list-command-queue >"$queued_text_file"
-grep -q '^  delivery_policy_counts: .*delivery_supported=true=1.*result_upload_supported=true=1.*active_control_channel=true=1' "$queued_text_file"
-grep -q '^  delivery_policy: enabled=yes valid=yes execution_mode=metadata-only delivery_supported=yes result_upload_supported=yes active_control_channel=yes$' "$queued_text_file"
+grep -q '^  policy: valid  execution metadata-only  delivery no  result upload yes$' "$queued_text_file"
+grep -q '^  policy: enabled yes  valid yes  delivery yes  result upload yes  active control yes$' "$queued_text_file"
+if grep -Eq 'delivery_policy_counts:|delivery_policy:|queue_policy:|policy_valid=|mode daemon:' "$queued_text_file"; then
+    printf '%s\n' "command-queue: --list-command-queue exposed verbose policy fields" >&2
+    cat "$queued_text_file" >&2
+    exit 1
+fi
 rm -f "$queued_text_file"
 rm -f "$queued_cfg" "$queued_out" "$queued_err" "$queued_events"
 exec_port=$(python3 - <<'PY'

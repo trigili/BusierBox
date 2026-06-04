@@ -46,75 +46,80 @@ def print_command_queue_mode_lines(queue):
 
 def print_command_queue(cfg, json_output=False):
     summary = command_queue_summary(cfg)
-    delivery_counts = (
-        f"enabled={format_counts(summary.get('delivery_policy_enabled_counts') or {})} "
-        f"valid={format_counts(summary.get('delivery_policy_valid_counts') or {})} "
-        f"execution_mode={format_counts(summary.get('delivery_policy_execution_mode_counts') or {})} "
-        f"delivery_supported={format_counts(summary.get('delivery_policy_delivery_supported_counts') or {})} "
-        f"result_upload_supported={format_counts(summary.get('delivery_policy_result_upload_supported_counts') or {})} "
-        f"active_control_channel={format_counts(summary.get('delivery_policy_active_control_channel_counts') or {})}"
-    )
     if json_output:
         print(json.dumps({"schema": 1, "command_queue": summary}, indent=2, sort_keys=True))
         return
+    print(f"Command queue: {summary['path']}")
+    print(
+        f"  state: {summary['enabled']}  port {summary['port']}  "
+        f"tls {summary['tls']}  token required {summary['require_token']}"
+    )
+    policy_state = "valid" if summary["policy_valid"] else "invalid"
+    if not summary.get("policy_valid") and not summary.get("policy_errors"):
+        policy_state = "not configured"
+    print(
+        f"  policy: {policy_state}  "
+        f"execution {summary['execution_mode']}  "
+        f"delivery {command_queue_policy_yes_no(summary, 'delivery_supported')}  "
+        f"result upload {command_queue_policy_yes_no(summary, 'result_upload_supported')}"
+    )
+    for error in summary["policy_errors"]:
+        print(f"  policy error: {error}")
+    print(
+        f"  queued: {summary.get('queued_count', 0)}  "
+        f"results {summary.get('result_count', 0)}  "
+        f"total {summary.get('total_count', 0)}"
+    )
+    print(
+        f"  latest: created {summary.get('latest_created_at', '') or '-'}  "
+        f"result {summary.get('latest_result_received_at', '') or '-'}"
+    )
     if not summary["commands"]:
-        print(f"Command queue: {summary['path']}")
-        print(f"  enabled={summary['enabled']} default_enabled=no port={summary['port']} tls={summary['tls']} require_token={summary['require_token']}")
-        print(f"  allowed_commands={summary['allowed_commands']} execution_mode={summary['execution_mode']} allow_arbitrary={summary['allow_arbitrary']} execution_supported={command_queue_policy_yes_no(summary, 'execution_supported')} delivery_supported={command_queue_policy_yes_no(summary, 'delivery_supported')} result_upload_supported={command_queue_policy_yes_no(summary, 'result_upload_supported')}")
-        print(f"  arbitrary_policy_requested={command_queue_policy_yes_no(summary, 'arbitrary_policy_requested')} arbitrary_execution_allowed={command_queue_policy_yes_no(summary, 'arbitrary_execution_allowed')}")
-        print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
-        for error in summary["policy_errors"]:
-            print(f"  policy_error={error}")
-        print(f"  command_limits: timeouts={format_counts(summary.get('timeout_sec_counts') or {})} max_output={format_counts(summary.get('max_output_bytes_counts') or {})} expire_sec={format_counts(summary.get('expire_sec_counts') or {})}")
-        print(f"  targets: {format_counts(summary.get('target_counts') or {})}")
-        print(f"  delivery_policy_counts: {delivery_counts}")
-        print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
-        print_command_queue_mode_lines(summary)
         print("  no queued commands")
         return
-    print(f"Command queue: {summary['path']}")
-    print(f"  enabled={summary['enabled']} default_enabled=no port={summary['port']} tls={summary['tls']} require_token={summary['require_token']}")
-    print(f"  allowed_commands={summary['allowed_commands']} execution_mode={summary['execution_mode']} allow_arbitrary={summary['allow_arbitrary']} execution_supported={command_queue_policy_yes_no(summary, 'execution_supported')} delivery_supported={command_queue_policy_yes_no(summary, 'delivery_supported')} result_upload_supported={command_queue_policy_yes_no(summary, 'result_upload_supported')}")
-    print(f"  arbitrary_policy_requested={command_queue_policy_yes_no(summary, 'arbitrary_policy_requested')} arbitrary_execution_allowed={command_queue_policy_yes_no(summary, 'arbitrary_execution_allowed')}")
-    print(f"  policy_valid={'yes' if summary['policy_valid'] else 'no'}")
-    for error in summary["policy_errors"]:
-        print(f"  policy_error={error}")
-    print(f"  command_limits: timeouts={format_counts(summary.get('timeout_sec_counts') or {})} max_output={format_counts(summary.get('max_output_bytes_counts') or {})} expire_sec={format_counts(summary.get('expire_sec_counts') or {})}")
-    print(f"  targets: {format_counts(summary.get('target_counts') or {})}")
-    print(f"  delivery_policy_counts: {delivery_counts}")
-    print(f"  latest_created={summary.get('latest_created_at', '') or '-'} latest_result={summary.get('latest_result_received_at', '') or '-'}")
-    print_command_queue_mode_lines(summary)
     for rec in summary["commands"]:
-        print(f"{rec.get('id', '')}\t{rec.get('status', '')}\tcreated={rec.get('created_at', '')}")
+        print(f"{rec.get('id', '')}\t{rec.get('status', '')}\tcreated {rec.get('created_at', '')}")
         print(f"  command: {rec.get('command', '')}")
-        print(f"  timeout={rec.get('timeout_sec', '')} max_output={rec.get('max_output_bytes', '')} expire_sec={rec.get('expire_sec', '')} expires_at={rec.get('expires_at', '') or '-'} expired={yes_no(rec.get('expired'))} execution_supported={yes_no(rec.get('execution_supported'))}")
+        print(
+            f"  limits: timeout {rec.get('timeout_sec', '')}  "
+            f"max output {rec.get('max_output_bytes', '')}  "
+            f"expire {rec.get('expire_sec', '')}  "
+            f"expires {rec.get('expires_at', '') or '-'}"
+        )
+        print(
+            f"  execution: {'yes' if rec.get('execution_supported') else 'no'}  "
+            f"expired {'yes' if rec.get('expired') else 'no'}"
+        )
         if rec.get("target_id"):
-            print(f"  target: {rec.get('target_id', '')} label={rec.get('target_label', '')}")
+            target_label = rec.get("target_label", "") or "-"
+            print(f"  target: {rec.get('target_id', '')} ({target_label})")
         delivery_policy = rec.get("delivery_policy_snapshot") if isinstance(rec.get("delivery_policy_snapshot"), dict) else {}
         if delivery_policy:
             print(
-                "  delivery_policy: "
-                f"enabled={yes_no(delivery_policy.get('enabled'))} "
-                f"valid={yes_no(delivery_policy.get('valid'))} "
-                f"execution_mode={delivery_policy.get('execution_mode', '')} "
-                f"delivery_supported={yes_no(delivery_policy.get('delivery_supported'))} "
-                f"result_upload_supported={yes_no(delivery_policy.get('result_upload_supported'))} "
-                f"active_control_channel={yes_no(delivery_policy.get('active_control_channel'))}"
+                "  policy: "
+                f"enabled {yes_no(delivery_policy.get('enabled'))}  "
+                f"valid {yes_no(delivery_policy.get('valid'))}  "
+                f"delivery {yes_no(delivery_policy.get('delivery_supported'))}  "
+                f"result upload {yes_no(delivery_policy.get('result_upload_supported'))}  "
+                f"active control {yes_no(delivery_policy.get('active_control_channel'))}"
             )
         elif rec.get("queue_policy_snapshot"):
             queue_policy = rec.get("queue_policy_snapshot") if isinstance(rec.get("queue_policy_snapshot"), dict) else {}
             print(
-                "  queue_policy: "
-                f"enabled={yes_no(queue_policy.get('enabled'))} "
-                f"valid={yes_no(queue_policy.get('valid'))} "
-                f"execution_mode={queue_policy.get('execution_mode', '')} "
-                f"delivery_supported={yes_no(queue_policy.get('delivery_supported'))} "
-                f"result_upload_supported={yes_no(queue_policy.get('result_upload_supported'))} "
-                f"active_control_channel={yes_no(queue_policy.get('active_control_channel'))}"
+                "  policy: "
+                f"enabled {yes_no(queue_policy.get('enabled'))}  "
+                f"valid {yes_no(queue_policy.get('valid'))}  "
+                f"delivery {yes_no(queue_policy.get('delivery_supported'))}  "
+                f"result upload {yes_no(queue_policy.get('result_upload_supported'))}  "
+                f"active control {yes_no(queue_policy.get('active_control_channel'))}"
             )
         if rec.get("result_received_at"):
-            print(f"  result: {rec.get('result_received_at', '')} source={rec.get('result_source_path', '')}")
-            print(f"  result_output={rec.get('result_output_bytes', '')} limit={rec.get('result_output_limit_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
+            print(f"  result: {rec.get('result_received_at', '')} source {rec.get('result_source_path', '')}")
+            print(
+                f"  output: {rec.get('result_output_bytes', '')} bytes  "
+                f"limit {rec.get('result_output_limit_bytes', '')}  "
+                f"exceeded {'yes' if rec.get('result_output_exceeded_limit') else 'no'}"
+            )
 
 
 def handle_command_queue_args(cfg, args):

@@ -11293,12 +11293,12 @@ def main(argv=None):
             "--list-command-queue",
         )
         if (invalid_queue_text.returncode != 0 or
-                "policy_valid=no" not in invalid_queue_text.stdout or
-                "arbitrary_execution_allowed=no" not in invalid_queue_text.stdout or
-                "modes: total=5 would_poll_if_configured=3 operator_host_required=3 delivery_supported=0 result_upload_supported=5 execution_supported=0 active_control_channel=0" not in invalid_queue_text.stdout or
-                "mode daemon: lifecycle=long-running requires_operator_host=yes would_poll_if_configured=yes execution_supported=no active_control_channel=no" not in invalid_queue_text.stdout or
-                "mode stop: lifecycle=stop requires_operator_host=no would_poll_if_configured=no execution_supported=no active_control_channel=no" not in invalid_queue_text.stdout or
-                "policy_error=disabled command queue must keep allowed commands policy none" not in invalid_queue_text.stdout):
+                "policy: invalid  execution metadata-only  delivery no  result upload yes" not in invalid_queue_text.stdout or
+                "policy error: disabled command queue must keep allowed commands policy none" not in invalid_queue_text.stdout or
+                "policy_valid=" in invalid_queue_text.stdout or
+                "arbitrary_execution_allowed=" in invalid_queue_text.stdout or
+                "mode daemon:" in invalid_queue_text.stdout or
+                "delivery_policy_counts:" in invalid_queue_text.stdout):
             print("invalid command queue text listing missing policy errors", file=sys.stderr)
             print(invalid_queue_text.stdout, file=sys.stderr)
             print(invalid_queue_text.stderr, file=sys.stderr)
