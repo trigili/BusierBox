@@ -34,6 +34,15 @@ HELP_TOPICS = [
 ]
 
 
+def parse_line_completion_command(cmd, args):
+    if str(cmd or "").strip().lower() not in {"complete", "completions"}:
+        return None
+    return {
+        "action": "show",
+        "prefix": " ".join(str(arg) for arg in (args or [])).strip(),
+    }
+
+
 def prefixed(prefix_text, values):
     seen = set()
     result = []
