@@ -6063,7 +6063,6 @@ def run_line_repl(cfg):
         quote=shquote,
     )
     bridge_profile_headless_command = line_route_service_callbacks["bridge_profile_headless_command"]
-    line_route_record = line_route_service_callbacks["line_route_record"]
     start_line_service = line_route_service_callbacks["start_line_service"]
 
     line_completion_candidates, print_line_completions = build_line_completion_adapter(
@@ -6107,7 +6106,6 @@ def run_line_repl(cfg):
         start_job_func=start_workbench_job_record,
         quote=shquote,
     )
-    line_job_record = line_job_callbacks["line_job_record"]
     cancel_line_job = line_job_callbacks["cancel_line_job"]
 
     line_queue_callbacks = build_line_queue_callbacks(
@@ -6148,7 +6146,6 @@ def run_line_repl(cfg):
         append_event_fn=append_event,
         quote=shquote,
     )
-    line_session_record = line_session_callbacks["line_session_record"]
 
     line_file_callbacks = build_line_file_workflow_callbacks(
         cfg,
@@ -6190,11 +6187,7 @@ def run_line_repl(cfg):
         workbench_snapshot_func=workbench_snapshot,
         service_status_rows_func=service_status_rows,
         service_record_func=line_service_record,
-        route_record_func=line_route_record,
-        session_record_func=line_session_record,
-        job_record_func=line_job_record,
         probe_delivery_func=print_probe_delivery,
-        bridge_command_builder=bridge_profile_headless_command,
         display_name_func=line_service_display_name,
         build_fields_func=workbench_config_field_records,
         target_command_records_func=generated_target_command_records,

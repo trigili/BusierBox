@@ -1810,6 +1810,10 @@ def run_line_repl_runtime_check():
     def fake_display_builder(cfg, **kwargs):
         display_bundle_calls.append(("display-builder", cfg.get("name")))
         kwargs["selected_action_func"]()
+        kwargs["route_record_func"]("route1")
+        kwargs["session_record_func"]("session1")
+        kwargs["job_record_func"]("job1")
+        kwargs["bridge_command_builder"]("inspect", "route1")
         return (
             lambda: display_bundle_calls.append("info"),
             lambda: display_bundle_calls.append("next"),
@@ -1827,11 +1831,7 @@ def run_line_repl_runtime_check():
             workbench_snapshot_func=lambda cfg: {},
             service_status_rows_func=lambda cfg: [],
             service_record_func=lambda service: {},
-            route_record_func=lambda route: {},
-            session_record_func=lambda session: {},
-            job_record_func=lambda job: {},
             probe_delivery_func=lambda cfg: None,
-            bridge_command_builder=lambda action, name="", extra=None: "",
             display_name_func=lambda name: name,
             build_fields_func=lambda cfg: [],
             target_command_records_func=lambda cfg: [],
@@ -1842,10 +1842,23 @@ def run_line_repl_runtime_check():
                 "print_line_actions": lambda verbose=False: None,
             },
             target_callbacks={"print_line_targets": lambda: None},
-            route_service_callbacks={"print_line_services": lambda verbose=False: None, "print_line_routes": lambda verbose=False: None},
+            route_service_callbacks={
+                "line_route_record": lambda route: display_bundle_calls.append(("route-record", route)),
+                "bridge_profile_headless_command": lambda action, name="", extra=None: display_bundle_calls.append(
+                    ("bridge-command", action, name, extra)
+                ),
+                "print_line_services": lambda verbose=False: None,
+                "print_line_routes": lambda verbose=False: None,
+            },
             file_callbacks={"print_line_files": lambda verbose=False: None},
-            job_callbacks={"print_line_jobs": lambda verbose=False: None},
-            session_callbacks={"print_line_sessions": lambda verbose=False: None},
+            job_callbacks={
+                "line_job_record": lambda job: display_bundle_calls.append(("job-record", job)),
+                "print_line_jobs": lambda verbose=False: None,
+            },
+            session_callbacks={
+                "line_session_record": lambda session: display_bundle_calls.append(("session-record", session)),
+                "print_line_sessions": lambda verbose=False: None,
+            },
             queue_callbacks={"print_line_command_queue_view": lambda detailed=False: None},
             print_daemon_func=lambda verbose=False: None,
             print_categories_func=lambda cfg, snapshot_func: None,
@@ -1860,6 +1873,10 @@ def run_line_repl_runtime_check():
     expected_display_bundle_calls = [
         ("display-builder", "display-cfg"),
         "selected-action",
+        ("route-record", "route1"),
+        ("session-record", "session1"),
+        ("job-record", "job1"),
+        ("bridge-command", "inspect", "route1", None),
         ("show-builder", "display-cfg", 3),
         ("show", "jobs"),
     ]

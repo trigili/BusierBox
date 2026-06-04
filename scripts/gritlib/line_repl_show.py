@@ -10,11 +10,7 @@ def build_line_display_show_callbacks(
     workbench_snapshot_func,
     service_status_rows_func,
     service_record_func,
-    route_record_func,
-    session_record_func,
-    job_record_func,
     probe_delivery_func,
-    bridge_command_builder,
     display_name_func,
     build_fields_func,
     target_command_records_func,
@@ -34,6 +30,10 @@ def build_line_display_show_callbacks(
     append_event_fn,
 ):
     selected_action_func = action_callbacks["selected_line_action"]
+    route_record_func = route_service_callbacks["line_route_record"]
+    session_record_func = session_callbacks["line_session_record"]
+    job_record_func = job_callbacks["line_job_record"]
+    bridge_command_builder = route_service_callbacks["bridge_profile_headless_command"]
     print_line_info, print_line_next, print_line_options = build_line_display_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot_func,
