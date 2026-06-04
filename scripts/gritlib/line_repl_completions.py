@@ -12,12 +12,13 @@ def build_line_completion_adapter(
     bridge_profile_records_func=None,
     release_context_func,
     command_queue_summary_func,
-    generated_target_command_records_func,
+    generated_target_command_records_func=None,
     workbench_config_field_records_func=None,
     service_status_rows_func=None,
     service_completion_names_func=None,
     service_names_func=None,
     route_service_callbacks=None,
+    target_callbacks=None,
     option_callbacks=None,
     load_staged_func,
     find_survey_uploads_func,
@@ -36,6 +37,7 @@ def build_line_completion_adapter(
         service_completion_names_func=service_completion_names_func,
         service_names_func=service_names_func,
         route_service_callbacks=route_service_callbacks,
+        target_callbacks=target_callbacks,
         option_callbacks=option_callbacks,
         load_staged_func=load_staged_func,
         find_survey_uploads_func=find_survey_uploads_func,
@@ -55,12 +57,13 @@ def build_line_completion_bundle(
     bridge_profile_records_func=None,
     release_context_func,
     command_queue_summary_func,
-    generated_target_command_records_func,
+    generated_target_command_records_func=None,
     workbench_config_field_records_func=None,
     service_status_rows_func=None,
     service_completion_names_func=None,
     service_names_func=None,
     route_service_callbacks=None,
+    target_callbacks=None,
     option_callbacks=None,
     load_staged_func,
     find_survey_uploads_func,
@@ -69,6 +72,9 @@ def build_line_completion_bundle(
     if workbench_config_field_records_func is None and option_callbacks is not None:
         workbench_config_fields = option_callbacks["workbench_config_fields"]
         workbench_config_field_records_func = lambda _cfg: workbench_config_fields()
+    if generated_target_command_records_func is None and target_callbacks is not None:
+        target_command_records = target_callbacks["target_command_records"]
+        generated_target_command_records_func = lambda _cfg: target_command_records()
     if route_service_callbacks is not None:
         if bridge_profile_records_func is None:
             bridge_profile_records_func = lambda _cfg: route_service_callbacks["bridge_profile_records"]()
@@ -128,12 +134,13 @@ def setup_line_completion_bundle(
     bridge_profile_records_func=None,
     release_context_func,
     command_queue_summary_func,
-    generated_target_command_records_func,
+    generated_target_command_records_func=None,
     workbench_config_field_records_func=None,
     service_status_rows_func=None,
     service_completion_names_func=None,
     service_names_func=None,
     route_service_callbacks=None,
+    target_callbacks=None,
     option_callbacks=None,
     load_staged_func,
     find_survey_uploads_func,
@@ -152,6 +159,7 @@ def setup_line_completion_bundle(
         service_completion_names_func=service_completion_names_func,
         service_names_func=service_names_func,
         route_service_callbacks=route_service_callbacks,
+        target_callbacks=target_callbacks,
         option_callbacks=option_callbacks,
         load_staged_func=load_staged_func,
         find_survey_uploads_func=find_survey_uploads_func,

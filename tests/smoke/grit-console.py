@@ -2409,6 +2409,7 @@ def run_line_repl_runtime_check():
         kwargs["probe_delivery_func"]({"name": "ignored"})
         kwargs["bridge_command_builder"]("inspect", "route1")
         kwargs["build_fields_func"]({"name": "ignored"})
+        kwargs["target_command_records_func"]({"name": "ignored"})
         return (
             lambda: display_bundle_calls.append("info"),
             lambda: display_bundle_calls.append("next"),
@@ -2433,7 +2434,6 @@ def run_line_repl_runtime_check():
             option_callbacks={
                 "workbench_config_fields": lambda: display_bundle_calls.append("build-fields") or [],
             },
-            target_command_records_func=lambda cfg: [],
             set_context_func=lambda cfg, module: None,
             action_callbacks={
                 "selected_line_action": lambda: display_bundle_calls.append("selected-action") or {},
@@ -2442,6 +2442,7 @@ def run_line_repl_runtime_check():
             target_callbacks={
                 "print_line_targets": lambda: None,
                 "target_filter": lambda: display_bundle_calls.append("target-filter") or "target1",
+                "target_command_records": lambda: display_bundle_calls.append("target-command-records") or [],
             },
             route_service_callbacks={
                 "line_route_record": lambda route: display_bundle_calls.append(("route-record", route)),
@@ -2489,6 +2490,7 @@ def run_line_repl_runtime_check():
         ("probe-delivery", "ignored"),
         ("bridge-command", "inspect", "route1", None),
         "build-fields",
+        "target-command-records",
         "target-filter",
         ("show-builder", "display-cfg", 3, "target1"),
         ("show", "jobs"),
@@ -2984,6 +2986,7 @@ def run_line_repl_runtime_check():
         kwargs["service_completion_names_func"](kwargs["service_status_rows_func"](cfg))
         kwargs["service_names_func"](kwargs["service_status_rows_func"](cfg))
         kwargs["workbench_config_field_records_func"](cfg)
+        kwargs["generated_target_command_records_func"](cfg)
         kwargs["find_survey_uploads_func"](limit=7)
         kwargs["append_event_func"]("workbench", "complete", details={"prefix": "st"})
         return (
@@ -3002,12 +3005,14 @@ def run_line_repl_runtime_check():
             ) or [],
             release_context_func=lambda cfg: {},
             command_queue_summary_func=lambda cfg: {},
-            generated_target_command_records_func=lambda cfg: [],
             route_service_callbacks={
                 "bridge_profile_records": lambda: completion_calls.append("bridge-records") or [],
                 "service_rows": lambda: completion_calls.append("service-rows") or [],
                 "service_completion_names": lambda: completion_calls.append("service-completion-names") or [],
                 "service_names": lambda: completion_calls.append("service-names") or [],
+            },
+            target_callbacks={
+                "target_command_records": lambda: completion_calls.append("target-command-records") or [],
             },
             option_callbacks={
                 "workbench_config_fields": lambda: completion_calls.append("config-fields") or [],
@@ -3038,12 +3043,14 @@ def run_line_repl_runtime_check():
             current_action_records_func=lambda snapshot_func: [],
             release_context_func=lambda cfg: {},
             command_queue_summary_func=lambda cfg: {},
-            generated_target_command_records_func=lambda cfg: [],
             route_service_callbacks={
                 "bridge_profile_records": lambda: completion_calls.append("setup-bridge-records") or [],
                 "service_rows": lambda: completion_calls.append("setup-service-rows") or [],
                 "service_completion_names": lambda: completion_calls.append("setup-service-completion-names") or [],
                 "service_names": lambda: completion_calls.append("setup-service-names") or [],
+            },
+            target_callbacks={
+                "target_command_records": lambda: completion_calls.append("setup-target-command-records") or [],
             },
             option_callbacks={
                 "workbench_config_fields": lambda: completion_calls.append("setup-config-fields") or [],
@@ -3090,6 +3097,7 @@ def run_line_repl_runtime_check():
         "service-completion-names",
         "service-names",
         "config-fields",
+        "target-command-records",
         ("survey", "completion-cfg", 7),
         ("event", "completion-cfg", "workbench", "complete", {"prefix": "st"}),
         ("candidates", "st"),
