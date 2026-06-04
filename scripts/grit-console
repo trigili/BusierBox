@@ -6113,7 +6113,6 @@ def run_line_repl(cfg):
     select_line_command_queue_action = line_action_callbacks["select_line_command_queue_action"]
     selected_line_action = line_action_callbacks["selected_line_action"]
     run_line_module_or_service = line_action_callbacks["run_line_module_or_service"]
-    run_line_selected_action = line_action_callbacks["run_line_selected_action"]
 
     line_job_callbacks = build_line_job_callbacks(
         cfg,
@@ -6141,7 +6140,6 @@ def run_line_repl(cfg):
         quote=shquote,
     )
     print_line_command_queue_view = line_queue_callbacks["print_line_command_queue_view"]
-    queue_line_command = line_queue_callbacks["queue_line_command"]
     run_line_queue_command = line_queue_callbacks["run_line_queue_command"]
 
     probe_line_start = build_line_probe_start_callback(
