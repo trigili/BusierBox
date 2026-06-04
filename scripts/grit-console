@@ -7828,11 +7828,7 @@ def run_line_repl(cfg):
                     set_line_collection("routes")
                     print_line_routes(verbose=route_cmd["verbose"])
                 continue
-            elif cmd == "use" or cmd in {
-                "useagent", "usehost", "usetarget", "uselistener", "useservice",
-                "useroute", "usesession", "usemodule", "useaction",
-            }:
-                use_cmd = parse_line_use_command(cmd, console_args[1:])
+            elif (use_cmd := parse_line_use_command(cmd, console_args[1:])):
                 selector = use_cmd.get("selector", "")
                 if use_cmd.get("usage") and not selector:
                     print(use_cmd["usage"])
