@@ -209,25 +209,32 @@ def print_line_command_result_record(rec):
         result_status = result.get("status") or "-"
         exit_code = result.get("exit_code", "")
         exit_text = exit_code if exit_code != "" else "-"
-        print(f"  summary: status={status} result={result_status} exit={exit_text}")
+        print(f"  summary: {status}; result {result_status}; exit {exit_text}")
     else:
         waiting_for = "delivery" if rec.get("status") == "queued" else "result-upload" if rec.get("status") == "delivered" else "-"
-        print(f"  summary: status={status} waiting_for={waiting_for} result=none")
-    print(f"  id={rec.get('id', '')}")
-    print(f"  status={status}")
-    print(f"  command={rec.get('command', '')}")
-    print(f"  target={rec.get('target_id', '') or '-'} label={rec.get('target_label', '') or '-'}")
-    print(f"  created={rec.get('created_at', '') or '-'} delivered={rec.get('delivered_at', '') or '-'} result_at={rec.get('result_received_at', '') or '-'}")
+        print(f"  summary: {status}; waiting for {waiting_for}; result none")
+    print(f"  id: {rec.get('id', '')}")
+    print(f"  status: {status}")
+    print(f"  command: {rec.get('command', '')}")
+    print(f"  target: {rec.get('target_id', '') or '-'} ({rec.get('target_label', '') or '-'})")
+    print(f"  created: {rec.get('created_at', '') or '-'}")
+    print(f"  delivered: {rec.get('delivered_at', '') or '-'}")
+    print(f"  result at: {rec.get('result_received_at', '') or '-'}")
     if result:
-        print(f"  result_status={result.get('status', '') or '-'} exit={result.get('exit_code', '') if result.get('exit_code', '') != '' else '-'}")
-        print(f"  stdout_bytes={result.get('stdout_bytes', '') if result.get('stdout_bytes', '') != '' else rec.get('result_stdout_bytes', '')}")
-        print(f"  stderr_bytes={result.get('stderr_bytes', '') if result.get('stderr_bytes', '') != '' else rec.get('result_stderr_bytes', '')}")
-        print(f"  output_bytes={rec.get('result_output_bytes', '')} exceeded_limit={'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
-        print(f"  source={rec.get('result_source_path', '') or '-'}")
+        stdout_bytes = result.get("stdout_bytes", "") if result.get("stdout_bytes", "") != "" else rec.get("result_stdout_bytes", "")
+        stderr_bytes = result.get("stderr_bytes", "") if result.get("stderr_bytes", "") != "" else rec.get("result_stderr_bytes", "")
+        exit_code = result.get("exit_code", "") if result.get("exit_code", "") != "" else "-"
+        print(f"  result: {result.get('status', '') or '-'}")
+        print(f"  exit: {exit_code}")
+        print(f"  stdout bytes: {stdout_bytes}")
+        print(f"  stderr bytes: {stderr_bytes}")
+        print(f"  output bytes: {rec.get('result_output_bytes', '')}")
+        print(f"  exceeded limit: {'yes' if rec.get('result_output_exceeded_limit') else 'no'}")
+        print(f"  source: {rec.get('result_source_path', '') or '-'}")
     else:
-        print("  result_status=none")
+        print("  result: none")
         waiting_for = "delivery" if rec.get("status") == "queued" else "result-upload" if rec.get("status") == "delivered" else "-"
-        print(f"  waiting_for={waiting_for}")
+        print(f"  waiting for: {waiting_for}")
 
 
 def queue_line_command(
@@ -249,8 +256,9 @@ def queue_line_command(
     rec = queue_func(cfg, text)
     print(f"queued {rec['id']}: {rec['command']}")
     if rec.get("target_id"):
-        print(f"target={rec.get('target_id', '')} label={rec.get('target_label', '')}")
-    print(f"execution_supported={'yes' if rec.get('execution_supported') else 'no'} delivery_supported=no")
+        print(f"target: {rec.get('target_id', '')} ({rec.get('target_label', '') or '-'})")
+    print(f"execution supported: {'yes' if rec.get('execution_supported') else 'no'}")
+    print("delivery supported: no")
     append_event(cfg, "workbench", "workbench_command_queued", details={
         "command_id": rec.get("id", ""),
         "target_id": rec.get("target_id", ""),

@@ -1235,7 +1235,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Command queue  (",
         "queued cq-",
         "Command result:",
-        "result_status=none",
+        "result: none",
         "Probe  ",
         "wget:  wget -O- ",
         "Target download command:",
@@ -1564,15 +1564,29 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     queue_start = line_console_stdout.find("queued cq-")
     queue_end = line_console_stdout.find("Command result:", queue_start + 1)
     queue_text = line_console_stdout[queue_start:queue_end] if queue_start != -1 and queue_end != -1 else ""
+    queue_result_start = line_console_stdout.find("Command result:", queue_start + 1)
+    queue_result_end = line_console_stdout.find("grit[Console Router]/events> queue list", queue_result_start + 1)
+    queue_result_text = line_console_stdout[queue_result_start:queue_result_end] if queue_result_start != -1 and queue_result_end != -1 else ""
     clear_command_start = line_console_stdout.rfind("queue clear --confirm")
     clear_start = line_console_stdout.find("cleared ", clear_command_start + 1)
     clear_end = line_console_stdout.find("no queued commands", clear_start + 1)
     clear_text = line_console_stdout[clear_start:clear_end] if clear_start != -1 and clear_end != -1 else ""
-    if (not queue_text or "queued cq-" not in queue_text or "headless_command:" in queue_text or
+    if (not queue_text or "queued cq-" not in queue_text or
+            "target: line-console-target (Console Router)" not in queue_text or
+            "execution supported: no" not in queue_text or
+            "delivery supported: no" not in queue_text or
+            "target=" in queue_text or "execution_supported=" in queue_text or
+            "delivery_supported=" in queue_text or "headless_command:" in queue_text or
+            not queue_result_text or "result: none" not in queue_result_text or
+            "waiting for: delivery" not in queue_result_text or
+            "result_status=" in queue_result_text or "waiting_for=" in queue_result_text or
+            "created=" in queue_result_text or "target=" in queue_result_text or
             not clear_text or "cleared " not in clear_text or "headless_command:" in clear_text):
         print("line-oriented queue commands exposed noisy headless commands", file=sys.stderr)
         print("queue section:", file=sys.stderr)
         print(queue_text or line_console_stdout, file=sys.stderr)
+        print("queue result:", file=sys.stderr)
+        print(queue_result_text or line_console_stdout, file=sys.stderr)
         print("clear section:", file=sys.stderr)
         print(clear_text or line_console_stdout, file=sys.stderr)
         return 1
