@@ -29,6 +29,8 @@ ROUTE_HELP_LINES = [
 def parse_line_route_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
+    if cmd not in {"routes", "route"}:
+        return {}
     subcmd = str(args[0]).lower() if args else ""
     if cmd == "route" and subcmd == "add":
         return {"action": "add", "args": args}

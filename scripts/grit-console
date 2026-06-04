@@ -7796,8 +7796,7 @@ def run_line_repl(cfg):
                     set_line_collection("sessions")
                     print_line_sessions(verbose=session_cmd["verbose"])
                 continue
-            elif cmd in {"routes", "route"}:
-                route_cmd = parse_line_route_command(cmd, console_args[1:])
+            elif (route_cmd := parse_line_route_command(cmd, console_args[1:])):
                 if route_cmd["action"] == "add":
                     try:
                         add_line_route(route_cmd["args"])
