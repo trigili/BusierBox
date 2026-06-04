@@ -2204,6 +2204,7 @@ def run_line_repl_runtime_check():
         job_bundle_calls.append(("start-builder", cfg.get("name"), action_selector))
         kwargs["select_action_func"]("action1")
         kwargs["selected_action_func"]()
+        kwargs["actions_func"]()
         return "job-started"
 
     repl_jobs.workbench_jobs_start_line_job = fake_start_line_job
@@ -2211,10 +2212,10 @@ def run_line_repl_runtime_check():
         job_callbacks = repl_jobs.build_line_job_callbacks(
             {"name": "job-cfg"},
             workbench_snapshot_func=lambda cfg: job_bundle_calls.append(("snapshot", cfg.get("name"))) or {},
-            workbench_actions_func=lambda cfg: job_bundle_calls.append(("actions", cfg.get("name"))) or [],
             action_callbacks={
                 "select_line_action": lambda selector: job_bundle_calls.append(("select-action", selector)),
                 "selected_line_action": lambda: job_bundle_calls.append("selected-action") or {"id": "action1"},
+                "workbench_actions": lambda: job_bundle_calls.append("actions") or [],
             },
             start_job_func=lambda rec: job_bundle_calls.append(("start-job", rec)),
             quote=lambda text: f"'{text}'",
@@ -2228,6 +2229,7 @@ def run_line_repl_runtime_check():
         ("start-builder", "job-cfg", "action1"),
         ("select-action", "action1"),
         "selected-action",
+        "actions",
     ]
     if job_bundle_calls != expected_job_bundle_calls:
         print(f"line REPL job callbacks did not use action bundle: {job_bundle_calls}", file=sys.stderr)

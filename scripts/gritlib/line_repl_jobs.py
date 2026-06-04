@@ -15,13 +15,15 @@ def build_line_job_callbacks(
     cfg,
     *,
     workbench_snapshot_func,
-    workbench_actions_func,
+    workbench_actions_func=None,
     action_callbacks,
     start_job_func,
     quote,
 ):
     select_action_func = action_callbacks["select_line_action"]
     selected_action_func = action_callbacks["selected_line_action"]
+    if workbench_actions_func is None:
+        workbench_actions_func = lambda _cfg: action_callbacks["workbench_actions"]()
 
     def snapshot():
         return workbench_snapshot_func(cfg)

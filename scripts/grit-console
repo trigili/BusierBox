@@ -6102,7 +6102,6 @@ def run_line_repl(cfg):
     line_job_callbacks = build_line_job_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        workbench_actions_func=workbench_action_records,
         action_callbacks=line_action_callbacks,
         start_job_func=start_workbench_job_record,
         quote=shquote,
