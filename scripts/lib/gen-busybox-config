@@ -54,6 +54,13 @@ validate_selection() {
     done
 }
 
+validate_nonempty_selection() {
+    if ! selected_configs | grep . >/dev/null 2>&1; then
+        printf '%s\n' "gen-busybox-config: no BusyBox applets selected; set GRIT_BUSYBOX_GROUPS to one or more known groups or add GRIT_BUSYBOX_APPLETS/GRIT_BUSYBOX_APPLET_OVERRIDES" >&2
+        exit 2
+    fi
+}
+
 selected_configs() {
     applet_map | awk -v groups="$GROUPS" -v applets="$APPLETS" -v overrides="$OVERRIDES" '
         BEGIN {
@@ -80,6 +87,7 @@ all_mapped_configs() {
 # Then layer our selections on top and let olddefconfig fill in dependencies.
 printf '%s\n' "gen-busybox-config: generating config for groups: $GROUPS"
 validate_selection
+validate_nonempty_selection
 
 (cd "$BUSYBOX_DIR" && yes "" | make allnoconfig >/dev/null 2>&1) || true
 

@@ -62,6 +62,30 @@ validate_selection() {
 }
 
 validate_selection
+
+selected_configs() {
+    scripts/lib/busybox-applet-map | awk -v groups="$GROUPS" -v applets="$APPLETS" -v overrides="$OVERRIDES" '
+        BEGIN {
+            split(groups, g)
+            for (i in g) enabled_group[g[i]] = 1
+            split(applets, a)
+            for (i in a) if (a[i] != "") forced[a[i]] = 1
+            split(overrides, o)
+            for (i in o) {
+                if (o[i] ~ /^\+/) forced[substr(o[i], 2)] = 1
+                else if (o[i] ~ /^-/) disabled[substr(o[i], 2)] = 1
+                else if (o[i] != "") forced[o[i]] = 1
+            }
+        }
+        ($1 in enabled_group || $2 in forced) && !($2 in disabled) { print $3 }
+    '
+}
+
+if ! selected_configs | grep . >/dev/null 2>&1; then
+    printf '%s\n' "gen-buildroot-busybox-config: no BusyBox applets selected; set GRIT_BUSYBOX_GROUPS to one or more known groups or add GRIT_BUSYBOX_APPLETS/GRIT_BUSYBOX_APPLET_OVERRIDES" >&2
+    exit 2
+fi
+
 cp "$base" "$outfile"
 
 enable_sym() {
@@ -135,21 +159,7 @@ case "$TARGET_LIBC:$TARGET" in
         ;;
 esac
 
-scripts/lib/busybox-applet-map | awk -v groups="$GROUPS" -v applets="$APPLETS" -v overrides="$OVERRIDES" '
-    BEGIN {
-        split(groups, g)
-        for (i in g) enabled_group[g[i]] = 1
-        split(applets, a)
-        for (i in a) if (a[i] != "") forced[a[i]] = 1
-        split(overrides, o)
-        for (i in o) {
-            if (o[i] ~ /^\+/) forced[substr(o[i], 2)] = 1
-            else if (o[i] ~ /^-/) disabled[substr(o[i], 2)] = 1
-            else if (o[i] != "") forced[o[i]] = 1
-        }
-    }
-    ($1 in enabled_group || $2 in forced) && !($2 in disabled) { print $3 }
-' | sort -u |
+selected_configs | sort -u |
 while IFS= read -r sym; do
     [ -n "$sym" ] && enable_sym "$sym" "$outfile"
 done

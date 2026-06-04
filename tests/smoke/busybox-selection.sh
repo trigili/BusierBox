@@ -17,6 +17,25 @@ if GRIT_BUSYBOX_GROUPS="1003" TARGET=bad-group OUT_DIR="$tmp" scripts/lib/gen-bu
 fi
 grep -q 'invalid BusyBox group: 1003' "$tmp/bad-group.err"
 
+mkdir -p "$tmp/native-busybox"
+if GRIT_BUSYBOX_GROUPS="1003" BUSYBOX_DIR="$tmp/native-busybox" scripts/lib/gen-busybox-config >"$tmp/native-bad-group.out" 2>"$tmp/native-bad-group.err"; then
+    printf '%s\n' "busybox-selection: native invalid BusyBox group was accepted" >&2
+    exit 1
+fi
+grep -q 'invalid BusyBox group: 1003' "$tmp/native-bad-group.err"
+
+if GRIT_BUSYBOX_GROUPS="   " TARGET=empty-selection OUT_DIR="$tmp" scripts/lib/gen-buildroot-busybox-config >"$tmp/empty-selection.out" 2>"$tmp/empty-selection.err"; then
+    printf '%s\n' "busybox-selection: empty BusyBox selection was accepted" >&2
+    exit 1
+fi
+grep -q 'no BusyBox applets selected' "$tmp/empty-selection.err"
+
+if GRIT_BUSYBOX_GROUPS="   " BUSYBOX_DIR="$tmp/native-busybox" scripts/lib/gen-busybox-config >"$tmp/native-empty-selection.out" 2>"$tmp/native-empty-selection.err"; then
+    printf '%s\n' "busybox-selection: native empty BusyBox selection was accepted" >&2
+    exit 1
+fi
+grep -q 'no BusyBox applets selected' "$tmp/native-empty-selection.err"
+
 if GRIT_BUSYBOX_GROUPS="shell" GRIT_BUSYBOX_APPLET_OVERRIDES="+definitely-not-an-applet" TARGET=bad-applet OUT_DIR="$tmp" scripts/lib/gen-buildroot-busybox-config >"$tmp/bad-applet.out" 2>"$tmp/bad-applet.err"; then
     printf '%s\n' "busybox-selection: invalid BusyBox applet override was accepted" >&2
     exit 1
