@@ -46,9 +46,7 @@ from gritlib.bridge_routes import (
     bridge_profile_workflow_action_status_summary, bridge_profiles_path, bridge_route_path,
     add_line_route as bridge_routes_add_line_route,
     delete_line_route as bridge_routes_delete_line_route,
-    dispatch_line_route_command,
     line_route_record as bridge_routes_line_route_record,
-    parse_line_route_command,
     print_line_routes as bridge_routes_print_line_routes,
     prompt_line_bridge_profile_save,
     select_line_route as bridge_routes_select_line_route,
@@ -113,9 +111,7 @@ from gritlib.file_transfers import (
 )
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.line_actions import (
-    dispatch_line_action_command,
     line_action_records_from_snapshot,
-    parse_line_action_command,
     print_line_actions as line_actions_print_line_actions,
     print_line_module_categories as line_actions_print_line_module_categories,
     run_line_selected_action as line_actions_run_line_selected_action,
@@ -148,12 +144,6 @@ from gritlib.line_configure import (
 from gritlib.line_context import (
     back_line_module_context,
     clear_line_console_context, clear_line_module_context,
-    dispatch_line_context_command,
-    dispatch_line_interact_command,
-    dispatch_line_use_command,
-    parse_line_context_command,
-    parse_line_interact_command,
-    parse_line_use_command,
     set_line_collection_context,
 )
 from gritlib.line_events import print_line_events_view
@@ -222,12 +212,8 @@ from gritlib.line_search import (
     use_line_search_result as line_search_use_line_search_result,
 )
 from gritlib.line_services import (
-    dispatch_line_listener_command,
-    dispatch_line_service_control_command,
     line_service_display_name,
     line_service_completion_names, line_service_names, line_service_record,
-    parse_line_listener_command,
-    parse_line_service_control_command,
     print_line_services as line_services_print_line_services,
     select_line_service as line_services_select_line_service,
     start_line_service as line_services_start_line_service,
@@ -236,15 +222,12 @@ from gritlib.line_services import (
 from gritlib.line_show import dispatch_line_show_resource
 from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
-    dispatch_line_sessions_command,
     print_line_session_interaction,
     line_session_record_by_selector, print_line_session_records,
-    parse_line_sessions_command, print_selected_line_session,
+    print_selected_line_session,
 )
 from gritlib.line_targets import (
-    dispatch_line_target_command,
     interact_line_target as line_targets_interact_line_target,
-    parse_line_target_command,
     print_line_targets as line_targets_print_line_targets,
     select_line_target as line_targets_select_line_target,
 )
@@ -252,6 +235,7 @@ from gritlib.line_target_commands import (
     copy_line_generated_command, copy_line_service_command,
     run_line_generated_command,
 )
+from gritlib.line_navigation_commands import dispatch_line_navigation_command
 from gritlib.line_utility_commands import dispatch_line_utility_command
 from gritlib.line_workspace import (
     dispatch_line_workspace_command, line_repl_prompt as line_workspace_repl_prompt,
@@ -7436,102 +7420,46 @@ def run_line_repl(cfg):
                     alias_func=lambda value: line_options_alias_line_target(cfg, value),
                 )
                 continue
-            elif (listener_cmd := parse_line_listener_command(cmd, console_args[1:])):
-                dispatch_line_listener_command(
-                    listener_cmd,
-                    list_func=lambda verbose=False: (
-                        set_line_collection("listeners"),
-                        print_line_services(verbose=verbose),
-                    ),
-                    select_func=select_line_service,
-                )
-                continue
-            elif (target_cmd := parse_line_target_command(cmd, console_args[1:])):
-                dispatch_line_target_command(
-                    target_cmd,
-                    list_func=lambda: (
-                        set_line_collection("targets"),
-                        print_line_targets(),
-                    ),
-                    select_func=select_line_target,
-                )
-                continue
-            elif (session_cmd := parse_line_sessions_command(cmd, console_args[1:])):
-                dispatch_line_sessions_command(
-                    session_cmd,
-                    clear_func=clear_line_sessions,
-                    help_func=print_line_command_help,
-                    interact_func=interact_line_session,
-                    list_func=lambda verbose=False: (
-                        set_line_collection("sessions"),
-                        print_line_sessions(verbose=verbose),
-                    ),
-                )
-                continue
-            elif (route_cmd := parse_line_route_command(cmd, console_args[1:])):
-                dispatch_line_route_command(
-                    route_cmd,
-                    add_func=add_line_route,
-                    start_func=start_line_route,
-                    stop_func=stop_line_route,
-                    delete_func=delete_line_route,
-                    help_func=print_line_command_help,
-                    select_func=select_line_route,
-                    list_func=lambda verbose=False: (
-                        set_line_collection("routes"),
-                        print_line_routes(verbose=verbose),
-                    ),
-                )
-                continue
-            elif (use_cmd := parse_line_use_command(cmd, console_args[1:])):
-                dispatch_line_use_command(
-                    use_cmd,
-                    alias_recorder=record_line_alias,
-                    number_func=use_line_search_result,
-                    target_func=select_line_target,
-                    listener_func=select_line_service,
-                    route_func=select_line_route,
-                    session_func=select_line_session,
-                    job_func=select_line_job,
-                    action_func=select_line_action,
-                    after_number_func=clear_line_selectable_results,
-                )
-                continue
-            elif (context_cmd := parse_line_context_command(cmd, console_args[1:])):
-                dispatch_line_context_command(
-                    context_cmd,
-                    clear_target_func=lambda: select_line_target("all", targets=[]),
-                    root_func=clear_line_context,
-                    back_func=back_line_module,
-                )
-                continue
-            elif (service_cmd := parse_line_service_control_command(cmd, console_args[1:])):
-                dispatch_line_service_control_command(
-                    service_cmd,
-                    start_func=start_line_service,
-                    stop_func=stop_line_service,
-                )
-                continue
-            elif (action_cmd := parse_line_action_command(cmd, console_args[1:])):
-                dispatch_line_action_command(
-                    action_cmd,
-                    alias_recorder=record_line_alias,
-                    start_job_func=start_line_job,
-                    cancel_job_func=cancel_line_job,
-                    run_func=run_line_module_or_service,
-                )
-                continue
-            elif (interact_cmd := parse_line_interact_command(
+            elif dispatch_line_navigation_command(
                 cmd,
                 console_args[1:],
                 target_selected=bool(configured_target_filter(cfg)),
                 module=cfg.get("_line_console_module"),
-            )):
-                dispatch_line_interact_command(
-                    interact_cmd,
-                    target_func=interact_line_target,
-                    session_func=interact_line_session,
-                )
+                record_alias_func=record_line_alias,
+                clear_results_func=clear_line_selectable_results,
+                set_listeners_context_func=lambda: set_line_collection("listeners"),
+                print_listeners_func=print_line_services,
+                select_listener_func=select_line_service,
+                set_targets_context_func=lambda: set_line_collection("targets"),
+                print_targets_func=print_line_targets,
+                select_target_func=select_line_target,
+                set_sessions_context_func=lambda: set_line_collection("sessions"),
+                print_sessions_func=print_line_sessions,
+                clear_sessions_func=clear_line_sessions,
+                session_help_func=print_line_command_help,
+                select_session_func=select_line_session,
+                interact_session_func=interact_line_session,
+                set_routes_context_func=lambda: set_line_collection("routes"),
+                print_routes_func=print_line_routes,
+                add_route_func=add_line_route,
+                start_route_func=start_line_route,
+                stop_route_func=stop_line_route,
+                delete_route_func=delete_line_route,
+                route_help_func=print_line_command_help,
+                select_route_func=select_line_route,
+                number_func=use_line_search_result,
+                select_job_func=select_line_job,
+                select_action_func=select_line_action,
+                clear_target_func=lambda: select_line_target("all", targets=[]),
+                root_func=clear_line_context,
+                back_func=back_line_module,
+                start_service_func=start_line_service,
+                stop_service_func=stop_line_service,
+                start_job_func=start_line_job,
+                cancel_job_func=cancel_line_job,
+                run_action_func=run_line_module_or_service,
+                interact_target_func=interact_line_target,
+            ):
                 continue
             elif (download_cmd := parse_line_download_command(cmd, console_args[1:])):
                 dispatch_line_download_command(
