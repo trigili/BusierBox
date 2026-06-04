@@ -420,6 +420,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_core as repl_core
     import gritlib.line_repl_legacy as repl_legacy
     import gritlib.line_repl_navigation as repl_navigation
+    import gritlib.line_repl_options as repl_options
     import gritlib.line_repl_routes as repl_routes
     import gritlib.line_repl_show as repl_show
     import gritlib.line_repl_utility as repl_utility
@@ -528,6 +529,25 @@ def run_line_repl_runtime_check():
         return 1
     if bridge_calls != [("bridge-cfg", "save", "lab", {"port": 2222})]:
         print(f"line REPL bridge command adapter did not forward arguments: {bridge_calls}", file=sys.stderr)
+        return 1
+
+    option_calls = []
+    unset_option = repl_options.build_unset_line_option_callback(
+        {"name": "option-cfg"},
+        clear_module_func=lambda cfg, quiet=False: option_calls.append(
+            ("clear-module", cfg.get("name"), quiet)
+        ),
+        unset_target_option_func=lambda cfg, name, clear_module=None: (
+            option_calls.append(("unset", cfg.get("name"), name, clear_module is not None)),
+            clear_module(quiet=True),
+        ),
+    )
+    unset_option("GRIT_OPERATOR_SERVER_HOST")
+    if option_calls != [
+        ("unset", "option-cfg", "GRIT_OPERATOR_SERVER_HOST", True),
+        ("clear-module", "option-cfg", True),
+    ]:
+        print(f"line REPL unset option adapter did not forward callbacks: {option_calls}", file=sys.stderr)
         return 1
 
     calls = []
