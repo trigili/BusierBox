@@ -4,6 +4,7 @@ from gritlib.line_configure import configure_line_artifact
 from gritlib.line_files import (
     download_line_target,
     fetch_line_staged,
+    print_current_line_files,
     stage_line_binary,
     stage_line_file,
     unstage_line_file,
@@ -22,7 +23,10 @@ def build_line_file_workflow_callbacks(
     target_context_func,
     scoped_target_cfg_func,
     queue_command_func,
+    load_staged_func,
+    fetch_command_func,
     append_event_fn,
+    quote,
 ):
     def start_file_service_process():
         return start_service_func(
@@ -111,6 +115,17 @@ def build_line_file_workflow_callbacks(
     def view_path(path_text):
         return view_line_path(cfg, path_text, append_event_fn=append_event_fn)
 
+    def print_files(verbose=False):
+        return print_current_line_files(
+            cfg,
+            load_staged_func(cfg).get("staged", {}),
+            target_filter_id=target_id_func(cfg),
+            verbose=verbose,
+            fetch_command=lambda name: fetch_command_func(name, cfg),
+            quote=quote,
+            append_event_fn=append_event_fn,
+        )
+
     return {
         "stage_release": stage_release,
         "stage_binary": stage_binary,
@@ -120,4 +135,5 @@ def build_line_file_workflow_callbacks(
         "fetch_staged": fetch_staged,
         "unstage_file": unstage_file,
         "view_path": view_path,
+        "print_line_files": print_files,
     }

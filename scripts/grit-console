@@ -143,7 +143,6 @@ from gritlib.line_state import line_action_state_text
 from gritlib.line_files import (
     clear_line_files as line_files_clear_line_files,
     dispatch_legacy_line_file_number,
-    print_current_line_files,
 )
 from gritlib.line_help import (
     line_unknown_command_message,
@@ -6603,16 +6602,29 @@ def run_line_repl(cfg):
     clear_line_sessions = line_session_callbacks["clear_line_sessions"]
     interact_line_session = line_session_callbacks["interact_line_session"]
 
-    def print_line_files(verbose=False):
-        return print_current_line_files(
-            cfg,
-            load_staged(cfg).get("staged", {}),
-            target_filter_id=configured_target_filter(cfg),
-            verbose=verbose,
-            fetch_command=lambda name: render_fetch_command(name, cfg),
-            quote=shquote,
-            append_event_fn=append_event,
-        )
+    line_file_callbacks = build_line_file_workflow_callbacks(
+        cfg,
+        line_input_fn=line_input,
+        start_service_func=start_service_process,
+        service_start_command_func=service_start_headless_command,
+        target_id_func=configured_target_filter,
+        target_context_func=selected_target_context,
+        scoped_target_cfg_func=scoped_target_cfg,
+        queue_command_func=queue_command,
+        load_staged_func=load_staged,
+        fetch_command_func=render_fetch_command,
+        append_event_fn=append_event,
+        quote=shquote,
+    )
+    stage_line_release = line_file_callbacks["stage_release"]
+    stage_line_binary = line_file_callbacks["stage_binary"]
+    configure_line_artifact = line_file_callbacks["configure_artifact"]
+    stage_line_file = line_file_callbacks["stage_file"]
+    download_line_target = line_file_callbacks["download_target"]
+    fetch_line_staged = line_file_callbacks["fetch_staged"]
+    unstage_line_file = line_file_callbacks["unstage_file"]
+    view_line_path = line_file_callbacks["view_path"]
+    print_line_files = line_file_callbacks["print_line_files"]
 
     print_line_info, print_line_next, print_line_options = build_line_display_callbacks(
         cfg,
@@ -6655,26 +6667,6 @@ def run_line_repl(cfg):
         print_options_func=print_line_options,
         print_info_func=print_line_info,
     )
-
-    line_file_callbacks = build_line_file_workflow_callbacks(
-        cfg,
-        line_input_fn=line_input,
-        start_service_func=start_service_process,
-        service_start_command_func=service_start_headless_command,
-        target_id_func=configured_target_filter,
-        target_context_func=selected_target_context,
-        scoped_target_cfg_func=scoped_target_cfg,
-        queue_command_func=queue_command,
-        append_event_fn=append_event,
-    )
-    stage_line_release = line_file_callbacks["stage_release"]
-    stage_line_binary = line_file_callbacks["stage_binary"]
-    configure_line_artifact = line_file_callbacks["configure_artifact"]
-    stage_line_file = line_file_callbacks["stage_file"]
-    download_line_target = line_file_callbacks["download_target"]
-    fetch_line_staged = line_file_callbacks["fetch_staged"]
-    unstage_line_file = line_file_callbacks["unstage_file"]
-    view_line_path = line_file_callbacks["view_path"]
 
     install_readline_completer(_readline, HAVE_READLINE, line_completion_candidates)
 
