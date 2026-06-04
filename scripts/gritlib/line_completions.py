@@ -205,6 +205,53 @@ def build_line_completion_providers(
     }
 
 
+def build_line_completion_callbacks(
+    cfg,
+    *,
+    workbench_snapshot_func,
+    line_action_records_func,
+    bridge_profile_records_func,
+    release_context_func,
+    command_queue_summary_func,
+    generated_target_command_records_func,
+    workbench_config_field_records_func,
+    service_status_rows_func,
+    service_completion_names_func,
+    service_names_func,
+    load_staged_func,
+    find_survey_uploads_func,
+    append_event_func=None,
+):
+    def providers():
+        return build_line_completion_providers(
+            cfg,
+            workbench_snapshot_func=workbench_snapshot_func,
+            line_action_records_func=line_action_records_func,
+            bridge_profile_records_func=bridge_profile_records_func,
+            release_context_func=release_context_func,
+            command_queue_summary_func=command_queue_summary_func,
+            generated_target_command_records_func=generated_target_command_records_func,
+            workbench_config_field_records_func=workbench_config_field_records_func,
+            service_status_rows_func=service_status_rows_func,
+            service_completion_names_func=service_completion_names_func,
+            service_names_func=service_names_func,
+            load_staged_func=load_staged_func,
+            find_survey_uploads_func=find_survey_uploads_func,
+        )
+
+    def candidates(prefix=""):
+        return line_completion_candidates(prefix, providers=providers())
+
+    def printer(prefix=""):
+        return print_line_completions(
+            prefix,
+            candidates=candidates(prefix),
+            append_event_func=append_event_func,
+        )
+
+    return candidates, printer
+
+
 def line_completion_candidates(prefix="", providers=None):
     text = str(prefix or "")
     stripped = text.strip()

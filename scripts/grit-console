@@ -168,9 +168,7 @@ from gritlib.line_help import (
     print_line_console_help,
 )
 from gritlib.line_completions import (
-    build_line_completion_providers,
-    line_completion_candidates as line_completions_candidates,
-    print_line_completions as line_completions_print_line_completions,
+    build_line_completion_callbacks,
 )
 from gritlib.line_core_commands import dispatch_line_core_command
 from gritlib.line_options import (
@@ -6575,37 +6573,27 @@ def run_line_repl(cfg):
             start_job_func=start_workbench_job_record,
         )
 
-    def line_completion_providers():
-        return build_line_completion_providers(
+    line_completion_candidates, print_line_completions = build_line_completion_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        line_action_records_func=lambda: current_line_action_records(lambda: workbench_snapshot(cfg)),
+        bridge_profile_records_func=bridge_profile_records,
+        release_context_func=release_context,
+        command_queue_summary_func=command_queue_summary,
+        generated_target_command_records_func=generated_target_command_records,
+        workbench_config_field_records_func=workbench_config_field_records,
+        service_status_rows_func=service_status_rows,
+        service_completion_names_func=line_service_completion_names,
+        service_names_func=line_service_names,
+        load_staged_func=load_staged,
+        find_survey_uploads_func=lambda limit=20: configure_find_survey_uploads(cfg, limit=limit),
+        append_event_func=lambda service, event, details=None: append_event(
             cfg,
-            workbench_snapshot_func=workbench_snapshot,
-            line_action_records_func=lambda: current_line_action_records(lambda: workbench_snapshot(cfg)),
-            bridge_profile_records_func=bridge_profile_records,
-            release_context_func=release_context,
-            command_queue_summary_func=command_queue_summary,
-            generated_target_command_records_func=generated_target_command_records,
-            workbench_config_field_records_func=workbench_config_field_records,
-            service_status_rows_func=service_status_rows,
-            service_completion_names_func=line_service_completion_names,
-            service_names_func=line_service_names,
-            load_staged_func=load_staged,
-            find_survey_uploads_func=lambda limit=20: configure_find_survey_uploads(cfg, limit=limit),
-        )
-
-    def line_completion_candidates(prefix=""):
-        return line_completions_candidates(prefix, providers=line_completion_providers())
-
-    def print_line_completions(prefix=""):
-        return line_completions_print_line_completions(
-            prefix,
-            candidates=line_completion_candidates(prefix),
-            append_event_func=lambda service, event, details=None: append_event(
-                cfg,
-                service,
-                event,
-                details=details,
-            ),
-        )
+            service,
+            event,
+            details=details,
+        ),
+    )
 
     def search_line_resources(query):
         run_line_search(
