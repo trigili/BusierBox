@@ -206,7 +206,7 @@ from gritlib.line_services import (
     select_line_service as line_services_select_line_service,
     resolve_line_service_selector as line_services_resolve_selector,
 )
-from gritlib.line_show import dispatch_line_show_resource, split_line_verbose_args
+from gritlib.line_show import dispatch_line_show_resource
 from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
     print_line_session_interaction,
@@ -7448,7 +7448,7 @@ def run_line_repl(cfg):
             "module-kind": lambda p: print_line_actions(
                 p["filter_text"], kind_filter=p["kind_filter"], verbose=p["verbose"]),
             "targets": lambda _p: show_collection("targets", print_line_targets),
-            "listeners": lambda _p: show_collection("listeners", print_line_services),
+            "listeners": lambda p: show_collection("listeners", lambda: print_line_services(verbose=p["verbose"])),
             "files": lambda _p: show_collection("files", print_line_files),
             "jobs": lambda _p: show_collection("jobs", print_line_jobs),
             "daemon": lambda _p: show_collection("daemon", print_line_daemon_actions),
@@ -7804,19 +7804,13 @@ def run_line_repl(cfg):
                 continue
 
             elif cmd in {"categories", "category", "module-categories"}:
-                set_line_collection("categories")
-                print_line_module_categories()
+                show_line_resource("categories")
                 continue
             elif cmd in {"modules", "module"}:
-                set_line_collection("modules")
-                module_args = list(console_args[1:])
-                verbose, filtered_parts = split_line_verbose_args(module_args)
-                filter_text = " ".join(filtered_parts).strip()
-                print_line_actions(filter_text, verbose=verbose)
+                show_line_resource(" ".join(["modules", *console_args[1:]]).strip())
                 continue
             elif cmd in {"services", "listeners"}:
-                set_line_collection("listeners")
-                print_line_services(verbose=len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"})
+                show_line_resource(" ".join(["listeners", *console_args[1:]]).strip())
                 continue
             elif cmd == "listener":
                 if len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
