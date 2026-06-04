@@ -12,6 +12,7 @@ from gritlib.bridge_routes import (
     stop_line_route,
 )
 from gritlib.line_services import (
+    line_service_completion_names,
     line_service_names,
     print_line_services,
     select_line_service,
@@ -60,6 +61,9 @@ def build_line_route_service_callbacks(
 
     def service_names():
         return line_service_names(service_rows())
+
+    def service_completion_names():
+        return line_service_completion_names(service_rows())
 
     def print_routes(verbose=False):
         return print_line_routes(
@@ -164,6 +168,7 @@ def build_line_route_service_callbacks(
         "line_route_record": route_record,
         "service_rows": service_rows,
         "service_names": service_names,
+        "service_completion_names": service_completion_names,
         "service_record": service_record_func,
         "print_line_routes": print_routes,
         "select_line_route": select_route,

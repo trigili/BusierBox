@@ -2800,6 +2800,8 @@ def run_line_repl_runtime_check():
     def fake_completion_builder(cfg, **kwargs):
         completion_calls.append(("builder", cfg.get("name"), sorted(kwargs)))
         kwargs["line_action_records_func"]()
+        kwargs["service_completion_names_func"](kwargs["service_status_rows_func"](cfg))
+        kwargs["service_names_func"](kwargs["service_status_rows_func"](cfg))
         kwargs["find_survey_uploads_func"](limit=7)
         kwargs["append_event_func"]("workbench", "complete", details={"prefix": "st"})
         return (
@@ -2821,9 +2823,11 @@ def run_line_repl_runtime_check():
             command_queue_summary_func=lambda cfg: {},
             generated_target_command_records_func=lambda cfg: [],
             workbench_config_field_records_func=lambda cfg: [],
-            service_status_rows_func=lambda cfg: [],
-            service_completion_names_func=lambda rows: [],
-            service_names_func=lambda rows: [],
+            route_service_callbacks={
+                "service_rows": lambda: completion_calls.append("service-rows") or [],
+                "service_completion_names": lambda: completion_calls.append("service-completion-names") or [],
+                "service_names": lambda: completion_calls.append("service-names") or [],
+            },
             load_staged_func=lambda cfg: {},
             find_survey_uploads_func=lambda cfg, limit=20: completion_calls.append(
                 ("survey", cfg.get("name"), limit)
@@ -2853,9 +2857,11 @@ def run_line_repl_runtime_check():
             command_queue_summary_func=lambda cfg: {},
             generated_target_command_records_func=lambda cfg: [],
             workbench_config_field_records_func=lambda cfg: [],
-            service_status_rows_func=lambda cfg: [],
-            service_completion_names_func=lambda rows: [],
-            service_names_func=lambda rows: [],
+            route_service_callbacks={
+                "service_rows": lambda: completion_calls.append("setup-service-rows") or [],
+                "service_completion_names": lambda: completion_calls.append("setup-service-completion-names") or [],
+                "service_names": lambda: completion_calls.append("setup-service-names") or [],
+            },
             load_staged_func=lambda cfg: {},
             find_survey_uploads_func=lambda cfg, limit=20: [],
             append_event_fn=lambda cfg, service, event, details=None: None,
@@ -2893,6 +2899,9 @@ def run_line_repl_runtime_check():
     expected_completion_markers = [
         ("snapshot", "completion-cfg"),
         ("actions", {"snap": True}),
+        "service-rows",
+        "service-completion-names",
+        "service-names",
         ("survey", "completion-cfg", 7),
         ("event", "completion-cfg", "workbench", "complete", {"prefix": "st"}),
         ("candidates", "st"),

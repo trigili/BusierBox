@@ -14,9 +14,10 @@ def build_line_completion_adapter(
     command_queue_summary_func,
     generated_target_command_records_func,
     workbench_config_field_records_func,
-    service_status_rows_func,
-    service_completion_names_func,
-    service_names_func,
+    service_status_rows_func=None,
+    service_completion_names_func=None,
+    service_names_func=None,
+    route_service_callbacks=None,
     load_staged_func,
     find_survey_uploads_func,
     append_event_fn,
@@ -33,6 +34,7 @@ def build_line_completion_adapter(
         service_status_rows_func=service_status_rows_func,
         service_completion_names_func=service_completion_names_func,
         service_names_func=service_names_func,
+        route_service_callbacks=route_service_callbacks,
         load_staged_func=load_staged_func,
         find_survey_uploads_func=find_survey_uploads_func,
         append_event_fn=append_event_fn,
@@ -53,13 +55,24 @@ def build_line_completion_bundle(
     command_queue_summary_func,
     generated_target_command_records_func,
     workbench_config_field_records_func,
-    service_status_rows_func,
-    service_completion_names_func,
-    service_names_func,
+    service_status_rows_func=None,
+    service_completion_names_func=None,
+    service_names_func=None,
+    route_service_callbacks=None,
     load_staged_func,
     find_survey_uploads_func,
     append_event_fn,
 ):
+    if route_service_callbacks is not None:
+        if service_status_rows_func is None:
+            service_status_rows_func = lambda _cfg: route_service_callbacks["service_rows"]()
+        if service_completion_names_func is None:
+            service_completion_names_func = lambda _rows: route_service_callbacks[
+                "service_completion_names"
+            ]()
+        if service_names_func is None:
+            service_names_func = lambda _rows: route_service_callbacks["service_names"]()
+
     line_completion_candidates, print_line_completions = build_line_completion_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot_func,
@@ -109,9 +122,10 @@ def setup_line_completion_bundle(
     command_queue_summary_func,
     generated_target_command_records_func,
     workbench_config_field_records_func,
-    service_status_rows_func,
-    service_completion_names_func,
-    service_names_func,
+    service_status_rows_func=None,
+    service_completion_names_func=None,
+    service_names_func=None,
+    route_service_callbacks=None,
     load_staged_func,
     find_survey_uploads_func,
     append_event_fn,
@@ -128,6 +142,7 @@ def setup_line_completion_bundle(
         service_status_rows_func=service_status_rows_func,
         service_completion_names_func=service_completion_names_func,
         service_names_func=service_names_func,
+        route_service_callbacks=route_service_callbacks,
         load_staged_func=load_staged_func,
         find_survey_uploads_func=find_survey_uploads_func,
         append_event_fn=append_event_fn,
