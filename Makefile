@@ -131,10 +131,6 @@ define run_if_python3
 	@if command -v python3 >/dev/null 2>&1; then $(1); else printf '%s\n' "skip: $(2)"; fi
 endef
 
-define validate_json_with_python3
-	$(call run_if_python3,$(1) | python3 -m json.tool >/dev/null,$(2))
-endef
-
 smoke-grit-console:
 	$(call run_if_python3,tests/smoke/grit-console.py $(if $(GRIT_CONSOLE_SMOKE_SECTION),--section "$(GRIT_CONSOLE_SMOKE_SECTION)",),python3 server smoke unavailable)
 
@@ -167,8 +163,7 @@ smoke-grit-console-transcript:
 
 smoke-test:
 	@GRIT_CONFIG=presets/payload/default.conf GRIT_BUSYBOX_GROUPS="shell fileops disk process network text system" $(MAKE) package-native
-	@scripts/lib/inspect-artifact dist/grit-native-full >/dev/null
-	@scripts/lib/verify-artifact dist/grit-native-full
+	@tests/smoke/native-artifact-verification.sh dist/grit-native-full
 	@tests/smoke/artifact-tiers.sh
 	@tests/smoke/native-help.sh dist/grit-native-full
 	@tests/smoke/target-resolution.sh
