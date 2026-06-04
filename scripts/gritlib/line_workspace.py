@@ -18,6 +18,8 @@ def parse_line_workspace_command(cmd, args=None):
         return {"action": "workspace"}
     if cmd == "reload":
         return {"action": "reload"}
+    if cmd in {"refresh"}:
+        return {"action": "refresh"}
     if cmd in {"main", "home", "root"}:
         return {"action": "root"}
     if cmd == "info":

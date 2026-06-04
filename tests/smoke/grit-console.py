@@ -2364,7 +2364,7 @@ def main(argv=None):
         return 1
     for word in ("open_path_in_pager", "view_path_headless_command", "workbench_path_viewed", "pager_command", "view_line_path", "view PATH", "copy_generated_command", "clipboard_command",
                  "print_line_events_view", "line_event_summary", "Raw JSONL: view", "record_workbench_refresh",
-                 "workbench_refreshed", 'cmd == "refresh"', "operator_state_unhealthy",
+                 "workbench_refreshed", '"action": "refresh"', "operator_state_unhealthy",
                  "operator_state_unhealthy_count", "target_legacy_single_target_activity_present",
                  "target_id:", "target_label:", "target_filter_summary_text",
                  "observed_seen=", "Events  (", "target_filter_evidence_lines",

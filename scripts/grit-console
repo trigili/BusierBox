@@ -7687,6 +7687,9 @@ def run_line_repl(cfg):
                         )
                     except Exception as exc:
                         print(f"reload failed: {exc}")
+                elif workspace_cmd["action"] == "refresh":
+                    compact_next_prompt = False
+                    choice = "r"
                 elif workspace_cmd["action"] == "root":
                     clear_line_context()
                 elif workspace_cmd["action"] == "info":
@@ -8106,9 +8109,6 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "refresh":
-                compact_next_prompt = False
-                choice = "r"
             else:
                 print(line_unknown_command_message(cmd))
                 continue
