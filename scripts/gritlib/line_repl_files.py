@@ -1,0 +1,123 @@
+"""Line REPL file/release workflow callback adapters."""
+
+from gritlib.line_configure import configure_line_artifact
+from gritlib.line_files import (
+    download_line_target,
+    fetch_line_staged,
+    stage_line_binary,
+    stage_line_file,
+    unstage_line_file,
+)
+from gritlib.line_release import stage_line_release
+from gritlib.operator_io import view_line_path
+
+
+def build_line_file_workflow_callbacks(
+    cfg,
+    *,
+    line_input_fn,
+    start_service_func,
+    service_start_command_func,
+    target_id_func,
+    target_context_func,
+    scoped_target_cfg_func,
+    queue_command_func,
+    append_event_fn,
+):
+    def start_file_service_process():
+        return start_service_func(
+            cfg,
+            "file-service",
+            headless_command=service_start_command_func(cfg, "file-service"),
+        )
+
+    def stage_release(selector, start_file_service=False):
+        return stage_line_release(
+            cfg,
+            selector,
+            start_file_service=start_file_service,
+            start_file_service_fn=start_file_service_process,
+            append_event_fn=append_event_fn,
+        )
+
+    def stage_binary(
+        selector="",
+        request_name="",
+        prompt_for_missing=True,
+        prompt_start=True,
+        start_file_service=False,
+        show_headless=False,
+    ):
+        return stage_line_binary(
+            cfg,
+            selector=selector,
+            request_name=request_name,
+            prompt_for_missing=prompt_for_missing,
+            prompt_start=prompt_start,
+            start_file_service=start_file_service,
+            show_headless=show_headless,
+            line_input_fn=line_input_fn,
+            start_file_service_fn=start_file_service_process,
+            append_event_fn=append_event_fn,
+        )
+
+    def configure_artifact(args):
+        return configure_line_artifact(cfg, args, append_event_fn=append_event_fn)
+
+    def stage_file(path_text="", request_name="", start_file_service=False):
+        return stage_line_file(
+            cfg,
+            path_text,
+            request_name,
+            start_file_service=start_file_service,
+            start_file_service_fn=start_file_service_process,
+            append_event_fn=append_event_fn,
+        )
+
+    def download_target(target_path, queue=False, start_file_service=False):
+        return download_line_target(
+            cfg,
+            target_path,
+            queue=queue,
+            start_file_service=start_file_service,
+            target_id_fn=lambda: target_id_func(cfg),
+            target_context_fn=lambda: target_context_func(cfg),
+            queue_command_fn=queue_command_func,
+            start_file_service_fn=start_file_service_process,
+            append_event_fn=append_event_fn,
+        )
+
+    def fetch_staged(request_name, queue=False, start_file_service=False):
+        return fetch_line_staged(
+            cfg,
+            request_name,
+            queue=queue,
+            start_file_service=start_file_service,
+            target_id_fn=lambda: target_id_func(cfg),
+            target_context_fn=lambda: target_context_func(cfg),
+            scoped_target_cfg_fn=lambda target_id, target_label="": scoped_target_cfg_func(
+                cfg,
+                target_id,
+                target_label=target_label,
+            ),
+            queue_command_fn=queue_command_func,
+            start_file_service_fn=start_file_service_process,
+            append_event_fn=append_event_fn,
+        )
+
+    def unstage_file(request_name):
+        return unstage_line_file(cfg, request_name, append_event_fn=append_event_fn)
+
+    def view_path(path_text):
+        return view_line_path(cfg, path_text, append_event_fn=append_event_fn)
+
+    return {
+        "stage_release": stage_release,
+        "stage_binary": stage_binary,
+        "configure_artifact": configure_artifact,
+        "stage_file": stage_file,
+        "download_target": download_target,
+        "fetch_staged": fetch_staged,
+        "unstage_file": unstage_file,
+        "view_path": view_path,
+    }

@@ -133,7 +133,6 @@ from gritlib.line_command_queue import (
     select_current_line_command_queue_action as line_command_queue_select_current_action,
 )
 from gritlib.line_configure import (
-    configure_line_artifact as configure_line_artifact_impl,
     find_survey_uploads as configure_find_survey_uploads,
     print_line_survey_status as configure_print_line_survey_status,
     run_line_probe_config as configure_line_probe_config,
@@ -154,12 +153,7 @@ from gritlib.line_state import line_action_state_text
 from gritlib.line_files import (
     clear_line_files as line_files_clear_line_files,
     dispatch_legacy_line_file_number,
-    download_line_target as line_files_download_line_target,
     print_current_line_files,
-    fetch_line_staged as line_files_fetch_line_staged,
-    stage_line_binary as line_files_stage_line_binary,
-    stage_line_file as line_files_stage_line_file,
-    unstage_line_file as line_files_unstage_line_file,
 )
 from gritlib.line_help import (
     line_unknown_command_message,
@@ -191,10 +185,10 @@ from gritlib.line_repl_runtime import (
     restore_signal_handlers, should_parse_line_command,
 )
 from gritlib.line_repl_display import build_line_display_callbacks
+from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_release import (
     dispatch_legacy_line_release_number,
     print_line_release as line_release_print_line_release,
-    stage_line_release as line_release_stage_line_release,
 )
 from gritlib.line_search import (
     clear_line_search_results, dispatch_line_number_selection,
@@ -6828,98 +6822,25 @@ def run_line_repl(cfg):
         print_info_func=print_line_info,
     )
 
-    def stage_line_release(selector, start_file_service=False):
-        return line_release_stage_line_release(
-            cfg,
-            selector,
-            start_file_service=start_file_service,
-            start_file_service_fn=lambda: start_service_process(
-                cfg,
-                "file-service",
-                headless_command=service_start_headless_command(cfg, "file-service"),
-            ),
-            append_event_fn=append_event,
-        )
-
-    def stage_line_binary(selector="", request_name="", prompt_for_missing=True, prompt_start=True, start_file_service=False, show_headless=False):
-        return line_files_stage_line_binary(
-            cfg,
-            selector=selector,
-            request_name=request_name,
-            prompt_for_missing=prompt_for_missing,
-            prompt_start=prompt_start,
-            start_file_service=start_file_service,
-            show_headless=show_headless,
-            line_input_fn=line_input,
-            start_file_service_fn=lambda: start_service_process(
-                cfg,
-                "file-service",
-                headless_command=service_start_headless_command(cfg, "file-service"),
-            ),
-            append_event_fn=append_event,
-        )
-
-    def configure_line_artifact(args):
-        return configure_line_artifact_impl(cfg, args, append_event_fn=append_event)
-
-    def stage_line_file(path_text="", request_name="", start_file_service=False):
-        return line_files_stage_line_file(
-            cfg,
-            path_text,
-            request_name,
-            start_file_service=start_file_service,
-            start_file_service_fn=lambda: start_service_process(
-                cfg,
-                "file-service",
-                headless_command=service_start_headless_command(cfg, "file-service"),
-            ),
-            append_event_fn=append_event,
-        )
-
-    def download_line_target(target_path, queue=False, start_file_service=False):
-        return line_files_download_line_target(
-            cfg,
-            target_path,
-            queue=queue,
-            start_file_service=start_file_service,
-            target_id_fn=lambda: configured_target_filter(cfg),
-            target_context_fn=lambda: selected_target_context(cfg),
-            queue_command_fn=queue_command,
-            start_file_service_fn=lambda: start_service_process(
-                cfg,
-                "file-service",
-                headless_command=service_start_headless_command(cfg, "file-service"),
-            ),
-            append_event_fn=append_event,
-        )
-
-    def fetch_line_staged(request_name, queue=False, start_file_service=False):
-        return line_files_fetch_line_staged(
-            cfg,
-            request_name,
-            queue=queue,
-            start_file_service=start_file_service,
-            target_id_fn=lambda: configured_target_filter(cfg),
-            target_context_fn=lambda: selected_target_context(cfg),
-            scoped_target_cfg_fn=lambda target_id, target_label="": scoped_target_cfg(
-                cfg,
-                target_id,
-                target_label=target_label,
-            ),
-            queue_command_fn=queue_command,
-            start_file_service_fn=lambda: start_service_process(
-                cfg,
-                "file-service",
-                headless_command=service_start_headless_command(cfg, "file-service"),
-            ),
-            append_event_fn=append_event,
-        )
-
-    def unstage_line_file(request_name):
-        return line_files_unstage_line_file(cfg, request_name, append_event_fn=append_event)
-
-    def view_line_path(path_text):
-        return operator_io_view_line_path(cfg, path_text, append_event_fn=append_event)
+    line_file_callbacks = build_line_file_workflow_callbacks(
+        cfg,
+        line_input_fn=line_input,
+        start_service_func=start_service_process,
+        service_start_command_func=service_start_headless_command,
+        target_id_func=configured_target_filter,
+        target_context_func=selected_target_context,
+        scoped_target_cfg_func=scoped_target_cfg,
+        queue_command_func=queue_command,
+        append_event_fn=append_event,
+    )
+    stage_line_release = line_file_callbacks["stage_release"]
+    stage_line_binary = line_file_callbacks["stage_binary"]
+    configure_line_artifact = line_file_callbacks["configure_artifact"]
+    stage_line_file = line_file_callbacks["stage_file"]
+    download_line_target = line_file_callbacks["download_target"]
+    fetch_line_staged = line_file_callbacks["fetch_staged"]
+    unstage_line_file = line_file_callbacks["unstage_file"]
+    view_line_path = line_file_callbacks["view_path"]
 
     install_readline_completer(_readline, HAVE_READLINE, line_completion_candidates)
 
