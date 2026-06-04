@@ -211,7 +211,7 @@ from gritlib.line_sessions import (
     clear_line_sessions as line_sessions_clear_line_sessions,
     print_line_session_interaction,
     line_session_record_by_selector, print_line_session_records,
-    print_selected_line_session,
+    parse_line_sessions_command, print_selected_line_session,
 )
 from gritlib.line_targets import (
     interact_line_target as line_targets_interact_line_target,
@@ -7843,35 +7843,22 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif cmd in {"sessions", "session"}:
-                if len(console_args) >= 2 and console_args[1].lower() in {"clear", "prune", "clean"}:
-                    flags = {a.lower() for a in console_args[2:]}
+                session_cmd = parse_line_sessions_command(cmd, console_args[1:])
+                if session_cmd["action"] == "clear":
                     clear_line_sessions(
-                        all_sessions="--all" in flags,
-                        confirm="--confirm" in flags,
+                        all_sessions=session_cmd["all_sessions"],
+                        confirm=session_cmd["confirm"],
                     )
-                elif cmd == "session" and len(console_args) >= 2:
-                    try:
-                        interact_line_session(" ".join(console_args[1:]).strip())
-                    except ValueError as exc:
-                        print(exc)
-                elif len(console_args) >= 3 and console_args[1] in {"-i", "--interact"}:
-                    try:
-                        interact_line_session(" ".join(console_args[2:]).strip())
-                    except ValueError as exc:
-                        print(exc)
-                elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
+                elif session_cmd["action"] == "help":
                     print_line_command_help("sessions")
-                elif len(console_args) >= 2 and console_args[1] in {"-v", "--verbose"}:
-                    set_line_collection("sessions")
-                    print_line_sessions(verbose=True)
-                elif len(console_args) >= 2 and console_args[1] not in {"-l", "--list"}:
+                elif session_cmd["action"] == "interact":
                     try:
-                        interact_line_session(" ".join(console_args[1:]).strip())
+                        interact_line_session(session_cmd["selector"])
                     except ValueError as exc:
                         print(exc)
                 else:
                     set_line_collection("sessions")
-                    print_line_sessions()
+                    print_line_sessions(verbose=session_cmd["verbose"])
                 continue
             elif cmd in {"routes", "route"}:
                 route_subcmd = console_args[1].lower() if len(console_args) >= 2 else ""

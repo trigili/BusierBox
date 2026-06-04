@@ -11,6 +11,30 @@ from gritlib.session_state import read_json_file
 _FINISHED_SESSION_STATES = {"ended", "stopped", "complete", "done", "error", "failed"}
 
 
+def parse_line_sessions_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    first = str(args[0]).lower() if args else ""
+    if first in {"clear", "prune", "clean"}:
+        flags = {str(item).lower() for item in args[1:]}
+        return {
+            "action": "clear",
+            "all_sessions": "--all" in flags,
+            "confirm": "--confirm" in flags,
+        }
+    if first in {"-h", "--help"}:
+        return {"action": "help"}
+    if first in {"-v", "--verbose"}:
+        return {"action": "list", "verbose": True}
+    if cmd == "session" and args:
+        return {"action": "interact", "selector": " ".join(args).strip()}
+    if len(args) >= 2 and first in {"-i", "--interact"}:
+        return {"action": "interact", "selector": " ".join(args[1:]).strip()}
+    if args and first not in {"-l", "--list"}:
+        return {"action": "interact", "selector": " ".join(args).strip()}
+    return {"action": "list", "verbose": False}
+
+
 def line_session_state_text(rec):
     state = rec.get("state") or "-"
     exit_reason = rec.get("exit_reason") or ""
