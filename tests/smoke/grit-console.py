@@ -1370,11 +1370,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented b command did not step through module and target breadcrumbs", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
-    target_quit_start = line_console_stdout.find("grit[Console Router]> q")
-    target_quit_end = line_console_stdout.find("grit[all]> q", target_quit_start + 1)
-    target_quit_text = line_console_stdout[target_quit_start:target_quit_end] if target_quit_start != -1 and target_quit_end != -1 else ""
-    if not target_quit_text:
-        print("line-oriented q command did not return from selected target before exiting", file=sys.stderr)
+    context_quit_start = line_console_stdout.find("grit[Console Router]/queue> q")
+    context_quit_end = line_console_stdout.find("grit[all]> q", context_quit_start + 1)
+    context_quit_text = (
+        line_console_stdout[context_quit_start:context_quit_end]
+        if context_quit_start != -1 and context_quit_end != -1 else ""
+    )
+    if (not context_quit_text or
+            "returned to main workspace" not in context_quit_text or
+            "grit[Console Router]> q" in context_quit_text):
+        print("line-oriented q command did not return directly to root from selected context", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
     line_console_config = json.loads(upload_cfg.read_text(encoding="utf-8"))
