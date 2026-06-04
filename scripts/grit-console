@@ -193,6 +193,7 @@ from gritlib.line_repl_runtime import (
     read_line as line_repl_read_line, restore_signal_handlers,
 )
 from gritlib.line_release import (
+    parse_line_release_command,
     print_line_release as line_release_print_line_release,
     stage_line_release as line_release_stage_line_release,
 )
@@ -8184,21 +8185,21 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif cmd in {"release", "releases"}:
-                subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
-                if not subcmd or subcmd in {"list", "show", "recommendations", "artifacts"}:
-                    set_line_collection("release")
-                    line_release_print_line_release(cfg, append_event_fn=append_event)
-                elif subcmd in {"stage", "use", "select"}:
-                    try:
-                        selector, start_release_service = parse_line_release_stage_args(console_args[2:])
-                        stage_line_release(selector, start_file_service=start_release_service)
+                try:
+                    release_cmd = parse_line_release_command(console_args[1:])
+                    if release_cmd["action"] == "list":
+                        set_line_collection("release")
+                        line_release_print_line_release(cfg, append_event_fn=append_event)
+                    elif release_cmd["action"] == "stage":
+                        stage_line_release(
+                            release_cmd["selector"],
+                            start_file_service=release_cmd["start_service"],
+                        )
                         set_line_collection("files")
-                    except ValueError as exc:
-                        print(exc)
-                elif len(console_args) >= 2 and console_args[1] in {"-h", "--help"}:
-                    print_line_command_help("release")
-                else:
-                    print("usage: release [list|stage SELECTOR]")
+                    elif release_cmd["action"] == "help":
+                        print_line_command_help("release")
+                except ValueError as exc:
+                    print(exc)
                 continue
             elif cmd == "stage-release":
                 try:

@@ -3,8 +3,26 @@
 from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
+from gritlib.line_files import parse_line_release_stage_args
 from gritlib.release_artifacts import discover_release_context, stage_release_selection
 from gritlib.shell_utils import shquote
+
+
+def parse_line_release_command(args):
+    args = list(args or [])
+    subcmd = str(args[0]).lower() if args else ""
+    if not subcmd or subcmd in {"list", "show", "recommendations", "artifacts"}:
+        return {"action": "list"}
+    if subcmd in {"stage", "use", "select"}:
+        selector, start_service = parse_line_release_stage_args(args[1:])
+        return {
+            "action": "stage",
+            "selector": selector,
+            "start_service": start_service,
+        }
+    if subcmd in {"-h", "--help", "help"}:
+        return {"action": "help"}
+    raise ValueError("usage: release [list|stage SELECTOR]")
 
 
 def _release_compat_label(rec):
