@@ -1,6 +1,7 @@
 """Line REPL action callback adapters."""
 
 from gritlib.line_actions import (
+    current_line_action_records,
     print_current_line_actions,
     run_line_module_or_service,
     run_line_selected_action,
@@ -65,6 +66,9 @@ def build_line_action_callbacks(
     def workbench_actions():
         return workbench_actions_func(cfg)
 
+    def current_action_records():
+        return current_line_action_records(snapshot)
+
     if start_service_func is None and route_service_callbacks is not None:
         start_service_func = route_service_callbacks["start_line_service"]
 
@@ -100,6 +104,7 @@ def build_line_action_callbacks(
         "selected_line_action": selected_line_action,
         "run_line_module_or_service": run_line_module_or_service_callback,
         "run_line_selected_action": run_line_selected_action_callback,
+        "current_action_records": current_action_records,
         "workbench_actions": workbench_actions,
         "run_workbench_action": workbench_runner,
         "run_target_workflow": target_runner,

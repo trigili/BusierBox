@@ -830,7 +830,10 @@ def run_line_repl_runtime_check():
     try:
         action_bundle = repl_actions.build_line_action_callbacks(
             {"name": "action-cfg"},
-            workbench_snapshot_func=lambda cfg: {"name": cfg.get("name")},
+            workbench_snapshot_func=lambda cfg: {
+                "name": cfg.get("name"),
+                "service_workflow_actions": [{"id": "svc-action"}],
+            },
             route_service_callbacks={
                 "service_names": lambda: action_bundle_calls.append("route-service-names") or ["svc-1"],
                 "start_line_service": lambda selector: action_bundle_calls.append(("route-start", selector)) or "started",
@@ -850,6 +853,12 @@ def run_line_repl_runtime_check():
         action_bundle["workbench_actions"]()
         action_bundle["run_workbench_action"]("wb")
         action_bundle["run_target_workflow"]("target")
+        if action_bundle["current_action_records"]() != [{
+            "id": "svc-action",
+            "kind": "service",
+        }]:
+            print("line REPL action bundle did not expose current action records", file=sys.stderr)
+            return 1
     finally:
         repl_actions.run_line_module_or_service = original_run_line_module_or_service
     expected_action_bundle_prefix = [
@@ -3000,9 +3009,9 @@ def run_line_repl_runtime_check():
         completion_bundle = repl_completions.build_line_completion_bundle(
             completion_cfg,
             workbench_snapshot_func=lambda cfg: completion_calls.append(("snapshot", cfg.get("name"))) or {"snap": True},
-            current_action_records_func=lambda snapshot_func: completion_calls.append(
-                ("actions", snapshot_func())
-            ) or [],
+            action_callbacks={
+                "current_action_records": lambda: completion_calls.append("actions") or [],
+            },
             release_context_func=lambda cfg: {},
             command_queue_summary_func=lambda cfg: {},
             route_service_callbacks={
@@ -3040,7 +3049,9 @@ def run_line_repl_runtime_check():
             readline_module="readline-setup",
             have_readline=False,
             workbench_snapshot_func=lambda cfg: {},
-            current_action_records_func=lambda snapshot_func: [],
+            action_callbacks={
+                "current_action_records": lambda: completion_calls.append("setup-actions") or [],
+            },
             release_context_func=lambda cfg: {},
             command_queue_summary_func=lambda cfg: {},
             route_service_callbacks={
@@ -3090,8 +3101,7 @@ def run_line_repl_runtime_check():
         print(completion_calls, file=sys.stderr)
         return 1
     expected_completion_markers = [
-        ("snapshot", "completion-cfg"),
-        ("actions", {"snap": True}),
+        "actions",
         "bridge-records",
         "service-rows",
         "service-completion-names",

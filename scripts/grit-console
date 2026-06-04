@@ -6083,22 +6083,6 @@ def run_line_repl(cfg):
         build_fields_func=workbench_config_field_records,
     )
 
-    line_completion_callbacks = setup_line_completion_bundle(
-        cfg,
-        readline_module=_readline,
-        have_readline=HAVE_READLINE,
-        workbench_snapshot_func=workbench_snapshot,
-        current_action_records_func=current_line_action_records,
-        release_context_func=release_context,
-        command_queue_summary_func=command_queue_summary,
-        route_service_callbacks=line_route_service_callbacks,
-        target_callbacks=line_target_callbacks,
-        option_callbacks=line_option_callbacks,
-        load_staged_func=load_staged,
-        find_survey_uploads_func=configure_find_survey_uploads,
-        append_event_fn=append_event,
-    )
-
     line_action_callbacks = build_line_action_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
@@ -6111,6 +6095,22 @@ def run_line_repl(cfg):
         target_input_func=line_input,
         append_event_fn=append_event,
         quote=shquote,
+    )
+
+    line_completion_callbacks = setup_line_completion_bundle(
+        cfg,
+        readline_module=_readline,
+        have_readline=HAVE_READLINE,
+        workbench_snapshot_func=workbench_snapshot,
+        action_callbacks=line_action_callbacks,
+        release_context_func=release_context,
+        command_queue_summary_func=command_queue_summary,
+        route_service_callbacks=line_route_service_callbacks,
+        target_callbacks=line_target_callbacks,
+        option_callbacks=line_option_callbacks,
+        load_staged_func=load_staged,
+        find_survey_uploads_func=configure_find_survey_uploads,
+        append_event_fn=append_event,
     )
 
     line_job_callbacks = build_line_job_callbacks(

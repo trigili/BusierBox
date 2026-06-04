@@ -8,7 +8,7 @@ def build_line_completion_adapter(
     cfg,
     *,
     workbench_snapshot_func,
-    current_action_records_func,
+    current_action_records_func=None,
     bridge_profile_records_func=None,
     release_context_func,
     command_queue_summary_func,
@@ -19,6 +19,7 @@ def build_line_completion_adapter(
     service_names_func=None,
     route_service_callbacks=None,
     target_callbacks=None,
+    action_callbacks=None,
     option_callbacks=None,
     load_staged_func,
     find_survey_uploads_func,
@@ -38,6 +39,7 @@ def build_line_completion_adapter(
         service_names_func=service_names_func,
         route_service_callbacks=route_service_callbacks,
         target_callbacks=target_callbacks,
+        action_callbacks=action_callbacks,
         option_callbacks=option_callbacks,
         load_staged_func=load_staged_func,
         find_survey_uploads_func=find_survey_uploads_func,
@@ -53,7 +55,7 @@ def build_line_completion_bundle(
     cfg,
     *,
     workbench_snapshot_func,
-    current_action_records_func,
+    current_action_records_func=None,
     bridge_profile_records_func=None,
     release_context_func,
     command_queue_summary_func,
@@ -64,11 +66,15 @@ def build_line_completion_bundle(
     service_names_func=None,
     route_service_callbacks=None,
     target_callbacks=None,
+    action_callbacks=None,
     option_callbacks=None,
     load_staged_func,
     find_survey_uploads_func,
     append_event_fn,
 ):
+    if current_action_records_func is None and action_callbacks is not None:
+        current_action_records = action_callbacks["current_action_records"]
+        current_action_records_func = lambda _snapshot_func: current_action_records()
     if workbench_config_field_records_func is None and option_callbacks is not None:
         workbench_config_fields = option_callbacks["workbench_config_fields"]
         workbench_config_field_records_func = lambda _cfg: workbench_config_fields()
@@ -130,7 +136,7 @@ def setup_line_completion_bundle(
     readline_module,
     have_readline,
     workbench_snapshot_func,
-    current_action_records_func,
+    current_action_records_func=None,
     bridge_profile_records_func=None,
     release_context_func,
     command_queue_summary_func,
@@ -141,6 +147,7 @@ def setup_line_completion_bundle(
     service_names_func=None,
     route_service_callbacks=None,
     target_callbacks=None,
+    action_callbacks=None,
     option_callbacks=None,
     load_staged_func,
     find_survey_uploads_func,
@@ -160,6 +167,7 @@ def setup_line_completion_bundle(
         service_names_func=service_names_func,
         route_service_callbacks=route_service_callbacks,
         target_callbacks=target_callbacks,
+        action_callbacks=action_callbacks,
         option_callbacks=option_callbacks,
         load_staged_func=load_staged_func,
         find_survey_uploads_func=find_survey_uploads_func,
