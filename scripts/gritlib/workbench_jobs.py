@@ -221,6 +221,16 @@ def workbench_job_record_by_selector(records, selector):
     return {}
 
 
+def require_workbench_job_record(records, selector):
+    text = str(selector or "").strip()
+    rec = workbench_job_record_by_selector(records, text)
+    if not rec and text.isdigit():
+        raise ValueError(f"job number out of range: {text}")
+    if not rec:
+        raise ValueError(f"unknown workbench job: {text}")
+    return rec
+
+
 def line_job_record(snapshot, selector):
     return workbench_job_record_by_selector(
         (snapshot or {}).get("workbench_jobs") or [],
@@ -267,10 +277,8 @@ def print_current_line_jobs(
 def select_line_job(cfg, snapshot, selector):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError("usage: use job ID")
-    rec = line_job_record(snapshot, text)
-    if not rec:
-        raise ValueError(f"unknown workbench job: {text}")
+        raise ValueError("usage: use job ID|NUMBER")
+    rec = require_workbench_job_record((snapshot or {}).get("workbench_jobs") or [], text)
     job_id = str(rec.get("id") or "")
     set_line_collection_context(cfg, f"job/{job_id}")
     state = rec.get("effective_state") or rec.get("state") or "?"
@@ -299,9 +307,7 @@ def cancel_line_job(
         module = str(cfg.get("_line_console_module") or "")
         if module.startswith("job/"):
             text = module.split("/", 1)[1]
-    rec = line_job_record(snapshot, text)
-    if not rec:
-        raise ValueError(f"unknown workbench job: {text}")
+    rec = require_workbench_job_record((snapshot or {}).get("workbench_jobs") or [], text)
     job_id = str(rec.get("id") or text)
     command_builder = command_builder or cancel_workbench_job_headless_command
     headless = command_builder(cfg, job_id)

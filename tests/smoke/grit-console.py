@@ -5572,6 +5572,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "jobs -k missing-job\n"
                 "jobs\n"
                 "jobs -v\n"
+                "jobs -i 99\n"
                 "jobs -i 1\n"
                 "info\n"
                 "?\n"
@@ -6863,6 +6864,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     job_next_text = line_console_stdout[job_next_start:job_next_end] if job_next_start != -1 and job_next_end != -1 else ""
     if (not jobs_verbose_text or
             "cancel: scripts/grit-console" not in jobs_verbose_text or
+            "job number out of range: 99" not in line_console_stdout or
+            "numbered result not found: 99;" in line_console_stdout or
             not job_info_text or
             "Job: line-console-job" not in job_info_text or
             "action: package-artifact" not in job_info_text or
