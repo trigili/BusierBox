@@ -866,8 +866,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             not numeric_stopped_options_text or
             "Target command:" in numeric_stopped_options_text or
             "wget -O- http://" in numeric_stopped_options_text or
-            "started probe:" not in numeric_stdout or
-            "stopped probe:" not in numeric_stdout or
+            "probe started" not in numeric_stdout or
+            "probe stopped; port released" not in numeric_stdout or
+            "recent events: filter events by service probe" not in numeric_stdout or
             "service or route not found: 1" in numeric_stdout):
         print("line console numbered listener start/stop UX failed", file=sys.stderr)
         print(numeric_stdout, file=sys.stderr)
@@ -1517,6 +1518,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         return 1
     if "dry_run=yes" in line_console_stdout or "preview only: no changes applied" not in line_console_stdout:
         print("line-oriented action previews exposed raw dry-run status", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
+    if ("started bridge: pid=" in line_console_stdout or
+            "stopped bridge: pid=" in line_console_stdout or
+            "started file-service: pid=" in line_console_stdout or
+            "stopped file-service: pid=" in line_console_stdout or
+            "details: events service=" in line_console_stdout):
+        print("line-oriented service lifecycle output exposed raw process details", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
     for noisy in ("route.inspect_command=scripts/grit-console", "route.start_command=scripts/grit-console",
@@ -3539,7 +3548,7 @@ def main(argv=None):
                 f"target_command: {expected_survey_command}" not in survey_line_text or
                 "probe_workflow_actions: 4" not in survey_line_text or
                 "start_action_state=ready reason=run-now" not in survey_line_text or
-                "details: events service=probe -n 3" not in survey_line_text or
+                "recent events: filter events by service probe" not in survey_line_text or
                 "headless_command" in survey_line_text or
                 "bridge_profile=survey-route" not in survey_line_text):
             print("line console probe action did not show bridged command", file=sys.stderr)
@@ -8709,7 +8718,7 @@ def main(argv=None):
             return 1
         if ("copy start" not in tui_owned_text or
                 "copy the headless start command" not in tui_owned_text or
-                "details: events service=file-service -n 3" not in tui_owned_text):
+                "recent events: filter events by service file-service" not in tui_owned_text):
             print("line console service start did not expose transport command", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
             return 1

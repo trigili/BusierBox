@@ -164,8 +164,8 @@ def start_service_process(
                 "headless_command": headless_command,
             },
         )
-        print(f"{service}: already listening on port {current.get('port', '')}; not starting duplicate")
-        print(f"  details: events service={service} -n 3")
+        print(f"{service} already listening on port {current.get('port', '')}; not starting duplicate")
+        print(f"  recent events: filter events by service {service}")
         return None
     cmd = [
         sys.executable,
@@ -209,8 +209,9 @@ def start_service_process(
     started = cfg.setdefault("_workbench_started_services", [])
     if service not in started:
         started.append(service)
-    print(f"started {service}: pid={proc.pid} log={log_path}")
-    print(f"  details: events service={service} -n 3")
+    print(f"{service} started")
+    print(f"  pid {proc.pid}  log {log_path}")
+    print(f"  recent events: filter events by service {service}")
     return proc
 
 
@@ -259,7 +260,8 @@ def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="
         append_event(cfg, service, "shutdown", details={**details_base, "pid": pid, "reason": "SIGTERM", "ownership_evidence": ownership_evidence})
         os.kill(int(pid), signal.SIGTERM)
         if wait_service_port_released(cfg, service, pid=pid):
-            print(f"stopped {service}: pid={pid}; port released")
+            print(f"{service} stopped; port released")
+            print(f"  pid {pid}")
             mark_service_stopped(cfg, service, f"{via}:SIGTERM")
             append_event(cfg, service, "service_stop", details={**details_base, "pid": pid, "ownership_evidence": ownership_evidence, "port_released": True})
         else:
