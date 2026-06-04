@@ -173,8 +173,7 @@ from gritlib.line_resources import (
 )
 from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
-    dispatch_line_parsed_command, dispatch_line_quit_choice, prepare_repl_choice,
-    read_line as line_repl_read_line, read_next_repl_line,
+    read_line as line_repl_read_line, run_line_repl_loop,
     restore_signal_handlers,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
@@ -6281,8 +6280,6 @@ def run_line_repl(cfg):
 
     install_readline_completer(_readline, HAVE_READLINE, line_completion_candidates)
 
-    render_full = False
-    compact_next_prompt = False
     pending_console_lines = []
     line_history = []
     dispatch_line_utility = build_line_utility_dispatch_callback(
@@ -6428,72 +6425,34 @@ def run_line_repl(cfg):
         configure_func=configure_line_artifact,
         append_event_fn=append_event,
     )
-    while not SHUTDOWN.is_set():
-        prompt_result = read_next_repl_line(
-            cfg,
-            compact_next_prompt=compact_next_prompt,
-            render_full=render_full,
-            pending_console_lines=pending_console_lines,
-            workbench_snapshot_func=workbench_snapshot,
-            print_workbench_func=print_workbench,
-            print_banner_func=print_line_console_banner,
-            version_func=grit_version,
-            prompt_func=line_repl_prompt_for_config,
-            input_func=line_input,
-        )
-        line = prompt_result["line"]
-        compact_next_prompt = prompt_result["compact_next_prompt"]
-        render_full = prompt_result["render_full"]
-        if line is None:
-            break
-        prepared = prepare_repl_choice(
-            line,
-            line_history,
-            history_command_func=line_history_command,
-            record_history_func=record_line_history,
-            clear_results_func=lambda: clear_line_search_results(cfg),
-            readline_module=_readline if HAVE_READLINE else None,
-        )
-        if prepared.get("compact_next_prompt"):
-            compact_next_prompt = True
-        if prepared.get("continue"):
-            continue
-        choice = prepared["choice"]
-        console_args = prepared["console_args"]
-        cmd = prepared["cmd"]
-        if console_args:
-            parsed_result = dispatch_line_parsed_command(
-                cmd,
-                console_args,
-                module=cfg.get("_line_console_module"),
-                target_selected=bool(configured_target_filter(cfg)),
-                command_help_printer=print_line_command_help,
-                context_help_printer=print_context_line_help,
-                utility_dispatch_func=dispatch_line_utility,
-                core_dispatch_func=dispatch_line_core,
-                navigation_dispatch_func=dispatch_line_navigation,
-                workflow_dispatch_func=dispatch_line_workflow,
-                unknown_message_func=line_unknown_command_message,
-            )
-            if "choice" in parsed_result:
-                choice = parsed_result["choice"]
-            if "compact_next_prompt" in parsed_result:
-                compact_next_prompt = parsed_result["compact_next_prompt"]
-            if parsed_result.get("handled"):
-                continue
-        quit_result = dispatch_line_quit_choice(
-            choice,
-            module=cfg.get("_line_console_module"),
-            target_selected=bool(configured_target_filter(cfg)),
-            clear_context_func=lambda quiet=False: clear_line_console_context(cfg, quiet=quiet),
-            mark_stopped_func=lambda: mark_service_stopped(cfg, "workbench", "quit"),
-        )
-        if quit_result.get("handled"):
-            if quit_result.get("compact_next_prompt"):
-                compact_next_prompt = True
-                continue
-            return quit_result.get("exit_code", 0)
-        legacy_result = dispatch_legacy_line_choice(
+    result = run_line_repl_loop(
+        cfg,
+        shutdown_event=SHUTDOWN,
+        shutdown_reason_func=lambda: SHUTDOWN_REASON,
+        line_history=line_history,
+        pending_console_lines=pending_console_lines,
+        workbench_snapshot_func=workbench_snapshot,
+        print_workbench_func=print_workbench,
+        print_banner_func=print_line_console_banner,
+        version_func=grit_version,
+        prompt_func=line_repl_prompt_for_config,
+        input_func=line_input,
+        history_command_func=line_history_command,
+        record_history_func=record_line_history,
+        clear_results_func=lambda: clear_line_search_results(cfg),
+        readline_module=_readline if HAVE_READLINE else None,
+        module_func=lambda repl_cfg: repl_cfg.get("_line_console_module"),
+        target_selected_func=lambda repl_cfg: bool(configured_target_filter(repl_cfg)),
+        command_help_printer=print_line_command_help,
+        context_help_printer=print_context_line_help,
+        utility_dispatch_func=dispatch_line_utility,
+        core_dispatch_func=dispatch_line_core,
+        navigation_dispatch_func=dispatch_line_navigation,
+        workflow_dispatch_func=dispatch_line_workflow,
+        unknown_message_func=line_unknown_command_message,
+        clear_context_func=lambda quiet=False: clear_line_console_context(cfg, quiet=quiet),
+        mark_stopped_func=lambda: mark_service_stopped(cfg, "workbench", "quit"),
+        legacy_dispatch_func=lambda choice: dispatch_legacy_line_choice(
             choice,
             cfg,
             input_func=line_input,
@@ -6519,15 +6478,10 @@ def run_line_repl(cfg):
             delete_bridge_profile_func=delete_bridge_profile,
             action_state_text_func=line_action_state_text,
             print_line_command_queue_view_func=print_line_command_queue_view,
-        )
-        if legacy_result.get("handled"):
-            if legacy_result.get("render_full"):
-                render_full = True
-            if legacy_result.get("compact_next_prompt"):
-                compact_next_prompt = True
-            continue
+        ),
+    )
     restore_signal_handlers(signal_handlers)
-    return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
+    return result
 
 
 def run_line_console(cfg):

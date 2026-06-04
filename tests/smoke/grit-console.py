@@ -427,6 +427,7 @@ def run_line_repl_runtime_check():
         prepare_repl_choice,
         read_line,
         read_next_repl_line,
+        run_line_repl_loop,
     )
 
     reasons = []
@@ -1318,6 +1319,108 @@ def run_line_repl_runtime_check():
     ]
     if workflow_calls != expected_workflow_calls:
         print(f"line REPL workflow adapter wiring changed: {workflow_calls}", file=sys.stderr)
+        return 1
+
+    loop_calls = []
+    loop_shutdown = threading.Event()
+    loop_lines = iter(["", "status", "q", "v", None])
+
+    def loop_input(prompt):
+        loop_calls.append(("input", prompt))
+        value = next(loop_lines)
+        return value
+
+    loop_cfg = {"_line_console_module": "targets"}
+    loop_result = run_line_repl_loop(
+        loop_cfg,
+        shutdown_event=loop_shutdown,
+        shutdown_reason_func=lambda: "",
+        line_history=[],
+        pending_console_lines=[],
+        workbench_snapshot_func=lambda cfg: loop_calls.append(("snapshot", cfg.get("_line_console_module"))) or {},
+        print_workbench_func=lambda cfg, include_api_summary=False: loop_calls.append(
+            ("workbench", cfg.get("_line_console_module"), include_api_summary)
+        ),
+        print_banner_func=lambda snapshot, version: loop_calls.append(("banner", snapshot, version)),
+        version_func=lambda: "v-loop",
+        prompt_func=lambda cfg: f"grit[{cfg.get('_line_console_module') or 'all'}]> ",
+        input_func=loop_input,
+        history_command_func=lambda history, selector: history[-1],
+        record_history_func=lambda history, command, readline_module=None: (
+            history.append(command),
+            loop_calls.append(("history", command, readline_module)),
+        ),
+        clear_results_func=lambda: loop_calls.append("clear-results"),
+        readline_module="readline",
+        module_func=lambda cfg: cfg.get("_line_console_module"),
+        target_selected_func=lambda cfg: bool(cfg.get("target")),
+        command_help_printer=lambda topic: loop_calls.append(("help", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: loop_calls.append(
+            ("context-help", module, target_selected, command_help_printer is not None)
+        ),
+        utility_dispatch_func=lambda command, args: (
+            loop_calls.append(("utility", command, tuple(args))) or command == "status"
+        ),
+        core_dispatch_func=lambda command, args: loop_calls.append(("core", command, tuple(args))) or False,
+        navigation_dispatch_func=lambda command, args: loop_calls.append(("navigation", command, tuple(args))) or False,
+        workflow_dispatch_func=lambda command, args: loop_calls.append(("workflow", command, tuple(args))) or False,
+        unknown_message_func=lambda command, module, target_selected=False: f"unknown {command}",
+        clear_context_func=lambda quiet=False: (
+            loop_calls.append(("clear-context", quiet)),
+            loop_cfg.__setitem__("_line_console_module", ""),
+        ),
+        mark_stopped_func=lambda: loop_calls.append("stopped"),
+        legacy_dispatch_func=lambda choice: loop_calls.append(("legacy", choice)) or {
+            "handled": choice == "v",
+            "render_full": choice == "v",
+        },
+    )
+    if loop_result != 0 or "stopped" in loop_calls:
+        print(f"line REPL loop did not preserve scoped quit/EOF behavior: result={loop_result} calls={loop_calls}", file=sys.stderr)
+        return 1
+    for expected in (
+        ("utility", "status", ()),
+        ("clear-context", True),
+        ("legacy", "v"),
+        ("workbench", "", False),
+    ):
+        if expected not in loop_calls:
+            print(f"line REPL loop missed expected transition {expected}: {loop_calls}", file=sys.stderr)
+            return 1
+
+    shutdown_loop = threading.Event()
+    shutdown_loop.set()
+    interrupted = run_line_repl_loop(
+        {},
+        shutdown_event=shutdown_loop,
+        shutdown_reason_func=lambda: "keyboard_interrupt",
+        line_history=[],
+        pending_console_lines=[],
+        workbench_snapshot_func=lambda cfg: {},
+        print_workbench_func=lambda cfg, include_api_summary=False: None,
+        print_banner_func=lambda snapshot, version: None,
+        version_func=lambda: "",
+        prompt_func=lambda cfg: "> ",
+        input_func=lambda prompt: "",
+        history_command_func=lambda history, selector: "",
+        record_history_func=lambda history, command, readline_module=None: None,
+        clear_results_func=lambda: None,
+        readline_module=None,
+        module_func=lambda cfg: "",
+        target_selected_func=lambda cfg: False,
+        command_help_printer=lambda topic: None,
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: None,
+        utility_dispatch_func=lambda command, args: False,
+        core_dispatch_func=lambda command, args: False,
+        navigation_dispatch_func=lambda command, args: False,
+        workflow_dispatch_func=lambda command, args: False,
+        unknown_message_func=lambda command, module, target_selected=False: "",
+        clear_context_func=lambda quiet=False: None,
+        mark_stopped_func=lambda: None,
+        legacy_dispatch_func=lambda choice: {"handled": False},
+    )
+    if interrupted != 130:
+        print(f"line REPL loop did not preserve interrupted exit status: {interrupted}", file=sys.stderr)
         return 1
     return 0
 

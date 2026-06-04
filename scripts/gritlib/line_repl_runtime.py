@@ -232,6 +232,113 @@ def dispatch_line_parsed_command(
     return {"handled": True}
 
 
+def run_line_repl_loop(
+    cfg,
+    *,
+    shutdown_event,
+    shutdown_reason_func,
+    line_history,
+    pending_console_lines,
+    workbench_snapshot_func,
+    print_workbench_func,
+    print_banner_func,
+    version_func,
+    prompt_func,
+    input_func,
+    history_command_func,
+    record_history_func,
+    clear_results_func,
+    readline_module,
+    module_func,
+    target_selected_func,
+    command_help_printer,
+    context_help_printer,
+    utility_dispatch_func,
+    core_dispatch_func,
+    navigation_dispatch_func,
+    workflow_dispatch_func,
+    unknown_message_func,
+    clear_context_func,
+    mark_stopped_func,
+    legacy_dispatch_func,
+):
+    render_full = False
+    compact_next_prompt = False
+    while not shutdown_event.is_set():
+        prompt_result = read_next_repl_line(
+            cfg,
+            compact_next_prompt=compact_next_prompt,
+            render_full=render_full,
+            pending_console_lines=pending_console_lines,
+            workbench_snapshot_func=workbench_snapshot_func,
+            print_workbench_func=print_workbench_func,
+            print_banner_func=print_banner_func,
+            version_func=version_func,
+            prompt_func=prompt_func,
+            input_func=input_func,
+        )
+        line = prompt_result["line"]
+        compact_next_prompt = prompt_result["compact_next_prompt"]
+        render_full = prompt_result["render_full"]
+        if line is None:
+            break
+        prepared = prepare_repl_choice(
+            line,
+            line_history,
+            history_command_func=history_command_func,
+            record_history_func=record_history_func,
+            clear_results_func=clear_results_func,
+            readline_module=readline_module,
+        )
+        if prepared.get("compact_next_prompt"):
+            compact_next_prompt = True
+        if prepared.get("continue"):
+            continue
+        choice = prepared["choice"]
+        console_args = prepared["console_args"]
+        cmd = prepared["cmd"]
+        if console_args:
+            parsed_result = dispatch_line_parsed_command(
+                cmd,
+                console_args,
+                module=module_func(cfg),
+                target_selected=target_selected_func(cfg),
+                command_help_printer=command_help_printer,
+                context_help_printer=context_help_printer,
+                utility_dispatch_func=utility_dispatch_func,
+                core_dispatch_func=core_dispatch_func,
+                navigation_dispatch_func=navigation_dispatch_func,
+                workflow_dispatch_func=workflow_dispatch_func,
+                unknown_message_func=unknown_message_func,
+            )
+            if "choice" in parsed_result:
+                choice = parsed_result["choice"]
+            if "compact_next_prompt" in parsed_result:
+                compact_next_prompt = parsed_result["compact_next_prompt"]
+            if parsed_result.get("handled"):
+                continue
+        quit_result = dispatch_line_quit_choice(
+            choice,
+            module=module_func(cfg),
+            target_selected=target_selected_func(cfg),
+            clear_context_func=clear_context_func,
+            mark_stopped_func=mark_stopped_func,
+        )
+        if quit_result.get("handled"):
+            if quit_result.get("compact_next_prompt"):
+                compact_next_prompt = True
+                continue
+            return quit_result.get("exit_code", 0)
+        legacy_result = legacy_dispatch_func(choice)
+        if legacy_result.get("handled"):
+            if legacy_result.get("render_full"):
+                render_full = True
+            if legacy_result.get("compact_next_prompt"):
+                compact_next_prompt = True
+            continue
+    return 130 if shutdown_reason_func() in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
+
+
 def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull):
     stream = stdin if stdin is not None else sys.stdin
     null_fd = None
