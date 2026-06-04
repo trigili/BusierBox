@@ -123,11 +123,12 @@ def print_line_command_queue_records(
     command_records = queue_summary.get("commands") or []
 
     if include_queue_summary:
+        pending_count = len([rec for rec in mailbox_records if rec.get("pending_work")])
         status_bits = [
-            f"enabled={queue_summary.get('enabled', 'no')}",
-            f"queued={len(command_records)}",
-            f"results={queue_summary.get('result_count', 0)}",
-            f"pending_mailbox={len([rec for rec in mailbox_records if rec.get('pending_work')])}",
+            f"enabled {queue_summary.get('enabled', 'no')}",
+            f"queued {len(command_records)}",
+            f"results {queue_summary.get('result_count', 0)}",
+            f"mailbox pending {pending_count}",
         ]
         print(f"Command queue  ({'  '.join(status_bits)})")
         policy_errors = queue_summary.get("policy_errors") or []

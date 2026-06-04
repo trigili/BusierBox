@@ -1898,14 +1898,19 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     mailbox_queue_text = mailbox_text + mailbox_targets_text + queue_view_text + queue_verbose_text
     if (not mailbox_text or not mailbox_targets_text or not queue_view_text or not queue_verbose_text or
             "Command queue  (" not in mailbox_text or
+            "enabled no" not in mailbox_text or
+            "mailbox pending 0" not in mailbox_text or
             "Target mailbox  (" not in mailbox_targets_text or
             "Command queue  (" in mailbox_targets_text or
             "Queue actions" in mailbox_targets_text or
             "Command queue  (" not in queue_view_text or
+            "mailbox pending 0" not in queue_view_text or
             "Review queue" not in queue_view_text or
             "Queue command" not in queue_view_text or
             "Start mailbox listener" not in queue_view_text or
             "policy details:" not in queue_verbose_text or
+            "pending_mailbox=" in mailbox_queue_text or
+            "enabled=no" in mailbox_queue_text or
             "command-queue:" in queue_view_text or
             "allowed_commands=" in mailbox_queue_text or
             "delivery_policy_counts:" in mailbox_queue_text):
