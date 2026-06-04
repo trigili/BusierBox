@@ -226,19 +226,20 @@ def print_line_context_options(
     if module.startswith("job/"):
         job_id = module.split("/", 1)[1]
         rec = job_record
-        print(f"  job.id={job_id}")
+        print(f"Job: {job_id}")
         if rec:
-            print(f"  job.action={rec.get('action_id', '') or '-'}")
-            print(f"  job.state={rec.get('state', '') or '-'}")
-            print(f"  job.effective_state={rec.get('effective_state', '') or '-'}")
-            print(f"  job.pid={rec.get('pid', '') or '-'}")
-            print(f"  job.pid_managed={'yes' if rec.get('pid_managed') else 'no'}")
-            print(f"  job.cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}")
-            print(f"  job.log_path={rec.get('log_path', '') or '-'}")
-            print(f"  job.log_exists={'yes' if rec.get('log_exists') else 'no'}")
-            print(f"  job.elapsed_sec={rec.get('elapsed_sec', '') if rec.get('elapsed_sec') != '' else '-'}")
-            print(f"  job.exit_status={rec.get('exit_status', '') if rec.get('exit_status') != '' else '-'}")
-        print("  job.next=info, jobs, jobs -v, back")
+            elapsed = rec.get("elapsed_sec", "")
+            exit_status = rec.get("exit_status", "")
+            print(f"  action: {rec.get('action_id', '') or '-'}")
+            print(f"  state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}")
+            print(f"  pid: {rec.get('pid', '') or '-'}")
+            print(f"  managed: {'yes' if rec.get('pid_managed') else 'no'}")
+            print(f"  cancel supported: {'yes' if rec.get('cancel_supported') else 'no'}")
+            print(f"  log: {rec.get('log_path', '') or '-'}")
+            print(f"  log exists: {'yes' if rec.get('log_exists') else 'no'}")
+            print(f"  elapsed: {elapsed if elapsed != '' else '-'} sec")
+            print(f"  exit: {exit_status if exit_status != '' else '-'}")
+        print("  next: info, jobs, jobs -v, back")
 
     action = selected_action
     if action:

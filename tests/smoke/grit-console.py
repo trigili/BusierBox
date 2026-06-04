@@ -1706,6 +1706,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             not job_info_text or
             "cancel=scripts/grit-console" in job_info_text or
             not job_options_text or
+            "Job: line-console-job" not in job_options_text or
+            "action: package-artifact" not in job_options_text or
+            "state: running" not in job_options_text or
+            "job.id=" in job_options_text or
+            "job.action=" in job_options_text or
+            "job.log_path=" in job_options_text or
             "job.cancel_command=scripts/grit-console" in job_options_text):
         print("line-oriented selected job context exposed generated cancel command by default", file=sys.stderr)
         print("jobs -v:", file=sys.stderr)
