@@ -76,16 +76,16 @@ def print_context_line_help(module="", target_selected=False, command_help_print
 
 
 def print_line_console_help():
-    print("Console help topics:")
+    print("Console commands")
     print("")
     print("Usage:")
-    print("  help <topic>")
-    print("  <topic> ?")
+    print("  help <topic>    show detailed help")
+    print("  <topic> ?       show detailed help")
+    print("  search TERM     find agents, listeners, modules, sessions, jobs, files, and queue records")
     print("")
-    print("Topics:")
     groups = [
         (
-            "Operator workspace",
+            "Workspace",
             [
                 ("workspace", "overview, status, info, search, next"),
                 ("targets", "agents, select, mailbox, activity feed"),
@@ -94,7 +94,7 @@ def print_line_console_help():
             ],
         ),
         (
-            "Target work",
+            "Target Work",
             [
                 ("files", "stage, fetch, download, release, serve-binary, view"),
                 ("probe", "shell probe: run probe.sh, see results, gen config"),
@@ -103,7 +103,7 @@ def print_line_console_help():
             ],
         ),
         (
-            "Control plane",
+            "Control Plane",
             [
                 ("routes", "bridge profiles, multi-hop tunnels"),
                 ("actions", "operator modules, dry-run/run, background jobs"),
@@ -125,7 +125,7 @@ def print_line_console_help():
         for topic, desc in entries:
             print(f"  {topic:<10} {desc}")
         print("")
-    print("Tip: use `search TERM` to find agents, listeners, modules, sessions, jobs, files, and queue records.")
+    print("Aliases: agents=targets  services=listeners  bridges=routes  mailbox=queue")
 
 
 def print_line_command_help(topic):

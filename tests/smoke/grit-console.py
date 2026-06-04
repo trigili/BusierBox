@@ -1268,16 +1268,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         if marker not in line_console_stdout
     ]
     line_console_required_markers = [
-        "Console help topics:",
+        "Console commands",
         "Usage:",
-        "  help <topic>",
-        "Topics:",
-        "Operator workspace",
-        "Target work",
-        "Control plane",
+        "  help <topic>    show detailed help",
+        "  <topic> ?       show detailed help",
+        "Workspace",
+        "Target Work",
+        "Control Plane",
         "actions    operator modules, dry-run/run, background jobs",
         "Console",
-        "Tip: use `search TERM` to find agents, listeners, modules, sessions, jobs, files, and queue records.",
+        "Aliases: agents=targets  services=listeners  bridges=routes  mailbox=queue",
         "next: ? help",
         "targets (",
         "use N",
@@ -1384,6 +1384,19 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(f"missing line console markers: {line_console_missing_required}", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         print(line_console_stderr or "", file=sys.stderr)
+        return 1
+    main_help_start = line_console_stdout.find("grit[all]> help")
+    main_help_end = line_console_stdout.find("grit[all]> ?", main_help_start + 1)
+    main_help_text = line_console_stdout[main_help_start:main_help_end] if main_help_start != -1 and main_help_end != -1 else ""
+    if (not main_help_text or
+            "Console commands" not in main_help_text or
+            not re.search(r"(?m)^Workspace\r?$", main_help_text) or
+            not re.search(r"(?m)^Target Work\r?$", main_help_text) or
+            not re.search(r"(?m)^Control Plane\r?$", main_help_text) or
+            "Console help topics:" in main_help_text or
+            "Topics:" in main_help_text):
+        print("line-oriented top-level help did not use grouped operator command sections", file=sys.stderr)
+        print(main_help_text or line_console_stdout, file=sys.stderr)
         return 1
     help_modules_start = line_console_stdout.find("grit[all]> help modules")
     help_modules_end = line_console_stdout.find("grit[all]> help routes", help_modules_start + 1)
