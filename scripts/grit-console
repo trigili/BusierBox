@@ -6096,7 +6096,8 @@ def run_line_repl(cfg):
     line_action_callbacks = build_line_action_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        service_names_func=lambda: line_service_names(service_status_rows(cfg)),
+        service_status_rows_func=service_status_rows,
+        service_names_func=line_service_names,
         start_service_func=start_line_service,
         service_runner=run_service_workflow_action,
         daemon_runner=run_operator_daemon_workflow_action,

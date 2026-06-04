@@ -16,6 +16,7 @@ def build_line_action_callbacks(
     cfg,
     *,
     workbench_snapshot_func,
+    service_status_rows_func,
     service_names_func,
     start_service_func,
     service_runner,
@@ -54,6 +55,9 @@ def build_line_action_callbacks(
     def selected_line_action():
         return selected_current_line_action(cfg, snapshot)
 
+    def service_names():
+        return service_names_func(service_status_rows_func(cfg))
+
     def run_line_selected_action_callback(args=None, dry_run_default=False):
         return run_line_selected_action(
             cfg,
@@ -74,7 +78,7 @@ def build_line_action_callbacks(
             dry_run_default=dry_run_default,
             selected_action_func=selected_line_action,
             select_action_func=select_line_action,
-            service_names_func=service_names_func,
+            service_names_func=service_names,
             start_service_func=start_service_func,
             run_selected_action_func=run_line_selected_action_callback,
         )
