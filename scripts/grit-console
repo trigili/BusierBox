@@ -6166,8 +6166,6 @@ def run_line_repl(cfg):
     line_search_callbacks = build_line_search_bundle(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        service_records_func=service_status_rows,
-        route_records_func=bridge_profile_records,
         target_callbacks=line_target_callbacks,
         route_service_callbacks=line_route_service_callbacks,
         action_callbacks=line_action_callbacks,

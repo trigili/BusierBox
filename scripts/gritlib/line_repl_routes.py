@@ -56,6 +56,9 @@ def build_line_route_service_callbacks(
     def route_record(name):
         return line_route_record(bridge_profile_records_func(cfg), name)
 
+    def route_records():
+        return bridge_profile_records_func(cfg)
+
     def service_rows():
         return service_status_rows_func(cfg)
 
@@ -165,6 +168,7 @@ def build_line_route_service_callbacks(
 
     return {
         "bridge_profile_headless_command": bridge_profile_headless_command,
+        "bridge_profile_records": route_records,
         "line_route_record": route_record,
         "service_rows": service_rows,
         "service_names": service_names,

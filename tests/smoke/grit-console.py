@@ -2125,6 +2125,8 @@ def run_line_repl_runtime_check():
 
         def search_bundle_search(query):
             search_bundle_calls.append(("search", query))
+            kwargs["service_records_func"]({"name": "ignored"})
+            kwargs["route_records_func"]({"name": "ignored"})
             kwargs["select_target_func"]("target1")
             kwargs["select_service_func"]("service1")
             kwargs["select_route_func"]("route1")
@@ -2145,8 +2147,6 @@ def run_line_repl_runtime_check():
         search_bundle = repl_search.build_line_search_bundle(
             {"name": "search-bundle-cfg"},
             workbench_snapshot_func=lambda cfg: search_bundle_calls.append(("snapshot", cfg.get("name"))) or {},
-            service_records_func=lambda cfg: search_bundle_calls.append(("services", cfg.get("name"))) or [],
-            route_records_func=lambda cfg: search_bundle_calls.append(("routes", cfg.get("name"))) or [],
             target_callbacks={
                 "select_line_target": lambda selector: search_bundle_calls.append(("target", selector)),
             },
@@ -2154,6 +2154,8 @@ def run_line_repl_runtime_check():
                 "bridge_profile_headless_command": lambda action, name="", extra=None: (
                     f"route {action} {name}".strip()
                 ),
+                "service_rows": lambda: search_bundle_calls.append("services") or [],
+                "bridge_profile_records": lambda: search_bundle_calls.append("routes") or [],
                 "select_line_service": lambda selector: search_bundle_calls.append(("service", selector)),
                 "select_line_route": lambda selector: search_bundle_calls.append(("route", selector)),
             },
@@ -2183,6 +2185,8 @@ def run_line_repl_runtime_check():
     expected_search_bundle_calls = [
         ("builder", "search-bundle-cfg", "route inspect route1"),
         ("search", "target"),
+        "services",
+        "routes",
         ("target", "target1"),
         ("service", "service1"),
         ("route", "route1"),

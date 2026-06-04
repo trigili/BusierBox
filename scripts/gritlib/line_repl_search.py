@@ -15,8 +15,8 @@ def build_line_search_bundle(
     cfg,
     *,
     workbench_snapshot_func,
-    service_records_func,
-    route_records_func,
+    service_records_func=None,
+    route_records_func=None,
     target_callbacks,
     route_service_callbacks,
     action_callbacks,
@@ -29,6 +29,10 @@ def build_line_search_bundle(
 ):
     if route_command_builder is None:
         route_command_builder = route_service_callbacks["bridge_profile_headless_command"]
+    if service_records_func is None:
+        service_records_func = lambda _cfg: route_service_callbacks["service_rows"]()
+    if route_records_func is None:
+        route_records_func = lambda _cfg: route_service_callbacks["bridge_profile_records"]()
     return build_line_search_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot_func,
