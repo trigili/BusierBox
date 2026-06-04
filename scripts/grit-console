@@ -7725,7 +7725,7 @@ def run_line_repl(cfg):
                 if len(console_args) >= 2:
                     print_line_command_help(console_args[1])
                 else:
-                    print_line_console_help()
+                    print_context_line_help()
                 continue
             elif cmd in {"complete", "completions"}:
                 print_line_completions(" ".join(console_args[1:]).strip())

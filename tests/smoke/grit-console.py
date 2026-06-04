@@ -1065,6 +1065,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "events service=workbench -n 2\n"
                 "probe\n"
                 "?\n"
+                "help\n"
                 "back\n"
                 "probe delivery\n"
                 "probe paste\n"
@@ -1312,6 +1313,18 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Console help topics:" in probe_context_help_text):
         print("line-oriented bare ? did not use probe breadcrumb context", file=sys.stderr)
         print(probe_context_help_text or line_console_stdout, file=sys.stderr)
+        return 1
+    probe_context_bare_help_start = line_console_stdout.find("grit[Console Router]/probe> help")
+    probe_context_bare_help_end = line_console_stdout.find("grit[Console Router]/probe> back", probe_context_bare_help_start + 1)
+    probe_context_bare_help_text = (
+        line_console_stdout[probe_context_bare_help_start:probe_context_bare_help_end]
+        if probe_context_bare_help_start != -1 and probe_context_bare_help_end != -1 else ""
+    )
+    if (not probe_context_bare_help_text or
+            "Help: probe" not in probe_context_bare_help_text or
+            "Console help topics:" in probe_context_bare_help_text):
+        print("line-oriented bare help did not use probe breadcrumb context", file=sys.stderr)
+        print(probe_context_bare_help_text or line_console_stdout, file=sys.stderr)
         return 1
     probe_queue_start = line_console_stdout.find("grit[Console Router]/probe> probe --queue")
     probe_queue_end = line_console_stdout.find("grit[Console Router]/probe> download --queue", probe_queue_start + 1)
