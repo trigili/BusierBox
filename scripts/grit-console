@@ -151,6 +151,7 @@ from gritlib.line_files import (
     parse_line_file_args,
     parse_line_release_stage_args,
     print_line_file_records,
+    stage_line_file as line_files_stage_line_file,
 )
 from gritlib.line_help import (
     print_line_command_help as line_help_print_line_command_help,
@@ -7931,45 +7932,18 @@ def run_line_repl(cfg):
         return artifact
 
     def stage_line_file(path_text="", request_name="", start_file_service=False):
-        path = str(path_text or "").strip()
-        if not path:
-            raise ValueError("usage: upload [--start] LOCAL [NAME]")
-        name = str(request_name or "").strip() or Path(path).name
-        headless = (
-            "scripts/grit-console --config "
-            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-            + " --serve-file "
-            + shquote(path)
-            + " --as "
-            + shquote(name)
-            + " --list-staged"
+        return line_files_stage_line_file(
+            cfg,
+            path_text,
+            request_name,
+            start_file_service=start_file_service,
+            start_file_service_fn=lambda: start_service_process(
+                cfg,
+                "file-service",
+                headless_command=service_start_headless_command(cfg, "file-service"),
+            ),
+            append_event_fn=append_event,
         )
-        rec = stage_file(cfg, path, name, metadata={"stage_kind": "operator-upload"})
-        fetch_command = render_fetch_command(rec["request_name"], cfg)
-        print("File staged for target fetch:")
-        print(f"  request_name={rec.get('request_name', '')}")
-        print(f"  source_path={rec.get('source_path', '')}")
-        print(f"  sha256={rec.get('sha256', '')}")
-        print(f"  target fetch: {fetch_command}")
-        fetch_options = print_staged_fetch_target_options(rec.get("request_name", ""), cfg)
-        started = False
-        if start_file_service:
-            start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
-            started = True
-        print(f"  file service: {'started' if started else 'not started'}")
-        append_event(cfg, "workbench", "workbench_file_uploaded", details={
-            "headless_command": headless,
-            "request_name": rec.get("request_name", ""),
-            "source_path": rec.get("source_path", ""),
-            "sha256": rec.get("sha256", ""),
-            "fetch_command": fetch_command,
-            "fetch_options": fetch_options,
-            "started_file_service": started,
-            "stage_kind": rec.get("stage_kind", ""),
-            "target_id": rec.get("target_id", ""),
-            "target_label": rec.get("target_label", ""),
-        })
-        return rec
 
     def staged_line_record(request_name):
         name = str(request_name or "").strip()

@@ -1,6 +1,12 @@
 """Line-console staged file rendering helpers."""
 
+from pathlib import Path
+
 from gritlib.console_display import console_table
+from gritlib.config_utils import DEFAULT_CONFIG
+from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
+from gritlib.shell_utils import shquote
+from gritlib.staged_files import stage_file
 
 
 def parse_line_download_args(args):
@@ -172,3 +178,54 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
         }
         for record in records
     ]
+
+
+def stage_line_file(
+    cfg,
+    path_text="",
+    request_name="",
+    start_file_service=False,
+    start_file_service_fn=None,
+    append_event_fn=None,
+):
+    path = str(path_text or "").strip()
+    if not path:
+        raise ValueError("usage: upload [--start] LOCAL [NAME]")
+    name = str(request_name or "").strip() or Path(path).name
+    headless = (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --serve-file "
+        + shquote(path)
+        + " --as "
+        + shquote(name)
+        + " --list-staged"
+    )
+    rec = stage_file(cfg, path, name, metadata={"stage_kind": "operator-upload"})
+    fetch_command = render_fetch_command(rec["request_name"], cfg)
+    print("File staged for target fetch:")
+    print(f"  request_name={rec.get('request_name', '')}")
+    print(f"  source_path={rec.get('source_path', '')}")
+    print(f"  sha256={rec.get('sha256', '')}")
+    print(f"  target fetch: {fetch_command}")
+    fetch_options = print_staged_fetch_target_options(rec.get("request_name", ""), cfg)
+    started = False
+    if start_file_service:
+        if start_file_service_fn:
+            start_file_service_fn()
+        started = True
+    print(f"  file service: {'started' if started else 'not started'}")
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_file_uploaded", details={
+            "headless_command": headless,
+            "request_name": rec.get("request_name", ""),
+            "source_path": rec.get("source_path", ""),
+            "sha256": rec.get("sha256", ""),
+            "fetch_command": fetch_command,
+            "fetch_options": fetch_options,
+            "started_file_service": started,
+            "stage_kind": rec.get("stage_kind", ""),
+            "target_id": rec.get("target_id", ""),
+            "target_label": rec.get("target_label", ""),
+        })
+    return rec
