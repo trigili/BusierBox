@@ -202,7 +202,7 @@ from gritlib.line_release import (
 )
 from gritlib.line_search import (
     clear_line_search_results, dispatch_line_number_selection,
-    line_search_results, print_line_search_results, set_line_search_results,
+    line_search_results, run_line_search, set_line_search_results,
     use_line_search_result as line_search_use_line_search_result,
 )
 from gritlib.line_services import (
@@ -6644,22 +6644,18 @@ def run_line_repl(cfg):
         )
 
     def search_line_resources(query):
-        snap = workbench_snapshot(cfg)
-        search_records = print_line_search_results(
+        run_line_search(
+            cfg,
             query,
-            snap=snap,
+            snapshot=workbench_snapshot(cfg),
             service_records=service_status_rows(cfg),
             route_records=bridge_profile_records(cfg),
             action_records=line_action_records(),
             route_command_builder=bridge_profile_headless_command,
             job_cancel_command_builder=lambda job_id: cancel_workbench_job_headless_command(cfg, job_id),
             quote=shquote,
+            append_event_fn=append_event,
         )
-        set_line_search_results(cfg, search_records)
-        append_event(cfg, "workbench", "workbench_console_searched", details={
-            "query": str(query or ""),
-            "match_count": len(search_records),
-        })
 
     def print_line_events(args):
         return print_line_events_view(cfg, args)

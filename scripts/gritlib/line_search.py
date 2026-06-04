@@ -180,6 +180,38 @@ def print_line_search_results(
     return search_records
 
 
+def run_line_search(
+    cfg,
+    query,
+    *,
+    snapshot,
+    service_records=None,
+    route_records=None,
+    action_records=None,
+    route_command_builder=None,
+    job_cancel_command_builder=None,
+    quote=None,
+    append_event_fn=None,
+):
+    search_records = print_line_search_results(
+        query,
+        snap=snapshot,
+        service_records=service_records,
+        route_records=route_records,
+        action_records=action_records,
+        route_command_builder=route_command_builder,
+        job_cancel_command_builder=job_cancel_command_builder,
+        quote=quote,
+    )
+    set_line_search_results(cfg, search_records)
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_console_searched", details={
+            "query": str(query or ""),
+            "match_count": len(search_records),
+        })
+    return search_records
+
+
 def use_line_search_result(
     selector,
     results,
