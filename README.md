@@ -713,6 +713,13 @@ workflow and is kept out of the default smoke path:
 make unit-test
 ```
 
+QEMU-backed coverage is intentionally opt-in and can be run separately:
+
+```sh
+make unit-test-qemu
+make unit-test-all
+```
+
 ---
 
 ## Documentation
