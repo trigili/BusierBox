@@ -1516,6 +1516,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print("line-oriented event summaries exposed headless command internals", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
+    if "use command:" in line_console_stdout:
+        print("line-oriented search results used verbose command labels", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
     if "copy the headless start command" in line_console_stdout:
         print("line-oriented service hint exposed headless command language", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
@@ -1899,7 +1903,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     service_search_text = line_console_stdout[service_search_start:service_search_end] if service_search_start != -1 and service_search_end != -1 else ""
     if (not job_search_text or
             "job line-console-job action: package-artifact state: running" not in job_search_text or
-            "use command: use job line-console-job" not in job_search_text or
+            "command: use job line-console-job" not in job_search_text or
             "action=package-artifact" in job_search_text or
             "command: scripts/grit-console" in job_search_text or
             not target_search_text or
@@ -1909,7 +1913,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "label=Console Router" in target_search_text or
             "state=configured" in target_search_text or
             "state=queueable offline" in target_search_text or
-            "use command: use target line-console-target" not in target_search_text or
+            "command: use target line-console-target" not in target_search_text or
             "command: scripts/grit-console" in target_search_text or
             not service_search_text or
             "service file-service  status stopped  port " not in service_search_text or

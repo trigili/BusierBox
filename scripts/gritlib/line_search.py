@@ -161,7 +161,7 @@ def print_line_search_results(
             use_hint = f"use job {quote(str(rec.get('id', '')))}"
         if use_hint:
             print(f"     use: use {idx}")
-            print(f"     use command: {use_hint}")
+            print(f"     command: {use_hint}")
         search_records.append({
             "kind": kind,
             "label": label,
