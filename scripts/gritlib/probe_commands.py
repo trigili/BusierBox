@@ -229,6 +229,55 @@ def parse_line_probe_command(cmd, args=None):
     }
 
 
+def dispatch_line_probe_command(
+    probe_cmd,
+    *,
+    set_context_func=None,
+    results_func=None,
+    config_func=None,
+    clear_func=None,
+    serve_func=None,
+    delivery_func=None,
+    paste_func=None,
+    script_func=None,
+    help_func=None,
+    start_func=None,
+):
+    action = (probe_cmd or {}).get("action")
+    try:
+        if action == "results" and results_func:
+            if set_context_func:
+                set_context_func("probe")
+            return results_func()
+        if action == "config" and config_func:
+            return config_func(probe_cmd.get("args") or [])
+        if action == "clear" and clear_func:
+            return clear_func(probe_cmd.get("args") or [])
+        if action == "serve" and serve_func:
+            return serve_func(probe_cmd.get("args") or [])
+        if action == "delivery" and delivery_func:
+            if set_context_func:
+                set_context_func("probe")
+            return delivery_func()
+        if action == "paste" and paste_func:
+            return paste_func(base64_mode=bool(probe_cmd.get("base64")))
+        if action == "script" and script_func:
+            return script_func()
+        if action == "help" and help_func:
+            return help_func("probe")
+        if action == "start" and start_func:
+            if probe_cmd.get("set_context") and set_context_func:
+                set_context_func("probe")
+            return start_func(
+                queue=bool(probe_cmd.get("queue")),
+                start_service=bool(probe_cmd.get("start_service")),
+            )
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported probe command")
+
+
 def parse_line_survey_args(args):
     return parse_line_probe_args(args)
 
@@ -251,6 +300,33 @@ def parse_line_survey_command(cmd, args=None):
     if subcmd in {"help", "-h", "--help"}:
         return {"action": "help"}
     raise ValueError("usage: survey [results|config|preset]  —  see: survey ?")
+
+
+def dispatch_line_survey_command(
+    survey_cmd,
+    *,
+    set_context_func=None,
+    results_func=None,
+    config_func=None,
+    preset_func=None,
+    help_func=None,
+):
+    action = (survey_cmd or {}).get("action")
+    try:
+        if action == "results" and results_func:
+            if set_context_func:
+                set_context_func("survey")
+            return results_func()
+        if action == "config" and config_func:
+            return config_func(survey_cmd.get("args") or [])
+        if action == "preset" and preset_func:
+            return preset_func(survey_cmd.get("args") or [])
+        if action == "help" and help_func:
+            return help_func("survey")
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported survey command")
 
 
 def render_probe_command(cfg, host=None, port=None):
