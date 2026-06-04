@@ -2722,6 +2722,22 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets
     return records
 
 
+def operator_daemon_workflow_action_status_context(
+    cfg,
+    workbench_actions=None,
+    targets=None,
+):
+    actions = operator_daemon_workflow_action_records(
+        cfg,
+        workbench_actions,
+        targets,
+    )
+    return {
+        "actions": actions,
+        "index_maps": operator_daemon_workflow_action_indexes(actions),
+    }
+
+
 def operator_console_workflow_indexes(records):
     return {
         "operator_console_workflows_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},

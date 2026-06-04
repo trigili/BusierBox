@@ -1535,6 +1535,62 @@ def run_workbench_action_status_context_check():
     return 0
 
 
+def run_operator_daemon_workflow_action_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.workflow_actions import operator_daemon_workflow_action_status_context
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        cfg = {
+            "_config_path": str(root / "server-config.json"),
+            "operator_session_dir": str(root / "operator-session"),
+            "server_state": str(root / "state.json"),
+            "staged_files": str(root / "staged.json"),
+            "command_queue_file": str(root / "queue.json"),
+            "targets_file": str(root / "targets.json"),
+            "workbench_jobs_file": str(root / "jobs.json"),
+        }
+        actions = [
+            {
+                "id": "operator-daemon-start",
+                "category": "daemon",
+                "label": "Start operator daemon",
+                "command": "scripts/grit-console --daemon",
+                "run_command": "scripts/grit-console --run-operator-daemon-workflow-action operator-daemon-start",
+                "background_supported": True,
+                "foreground_runnable": True,
+                "dry_run_supported": True,
+                "requires_confirmation": False,
+                "writes_config": False,
+            },
+        ]
+        targets = [
+            {
+                "target_id": "target-a",
+                "connectivity_state": "offline",
+                "poll_overdue": True,
+                "mailbox_pending_work_count": 2,
+            },
+        ]
+        context = operator_daemon_workflow_action_status_context(cfg, actions, targets)
+        records = context.get("actions") or []
+        indexes = context.get("index_maps") or {}
+        by_id = indexes.get("operator_daemon_workflow_actions_by_id") or {}
+        rec = by_id.get("operator-daemon-start") or {}
+        if records != [rec] or not rec:
+            print("operator daemon workflow context did not preserve action records", file=sys.stderr)
+            return 1
+        if rec.get("target_count") != 1 or rec.get("fleet_has_poll_overdue_targets") is not True:
+            print("operator daemon workflow context did not preserve fleet metrics", file=sys.stderr)
+            return 1
+        if "operator_daemon_workflow_actions_by_daemon_status" not in indexes:
+            print("operator daemon workflow context did not preserve indexes", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4773,6 +4829,8 @@ def main(argv=None):
     if run_workbench_config_status_context_check() != 0:
         return 1
     if run_workbench_action_status_context_check() != 0:
+        return 1
+    if run_operator_daemon_workflow_action_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1

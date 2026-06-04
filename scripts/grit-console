@@ -371,8 +371,7 @@ from gritlib.workbench_jobs import (
 from gritlib.workflow_actions import (
     dispatch_legacy_workbench_action_number,
     dispatch_legacy_target_workflow_number,
-    operator_daemon_workflow_action_indexes,
-    operator_daemon_workflow_action_records,
+    operator_daemon_workflow_action_status_context,
     operator_daemon_workflow_action_status_summary,
     optional_target_id_arg,
     optional_target_scoped_command,
@@ -2760,8 +2759,15 @@ def status_document(cfg):
     workbench_actions = workbench_action_context["actions"]
     workbench_action_index_maps = workbench_action_context["index_maps"]
     workbench_action_stats = workbench_action_context["stats"]
-    operator_daemon_workflow_actions = operator_daemon_workflow_action_records(cfg, workbench_actions, targets)
-    operator_daemon_workflow_action_index_maps = operator_daemon_workflow_action_indexes(operator_daemon_workflow_actions)
+    operator_daemon_workflow_context = operator_daemon_workflow_action_status_context(
+        cfg,
+        workbench_actions,
+        targets,
+    )
+    operator_daemon_workflow_actions = operator_daemon_workflow_context["actions"]
+    operator_daemon_workflow_action_index_maps = operator_daemon_workflow_context[
+        "index_maps"
+    ]
     target_workflow_actions = target_workflow_action_records(cfg, targets, bridge_profiles)
     target_workflow_action_index_maps = target_workflow_action_indexes(target_workflow_actions)
     workbench_jobs = workbench_job_records(cfg, workbench_actions)
