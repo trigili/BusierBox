@@ -481,7 +481,54 @@ def run_console_arg_override_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from gritlib.console_args import apply_console_arg_overrides, has_explicit_console_action
+    from gritlib.console_args import (
+        apply_console_arg_overrides, handle_early_console_args,
+        has_explicit_console_action,
+    )
+
+    class HelpParser:
+        def __init__(self):
+            self.calls = 0
+
+        def print_help(self):
+            self.calls += 1
+            print("FULL HELP")
+
+    def early(argv):
+        calls = []
+        parser = HelpParser()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            result = handle_early_console_args(
+                argv,
+                parser,
+                version_text="griTTYkit 9.9",
+                print_concise_help_func=lambda: calls.append("concise") or print("CONCISE"),
+                print_console_help_reference_func=lambda: calls.append("console") or print("CONSOLE"),
+            )
+        return result, parser.calls, calls, buf.getvalue()
+
+    result, help_calls, calls, output = early(["--version"])
+    if not result.handled or result.code != 0 or output.strip() != "griTTYkit 9.9" or help_calls or calls:
+        print("console early arg helper did not handle --version", file=sys.stderr)
+        return 1
+    result, help_calls, calls, output = early(["--help-console"])
+    if not result.handled or output.strip() != "CONSOLE" or calls != ["console"] or help_calls:
+        print("console early arg helper did not handle --help-console", file=sys.stderr)
+        return 1
+    result, help_calls, calls, output = early(["--help", "--help-all"])
+    if not result.handled or output.strip() != "CONCISE" or calls != ["concise"] or help_calls:
+        print("console early arg helper did not preserve concise-help precedence", file=sys.stderr)
+        return 1
+    result, help_calls, calls, output = early(["--help-all", "--config", "x"])
+    if (not result.handled or result.argv != ["--config", "x"] or
+            output.strip() != "FULL HELP" or help_calls != 1 or calls):
+        print("console early arg helper did not handle --help-all", file=sys.stderr)
+        return 1
+    result, help_calls, calls, output = early(["--config", "x"])
+    if result.handled or result.argv != ["--config", "x"] or output or help_calls or calls:
+        print("console early arg helper changed normal argv", file=sys.stderr)
+        return 1
 
     args = argparse.Namespace(
         config="configs/operator.json",

@@ -69,7 +69,10 @@ from gritlib.command_queue import (
     save_command_queue, yes_no,
 )
 from gritlib.console_display import print_dry_run_notice
-from gritlib.console_args import apply_console_arg_overrides, has_explicit_console_action
+from gritlib.console_args import (
+    apply_console_arg_overrides, handle_early_console_args,
+    has_explicit_console_action,
+)
 from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
     command_copy_state_status, copy_text_for_operator,
@@ -7358,19 +7361,16 @@ Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
                         help="seconds to allow a scripted shell session; 0 disables the limit")
     parser.add_argument("--managed-by", help=argparse.SUPPRESS)
     parser.add_argument("--process-log", help=argparse.SUPPRESS)
-    if "--version" in raw_argv or "-V" in raw_argv:
-        print(f"griTTYkit {grit_version()}")
-        return 0
-    if "--help-console" in raw_argv:
-        print_console_help_reference()
-        return 0
-    if any(arg in ("-h", "--help") for arg in raw_argv):
-        print_concise_help()
-        return 0
-    if "--help-all" in raw_argv:
-        raw_argv = [arg for arg in raw_argv if arg != "--help-all"]
-        parser.print_help()
-        return 0
+    early_args = handle_early_console_args(
+        raw_argv,
+        parser,
+        version_text=f"griTTYkit {grit_version()}",
+        print_concise_help_func=print_concise_help,
+        print_console_help_reference_func=print_console_help_reference,
+    )
+    if early_args.handled:
+        return early_args.code
+    raw_argv = early_args.argv
     args = parser.parse_args(raw_argv)
 
     cfg = load_config(args.config)

@@ -1,5 +1,7 @@
 """Argument-to-config helpers for grit-console."""
 
+from dataclasses import dataclass
+
 from gritlib.bridge_routes import apply_bridge_profile
 
 
@@ -18,6 +20,39 @@ EXPLICIT_CONSOLE_ACTION_ARGS = (
     "api_status",
     "systemd_user_action",
 )
+
+
+@dataclass(frozen=True)
+class EarlyConsoleArgResult:
+    handled: bool
+    argv: list
+    code: int = 0
+
+
+def handle_early_console_args(
+    raw_argv,
+    parser,
+    *,
+    version_text,
+    print_concise_help_func,
+    print_console_help_reference_func,
+):
+    """Handle flags that intentionally bypass argparse's full parser."""
+    argv = list(raw_argv or [])
+    if "--version" in argv or "-V" in argv:
+        print(version_text)
+        return EarlyConsoleArgResult(True, argv, 0)
+    if "--help-console" in argv:
+        print_console_help_reference_func()
+        return EarlyConsoleArgResult(True, argv, 0)
+    if any(arg in ("-h", "--help") for arg in argv):
+        print_concise_help_func()
+        return EarlyConsoleArgResult(True, argv, 0)
+    if "--help-all" in argv:
+        argv = [arg for arg in argv if arg != "--help-all"]
+        parser.print_help()
+        return EarlyConsoleArgResult(True, argv, 0)
+    return EarlyConsoleArgResult(False, argv, 0)
 
 
 def apply_console_arg_overrides(cfg, args):
