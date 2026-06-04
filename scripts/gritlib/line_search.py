@@ -100,27 +100,30 @@ def print_line_search_results(
             matches.append((kind, label, rec, command))
 
     for rec in snap.get("targets") or []:
-        add("target", f"{rec.get('target_id', '')} label={rec.get('label', '') or '-'} state={rec.get('connectivity_state', '') or '-'}", rec)
+        target_id = rec.get("target_id", "")
+        label = rec.get("label", "") or "-"
+        state = rec.get("connectivity_state", "") or "-"
+        add("target", f"{target_id} ({label})  state {state}", rec)
     for rec in service_records:
-        add("service", f"{rec.get('name', '')} actual={rec.get('actual', '') or '-'} port={rec.get('port', '') or '-'}", rec)
+        add("service", f"{rec.get('name', '')}  status {rec.get('actual', '') or '-'}  port {rec.get('port', '') or '-'}", rec)
     for rec in route_records:
         route_name = str(rec.get("name") or "")
         add(
             "route",
-            f"{route_name} state={rec.get('current_state', '') or '-'} path={rec.get('route_path', '')}",
+            f"{route_name}  state {rec.get('current_state', '') or '-'}  path {rec.get('route_path', '')}",
             rec,
             route_command_builder("inspect", route_name),
         )
     for rec in action_records:
         add(
             "action",
-            f"{rec.get('kind', '')}:{rec.get('id', '')} state={line_action_state_text(rec)}",
+            f"{rec.get('kind', '')}:{rec.get('id', '')}  state {line_action_state_text(rec)}",
             rec,
             str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or ""),
         )
     for rec in snap.get("sessions") or []:
         session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
-        add("session", f"{session_id} service={rec.get('service', '') or '-'} state={rec.get('state', '') or '-'}", rec)
+        add("session", f"{session_id}  service {rec.get('service', '') or '-'}  state {rec.get('state', '') or '-'}", rec)
     for rec in snap.get("workbench_jobs") or []:
         add(
             "job",
@@ -131,9 +134,9 @@ def print_line_search_results(
     for name, rec in sorted((snap.get("staged") or {}).items()):
         item = dict(rec) if isinstance(rec, dict) else {}
         item["request_name"] = name
-        add("file", f"{name} kind={item.get('stage_kind', 'file')} source={item.get('source_path', '')}", item)
+        add("file", f"{name}  kind {item.get('stage_kind', 'file')}  source {item.get('source_path', '')}", item)
     for rec in (snap.get("command_queue") or {}).get("commands") or []:
-        add("queue", f"{rec.get('id', '')} status={rec.get('status', '') or '-'} command={rec.get('command', '')}", rec)
+        add("queue", f"{rec.get('id', '')}  status {rec.get('status', '') or '-'}  command {rec.get('command', '')}", rec)
 
     print(f"Search results for {query}:")
     if not matches:

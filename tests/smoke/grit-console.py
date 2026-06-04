@@ -1839,19 +1839,33 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     target_search_start = line_console_stdout.find("Search results for Console Router:")
     target_search_end = line_console_stdout.find("grit[Console Router]> mailbox", target_search_start + 1)
     target_search_text = line_console_stdout[target_search_start:target_search_end] if target_search_start != -1 and target_search_end != -1 else ""
+    service_search_start = line_console_stdout.find("Search results for name=file-service:")
+    service_search_end = line_console_stdout.find("grit[all]/listener> workspace", service_search_start + 1)
+    service_search_text = line_console_stdout[service_search_start:service_search_end] if service_search_start != -1 and service_search_end != -1 else ""
     if (not job_search_text or
             "job line-console-job action: package-artifact state: running" not in job_search_text or
             "use command: use job line-console-job" not in job_search_text or
             "action=package-artifact" in job_search_text or
             "command: scripts/grit-console" in job_search_text or
             not target_search_text or
+            "target line-console-target (Console Router)  state online" not in target_search_text or
+            "route console-route  state configured  path " not in target_search_text or
+            "action target:line-console-target:queue-bridge-start:console-route  state queueable offline" not in target_search_text or
+            "label=Console Router" in target_search_text or
+            "state=configured" in target_search_text or
+            "state=queueable offline" in target_search_text or
             "use command: use target line-console-target" not in target_search_text or
-            "command: scripts/grit-console" in target_search_text):
+            "command: scripts/grit-console" in target_search_text or
+            not service_search_text or
+            "service file-service  status stopped  port " not in service_search_text or
+            "actual=stopped" in service_search_text):
         print("line-oriented search results exposed generated commands by default", file=sys.stderr)
         print("job search:", file=sys.stderr)
         print(job_search_text or line_console_stdout, file=sys.stderr)
         print("target search:", file=sys.stderr)
         print(target_search_text, file=sys.stderr)
+        print("service search:", file=sys.stderr)
+        print(service_search_text, file=sys.stderr)
         return 1
     mailbox_start = line_console_stdout.find("grit[Console Router]> mailbox")
     mailbox_help_start = line_console_stdout.find("grit[Console Router]/queue> mailbox ?", mailbox_start + 1)
