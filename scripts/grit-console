@@ -138,6 +138,7 @@ from gritlib.line_configure import (
 from gritlib.line_context import (
     back_line_module_context,
     clear_line_console_context, clear_line_module_context,
+    parse_line_use_command,
     set_line_collection_context,
 )
 from gritlib.line_events import print_line_events_view
@@ -7878,149 +7879,35 @@ def run_line_repl(cfg):
                     set_line_collection("routes")
                     print_line_routes(verbose=route_cmd["verbose"])
                 continue
-            elif cmd == "use" and len(console_args) == 2 and console_args[1].isdigit():
-                try:
-                    use_line_search_result(console_args[1])
-                    clear_line_selectable_results()
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "target":
-                selector = " ".join(console_args[2:]).strip()
-                if not selector:
-                    print("usage: use target ID|LABEL|NUMBER|all")
+            elif cmd == "use" or cmd in {
+                "useagent", "usehost", "usetarget", "uselistener", "useservice",
+                "useroute", "usesession", "usemodule", "useaction",
+            }:
+                use_cmd = parse_line_use_command(cmd, console_args[1:])
+                selector = use_cmd.get("selector", "")
+                if use_cmd.get("usage") and not selector:
+                    print(use_cmd["usage"])
                     continue
                 try:
-                    select_line_target(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() in {"agent", "host"}:
-                selector = " ".join(console_args[2:]).strip()
-                if not selector:
-                    print("usage: use agent ID|LABEL|NUMBER|all")
-                    continue
-                try:
-                    select_line_target(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "service":
-                selector = " ".join(console_args[2:]).strip()
-                if not selector:
-                    print("usage: use service SERVICE")
-                    continue
-                try:
-                    select_line_service(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "listener":
-                selector = " ".join(console_args[2:]).strip()
-                if not selector:
-                    print("usage: use listener SERVICE")
-                    continue
-                try:
-                    select_line_service(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "route":
-                selector = " ".join(console_args[2:]).strip()
-                if not selector:
-                    print("usage: use route NAME|NUMBER")
-                    continue
-                try:
-                    select_line_route(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "session":
-                selector = " ".join(console_args[2:]).strip()
-                if not selector:
-                    print("usage: use session SESSION")
-                    continue
-                try:
-                    select_line_session(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "job":
-                selector = " ".join(console_args[2:]).strip()
-                if not selector:
-                    print("usage: use job ID|NUMBER")
-                    continue
-                try:
-                    select_line_job(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "action":
-                selector = " ".join(console_args[2:]).strip()
-                try:
-                    select_line_action(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "use" and len(console_args) >= 2 and console_args[1].lower() == "module":
-                selector = " ".join(console_args[2:]).strip()
-                try:
-                    select_line_action(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd in {"useagent", "usehost", "usetarget"}:
-                selector = " ".join(console_args[1:]).strip()
-                if not selector:
-                    print("usage: useagent ID|LABEL|NUMBER|all")
-                    continue
-                try:
-                    record_line_alias(cmd, "use agent")
-                    select_line_target(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd in {"uselistener", "useservice"}:
-                selector = " ".join(console_args[1:]).strip()
-                if not selector:
-                    print("usage: uselistener SERVICE")
-                    continue
-                try:
-                    record_line_alias(cmd, "use listener")
-                    select_line_service(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "useroute":
-                selector = " ".join(console_args[1:]).strip()
-                if not selector:
-                    print("usage: useroute NAME|NUMBER")
-                    continue
-                try:
-                    record_line_alias(cmd, "use route")
-                    select_line_route(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "usesession":
-                selector = " ".join(console_args[1:]).strip()
-                if not selector:
-                    print("usage: usesession SESSION")
-                    continue
-                try:
-                    record_line_alias(cmd, "use session")
-                    select_line_session(selector)
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd in {"usemodule", "useaction"}:
-                selector = " ".join(console_args[1:]).strip()
-                if not selector:
-                    print("usage: usemodule ACTION")
-                    continue
-                try:
-                    record_line_alias(cmd, "use module")
-                    select_line_action(selector)
+                    if use_cmd.get("alias"):
+                        record_line_alias(use_cmd["alias"], use_cmd["canonical"])
+                    if use_cmd["kind"] == "number":
+                        use_line_search_result(selector)
+                        clear_line_selectable_results()
+                    elif use_cmd["kind"] == "target":
+                        select_line_target(selector)
+                    elif use_cmd["kind"] == "listener":
+                        select_line_service(selector)
+                    elif use_cmd["kind"] == "route":
+                        select_line_route(selector)
+                    elif use_cmd["kind"] == "session":
+                        select_line_session(selector)
+                    elif use_cmd["kind"] == "job":
+                        select_line_job(selector)
+                    elif use_cmd["kind"] == "action":
+                        select_line_action(selector)
+                    else:
+                        print(use_cmd.get("usage") or "usage: use KIND SELECTOR")
                 except ValueError as exc:
                     print(exc)
                 continue
