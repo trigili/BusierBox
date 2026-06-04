@@ -10,6 +10,8 @@ from gritlib.target_records import (
 
 def parse_line_workspace_command(cmd, args=None):
     cmd = str(cmd or "").strip().lower()
+    if cmd in {"status", "summary"}:
+        return {"action": "status"}
     if cmd in {"ips", "local-ips", "list-local-ips"}:
         return {"action": "ips"}
     if cmd in {"workspace", "overview", "dashboard"}:

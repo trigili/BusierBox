@@ -7671,9 +7671,6 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"status", "summary"}:
-                print(line_repl_status_bar(workbench_snapshot(cfg)))
-                continue
             elif cmd == "reload":
                 config_path = str(cfg.get("_config_path") or DEFAULT_CONFIG)
                 try:
@@ -7688,7 +7685,9 @@ def run_line_repl(cfg):
                     print(f"reload failed: {exc}")
                 continue
             elif (workspace_cmd := parse_line_workspace_command(cmd, console_args[1:])):
-                if workspace_cmd["action"] == "ips":
+                if workspace_cmd["action"] == "status":
+                    print(line_repl_status_bar(workbench_snapshot(cfg)))
+                elif workspace_cmd["action"] == "ips":
                     print_line_local_ips(workbench_snapshot(cfg))
                 elif workspace_cmd["action"] == "workspace":
                     clear_line_module(quiet=True)
