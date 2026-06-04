@@ -404,6 +404,7 @@ from gritlib.workflow_actions import (
     operator_console_workflow_indexes,
     operator_console_workflow_summary,
     parse_line_daemon_action_args,
+    parse_line_daemon_command,
     print_line_daemon_action_records,
     print_workbench_action_summary,
     probe_workflow_action_indexes,
@@ -8001,12 +8002,10 @@ def run_line_repl(cfg):
                 continue
             elif cmd == "daemon":
                 try:
-                    if (
-                        len(console_args) == 1
-                        or all(item in {"-v", "--verbose", "verbose"} for item in console_args[1:])
-                    ):
+                    daemon_cmd = parse_line_daemon_command(console_args[1:])
+                    if daemon_cmd["set_context"]:
                         set_line_collection("daemon")
-                    run_line_daemon_action(console_args[1:])
+                    run_line_daemon_action(daemon_cmd["args"])
                 except ValueError as exc:
                     print(exc)
                 continue

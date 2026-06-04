@@ -106,6 +106,19 @@ def parse_line_daemon_action_args(args):
     }
 
 
+def parse_line_daemon_command(args):
+    args = list(args or [])
+    action = parse_line_daemon_action_args(args)
+    return {
+        "action": action["action"],
+        "args": args,
+        "set_context": (
+            not args
+            or all(str(item).lower() in {"-v", "--verbose", "verbose"} for item in args)
+        ),
+    }
+
+
 def print_line_daemon_action_records(records, verbose=False):
     records = list(records or [])
 
