@@ -410,8 +410,8 @@ def print_line_command_help(topic):
             "entries": [
                 ("build", "show current guided build config"),
                 ("build -v", "show build config options and examples"),
-                ("build set KEY VALUE", "set a build config field"),
-                ("build unset KEY", "clear a build config field"),
+                ("build set KEY|NUMBER VALUE", "set a build config field"),
+                ("build unset KEY|NUMBER", "clear a build config field"),
                 ("set KEY VALUE", "set a target or guided build option"),
                 ("setg KEY VALUE", "set a global build/workbench option"),
                 ("unsetg KEY", "unset a global option"),

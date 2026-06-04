@@ -101,9 +101,9 @@ def print_line_build_config(cfg, verbose=False):
             detail_fn=_detail,
         )
         print("")
-    hint = "build set KEY VALUE  |  build unset KEY  |  build -v for options  |  build ? for help"
+    hint = "build set KEY|NUMBER VALUE  |  build unset KEY|NUMBER  |  build -v for options  |  build ? for help"
     if verbose:
-        hint = "build set KEY VALUE  |  build unset KEY  |  build ? for help"
+        hint = "build set KEY|NUMBER VALUE  |  build unset KEY|NUMBER  |  build ? for help"
     print(f"  {hint}")
     search_records = [
         {
@@ -175,9 +175,25 @@ def dispatch_legacy_line_build_number(choice, cfg, *, input_func=None):
     return True
 
 
+def build_field_key_by_selector(cfg, selector):
+    text = str(selector or "").strip()
+    if not text:
+        return ""
+    fields = workbench_config_field_records(cfg)
+    if text.isdigit():
+        idx = int(text) - 1
+        if 0 <= idx < len(fields):
+            return str(fields[idx].get("key") or "")
+        raise ValueError(f"build config number out of range: {text}")
+    keys = {str(rec.get("key") or "") for rec in fields}
+    if text in keys:
+        return text
+    raise ValueError(f"unknown build config field: {text}")
+
+
 def set_line_build_config(cfg, args):
     if not args:
-        raise ValueError("usage: build set KEY VALUE")
+        raise ValueError("usage: build set KEY|NUMBER VALUE")
     if "=" in args[0]:
         key, value = args[0].split("=", 1)
         if len(args) > 1:
@@ -186,7 +202,8 @@ def set_line_build_config(cfg, args):
         key = args[0]
         value = " ".join(args[1:]).strip()
     if not key or value == "":
-        raise ValueError("usage: build set KEY VALUE")
+        raise ValueError("usage: build set KEY|NUMBER VALUE")
+    key = build_field_key_by_selector(cfg, key)
     rec = set_workbench_build_config(cfg, f"{key}={value}")
     print(f"build option set: {rec.get('key', key)}")
     print(f"  value: {shell_double_quote(rec.get('value', value))}")
@@ -197,7 +214,8 @@ def set_line_build_config(cfg, args):
 def unset_line_build_config(cfg, args):
     key = " ".join(args).strip()
     if not key:
-        raise ValueError("usage: build unset KEY")
+        raise ValueError("usage: build unset KEY|NUMBER")
+    key = build_field_key_by_selector(cfg, key)
     rec = unset_workbench_build_config(cfg, key)
     print(f"build option unset: {rec.get('key', key)}")
     print(f"  config: {rec.get('config_path', build_config_path(cfg))}")

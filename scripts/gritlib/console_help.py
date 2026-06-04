@@ -136,7 +136,8 @@ Automation:
   makerc FILE                   save command history as a resource script
   history [LIMIT]               show recent console commands
   !!, !N, repeat N              replay previous commands
-  build, build set KEY VALUE    show or update binary build config
+  build, build set KEY|NUMBER VALUE
+                                show or update binary build config
   set KEY VALUE                 set selected target/build option
   setg KEY VALUE                set global build/workbench option
 

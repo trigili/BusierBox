@@ -5553,8 +5553,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "copy 1\n"
                 "build\n"
                 "build -v\n"
-                "build set GRIT_RUNTIME_ROOT /tmp/grit-build\n"
-                "build unset GRIT_RUNTIME_ROOT\n"
+                "build set 99 /tmp/nope\n"
+                "build set 9 /tmp/grit-build\n"
+                "build unset 9\n"
                 "setg GRIT_RUNTIME_ROOT /tmp/grit-global\n"
                 "show options\n"
                 "unsetg GRIT_RUNTIME_ROOT\n"
@@ -6465,19 +6466,20 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(build_view_text or line_console_stdout, file=sys.stderr)
         return 1
     build_verbose_start = line_console_stdout.find("grit[all]/build> build -v")
-    build_verbose_end = line_console_stdout.find("grit[all]/build> build set GRIT_RUNTIME_ROOT /tmp/grit-build", build_verbose_start + 1)
+    build_verbose_end = line_console_stdout.find("grit[all]/build> build set 9 /tmp/grit-build", build_verbose_start + 1)
     build_verbose_text = line_console_stdout[build_verbose_start:build_verbose_end] if build_verbose_start != -1 and build_verbose_end != -1 else ""
     if (not build_verbose_text or
             "options: static-preferred" not in build_verbose_text or
             "examples: ./.grit" not in build_verbose_text or
             "note: affects generated artifacts or payload contents" not in build_verbose_text or
             "set: build set GRIT_RUNTIME_ROOT VALUE" not in build_verbose_text or
+            "build set KEY|NUMBER VALUE" not in build_verbose_text or
             "--set-build-config" in build_verbose_text or
             "headless_command:" in build_verbose_text):
         print("line-oriented verbose build config view missed options or exposed headless command", file=sys.stderr)
         print(build_verbose_text or line_console_stdout, file=sys.stderr)
         return 1
-    build_set_start = line_console_stdout.find("grit[all]/build> build set GRIT_RUNTIME_ROOT /tmp/grit-build")
+    build_set_start = line_console_stdout.find("grit[all]/build> build set 99 /tmp/nope")
     build_set_end = line_console_stdout.find("grit[all]/build> listeners", build_set_start + 1)
     build_set_text = line_console_stdout[build_set_start:build_set_end] if build_set_start != -1 and build_set_end != -1 else ""
     if (not build_set_text or
@@ -6488,6 +6490,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "value: \"/tmp/grit-global\"" not in build_set_text or
             "global build option unset: GRIT_RUNTIME_ROOT" not in build_set_text or
             "config: " not in build_set_text or
+            "build config number out of range: 99" not in build_set_text or
             "set build." in build_set_text or
             "setg GRIT_RUNTIME_ROOT=" in build_set_text or
             "config_path=" in build_set_text or
@@ -7149,7 +7152,7 @@ def main(argv=None):
             "by_tuple_payload_preset:PATH:PRESET" not in console_help or
             "fetch [--queue] [--start] NAME" not in console_help or
             "queue list|result|clear" not in console_help or
-            "build, build set KEY VALUE" not in console_help or
+            "build, build set KEY|NUMBER VALUE" not in console_help or
             "resource FILE" not in console_help or
             "makerc FILE" not in console_help or
             "!!, !N, repeat N" not in console_help or
