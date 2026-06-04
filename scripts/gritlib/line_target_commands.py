@@ -62,6 +62,14 @@ def copy_line_generated_command(cfg, selector):
     return rec
 
 
+def parse_line_copy_command(args):
+    args = list(args or [])
+    subcmd = str(args[0] if args else "").strip().lower()
+    if subcmd in {"start", "stop"}:
+        return {"action": "service", "subcmd": subcmd}
+    return {"action": "generated", "selector": " ".join(args).strip()}
+
+
 def copy_line_service_command(cfg, subcmd, copy_func, start_command=None, stop_command=None):
     subcmd = str(subcmd or "").strip().lower()
     if subcmd not in {"start", "stop"}:

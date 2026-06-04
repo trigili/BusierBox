@@ -228,7 +228,8 @@ from gritlib.line_targets import (
     select_line_target as line_targets_select_line_target,
 )
 from gritlib.line_target_commands import (
-    copy_line_generated_command, copy_line_service_command, run_line_generated_command,
+    copy_line_generated_command, copy_line_service_command, parse_line_copy_command,
+    run_line_generated_command,
 )
 from gritlib.line_workspace import (
     line_repl_prompt as line_workspace_repl_prompt,
@@ -7756,18 +7757,18 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif cmd == "copy":
-                subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
-                if subcmd in {"start", "stop"}:
+                copy_cmd = parse_line_copy_command(console_args[1:])
+                if copy_cmd["action"] == "service":
                     copy_line_service_command(
                         cfg,
-                        subcmd,
+                        copy_cmd["subcmd"],
                         lambda command, label: copy_text_for_operator(cfg, command, label=label),
                         start_command=lambda svc: service_start_headless_command(cfg, svc),
                         stop_command=lambda svc: service_stop_headless_command(cfg, svc),
                     )
                 else:
                     try:
-                        copy_line_generated_command(cfg, " ".join(console_args[1:]).strip())
+                        copy_line_generated_command(cfg, copy_cmd["selector"])
                     except ValueError as exc:
                         print(exc)
                 continue
