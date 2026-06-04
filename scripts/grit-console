@@ -6314,18 +6314,9 @@ def run_line_repl(cfg):
         help_func=print_line_command_help,
         probe_start_func=probe_line_start,
         survey_results_func=configure_print_line_survey_status,
-        survey_config_func=lambda repl_cfg, args, append_event_fn: configure_line_survey_config(
-            repl_cfg,
-            args,
-            lambda limit=20: configure_find_survey_uploads(repl_cfg, limit=limit),
-            append_event_fn=append_event_fn,
-        ),
-        survey_preset_func=lambda repl_cfg, args, append_event_fn: configure_line_survey_preset(
-            repl_cfg,
-            args,
-            lambda limit=20: configure_find_survey_uploads(repl_cfg, limit=limit),
-            append_event_fn=append_event_fn,
-        ),
+        find_survey_uploads_func=configure_find_survey_uploads,
+        survey_config_func=configure_line_survey_config,
+        survey_preset_func=configure_line_survey_preset,
         append_event_fn=append_event,
     )
     dispatch_line_navigation = build_line_navigation_dispatch_callback(

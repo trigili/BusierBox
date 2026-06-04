@@ -1116,11 +1116,26 @@ def run_line_repl_runtime_check():
             survey_results_func=lambda cfg, append_event_fn: core_calls.append(
                 ("survey-results", cfg.get("name"), append_event_fn is not None)
             ),
-            survey_config_func=lambda cfg, args, append_event_fn: core_calls.append(
-                ("survey-config", cfg.get("name"), tuple(args), append_event_fn is not None)
+            find_survey_uploads_func=lambda cfg, limit=20: core_calls.append(
+                ("survey-uploads", cfg.get("name"), limit)
+            ) or ["upload.json"],
+            survey_config_func=lambda cfg, args, find_uploads_func, append_event_fn: core_calls.append(
+                (
+                    "survey-config",
+                    cfg.get("name"),
+                    tuple(args),
+                    tuple(find_uploads_func(limit=7)),
+                    append_event_fn is not None,
+                )
             ),
-            survey_preset_func=lambda cfg, args, append_event_fn: core_calls.append(
-                ("survey-preset", cfg.get("name"), tuple(args), append_event_fn is not None)
+            survey_preset_func=lambda cfg, args, find_uploads_func, append_event_fn: core_calls.append(
+                (
+                    "survey-preset",
+                    cfg.get("name"),
+                    tuple(args),
+                    tuple(find_uploads_func()),
+                    append_event_fn is not None,
+                )
             ),
             append_event_fn=lambda *args, **kwargs: None,
             print_func=lambda text: core_out.write(text + "\n"),
@@ -1162,8 +1177,10 @@ def run_line_repl_runtime_check():
         ("help", "probe"),
         "probe-start",
         ("survey-results", "core-cfg", True),
-        ("survey-config", "core-cfg", ("--latest",), True),
-        ("survey-preset", "core-cfg", ("lab",), True),
+        ("survey-uploads", "core-cfg", 7),
+        ("survey-config", "core-cfg", ("--latest",), ("upload.json",), True),
+        ("survey-uploads", "core-cfg", 20),
+        ("survey-preset", "core-cfg", ("lab",), ("upload.json",), True),
     ]
     if core_calls != expected_core_calls or "Workspace:" not in core_out.getvalue():
         print(f"line REPL core adapter wiring changed: {core_calls} output={core_out.getvalue()!r}", file=sys.stderr)

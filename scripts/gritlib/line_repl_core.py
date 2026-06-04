@@ -38,11 +38,15 @@ def build_line_core_dispatch_callback(
     help_func,
     probe_start_func,
     survey_results_func,
+    find_survey_uploads_func,
     survey_config_func,
     survey_preset_func,
     append_event_fn,
     print_func=print,
 ):
+    def survey_uploads(limit=20):
+        return find_survey_uploads_func(cfg, limit=limit)
+
     def dispatch_core(command, args):
         return dispatch_line_core_command(
             command,
@@ -102,11 +106,13 @@ def build_line_core_dispatch_callback(
             survey_config_func=lambda survey_args: survey_config_func(
                 cfg,
                 survey_args,
+                survey_uploads,
                 append_event_fn=append_event_fn,
             ),
             survey_preset_func=lambda survey_args: survey_preset_func(
                 cfg,
                 survey_args,
+                survey_uploads,
                 append_event_fn=append_event_fn,
             ),
         )
