@@ -208,6 +208,7 @@ from gritlib.line_services import (
     line_service_display_name,
     line_service_completion_names, line_service_names, line_service_record,
     parse_line_listener_command,
+    parse_line_service_control_command,
     print_line_services as line_services_print_line_services,
     select_line_service as line_services_select_line_service,
     resolve_line_service_selector as line_services_resolve_selector,
@@ -7917,15 +7918,13 @@ def run_line_repl(cfg):
                 else:
                     back_line_module()
                 continue
-            elif cmd == "start":
+            elif cmd in {"start", "stop"}:
                 try:
-                    start_line_service(" ".join(console_args[1:]).strip())
-                except ValueError as exc:
-                    print(exc)
-                continue
-            elif cmd == "stop":
-                try:
-                    stop_line_service(" ".join(console_args[1:]).strip())
+                    service_cmd = parse_line_service_control_command(cmd, console_args[1:])
+                    if service_cmd["action"] == "start":
+                        start_line_service(service_cmd["selector"])
+                    else:
+                        stop_line_service(service_cmd["selector"])
                 except ValueError as exc:
                     print(exc)
                 continue

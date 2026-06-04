@@ -35,6 +35,16 @@ def parse_line_listener_command(cmd, args):
     return {"action": "select" if selector else "list", "selector": selector, "verbose": False}
 
 
+def parse_line_service_control_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    if cmd not in {"start", "stop"}:
+        return {}
+    return {
+        "action": cmd,
+        "selector": " ".join(args or []).strip(),
+    }
+
+
 def line_service_display_name(name):
     text = str(name or "").strip()
     return LINE_SERVICE_DISPLAY_NAMES.get(text, text)
