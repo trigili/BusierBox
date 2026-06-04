@@ -218,9 +218,9 @@ def print_line_command_help(topic):
         "probe": {
             "title": "probe — lightweight shell probe (no griTTYkit required)",
             "entries": [
-                ("probe --start",                           "start the probe.sh listener on port 22207"),
+                ("probe start, probe --start",              "start the probe.sh listener on port 22207"),
                 ("probe",                                   "show the target-side command (warns if listener is down)"),
-                ("probe --queue",                           "queue probe command for selected target's next phone-home"),
+                ("probe queue, probe --queue",              "queue probe command for selected target's next phone-home"),
                 ("probe delivery",                          "show wget, curl, and raw nc delivery commands"),
                 ("probe paste",                             "print a serial/admin-shell heredoc that runs without writing a file"),
                 ("probe paste --base64",                    "print a base64 paste wrapper for shells with fragile quoting"),
@@ -239,7 +239,7 @@ def print_line_command_help(topic):
                 "probe config uses estimated defaults for libc/filesystem; use survey config for full data.",
             ],
             "examples": [
-                "probe --start",
+                "probe start",
                 "  (run the shown command on the target)",
                 "probe results",
                 "probe config --write-config config.json",

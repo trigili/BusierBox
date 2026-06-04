@@ -173,14 +173,14 @@ def parse_line_probe_args(args):
     start_service = False
     for item in args:
         lower = str(item).lower()
-        if lower in {"--queue", "-q"}:
+        if lower in {"--queue", "-q", "queue"}:
             queue = True
         elif lower in {"--start", "--start-service", "start"}:
             start_service = True
         elif lower in {"show", "command"}:
             continue
         else:
-            raise ValueError("usage: probe [--start] [--queue]")
+            raise ValueError("usage: probe [start|queue|--start|--queue]")
     return queue, start_service
 
 

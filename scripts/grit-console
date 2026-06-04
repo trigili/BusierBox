@@ -7211,7 +7211,7 @@ def run_line_repl(cfg):
         if cmd == "probe":
             if at_arg(1):
                 return [f"{cmd} {item}" for item in prefixed(arg_pfx(1),
-                    ["results", "config", "clear", "serve", "delivery", "paste", "script", "--start", "--queue"])]
+                    ["start", "queue", "results", "config", "clear", "serve", "delivery", "paste", "script", "--start", "--queue"])]
             subcmd = parts[1].lower() if len(parts) >= 2 else ""
             if subcmd == "config" and at_arg(2):
                 return [f"probe config {item}" for item in prefixed(arg_pfx(2),

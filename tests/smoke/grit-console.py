@@ -250,6 +250,7 @@ def run_line_local_ips_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.line_network import print_line_local_ips
+    from gritlib.probe_commands import parse_line_probe_args
     import gritlib.operator_network as operator_network
 
     buf = io.StringIO()
@@ -281,6 +282,9 @@ def run_line_local_ips_check():
     if candidates != ["10.0.0.5", "192.168.8.2"]:
         print("operator local IP choice candidates were not sorted for interactive prompts", file=sys.stderr)
         print(candidates, file=sys.stderr)
+        return 1
+    if parse_line_probe_args(["start", "queue"]) != (True, True):
+        print("probe start/queue aliases did not map to canonical flags", file=sys.stderr)
         return 1
     return 0
 
