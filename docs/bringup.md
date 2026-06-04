@@ -1,9 +1,12 @@
 # Bringup
 
-`scripts/grit-bringup` is a guided onboarding flow for a target that is not
+`scripts/grit-console bringup` is a guided onboarding flow for a target that is not
 fully characterized yet. It is meant to answer: can a conservative griTTYkit
 artifact run, what did the target survey report, and what config should be tried
 next?
+
+`scripts/grit-bringup` remains as a compatibility entry point, but new
+operator workflows should use the console subcommand.
 
 It is different from `scripts/lib/integration-glinet`: bringup is exploratory and
 creates a recommendation, while integration is the repeatable validation
@@ -46,19 +49,19 @@ harness for known cases.
 Survey a reachable target and build a recommended artifact:
 
 ```sh
-scripts/grit-bringup --host root@192.168.8.1 --operator-host auto
+scripts/grit-console bringup --host root@192.168.8.1 --operator-host auto
 ```
 
 Stop after survey and recommendation:
 
 ```sh
-scripts/grit-bringup --host root@192.168.8.1 --survey-only
+scripts/grit-console bringup --host root@192.168.8.1 --survey-only
 ```
 
 Generate a recommendation from an existing survey without touching a target:
 
 ```sh
-scripts/grit-bringup \
+scripts/grit-console bringup \
   --recommend-only \
   --survey-json local/survey.json \
   --target-preset glinet-mt7621-openwrt-musl
@@ -67,7 +70,7 @@ scripts/grit-bringup \
 Generate a reusable local target preset from a survey:
 
 ```sh
-scripts/grit-bringup \
+scripts/grit-console bringup \
   --recommend-only \
   --survey-json local/survey.json \
   --write-target-preset lab-router \
@@ -79,7 +82,7 @@ containing multiple release bundles, and print the trailer override command
 without executing it:
 
 ```sh
-scripts/grit-bringup \
+scripts/grit-console bringup \
   --recommend-only \
   --survey-json local/survey.json \
   --release-dir dist/releases/smoke \
@@ -99,7 +102,7 @@ Stage the selected release artifact, or `recommended.conf` when no artifact is
 available yet, for explicit target-side fetch:
 
 ```sh
-scripts/grit-bringup \
+scripts/grit-console bringup \
   --recommend-only \
   --survey-json local/survey.json \
   --release-dir dist/releases/smoke \
@@ -109,13 +112,13 @@ scripts/grit-bringup \
 Preview the local plan only:
 
 ```sh
-scripts/grit-bringup --host root@192.168.8.1 --dry-run
+scripts/grit-console bringup --host root@192.168.8.1 --dry-run
 ```
 
 Run one integration case after the recommended build:
 
 ```sh
-scripts/grit-bringup \
+scripts/grit-console bringup \
   --host root@192.168.8.1 \
   --target-preset glinet-mt7621-openwrt-musl \
   --run-integration survey-core

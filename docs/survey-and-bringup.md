@@ -65,7 +65,7 @@ Example workflow:
 
 ```sh
 make package TARGET=glinet-mt7621-openwrt-musl
-scripts/grit-bringup --host root@192.168.8.1 --operator-host auto
+scripts/grit-console bringup --host root@192.168.8.1 --operator-host auto
 ```
 
 The bring-up script creates `local/bringup-runs/<timestamp>-<pid>/`, builds a survey artifact, transfers it under `/tmp/grit-bringup-<timestamp>-<pid>/`, captures `survey --json` and `config-info`, runs `scripts/lib/config-from-survey`, and writes `recommended.conf` plus `summary.json`.

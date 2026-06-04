@@ -88,6 +88,8 @@ require_text docs/release-bundles.md 'invalid_event_log'
 require_text docs/release-bundles.md 'PID ownership evidence'
 require_text docs/release-bundles.md 'api_resources_by_records_key'
 require_text docs/release-bundles.md 'offline artifact browser discover record keys'
+require_text README.md 'scripts/grit-console artifact config set'
+require_text README.md 'grit-console bringup[[:space:]]+guided first-contact and survey loop'
 require_text docs/cleanup-ledger.md 'not forensic no-trace execution'
 require_text docs/recovery.md 'authorized lab reboot recovery'
 require_text docs/recovery.md 'visible and'
@@ -99,6 +101,17 @@ require_text docs/persistence.md 'actions_by_requires_external_write'
 require_text docs/gdbserver-workflow.md 'payload/bin/gdbserver'
 require_text docs/gdbserver-workflow.md 'Static MIPS Caveat'
 require_text docs/survey-and-bringup.md 'without changing target tuple compatibility or payload contents'
+require_text docs/bringup.md 'scripts/grit-console bringup --host root@192\.168\.8\.1 --operator-host auto'
+require_text docs/survey-and-bringup.md 'scripts/grit-console bringup --host root@192\.168\.8\.1 --operator-host auto'
 require_text docs/integration-glinet.md 'best-effort ephemeral runtime cleanup'
+
+if grep -q 'grit-artifact config set' README.md; then
+    printf '%s\n' "stale-ux-text: README still recommends grit-artifact config set" >&2
+    exit 1
+fi
+if grep -Eq 'scripts/grit-bringup --host|scripts/grit-bringup[[:space:]]*\\' docs/bringup.md docs/survey-and-bringup.md; then
+    printf '%s\n' "stale-ux-text: bringup docs still recommend scripts/grit-bringup examples" >&2
+    exit 1
+fi
 
 printf '%s\n' "stale-ux-text ok"

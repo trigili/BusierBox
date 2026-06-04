@@ -131,7 +131,7 @@ different targets and stamp each one with a different operator IP, transport,
 and port after the fact:
 
 ```sh
-grit-artifact config set dist/grit-mipsel-linux-4.x-musl-full \
+scripts/grit-console artifact config set dist/grit-mipsel-linux-4.x-musl-full \
   GRIT_OPERATOR_SERVER_HOST=10.0.0.5 \
   GRIT_RSHELL_TRANSPORT=tls-shell
 ```
@@ -639,7 +639,7 @@ configs/              active build config
 manifests/            source pins, license policy
 scripts/              operator tools and build helpers
   grit-console         operator console and reverse-access server
-  grit-bringup        guided first-contact and survey loop
+  grit-console bringup guided first-contact and survey loop
   config-from-survey  generate build config from survey JSON
   preset-from-survey  generate reusable target preset from survey JSON
   make-release        build multi-target release bundles
