@@ -954,6 +954,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "modules file-service\n"
                 "show service modules -v\n"
                 "use 1\n"
+                "?\n"
                 "info\n"
                 "next\n"
                 "options\n"
@@ -1462,6 +1463,17 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         print(service_modules_text or line_console_stdout, file=sys.stderr)
         print("verbose service modules:", file=sys.stderr)
         print(service_modules_verbose_text, file=sys.stderr)
+        return 1
+    action_help_start = line_console_stdout.find("grit[all]/action/bridge:inspect-status> ?")
+    action_help_end = line_console_stdout.find("grit[all]/action/bridge:inspect-status> info", action_help_start + 1)
+    action_help_text = line_console_stdout[action_help_start:action_help_end] if action_help_start != -1 and action_help_end != -1 else ""
+    if (not action_help_text or
+            "Help: actions" not in action_help_text or
+            "use module NAME" not in action_help_text or
+            "check [MODULE]" not in action_help_text or
+            "Help: console" in action_help_text):
+        print("line-oriented action context help fell back to generic console help", file=sys.stderr)
+        print(action_help_text or line_console_stdout, file=sys.stderr)
         return 1
     action_info_start = line_console_stdout.find("grit[all]/action/bridge:inspect-status> info")
     action_info_end = line_console_stdout.find("grit[all]/action/bridge:inspect-status> next", action_info_start + 1)
