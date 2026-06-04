@@ -5,6 +5,15 @@ from pathlib import Path
 from gritlib.line_state import line_action_state_text
 
 
+def parse_line_search_command(cmd, args):
+    if str(cmd or "").strip().lower() != "search":
+        return None
+    return {
+        "action": "search",
+        "query": " ".join(str(arg) for arg in (args or [])).strip(),
+    }
+
+
 def clear_line_search_results(cfg):
     cfg["_line_console_search_results"] = []
 

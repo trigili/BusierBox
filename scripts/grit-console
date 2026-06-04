@@ -207,6 +207,7 @@ from gritlib.line_release import (
 )
 from gritlib.line_search import (
     clear_line_search_results,
+    parse_line_search_command,
     print_line_search_results,
     use_line_search_result as line_search_use_line_search_result,
 )
@@ -7660,9 +7661,9 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd == "search":
+            elif (search_cmd := parse_line_search_command(cmd, console_args[1:])):
                 try:
-                    search_line_resources(" ".join(console_args[1:]).strip())
+                    search_line_resources(search_cmd["query"])
                 except ValueError as exc:
                     print(exc)
                 continue
