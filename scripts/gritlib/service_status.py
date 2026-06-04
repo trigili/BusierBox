@@ -456,6 +456,7 @@ def service_status_context(cfg, manager_snapshot):
     ports = port_records_from_services(services)
     return {
         "services": services,
+        "services_by_name": service_records_by_name(services),
         "service_indexes": service_record_indexes(services),
         "ports": ports,
         "port_indexes": port_record_indexes(ports),
@@ -468,6 +469,47 @@ def service_status_context(cfg, manager_snapshot):
         "manager_state_record": manager_status["state_record"],
         "manager_state_records": manager_status["state_records"],
         "manager_state_index_maps": manager_status["state_index_maps"],
+    }
+
+
+def service_records_by_name(records):
+    return {
+        row["name"]: {
+            "name": row.get("name", ""),
+            "port": row.get("port", 0),
+            "protocol": row.get("protocol", "tcp"),
+            "bind_address": row.get("bind_address", ""),
+            "tls": row.get("tls", False),
+            "configured": row.get("configured", ""),
+            "actual": row.get("actual", ""),
+            "pid": row.get("pid", ""),
+            "pid_alive": row.get("pid_alive", False),
+            "pid_managed": row.get("pid_managed", False),
+            "listener_pids": row.get("listener_pids") or [],
+            "matching_listener_pids": row.get("matching_listener_pids") or [],
+            "listener_endpoints": row.get("listener_endpoints") or [],
+            "matching_listener_endpoints": row.get("matching_listener_endpoints") or [],
+            "listener_bind_mismatch": row.get("listener_bind_mismatch", False),
+            "stale": row.get("stale", False),
+            "error": row.get("error", ""),
+            "stopped_at": row.get("stopped_at", ""),
+            "stopped_reason": row.get("stopped_reason", ""),
+            "process_log": row.get("process_log", ""),
+            "process_log_exists": row.get("process_log_exists", False),
+            "session_log": row.get("session_log", ""),
+            "session_log_exists": row.get("session_log_exists", False),
+            "url": row.get("url", ""),
+            "target_command": row.get("target_command", ""),
+            "target_route": row.get("target_route") or {},
+            "route_kind": row.get("route_kind", ""),
+            "route_host": row.get("route_host", ""),
+            "route_port": row.get("route_port", ""),
+            "bridge_profile": row.get("bridge_profile", ""),
+            "bridge_route_path": row.get("bridge_route_path", ""),
+            "requires_bridge": bool(row.get("requires_bridge", False)),
+        }
+        for row in records or []
+        if isinstance(row, dict) and row.get("name")
     }
 
 

@@ -1301,6 +1301,15 @@ def run_service_status_context_check():
     if len(context.get("service_indexes") or ()) != 15:
         print("service status context did not preserve service index tuple", file=sys.stderr)
         return 1
+    services_by_name = context.get("services_by_name") or {}
+    file_service = services_by_name.get("file-service") or {}
+    if not services_by_name or file_service.get("name") != "file-service":
+        print("service status context did not preserve services_by_name map", file=sys.stderr)
+        return 1
+    for key in ("configured", "actual", "route_kind", "requires_bridge"):
+        if key not in file_service:
+            print("service status context services_by_name missing stable field", file=sys.stderr)
+            return 1
     if not isinstance(context.get("ports"), list) or len(context.get("port_indexes") or ()) != 3:
         print("service status context did not preserve port context", file=sys.stderr)
         return 1
