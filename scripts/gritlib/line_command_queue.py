@@ -184,6 +184,39 @@ def print_line_command_queue_records(
         print("\n  queue COMMAND  |  queue list  |  queue ? for help")
 
 
+def print_line_command_queue_view(
+    cfg,
+    *,
+    detailed=False,
+    mailbox_only=False,
+    snapshot_func,
+    queue_summary_func,
+    clear_results_func,
+    append_event_fn=append_event,
+):
+    clear_results_func(cfg)
+    snap = snapshot_func(cfg)
+    command_queue_actions = snap.get("command_queue_workflow_actions") or []
+    mailbox_records = snap.get("target_mailbox_records") or []
+    queue_summary = queue_summary_func(cfg)
+
+    if mailbox_only:
+        print_line_mailbox_records(mailbox_records, title=f"Target mailbox  ({len(mailbox_records)} records)")
+    else:
+        print_line_command_queue_records(
+            queue_summary,
+            mailbox_records,
+            command_queue_actions,
+            detailed=detailed,
+        )
+
+    append_event_fn(cfg, "workbench", "workbench_command_queue_inspected", details={
+        "command_count": len((queue_summary.get("commands") or [])),
+        "target_mailbox_record_count": len(mailbox_records),
+        "command_queue_workflow_action_count": len(command_queue_actions),
+    })
+
+
 def line_command_queue_record_by_selector(commands, selector):
     text = str(selector or "").strip()
     if not text:

@@ -122,8 +122,7 @@ from gritlib.line_build import (
     unset_line_global_build_option,
 )
 from gritlib.line_command_queue import (
-    print_line_mailbox_records,
-    print_line_command_queue_records,
+    print_line_command_queue_view as line_command_queue_print_view,
     queue_line_command as line_command_queue_queue_command,
     run_line_queue_command as line_command_queue_run_command,
 )
@@ -7424,27 +7423,15 @@ def run_line_repl(cfg):
         })
 
     def print_line_command_queue_view(detailed=False, mailbox_only=False):
-        clear_line_search_results(cfg)
-        snap = workbench_snapshot(cfg)
-        command_queue_actions = snap.get("command_queue_workflow_actions") or []
-        mailbox_records = snap.get("target_mailbox_records") or []
-        queue_summary = command_queue_summary(cfg)
-
-        if mailbox_only:
-            print_line_mailbox_records(mailbox_records, title=f"Target mailbox  ({len(mailbox_records)} records)")
-        else:
-            print_line_command_queue_records(
-                queue_summary,
-                mailbox_records,
-                command_queue_actions,
-                detailed=detailed,
-            )
-
-        append_event(cfg, "workbench", "workbench_command_queue_inspected", details={
-            "command_count": len((command_queue_summary(cfg).get("commands") or [])),
-            "target_mailbox_record_count": len(mailbox_records),
-            "command_queue_workflow_action_count": len(command_queue_actions),
-        })
+        return line_command_queue_print_view(
+            cfg,
+            detailed=detailed,
+            mailbox_only=mailbox_only,
+            snapshot_func=workbench_snapshot,
+            queue_summary_func=command_queue_summary,
+            clear_results_func=clear_line_search_results,
+            append_event_fn=append_event,
+        )
 
     def show_line_resource(resource):
         parts = shlex.split(str(resource or "").strip()) if str(resource or "").strip() else []
