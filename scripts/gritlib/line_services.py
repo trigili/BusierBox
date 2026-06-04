@@ -140,6 +140,106 @@ def line_service_record(rows, name):
     return {}
 
 
+def line_service_selector_from_context(cfg, service, route_start=None, route_stop=None, op="start"):
+    service = str(service or "").strip()
+    if service:
+        return service
+    module = str((cfg or {}).get("_line_console_module") or "")
+    if module.startswith(("listener/", "service/")):
+        return module.split("/", 1)[1]
+    if module.startswith("route/"):
+        route_name = module.split("/", 1)[1]
+        if op == "stop" and route_stop:
+            return route_stop(route_name)
+        if route_start:
+            return route_start(route_name)
+    return ""
+
+
+def start_line_service(
+    cfg,
+    service,
+    *,
+    service_rows_func=None,
+    route_record_func=None,
+    route_start_func=None,
+    service_start_command_func=None,
+    service_start_func=None,
+    probe_delivery_func=None,
+    sleep_func=None,
+):
+    service = line_service_selector_from_context(
+        cfg, service, route_start=route_start_func, op="start",
+    )
+    if service is None:
+        return None
+    service = str(service or "").strip()
+    if service.lower().startswith("route ") and route_start_func:
+        return route_start_func(service.split(None, 1)[1])
+    if not service:
+        raise ValueError("usage: start SERVICE|ROUTE")
+    service_rows_func = service_rows_func or (lambda: [])
+    resolved_service = resolve_line_service_selector(service, service_rows_func())
+    if resolved_service:
+        service = resolved_service
+    if service not in line_service_names(service_rows_func()):
+        if route_record_func and route_record_func(service):
+            if route_start_func:
+                return route_start_func(service)
+        raise ValueError(f"service or route not found: {service}")
+    if not service_start_command_func or not service_start_func:
+        raise ValueError("service start support is unavailable")
+    headless = service_start_command_func(service)
+    cfg["_service_start_command"] = headless
+    service_start_func(cfg, service, headless_command=headless)
+    print("  copy start  — copy the headless start command")
+    if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"} and probe_delivery_func:
+        for _ in range(10):
+            if sleep_func:
+                sleep_func(0.1)
+            if str((line_service_record(service_rows_func(), service) or {}).get("actual") or "") == "listening":
+                break
+        probe_delivery_func()
+    return service
+
+
+def stop_line_service(
+    cfg,
+    service,
+    *,
+    service_rows_func=None,
+    route_record_func=None,
+    route_stop_func=None,
+    service_stop_command_func=None,
+    service_stop_func=None,
+):
+    service = line_service_selector_from_context(
+        cfg, service, route_stop=route_stop_func, op="stop",
+    )
+    if service is None:
+        return None
+    service = str(service or "").strip()
+    if service.lower().startswith("route ") and route_stop_func:
+        return route_stop_func(service.split(None, 1)[1])
+    if not service:
+        raise ValueError("usage: stop SERVICE|ROUTE")
+    service_rows_func = service_rows_func or (lambda: [])
+    resolved_service = resolve_line_service_selector(service, service_rows_func())
+    if resolved_service:
+        service = resolved_service
+    if service not in line_service_names(service_rows_func()):
+        if route_record_func and route_record_func(service):
+            if route_stop_func:
+                return route_stop_func(service)
+        raise ValueError(f"service or route not found: {service}")
+    if not service_stop_command_func or not service_stop_func:
+        raise ValueError("service stop support is unavailable")
+    headless = service_stop_command_func(service)
+    cfg["_service_stop_command"] = headless
+    service_stop_func(cfg, service, headless_command=headless)
+    return service
+
+
 def line_service_bind_text(rec):
     host = rec.get("bind_address") or ""
     port = rec.get("port") or "-"

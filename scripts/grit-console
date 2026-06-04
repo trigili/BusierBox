@@ -240,7 +240,8 @@ from gritlib.line_services import (
     parse_line_service_control_command,
     print_line_services as line_services_print_line_services,
     select_line_service as line_services_select_line_service,
-    resolve_line_service_selector as line_services_resolve_selector,
+    start_line_service as line_services_start_line_service,
+    stop_line_service as line_services_stop_line_service,
 )
 from gritlib.line_show import (
     dispatch_line_show_command, dispatch_line_show_resource, parse_line_show_command,
@@ -6582,58 +6583,28 @@ def run_line_repl(cfg):
         print(render_probe_delivery(cfg))
 
     def start_line_service(service):
-        service = str(service or "").strip()
-        if not service:
-            module = str(cfg.get("_line_console_module") or "")
-            if module.startswith(("listener/", "service/")):
-                service = module.split("/", 1)[1]
-            elif module.startswith("route/"):
-                return start_line_route(module.split("/", 1)[1])
-        if service.lower().startswith("route "):
-            return start_line_route(service.split(None, 1)[1])
-        if not service:
-            raise ValueError("usage: start SERVICE|ROUTE")
-        resolved_service = line_services_resolve_selector(service, service_status_rows(cfg))
-        if resolved_service:
-            service = resolved_service
-        if service not in line_service_names(service_status_rows(cfg)):
-            if line_route_record(service):
-                return start_line_route(service)
-            raise ValueError(f"service or route not found: {service}")
-        headless = service_start_headless_command(cfg, service)
-        cfg["_service_start_command"] = headless
-        start_service_process(cfg, service, headless_command=headless)
-        print("  copy start  — copy the headless start command")
-        if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"}:
-            # Brief poll for the listener to be ready, then show delivery commands
-            for _ in range(10):
-                time.sleep(0.1)
-                if str((line_service_record(service_status_rows(cfg), service) or {}).get("actual") or "") == "listening":
-                    break
-            _print_probe_delivery()
+        return line_services_start_line_service(
+            cfg,
+            service,
+            service_rows_func=lambda: service_status_rows(cfg),
+            route_record_func=line_route_record,
+            route_start_func=start_line_route,
+            service_start_command_func=lambda name: service_start_headless_command(cfg, name),
+            service_start_func=start_service_process,
+            probe_delivery_func=_print_probe_delivery,
+            sleep_func=time.sleep,
+        )
 
     def stop_line_service(service):
-        service = str(service or "").strip()
-        if not service:
-            module = str(cfg.get("_line_console_module") or "")
-            if module.startswith(("listener/", "service/")):
-                service = module.split("/", 1)[1]
-            elif module.startswith("route/"):
-                return stop_line_route(module.split("/", 1)[1])
-        if service.lower().startswith("route "):
-            return stop_line_route(service.split(None, 1)[1])
-        if not service:
-            raise ValueError("usage: stop SERVICE|ROUTE")
-        resolved_service = line_services_resolve_selector(service, service_status_rows(cfg))
-        if resolved_service:
-            service = resolved_service
-        if service not in line_service_names(service_status_rows(cfg)):
-            if line_route_record(service):
-                return stop_line_route(service)
-            raise ValueError(f"service or route not found: {service}")
-        headless = service_stop_headless_command(cfg, service)
-        cfg["_service_stop_command"] = headless
-        stop_recorded_service(cfg, service, headless_command=headless)
+        return line_services_stop_line_service(
+            cfg,
+            service,
+            service_rows_func=lambda: service_status_rows(cfg),
+            route_record_func=line_route_record,
+            route_stop_func=stop_line_route,
+            service_stop_command_func=lambda name: service_stop_headless_command(cfg, name),
+            service_stop_func=stop_recorded_service,
+        )
 
     def line_route_record(name):
         return bridge_routes_line_route_record(bridge_profile_records(cfg), name)
