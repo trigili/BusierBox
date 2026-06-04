@@ -106,12 +106,7 @@ from gritlib.file_transfers import (
 from gritlib.ftp import ftp_pasv_reply_host, ftp_recv_line, ftp_send_line
 from gritlib.line_actions import (
     current_line_action_records,
-    print_current_line_actions,
     print_current_line_module_categories,
-    run_line_module_or_service as line_actions_run_line_module_or_service,
-    run_line_selected_action as line_actions_run_line_selected_action,
-    select_current_line_action,
-    selected_current_line_action,
 )
 from gritlib.line_build import (
     dispatch_legacy_line_build_number,
@@ -120,7 +115,6 @@ from gritlib.line_build import (
 )
 from gritlib.line_command_queue import (
     dispatch_legacy_line_queue_number,
-    select_current_line_command_queue_action as line_command_queue_select_current_action,
 )
 from gritlib.line_configure import (
     find_survey_uploads as configure_find_survey_uploads,
@@ -173,6 +167,7 @@ from gritlib.line_repl_runtime import (
     parse_line_command_args, read_line as line_repl_read_line, resolve_replay_command,
     restore_signal_handlers, should_parse_line_command,
 )
+from gritlib.line_repl_actions import build_line_action_callbacks
 from gritlib.line_repl_display import build_line_display_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_line_job_callbacks
@@ -6442,29 +6437,26 @@ def run_line_repl(cfg):
             probe_result_config=lambda args: configure_line_probe_config(cfg, args, append_event_fn=append_event),
         )
 
-    def print_line_actions(filter_text="", kind_filter="", verbose=False):
-        return print_current_line_actions(
-            cfg,
-            lambda: workbench_snapshot(cfg),
-            filter_text=filter_text,
-            kind_filter=kind_filter,
-            verbose=verbose,
-            quote=shquote,
-        )
-
-    def select_line_action(selector):
-        return select_current_line_action(cfg, lambda: workbench_snapshot(cfg), selector)
-
-    def select_line_command_queue_action(selector):
-        return line_command_queue_select_current_action(
-            cfg,
-            lambda: workbench_snapshot(cfg),
-            selector,
-            append_event_fn=append_event,
-        )
-
-    def selected_line_action():
-        return selected_current_line_action(cfg, lambda: workbench_snapshot(cfg))
+    line_action_callbacks = build_line_action_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        service_names_func=lambda: line_service_names(service_status_rows(cfg)),
+        start_service_func=start_line_service,
+        service_runner=run_service_workflow_action,
+        daemon_runner=run_operator_daemon_workflow_action,
+        workbench_runner=run_workbench_action_record,
+        target_runner=run_target_workflow_action,
+        workbench_actions_func=workbench_action_records,
+        target_input_func=line_input,
+        append_event_fn=append_event,
+        quote=shquote,
+    )
+    print_line_actions = line_action_callbacks["print_line_actions"]
+    select_line_action = line_action_callbacks["select_line_action"]
+    select_line_command_queue_action = line_action_callbacks["select_line_command_queue_action"]
+    selected_line_action = line_action_callbacks["selected_line_action"]
+    run_line_module_or_service = line_action_callbacks["run_line_module_or_service"]
+    run_line_selected_action = line_action_callbacks["run_line_selected_action"]
 
     line_job_callbacks = build_line_job_callbacks(
         cfg,
@@ -6480,31 +6472,6 @@ def run_line_repl(cfg):
     select_line_job = line_job_callbacks["select_line_job"]
     cancel_line_job = line_job_callbacks["cancel_line_job"]
     start_line_job = line_job_callbacks["start_line_job"]
-
-    def run_line_module_or_service(values=None, dry_run_default=False):
-        return line_actions_run_line_module_or_service(
-            values,
-            dry_run_default=dry_run_default,
-            selected_action_func=selected_line_action,
-            select_action_func=select_line_action,
-            service_names_func=lambda: line_service_names(service_status_rows(cfg)),
-            start_service_func=start_line_service,
-            run_selected_action_func=run_line_selected_action,
-        )
-
-    def run_line_selected_action(args=None, dry_run_default=False):
-        return line_actions_run_line_selected_action(
-            cfg,
-            selected_line_action(),
-            args=args,
-            dry_run_default=dry_run_default,
-            service_runner=run_service_workflow_action,
-            daemon_runner=run_operator_daemon_workflow_action,
-            workbench_runner=run_workbench_action_record,
-            target_runner=run_target_workflow_action,
-            workbench_actions=workbench_action_records(cfg),
-            target_input_func=line_input,
-        )
 
     line_queue_callbacks = build_line_queue_callbacks(
         cfg,
