@@ -188,6 +188,7 @@ from gritlib.line_repl_queue import build_line_queue_callbacks
 from gritlib.line_repl_routes import build_line_route_service_callbacks
 from gritlib.line_repl_search import build_line_search_callbacks
 from gritlib.line_repl_sessions import build_line_session_callbacks
+from gritlib.line_repl_show import build_line_show_resource_adapter
 from gritlib.line_repl_targets import build_line_target_callbacks
 from gritlib.line_repl_utility import build_line_utility_dispatch_callback
 from gritlib.line_repl_workflow import build_line_workflow_dispatch_callback
@@ -201,7 +202,6 @@ from gritlib.line_services import (
     line_service_display_name,
     line_service_completion_names, line_service_names, line_service_record,
 )
-from gritlib.line_show import build_line_show_resource_callback
 from gritlib.line_target_commands import (
     copy_line_generated_command, copy_line_service_command, run_line_generated_command,
 )
@@ -6254,7 +6254,7 @@ def run_line_repl(cfg):
         target_command_records_func=generated_target_command_records,
     )
 
-    show_line_resource = build_line_show_resource_callback(
+    show_line_resource = build_line_show_resource_adapter(
         cfg,
         set_context_func=set_line_collection_context,
         snapshot_func=workbench_snapshot,
@@ -6265,17 +6265,15 @@ def run_line_repl(cfg):
         print_files_func=print_line_files,
         print_jobs_func=print_line_jobs,
         print_daemon_func=line_daemon_print_actions,
-        print_categories_func=lambda: print_current_line_module_categories(
-            cfg,
-            lambda: workbench_snapshot(cfg),
-        ),
+        print_categories_func=print_current_line_module_categories,
         print_sessions_func=print_line_sessions,
         print_routes_func=print_line_routes,
         print_queue_func=print_line_command_queue_view,
         print_events_func=print_target_activity_records,
-        print_release_func=lambda: line_release_print_line_release(cfg, append_event_fn=append_event),
+        print_release_func=line_release_print_line_release,
         print_options_func=print_line_options,
         print_info_func=print_line_info,
+        append_event_fn=append_event,
     )
 
     install_readline_completer(_readline, HAVE_READLINE, line_completion_candidates)

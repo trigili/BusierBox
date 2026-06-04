@@ -418,6 +418,7 @@ def run_line_repl_runtime_check():
         sys.path.insert(0, scripts_dir)
     import gritlib.line_repl_core as repl_core
     import gritlib.line_repl_navigation as repl_navigation
+    import gritlib.line_repl_show as repl_show
     import gritlib.line_repl_utility as repl_utility
     import gritlib.line_repl_workflow as repl_workflow
     from gritlib.line_repl_runtime import (
@@ -1422,6 +1423,60 @@ def run_line_repl_runtime_check():
     if interrupted != 130:
         print(f"line REPL loop did not preserve interrupted exit status: {interrupted}", file=sys.stderr)
         return 1
+
+    show_calls = []
+    original_show_builder = repl_show.build_line_show_resource_callback
+
+    def fake_show_builder(cfg, **kwargs):
+        show_calls.append(("builder", cfg.get("name"), sorted(kwargs)))
+        kwargs["print_categories_func"]()
+        kwargs["print_release_func"]()
+        return lambda resource: show_calls.append(("show", resource)) or "shown"
+
+    repl_show.build_line_show_resource_callback = fake_show_builder
+    try:
+        show_cfg = {"name": "show-cfg"}
+        show_callback = repl_show.build_line_show_resource_adapter(
+            show_cfg,
+            set_context_func=lambda cfg, module: show_calls.append(("context", cfg.get("name"), module)),
+            snapshot_func=lambda cfg: show_calls.append(("snapshot", cfg.get("name"))) or {"snap": True},
+            target_filter_func=lambda cfg: cfg.get("target", ""),
+            print_actions_func=lambda *args, **kwargs: show_calls.append(("actions", args, kwargs)),
+            print_targets_func=lambda: show_calls.append("targets"),
+            print_services_func=lambda verbose=False: show_calls.append(("services", verbose)),
+            print_files_func=lambda: show_calls.append("files"),
+            print_jobs_func=lambda: show_calls.append("jobs"),
+            print_daemon_func=lambda snapshot: show_calls.append(("daemon", snapshot)),
+            print_categories_func=lambda cfg, snapshot_fn: show_calls.append(
+                ("categories", cfg.get("name"), snapshot_fn())
+            ),
+            print_sessions_func=lambda: show_calls.append("sessions"),
+            print_routes_func=lambda verbose=False: show_calls.append(("routes", verbose)),
+            print_queue_func=lambda detailed=False: show_calls.append(("queue", detailed)),
+            print_events_func=lambda snapshot, target_id="", limit=0: show_calls.append(
+                ("events", snapshot, target_id, limit)
+            ),
+            print_release_func=lambda cfg, append_event_fn: show_calls.append(
+                ("release", cfg.get("name"), append_event_fn is not None)
+            ),
+            print_options_func=lambda: show_calls.append("options"),
+            print_info_func=lambda: show_calls.append("info"),
+            append_event_fn=lambda *args, **kwargs: None,
+        )
+        if show_callback("targets") != "shown":
+            print("line REPL show adapter did not return show callback result", file=sys.stderr)
+            return 1
+    finally:
+        repl_show.build_line_show_resource_callback = original_show_builder
+    expected_show_markers = [
+        ("categories", "show-cfg", {"snap": True}),
+        ("release", "show-cfg", True),
+        ("show", "targets"),
+    ]
+    for marker in expected_show_markers:
+        if marker not in show_calls:
+            print(f"line REPL show adapter missed {marker}: {show_calls}", file=sys.stderr)
+            return 1
     return 0
 
 
