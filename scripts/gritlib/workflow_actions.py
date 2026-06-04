@@ -2382,12 +2382,89 @@ def workbench_action_summary(records):
     }
 
 
+def workbench_action_status_summary(stats=None):
+    stats = stats or {}
+    return {
+        "workbench_action_count": stats.get("total_count", 0),
+        "workbench_action_background_supported_count": stats.get(
+            "background_supported_count", 0
+        ),
+        "workbench_action_long_running_count": stats.get("long_running_count", 0),
+        "workbench_action_writes_config_count": stats.get("writes_config_count", 0),
+        "workbench_action_runs_build_count": stats.get("runs_build_count", 0),
+        "workbench_action_requires_confirmation_count": stats.get(
+            "requires_confirmation_count", 0
+        ),
+        "workbench_action_target_execution_count": stats.get(
+            "target_execution_count", 0
+        ),
+        "workbench_action_foreground_runnable_count": stats.get(
+            "foreground_runnable_count", 0
+        ),
+        "workbench_action_dry_run_supported_count": stats.get(
+            "dry_run_supported_count", 0
+        ),
+        "workbench_action_has_placeholder_count": stats.get(
+            "has_placeholder_count", 0
+        ),
+        "workbench_action_has_run_command_count": stats.get("has_run_command_count", 0),
+        "workbench_action_has_dry_run_command_count": stats.get(
+            "has_dry_run_command_count", 0
+        ),
+        "workbench_action_has_start_job_command_count": stats.get(
+            "has_start_job_command_count", 0
+        ),
+        "workbench_action_can_run_from_curses_enter_count": stats.get(
+            "can_run_from_curses_enter_count", 0
+        ),
+        "workbench_action_category_counts": stats.get("category_counts") or {},
+        "workbench_action_script_counts": stats.get("script_counts") or {},
+        "workbench_action_execution_default_counts": stats.get(
+            "execution_default_counts"
+        ) or {},
+        "workbench_action_event_counts": stats.get("event_counts") or {},
+        "workbench_action_config_path_counts": stats.get("config_path_counts") or {},
+        "workbench_action_foreground_runnable_counts": stats.get(
+            "foreground_runnable_counts"
+        ) or {},
+        "workbench_action_dry_run_supported_counts": stats.get(
+            "dry_run_supported_counts"
+        ) or {},
+        "workbench_action_has_placeholder_counts": stats.get(
+            "has_placeholder_counts"
+        ) or {},
+        "workbench_action_has_run_command_counts": stats.get(
+            "has_run_command_counts"
+        ) or {},
+        "workbench_action_has_dry_run_command_counts": stats.get(
+            "has_dry_run_command_counts"
+        ) or {},
+        "workbench_action_has_start_job_command_counts": stats.get(
+            "has_start_job_command_counts"
+        ) or {},
+        "workbench_action_operator_action_state_counts": stats.get(
+            "operator_action_state_counts"
+        ) or {},
+        "workbench_action_operator_action_reason_counts": stats.get(
+            "operator_action_reason_counts"
+        ) or {},
+        "workbench_action_can_run_from_curses_enter_counts": stats.get(
+            "can_run_from_curses_enter_counts"
+        ) or {},
+        "workbench_action_curses_enter_action_counts": stats.get(
+            "curses_enter_action_counts"
+        ) or {},
+    }
+
+
 def workbench_action_status_context(cfg):
     actions = workbench_action_records(cfg)
+    stats = workbench_action_summary(actions)
     return {
         "actions": actions,
         "index_maps": workbench_action_indexes(actions),
-        "stats": workbench_action_summary(actions),
+        "stats": stats,
+        "summary": workbench_action_status_summary(stats),
     }
 
 
@@ -2443,14 +2520,53 @@ def workbench_job_summary(records):
     }
 
 
+def workbench_job_status_summary(stats=None):
+    stats = stats or {}
+    return {
+        "workbench_job_count": stats.get("total_count", 0),
+        "workbench_job_running_count": stats.get("running_count", 0),
+        "workbench_job_pid_managed_count": stats.get("pid_managed_count", 0),
+        "workbench_job_cancel_supported_count": stats.get("cancel_supported_count", 0),
+        "workbench_job_log_exists_count": stats.get("log_exists_count", 0),
+        "workbench_job_log_total_size": stats.get("log_total_size", 0),
+        "workbench_job_last_output_tail_truncated_count": stats.get(
+            "last_output_tail_truncated_count", 0
+        ),
+        "workbench_job_exit_status_known_count": stats.get(
+            "exit_status_known_count", 0
+        ),
+        "workbench_job_started_at_known_count": stats.get("started_at_known_count", 0),
+        "workbench_job_finished_at_known_count": stats.get(
+            "finished_at_known_count", 0
+        ),
+        "workbench_job_duration_known_count": stats.get("duration_known_count", 0),
+        "workbench_job_elapsed_known_count": stats.get("elapsed_known_count", 0),
+        "workbench_job_duration_total_sec": stats.get("duration_total_sec", 0),
+        "workbench_job_elapsed_total_sec": stats.get("elapsed_total_sec", 0),
+        "workbench_job_background_supported_count": stats.get(
+            "background_supported_count", 0
+        ),
+        "workbench_job_long_running_count": stats.get("long_running_count", 0),
+        "workbench_job_state_counts": stats.get("state_counts") or {},
+        "workbench_job_effective_state_counts": stats.get("effective_state_counts")
+        or {},
+        "workbench_job_outcome_counts": stats.get("outcome_counts") or {},
+        "workbench_job_exit_status_counts": stats.get("exit_status_counts") or {},
+        "workbench_job_action_counts": stats.get("action_counts") or {},
+        "workbench_job_category_counts": stats.get("category_counts") or {},
+    }
+
+
 def workbench_job_status_context(cfg, workbench_actions=None):
     from gritlib.workbench_jobs import workbench_job_records
 
     jobs = workbench_job_records(cfg, workbench_actions)
+    stats = workbench_job_summary(jobs)
     return {
         "jobs": jobs,
         "index_maps": workbench_job_indexes(jobs),
-        "stats": workbench_job_summary(jobs),
+        "stats": stats,
+        "summary": workbench_job_status_summary(stats),
     }
 
 

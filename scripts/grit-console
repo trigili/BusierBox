@@ -2757,7 +2757,6 @@ def status_document(cfg):
     workbench_action_context = workbench_action_status_context(cfg)
     workbench_actions = workbench_action_context["actions"]
     workbench_action_index_maps = workbench_action_context["index_maps"]
-    workbench_action_stats = workbench_action_context["stats"]
     operator_daemon_workflow_context = operator_daemon_workflow_action_status_context(
         cfg,
         workbench_actions,
@@ -2777,7 +2776,6 @@ def status_document(cfg):
     workbench_job_context = workbench_job_status_context(cfg, workbench_actions)
     workbench_jobs = workbench_job_context["jobs"]
     workbench_job_index_maps = workbench_job_context["index_maps"]
-    workbench_job_stats = workbench_job_context["stats"]
     target_command_context = target_command_status_context(
         cfg,
         staged_raw=staged_raw,
@@ -3291,7 +3289,7 @@ def status_document(cfg):
         "operator_console_workflow_operator_action_reason_counts": operator_console_workflow_stats.get("operator_action_reason_counts") or {},
         "operator_console_workflow_tui_shortcut_counts": operator_console_workflow_stats.get("tui_shortcut_counts") or {},
         "operator_console_workflow_line_mode_action_counts": operator_console_workflow_stats.get("line_mode_action_counts") or {},
-        "workbench_action_count": workbench_action_stats.get("total_count", 0),
+        **workbench_action_context["summary"],
         "workbench_config_field_count": workbench_config_field_stats.get("total_count", 0),
         "workbench_config_field_configured_count": workbench_config_field_stats.get("configured_count", 0),
         "workbench_config_field_fixed_option_count": workbench_config_field_stats.get("fixed_option_count", 0),
@@ -3303,59 +3301,10 @@ def status_document(cfg):
         "workbench_config_field_reverse_access_related_count": workbench_config_field_stats.get("reverse_access_related_count", 0),
         "workbench_config_field_command_queue_related_count": workbench_config_field_stats.get("command_queue_related_count", 0),
         "workbench_config_field_requires_explicit_operator_choice_count": workbench_config_field_stats.get("requires_explicit_operator_choice_count", 0),
-        "workbench_action_background_supported_count": workbench_action_stats.get("background_supported_count", 0),
-        "workbench_action_long_running_count": workbench_action_stats.get("long_running_count", 0),
-        "workbench_action_writes_config_count": workbench_action_stats.get("writes_config_count", 0),
-        "workbench_action_runs_build_count": workbench_action_stats.get("runs_build_count", 0),
-        "workbench_action_requires_confirmation_count": workbench_action_stats.get("requires_confirmation_count", 0),
-        "workbench_action_target_execution_count": workbench_action_stats.get("target_execution_count", 0),
-        "workbench_action_foreground_runnable_count": workbench_action_stats.get("foreground_runnable_count", 0),
-        "workbench_action_dry_run_supported_count": workbench_action_stats.get("dry_run_supported_count", 0),
-        "workbench_action_has_placeholder_count": workbench_action_stats.get("has_placeholder_count", 0),
-        "workbench_action_has_run_command_count": workbench_action_stats.get("has_run_command_count", 0),
-        "workbench_action_has_dry_run_command_count": workbench_action_stats.get("has_dry_run_command_count", 0),
-        "workbench_action_has_start_job_command_count": workbench_action_stats.get("has_start_job_command_count", 0),
-        "workbench_action_can_run_from_curses_enter_count": workbench_action_stats.get("can_run_from_curses_enter_count", 0),
-        "workbench_action_category_counts": workbench_action_stats.get("category_counts") or {},
-        "workbench_action_script_counts": workbench_action_stats.get("script_counts") or {},
-        "workbench_action_execution_default_counts": workbench_action_stats.get("execution_default_counts") or {},
-        "workbench_action_event_counts": workbench_action_stats.get("event_counts") or {},
-        "workbench_action_config_path_counts": workbench_action_stats.get("config_path_counts") or {},
-        "workbench_action_foreground_runnable_counts": workbench_action_stats.get("foreground_runnable_counts") or {},
-        "workbench_action_dry_run_supported_counts": workbench_action_stats.get("dry_run_supported_counts") or {},
-        "workbench_action_has_placeholder_counts": workbench_action_stats.get("has_placeholder_counts") or {},
-        "workbench_action_has_run_command_counts": workbench_action_stats.get("has_run_command_counts") or {},
-        "workbench_action_has_dry_run_command_counts": workbench_action_stats.get("has_dry_run_command_counts") or {},
-        "workbench_action_has_start_job_command_counts": workbench_action_stats.get("has_start_job_command_counts") or {},
-        "workbench_action_operator_action_state_counts": workbench_action_stats.get("operator_action_state_counts") or {},
-        "workbench_action_operator_action_reason_counts": workbench_action_stats.get("operator_action_reason_counts") or {},
-        "workbench_action_can_run_from_curses_enter_counts": workbench_action_stats.get("can_run_from_curses_enter_counts") or {},
-        "workbench_action_curses_enter_action_counts": workbench_action_stats.get("curses_enter_action_counts") or {},
         **operator_daemon_workflow_action_status_summary(operator_daemon_workflow_actions),
         **service_workflow_action_status_summary(service_workflow_actions),
         **probe_workflow_action_status_summary(probe_workflow_actions),
-        "workbench_job_count": workbench_job_stats.get("total_count", 0),
-        "workbench_job_running_count": workbench_job_stats.get("running_count", 0),
-        "workbench_job_pid_managed_count": workbench_job_stats.get("pid_managed_count", 0),
-        "workbench_job_cancel_supported_count": workbench_job_stats.get("cancel_supported_count", 0),
-        "workbench_job_log_exists_count": workbench_job_stats.get("log_exists_count", 0),
-        "workbench_job_log_total_size": workbench_job_stats.get("log_total_size", 0),
-        "workbench_job_last_output_tail_truncated_count": workbench_job_stats.get("last_output_tail_truncated_count", 0),
-        "workbench_job_exit_status_known_count": workbench_job_stats.get("exit_status_known_count", 0),
-        "workbench_job_started_at_known_count": workbench_job_stats.get("started_at_known_count", 0),
-        "workbench_job_finished_at_known_count": workbench_job_stats.get("finished_at_known_count", 0),
-        "workbench_job_duration_known_count": workbench_job_stats.get("duration_known_count", 0),
-        "workbench_job_elapsed_known_count": workbench_job_stats.get("elapsed_known_count", 0),
-        "workbench_job_duration_total_sec": workbench_job_stats.get("duration_total_sec", 0),
-        "workbench_job_elapsed_total_sec": workbench_job_stats.get("elapsed_total_sec", 0),
-        "workbench_job_background_supported_count": workbench_job_stats.get("background_supported_count", 0),
-        "workbench_job_long_running_count": workbench_job_stats.get("long_running_count", 0),
-        "workbench_job_state_counts": workbench_job_stats.get("state_counts") or {},
-        "workbench_job_effective_state_counts": workbench_job_stats.get("effective_state_counts") or {},
-        "workbench_job_outcome_counts": workbench_job_stats.get("outcome_counts") or {},
-        "workbench_job_exit_status_counts": workbench_job_stats.get("exit_status_counts") or {},
-        "workbench_job_action_counts": workbench_job_stats.get("action_counts") or {},
-        "workbench_job_category_counts": workbench_job_stats.get("category_counts") or {},
+        **workbench_job_context["summary"],
     })
     api_collections = {
         "services": api_collection_record(

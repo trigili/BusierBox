@@ -1929,6 +1929,7 @@ def run_workbench_action_status_context_check():
         actions = context.get("actions") or []
         indexes = context.get("index_maps") or {}
         stats = context.get("stats") or {}
+        summary = context.get("summary") or {}
         by_id = indexes.get("workbench_actions_by_id") or {}
         configure = by_id.get("configure-binary") or {}
         if not actions or not configure:
@@ -1939,6 +1940,14 @@ def run_workbench_action_status_context_check():
             return 1
         if stats.get("total_count") != len(actions):
             print("workbench action status context did not preserve summary", file=sys.stderr)
+            return 1
+        if (
+            summary.get("workbench_action_count") != len(actions)
+            or summary.get("workbench_action_writes_config_count", 0) < 1
+            or summary.get("workbench_action_has_run_command_count", 0) < 1
+            or not summary.get("workbench_action_category_counts")
+        ):
+            print("workbench action status context did not preserve status summary", file=sys.stderr)
             return 1
         if "workbench_actions_by_category" not in indexes:
             print("workbench action status context did not preserve indexes", file=sys.stderr)
@@ -1991,6 +2000,7 @@ def run_workbench_job_status_context_check():
         jobs = context.get("jobs") or []
         indexes = context.get("index_maps") or {}
         stats = context.get("stats") or {}
+        summary = context.get("summary") or {}
         by_id = indexes.get("workbench_jobs_by_id") or {}
         job = by_id.get("job-a") or {}
         if jobs != [job] or not job:
@@ -2001,6 +2011,14 @@ def run_workbench_job_status_context_check():
             return 1
         if stats.get("total_count") != 1 or stats.get("log_exists_count") != 1:
             print("workbench job status context did not preserve summary", file=sys.stderr)
+            return 1
+        if (
+            summary.get("workbench_job_count") != 1
+            or summary.get("workbench_job_log_exists_count") != 1
+            or summary.get("workbench_job_log_total_size", 0) <= 0
+            or summary.get("workbench_job_outcome_counts", {}).get("succeeded") != 1
+        ):
+            print("workbench job status context did not preserve status summary", file=sys.stderr)
             return 1
         if "workbench_jobs_by_outcome" not in indexes:
             print("workbench job status context did not preserve indexes", file=sys.stderr)
