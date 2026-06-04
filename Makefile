@@ -235,19 +235,7 @@ smoke-test:
 	@./dist/grit-native-full nc --help >/dev/null 2>&1
 	@./dist/grit-native-full config-info >/dev/null
 	$(call run_if_python3,tmp=$$(mktemp -d); ./dist/grit-native-full survey --json > $$tmp/survey.json; python3 tests/smoke/validate-survey-json.py $$tmp/survey.json >/dev/null; scripts/lib/config-from-survey $$tmp/survey.json >/dev/null; rm -rf $$tmp,python3 survey config validation unavailable)
-	@printf '%s\n' "smoke: testing out-of-cwd embedded extraction (catches exe-wipe bugs)..."
-	@_grit_tmp=$$(mktemp -d) && \
-	  cp dist/grit-native-full "$$_grit_tmp/grit" && \
-	  chmod +x "$$_grit_tmp/grit" && \
-	  cd "$$_grit_tmp" && \
-	  ./grit extract >/dev/null && \
-	  ./grit sh -c 'echo dispatch-ok' >/dev/null && \
-	  ./grit cp --help >/dev/null 2>&1 && \
-	  ./grit touch --help >/dev/null 2>&1 && \
-	  ./grit ls --help >/dev/null 2>&1 && \
-	  ./grit extract >/dev/null && \
-	  printf '%s\n' "smoke: out-of-cwd ok" && \
-	  cd - >/dev/null && rm -rf "$$_grit_tmp"
+	@tests/smoke/out-of-cwd-extraction.sh dist/grit-native-full
 	@printf '%s\n' "smoke-test ok"
 
 test-qemu-user: package-native
