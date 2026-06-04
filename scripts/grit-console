@@ -125,17 +125,13 @@ from gritlib.line_build import (
     unset_line_global_build_option,
 )
 from gritlib.line_command_queue import (
-    dispatch_line_queue_command,
-    parse_line_queue_command,
     print_line_command_queue_view as line_command_queue_print_view,
     queue_line_command as line_command_queue_queue_command,
     run_line_queue_command as line_command_queue_run_command,
 )
 from gritlib.line_configure import (
     configure_line_artifact as configure_line_artifact_impl,
-    dispatch_line_configure_command,
     find_survey_uploads as configure_find_survey_uploads,
-    parse_line_configure_command,
     print_line_survey_status as configure_print_line_survey_status,
     run_line_probe_config as configure_line_probe_config,
     run_line_survey_config as configure_line_survey_config,
@@ -150,15 +146,8 @@ from gritlib.line_events import print_line_events_view
 from gritlib.line_state import line_action_state_text
 from gritlib.line_files import (
     clear_line_files as line_files_clear_line_files,
-    dispatch_line_binary_command,
-    dispatch_line_download_command,
     download_line_target as line_files_download_line_target,
     line_file_records_from_staged,
-    parse_line_binary_command,
-    parse_line_download_command,
-    parse_line_file_transfer_command,
-    parse_line_files_command,
-    dispatch_line_file_command,
     print_line_file_records,
     fetch_line_staged as line_files_fetch_line_staged,
     stage_line_binary as line_files_stage_line_binary,
@@ -201,8 +190,6 @@ from gritlib.line_repl_runtime import (
     read_line as line_repl_read_line, restore_signal_handlers,
 )
 from gritlib.line_release import (
-    dispatch_line_release_command,
-    parse_line_release_alias_command,
     print_line_release as line_release_print_line_release,
     stage_line_release as line_release_stage_line_release,
 )
@@ -237,6 +224,7 @@ from gritlib.line_target_commands import (
 )
 from gritlib.line_navigation_commands import dispatch_line_navigation_command
 from gritlib.line_utility_commands import dispatch_line_utility_command
+from gritlib.line_workflow_commands import dispatch_line_workflow_command
 from gritlib.line_workspace import (
     dispatch_line_workspace_command, line_repl_prompt as line_workspace_repl_prompt,
     line_repl_status_bar, parse_line_workspace_command, print_line_console_banner,
@@ -245,7 +233,7 @@ from gritlib.line_workspace import (
     print_line_workspace_snapshot, reload_line_config,
 )
 from gritlib.operator_io import (
-    clipboard_command, dispatch_line_view_command, open_path_in_pager, parse_line_view_command,
+    clipboard_command, open_path_in_pager,
     restore_interactive_tty, set_interactive_tty_raw,
     view_line_path as operator_io_view_line_path,
     view_path_headless_command, viewable_path,
@@ -386,11 +374,9 @@ from gritlib.warnings import (
 from gritlib.workbench_jobs import (
     cancel_workbench_job_headless_command, cancel_workbench_job_record,
     cancel_line_job as workbench_jobs_cancel_line_job,
-    dispatch_line_jobs_command,
     line_job_record as workbench_jobs_line_job_record,
     load_workbench_jobs,
     reconcile_workbench_job_completion_events,
-    parse_line_jobs_command,
     print_line_jobs as workbench_jobs_print_line_jobs,
     print_workbench_job_ownership, print_workbench_job_summary,
     record_workbench_refresh, run_workbench_action_headless_command,
@@ -403,7 +389,6 @@ from gritlib.workbench_jobs import (
     workbench_jobs_path, workbench_jobs_state_status,
 )
 from gritlib.workflow_actions import (
-    dispatch_line_daemon_command,
     operator_daemon_workflow_action_indexes,
     operator_daemon_workflow_action_records,
     operator_daemon_workflow_action_status_summary,
@@ -412,7 +397,6 @@ from gritlib.workflow_actions import (
     operator_console_workflow_records,
     operator_console_workflow_indexes,
     operator_console_workflow_summary,
-    parse_line_daemon_command,
     print_line_daemon_action_records,
     print_workbench_action_summary,
     probe_workflow_action_indexes,
@@ -7461,12 +7445,43 @@ def run_line_repl(cfg):
                 interact_target_func=interact_line_target,
             ):
                 continue
-            elif (download_cmd := parse_line_download_command(cmd, console_args[1:])):
-                dispatch_line_download_command(
-                    download_cmd,
-                    download_func=download_line_target,
-                    set_context_func=lambda: set_line_collection("files"),
-                )
+            elif dispatch_line_workflow_command(
+                cmd,
+                console_args[1:],
+                set_context_func=set_line_collection,
+                download_func=download_line_target,
+                daemon_run_func=run_line_daemon_action,
+                release_list_func=lambda: (
+                    set_line_collection("release"),
+                    line_release_print_line_release(cfg, append_event_fn=append_event),
+                ),
+                release_stage_func=lambda selector, start_file_service=False: (
+                    stage_line_release(
+                        selector,
+                        start_file_service=start_file_service,
+                    ),
+                    set_line_collection("files"),
+                ),
+                release_help_func=print_line_command_help,
+                upload_file_func=stage_line_file,
+                fetch_file_func=fetch_line_staged,
+                unstage_file_func=unstage_line_file,
+                view_path_func=view_line_path,
+                clear_files_func=lambda confirm=False: line_files_clear_line_files(
+                    cfg,
+                    confirm=confirm,
+                    target_filter_id=configured_target_filter(cfg),
+                    append_event_fn=append_event,
+                ),
+                list_files_func=lambda verbose=False: print_line_files(verbose=verbose),
+                run_queue_func=run_line_queue_command,
+                view_queue_func=print_line_command_queue_view,
+                cancel_job_func=cancel_line_job,
+                select_job_func=select_line_job,
+                list_jobs_func=print_line_jobs,
+                stage_binary_func=stage_line_binary,
+                configure_func=configure_line_artifact,
+            ):
                 continue
             elif (probe_cmd := parse_line_probe_command(cmd, console_args[1:])):
                 dispatch_line_probe_command(
@@ -7511,92 +7526,6 @@ def run_line_repl(cfg):
                         append_event_fn=append_event,
                     ),
                     help_func=print_line_command_help,
-                )
-                continue
-            elif (daemon_cmd := parse_line_daemon_command(cmd, console_args[1:])):
-                dispatch_line_daemon_command(
-                    daemon_cmd,
-                    set_context_func=set_line_collection,
-                    run_func=run_line_daemon_action,
-                )
-                continue
-            elif (release_cmd := parse_line_release_alias_command(cmd, console_args[1:])):
-                dispatch_line_release_command(
-                    release_cmd,
-                    list_func=lambda: (
-                        set_line_collection("release"),
-                        line_release_print_line_release(cfg, append_event_fn=append_event),
-                    ),
-                    stage_func=lambda selector, start_file_service=False: (
-                        stage_line_release(
-                            selector,
-                            start_file_service=start_file_service,
-                        ),
-                        set_line_collection("files"),
-                    ),
-                    help_func=print_line_command_help,
-                )
-                continue
-            elif (file_cmd := parse_line_file_transfer_command(cmd, console_args[1:])):
-                dispatch_line_file_command(
-                    file_cmd,
-                    upload_func=stage_line_file,
-                    fetch_func=fetch_line_staged,
-                    unstage_func=unstage_line_file,
-                    set_context_func=lambda: set_line_collection("files"),
-                )
-                continue
-            elif (view_cmd := parse_line_view_command(cmd, console_args[1:])):
-                dispatch_line_view_command(view_cmd, view_func=view_line_path)
-                continue
-            elif (files_cmd := parse_line_files_command(cmd, console_args[1:])):
-                dispatch_line_file_command(
-                    files_cmd,
-                    upload_func=stage_line_file,
-                    fetch_func=fetch_line_staged,
-                    unstage_func=unstage_line_file,
-                    clear_func=lambda confirm=False: line_files_clear_line_files(
-                        cfg,
-                        confirm=confirm,
-                        target_filter_id=configured_target_filter(cfg),
-                        append_event_fn=append_event,
-                    ),
-                    list_func=lambda verbose=False: print_line_files(verbose=verbose),
-                    set_context_func=lambda: set_line_collection("files"),
-                )
-                continue
-            elif (queue_cmd := parse_line_queue_command(cmd, console_args[1:])):
-                dispatch_line_queue_command(
-                    queue_cmd,
-                    original_cmd=cmd,
-                    set_context_func=lambda: set_line_collection("queue"),
-                    run_func=run_line_queue_command,
-                    view_func=print_line_command_queue_view,
-                )
-                continue
-            elif (jobs_cmd := parse_line_jobs_command(cmd, console_args[1:])):
-                dispatch_line_jobs_command(
-                    jobs_cmd,
-                    cancel_func=cancel_line_job,
-                    select_func=select_line_job,
-                    list_func=lambda verbose=False: (
-                        set_line_collection("jobs"),
-                        print_line_jobs(verbose=verbose),
-                    ),
-                )
-                continue
-            elif (binary_cmd := parse_line_binary_command(cmd, console_args[1:])):
-                dispatch_line_binary_command(
-                    binary_cmd,
-                    stage_binary_func=stage_line_binary,
-                    set_context_func=lambda: set_line_collection("files"),
-                )
-                continue
-            elif (configure_cmd := parse_line_configure_command(cmd, console_args[1:])):
-                dispatch_line_configure_command(
-                    configure_cmd,
-                    configure_func=configure_line_artifact,
-                    set_context_func=lambda: set_line_collection("files"),
                 )
                 continue
             else:
