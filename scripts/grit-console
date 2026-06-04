@@ -6891,9 +6891,7 @@ def run_line_repl(cfg):
             raise ValueError(f"session not found: {text}")
         session_id = str(selected.get("session_id") or Path(str(selected.get("path", ""))).name)
         path = str(selected.get("path") or "")
-        cfg["_line_console_module"] = f"session/{session_id}"
-        cfg.pop("_line_console_action_kind", None)
-        cfg.pop("_line_console_action_id", None)
+        set_line_collection(f"session/{session_id}")
         print_selected_line_session(selected)
         append_event(cfg, "workbench", "workbench_session_selected", details={
             "session_id": session_id,
