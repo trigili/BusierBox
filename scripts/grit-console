@@ -215,7 +215,6 @@ from gritlib.operator_io import (
     clipboard_command,
     restore_interactive_tty, set_interactive_tty_raw,
     view_line_path as operator_io_view_line_path,
-    view_path_headless_command,
 )
 from gritlib.operator_network import (
     choose_operator_host_for_target, local_ips, operator_advertised_host, print_candidates,
@@ -6164,7 +6163,6 @@ def run_line_repl(cfg):
         cfg,
         workbench_snapshot_func=workbench_snapshot,
         session_root_func=lambda session_cfg: SESSION_MANAGER.root(session_cfg),
-        view_command_builder=lambda path: view_path_headless_command(cfg, path),
         append_event_fn=append_event,
         quote=shquote,
     )

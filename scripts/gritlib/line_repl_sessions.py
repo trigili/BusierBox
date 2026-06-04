@@ -7,6 +7,7 @@ from gritlib.line_sessions import (
     print_current_line_sessions,
     select_current_line_session,
 )
+from gritlib.operator_io import view_path_headless_command
 
 
 def build_line_session_callbacks(
@@ -14,7 +15,6 @@ def build_line_session_callbacks(
     *,
     workbench_snapshot_func,
     session_root_func,
-    view_command_builder,
     append_event_fn,
     quote,
 ):
@@ -37,7 +37,7 @@ def build_line_session_callbacks(
             cfg,
             snapshot,
             verbose=verbose,
-            view_command=view_command_builder,
+            view_command=lambda path: view_path_headless_command(cfg, path),
             quote=quote,
             append_event_fn=append_event_fn,
         )
@@ -56,7 +56,7 @@ def build_line_session_callbacks(
             cfg,
             snapshot,
             selector,
-            view_command_builder=view_command_builder,
+            view_command_builder=lambda path: view_path_headless_command(cfg, path),
             append_event_fn=append_event_fn,
         )
 
