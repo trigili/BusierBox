@@ -1085,6 +1085,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "search Console Router\n"
                 "mailbox\n"
                 "mailbox ?\n"
+                "?\n"
                 "mailbox targets\n"
                 "queue\n"
                 "show queue -v\n"
@@ -1929,13 +1930,15 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         return 1
     mailbox_start = line_console_stdout.find("grit[Console Router]> mailbox")
     mailbox_help_start = line_console_stdout.find("grit[Console Router]/queue> mailbox ?", mailbox_start + 1)
-    mailbox_targets_start = line_console_stdout.find("grit[Console Router]/queue> mailbox targets", mailbox_help_start + 1)
+    queue_context_help_start = line_console_stdout.find("grit[Console Router]/queue> ?", mailbox_help_start + 1)
+    mailbox_targets_start = line_console_stdout.find("grit[Console Router]/queue> mailbox targets", queue_context_help_start + 1)
     queue_view_start = line_console_stdout.find("grit[Console Router]/queue> queue", mailbox_targets_start + 1)
     queue_verbose_start = line_console_stdout.find("grit[Console Router]/queue> show queue -v", queue_view_start + 1)
     queue_view_end = queue_verbose_start
     queue_verbose_end = line_console_stdout.find("grit[Console Router]/queue> use 1", queue_verbose_start + 1)
     mailbox_text = line_console_stdout[mailbox_start:mailbox_help_start] if mailbox_start != -1 and mailbox_help_start != -1 else ""
-    mailbox_help_text = line_console_stdout[mailbox_help_start:mailbox_targets_start] if mailbox_help_start != -1 and mailbox_targets_start != -1 else ""
+    mailbox_help_text = line_console_stdout[mailbox_help_start:queue_context_help_start] if mailbox_help_start != -1 and queue_context_help_start != -1 else ""
+    queue_context_help_text = line_console_stdout[queue_context_help_start:mailbox_targets_start] if queue_context_help_start != -1 and mailbox_targets_start != -1 else ""
     mailbox_targets_text = line_console_stdout[mailbox_targets_start:queue_view_start] if mailbox_targets_start != -1 and queue_view_start != -1 else ""
     queue_view_text = line_console_stdout[queue_view_start:queue_view_end] if queue_view_start != -1 and queue_view_end != -1 else ""
     queue_verbose_text = line_console_stdout[queue_verbose_start:queue_verbose_end] if queue_verbose_start != -1 and queue_verbose_end != -1 else ""
@@ -1978,6 +1981,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "Help: targets" in mailbox_help_text):
         print("line-oriented mailbox help did not route to queue help", file=sys.stderr)
         print(mailbox_help_text or line_console_stdout, file=sys.stderr)
+        return 1
+    if (not queue_context_help_text or
+            "Help: queue" not in queue_context_help_text or
+            "queue COMMAND" not in queue_context_help_text or
+            "Help: targets" in queue_context_help_text or
+            "Console help topics:" in queue_context_help_text):
+        print("line-oriented bare ? did not use queue breadcrumb context", file=sys.stderr)
+        print(queue_context_help_text or line_console_stdout, file=sys.stderr)
         return 1
     verbose_policy_markers = ("allowed_commands=", "delivery_policy_counts:", "mode status:")
     if any(marker in line_console_stdout for marker in verbose_policy_markers):
