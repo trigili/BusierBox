@@ -123,6 +123,20 @@ def render_probe_base64_paste(script_text):
     return "\n".join(lines)
 
 
+def print_line_probe_script(cfg, *, paste=False, base64_mode=False):
+    route = probe_route_context(cfg)
+    route_host = str(route.get("host", "OPERATOR_IP") or "OPERATOR_IP")
+    route_port = int(route.get("port", cfg.get("GRIT_PROBE_PORT", 22207)) or 22207)
+    script_text = probe_script_fn(cfg, route_host, route_port).rstrip()
+    if base64_mode:
+        print(render_probe_base64_paste(script_text))
+        return
+    if paste:
+        print(render_probe_paste(script_text))
+        return
+    print(script_text)
+
+
 def render_probe_delivery(cfg):
     """Render target-side probe delivery options."""
     wget_cmd = render_probe_command(cfg)

@@ -246,9 +246,10 @@ from gritlib.operator_network import (
     target_visible_host,
 )
 from gritlib.probe_commands import (
-    dispatch_legacy_probe_number, probe_route_context, probe_script_fn, render_probe_base64_paste,
+    dispatch_legacy_probe_number, probe_route_context, probe_script_fn,
     render_probe_command, render_probe_delivery, render_probe_dns_command, render_probe_ftp_command,
-    render_probe_paste, render_probe_tftp_command, probe_workflow_action_records,
+    print_line_probe_script as probe_commands_print_line_probe_script,
+    render_probe_tftp_command, probe_workflow_action_records,
 )
 from gritlib.probe_results import (
     append_probe_result,
@@ -6819,21 +6820,6 @@ def run_line_repl(cfg):
             quote=shquote,
         )
 
-    # ── probe commands ──────────────────────────────────────────────────────
-
-    def print_line_probe_script(paste=False, base64_mode=False):
-        route = probe_route_context(cfg)
-        route_host = str(route.get("host", "OPERATOR_IP") or "OPERATOR_IP")
-        route_port = int(route.get("port", cfg.get("GRIT_PROBE_PORT", 22207)) or 22207)
-        script_text = probe_script_fn(cfg, route_host, route_port).rstrip()
-        if base64_mode:
-            print(render_probe_base64_paste(script_text))
-            return
-        if paste:
-            print(render_probe_paste(script_text))
-            return
-        print(script_text)
-
     def probe_line_start(queue=False, start_service=False):
         choose_operator_host_for_target(
             cfg,
@@ -7276,11 +7262,12 @@ def run_line_repl(cfg):
                         append_event_fn=append_event,
                     ),
                     probe_delivery_func=_print_probe_delivery,
-                    probe_paste_func=lambda base64_mode=False: print_line_probe_script(
+                    probe_paste_func=lambda base64_mode=False: probe_commands_print_line_probe_script(
+                        cfg,
                         paste=True,
                         base64_mode=base64_mode,
                     ),
-                    probe_script_func=lambda: print_line_probe_script(paste=False),
+                    probe_script_func=lambda: probe_commands_print_line_probe_script(cfg, paste=False),
                     help_func=print_line_command_help,
                     probe_start_func=probe_line_start,
                     survey_results_func=lambda: configure_print_line_survey_status(
