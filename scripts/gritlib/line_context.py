@@ -169,12 +169,7 @@ def dispatch_line_context_command(
 def clear_line_module_context(cfg, quiet=True):
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
-    if cfg.pop("_line_console_module", None):
-        if quiet:
-            return
-        print("module context cleared")
-    elif not quiet:
-        print("module context already root")
+    cfg.pop("_line_console_module", None)
 
 
 def set_line_collection_context(cfg, module):
