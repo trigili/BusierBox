@@ -170,6 +170,28 @@ def parse_line_download_command(cmd, args=None):
     }
 
 
+def dispatch_line_download_command(
+    download_cmd,
+    *,
+    download_func=None,
+    set_context_func=None,
+):
+    try:
+        if download_func:
+            result = download_func(
+                download_cmd.get("target_path", ""),
+                queue=bool(download_cmd.get("queue")),
+                start_file_service=bool(download_cmd.get("start_service")),
+            )
+            if set_context_func:
+                set_context_func()
+            return result
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported download command")
+
+
 def parse_line_release_stage_args(args):
     start_file_service = False
     values = []
@@ -197,6 +219,33 @@ def parse_line_binary_command(cmd, args=None):
         "start_service": start_service,
         "no_start": no_start,
     }
+
+
+def dispatch_line_binary_command(
+    binary_cmd,
+    *,
+    stage_binary_func=None,
+    set_context_func=None,
+):
+    try:
+        if stage_binary_func:
+            result = stage_binary_func(
+                binary_cmd.get("selector", ""),
+                binary_cmd.get("request_name", ""),
+                prompt_for_missing=not binary_cmd.get("selector"),
+                prompt_start=(
+                    not binary_cmd.get("selector")
+                    and not bool(binary_cmd.get("no_start"))
+                ),
+                start_file_service=bool(binary_cmd.get("start_service")),
+            )
+            if set_context_func:
+                set_context_func()
+            return result
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported binary command")
 
 
 def parse_line_binary_args(args):

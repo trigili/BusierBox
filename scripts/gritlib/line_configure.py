@@ -35,6 +35,24 @@ def parse_line_configure_command(cmd, args):
     return {"action": "configure", "args": list(args or [])}
 
 
+def dispatch_line_configure_command(
+    configure_cmd,
+    *,
+    configure_func=None,
+    set_context_func=None,
+):
+    try:
+        if configure_func:
+            result = configure_func(configure_cmd.get("args") or [])
+            if set_context_func:
+                set_context_func()
+            return result
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported configure command")
+
+
 def parse_line_config_args(args, cmd_name):
     survey_path = None
     write_config_path = None

@@ -136,6 +136,7 @@ from gritlib.line_command_queue import (
 )
 from gritlib.line_configure import (
     configure_line_artifact as configure_line_artifact_impl,
+    dispatch_line_configure_command,
     find_survey_uploads as configure_find_survey_uploads,
     parse_line_configure_command,
     print_line_survey_status as configure_print_line_survey_status,
@@ -158,6 +159,8 @@ from gritlib.line_events import parse_line_events_command, print_line_events_vie
 from gritlib.line_state import line_action_state_text
 from gritlib.line_files import (
     clear_line_files as line_files_clear_line_files,
+    dispatch_line_binary_command,
+    dispatch_line_download_command,
     download_line_target as line_files_download_line_target,
     line_file_records_from_staged,
     parse_line_binary_command,
@@ -7815,15 +7818,11 @@ def run_line_repl(cfg):
                 )
                 continue
             elif (download_cmd := parse_line_download_command(cmd, console_args[1:])):
-                try:
-                    download_line_target(
-                        download_cmd["target_path"],
-                        queue=download_cmd["queue"],
-                        start_file_service=download_cmd["start_service"],
-                    )
-                    set_line_collection("files")
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_download_command(
+                    download_cmd,
+                    download_func=download_line_target,
+                    set_context_func=lambda: set_line_collection("files"),
+                )
                 continue
             elif (probe_cmd := parse_line_probe_command(cmd, console_args[1:])):
                 try:
@@ -7963,26 +7962,18 @@ def run_line_repl(cfg):
                 )
                 continue
             elif (binary_cmd := parse_line_binary_command(cmd, console_args[1:])):
-                try:
-                    stage_line_binary(
-                        binary_cmd["selector"],
-                        binary_cmd["request_name"],
-                        prompt_for_missing=not binary_cmd["selector"],
-                        prompt_start=(
-                            not binary_cmd["selector"] and not binary_cmd["no_start"]
-                        ),
-                        start_file_service=binary_cmd["start_service"],
-                    )
-                    set_line_collection("files")
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_binary_command(
+                    binary_cmd,
+                    stage_binary_func=stage_line_binary,
+                    set_context_func=lambda: set_line_collection("files"),
+                )
                 continue
             elif (configure_cmd := parse_line_configure_command(cmd, console_args[1:])):
-                try:
-                    configure_line_artifact(configure_cmd["args"])
-                    set_line_collection("files")
-                except ValueError as exc:
-                    print(exc)
+                dispatch_line_configure_command(
+                    configure_cmd,
+                    configure_func=configure_line_artifact,
+                    set_context_func=lambda: set_line_collection("files"),
+                )
                 continue
             else:
                 print(line_unknown_command_message(cmd))
