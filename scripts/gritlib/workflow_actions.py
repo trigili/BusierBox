@@ -2382,6 +2382,15 @@ def workbench_action_summary(records):
     }
 
 
+def workbench_action_status_context(cfg):
+    actions = workbench_action_records(cfg)
+    return {
+        "actions": actions,
+        "index_maps": workbench_action_indexes(actions),
+        "stats": workbench_action_summary(actions),
+    }
+
+
 def workbench_job_indexes(records):
     return {
         "workbench_jobs_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},

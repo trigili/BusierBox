@@ -1502,6 +1502,39 @@ def run_workbench_config_status_context_check():
     return 0
 
 
+def run_workbench_action_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.workflow_actions import workbench_action_status_context
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        context = workbench_action_status_context({
+            "_config_path": str(root / "server-config.json"),
+            "_build_config_path": str(root / "grit.conf"),
+            "operator_session_dir": str(root / "operator-session"),
+        })
+        actions = context.get("actions") or []
+        indexes = context.get("index_maps") or {}
+        stats = context.get("stats") or {}
+        by_id = indexes.get("workbench_actions_by_id") or {}
+        configure = by_id.get("configure-binary") or {}
+        if not actions or not configure:
+            print("workbench action status context did not preserve actions", file=sys.stderr)
+            return 1
+        if configure.get("writes_config") is not True or configure.get("has_run_command") is not True:
+            print("workbench action status context did not preserve action metadata", file=sys.stderr)
+            return 1
+        if stats.get("total_count") != len(actions):
+            print("workbench action status context did not preserve summary", file=sys.stderr)
+            return 1
+        if "workbench_actions_by_category" not in indexes:
+            print("workbench action status context did not preserve indexes", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4738,6 +4771,8 @@ def main(argv=None):
     if run_release_status_context_check() != 0:
         return 1
     if run_workbench_config_status_context_check() != 0:
+        return 1
+    if run_workbench_action_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1
