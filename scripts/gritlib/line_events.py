@@ -3,7 +3,7 @@
 import time
 
 from gritlib.console_display import console_table
-from gritlib.event_log import EventLog, append_event, compact_event_details
+from gritlib.event_log import EventLog, append_event
 from gritlib.session_state import parse_utc_timestamp
 
 
@@ -47,22 +47,39 @@ def line_event_matches_filter(event, key, expected):
 
 def line_event_summary(event):
     details = event.get("details") if isinstance(event.get("details"), dict) else {}
-    summary = compact_event_details(event)
-    if not summary:
-        interesting = []
-        hidden_keys = {"command", "dry_run_command", "headless_command", "run_command", "start_job_command"}
-        for key in sorted(details):
-            if key in hidden_keys:
-                continue
-            value = details.get(key)
-            if value in (None, "", [], {}):
-                continue
-            if isinstance(value, (dict, list)):
-                continue
-            interesting.append(f"{key}={value}")
-            if len(interesting) >= 4:
-                break
-        summary = " ".join(interesting)
+    hidden_keys = {"command", "dry_run_command", "headless_command", "run_command", "start_job_command"}
+    labels = {
+        "http_status": "http",
+        "request_name": "request",
+        "command_id": "command",
+        "command_sha256": "command sha",
+        "shown_count": "shown",
+        "matching_count": "matching",
+        "total_count": "total",
+        "invalid_count": "invalid",
+        "target_mailbox_record_count": "mailbox records",
+        "command_queue_workflow_action_count": "queue actions",
+        "command_count": "commands",
+    }
+    order = (
+        "operation", "status", "http_status", "request_name", "filename", "sha256",
+        "reason", "command_id", "command_sha256", "shown_count", "matching_count",
+        "total_count", "invalid_count", "command_count", "command_queue_workflow_action_count",
+        "target_mailbox_record_count",
+    )
+    interesting = []
+    for key in order + tuple(sorted(k for k in details if k not in order)):
+        if key in hidden_keys:
+            continue
+        value = details.get(key)
+        if value in (None, "", [], {}):
+            continue
+        if isinstance(value, (dict, list)):
+            continue
+        interesting.append(f"{labels.get(key, key.replace('_', ' '))} {value}")
+        if len(interesting) >= 4:
+            break
+    summary = "  ".join(interesting)
     if len(summary) > 120:
         summary = summary[:117] + "..."
     return summary or "-"
@@ -155,10 +172,10 @@ def print_line_events_view(cfg, args):
     if filters or since_epoch is not None or limit != 20:
         active = []
         if limit != 20:
-            active.append(f"limit={limit}")
+            active.append(f"limit {limit}")
         if since_epoch is not None:
-            active.append("since=set")
-        active.extend(f"{key}={value}" for key, value in filters)
+            active.append("since set")
+        active.extend(f"{key} {value}" for key, value in filters)
         footer += "  filters: " + " ".join(active)
     console_table(
         title,

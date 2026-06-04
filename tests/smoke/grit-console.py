@@ -1269,7 +1269,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "Workspace",
         "Events  (",
         "Raw JSONL: view ",
-        "filters: limit=2 service=workbench",
+        "filters: limit 2 service workbench",
         "Delivery options (pick what the target has):",
         "nc:    printf 'GET /probe.sh HTTP/1.0",
         "tftp:  tftp -g -r probe.sh",
@@ -1526,6 +1526,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "stopped file-service: pid=" in line_console_stdout or
             "details: events service=" in line_console_stdout):
         print("line-oriented service lifecycle output exposed raw process details", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
+    if ("command_id=" in line_console_stdout or
+            "matching_count=" in line_console_stdout or
+            "filters: limit=" in line_console_stdout):
+        print("line-oriented events output exposed raw summary fields", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
     for noisy in ("route.inspect_command=scripts/grit-console", "route.start_command=scripts/grit-console",
