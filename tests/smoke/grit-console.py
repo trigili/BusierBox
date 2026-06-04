@@ -2935,8 +2935,11 @@ def run_line_repl_runtime_check():
             kwargs["run_workbench_action_func"]("workbench-action")
             kwargs["run_target_workflow_func"]("target-action")
             kwargs["scoped_target_cfg_func"]({"name": "ignored"}, "target-1", target_label="Target 1")
+            kwargs["print_target_summary_func"]("target")
             kwargs["action_state_text_func"]({"state": "ok"})
             kwargs["bridge_command_builder"]("save", "name")
+            kwargs["print_bridge_profile_func"]("name")
+            kwargs["delete_bridge_profile_func"]("name")
             kwargs["stage_binary_func"]("bin")
             kwargs["print_queue_func"]()
             return "legacy-bundle"
@@ -2964,19 +2967,21 @@ def run_line_repl_runtime_check():
                 "run_target_workflow": lambda selector: legacy_bundle_calls.append(("target-action", selector)),
                 "action_state_text": lambda rec: legacy_bundle_calls.append(("state-text", rec)),
             },
-            print_target_summary_func=lambda target: legacy_bundle_calls.append(("target-summary", target)),
-            print_bridge_profile_func=lambda name: legacy_bundle_calls.append(("bridge-print", name)),
-            delete_bridge_profile_func=lambda name: legacy_bundle_calls.append(("bridge-delete", name)),
             route_service_callbacks={
                 "bridge_profile_headless_command": lambda action, name="", extra=None: legacy_bundle_calls.append(
                     ("bridge-command", action, name, extra)
                 ),
+                "print_bridge_profile": lambda name: legacy_bundle_calls.append(("bridge-print", name)),
+                "delete_bridge_profile": lambda name: legacy_bundle_calls.append(("bridge-delete", name)),
                 "start_line_service": lambda selector: legacy_bundle_calls.append(("line-start", selector)),
                 "stop_line_service": lambda selector: legacy_bundle_calls.append(("line-stop", selector)),
                 "service_rows": lambda: legacy_bundle_calls.append("service-rows") or [],
                 "service_record": lambda rows, service: legacy_bundle_calls.append(
                     ("service-record", rows, service)
                 ),
+            },
+            target_callbacks={
+                "print_target_summary": lambda target: legacy_bundle_calls.append(("target-summary", target)),
             },
             file_callbacks={
                 "stage_binary": lambda selector: legacy_bundle_calls.append(("stage", selector)),
@@ -3007,8 +3012,11 @@ def run_line_repl_runtime_check():
         ("workbench-action", "workbench-action"),
         ("target-action", "target-action"),
         ("scoped", "target-1", "Target 1"),
+        ("target-summary", "target"),
         ("state-text", {"state": "ok"}),
         ("bridge-command", "save", "name", None),
+        ("bridge-print", "name"),
+        ("bridge-delete", "name"),
         ("stage", "bin"),
         "queue",
     ]

@@ -6049,6 +6049,7 @@ def run_line_repl(cfg):
     line_target_callbacks = build_line_target_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
+        print_target_summary_func=print_target_summary,
         quote=shquote,
     )
 
@@ -6310,10 +6311,8 @@ def run_line_repl(cfg):
         append_event_fn=append_event,
         print_staged_func=print_staged,
         snapshot_func=workbench_snapshot,
-        print_target_summary_func=print_target_summary,
-        print_bridge_profile_func=print_bridge_profile,
-        delete_bridge_profile_func=delete_bridge_profile,
         route_service_callbacks=line_route_service_callbacks,
+        target_callbacks=line_target_callbacks,
         file_callbacks=line_file_callbacks,
         queue_callbacks=line_queue_callbacks,
         action_callbacks=line_action_callbacks,

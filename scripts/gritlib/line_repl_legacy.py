@@ -157,11 +157,12 @@ def build_line_legacy_callbacks(
     run_workbench_action_func=None,
     run_target_workflow_func=None,
     scoped_target_cfg_func=None,
-    print_target_summary_func,
-    print_bridge_profile_func,
-    delete_bridge_profile_func,
+    print_target_summary_func=None,
+    print_bridge_profile_func=None,
+    delete_bridge_profile_func=None,
     action_state_text_func=None,
     route_service_callbacks,
+    target_callbacks=None,
     file_callbacks,
     queue_callbacks,
     bridge_command_builder=None,
@@ -180,6 +181,10 @@ def build_line_legacy_callbacks(
         service_rows_func = lambda _cfg: route_service_callbacks["service_rows"]()
     if service_record_func is None:
         service_record_func = route_service_callbacks["service_record"]
+    if print_bridge_profile_func is None:
+        print_bridge_profile_func = route_service_callbacks["print_bridge_profile"]
+    if delete_bridge_profile_func is None:
+        delete_bridge_profile_func = route_service_callbacks["delete_bridge_profile"]
     if view_path_func is None:
         view_path_func = file_callbacks["view_path"]
     if scoped_target_cfg_func is None:
@@ -188,6 +193,8 @@ def build_line_legacy_callbacks(
             target_id,
             target_label=target_label,
         )
+    if print_target_summary_func is None and target_callbacks is not None:
+        print_target_summary_func = target_callbacks["print_target_summary"]
     if action_callbacks is not None:
         if actions_func is None:
             actions_func = lambda _cfg: action_callbacks["workbench_actions"]()

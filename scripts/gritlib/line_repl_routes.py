@@ -2,8 +2,10 @@
 
 from gritlib.bridge_routes import (
     add_line_route,
+    delete_bridge_profile,
     delete_line_route,
     line_route_record,
+    print_bridge_profile,
     print_line_routes,
     select_line_route,
     start_line_route,
@@ -104,6 +106,12 @@ def build_line_route_service_callbacks(
             headless_command_builder=bridge_profile_headless_command,
         )
 
+    def print_profile(name):
+        return print_bridge_profile(cfg, name)
+
+    def delete_profile(name):
+        return delete_bridge_profile(cfg, name)
+
     def select_service(selector):
         return select_line_service(
             cfg,
@@ -158,6 +166,8 @@ def build_line_route_service_callbacks(
         "start_line_route": start_route,
         "stop_line_route": stop_route,
         "delete_line_route": delete_route,
+        "print_bridge_profile": print_profile,
+        "delete_bridge_profile": delete_profile,
         "select_line_service": select_service,
         "print_line_services": print_services,
         "start_line_service": start_service,
