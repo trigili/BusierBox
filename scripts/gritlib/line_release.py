@@ -35,6 +35,30 @@ def parse_line_release_alias_command(cmd, args):
     return {}
 
 
+def dispatch_line_release_command(
+    release_cmd,
+    *,
+    list_func=None,
+    stage_func=None,
+    help_func=None,
+):
+    action = (release_cmd or {}).get("action")
+    try:
+        if action == "list" and list_func:
+            return list_func()
+        if action == "stage" and stage_func:
+            return stage_func(
+                release_cmd.get("selector", ""),
+                start_file_service=bool(release_cmd.get("start_service")),
+            )
+        if action == "help" and help_func:
+            return help_func("release")
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported release command")
+
+
 def _release_compat_label(rec):
     return (rec.get("compatibility") or {}).get("label") or "-"
 

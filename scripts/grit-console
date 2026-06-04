@@ -209,6 +209,7 @@ from gritlib.line_repl_runtime import (
     read_line as line_repl_read_line, restore_signal_handlers,
 )
 from gritlib.line_release import (
+    dispatch_line_release_command,
     parse_line_release_alias_command,
     print_line_release as line_release_print_line_release,
     stage_line_release as line_release_stage_line_release,
@@ -7888,20 +7889,21 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif (release_cmd := parse_line_release_alias_command(cmd, console_args[1:])):
-                try:
-                    if release_cmd["action"] == "list":
-                        set_line_collection("release")
-                        line_release_print_line_release(cfg, append_event_fn=append_event)
-                    elif release_cmd["action"] == "stage":
+                dispatch_line_release_command(
+                    release_cmd,
+                    list_func=lambda: (
+                        set_line_collection("release"),
+                        line_release_print_line_release(cfg, append_event_fn=append_event),
+                    ),
+                    stage_func=lambda selector, start_file_service=False: (
                         stage_line_release(
-                            release_cmd["selector"],
-                            start_file_service=release_cmd["start_service"],
-                        )
-                        set_line_collection("files")
-                    elif release_cmd["action"] == "help":
-                        print_line_command_help("release")
-                except ValueError as exc:
-                    print(exc)
+                            selector,
+                            start_file_service=start_file_service,
+                        ),
+                        set_line_collection("files"),
+                    ),
+                    help_func=print_line_command_help,
+                )
                 continue
             elif (file_cmd := parse_line_file_transfer_command(cmd, console_args[1:])):
                 try:
