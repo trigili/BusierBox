@@ -1861,6 +1861,7 @@ def target_filter_status_context(
     selected_target=None,
     unfiltered_counts=None,
     filtered_counts=None,
+    target_mailbox_records=None,
 ):
     record = target_filter_record_from_target(target_filter_id, selected_target)
     apply_target_filter_activity_counts(
@@ -1874,6 +1875,94 @@ def target_filter_status_context(
         "record": record,
         "records": records,
         "index_maps": target_filter_record_indexes(records),
+        "summary": target_filter_status_summary(
+            record,
+            records,
+            target_filter_id=target_filter_id,
+            target_mailbox_records=target_mailbox_records,
+        ),
+    }
+
+
+def target_filter_status_summary(
+    record,
+    records=None,
+    target_filter_id="",
+    target_mailbox_records=None,
+):
+    record = record or {}
+    records = records or []
+    return {
+        "target_filter_active": bool(target_filter_id),
+        "target_filter_id": target_filter_id,
+        "target_filter_unfiltered_target_count": record.get(
+            "unfiltered_target_count", 0
+        ),
+        "target_filter_unfiltered_upload_count": record.get(
+            "unfiltered_upload_count", 0
+        ),
+        "target_filter_unfiltered_fetch_count": record.get(
+            "unfiltered_fetch_count", 0
+        ),
+        "target_filter_unfiltered_staged_count": record.get(
+            "unfiltered_staged_count", 0
+        ),
+        "target_filter_unfiltered_session_count": record.get(
+            "unfiltered_session_count", 0
+        ),
+        "target_filter_unfiltered_event_tail_count": record.get(
+            "unfiltered_event_tail_count", 0
+        ),
+        "target_filter_unfiltered_command_queue_command_count": record.get(
+            "unfiltered_command_queue_command_count", 0
+        ),
+        "target_filter_unfiltered_target_command_record_count": record.get(
+            "unfiltered_target_command_record_count", 0
+        ),
+        "target_filter_unfiltered_target_phone_home_record_count": record.get(
+            "unfiltered_target_phone_home_record_count", 0
+        ),
+        "target_filter_unfiltered_observed_activity_count": record.get(
+            "unfiltered_observed_activity_count", 0
+        ),
+        "target_filter_observed_activity_count": record.get(
+            "filtered_observed_activity_count", 0
+        ),
+        "target_filter_has_unfiltered_observed_activity": bool(
+            record.get("has_unfiltered_observed_activity", False)
+        ),
+        "target_filter_has_observed_activity": bool(
+            record.get("has_filtered_observed_activity", False)
+        ),
+        "target_filter_reduced_observed_activity": bool(
+            record.get("filter_reduced_observed_activity", False)
+        ),
+        "target_filter_event_tail_count": record.get("filtered_event_tail_count", 0),
+        "target_filter_command_queue_command_count": record.get(
+            "filtered_command_queue_command_count", 0
+        ),
+        "target_filter_target_mailbox_record_count": len(
+            target_mailbox_records or []
+        ),
+        "target_filter_target_command_record_count": record.get(
+            "filtered_target_command_record_count", 0
+        ),
+        "target_filter_target_phone_home_record_count": record.get(
+            "filtered_target_phone_home_record_count", 0
+        ),
+        "target_filter_record_count": len(records),
+        "target_filter_selected_target_found": bool(
+            record.get("selected_target_found", False)
+        ),
+        "target_filter_selected_target_identity_source_count": record.get(
+            "selected_target_identity_source_count", 0
+        ),
+        "target_filter_selected_target_alias_count": record.get(
+            "selected_target_alias_count", 0
+        ),
+        "target_filter_selected_target_notes_present": bool(
+            record.get("selected_target_notes_present", False)
+        ),
     }
 
 

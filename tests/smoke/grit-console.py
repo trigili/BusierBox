@@ -1764,6 +1764,7 @@ def run_target_filter_status_context_check():
         "poll_overdue": True,
         "mailbox_pending_work_count": 3,
         "identity_confidence": "operator-assigned",
+        "identity_sources": ["operator"],
     }
     context = target_filter_status_context(
         "target-a",
@@ -1790,10 +1791,12 @@ def run_target_filter_status_context_check():
             "target_command_records": 1,
             "target_phone_home_records": 1,
         },
+        target_mailbox_records=[{"target_id": "target-a"}],
     )
     record = context.get("record") or {}
     records = context.get("records") or []
     indexes = context.get("index_maps") or {}
+    summary = context.get("summary") or {}
     if records != [record] or record.get("target_id") != "target-a":
         print("target filter status context did not preserve record", file=sys.stderr)
         return 1
@@ -1805,6 +1808,13 @@ def run_target_filter_status_context_check():
         return 1
     if "target-a" not in indexes.get("target_filter_records_by_target_id", {}):
         print("target filter status context did not preserve indexes", file=sys.stderr)
+        return 1
+    if (summary.get("target_filter_active") is not True or
+            summary.get("target_filter_unfiltered_target_count") != 3 or
+            summary.get("target_filter_event_tail_count") != 1 or
+            summary.get("target_filter_target_mailbox_record_count") != 1 or
+            summary.get("target_filter_selected_target_identity_source_count") != 1):
+        print("target filter status context did not preserve summary", file=sys.stderr)
         return 1
     return 0
 
