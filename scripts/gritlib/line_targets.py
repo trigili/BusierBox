@@ -4,7 +4,11 @@ from pathlib import Path
 
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
-from gritlib.target_records import configured_target_filter, target_filter_summary_text
+from gritlib.target_records import (
+    configured_target_filter,
+    set_workbench_target_filter,
+    target_filter_summary_text,
+)
 
 
 def line_target_seen_text(rec):
@@ -74,6 +78,46 @@ def current_line_target_record(cfg, snapshot_func):
         if str(rec.get("target_id") or "") == target_id:
             return rec
     return {"target_id": target_id}
+
+
+def print_line_targets(cfg, snapshot_func, quote=None):
+    unfiltered_cfg = dict(cfg)
+    unfiltered_cfg.pop("_target_id_filter", None)
+    unfiltered_cfg.pop("_target_label_filter", None)
+    snap = snapshot_func(unfiltered_cfg)
+    targets = snap.get("targets") or []
+    current = configured_target_filter(cfg)
+    search_records = print_line_target_records(targets, current_target_id=current, quote=quote)
+    cfg["_line_console_search_results"] = search_records
+    return targets
+
+
+def select_line_target(cfg, selector, snapshot_func, targets=None, quote=None):
+    targets = targets if targets is not None else print_line_targets(cfg, snapshot_func, quote=quote)
+    rec = set_workbench_target_filter(cfg, selector, targets=targets)
+    print_selected_line_target(rec)
+    return rec
+
+
+def interact_line_target(cfg, selector, snapshot_func, quote=None):
+    text = str(selector or "").strip()
+    if text:
+        targets = print_line_targets(cfg, snapshot_func, quote=quote)
+        select_line_target(cfg, text, snapshot_func, targets=targets, quote=quote)
+    target_id = configured_target_filter(cfg)
+    if not target_id:
+        raise ValueError("usage: interact agent ID|LABEL|NUMBER or select an agent first")
+    snap = snapshot_func(cfg)
+    target = current_line_target_record(cfg, snapshot_func)
+    target_filter = snap.get("target_filter") or {}
+    print_line_target_interaction(
+        cfg,
+        target_id,
+        target,
+        target_filter,
+        snap.get("target_mailbox_records") or [],
+        snap.get("sessions") or [],
+    )
 
 
 def print_line_target_interaction(

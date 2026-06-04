@@ -201,9 +201,9 @@ from gritlib.line_sessions import (
     print_selected_line_session,
 )
 from gritlib.line_targets import (
-    current_line_target_record as line_targets_current_record,
-    print_line_target_interaction, print_line_target_records,
-    print_selected_line_target,
+    interact_line_target as line_targets_interact_line_target,
+    print_line_targets as line_targets_print_line_targets,
+    select_line_target as line_targets_select_line_target,
 )
 from gritlib.line_target_commands import (
     copy_line_generated_command, run_line_generated_command,
@@ -6523,43 +6523,16 @@ def run_line_repl(cfg):
         set_line_collection_context(cfg, module)
 
     def print_line_targets():
-        unfiltered_cfg = dict(cfg)
-        unfiltered_cfg.pop("_target_id_filter", None)
-        unfiltered_cfg.pop("_target_label_filter", None)
-        snap = workbench_snapshot(unfiltered_cfg)
-        targets = snap.get("targets") or []
-        current = configured_target_filter(cfg)
-        search_records = print_line_target_records(targets, current_target_id=current, quote=shquote)
-        cfg["_line_console_search_results"] = search_records
-        return targets
-
-    def current_line_target_record():
-        return line_targets_current_record(cfg, workbench_snapshot)
+        return line_targets_print_line_targets(cfg, workbench_snapshot, quote=shquote)
 
     def select_line_target(selector, targets=None):
-        targets = targets if targets is not None else print_line_targets()
-        rec = set_workbench_target_filter(cfg, selector, targets=targets)
-        print_selected_line_target(rec)
-        return rec
+        return line_targets_select_line_target(
+            cfg, selector, workbench_snapshot, targets=targets, quote=shquote,
+        )
 
     def interact_line_target(selector=""):
-        text = str(selector or "").strip()
-        if text:
-            targets = print_line_targets()
-            select_line_target(text, targets=targets)
-        target_id = configured_target_filter(cfg)
-        if not target_id:
-            raise ValueError("usage: interact agent ID|LABEL|NUMBER or select an agent first")
-        snap = workbench_snapshot(cfg)
-        target = current_line_target_record()
-        target_filter = snap.get("target_filter") or {}
-        print_line_target_interaction(
-            cfg,
-            target_id,
-            target,
-            target_filter,
-            snap.get("target_mailbox_records") or [],
-            snap.get("sessions") or [],
+        return line_targets_interact_line_target(
+            cfg, selector, workbench_snapshot, quote=shquote,
         )
 
     def print_line_services(verbose=False):
