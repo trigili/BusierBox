@@ -162,6 +162,13 @@ from gritlib.line_help import (
     print_line_command_help as line_help_print_line_command_help,
     print_line_console_help as line_help_print_line_console_help,
 )
+from gritlib.line_completions import (
+    BASE_COMMANDS as LINE_COMPLETION_BASE_COMMANDS,
+    HELP_TOPICS as LINE_COMPLETION_HELP_TOPICS,
+    SHOW_RESOURCES as LINE_COMPLETION_SHOW_RESOURCES,
+    USE_KINDS as LINE_COMPLETION_USE_KINDS,
+    prefixed as line_completion_prefixed,
+)
 from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
     note_line_target as line_options_note_line_target,
@@ -6763,31 +6770,6 @@ def run_line_repl(cfg):
     def line_completion_candidates(prefix=""):
         text = str(prefix or "")
         stripped = text.strip()
-        base_commands = [
-            "help", "complete", "search", "resource", "makerc", "history", "workspace", "status",
-            "events",
-            "show", "info", "options", "next", "commands", "target-commands", "copy", "set", "setg", "unset", "unsetg",
-            "agents", "agent", "targets", "target", "listeners", "listener",
-            "routes", "route", "sessions", "session", "jobs", "job", "use",
-            "useagent", "uselistener", "useroute", "usesession", "usemodule",
-            "main", "home", "root", "back", "background", "start", "stop",
-            "check", "run", "execute", "exploit", "interact", "queue",
-            "download", "get", "probe", "survey", "daemon", "build", "release", "releases", "stage-release", "upload", "fetch", "deploy", "queue-fetch", "serve-binary", "configure", "trailer", "downloads", "unstage", "rmfile", "view", "cat", "less", "mailbox", "refresh",
-            "quit", "exit", "ips", "reload",
-        ]
-        show_resources = [
-            "agents", "targets", "listeners", "services", "routes", "sessions",
-            "jobs", "queue", "mailbox", "files", "stagers", "loot", "activity",
-            "release", "releases", "modules", "categories", "service modules", "daemon modules",
-            "target modules", "workbench modules", "options",
-        ]
-        use_kinds = ["agent", "target", "listener", "service", "route", "session", "job", "module", "action"]
-        help_topics = [
-            "search", "complete", "commands", "resource", "makerc", "history", "use", "main", "show",
-            "actions", "modules", "options", "next", "workspace", "aliases", "listeners",
-            "routes", "set", "setg", "run", "jobs", "queue", "events", "download", "probe", "survey", "build", "release", "upload", "fetch", "files", "view",
-            "daemon", "interact", "sessions",
-        ]
 
         def target_names():
             names = []
@@ -6867,34 +6849,23 @@ def run_line_repl(cfg):
         def build_config_keys():
             return [str(rec.get("key") or "") for rec in workbench_config_field_records(cfg) if str(rec.get("key") or "")]
 
-        def prefixed(prefix_text, values):
-            seen = set()
-            result = []
-            lower = str(prefix_text or "").lower()
-            for value in values:
-                candidate = str(value or "").strip()
-                if not candidate or candidate in seen:
-                    continue
-                if not lower or candidate.lower().startswith(lower):
-                    seen.add(candidate)
-                    result.append(candidate)
-            return result
+        prefixed = line_completion_prefixed
 
         if not stripped:
-            return base_commands
+            return LINE_COMPLETION_BASE_COMMANDS
         try:
             parts = shlex.split(stripped)
         except ValueError:
             parts = stripped.split()
         trailing_space = bool(text and text[-1].isspace())
         if not parts:
-            return base_commands
+            return LINE_COMPLETION_BASE_COMMANDS
         cmd = parts[0].lower()
         current = "" if trailing_space else parts[-1]
 
         # completed command word, nothing typed yet (e.g. "build<tab>")
         if len(parts) == 1 and not trailing_space:
-            return prefixed(current, base_commands)
+            return prefixed(current, LINE_COMPLETION_BASE_COMMANDS)
 
         # Helper: prefix for the next argument position
         def arg(n):
@@ -6914,11 +6885,11 @@ def run_line_repl(cfg):
             return (len(parts) == n and trailing_space) or (len(parts) == n + 1 and not trailing_space)
 
         if cmd in {"help", "?"}:
-            return [f"help {item}" for item in prefixed(arg_pfx(1), help_topics)]
+            return [f"help {item}" for item in prefixed(arg_pfx(1), LINE_COMPLETION_HELP_TOPICS)]
 
         if cmd == "show":
             pfx = "" if trailing_space else " ".join(parts[1:])
-            return [f"show {item}" for item in prefixed(pfx, show_resources)]
+            return [f"show {item}" for item in prefixed(pfx, LINE_COMPLETION_SHOW_RESOURCES)]
 
         if cmd == "events":
             return [f"events {item}" for item in prefixed(arg_pfx(1), [
@@ -6937,7 +6908,7 @@ def run_line_repl(cfg):
 
         if cmd == "use":
             if at_arg(1):
-                return [f"use {item}" for item in prefixed(arg_pfx(1), use_kinds)]
+                return [f"use {item}" for item in prefixed(arg_pfx(1), LINE_COMPLETION_USE_KINDS)]
             kind = parts[1].lower() if len(parts) >= 2 else ""
             kind_pfx = arg_pfx(2)
             values = {
@@ -7123,7 +7094,7 @@ def run_line_repl(cfg):
                 return [f"survey preset {item}" for item in prefixed(arg_pfx(2),
                     paths + ["--name", "--write-local", "--overwrite"])]
 
-        return prefixed(current, base_commands)
+        return prefixed(current, LINE_COMPLETION_BASE_COMMANDS)
 
     def print_line_completions(prefix=""):
         candidates = line_completion_candidates(prefix)
