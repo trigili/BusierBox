@@ -67,6 +67,39 @@ def parse_line_route_command(cmd, args):
     return {"action": "list", "verbose": False}
 
 
+def dispatch_line_route_command(
+    route_cmd,
+    *,
+    add_func=None,
+    start_func=None,
+    stop_func=None,
+    delete_func=None,
+    help_func=None,
+    select_func=None,
+    list_func=None,
+):
+    action = (route_cmd or {}).get("action")
+    try:
+        if action == "add" and add_func:
+            return add_func(route_cmd.get("args") or [])
+        if action == "start" and start_func:
+            return start_func(route_cmd.get("selector", ""))
+        if action == "stop" and stop_func:
+            return stop_func(route_cmd.get("selector", ""))
+        if action == "delete" and delete_func:
+            return delete_func(route_cmd.get("selector", ""))
+        if action == "help" and help_func:
+            return help_func("routes")
+        if action == "select" and select_func:
+            return select_func(route_cmd.get("selector", ""))
+        if action == "list" and list_func:
+            return list_func(verbose=bool(route_cmd.get("verbose")))
+    except ValueError as exc:
+        print(exc)
+        return None
+    raise ValueError("unsupported route command")
+
+
 def bridge_profiles_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
     return Path(str(cfg.get("bridge_profiles_file") or Path(str(cfg.get("operator_session_dir", default_operator_session_dir))) / "bridge-profiles.json"))
 

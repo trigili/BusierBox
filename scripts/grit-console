@@ -46,6 +46,7 @@ from gritlib.bridge_routes import (
     bridge_profile_workflow_action_status_summary, bridge_profiles_path, bridge_route_path,
     add_line_route as bridge_routes_add_line_route,
     delete_line_route as bridge_routes_delete_line_route,
+    dispatch_line_route_command,
     line_route_record as bridge_routes_line_route_record,
     parse_line_route_command,
     print_line_routes as bridge_routes_print_line_routes,
@@ -7745,36 +7746,19 @@ def run_line_repl(cfg):
                     print_line_sessions(verbose=session_cmd["verbose"])
                 continue
             elif (route_cmd := parse_line_route_command(cmd, console_args[1:])):
-                if route_cmd["action"] == "add":
-                    try:
-                        add_line_route(route_cmd["args"])
-                    except ValueError as exc:
-                        print(exc)
-                elif route_cmd["action"] == "start":
-                    try:
-                        start_line_route(route_cmd["selector"])
-                    except ValueError as exc:
-                        print(exc)
-                elif route_cmd["action"] == "stop":
-                    try:
-                        stop_line_route(route_cmd["selector"])
-                    except ValueError as exc:
-                        print(exc)
-                elif route_cmd["action"] == "delete":
-                    try:
-                        delete_line_route(route_cmd["selector"])
-                    except ValueError as exc:
-                        print(exc)
-                elif route_cmd["action"] == "help":
-                    print_line_command_help("routes")
-                elif route_cmd["action"] == "select":
-                    try:
-                        select_line_route(route_cmd["selector"])
-                    except ValueError as exc:
-                        print(exc)
-                else:
-                    set_line_collection("routes")
-                    print_line_routes(verbose=route_cmd["verbose"])
+                dispatch_line_route_command(
+                    route_cmd,
+                    add_func=add_line_route,
+                    start_func=start_line_route,
+                    stop_func=stop_line_route,
+                    delete_func=delete_line_route,
+                    help_func=print_line_command_help,
+                    select_func=select_line_route,
+                    list_func=lambda verbose=False: (
+                        set_line_collection("routes"),
+                        print_line_routes(verbose=verbose),
+                    ),
+                )
                 continue
             elif (use_cmd := parse_line_use_command(cmd, console_args[1:])):
                 selector = use_cmd.get("selector", "")
