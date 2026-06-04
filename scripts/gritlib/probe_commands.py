@@ -228,6 +228,21 @@ def parse_line_survey_args(args):
     return parse_line_probe_args(args)
 
 
+def parse_line_survey_command(args):
+    args = list(args or [])
+    subcmd = str(args[0]).lower() if args else ""
+    rest = args[1:]
+    if subcmd in {"results", "result"} or not subcmd:
+        return {"action": "results"}
+    if subcmd == "config":
+        return {"action": "config", "args": rest}
+    if subcmd == "preset":
+        return {"action": "preset", "args": rest}
+    if subcmd in {"help", "-h", "--help"}:
+        return {"action": "help"}
+    raise ValueError("usage: survey [results|config|preset]  —  see: survey ?")
+
+
 def render_probe_command(cfg, host=None, port=None):
     script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
     route = probe_route_context(cfg, host=host, port=port)

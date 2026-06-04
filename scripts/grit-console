@@ -240,7 +240,7 @@ from gritlib.operator_network import (
     target_visible_host,
 )
 from gritlib.probe_commands import (
-    parse_line_probe_command,
+    parse_line_probe_command, parse_line_survey_command,
     probe_route_context, probe_script_fn, render_probe_base64_paste,
     render_probe_command, render_probe_delivery, render_probe_dns_command, render_probe_ftp_command,
     render_probe_paste, render_probe_tftp_command, probe_workflow_action_records,
@@ -8152,25 +8152,23 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif cmd == "survey":
-                subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
                 try:
-                    if subcmd in {"results", "result"} or not subcmd:
+                    survey_cmd = parse_line_survey_command(console_args[1:])
+                    if survey_cmd["action"] == "results":
                         set_line_collection("survey")
                         configure_print_line_survey_status(cfg, append_event_fn=append_event)
-                    elif subcmd == "config":
+                    elif survey_cmd["action"] == "config":
                         configure_line_survey_config(
-                            cfg, console_args[2:], find_survey_uploads,
+                            cfg, survey_cmd["args"], find_survey_uploads,
                             append_event_fn=append_event,
                         )
-                    elif subcmd == "preset":
+                    elif survey_cmd["action"] == "preset":
                         configure_line_survey_preset(
-                            cfg, console_args[2:], find_survey_uploads,
+                            cfg, survey_cmd["args"], find_survey_uploads,
                             append_event_fn=append_event,
                         )
-                    elif subcmd in {"help", "-h", "--help"}:
+                    elif survey_cmd["action"] == "help":
                         print_line_command_help("survey")
-                    else:
-                        raise ValueError("usage: survey [results|config|preset]  —  see: survey ?")
                 except ValueError as exc:
                     print(exc)
                 continue
