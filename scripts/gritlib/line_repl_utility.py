@@ -6,20 +6,29 @@ from gritlib.line_utility_commands import dispatch_line_utility_command
 def build_line_utility_callbacks(
     cfg,
     *,
-    completion_func,
+    completion_func=None,
     resource_history_func,
     resource_load_func,
     resource_save_func,
     events_func,
-    search_func,
-    show_func,
+    search_func=None,
+    show_func=None,
     generated_run_func,
     copy_text_func,
     service_start_command_func,
     service_stop_command_func,
     service_copy_command_func,
     generated_copy_func,
+    completion_callbacks=None,
+    search_callbacks=None,
+    display_callbacks=None,
 ):
+    if completion_func is None and completion_callbacks is not None:
+        completion_func = completion_callbacks["print_line_completions"]
+    if search_func is None and search_callbacks is not None:
+        search_func = search_callbacks["search_line_resources"]
+    if show_func is None and display_callbacks is not None:
+        show_func = display_callbacks["show_line_resource"]
     pending_console_lines = []
     line_history = []
     dispatch_utility = build_line_utility_dispatch_callback(

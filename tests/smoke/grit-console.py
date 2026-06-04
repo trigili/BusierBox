@@ -1175,7 +1175,6 @@ def run_line_repl_runtime_check():
         adapter_calls.clear()
         utility_bundle = repl_utility.build_line_utility_callbacks(
             {"name": "bundle-cfg"},
-            completion_func=lambda prefix: adapter_calls.append(("completion", prefix)),
             resource_history_func=lambda line_history, limit: adapter_calls.append(
                 ("history", list(line_history), limit)
             ),
@@ -1186,8 +1185,6 @@ def run_line_repl_runtime_check():
                 ("save", cfg.get("name"), path, list(line_history))
             ),
             events_func=lambda cfg, args: adapter_calls.append(("events", cfg.get("name"), tuple(args))),
-            search_func=lambda query: adapter_calls.append(("search", query)),
-            show_func=lambda resource: adapter_calls.append(("show", resource)),
             generated_run_func=lambda cfg, args: adapter_calls.append(
                 ("generated-run", cfg.get("name"), tuple(args))
             ),
@@ -1208,6 +1205,15 @@ def run_line_repl_runtime_check():
             generated_copy_func=lambda cfg, selector: adapter_calls.append(
                 ("generated-copy", cfg.get("name"), selector)
             ),
+            completion_callbacks={
+                "print_line_completions": lambda prefix: adapter_calls.append(("completion", prefix)),
+            },
+            search_callbacks={
+                "search_line_resources": lambda query: adapter_calls.append(("search", query)),
+            },
+            display_callbacks={
+                "show_line_resource": lambda resource: adapter_calls.append(("show", resource)),
+            },
         )
         if utility_bundle["line_history"] != [] or utility_bundle["pending_console_lines"] != []:
             print(f"line REPL utility bundle did not initialize empty state: {utility_bundle}", file=sys.stderr)

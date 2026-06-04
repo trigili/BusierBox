@@ -6174,7 +6174,6 @@ def run_line_repl(cfg):
         quote=shquote,
     )
     clear_line_search_results_callback = line_search_callbacks["clear_line_search_results"]
-    search_line_resources = line_search_callbacks["search_line_resources"]
     use_line_search_result = line_search_callbacks["use_line_search_result"]
 
     line_display_show_callbacks = build_line_display_show_callbacks(
@@ -6204,19 +6203,20 @@ def run_line_repl(cfg):
     print_line_info = line_display_show_callbacks["print_line_info"]
     print_line_next = line_display_show_callbacks["print_line_next"]
     print_line_options = line_display_show_callbacks["print_line_options"]
-    show_line_resource = line_display_show_callbacks["show_line_resource"]
 
     install_readline_completer(_readline, HAVE_READLINE, line_completion_candidates)
 
     line_utility_callbacks = build_line_utility_callbacks(
         cfg,
-        completion_func=print_line_completions,
+        completion_callbacks={
+            "print_line_completions": print_line_completions,
+        },
         resource_history_func=line_resources_print_line_history,
         resource_load_func=load_line_resource,
         resource_save_func=write_line_makerc,
         events_func=print_line_events_view,
-        search_func=search_line_resources,
-        show_func=show_line_resource,
+        search_callbacks=line_search_callbacks,
+        display_callbacks=line_display_show_callbacks,
         generated_run_func=run_line_generated_command,
         copy_text_func=copy_text_for_operator,
         service_start_command_func=service_start_headless_command,
