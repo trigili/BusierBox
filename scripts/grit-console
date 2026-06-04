@@ -151,6 +151,7 @@ from gritlib.line_files import (
     parse_line_file_args,
     parse_line_release_stage_args,
     print_line_file_records,
+    fetch_line_staged as line_files_fetch_line_staged,
     stage_line_file as line_files_stage_line_file,
     staged_line_record as line_files_staged_line_record,
     unstage_line_file as line_files_unstage_line_file,
@@ -7951,73 +7952,26 @@ def run_line_repl(cfg):
         return line_files_staged_line_record(cfg, request_name)
 
     def fetch_line_staged(request_name, queue=False, start_file_service=False):
-        name, rec = staged_line_record(request_name)
-        if not name:
-            raise ValueError("usage: fetch [--queue] [--start] NAME")
-        if not rec:
-            raise ValueError(f"staged request not found: {name}")
-        target_id = configured_target_filter(cfg)
-        if queue and not target_id:
-            raise ValueError("select an agent before fetch --queue; use agent NAME or use target ID")
-        staged_target = str(rec.get("target_id") or "")
-        if queue and staged_target and staged_target != target_id:
-            raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
-        scoped = scoped_target_cfg(cfg, target_id, target_label=str(selected_target_context(cfg).get("target_label") or "")) if target_id else cfg
-        fetch_command = render_fetch_command(name, scoped)
-        if target_id:
-            headless = (
-                "scripts/grit-console --config "
-                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                + " --target-id "
-                + shquote(target_id)
-                + " --run-target-workflow-action queue-staged-fetch --target-workflow-request-name "
-                + shquote(name)
-            )
-        else:
-            headless = (
-                "scripts/grit-console --config "
-                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                + " --run-staged-file-workflow-action "
-                + shquote(f"{name}:show-fetch-command")
-            )
-        started = False
-        if start_file_service:
-            start_service_process(cfg, "file-service", headless_command=service_start_headless_command(cfg, "file-service"))
-            started = True
-        print("Staged fetch command:")
-        print(f"  request_name={name}")
-        print(f"  source_path={rec.get('source_path', '')}")
-        if target_id:
-            label = str(selected_target_context(cfg).get("target_label") or "")
-            print(f"  target={target_id} label={label}")
-        print(f"  target fetch: {fetch_command}")
-        print_staged_fetch_target_options(name, scoped)
-        print(f"  file service: {'started' if started else 'not started'}")
-        queued = {}
-        if queue:
-            queued = queue_command(scoped, fetch_command, metadata={
-                "work_kind": "staged-fetch",
-                "workflow": "file-service",
-                "request_name": name,
-                "route_kind": str(rec.get("route_kind") or "direct"),
-                "bridge_profile": str(rec.get("bridge_profile") or ""),
-                "bridge_route_path": str(rec.get("bridge_route_path") or ""),
-            })
-            print(f"queued {queued['id']}: {queued['command']}")
-            print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        append_event(cfg, "workbench", "workbench_staged_fetch_command_shown", details={
-            "headless_command": headless,
-            "request_name": name,
-            "source_path": str(rec.get("source_path") or ""),
-            "target_id": target_id,
-            "target_label": str(selected_target_context(cfg).get("target_label") or ""),
-            "target_command": fetch_command,
-            "target_command_sha256": hashlib.sha256(fetch_command.encode("utf-8")).hexdigest() if fetch_command else "",
-            "queued": bool(queue),
-            "command_id": queued.get("id", "") if queued else "",
-            "started_file_service": started,
-        })
-        return fetch_command
+        return line_files_fetch_line_staged(
+            cfg,
+            request_name,
+            queue=queue,
+            start_file_service=start_file_service,
+            target_id_fn=lambda: configured_target_filter(cfg),
+            target_context_fn=lambda: selected_target_context(cfg),
+            scoped_target_cfg_fn=lambda target_id, target_label="": scoped_target_cfg(
+                cfg,
+                target_id,
+                target_label=target_label,
+            ),
+            queue_command_fn=queue_command,
+            start_file_service_fn=lambda: start_service_process(
+                cfg,
+                "file-service",
+                headless_command=service_start_headless_command(cfg, "file-service"),
+            ),
+            append_event_fn=append_event,
+        )
 
     def unstage_line_file(request_name):
         return line_files_unstage_line_file(cfg, request_name, append_event_fn=append_event)

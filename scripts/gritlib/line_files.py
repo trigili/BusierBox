@@ -1,5 +1,6 @@
 """Line-console staged file rendering helpers."""
 
+import hashlib
 from pathlib import Path
 
 from gritlib.console_display import console_table
@@ -268,3 +269,92 @@ def unstage_line_file(cfg, request_name, append_event_fn=None):
             "existed": existed,
         })
     return existed
+
+
+def fetch_line_staged(
+    cfg,
+    request_name,
+    queue=False,
+    start_file_service=False,
+    target_id_fn=None,
+    target_context_fn=None,
+    scoped_target_cfg_fn=None,
+    queue_command_fn=None,
+    start_file_service_fn=None,
+    append_event_fn=None,
+):
+    name, rec = staged_line_record(cfg, request_name)
+    if not name:
+        raise ValueError("usage: fetch [--queue] [--start] NAME")
+    if not rec:
+        raise ValueError(f"staged request not found: {name}")
+    target_id = target_id_fn() if target_id_fn else ""
+    if queue and not target_id:
+        raise ValueError("select an agent before fetch --queue; use agent NAME or use target ID")
+    staged_target = str(rec.get("target_id") or "")
+    if queue and staged_target and staged_target != target_id:
+        raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
+    target_ctx = target_context_fn() if target_context_fn else {}
+    target_label = str((target_ctx or {}).get("target_label") or "")
+    scoped = (
+        scoped_target_cfg_fn(target_id, target_label=target_label)
+        if target_id and scoped_target_cfg_fn else cfg
+    )
+    fetch_command = render_fetch_command(name, scoped)
+    if target_id:
+        headless = (
+            "scripts/grit-console --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --target-id "
+            + shquote(target_id)
+            + " --run-target-workflow-action queue-staged-fetch --target-workflow-request-name "
+            + shquote(name)
+        )
+    else:
+        headless = (
+            "scripts/grit-console --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --run-staged-file-workflow-action "
+            + shquote(f"{name}:show-fetch-command")
+        )
+    started = False
+    if start_file_service:
+        if start_file_service_fn:
+            start_file_service_fn()
+        started = True
+    print("Staged fetch command:")
+    print(f"  request_name={name}")
+    print(f"  source_path={rec.get('source_path', '')}")
+    if target_id:
+        print(f"  target={target_id} label={target_label}")
+    print(f"  target fetch: {fetch_command}")
+    print_staged_fetch_target_options(name, scoped)
+    print(f"  file service: {'started' if started else 'not started'}")
+    queued = {}
+    if queue:
+        if not queue_command_fn:
+            raise ValueError("queue support is unavailable")
+        queued = queue_command_fn(scoped, fetch_command, metadata={
+            "work_kind": "staged-fetch",
+            "workflow": "file-service",
+            "request_name": name,
+            "route_kind": str(rec.get("route_kind") or "direct"),
+            "bridge_profile": str(rec.get("bridge_profile") or ""),
+            "bridge_route_path": str(rec.get("bridge_route_path") or ""),
+        })
+        print(f"queued {queued['id']}: {queued['command']}")
+        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_staged_fetch_command_shown", details={
+            "headless_command": headless,
+            "request_name": name,
+            "source_path": str(rec.get("source_path") or ""),
+            "target_id": target_id,
+            "target_label": target_label,
+            "target_command": fetch_command,
+            "target_command_sha256": hashlib.sha256(fetch_command.encode("utf-8")).hexdigest() if fetch_command else "",
+            "queued": bool(queue),
+            "command_id": queued.get("id", "") if queued else "",
+            "started_file_service": started,
+        })
+    return fetch_command
