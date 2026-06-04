@@ -91,6 +91,13 @@ def build_line_file_workflow_callbacks(
             append_event_fn=append_event_fn,
         )
 
+    def scoped_target_cfg(target_id, target_label=""):
+        return scoped_target_cfg_func(
+            cfg,
+            target_id,
+            target_label=target_label,
+        )
+
     def fetch_staged(request_name, queue=False, start_file_service=False):
         return fetch_line_staged(
             cfg,
@@ -99,11 +106,7 @@ def build_line_file_workflow_callbacks(
             start_file_service=start_file_service,
             target_id_fn=lambda: target_id_func(cfg),
             target_context_fn=lambda: target_context_func(cfg),
-            scoped_target_cfg_fn=lambda target_id, target_label="": scoped_target_cfg_func(
-                cfg,
-                target_id,
-                target_label=target_label,
-            ),
+            scoped_target_cfg_fn=scoped_target_cfg,
             queue_command_fn=queue_command_func,
             start_file_service_fn=start_file_service_process,
             append_event_fn=append_event_fn,
@@ -134,6 +137,7 @@ def build_line_file_workflow_callbacks(
         "download_target": download_target,
         "fetch_staged": fetch_staged,
         "unstage_file": unstage_file,
+        "scoped_target_cfg": scoped_target_cfg,
         "view_path": view_path,
         "print_line_files": print_files,
     }

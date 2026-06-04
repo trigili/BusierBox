@@ -2929,10 +2929,13 @@ def run_line_repl_runtime_check():
             kwargs["line_stop_service_func"]("svc")
             kwargs["service_rows_func"]({"name": "ignored"})
             kwargs["service_record_func"]([], "svc")
+            kwargs["view_path_func"]("path")
             kwargs["use_result_func"]("1")
             kwargs["actions_func"]({"name": "ignored"})
             kwargs["run_workbench_action_func"]("workbench-action")
             kwargs["run_target_workflow_func"]("target-action")
+            kwargs["scoped_target_cfg_func"]({"name": "ignored"}, "target-1", target_label="Target 1")
+            kwargs["action_state_text_func"]({"state": "ok"})
             kwargs["bridge_command_builder"]("save", "name")
             kwargs["stage_binary_func"]("bin")
             kwargs["print_queue_func"]()
@@ -2955,17 +2958,15 @@ def run_line_repl_runtime_check():
             ),
             print_staged_func=lambda: legacy_bundle_calls.append("staged"),
             snapshot_func=lambda cfg: legacy_bundle_calls.append(("snapshot", cfg.get("name"))) or {},
-            view_path_func=lambda path: legacy_bundle_calls.append(("view", path)),
             action_callbacks={
                 "workbench_actions": lambda: legacy_bundle_calls.append("actions") or [],
                 "run_workbench_action": lambda selector: legacy_bundle_calls.append(("workbench-action", selector)),
                 "run_target_workflow": lambda selector: legacy_bundle_calls.append(("target-action", selector)),
+                "action_state_text": lambda rec: legacy_bundle_calls.append(("state-text", rec)),
             },
-            scoped_target_cfg_func=lambda cfg: legacy_bundle_calls.append(("scoped", cfg.get("name"))) or cfg,
             print_target_summary_func=lambda target: legacy_bundle_calls.append(("target-summary", target)),
             print_bridge_profile_func=lambda name: legacy_bundle_calls.append(("bridge-print", name)),
             delete_bridge_profile_func=lambda name: legacy_bundle_calls.append(("bridge-delete", name)),
-            action_state_text_func=lambda rec: legacy_bundle_calls.append(("state-text", rec)),
             route_service_callbacks={
                 "bridge_profile_headless_command": lambda action, name="", extra=None: legacy_bundle_calls.append(
                     ("bridge-command", action, name, extra)
@@ -2979,6 +2980,10 @@ def run_line_repl_runtime_check():
             },
             file_callbacks={
                 "stage_binary": lambda selector: legacy_bundle_calls.append(("stage", selector)),
+                "view_path": lambda path: legacy_bundle_calls.append(("view", path)),
+                "scoped_target_cfg": lambda target_id, target_label="": legacy_bundle_calls.append(
+                    ("scoped", target_id, target_label)
+                ) or {"target_id": target_id, "target_label": target_label},
             },
             queue_callbacks={
                 "print_line_command_queue_view": lambda: legacy_bundle_calls.append("queue"),
@@ -2996,10 +3001,13 @@ def run_line_repl_runtime_check():
         ("line-stop", "svc"),
         "service-rows",
         ("service-record", [], "svc"),
+        ("view", "path"),
         ("use", "1"),
         "actions",
         ("workbench-action", "workbench-action"),
         ("target-action", "target-action"),
+        ("scoped", "target-1", "Target 1"),
+        ("state-text", {"state": "ok"}),
         ("bridge-command", "save", "name", None),
         ("stage", "bin"),
         "queue",

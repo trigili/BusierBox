@@ -10,6 +10,7 @@ from gritlib.line_actions import (
 from gritlib.line_command_queue import (
     select_current_line_command_queue_action,
 )
+from gritlib.line_state import line_action_state_text
 
 
 def build_line_action_callbacks(
@@ -100,4 +101,5 @@ def build_line_action_callbacks(
         "workbench_actions": workbench_actions,
         "run_workbench_action": workbench_runner,
         "run_target_workflow": target_runner,
+        "action_state_text": line_action_state_text,
     }

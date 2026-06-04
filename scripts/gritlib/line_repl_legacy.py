@@ -81,7 +81,7 @@ def build_line_legacy_dispatch_callback(
     append_event_fn,
     print_staged_func,
     snapshot_func,
-    view_path_func,
+    view_path_func=None,
     stage_binary_func,
     actions_func=None,
     run_workbench_action_func=None,
@@ -152,15 +152,15 @@ def build_line_legacy_callbacks(
     append_event_fn,
     print_staged_func,
     snapshot_func,
-    view_path_func,
+    view_path_func=None,
     actions_func=None,
     run_workbench_action_func=None,
     run_target_workflow_func=None,
-    scoped_target_cfg_func,
+    scoped_target_cfg_func=None,
     print_target_summary_func,
     print_bridge_profile_func,
     delete_bridge_profile_func,
-    action_state_text_func,
+    action_state_text_func=None,
     route_service_callbacks,
     file_callbacks,
     queue_callbacks,
@@ -180,6 +180,14 @@ def build_line_legacy_callbacks(
         service_rows_func = lambda _cfg: route_service_callbacks["service_rows"]()
     if service_record_func is None:
         service_record_func = route_service_callbacks["service_record"]
+    if view_path_func is None:
+        view_path_func = file_callbacks["view_path"]
+    if scoped_target_cfg_func is None:
+        scoped_target_cfg = file_callbacks["scoped_target_cfg"]
+        scoped_target_cfg_func = lambda _cfg, target_id, target_label="": scoped_target_cfg(
+            target_id,
+            target_label=target_label,
+        )
     if action_callbacks is not None:
         if actions_func is None:
             actions_func = lambda _cfg: action_callbacks["workbench_actions"]()
@@ -187,6 +195,8 @@ def build_line_legacy_callbacks(
             run_workbench_action_func = action_callbacks["run_workbench_action"]
         if run_target_workflow_func is None:
             run_target_workflow_func = action_callbacks["run_target_workflow"]
+        if action_state_text_func is None:
+            action_state_text_func = action_callbacks["action_state_text"]
     dispatch_legacy = build_line_legacy_dispatch_callback(
         cfg,
         input_func=input_func,
