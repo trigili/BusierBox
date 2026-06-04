@@ -1752,6 +1752,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     session_options_end = line_console_stdout.find("grit[all]/session/20260101T000000-file-service> next", session_options_start + 1)
     session_options_text = line_console_stdout[session_options_start:session_options_end] if session_options_start != -1 and session_options_end != -1 else ""
     if (not session_info_text or
+            "Session: 20260101T000000-file-service" not in session_info_text or
+            "session log:" not in session_info_text or
+            "event log:" not in session_info_text or
+            "session=" in session_info_text or
+            "service=" in session_info_text or
+            "session_log=" in session_info_text or
+            "event_log=" in session_info_text or
             "view=scripts/grit-console --config" in session_info_text or
             not session_options_text or
             "Session: 20260101T000000-file-service" not in session_options_text or
@@ -1801,6 +1808,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     if (not jobs_verbose_text or
             "cancel: scripts/grit-console" not in jobs_verbose_text or
             not job_info_text or
+            "Job: line-console-job" not in job_info_text or
+            "action: package-artifact" not in job_info_text or
+            "state: running" not in job_info_text or
+            "cancel supported:" not in job_info_text or
+            "job=" in job_info_text or
+            "action=" in job_info_text or
+            "cancel_supported=" in job_info_text or
             "cancel=scripts/grit-console" in job_info_text or
             not job_options_text or
             "Job: line-console-job" not in job_options_text or

@@ -322,41 +322,37 @@ def print_line_info(
     elif module.startswith("session/"):
         session_id = module.split("/", 1)[1]
         rec = session_record(session_id)
-        print(f"  session={session_id}")
+        print(f"Session: {session_id}")
         if rec:
             path = str(rec.get("path") or "")
-            print(
-                f"    service={rec.get('service', '') or '-'} "
-                f"state={rec.get('state', '') or '-'} "
-                f"exit={rec.get('exit_reason', '') or '-'} "
-                f"updated={rec.get('updated_at', '') or '-'}"
-            )
-            print(f"    path={path}")
+            print(f"  service: {rec.get('service', '') or '-'}")
+            print(f"  state: {rec.get('state', '') or '-'}")
+            print(f"  exit reason: {rec.get('exit_reason', '') or '-'}")
+            print(f"  updated: {rec.get('updated_at', '') or '-'}")
+            print(f"  path: {path}")
             if rec.get("session_log"):
-                print(f"    session_log={rec.get('session_log', '')}")
+                print(f"  session log: {rec.get('session_log', '')}")
             if rec.get("event_log"):
-                print(f"    event_log={rec.get('event_log', '')}")
-        print("    next: options, interact, sessions -v, view PATH, back")
+                print(f"  event log: {rec.get('event_log', '')}")
+        print("  next: options, interact, sessions -v, view PATH, back")
     elif module.startswith("job/"):
         job_id = module.split("/", 1)[1]
         rec = job_record(job_id)
-        print(f"  job={job_id}")
+        print(f"Job: {job_id}")
         if rec:
-            print(
-                f"    action={rec.get('action_id', '') or '-'} "
-                f"state={rec.get('effective_state', '') or rec.get('state', '') or '-'} "
-                f"pid={rec.get('pid', '') or '-'} "
-                f"managed={'yes' if rec.get('pid_managed') else 'no'} "
-                f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
-            )
-            print(f"    command={rec.get('command', '') or '-'}")
+            print(f"  action: {rec.get('action_id', '') or '-'}")
+            print(f"  state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}")
+            print(f"  pid: {rec.get('pid', '') or '-'}")
+            print(f"  managed: {'yes' if rec.get('pid_managed') else 'no'}")
+            print(f"  cancel supported: {'yes' if rec.get('cancel_supported') else 'no'}")
+            print(f"  command: {rec.get('command', '') or '-'}")
             if rec.get("log_path"):
-                print(f"    log={rec.get('log_path', '')}")
+                print(f"  log: {rec.get('log_path', '')}")
             if rec.get("last_output_tail"):
-                print("    last_output:")
+                print("  last output:")
                 for line in rec.get("last_output_tail") or []:
-                    print(f"      {line}")
-        print("    next: options, jobs, jobs -v, back")
+                    print(f"    {line}")
+        print("  next: options, jobs, jobs -v, back")
     else:
         print("  action=none")
     target_filter = (snap or {}).get("target_filter") or {}
