@@ -10,6 +10,7 @@ from pathlib import Path
 
 from gritlib.console_display import console_table, print_dry_run_notice
 from gritlib.event_log import append_event
+from gritlib.line_context import set_line_collection_context
 from gritlib.line_search import set_line_search_results
 from gritlib.process_status import pid_alive, pid_environ_contains
 from gritlib.record_utils import format_counts, records_by_key
@@ -253,9 +254,7 @@ def select_line_job(cfg, snapshot, selector):
     if not rec:
         raise ValueError(f"unknown workbench job: {text}")
     job_id = str(rec.get("id") or "")
-    cfg["_line_console_module"] = f"job/{job_id}"
-    cfg.pop("_line_console_action_kind", None)
-    cfg.pop("_line_console_action_id", None)
+    set_line_collection_context(cfg, f"job/{job_id}")
     state = rec.get("effective_state") or rec.get("state") or "?"
     action = rec.get("action_id") or "-"
     cancel = "  |  cancellable" if rec.get("cancel_supported") else ""

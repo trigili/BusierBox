@@ -185,6 +185,15 @@ def set_line_collection_context(cfg, module):
     cfg.pop("_line_console_action_id", None)
 
 
+def set_line_action_context(cfg, kind, action_id):
+    action_id = str(action_id or "").strip()
+    if not action_id:
+        return
+    cfg["_line_console_action_kind"] = str(kind or "")
+    cfg["_line_console_action_id"] = action_id
+    cfg["_line_console_module"] = f"action/{action_id}"
+
+
 def clear_line_console_context(cfg, quiet=False):
     had_module = bool(str(cfg.get("_line_console_module") or ""))
     had_target = bool(configured_target_filter(cfg))

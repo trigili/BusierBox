@@ -3,6 +3,7 @@
 from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.event_log import append_event
+from gritlib.line_context import set_line_collection_context
 from gritlib.line_state import line_action_state_text
 from gritlib.shell_utils import shquote
 
@@ -110,9 +111,7 @@ def select_line_command_queue_action(cfg, records, selector, append_event_fn=app
     selected = select_line_command_queue_action_record(records, selector)
     rec_id = str(selected.get("id") or "")
     action_id = str(selected.get("action_id") or "")
-    cfg["_line_console_module"] = f"queue/{action_id or rec_id}"
-    cfg.pop("_line_console_action_kind", None)
-    cfg.pop("_line_console_action_id", None)
+    set_line_collection_context(cfg, f"queue/{action_id or rec_id}")
     flags = []
     if selected.get("requires_input"):
         flags.append("needs command")

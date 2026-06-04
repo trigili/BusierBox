@@ -5,6 +5,7 @@ from pathlib import Path
 
 from gritlib.event_log import append_event
 from gritlib.console_display import console_table
+from gritlib.line_context import clear_line_module_context, set_line_collection_context
 from gritlib.line_search import set_line_search_results
 from gritlib.operator_network import target_visible_host
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key
@@ -528,9 +529,7 @@ def select_line_route(cfg, selector, records):
     if not selected:
         raise ValueError(f"route not found: {text}")
     name = str(selected.get("name") or "")
-    cfg["_line_console_module"] = f"route/{name}"
-    cfg.pop("_line_console_action_kind", None)
-    cfg.pop("_line_console_action_id", None)
+    set_line_collection_context(cfg, f"route/{name}")
     print(f"selected route {name}")
     state = selected.get("current_state") or "stopped"
     listen = f"{selected.get('listen_host','') or '0.0.0.0'}:{selected.get('listen_port','?')}"
@@ -753,7 +752,7 @@ def delete_line_route(cfg, route_name, records, headless_command_builder=None):
     headless = headless_command_builder("delete", name)
     rec = delete_bridge_profile(cfg, name)
     if str(cfg.get("_line_console_module") or "") == f"route/{name}":
-        cfg.pop("_line_console_module", None)
+        clear_line_module_context(cfg)
     print(f"deleted route {name}: {rec.get('route_path', '')}")
     append_event(cfg, "workbench", "workbench_route_deleted", details={
         "name": name,

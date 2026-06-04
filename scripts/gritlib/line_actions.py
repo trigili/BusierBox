@@ -2,6 +2,7 @@
 
 from gritlib.console_display import console_table, print_dry_run_notice
 from gritlib.event_log import append_event
+from gritlib.line_context import set_line_action_context
 from gritlib.line_search import clear_line_search_results, set_line_search_results
 from gritlib.line_state import line_action_state_text
 
@@ -90,9 +91,7 @@ def select_line_action(cfg, actions, selector):
         raise ValueError("usage: use action ACTION")
     selected = select_line_action_record(actions, text)
     action_id = str(selected.get("id") or "")
-    cfg["_line_console_action_kind"] = str(selected.get("kind") or "")
-    cfg["_line_console_action_id"] = action_id
-    cfg["_line_console_module"] = f"action/{action_id}"
+    set_line_action_context(cfg, selected.get("kind") or "", action_id)
     kind = selected.get("kind") or ""
     state = line_action_state_text(selected)
     label = selected.get("label") or action_id
