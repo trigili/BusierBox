@@ -1628,6 +1628,16 @@ def run_line_repl_runtime_check():
             kwargs["note_target_func"] is option_callbacks["note_target"],
             kwargs["alias_target_func"] is option_callbacks["alias_target"],
         ))
+        core_bundle_calls.append((
+            "probe-callbacks",
+            kwargs["probe_results_func"] is probe_callbacks["probe_results"],
+            kwargs["probe_config_func"] is probe_callbacks["probe_config"],
+            kwargs["probe_clear_func"] is probe_callbacks["probe_clear"],
+            kwargs["probe_serve_input_func"] is probe_callbacks["probe_serve_input"],
+            kwargs["probe_delivery_func"] is probe_callbacks["probe_delivery"],
+            kwargs["probe_paste_func"] is probe_callbacks["probe_paste"],
+            kwargs["probe_script_func"] is probe_callbacks["probe_script"],
+        ))
 
         def dispatch_core_bundle(command, args):
             core_bundle_calls.append(("dispatch", command, tuple(args)))
@@ -1697,14 +1707,36 @@ def run_line_repl_runtime_check():
                 ("workspace-ips", snapshot)
             ),
         )
+        probe_callbacks = {
+            "probe_line_start": lambda: "probe-started",
+            "probe_results": lambda cfg, append_event_fn: core_bundle_calls.append(
+                ("probe-results", cfg.get("name"), append_event_fn is not None)
+            ),
+            "probe_config": lambda cfg, args, append_event_fn: core_bundle_calls.append(
+                ("probe-config", cfg.get("name"), tuple(args), append_event_fn is not None)
+            ),
+            "probe_clear": lambda cfg, args, append_event_fn: core_bundle_calls.append(
+                ("probe-clear", cfg.get("name"), tuple(args), append_event_fn is not None)
+            ),
+            "probe_serve_input": lambda prompt: core_bundle_calls.append(
+                ("probe-input", prompt)
+            ) or "choice",
+            "probe_delivery": lambda cfg: core_bundle_calls.append(
+                ("probe-delivery", cfg.get("name"))
+            ),
+            "probe_paste": lambda cfg, paste=False, base64_mode=False: core_bundle_calls.append(
+                ("probe-paste", cfg.get("name"), paste, base64_mode)
+            ),
+            "probe_script": lambda cfg, paste=False: core_bundle_calls.append(
+                ("probe-script", cfg.get("name"), paste)
+            ),
+        }
         core_bundle = repl_core.build_line_core_callbacks(
             {"name": "bundle-core"},
             clear_module_func=lambda cfg, quiet=False: core_bundle_calls.append(
                 ("clear-module", cfg.get("name"), quiet)
             ),
-            probe_callbacks={
-                "probe_line_start": lambda: "probe-started",
-            },
+            probe_callbacks=probe_callbacks,
             file_callbacks={
                 "stage_release": lambda release_id: f"staged-{release_id}",
             },
@@ -1727,6 +1759,7 @@ def run_line_repl_runtime_check():
         ("dispatch-builder", "bundle-core", "bundle-default.json"),
         ("workspace-callbacks", True, True, True, True, True, True, True, True),
         ("option-callbacks", True, True, True, True, True, True),
+        ("probe-callbacks", True, True, True, True, True, True, True),
         ("dispatch", "status", ()),
         ("unset-target", "bundle-core", "B"),
         ("option-clear", "bundle-core", True),

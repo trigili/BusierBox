@@ -18,6 +18,11 @@ def build_line_probe_callbacks(
     target_context_func,
     probe_delivery_func,
     append_event_fn,
+    probe_results_func=None,
+    probe_config_func=None,
+    probe_clear_func=None,
+    probe_paste_func=None,
+    probe_script_func=None,
 ):
     return {
         "probe_line_start": build_line_probe_start_callback(
@@ -37,6 +42,13 @@ def build_line_probe_callbacks(
             probe_delivery_func=probe_delivery_func,
             append_event_fn=append_event_fn,
         ),
+        "probe_results": probe_results_func,
+        "probe_config": probe_config_func,
+        "probe_clear": probe_clear_func,
+        "probe_serve_input": input_func,
+        "probe_delivery": probe_delivery_func,
+        "probe_paste": probe_paste_func,
+        "probe_script": probe_script_func,
     }
 
 

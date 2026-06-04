@@ -42,6 +42,20 @@ def build_line_core_callbacks(
         )
     if probe_callbacks is not None:
         dispatch_kwargs.setdefault("probe_start_func", probe_callbacks["probe_line_start"])
+        if probe_callbacks.get("probe_results") is not None:
+            dispatch_kwargs.setdefault("probe_results_func", probe_callbacks["probe_results"])
+        if probe_callbacks.get("probe_config") is not None:
+            dispatch_kwargs.setdefault("probe_config_func", probe_callbacks["probe_config"])
+        if probe_callbacks.get("probe_clear") is not None:
+            dispatch_kwargs.setdefault("probe_clear_func", probe_callbacks["probe_clear"])
+        if probe_callbacks.get("probe_serve_input") is not None:
+            dispatch_kwargs.setdefault("probe_serve_input_func", probe_callbacks["probe_serve_input"])
+        if probe_callbacks.get("probe_delivery") is not None:
+            dispatch_kwargs.setdefault("probe_delivery_func", probe_callbacks["probe_delivery"])
+        if probe_callbacks.get("probe_paste") is not None:
+            dispatch_kwargs.setdefault("probe_paste_func", probe_callbacks["probe_paste"])
+        if probe_callbacks.get("probe_script") is not None:
+            dispatch_kwargs.setdefault("probe_script_func", probe_callbacks["probe_script"])
     if file_callbacks is not None:
         dispatch_kwargs.setdefault("probe_serve_stage_release_func", file_callbacks["stage_release"])
     if display_callbacks is not None:
