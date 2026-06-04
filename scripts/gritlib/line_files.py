@@ -15,6 +15,38 @@ from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged, stage_file, unstage_file
 
 
+def parse_line_files_command(args):
+    args = list(args or [])
+    subcmd = str(args[0]).lower() if args else ""
+    rest = args[1:]
+    if subcmd in {"upload", "stage", "serve-file"}:
+        selector, request_name, start_service = parse_line_file_args(rest)
+        return {
+            "action": "upload",
+            "selector": selector,
+            "request_name": request_name,
+            "start_service": start_service,
+        }
+    if subcmd in {"fetch", "deploy"}:
+        request_name, queue_fetch, start_service = parse_line_fetch_args(rest)
+        return {
+            "action": "fetch",
+            "request_name": request_name,
+            "queue": queue_fetch,
+            "start_service": start_service,
+        }
+    if subcmd in {"unstage", "rm", "remove"}:
+        return {"action": "unstage", "selector": " ".join(rest).strip()}
+    if subcmd in {"clear", "purge"}:
+        return {
+            "action": "clear",
+            "confirm": any(str(item).lower() == "--confirm" for item in rest),
+        }
+    if subcmd in {"-v", "--verbose"}:
+        return {"action": "list", "verbose": True}
+    return {"action": "list", "verbose": False}
+
+
 def parse_line_download_args(args):
     queue = False
     start_file_service = False

@@ -149,6 +149,7 @@ from gritlib.line_files import (
     parse_line_download_args,
     parse_line_fetch_args,
     parse_line_file_args,
+    parse_line_files_command,
     parse_line_release_stage_args,
     print_line_file_records,
     fetch_line_staged as line_files_fetch_line_staged,
@@ -8247,29 +8248,34 @@ def run_line_repl(cfg):
                     print(exc)
                 continue
             elif cmd in {"files", "staged", "stagers", "loot", "downloads"}:
-                subcmd = console_args[1].lower() if len(console_args) >= 2 else ""
-                if subcmd in {"upload", "stage", "serve-file"}:
+                files_cmd = parse_line_files_command(console_args[1:])
+                if files_cmd["action"] == "upload":
                     try:
-                        selector, request_name, start_svc = parse_line_file_args(console_args[2:])
-                        stage_line_file(selector, request_name, start_file_service=start_svc)
+                        stage_line_file(
+                            files_cmd["selector"],
+                            files_cmd["request_name"],
+                            start_file_service=files_cmd["start_service"],
+                        )
                         set_line_collection("files")
                     except ValueError as exc:
                         print(exc)
-                elif subcmd in {"fetch", "deploy"}:
+                elif files_cmd["action"] == "fetch":
                     try:
-                        request_name, queue_fetch, start_svc = parse_line_fetch_args(console_args[2:])
-                        fetch_line_staged(request_name, queue=queue_fetch, start_file_service=start_svc)
+                        fetch_line_staged(
+                            files_cmd["request_name"],
+                            queue=files_cmd["queue"],
+                            start_file_service=files_cmd["start_service"],
+                        )
                         set_line_collection("files")
                     except ValueError as exc:
                         print(exc)
-                elif subcmd in {"unstage", "rm", "remove"}:
+                elif files_cmd["action"] == "unstage":
                     try:
-                        unstage_line_file(" ".join(console_args[2:]).strip())
+                        unstage_line_file(files_cmd["selector"])
                         set_line_collection("files")
                     except ValueError as exc:
                         print(exc)
-                elif subcmd in {"clear", "purge"}:
-                    flags = {a.lower() for a in console_args[2:]}
+                elif files_cmd["action"] == "clear":
                     staged = load_staged(cfg).get("staged", {})
                     target_filter_id = configured_target_filter(cfg)
                     if target_filter_id:
@@ -8280,7 +8286,7 @@ def run_line_repl(cfg):
                     else:
                         for name in sorted(staged):
                             print(f"  {name}")
-                        if "--confirm" not in flags:
+                        if not files_cmd["confirm"]:
                             print(f"\n  {len(staged)} file(s) would be unstaged.  Run: files clear --confirm")
                         else:
                             removed = 0
@@ -8293,12 +8299,9 @@ def run_line_repl(cfg):
                                 "target_filter": target_filter_id or "all",
                             })
                     set_line_collection("files")
-                elif subcmd in {"-v", "--verbose"}:
-                    set_line_collection("files")
-                    print_line_files(verbose=True)
                 else:
                     set_line_collection("files")
-                    print_line_files()
+                    print_line_files(verbose=files_cmd["verbose"])
                 continue
             elif cmd in {"mailbox", "queue"}:
                 set_line_collection("queue")
