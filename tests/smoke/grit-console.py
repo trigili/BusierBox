@@ -5609,6 +5609,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "sessions\n"
                 "sessions -l\n"
                 "sessions -v\n"
+                "sessions -i 99\n"
                 "sessions -i 1\n"
                 "interact 1\n"
                 f"view {line_console_session / 'session.log'}\n"
@@ -6779,7 +6780,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "view: scripts/grit-console --config" in path_view_text or
             "session_log=" in path_view_text or
             "event_log=" in path_view_text or
-            "headless_command:" in path_view_text):
+            "headless_command:" in path_view_text or
+            "session number out of range: 99" not in line_console_stdout or
+            "numbered result not found: 99;" in line_console_stdout):
         print("line-oriented session interaction exposed noisy generated command or raw fields", file=sys.stderr)
         print(path_view_text or line_console_stdout, file=sys.stderr)
         return 1

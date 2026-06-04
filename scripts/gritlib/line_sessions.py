@@ -108,6 +108,16 @@ def line_session_record_by_selector(sessions, selector):
     return {}
 
 
+def require_line_session_record(sessions, selector):
+    text = str(selector or "").strip()
+    selected = line_session_record_by_selector(sessions, text)
+    if not selected and text.isdigit():
+        raise ValueError(f"session number out of range: {text}")
+    if not selected:
+        raise ValueError(f"session not found: {text}")
+    return selected
+
+
 def current_line_session_record(snapshot_func, selector):
     snapshot = snapshot_func() if snapshot_func else {}
     return line_session_record_by_selector(
@@ -289,9 +299,8 @@ def select_current_line_session(cfg, snapshot_func, selector, append_event_fn=No
     text = str(selector or "").strip()
     if not text:
         raise ValueError("usage: use session SESSION")
-    selected = current_line_session_record(snapshot_func, text)
-    if not selected:
-        raise ValueError(f"session not found: {text}")
+    snapshot = snapshot_func() if snapshot_func else {}
+    selected = require_line_session_record((snapshot or {}).get("sessions") or [], text)
     session_id = str(selected.get("session_id") or Path(str(selected.get("path", ""))).name)
     path = str(selected.get("path") or "")
     set_line_collection_context(cfg, f"session/{session_id}")
@@ -321,9 +330,8 @@ def interact_current_line_session(
             text = module.split("/", 1)[1]
     if not text:
         raise ValueError("usage: interact SESSION")
-    selected = current_line_session_record(snapshot_func, text)
-    if not selected:
-        raise ValueError(f"session not found: {text}")
+    snapshot = snapshot_func() if snapshot_func else {}
+    selected = require_line_session_record((snapshot or {}).get("sessions") or [], text)
     path = str(selected.get("path") or "")
     view_command_builder = view_command_builder or (lambda _path: "")
     headless = view_command_builder(path)
