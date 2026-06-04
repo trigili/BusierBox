@@ -3020,9 +3020,6 @@ def status_document(cfg):
         targets,
     )
     command_queue_workflow_action_index_maps = command_queue_workflow_action_indexes(command_queue_workflow_actions)
-    summary.update({
-        **command_queue_workflow_action_status_summary(command_queue_workflow_actions),
-    })
     for name, rec in sorted((path_status or {}).items()):
         if not rec.get("expected_kind_mismatch"):
             continue
@@ -3225,6 +3222,7 @@ def status_document(cfg):
         **operator_console_workflow_status_summary(operator_console_workflow_stats),
         **workbench_action_context["summary"],
         **workbench_config_context["summary"],
+        **command_queue_workflow_action_status_summary(command_queue_workflow_actions),
         **operator_daemon_workflow_action_status_summary(operator_daemon_workflow_actions),
         **service_workflow_action_status_summary(service_workflow_actions),
         **probe_workflow_action_status_summary(probe_workflow_actions),
