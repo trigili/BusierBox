@@ -1375,8 +1375,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     main_text = line_console_stdout[main_start:main_end] if main_start != -1 and main_end != -1 else ""
     if (not main_text or
             "returned to main workspace" not in main_text or
-            "  cleared module: no" not in main_text or
-            "  cleared target: yes" not in main_text or
+            "  next: workspace, agents, listeners, routes, sessions, show categories" not in main_text or
+            "  cleared module:" in main_text or
+            "  cleared target:" in main_text or
             "cleared_module=" in main_text or
             "cleared_target=" in main_text):
         print("line-oriented main command did not use concise reset labels", file=sys.stderr)
