@@ -2754,7 +2754,6 @@ def status_document(cfg):
     workbench_config_context = workbench_config_status_context(cfg)
     workbench_config_fields = workbench_config_context["fields"]
     workbench_config_field_index_maps = workbench_config_context["index_maps"]
-    workbench_config_field_stats = workbench_config_context["stats"]
     workbench_action_context = workbench_action_status_context(cfg)
     workbench_actions = workbench_action_context["actions"]
     workbench_action_index_maps = workbench_action_context["index_maps"]
@@ -3254,17 +3253,7 @@ def status_document(cfg):
         **release_artifact_workflow_action_status_summary(release_artifact_workflow_actions),
         **operator_console_workflow_status_summary(operator_console_workflow_stats),
         **workbench_action_context["summary"],
-        "workbench_config_field_count": workbench_config_field_stats.get("total_count", 0),
-        "workbench_config_field_configured_count": workbench_config_field_stats.get("configured_count", 0),
-        "workbench_config_field_fixed_option_count": workbench_config_field_stats.get("fixed_option_count", 0),
-        "workbench_config_field_category_counts": workbench_config_field_stats.get("category_counts") or {},
-        "workbench_config_field_safety_boundary_counts": workbench_config_field_stats.get("safety_boundary_counts") or {},
-        "workbench_config_field_has_set_command_count": workbench_config_field_stats.get("has_set_command_count", 0),
-        "workbench_config_field_set_command_kind_counts": workbench_config_field_stats.get("set_command_kind_counts") or {},
-        "workbench_config_field_control_like_count": workbench_config_field_stats.get("control_like_count", 0),
-        "workbench_config_field_reverse_access_related_count": workbench_config_field_stats.get("reverse_access_related_count", 0),
-        "workbench_config_field_command_queue_related_count": workbench_config_field_stats.get("command_queue_related_count", 0),
-        "workbench_config_field_requires_explicit_operator_choice_count": workbench_config_field_stats.get("requires_explicit_operator_choice_count", 0),
+        **workbench_config_context["summary"],
         **operator_daemon_workflow_action_status_summary(operator_daemon_workflow_actions),
         **service_workflow_action_status_summary(service_workflow_actions),
         **probe_workflow_action_status_summary(probe_workflow_actions),

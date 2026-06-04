@@ -342,10 +342,43 @@ def workbench_config_field_summary(records):
     }
 
 
+def workbench_config_field_status_summary(stats=None):
+    stats = stats or {}
+    return {
+        "workbench_config_field_count": stats.get("total_count", 0),
+        "workbench_config_field_configured_count": stats.get("configured_count", 0),
+        "workbench_config_field_fixed_option_count": stats.get("fixed_option_count", 0),
+        "workbench_config_field_category_counts": stats.get("category_counts") or {},
+        "workbench_config_field_safety_boundary_counts": stats.get(
+            "safety_boundary_counts"
+        ) or {},
+        "workbench_config_field_has_set_command_count": stats.get(
+            "has_set_command_count", 0
+        ),
+        "workbench_config_field_set_command_kind_counts": stats.get(
+            "set_command_kind_counts"
+        ) or {},
+        "workbench_config_field_control_like_count": stats.get(
+            "control_like_count", 0
+        ),
+        "workbench_config_field_reverse_access_related_count": stats.get(
+            "reverse_access_related_count", 0
+        ),
+        "workbench_config_field_command_queue_related_count": stats.get(
+            "command_queue_related_count", 0
+        ),
+        "workbench_config_field_requires_explicit_operator_choice_count": stats.get(
+            "requires_explicit_operator_choice_count", 0
+        ),
+    }
+
+
 def workbench_config_status_context(cfg):
     fields = workbench_config_field_records(cfg)
+    stats = workbench_config_field_summary(fields)
     return {
         "fields": fields,
         "index_maps": workbench_config_field_indexes(fields),
-        "stats": workbench_config_field_summary(fields),
+        "stats": stats,
+        "summary": workbench_config_field_status_summary(stats),
     }

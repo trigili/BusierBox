@@ -1794,6 +1794,7 @@ def run_workbench_config_status_context_check():
         fields = context.get("fields") or []
         indexes = context.get("index_maps") or {}
         stats = context.get("stats") or {}
+        summary = context.get("summary") or {}
         by_key = indexes.get("workbench_config_fields_by_key") or {}
         rshell = by_key.get("GRIT_RSHELL_TRANSPORT") or {}
         queue = by_key.get("GRIT_COMMAND_QUEUE_ENABLE") or {}
@@ -1805,6 +1806,14 @@ def run_workbench_config_status_context_check():
             return 1
         if stats.get("configured_count", 0) < 2:
             print("workbench config status context did not preserve summary", file=sys.stderr)
+            return 1
+        if (
+            summary.get("workbench_config_field_count") != len(fields)
+            or summary.get("workbench_config_field_configured_count", 0) < 2
+            or summary.get("workbench_config_field_command_queue_related_count", 0) < 1
+            or not summary.get("workbench_config_field_category_counts")
+        ):
+            print("workbench config status context did not preserve status summary", file=sys.stderr)
             return 1
         if "workbench_config_fields_by_category" not in indexes:
             print("workbench config status context did not preserve indexes", file=sys.stderr)
