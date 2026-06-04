@@ -1684,6 +1684,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     route_context_start = line_console_stdout.find("grit[all]/routes> route console-route")
     route_context_end = line_console_stdout.find("grit[all]/route/console-route> back", route_context_start + 1)
     route_context_text = line_console_stdout[route_context_start:route_context_end] if route_context_start != -1 and route_context_end != -1 else ""
+    generated_commands_start = line_console_stdout.find("grit[all]> commands")
+    generated_commands_end = line_console_stdout.find("grit[all]> copy 1", generated_commands_start + 1)
+    generated_commands_text = line_console_stdout[generated_commands_start:generated_commands_end] if generated_commands_start != -1 and generated_commands_end != -1 else ""
     route_context_labels = (
         "Route: console-route",
         "  listen: ",
@@ -1722,6 +1725,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             any(noisy in route_context_text for noisy in route_context_noisy)):
         print("line-oriented route context did not use concise labels", file=sys.stderr)
         print(route_context_text or line_console_stdout, file=sys.stderr)
+        return 1
+    if (not generated_commands_text or
+            "Generated commands  (" not in generated_commands_text or
+            "file-service  direct  " not in generated_commands_text or
+            "route=direct" in generated_commands_text or
+            "endpoint=" in generated_commands_text):
+        print("line-oriented generated commands table exposed raw route fields", file=sys.stderr)
+        print(generated_commands_text or line_console_stdout, file=sys.stderr)
         return 1
     generated_copy_start = line_console_stdout.find("grit[all]> copy 1")
     generated_copy_end = line_console_stdout.find("grit[all]> build", generated_copy_start + 1)

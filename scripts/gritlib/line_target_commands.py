@@ -26,9 +26,17 @@ def print_line_generated_commands(cfg):
         details.append(("copy", f"copy {rec.get('ordinal', '')}"))
         return details
 
+    def _transport(rec):
+        route = target_command_route_text(rec)
+        if route.startswith("route=direct endpoint="):
+            return "direct  " + route.split("endpoint=", 1)[1]
+        if route.startswith("route=direct"):
+            return "direct"
+        return route or "-"
+
     cols = [
         ("Service", lambda r: r.get("service") or "-"),
-        ("Transport", lambda r: target_command_route_text(r) or "-"),
+        ("Transport", _transport),
         ("Command", _cmd),
     ]
     console_table(
