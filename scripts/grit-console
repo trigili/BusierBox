@@ -182,6 +182,7 @@ from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_line_job_callbacks
 from gritlib.line_repl_routes import build_line_route_service_callbacks
 from gritlib.line_repl_sessions import build_line_session_callbacks
+from gritlib.line_repl_targets import build_line_target_callbacks
 from gritlib.line_release import (
     dispatch_legacy_line_release_number,
     print_line_release as line_release_print_line_release,
@@ -197,11 +198,6 @@ from gritlib.line_services import (
     line_service_completion_names, line_service_names, line_service_record,
 )
 from gritlib.line_show import build_line_show_resource_callback
-from gritlib.line_targets import (
-    interact_line_target as line_targets_interact_line_target,
-    print_line_targets as line_targets_print_line_targets,
-    select_line_target as line_targets_select_line_target,
-)
 from gritlib.line_target_commands import (
     copy_line_generated_command, copy_line_service_command, dispatch_legacy_copy_choice,
     run_line_generated_command,
@@ -6365,18 +6361,14 @@ def run_line_repl(cfg):
             clear_module=lambda quiet=False: clear_line_module_context(cfg, quiet=quiet),
         )
 
-    def print_line_targets():
-        return line_targets_print_line_targets(cfg, workbench_snapshot, quote=shquote)
-
-    def select_line_target(selector, targets=None):
-        return line_targets_select_line_target(
-            cfg, selector, workbench_snapshot, targets=targets, quote=shquote,
-        )
-
-    def interact_line_target(selector=""):
-        return line_targets_interact_line_target(
-            cfg, selector, workbench_snapshot, quote=shquote,
-        )
+    line_target_callbacks = build_line_target_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        quote=shquote,
+    )
+    print_line_targets = line_target_callbacks["print_line_targets"]
+    select_line_target = line_target_callbacks["select_line_target"]
+    interact_line_target = line_target_callbacks["interact_line_target"]
 
     line_route_service_callbacks = build_line_route_service_callbacks(
         cfg,
