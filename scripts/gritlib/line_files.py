@@ -90,6 +90,16 @@ def parse_line_download_args(args):
     return target_path, queue, start_file_service
 
 
+def parse_line_download_command(args):
+    target_path, queue, start_service = parse_line_download_args(args)
+    return {
+        "action": "download",
+        "target_path": target_path,
+        "queue": queue,
+        "start_service": start_service,
+    }
+
+
 def parse_line_release_stage_args(args):
     start_file_service = False
     values = []
@@ -101,6 +111,17 @@ def parse_line_release_stage_args(args):
             values.append(item)
     selector = " ".join(values).strip()
     return selector, start_file_service
+
+
+def parse_line_binary_command(args):
+    selector, request_name, start_service, no_start = parse_line_binary_args(args)
+    return {
+        "action": "stage_binary",
+        "selector": selector,
+        "request_name": request_name,
+        "start_service": start_service,
+        "no_start": no_start,
+    }
 
 
 def parse_line_binary_args(args):

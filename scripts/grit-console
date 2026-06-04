@@ -148,11 +148,10 @@ from gritlib.line_state import line_action_state_text
 from gritlib.line_files import (
     download_line_target as line_files_download_line_target,
     line_file_records_from_staged,
-    parse_line_binary_args,
-    parse_line_download_args,
+    parse_line_binary_command,
+    parse_line_download_command,
     parse_line_file_transfer_command,
     parse_line_files_command,
-    parse_line_release_stage_args,
     print_line_file_records,
     fetch_line_staged as line_files_fetch_line_staged,
     stage_line_binary as line_files_stage_line_binary,
@@ -7975,8 +7974,12 @@ def run_line_repl(cfg):
                 continue
             elif cmd in {"download", "get"}:
                 try:
-                    target_path, queue_download, start_download_service = parse_line_download_args(console_args[1:])
-                    download_line_target(target_path, queue=queue_download, start_file_service=start_download_service)
+                    download_cmd = parse_line_download_command(console_args[1:])
+                    download_line_target(
+                        download_cmd["target_path"],
+                        queue=download_cmd["queue"],
+                        start_file_service=download_cmd["start_service"],
+                    )
                     set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
@@ -8068,8 +8071,11 @@ def run_line_repl(cfg):
                 continue
             elif cmd == "stage-release":
                 try:
-                    selector, start_release_service = parse_line_release_stage_args(console_args[1:])
-                    stage_line_release(selector, start_file_service=start_release_service)
+                    release_cmd = parse_line_release_command(["stage", *console_args[1:]])
+                    stage_line_release(
+                        release_cmd["selector"],
+                        start_file_service=release_cmd["start_service"],
+                    )
                     set_line_collection("files")
                 except ValueError as exc:
                     print(exc)
@@ -8193,13 +8199,15 @@ def run_line_repl(cfg):
                 continue
             elif cmd in {"serve-binary", "binary"}:
                 try:
-                    selector, request_name, start_binary_service, no_start_binary_service = parse_line_binary_args(console_args[1:])
+                    binary_cmd = parse_line_binary_command(console_args[1:])
                     stage_line_binary(
-                        selector,
-                        request_name,
-                        prompt_for_missing=not selector,
-                        prompt_start=(not selector and not no_start_binary_service),
-                        start_file_service=start_binary_service,
+                        binary_cmd["selector"],
+                        binary_cmd["request_name"],
+                        prompt_for_missing=not binary_cmd["selector"],
+                        prompt_start=(
+                            not binary_cmd["selector"] and not binary_cmd["no_start"]
+                        ),
+                        start_file_service=binary_cmd["start_service"],
                     )
                     set_line_collection("files")
                 except ValueError as exc:
