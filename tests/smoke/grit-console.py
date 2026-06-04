@@ -2438,7 +2438,7 @@ def run_line_repl_runtime_check():
     repl_completions.build_line_completion_callbacks = fake_completion_builder
     try:
         completion_cfg = {"name": "completion-cfg"}
-        candidates, printer = repl_completions.build_line_completion_adapter(
+        completion_bundle = repl_completions.build_line_completion_bundle(
             completion_cfg,
             workbench_snapshot_func=lambda cfg: completion_calls.append(("snapshot", cfg.get("name"))) or {"snap": True},
             current_action_records_func=lambda snapshot_func: completion_calls.append(
@@ -2460,10 +2460,30 @@ def run_line_repl_runtime_check():
                 ("event", cfg.get("name"), service, event, details)
             ),
         )
-        if candidates("st") != ["status"]:
+        if completion_bundle["line_completion_candidates"]("st") != ["status"]:
+            print("line REPL completion bundle did not return candidates result", file=sys.stderr)
+            return 1
+        completion_bundle["print_line_completions"]("st")
+        adapter_candidates, adapter_printer = repl_completions.build_line_completion_adapter(
+            completion_cfg,
+            workbench_snapshot_func=lambda cfg: {},
+            current_action_records_func=lambda snapshot_func: [],
+            bridge_profile_records_func=lambda cfg: [],
+            release_context_func=lambda cfg: {},
+            command_queue_summary_func=lambda cfg: {},
+            generated_target_command_records_func=lambda cfg: [],
+            workbench_config_field_records_func=lambda cfg: [],
+            service_status_rows_func=lambda cfg: [],
+            service_completion_names_func=lambda rows: [],
+            service_names_func=lambda rows: [],
+            load_staged_func=lambda cfg: {},
+            find_survey_uploads_func=lambda cfg, limit=20: [],
+            append_event_fn=lambda cfg, service, event, details=None: None,
+        )
+        if adapter_candidates("ad") != ["status"]:
             print("line REPL completion adapter did not return candidates result", file=sys.stderr)
             return 1
-        printer("st")
+        adapter_printer("ad")
     finally:
         repl_completions.build_line_completion_callbacks = original_completion_builder
     expected_completion_markers = [
@@ -2473,6 +2493,8 @@ def run_line_repl_runtime_check():
         ("event", "completion-cfg", "workbench", "complete", {"prefix": "st"}),
         ("candidates", "st"),
         ("printer", "st"),
+        ("candidates", "ad"),
+        ("printer", "ad"),
     ]
     for marker in expected_completion_markers:
         if marker not in completion_calls:

@@ -174,7 +174,7 @@ from gritlib.line_repl_runtime import (
     restore_signal_handlers,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
-from gritlib.line_repl_completions import build_line_completion_adapter
+from gritlib.line_repl_completions import build_line_completion_bundle
 from gritlib.line_repl_core import build_line_core_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_line_job_callbacks
@@ -6063,7 +6063,7 @@ def run_line_repl(cfg):
         quote=shquote,
     )
 
-    line_completion_candidates, print_line_completions = build_line_completion_adapter(
+    line_completion_callbacks = build_line_completion_bundle(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
         current_action_records_func=current_line_action_records,
@@ -6196,13 +6196,15 @@ def run_line_repl(cfg):
         append_event_fn=append_event,
     )
 
-    install_readline_completer(_readline, HAVE_READLINE, line_completion_candidates)
+    install_readline_completer(
+        _readline,
+        HAVE_READLINE,
+        line_completion_callbacks["line_completion_candidates"],
+    )
 
     line_utility_callbacks = build_line_utility_callbacks(
         cfg,
-        completion_callbacks={
-            "print_line_completions": print_line_completions,
-        },
+        completion_callbacks=line_completion_callbacks,
         resource_history_func=line_resources_print_line_history,
         resource_load_func=load_line_resource,
         resource_save_func=write_line_makerc,
