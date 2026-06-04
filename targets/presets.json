@@ -87,6 +87,23 @@
       "display_path": "specific-targets/openwrt-routers/tplink-archer-ax1800-v56-openwrt-musl"
     },
     {
+      "preset_name": "cisco-rv34x-100329",
+      "description": "Cisco RV34x firmware 1.0.03.29 ARMv7 glibc",
+      "arch": "armv7",
+      "endian": "little",
+      "cpu": "cortex-a7",
+      "abi": "eabi",
+      "libc": "glibc",
+      "kernel_floor": "4.x",
+      "static_policy": "static-preferred",
+      "payload_tier": "core",
+      "qemu_user": "qemu-arm-static",
+      "support_status": "unsupported",
+      "notes": "Derived from local fw2tar/Penguin inspection of RV34X-v1.0.03.29-2022-10-17-13-45-34-PM.img: uImage Linux/ARM rootfs is ARM EABI5 little-endian and contains glibc loader/libc (ld-linux.so.3, libc-2.19.so). Current generated release tuples do not support ARMv7 glibc, so this device must not be matched to the ARMv7 musl artifact that caused illegal-instruction/segfault testing failures.",
+      "category": "specific-targets/legacy-routers",
+      "display_path": "specific-targets/legacy-routers/cisco-rv34x-100329"
+    },
+    {
       "preset_name": "asus-rt-n16-uclibc",
       "description": "ASUS RT-N16 MIPS little-endian uClibc",
       "arch": "mipsel",

@@ -78,10 +78,19 @@ second=$(printf '%s\n' "$list" | sed -n '2p' | cut -f1)
 [ "$first" = default ] || { printf '%s\n' "default preset is not first in --list" >&2; exit 1; }
 [ "$second" = native ] || { printf '%s\n' "native preset is not second in --list" >&2; exit 1; }
 printf '%s\n' "$list" | awk -F '\t' '$1 == "mipsel-linux-4.x-musl" && $2 == "supported" { found=1 } END { exit found ? 0 : 1 }'
+printf '%s\n' "$list" | awk -F '\t' '$1 == "cisco-rv34x-100329" && $2 == "unsupported" { found=1 } END { exit found ? 0 : 1 }'
+
+cisco=$(scripts/lib/resolve-target cisco-rv34x-100329)
+printf '%s\n' "$cisco" | grep "TARGET_NAME=armv7-linux-4.x-glibc-eabi" >/dev/null
+printf '%s\n' "$cisco" | grep "TARGET_STATUS=unsupported" >/dev/null
+printf '%s\n' "$cisco" | grep "TARGET_LIBC=glibc" >/dev/null
+printf '%s\n' "$cisco" | grep "TARGET_ABI=eabi" >/dev/null
+printf '%s\n' "$cisco" | grep "ARMv7 glibc" >/dev/null
 
 tree=$(scripts/lib/resolve-target --list-tree)
 printf '%s\n' "$tree" | grep '^\[specific-targets/legacy-routers\]$' >/dev/null
 printf '%s\n' "$tree" | grep '  asus-rt-n16-uclibc' >/dev/null
+printf '%s\n' "$tree" | grep '  cisco-rv34x-100329' >/dev/null
 printf '%s\n' "$tree" | grep '  mipsel-linux-4.x-musl' >/dev/null
 printf '%s\n' "$tree" | grep '^\[generic-archs/arm\]$' >/dev/null
 printf '%s\n' "$tree" | grep '  armv7-linux-3.x-musl' >/dev/null
