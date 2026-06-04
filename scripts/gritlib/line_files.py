@@ -15,6 +15,10 @@ from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged, stage_file, unstage_file
 
 
+def print_file_service_note(started):
+    print(f"  file service {'started' if started else 'not started'}")
+
+
 def parse_line_files_command(cmd, args=None):
     if args is None:
         args = cmd
@@ -485,7 +489,7 @@ def download_line_target(
         print(f"  label: {label}")
     print(f"  target path: {path}")
     print(f"  target command: {command}")
-    print(f"  service: file-service {'started' if started else 'not started'}")
+    print_file_service_note(started)
     queued = {}
     if queue:
         if not queue_command_fn:
@@ -634,7 +638,7 @@ def stage_line_file(
         if start_file_service_fn:
             start_file_service_fn()
         started = True
-    print(f"  service: file-service {'started' if started else 'not started'}")
+    print_file_service_note(started)
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_file_uploaded", details={
             "headless_command": headless,
@@ -751,7 +755,7 @@ def fetch_line_staged(
         print(f"  target: {target_text}")
     print(f"  target fetch: {fetch_command}")
     print_staged_fetch_target_options(name, scoped)
-    print(f"  service: file-service {'started' if started else 'not started'}")
+    print_file_service_note(started)
     queued = {}
     if queue:
         if not queue_command_fn:
@@ -864,7 +868,7 @@ def stage_line_binary(
         started = start_line is not None and start_line.strip().lower() in ("y", "yes")
         if started and start_file_service_fn:
             start_file_service_fn()
-    print(f"  service: file-service {'started' if started else 'not started'}")
+    print_file_service_note(started)
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_binary_served", details={
             "headless_command": headless,

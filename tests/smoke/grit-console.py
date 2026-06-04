@@ -1529,6 +1529,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
             "started file-service: pid=" in line_console_stdout or
             "stopped file-service: pid=" in line_console_stdout or
             "details: events service=" in line_console_stdout or
+            "service: file-service started" in line_console_stdout or
+            "service: file-service not started" in line_console_stdout or
             "want unknown" in line_console_stdout):
         print("line-oriented service lifecycle output exposed raw process details", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
