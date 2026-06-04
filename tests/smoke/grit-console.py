@@ -295,6 +295,32 @@ def run_line_local_ips_check():
         print("operator local IP choice candidates were not sorted for interactive prompts", file=sys.stderr)
         print(candidates, file=sys.stderr)
         return 1
+    host_cfg = {}
+    host_prompts = []
+    with contextlib.redirect_stdout(io.StringIO()):
+        chosen_host = operator_network.choose_operator_host_for_target(
+            host_cfg,
+            input_func=lambda prompt: host_prompts.append(prompt) or "",
+            interactive=True,
+            candidates_func=lambda: candidates,
+        )
+    if chosen_host != "10.0.0.5" or host_cfg.get("GRIT_OPERATOR_SERVER_HOST") != "10.0.0.5":
+        print("operator host chooser did not default to the first sorted candidate", file=sys.stderr)
+        print(host_cfg, file=sys.stderr)
+        return 1
+    manual_cfg = {}
+    manual_answers = iter(["o", "192.0.2.44"])
+    with contextlib.redirect_stdout(io.StringIO()):
+        manual_host = operator_network.choose_operator_host_for_target(
+            manual_cfg,
+            input_func=lambda _prompt: next(manual_answers),
+            interactive=True,
+            candidates_func=lambda: candidates,
+        )
+    if manual_host != "192.0.2.44" or manual_cfg.get("GRIT_OPERATOR_SERVER_HOST") != "192.0.2.44":
+        print("operator host chooser did not preserve manual host selection", file=sys.stderr)
+        print(manual_cfg, file=sys.stderr)
+        return 1
     status = operator_network_status(["192.168.8.2", "10.0.0.5", "127.0.0.1", "10.0.0.5"])
     if (status.get("selected_local_ip") != "10.0.0.5" or
             [rec.get("ip") for rec in status.get("operator_network_records") or []] != ["10.0.0.5", "192.168.8.2"]):

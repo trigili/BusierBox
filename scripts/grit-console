@@ -242,7 +242,7 @@ from gritlib.operator_io import (
     view_path_headless_command, viewable_path,
 )
 from gritlib.operator_network import (
-    local_ip_choice_candidates, local_ips, operator_advertised_host, print_candidates,
+    choose_operator_host_for_target, local_ips, operator_advertised_host, print_candidates,
     target_visible_host,
 )
 from gritlib.probe_commands import (
@@ -6835,31 +6835,11 @@ def run_line_repl(cfg):
         print(script_text)
 
     def probe_line_start(queue=False, start_service=False):
-        # If operator host isn't pinned and we have an interactive terminal,
-        # let the user pick from local IPs rather than auto-selecting blindly.
-        if not str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip() and sys.stdin.isatty():
-            candidates = local_ip_choice_candidates()
-            if len(candidates) > 1:
-                print("Multiple local IPs — which should the target use to POST results back?")
-                print("")
-                for i, ip in enumerate(candidates, 1):
-                    print(f"  {i}  {ip}")
-                print(f"  o  Other (enter manually)")
-                print("")
-                choice_line = line_input(f"  Select (1-{len(candidates)}, o, or enter for {candidates[0]})> ")
-                choice = (choice_line or "").strip()
-                if not choice:
-                    cfg["GRIT_OPERATOR_SERVER_HOST"] = candidates[0]
-                elif choice.lower() == "o":
-                    other = (line_input("  IP address> ") or "").strip()
-                    if other:
-                        cfg["GRIT_OPERATOR_SERVER_HOST"] = other
-                elif choice.isdigit() and 1 <= int(choice) <= len(candidates):
-                    cfg["GRIT_OPERATOR_SERVER_HOST"] = candidates[int(choice) - 1]
-                print(f"  Using: {cfg.get('GRIT_OPERATOR_SERVER_HOST', candidates[0])}")
-                print("")
-            elif len(candidates) == 1:
-                cfg["GRIT_OPERATOR_SERVER_HOST"] = candidates[0]
+        choose_operator_host_for_target(
+            cfg,
+            input_func=line_input,
+            interactive=sys.stdin.isatty(),
+        )
 
         command = render_probe_command(cfg)
         snap = workbench_snapshot(cfg)

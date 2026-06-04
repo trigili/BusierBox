@@ -48,6 +48,46 @@ def local_ip_choice_candidates(ips=None):
     return sorted_local_ips(local_ips() if ips is None else ips)
 
 
+def choose_operator_host_for_target(
+    cfg,
+    *,
+    input_func=None,
+    interactive=False,
+    candidates_func=local_ip_choice_candidates,
+):
+    if str((cfg or {}).get("GRIT_OPERATOR_SERVER_HOST") or "").strip():
+        return str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "")
+    if not interactive:
+        return ""
+    candidates = list(candidates_func() or [])
+    if len(candidates) > 1:
+        print("Multiple local IPs — which should the target use to POST results back?")
+        print("")
+        for i, ip in enumerate(candidates, 1):
+            print(f"  {i}  {ip}")
+        print("  o  Other (enter manually)")
+        print("")
+        if input_func:
+            choice_line = input_func(f"  Select (1-{len(candidates)}, o, or enter for {candidates[0]})> ")
+        else:
+            choice_line = ""
+        choice = (choice_line or "").strip()
+        if not choice:
+            cfg["GRIT_OPERATOR_SERVER_HOST"] = candidates[0]
+        elif choice.lower() == "o":
+            other = (input_func("  IP address> ") if input_func else "") or ""
+            other = other.strip()
+            if other:
+                cfg["GRIT_OPERATOR_SERVER_HOST"] = other
+        elif choice.isdigit() and 1 <= int(choice) <= len(candidates):
+            cfg["GRIT_OPERATOR_SERVER_HOST"] = candidates[int(choice) - 1]
+        print(f"  Using: {cfg.get('GRIT_OPERATOR_SERVER_HOST', candidates[0])}")
+        print("")
+    elif len(candidates) == 1:
+        cfg["GRIT_OPERATOR_SERVER_HOST"] = candidates[0]
+    return str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "")
+
+
 def _hostname_ipv4_addrs():
     ips = []
     try:
