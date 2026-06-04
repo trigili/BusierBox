@@ -174,7 +174,7 @@ from gritlib.line_resources import (
 )
 from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
-    dispatch_line_help_command, dispatch_line_quit_choice, prepare_repl_choice,
+    dispatch_line_parsed_command, dispatch_line_quit_choice, prepare_repl_choice,
     read_line as line_repl_read_line, read_next_repl_line,
     restore_signal_handlers,
 )
@@ -6319,49 +6319,44 @@ def run_line_repl(cfg):
         console_args = prepared["console_args"]
         cmd = prepared["cmd"]
         if console_args:
-            if cmd in {"q", "quit", "exit"}:
-                choice = "q"
-            elif dispatch_line_help_command(
+            parsed_result = dispatch_line_parsed_command(
                 cmd,
                 console_args,
                 module=cfg.get("_line_console_module"),
                 target_selected=bool(configured_target_filter(cfg)),
                 command_help_printer=print_line_command_help,
                 context_help_printer=print_context_line_help,
-            ):
-                continue
-            elif dispatch_line_utility_command(
-                cmd,
-                console_args[1:],
-                completion_func=print_line_completions,
-                resource_history_func=lambda limit="": line_resources_print_line_history(
-                    line_history,
-                    limit,
+                utility_dispatch_func=lambda command, args: dispatch_line_utility_command(
+                    command,
+                    args,
+                    completion_func=print_line_completions,
+                    resource_history_func=lambda limit="": line_resources_print_line_history(
+                        line_history,
+                        limit,
+                    ),
+                    resource_load_func=lambda path: pending_console_lines.extend(
+                        load_line_resource(cfg, path)
+                    ),
+                    resource_save_func=lambda path: write_line_makerc(cfg, path, line_history),
+                    events_func=lambda args: print_line_events_view(cfg, args),
+                    search_func=search_line_resources,
+                    show_func=show_line_resource,
+                    generated_run_func=lambda args: run_line_generated_command(cfg, args),
+                    service_copy_func=lambda subcmd: copy_line_service_command(
+                        cfg,
+                        subcmd,
+                        lambda command, label: copy_text_for_operator(cfg, command, label=label),
+                        start_command=lambda svc: service_start_headless_command(cfg, svc),
+                        stop_command=lambda svc: service_stop_headless_command(cfg, svc),
+                    ),
+                    generated_copy_func=lambda selector: copy_line_generated_command(
+                        cfg,
+                        selector,
+                    ),
                 ),
-                resource_load_func=lambda path: pending_console_lines.extend(
-                    load_line_resource(cfg, path)
-                ),
-                resource_save_func=lambda path: write_line_makerc(cfg, path, line_history),
-                events_func=lambda args: print_line_events_view(cfg, args),
-                search_func=search_line_resources,
-                show_func=show_line_resource,
-                generated_run_func=lambda args: run_line_generated_command(cfg, args),
-                service_copy_func=lambda subcmd: copy_line_service_command(
-                    cfg,
-                    subcmd,
-                    lambda command, label: copy_text_for_operator(cfg, command, label=label),
-                    start_command=lambda svc: service_start_headless_command(cfg, svc),
-                    stop_command=lambda svc: service_stop_headless_command(cfg, svc),
-                ),
-                generated_copy_func=lambda selector: copy_line_generated_command(
-                    cfg,
-                    selector,
-                ),
-            ):
-                continue
-            elif (core_result := dispatch_line_core_command(
-                    cmd,
-                    console_args[1:],
+                core_dispatch_func=lambda command, args: dispatch_line_core_command(
+                    command,
+                    args,
                     status_func=lambda: print(line_repl_status_bar(workbench_snapshot(cfg))),
                     ips_func=lambda: print_line_local_ips(workbench_snapshot(cfg)),
                     workspace_func=lambda: (
@@ -6429,116 +6424,111 @@ def run_line_repl(cfg):
                         lambda limit=20: configure_find_survey_uploads(cfg, limit=limit),
                         append_event_fn=append_event,
                     ),
-            )):
-                if core_result == "refresh":
-                    compact_next_prompt = False
-                    choice = "r"
-                continue
-            elif dispatch_line_navigation_command(
-                cmd,
-                console_args[1:],
-                target_selected=bool(configured_target_filter(cfg)),
-                module=cfg.get("_line_console_module"),
-                record_alias_func=lambda alias, canonical: append_event(
-                    cfg,
-                    "workbench",
-                    "workbench_console_alias_used",
-                    details={
-                        "alias": str(alias or ""),
-                        "canonical": str(canonical or ""),
-                    },
                 ),
-                clear_results_func=lambda: clear_line_search_results(cfg),
-                set_listeners_context_func=lambda: set_line_collection_context(cfg, "listeners"),
-                print_listeners_func=print_line_services,
-                select_listener_func=select_line_service,
-                set_targets_context_func=lambda: set_line_collection_context(cfg, "targets"),
-                print_targets_func=print_line_targets,
-                select_target_func=select_line_target,
-                set_sessions_context_func=lambda: set_line_collection_context(cfg, "sessions"),
-                print_sessions_func=print_line_sessions,
-                clear_sessions_func=clear_line_sessions,
-                session_help_func=print_line_command_help,
-                select_session_func=select_line_session,
-                interact_session_func=interact_line_session,
-                set_routes_context_func=lambda: set_line_collection_context(cfg, "routes"),
-                print_routes_func=print_line_routes,
-                add_route_func=add_line_route,
-                start_route_func=start_line_route,
-                stop_route_func=stop_line_route,
-                delete_route_func=delete_line_route,
-                route_help_func=print_line_command_help,
-                select_route_func=select_line_route,
-                number_func=use_line_search_result,
-                select_job_func=select_line_job,
-                select_action_func=select_line_action,
-                clear_target_func=lambda: select_line_target("all", targets=[]),
-                root_func=lambda quiet=False: clear_line_console_context(cfg, quiet=quiet),
-                back_func=lambda: back_line_module_context(cfg),
-                start_service_func=start_line_service,
-                stop_service_func=stop_line_service,
-                start_job_func=start_line_job,
-                cancel_job_func=cancel_line_job,
-                run_action_func=run_line_module_or_service,
-                interact_target_func=interact_line_target,
-            ):
-                continue
-            elif dispatch_line_workflow_command(
-                cmd,
-                console_args[1:],
-                set_context_func=lambda module: set_line_collection_context(cfg, module),
-                download_func=download_line_target,
-                daemon_run_func=lambda args: line_daemon_run_action(
+                navigation_dispatch_func=lambda command, args: dispatch_line_navigation_command(
+                    command,
                     args,
-                    snapshot_func=lambda: workbench_snapshot(cfg),
-                    run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
-                        run_operator_daemon_workflow_action(
-                            cfg,
-                            selector,
-                            dry_run=dry_run,
-                            confirmed=confirmed,
-                            show_commands=show_commands,
-                        )
-                    ),
-                ),
-                release_list_func=lambda: (
-                    set_line_collection_context(cfg, "release"),
-                    line_release_print_line_release(cfg, append_event_fn=append_event),
-                ),
-                release_stage_func=lambda selector, start_file_service=False: (
-                    stage_line_release(
-                        selector,
-                        start_file_service=start_file_service,
-                    ),
-                    set_line_collection_context(cfg, "files"),
-                ),
-                release_help_func=print_line_command_help,
-                upload_file_func=stage_line_file,
-                fetch_file_func=fetch_line_staged,
-                unstage_file_func=unstage_line_file,
-                view_path_func=view_line_path,
-                clear_files_func=lambda confirm=False: line_files_clear_line_files(
-                    cfg,
-                    confirm=confirm,
-                    target_filter_id=configured_target_filter(cfg),
-                    append_event_fn=append_event,
-                ),
-                list_files_func=lambda verbose=False: print_line_files(verbose=verbose),
-                run_queue_func=run_line_queue_command,
-                view_queue_func=print_line_command_queue_view,
-                cancel_job_func=cancel_line_job,
-                select_job_func=select_line_job,
-                list_jobs_func=print_line_jobs,
-                stage_binary_func=stage_line_binary,
-                configure_func=configure_line_artifact,
-            ):
-                continue
-            else:
-                print(line_unknown_command_message(
-                    cmd,
-                    cfg.get("_line_console_module"),
                     target_selected=bool(configured_target_filter(cfg)),
-                ))
+                    module=cfg.get("_line_console_module"),
+                    record_alias_func=lambda alias, canonical: append_event(
+                        cfg,
+                        "workbench",
+                        "workbench_console_alias_used",
+                        details={
+                            "alias": str(alias or ""),
+                            "canonical": str(canonical or ""),
+                        },
+                    ),
+                    clear_results_func=lambda: clear_line_search_results(cfg),
+                    set_listeners_context_func=lambda: set_line_collection_context(cfg, "listeners"),
+                    print_listeners_func=print_line_services,
+                    select_listener_func=select_line_service,
+                    set_targets_context_func=lambda: set_line_collection_context(cfg, "targets"),
+                    print_targets_func=print_line_targets,
+                    select_target_func=select_line_target,
+                    set_sessions_context_func=lambda: set_line_collection_context(cfg, "sessions"),
+                    print_sessions_func=print_line_sessions,
+                    clear_sessions_func=clear_line_sessions,
+                    session_help_func=print_line_command_help,
+                    select_session_func=select_line_session,
+                    interact_session_func=interact_line_session,
+                    set_routes_context_func=lambda: set_line_collection_context(cfg, "routes"),
+                    print_routes_func=print_line_routes,
+                    add_route_func=add_line_route,
+                    start_route_func=start_line_route,
+                    stop_route_func=stop_line_route,
+                    delete_route_func=delete_line_route,
+                    route_help_func=print_line_command_help,
+                    select_route_func=select_line_route,
+                    number_func=use_line_search_result,
+                    select_job_func=select_line_job,
+                    select_action_func=select_line_action,
+                    clear_target_func=lambda: select_line_target("all", targets=[]),
+                    root_func=lambda quiet=False: clear_line_console_context(cfg, quiet=quiet),
+                    back_func=lambda: back_line_module_context(cfg),
+                    start_service_func=start_line_service,
+                    stop_service_func=stop_line_service,
+                    start_job_func=start_line_job,
+                    cancel_job_func=cancel_line_job,
+                    run_action_func=run_line_module_or_service,
+                    interact_target_func=interact_line_target,
+                ),
+                workflow_dispatch_func=lambda command, args: dispatch_line_workflow_command(
+                    command,
+                    args,
+                    set_context_func=lambda module: set_line_collection_context(cfg, module),
+                    download_func=download_line_target,
+                    daemon_run_func=lambda args: line_daemon_run_action(
+                        args,
+                        snapshot_func=lambda: workbench_snapshot(cfg),
+                        run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
+                            run_operator_daemon_workflow_action(
+                                cfg,
+                                selector,
+                                dry_run=dry_run,
+                                confirmed=confirmed,
+                                show_commands=show_commands,
+                            )
+                        ),
+                    ),
+                    release_list_func=lambda: (
+                        set_line_collection_context(cfg, "release"),
+                        line_release_print_line_release(cfg, append_event_fn=append_event),
+                    ),
+                    release_stage_func=lambda selector, start_file_service=False: (
+                        stage_line_release(
+                            selector,
+                            start_file_service=start_file_service,
+                        ),
+                        set_line_collection_context(cfg, "files"),
+                    ),
+                    release_help_func=print_line_command_help,
+                    upload_file_func=stage_line_file,
+                    fetch_file_func=fetch_line_staged,
+                    unstage_file_func=unstage_line_file,
+                    view_path_func=view_line_path,
+                    clear_files_func=lambda confirm=False: line_files_clear_line_files(
+                        cfg,
+                        confirm=confirm,
+                        target_filter_id=configured_target_filter(cfg),
+                        append_event_fn=append_event,
+                    ),
+                    list_files_func=lambda verbose=False: print_line_files(verbose=verbose),
+                    run_queue_func=run_line_queue_command,
+                    view_queue_func=print_line_command_queue_view,
+                    cancel_job_func=cancel_line_job,
+                    select_job_func=select_line_job,
+                    list_jobs_func=print_line_jobs,
+                    stage_binary_func=stage_line_binary,
+                    configure_func=configure_line_artifact,
+                ),
+                unknown_message_func=line_unknown_command_message,
+            )
+            if "choice" in parsed_result:
+                choice = parsed_result["choice"]
+            if "compact_next_prompt" in parsed_result:
+                compact_next_prompt = parsed_result["compact_next_prompt"]
+            if parsed_result.get("handled"):
                 continue
         quit_result = dispatch_line_quit_choice(
             choice,

@@ -418,6 +418,7 @@ def run_line_repl_runtime_check():
         sys.path.insert(0, scripts_dir)
     from gritlib.line_repl_runtime import (
         dispatch_line_help_command,
+        dispatch_line_parsed_command,
         dispatch_line_quit_choice,
         prepare_repl_choice,
         read_line,
@@ -727,6 +728,120 @@ def run_line_repl_runtime_check():
     )
     if non_quit != {"handled": False}:
         print(f"line REPL runtime consumed non-quit choice: {non_quit}", file=sys.stderr)
+        return 1
+
+    parsed_calls = []
+
+    def false_dispatch(name):
+        def _dispatch(command, args):
+            parsed_calls.append((name, command, tuple(args)))
+            return False
+        return _dispatch
+
+    quit_parsed = dispatch_line_parsed_command(
+        "quit",
+        ["quit"],
+        command_help_printer=lambda topic: parsed_calls.append(("help", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: parsed_calls.append(
+            ("context", module, target_selected, command_help_printer is not None)
+        ),
+        utility_dispatch_func=false_dispatch("utility"),
+        core_dispatch_func=false_dispatch("core"),
+        navigation_dispatch_func=false_dispatch("navigation"),
+        workflow_dispatch_func=false_dispatch("workflow"),
+        unknown_message_func=lambda command, module, target_selected=False: f"unknown {command}",
+    )
+    if quit_parsed != {"handled": False, "choice": "q"} or parsed_calls:
+        print(f"line REPL runtime parsed quit command incorrectly: {quit_parsed} {parsed_calls}", file=sys.stderr)
+        return 1
+
+    parsed_calls.clear()
+    help_parsed = dispatch_line_parsed_command(
+        "?",
+        ["?"],
+        module="files",
+        target_selected=True,
+        command_help_printer=lambda topic: parsed_calls.append(("help", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: parsed_calls.append(
+            ("context", module, target_selected, command_help_printer is not None)
+        ),
+        utility_dispatch_func=false_dispatch("utility"),
+        core_dispatch_func=false_dispatch("core"),
+        navigation_dispatch_func=false_dispatch("navigation"),
+        workflow_dispatch_func=false_dispatch("workflow"),
+        unknown_message_func=lambda command, module, target_selected=False: f"unknown {command}",
+    )
+    if help_parsed != {"handled": True} or parsed_calls != [("context", "files", True, True)]:
+        print(f"line REPL runtime parsed help command incorrectly: {help_parsed} {parsed_calls}", file=sys.stderr)
+        return 1
+
+    parsed_calls.clear()
+    utility_parsed = dispatch_line_parsed_command(
+        "events",
+        ["events", "list"],
+        command_help_printer=lambda topic: parsed_calls.append(("help", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: parsed_calls.append(
+            ("context", module, target_selected, command_help_printer is not None)
+        ),
+        utility_dispatch_func=lambda command, args: parsed_calls.append(("utility", command, tuple(args))) or True,
+        core_dispatch_func=false_dispatch("core"),
+        navigation_dispatch_func=false_dispatch("navigation"),
+        workflow_dispatch_func=false_dispatch("workflow"),
+        unknown_message_func=lambda command, module, target_selected=False: f"unknown {command}",
+    )
+    if utility_parsed != {"handled": True} or parsed_calls != [("utility", "events", ("list",))]:
+        print(f"line REPL runtime parsed utility command incorrectly: {utility_parsed} {parsed_calls}", file=sys.stderr)
+        return 1
+
+    parsed_calls.clear()
+    refresh_parsed = dispatch_line_parsed_command(
+        "refresh",
+        ["refresh"],
+        command_help_printer=lambda topic: parsed_calls.append(("help", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: parsed_calls.append(
+            ("context", module, target_selected, command_help_printer is not None)
+        ),
+        utility_dispatch_func=false_dispatch("utility"),
+        core_dispatch_func=lambda command, args: parsed_calls.append(("core", command, tuple(args))) or "refresh",
+        navigation_dispatch_func=false_dispatch("navigation"),
+        workflow_dispatch_func=false_dispatch("workflow"),
+        unknown_message_func=lambda command, module, target_selected=False: f"unknown {command}",
+    )
+    if refresh_parsed != {"handled": True, "choice": "r", "compact_next_prompt": False}:
+        print(f"line REPL runtime parsed refresh command incorrectly: {refresh_parsed}", file=sys.stderr)
+        return 1
+
+    parsed_calls.clear()
+    unknown_out = io.StringIO()
+    unknown_parsed = dispatch_line_parsed_command(
+        "bogus",
+        ["bogus"],
+        module="targets",
+        target_selected=False,
+        command_help_printer=lambda topic: parsed_calls.append(("help", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: parsed_calls.append(
+            ("context", module, target_selected, command_help_printer is not None)
+        ),
+        utility_dispatch_func=false_dispatch("utility"),
+        core_dispatch_func=false_dispatch("core"),
+        navigation_dispatch_func=false_dispatch("navigation"),
+        workflow_dispatch_func=false_dispatch("workflow"),
+        unknown_message_func=lambda command, module, target_selected=False: (
+            f"unknown {command} module={module} target={target_selected}"
+        ),
+        print_func=lambda text: unknown_out.write(text + "\n"),
+    )
+    if (
+        unknown_parsed != {"handled": True}
+        or parsed_calls != [
+            ("utility", "bogus", ()),
+            ("core", "bogus", ()),
+            ("navigation", "bogus", ()),
+            ("workflow", "bogus", ()),
+        ]
+        or "unknown bogus module=targets target=False" not in unknown_out.getvalue()
+    ):
+        print(f"line REPL runtime parsed unknown command incorrectly: {unknown_parsed} {parsed_calls}", file=sys.stderr)
         return 1
     return 0
 

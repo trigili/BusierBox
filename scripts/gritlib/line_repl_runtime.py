@@ -181,6 +181,57 @@ def dispatch_line_quit_choice(
     }
 
 
+def dispatch_line_parsed_command(
+    cmd,
+    console_args,
+    *,
+    module=None,
+    target_selected=False,
+    command_help_printer,
+    context_help_printer,
+    utility_dispatch_func,
+    core_dispatch_func,
+    navigation_dispatch_func,
+    workflow_dispatch_func,
+    unknown_message_func,
+    print_func=print,
+):
+    """Dispatch a parsed line-console command through the standard handler order."""
+    args = list(console_args or [])
+    command_args = args[1:]
+    if cmd in {"q", "quit", "exit"}:
+        return {
+            "handled": False,
+            "choice": "q",
+        }
+    if dispatch_line_help_command(
+        cmd,
+        args,
+        module=module,
+        target_selected=target_selected,
+        command_help_printer=command_help_printer,
+        context_help_printer=context_help_printer,
+    ):
+        return {"handled": True}
+    if utility_dispatch_func(cmd, command_args):
+        return {"handled": True}
+    core_result = core_dispatch_func(cmd, command_args)
+    if core_result:
+        result = {"handled": True}
+        if core_result == "refresh":
+            result.update({
+                "choice": "r",
+                "compact_next_prompt": False,
+            })
+        return result
+    if navigation_dispatch_func(cmd, command_args):
+        return {"handled": True}
+    if workflow_dispatch_func(cmd, command_args):
+        return {"handled": True}
+    print_func(unknown_message_func(cmd, module, target_selected=target_selected))
+    return {"handled": True}
+
+
 def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull):
     stream = stdin if stdin is not None else sys.stdin
     null_fd = None
