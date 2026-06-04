@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 from gritlib.record_utils import (
-    format_counts, int_value, record_count_by_key, records_by_key,
-    records_by_list_item, records_by_nested_key,
+    format_counts, int_value, record_count_by_key, record_count_by_nested_key,
+    records_by_key, records_by_list_item, records_by_nested_key,
 )
 from gritlib.session_state import read_json_file
 from gritlib.staged_files import stage_file
@@ -543,6 +543,154 @@ def release_status_context(cfg=None, release=None):
         "state_index_maps": release_status["state_index_maps"],
         "workflow_actions": actions,
         "workflow_action_index_maps": release_artifact_workflow_action_indexes(actions),
+        "summary": release_status_summary(
+            release,
+            release_status["state_record"],
+            release_status["state_records"],
+        ),
+    }
+
+
+def _sum_record_key(records, key):
+    total = 0
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        total += int_value(rec.get(key, 0))
+    return total
+
+
+def release_status_summary(release=None, release_state=None, release_state_records=None):
+    release = release or {}
+    release_state = release_state or {}
+    release_state_records = release_state_records or []
+    artifact_stats = release.get("artifact_stats") or {}
+    release_license = release.get("release_license") or {}
+    license_records = release.get("release_license_records") or []
+    devices = release.get("devices") or []
+    tuples = release.get("tuples") or []
+    artifacts = release.get("artifacts") or []
+    recommendations = release.get("recommendation_records") or []
+    return {
+        "release_present": bool(release_state.get("present", False)),
+        "release_valid": bool(release_state.get("valid", False)),
+        "release_json_valid": bool(release_state.get("release_json_valid", False)),
+        "release_index_valid": bool(release_state.get("release_index_valid", False)),
+        "release_detection_source": release_state.get("detection_source", ""),
+        "release_detection_reason": release_state.get("detection_reason", ""),
+        "release_explicit_release_dir": bool(
+            release_state.get("explicit_release_dir", False)
+        ),
+        "release_marker_count": release_state.get("release_marker_count", 0),
+        "release_state_record_count": len(release_state_records),
+        "release_artifact_count": len(artifacts),
+        "release_artifact_total_size": artifact_stats.get("total_size", 0),
+        "release_device_count": len(devices),
+        "release_tuple_count": len(tuples),
+        "release_device_artifact_reference_count": _sum_record_key(
+            devices, "artifact_count"
+        ),
+        "release_tuple_artifact_reference_count": _sum_record_key(
+            tuples, "artifact_count"
+        ),
+        "release_device_tuple_path_counts": record_count_by_key(devices, "tuple_path"),
+        "release_device_artifact_counts": {
+            key: len(value)
+            for key, value in (release.get("devices_by_artifact") or {}).items()
+        },
+        "release_tuple_artifact_counts": {
+            key: len(value)
+            for key, value in (release.get("tuples_by_artifact") or {}).items()
+        },
+        "release_artifact_compatibility_counts": (
+            artifact_stats.get("by_compatibility") or {}
+        ),
+        "release_artifact_payload_preset_counts": (
+            artifact_stats.get("by_payload_preset") or {}
+        ),
+        "release_artifact_source_counts": artifact_stats.get("by_source") or {},
+        "release_artifact_tuple_path_counts": record_count_by_key(
+            artifacts, "tuple_path"
+        ),
+        "release_artifact_tool_counts": artifact_stats.get("by_tool") or {},
+        "release_artifact_device_alias_counts": (
+            artifact_stats.get("by_device_alias") or {}
+        ),
+        "release_artifact_feature_counts": artifact_stats.get("by_feature") or {},
+        "release_artifact_tool_payload_preset_combo_count": len(
+            release.get("artifacts_by_tool_payload_preset") or {}
+        ),
+        "release_artifact_device_payload_preset_combo_count": len(
+            release.get("artifacts_by_device_payload_preset") or {}
+        ),
+        "release_artifact_feature_payload_preset_combo_count": len(
+            release.get("artifacts_by_feature_payload_preset") or {}
+        ),
+        "release_artifact_tuple_payload_preset_combo_count": len(
+            release.get("artifacts_by_tuple_payload_preset") or {}
+        ),
+        "release_artifact_provider_tool_counts": (
+            artifact_stats.get("by_provider_tool") or {}
+        ),
+        "release_artifact_provider_status_counts": (
+            artifact_stats.get("by_provider_status") or {}
+        ),
+        "release_artifact_doom_wad_filename_counts": (
+            artifact_stats.get("by_doom_wad_filename") or {}
+        ),
+        "release_artifact_doom_wad_sha256_counts": (
+            artifact_stats.get("by_doom_wad_sha256") or {}
+        ),
+        "release_artifact_command_queue_enabled_counts": (
+            artifact_stats.get("by_command_queue_enabled") or {}
+        ),
+        "release_artifact_command_queue_execution_supported_counts": (
+            artifact_stats.get("by_command_queue_execution_supported") or {}
+        ),
+        "release_artifact_command_queue_operator_supplied_command_execution_counts": (
+            artifact_stats.get("by_command_queue_operator_supplied_command_execution")
+            or {}
+        ),
+        "release_artifact_doom_wad_count": artifact_stats.get("doom_wad_count", 0),
+        "release_license_count": len(license_records),
+        "release_license_valid_count": sum(
+            1 for rec in license_records if isinstance(rec, dict) and rec.get("valid")
+        ),
+        "release_license_notice_count": release_license.get("notice_count", 0),
+        "release_license_missing_notice_count": release_license.get(
+            "missing_notice_count", 0
+        ),
+        "release_license_evidence_source_count": release_license.get(
+            "license_evidence_source_count", 0
+        ),
+        "release_license_evidence_verified_at": release_license.get(
+            "license_evidence_verified_at", ""
+        ),
+        "release_project_license_counts": record_count_by_key(
+            license_records, "project_license"
+        ),
+        "release_combined_gplv2_compatible_counts": record_count_by_key(
+            license_records, "combined_gplv2_compatible"
+        ),
+        "release_corresponding_source_required_counts": record_count_by_key(
+            license_records, "corresponding_source_required"
+        ),
+        "release_corresponding_source_status_counts": record_count_by_key(
+            license_records, "corresponding_source_status"
+        ),
+        "release_package_license_audit_counts": record_count_by_key(
+            license_records, "corresponding_source_requires_package_license_audit"
+        ),
+        "release_recommendation_count": len(recommendations),
+        "release_recommendation_scope_counts": record_count_by_key(
+            recommendations, "scope"
+        ),
+        "release_recommendation_payload_preset_counts": record_count_by_key(
+            recommendations, "payload_preset"
+        ),
+        "release_recommendation_compatibility_counts": record_count_by_nested_key(
+            recommendations, "compatibility", "label"
+        ),
     }
 
 

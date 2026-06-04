@@ -1696,16 +1696,56 @@ def run_release_status_context_check():
                     "release_path": "bin/grit-smoke",
                     "payload_preset": "native",
                     "compatibility_label": "native",
+                    "tuple_path": "native-host",
                 },
             ],
-            "devices": ["router-a"],
-            "tuples": ["native-host"],
+            "artifact_stats": {
+                "total_size": 123,
+                "by_compatibility": {"native": 1},
+                "by_payload_preset": {"native": 1},
+            },
+            "devices": [
+                {
+                    "name": "router-a",
+                    "tuple_path": "native-host",
+                    "artifact_count": 2,
+                },
+            ],
+            "tuples": [
+                {
+                    "path": "native-host",
+                    "artifact_count": 1,
+                },
+            ],
+            "devices_by_artifact": {"bin/grit-smoke": [{"name": "router-a"}]},
+            "tuples_by_artifact": {"bin/grit-smoke": [{"path": "native-host"}]},
+            "release_license_records": [
+                {
+                    "project_license": "MIT",
+                    "valid": True,
+                    "combined_gplv2_compatible": True,
+                },
+            ],
+            "release_license": {
+                "notice_count": 1,
+                "missing_notice_count": 0,
+                "license_evidence_source_count": 1,
+                "license_evidence_verified_at": "2026-06-04T00:00:00Z",
+            },
+            "recommendation_records": [
+                {
+                    "scope": "device",
+                    "payload_preset": "native",
+                    "compatibility": {"label": "native"},
+                },
+            ],
         }
         context = release_status_context(
             {"release_dir": str(release_dir), "_config_path": "local/test-config.json"},
             release=release,
         )
         state = context.get("state_record") or {}
+        summary = context.get("summary") or {}
         actions = context.get("workflow_actions") or []
         indexes = context.get("workflow_action_index_maps") or {}
         if context.get("release") != release:
@@ -1722,6 +1762,18 @@ def run_release_status_context_check():
             return 1
         if "release_state_records_by_release_dir" not in (context.get("state_index_maps") or {}):
             print("release status context did not preserve release state indexes", file=sys.stderr)
+            return 1
+        if (
+            summary.get("release_present") is not True
+            or summary.get("release_artifact_count") != 1
+            or summary.get("release_artifact_total_size") != 123
+            or summary.get("release_device_artifact_reference_count") != 2
+            or summary.get("release_tuple_artifact_reference_count") != 1
+            or summary.get("release_license_count") != 1
+            or summary.get("release_project_license_counts", {}).get("MIT") != 1
+            or summary.get("release_recommendation_compatibility_counts", {}).get("native") != 1
+        ):
+            print("release status context did not preserve summary", file=sys.stderr)
             return 1
     return 0
 
