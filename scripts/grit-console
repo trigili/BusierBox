@@ -183,7 +183,6 @@ from gritlib.line_repl_options import build_unset_line_option_callback
 from gritlib.line_repl_probe import build_line_probe_callbacks
 from gritlib.line_repl_queue import build_line_queue_callbacks
 from gritlib.line_repl_routes import (
-    build_bridge_profile_headless_command_callback,
     build_line_route_service_callbacks,
 )
 from gritlib.line_repl_search import build_line_search_callbacks
@@ -6044,11 +6043,6 @@ def run_line_repl(cfg):
     )
     line_input = repl_io["line_input"]
 
-    bridge_profile_headless_command = build_bridge_profile_headless_command_callback(
-        cfg,
-        bridge_routes_bridge_profile_headless_command,
-    )
-
     unset_line_option = build_unset_line_option_callback(
         cfg,
         clear_module_func=clear_line_module_context,
@@ -6067,7 +6061,7 @@ def run_line_repl(cfg):
         cfg,
         service_status_rows_func=service_status_rows,
         bridge_profile_records_func=bridge_profile_records,
-        bridge_command_builder=bridge_profile_headless_command,
+        bridge_command_func=bridge_routes_bridge_profile_headless_command,
         service_start_command_func=service_start_headless_command,
         service_stop_command_func=service_stop_headless_command,
         service_start_func=start_service_process,
@@ -6076,6 +6070,7 @@ def run_line_repl(cfg):
         sleep_func=time.sleep,
         quote=shquote,
     )
+    bridge_profile_headless_command = line_route_service_callbacks["bridge_profile_headless_command"]
     line_route_record = line_route_service_callbacks["line_route_record"]
     print_line_routes = line_route_service_callbacks["print_line_routes"]
     select_line_route = line_route_service_callbacks["select_line_route"]

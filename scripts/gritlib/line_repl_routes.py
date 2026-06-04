@@ -34,7 +34,7 @@ def build_line_route_service_callbacks(
     *,
     service_status_rows_func,
     bridge_profile_records_func,
-    bridge_command_builder,
+    bridge_command_func,
     service_start_command_func,
     service_stop_command_func,
     service_start_func,
@@ -43,6 +43,11 @@ def build_line_route_service_callbacks(
     sleep_func,
     quote,
 ):
+    bridge_profile_headless_command = build_bridge_profile_headless_command_callback(
+        cfg,
+        bridge_command_func,
+    )
+
     def route_record(name):
         return line_route_record(bridge_profile_records_func(cfg), name)
 
@@ -51,7 +56,7 @@ def build_line_route_service_callbacks(
             cfg,
             bridge_profile_records_func(cfg),
             verbose=verbose,
-            command_builder=bridge_command_builder,
+            command_builder=bridge_profile_headless_command,
             quote=quote,
         )
 
@@ -66,7 +71,7 @@ def build_line_route_service_callbacks(
         return add_line_route(
             cfg,
             args,
-            headless_command_builder=bridge_command_builder,
+            headless_command_builder=bridge_profile_headless_command,
         )
 
     def start_route(route_name):
@@ -74,7 +79,7 @@ def build_line_route_service_callbacks(
             cfg,
             route_name,
             bridge_profile_records_func(cfg),
-            headless_command_builder=bridge_command_builder,
+            headless_command_builder=bridge_profile_headless_command,
             start_service=service_start_func,
         )
 
@@ -83,7 +88,7 @@ def build_line_route_service_callbacks(
             cfg,
             route_name,
             bridge_profile_records_func(cfg),
-            headless_command_builder=bridge_command_builder,
+            headless_command_builder=bridge_profile_headless_command,
             stop_service=service_stop_func,
         )
 
@@ -92,7 +97,7 @@ def build_line_route_service_callbacks(
             cfg,
             route_name,
             bridge_profile_records_func(cfg),
-            headless_command_builder=bridge_command_builder,
+            headless_command_builder=bridge_profile_headless_command,
         )
 
     def select_service(selector):
@@ -139,6 +144,7 @@ def build_line_route_service_callbacks(
         )
 
     return {
+        "bridge_profile_headless_command": bridge_profile_headless_command,
         "line_route_record": route_record,
         "print_line_routes": print_routes,
         "select_line_route": select_route,
