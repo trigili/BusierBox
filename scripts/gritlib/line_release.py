@@ -4,7 +4,9 @@ from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
 from gritlib.line_files import parse_line_release_stage_args
-from gritlib.release_artifacts import discover_release_context, stage_release_selection
+from gritlib.release_artifacts import (
+    discover_release_context, release_context, release_nav_records, stage_release_selection,
+)
 from gritlib.shell_utils import shquote
 
 
@@ -57,6 +59,55 @@ def dispatch_line_release_command(
         print(exc)
         return None
     raise ValueError("unsupported release command")
+
+
+def dispatch_legacy_line_release_number(
+    choice,
+    cfg,
+    *,
+    input_func=None,
+    append_event_fn=None,
+):
+    if str(choice or "").strip() != "10":
+        return False
+    rel = release_context(cfg)
+    if not rel:
+        print("no release bundle detected")
+        return True
+    nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=12)
+    for idx, rec in enumerate(nav, 1):
+        print(f"{idx}: {rec.get('label', '')}")
+    selector_line = input_func(
+        "release selection number, recommendation id, artifact path, "
+        "by_device:NAME, by_device_payload_preset:NAME:PRESET, "
+        "by_tuple_path:PATH, or by_tuple_payload_preset:PATH:PRESET> "
+    ) if input_func else None
+    selector = selector_line.strip() if selector_line is not None else ""
+    if not selector:
+        return True
+    try:
+        headless = (
+            "scripts/grit-console --config "
+            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + " --stage-release-artifact "
+            + shquote(selector)
+        )
+        rec = stage_release_selection(cfg, selector)
+        print(f"staged {rec['request_name']}")
+        print(render_fetch_command(rec["request_name"], cfg))
+        if append_event_fn:
+            append_event_fn(cfg, "workbench", "workbench_release_artifact_staged", details={
+                "selector": selector,
+                "headless_command": headless,
+                "request_name": rec.get("request_name", ""),
+                "release_artifact_name": rec.get("release_artifact_name", ""),
+                "release_path": rec.get("release_path", ""),
+                "tuple_path": rec.get("tuple_path", ""),
+                "payload_preset": rec.get("payload_preset", ""),
+            })
+    except ValueError as exc:
+        print(exc)
+    return True
 
 
 def _release_compat_label(rec):

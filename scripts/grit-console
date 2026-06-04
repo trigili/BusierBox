@@ -187,6 +187,7 @@ from gritlib.line_repl_runtime import (
     read_line as line_repl_read_line, resolve_replay_command, restore_signal_handlers,
 )
 from gritlib.line_release import (
+    dispatch_legacy_line_release_number,
     print_line_release as line_release_print_line_release,
     stage_line_release as line_release_stage_line_release,
 )
@@ -7516,42 +7517,13 @@ def run_line_repl(cfg):
             path = path_line.strip() if path_line is not None else ""
             if path:
                 operator_io_view_line_path(cfg, path, append_event_fn=append_event)
-        elif choice == "10":
-            rel = release_context(cfg)
-            if not rel:
-                print("no release bundle detected")
-                continue
-            nav = release_nav_records(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=12)
-            for idx, rec in enumerate(nav, 1):
-                print(f"{idx}: {rec.get('label', '')}")
-            selector_line = line_input(
-                "release selection number, recommendation id, artifact path, "
-                "by_device:NAME, by_device_payload_preset:NAME:PRESET, "
-                "by_tuple_path:PATH, or by_tuple_payload_preset:PATH:PRESET> "
-            )
-            selector = selector_line.strip() if selector_line is not None else ""
-            if selector:
-                try:
-                    headless = (
-                        "scripts/grit-console --config "
-                        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                        + " --stage-release-artifact "
-                        + shquote(selector)
-                    )
-                    rec = stage_release_selection(cfg, selector)
-                    print(f"staged {rec['request_name']}")
-                    print(render_fetch_command(rec["request_name"], cfg))
-                    append_event(cfg, "workbench", "workbench_release_artifact_staged", details={
-                        "selector": selector,
-                        "headless_command": headless,
-                        "request_name": rec.get("request_name", ""),
-                        "release_artifact_name": rec.get("release_artifact_name", ""),
-                        "release_path": rec.get("release_path", ""),
-                        "tuple_path": rec.get("tuple_path", ""),
-                        "payload_preset": rec.get("payload_preset", ""),
-                    })
-                except ValueError as exc:
-                    print(exc)
+        elif dispatch_legacy_line_release_number(
+            choice,
+            cfg,
+            input_func=line_input,
+            append_event_fn=append_event,
+        ):
+            continue
         elif choice == "22":
             try:
                 stage_line_binary()
