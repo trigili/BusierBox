@@ -217,17 +217,13 @@ smoke-test:
 	$(call run_if_python3,tests/smoke/command-queue.sh dist/grit-native-full,python3 command queue smoke unavailable)
 	@tests/smoke/zero-arg-autorun.sh dist/grit-native-full
 	@./dist/grit-native-full list >/dev/null
-	$(call validate_json_with_python3,./dist/grit-native-full survey --json,python3 json validation unavailable)
-	$(call validate_json_with_python3,./dist/grit-native-full survey --json --shell-probe,python3 shell survey json validation unavailable)
-	$(call validate_json_with_python3,./dist/grit-native-full manifest --json,python3 manifest json validation unavailable)
+	$(call run_if_python3,tests/smoke/native-json-commands.sh dist/grit-native-full,python3 native JSON smoke unavailable)
 	$(call run_if_python3,tests/smoke/manifest-metadata.sh dist/grit-native-full,python3 manifest metadata smoke unavailable)
 	$(call run_if_python3,tests/smoke/open-memstream-fallback.sh,python3 open_memstream fallback smoke unavailable)
 	$(call run_if_python3,tests/smoke/support-token.sh dist/grit-native-full,python3 support token smoke unavailable)
 	$(call run_if_python3,tests/smoke/doctor-json.sh dist/grit-native-full,python3 doctor json smoke unavailable)
 	$(call run_if_python3,tests/smoke/reality-test.sh dist/grit-native-full,python3 reality-test smoke unavailable)
 	@tests/smoke/core-extraction.sh dist/grit-native-full
-	$(call validate_json_with_python3,./dist/grit-native-full cleanup-ledger --json,python3 cleanup ledger json validation unavailable)
-	$(call validate_json_with_python3,./dist/grit-native-full rshell status --json,python3 rshell status json validation unavailable)
 	@./dist/grit-native-full survey >/dev/null
 	@./dist/grit-native-full envfix >/dev/null
 	@./dist/grit-native-full extract >/dev/null
