@@ -582,6 +582,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_routes as repl_routes
     import gritlib.line_repl_search as repl_search
     import gritlib.line_repl_show as repl_show
+    import gritlib.line_repl_survey as repl_survey
     import gritlib.line_repl_utility as repl_utility
     import gritlib.line_repl_workflow as repl_workflow
     import gritlib.line_repl_workspace as repl_workspace
@@ -1638,6 +1639,13 @@ def run_line_repl_runtime_check():
             kwargs["probe_paste_func"] is probe_callbacks["probe_paste"],
             kwargs["probe_script_func"] is probe_callbacks["probe_script"],
         ))
+        core_bundle_calls.append((
+            "survey-callbacks",
+            kwargs["survey_results_func"] is survey_callbacks["survey_results"],
+            kwargs["find_survey_uploads_func"] is survey_callbacks["find_survey_uploads"],
+            kwargs["survey_config_func"] is survey_callbacks["survey_config"],
+            kwargs["survey_preset_func"] is survey_callbacks["survey_preset"],
+        ))
 
         def dispatch_core_bundle(command, args):
             core_bundle_calls.append(("dispatch", command, tuple(args)))
@@ -1731,6 +1739,33 @@ def run_line_repl_runtime_check():
                 ("probe-script", cfg.get("name"), paste)
             ),
         }
+        survey_callbacks = repl_survey.build_line_survey_callbacks(
+            {"name": "bundle-core"},
+            survey_results_func=lambda cfg, append_event_fn: core_bundle_calls.append(
+                ("survey-results", cfg.get("name"), append_event_fn is not None)
+            ),
+            find_survey_uploads_func=lambda cfg, limit=20: core_bundle_calls.append(
+                ("survey-uploads", cfg.get("name"), limit)
+            ) or ["upload.json"],
+            survey_config_func=lambda cfg, args, find_uploads_func, append_event_fn: core_bundle_calls.append(
+                (
+                    "survey-config",
+                    cfg.get("name"),
+                    tuple(args),
+                    tuple(find_uploads_func(limit=7)),
+                    append_event_fn is not None,
+                )
+            ),
+            survey_preset_func=lambda cfg, args, find_uploads_func, append_event_fn: core_bundle_calls.append(
+                (
+                    "survey-preset",
+                    cfg.get("name"),
+                    tuple(args),
+                    tuple(find_uploads_func()),
+                    append_event_fn is not None,
+                )
+            ),
+        )
         core_bundle = repl_core.build_line_core_callbacks(
             {"name": "bundle-core"},
             clear_module_func=lambda cfg, quiet=False: core_bundle_calls.append(
@@ -1747,6 +1782,7 @@ def run_line_repl_runtime_check():
             },
             option_callbacks=option_callbacks,
             workspace_callbacks=workspace_callbacks,
+            survey_callbacks=survey_callbacks,
         )
         if core_bundle["dispatch_line_core"]("status", []) != "bundle-refresh":
             print("line REPL core bundle did not return core dispatch result", file=sys.stderr)
@@ -1760,6 +1796,7 @@ def run_line_repl_runtime_check():
         ("workspace-callbacks", True, True, True, True, True, True, True, True),
         ("option-callbacks", True, True, True, True, True, True),
         ("probe-callbacks", True, True, True, True, True, True, True),
+        ("survey-callbacks", True, True, True, True),
         ("dispatch", "status", ()),
         ("unset-target", "bundle-core", "B"),
         ("option-clear", "bundle-core", True),

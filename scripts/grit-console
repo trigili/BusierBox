@@ -191,6 +191,7 @@ from gritlib.line_repl_routes import (
 from gritlib.line_repl_search import build_line_search_bundle
 from gritlib.line_repl_sessions import build_line_session_callbacks
 from gritlib.line_repl_show import build_line_display_show_callbacks
+from gritlib.line_repl_survey import build_line_survey_callbacks
 from gritlib.line_repl_targets import build_line_target_callbacks
 from gritlib.line_repl_utility import build_line_utility_callbacks
 from gritlib.line_repl_workflow import build_line_workflow_callbacks
@@ -6231,6 +6232,14 @@ def run_line_repl(cfg):
         local_ips_func=print_line_local_ips,
     )
 
+    line_survey_callbacks = build_line_survey_callbacks(
+        cfg,
+        survey_results_func=configure_print_line_survey_status,
+        find_survey_uploads_func=configure_find_survey_uploads,
+        survey_config_func=configure_line_survey_config,
+        survey_preset_func=configure_line_survey_preset,
+    )
+
     line_utility_callbacks = build_line_utility_callbacks(
         cfg,
         completion_callbacks=line_completion_callbacks,
@@ -6255,13 +6264,10 @@ def run_line_repl(cfg):
         display_callbacks=line_display_show_callbacks,
         option_callbacks=line_option_callbacks,
         workspace_callbacks=line_workspace_callbacks,
+        survey_callbacks=line_survey_callbacks,
         set_context_func=set_line_collection_context,
         build_run_func=run_line_build_command,
         help_func=print_line_command_help,
-        survey_results_func=configure_print_line_survey_status,
-        find_survey_uploads_func=configure_find_survey_uploads,
-        survey_config_func=configure_line_survey_config,
-        survey_preset_func=configure_line_survey_preset,
         append_event_fn=append_event,
     )
     line_navigation_callbacks = build_line_navigation_callbacks(

@@ -15,6 +15,7 @@ def build_line_core_callbacks(
     display_callbacks=None,
     option_callbacks=None,
     workspace_callbacks=None,
+    survey_callbacks=None,
     **dispatch_kwargs,
 ):
     if workspace_callbacks is not None:
@@ -40,6 +41,11 @@ def build_line_core_callbacks(
             cfg,
             clear_module_func=clear_module_func,
         )
+    if survey_callbacks is not None:
+        dispatch_kwargs.setdefault("survey_results_func", survey_callbacks["survey_results"])
+        dispatch_kwargs.setdefault("find_survey_uploads_func", survey_callbacks["find_survey_uploads"])
+        dispatch_kwargs.setdefault("survey_config_func", survey_callbacks["survey_config"])
+        dispatch_kwargs.setdefault("survey_preset_func", survey_callbacks["survey_preset"])
     if probe_callbacks is not None:
         dispatch_kwargs.setdefault("probe_start_func", probe_callbacks["probe_line_start"])
         if probe_callbacks.get("probe_results") is not None:
