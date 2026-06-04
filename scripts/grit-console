@@ -6547,8 +6547,8 @@ def run_line_repl(cfg):
     def back_line_module():
         return back_line_module_context(cfg)
 
-    def clear_line_context():
-        clear_line_console_context(cfg)
+    def clear_line_context(quiet=False):
+        clear_line_console_context(cfg, quiet=quiet)
 
     def set_line_collection(module):
         set_line_collection_context(cfg, module)
@@ -7703,9 +7703,9 @@ def run_line_repl(cfg):
                 print(line_unknown_command_message(cmd))
                 continue
         if choice in {"q", "quit", "exit"}:
-            # Leave one selected context level first; q/quit at root exits.
+            # Return directly to the root prompt first; q/quit at root exits.
             if str(cfg.get("_line_console_module") or "") or configured_target_filter(cfg):
-                back_line_module()
+                clear_line_context(quiet=True)
                 compact_next_prompt = True
                 continue
             mark_service_stopped(cfg, "workbench", "quit")
