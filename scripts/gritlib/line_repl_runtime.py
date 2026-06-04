@@ -347,6 +347,28 @@ def run_configured_line_repl_loop(
     **kwargs,
 ):
     """Run the standard config-backed line REPL loop."""
+    utility_callbacks = kwargs.pop("utility_callbacks", None)
+    search_callbacks = kwargs.pop("search_callbacks", None)
+    core_callbacks = kwargs.pop("core_callbacks", None)
+    navigation_callbacks = kwargs.pop("navigation_callbacks", None)
+    workflow_callbacks = kwargs.pop("workflow_callbacks", None)
+    legacy_callbacks = kwargs.pop("legacy_callbacks", None)
+
+    if utility_callbacks is not None:
+        kwargs.setdefault("line_history", utility_callbacks["line_history"])
+        kwargs.setdefault("pending_console_lines", utility_callbacks["pending_console_lines"])
+        kwargs.setdefault("utility_dispatch_func", utility_callbacks["dispatch_line_utility"])
+    if search_callbacks is not None:
+        kwargs.setdefault("clear_results_func", search_callbacks["clear_line_search_results"])
+    if core_callbacks is not None:
+        kwargs.setdefault("core_dispatch_func", core_callbacks["dispatch_line_core"])
+    if navigation_callbacks is not None:
+        kwargs.setdefault("navigation_dispatch_func", navigation_callbacks["dispatch_line_navigation"])
+    if workflow_callbacks is not None:
+        kwargs.setdefault("workflow_dispatch_func", workflow_callbacks["dispatch_line_workflow"])
+    if legacy_callbacks is not None:
+        kwargs.setdefault("legacy_dispatch_func", legacy_callbacks["dispatch_line_legacy"])
+
     return run_line_repl_loop(
         cfg,
         module_func=lambda repl_cfg: repl_cfg.get("_line_console_module"),

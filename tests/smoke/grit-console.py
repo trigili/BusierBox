@@ -2230,6 +2230,14 @@ def run_line_repl_runtime_check():
         configured_calls.append(("runner", cfg.get("_line_console_module")))
         configured_calls.append(("module", kwargs["module_func"](cfg)))
         configured_calls.append(("target", kwargs["target_selected_func"](cfg)))
+        configured_calls.append(("history", list(kwargs["line_history"])))
+        configured_calls.append(("pending", list(kwargs["pending_console_lines"])))
+        kwargs["clear_results_func"]()
+        kwargs["utility_dispatch_func"]("status", [])
+        kwargs["core_dispatch_func"]("status", [])
+        kwargs["navigation_dispatch_func"]("targets", [])
+        kwargs["workflow_dispatch_func"]("files", [])
+        kwargs["legacy_dispatch_func"]("v")
         kwargs["clear_context_func"](quiet=True)
         return 0
 
@@ -2244,8 +2252,36 @@ def run_line_repl_runtime_check():
                 ),
                 shutdown_event=threading.Event(),
                 shutdown_reason_func=lambda: "",
-                line_history=[],
-                pending_console_lines=[],
+                utility_callbacks={
+                    "line_history": ["status"],
+                    "pending_console_lines": ["targets"],
+                    "dispatch_line_utility": lambda command, args: configured_calls.append(
+                        ("utility", command, tuple(args))
+                    ) or False,
+                },
+                search_callbacks={
+                    "clear_line_search_results": lambda: configured_calls.append("clear-results"),
+                },
+                core_callbacks={
+                    "dispatch_line_core": lambda command, args: configured_calls.append(
+                        ("core", command, tuple(args))
+                    ) or False,
+                },
+                navigation_callbacks={
+                    "dispatch_line_navigation": lambda command, args: configured_calls.append(
+                        ("navigation", command, tuple(args))
+                    ) or False,
+                },
+                workflow_callbacks={
+                    "dispatch_line_workflow": lambda command, args: configured_calls.append(
+                        ("workflow", command, tuple(args))
+                    ) or False,
+                },
+                legacy_callbacks={
+                    "dispatch_line_legacy": lambda choice: configured_calls.append(("legacy", choice)) or {
+                        "handled": False,
+                    },
+                },
                 workbench_snapshot_func=lambda cfg: {},
                 print_workbench_func=lambda cfg, include_api_summary=False: None,
                 print_banner_func=lambda snapshot, version: None,
@@ -2254,17 +2290,11 @@ def run_line_repl_runtime_check():
                 input_func=lambda prompt: None,
                 history_command_func=lambda history, selector: "",
                 record_history_func=lambda history, command, readline_module=None: None,
-                clear_results_func=lambda: None,
                 readline_module=None,
                 command_help_printer=lambda topic: None,
                 context_help_printer=lambda module, target_selected=False, command_help_printer=None: None,
-                utility_dispatch_func=lambda command, args: False,
-                core_dispatch_func=lambda command, args: False,
-                navigation_dispatch_func=lambda command, args: False,
-                workflow_dispatch_func=lambda command, args: False,
                 unknown_message_func=lambda command, module, target_selected=False: "",
-                mark_stopped_func=lambda: None,
-                legacy_dispatch_func=lambda choice: {"handled": False}) != 0:
+                mark_stopped_func=lambda: None) != 0:
             print("configured line REPL loop did not return wrapped loop result", file=sys.stderr)
             return 1
     finally:
@@ -2273,6 +2303,14 @@ def run_line_repl_runtime_check():
         ("runner", "targets"),
         ("module", "targets"),
         ("target", True),
+        ("history", ["status"]),
+        ("pending", ["targets"]),
+        "clear-results",
+        ("utility", "status", ()),
+        ("core", "status", ()),
+        ("navigation", "targets", ()),
+        ("workflow", "files", ()),
+        ("legacy", "v"),
         ("clear", "targets", True),
     ]:
         print(f"configured line REPL loop wiring changed: {configured_calls}", file=sys.stderr)

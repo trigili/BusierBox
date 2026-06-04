@@ -6171,8 +6171,6 @@ def run_line_repl(cfg):
         append_event_fn=append_event,
         quote=shquote,
     )
-    clear_line_search_results_callback = line_search_callbacks["clear_line_search_results"]
-
     line_display_show_callbacks = build_line_display_show_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
@@ -6218,9 +6216,6 @@ def run_line_repl(cfg):
         service_copy_command_func=copy_line_service_command,
         generated_copy_func=copy_line_generated_command,
     )
-    dispatch_line_utility = line_utility_callbacks["dispatch_line_utility"]
-    line_history = line_utility_callbacks["line_history"]
-    pending_console_lines = line_utility_callbacks["pending_console_lines"]
     line_core_callbacks = build_line_core_callbacks(
         cfg,
         clear_module_func=clear_line_module_context,
@@ -6258,7 +6253,6 @@ def run_line_repl(cfg):
         survey_preset_func=configure_line_survey_preset,
         append_event_fn=append_event,
     )
-    dispatch_line_core = line_core_callbacks["dispatch_line_core"]
     line_navigation_callbacks = build_line_navigation_callbacks(
         cfg,
         target_filter_func=configured_target_filter,
@@ -6277,7 +6271,6 @@ def run_line_repl(cfg):
         action_callbacks=line_action_callbacks,
         queue_callbacks=line_queue_callbacks,
     )
-    dispatch_line_navigation = line_navigation_callbacks["dispatch_line_navigation"]
     line_workflow_callbacks = build_line_workflow_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
@@ -6292,7 +6285,6 @@ def run_line_repl(cfg):
         job_callbacks=line_job_callbacks,
         append_event_fn=append_event,
     )
-    dispatch_line_workflow = line_workflow_callbacks["dispatch_line_workflow"]
     line_legacy_callbacks = build_line_legacy_callbacks(
         cfg,
         input_func=line_input,
@@ -6319,7 +6311,6 @@ def run_line_repl(cfg):
         file_callbacks=line_file_callbacks,
         queue_callbacks=line_queue_callbacks,
     )
-    dispatch_line_legacy = line_legacy_callbacks["dispatch_line_legacy"]
 
     mark_line_workbench_quit_stopped = build_line_workbench_quit_stopped_callback(
         cfg,
@@ -6332,8 +6323,12 @@ def run_line_repl(cfg):
             clear_console_context_func=clear_line_console_context,
             shutdown_event=SHUTDOWN,
             shutdown_reason_func=current_shutdown_reason,
-            line_history=line_history,
-            pending_console_lines=pending_console_lines,
+            utility_callbacks=line_utility_callbacks,
+            search_callbacks=line_search_callbacks,
+            core_callbacks=line_core_callbacks,
+            navigation_callbacks=line_navigation_callbacks,
+            workflow_callbacks=line_workflow_callbacks,
+            legacy_callbacks=line_legacy_callbacks,
             workbench_snapshot_func=workbench_snapshot,
             print_workbench_func=print_workbench,
             print_banner_func=print_line_console_banner,
@@ -6342,17 +6337,11 @@ def run_line_repl(cfg):
             input_func=line_input,
             history_command_func=line_history_command,
             record_history_func=record_line_history,
-            clear_results_func=clear_line_search_results_callback,
             readline_module=_readline if HAVE_READLINE else None,
             command_help_printer=print_line_command_help,
             context_help_printer=print_context_line_help,
-            utility_dispatch_func=dispatch_line_utility,
-            core_dispatch_func=dispatch_line_core,
-            navigation_dispatch_func=dispatch_line_navigation,
-            workflow_dispatch_func=dispatch_line_workflow,
             unknown_message_func=line_unknown_command_message,
             mark_stopped_func=mark_line_workbench_quit_stopped,
-            legacy_dispatch_func=dispatch_line_legacy,
         )
     finally:
         restore_signal_handlers(repl_io["signal_handlers"])
