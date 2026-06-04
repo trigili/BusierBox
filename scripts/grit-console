@@ -7867,9 +7867,8 @@ def run_line_repl(cfg):
                 else:
                     back_line_module()
                 continue
-            elif cmd in {"start", "stop"}:
+            elif (service_cmd := parse_line_service_control_command(cmd, console_args[1:])):
                 try:
-                    service_cmd = parse_line_service_control_command(cmd, console_args[1:])
                     if service_cmd["action"] == "start":
                         start_line_service(service_cmd["selector"])
                     else:
@@ -7877,9 +7876,8 @@ def run_line_repl(cfg):
                 except ValueError as exc:
                     print(exc)
                 continue
-            elif cmd in {"run", "execute", "exploit", "check", "kill", "cancel"}:
+            elif (action_cmd := parse_line_action_command(cmd, console_args[1:])):
                 try:
-                    action_cmd = parse_line_action_command(cmd, console_args[1:])
                     if action_cmd.get("alias"):
                         record_line_alias(action_cmd["alias"], action_cmd["canonical"])
                     if action_cmd["action"] == "start-job":
