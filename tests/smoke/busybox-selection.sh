@@ -11,6 +11,18 @@ base="buildroot/buildroot-$BUILDROOT_VERSION/package/busybox/busybox.config"
     exit 0
 }
 
+if GRIT_BUSYBOX_GROUPS="1003" TARGET=bad-group OUT_DIR="$tmp" scripts/lib/gen-buildroot-busybox-config >"$tmp/bad-group.out" 2>"$tmp/bad-group.err"; then
+    printf '%s\n' "busybox-selection: invalid BusyBox group was accepted" >&2
+    exit 1
+fi
+grep -q 'invalid BusyBox group: 1003' "$tmp/bad-group.err"
+
+if GRIT_BUSYBOX_GROUPS="shell" GRIT_BUSYBOX_APPLET_OVERRIDES="+definitely-not-an-applet" TARGET=bad-applet OUT_DIR="$tmp" scripts/lib/gen-buildroot-busybox-config >"$tmp/bad-applet.out" 2>"$tmp/bad-applet.err"; then
+    printf '%s\n' "busybox-selection: invalid BusyBox applet override was accepted" >&2
+    exit 1
+fi
+grep -q 'invalid BusyBox applet override: +definitely-not-an-applet' "$tmp/bad-applet.err"
+
 cfg=$(GRIT_BUSYBOX_GROUPS="shell" GRIT_BUSYBOX_APPLET_OVERRIDES="+nc" TARGET=selection-nc OUT_DIR="$tmp" scripts/lib/gen-buildroot-busybox-config)
 grep -q '^CONFIG_NC=y$' "$cfg"
 grep -q '^# CONFIG_WGET is not set$' "$cfg"

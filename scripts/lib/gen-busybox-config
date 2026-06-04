@@ -18,6 +18,42 @@ applet_map() {
     scripts/lib/busybox-applet-map
 }
 
+validate_selection() {
+    known_groups=$(applet_map | awk '{ print $1 }' | sort -u | tr '\n' ' ')
+    known_applets=$(applet_map | awk '{ print $2 }' | sort -u | tr '\n' ' ')
+    for group in $GROUPS; do
+        case " $known_groups " in
+            *" $group "*) ;;
+            *)
+                printf '%s\n' "gen-busybox-config: invalid BusyBox group: $group" >&2
+                printf '%s\n' "gen-busybox-config: known groups: $known_groups" >&2
+                exit 2
+                ;;
+        esac
+    done
+    for applet in $APPLETS; do
+        case " $known_applets " in
+            *" $applet "*) ;;
+            *)
+                printf '%s\n' "gen-busybox-config: invalid BusyBox applet: $applet" >&2
+                exit 2
+                ;;
+        esac
+    done
+    for override in $OVERRIDES; do
+        applet=${override#+}
+        applet=${applet#-}
+        [ -n "$applet" ] || continue
+        case " $known_applets " in
+            *" $applet "*) ;;
+            *)
+                printf '%s\n' "gen-busybox-config: invalid BusyBox applet override: $override" >&2
+                exit 2
+                ;;
+        esac
+    done
+}
+
 selected_configs() {
     applet_map | awk -v groups="$GROUPS" -v applets="$APPLETS" -v overrides="$OVERRIDES" '
         BEGIN {
@@ -43,6 +79,7 @@ all_mapped_configs() {
 # Start from allnoconfig to ensure we only get what we asked for.
 # Then layer our selections on top and let olddefconfig fill in dependencies.
 printf '%s\n' "gen-busybox-config: generating config for groups: $GROUPS"
+validate_selection
 
 (cd "$BUSYBOX_DIR" && yes "" | make allnoconfig >/dev/null 2>&1) || true
 

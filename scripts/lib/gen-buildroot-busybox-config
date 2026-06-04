@@ -25,6 +25,43 @@ if [ ! -f "$base" ]; then
     exit 1
 fi
 
+validate_selection() {
+    known_groups=$(scripts/lib/busybox-applet-map | awk '{ print $1 }' | sort -u | tr '\n' ' ')
+    known_applets=$(scripts/lib/busybox-applet-map | awk '{ print $2 }' | sort -u | tr '\n' ' ')
+    for group in $GROUPS; do
+        case " $known_groups " in
+            *" $group "*) ;;
+            *)
+                printf '%s\n' "gen-buildroot-busybox-config: invalid BusyBox group: $group" >&2
+                printf '%s\n' "gen-buildroot-busybox-config: known groups: $known_groups" >&2
+                exit 2
+                ;;
+        esac
+    done
+    for applet in $APPLETS; do
+        case " $known_applets " in
+            *" $applet "*) ;;
+            *)
+                printf '%s\n' "gen-buildroot-busybox-config: invalid BusyBox applet: $applet" >&2
+                exit 2
+                ;;
+        esac
+    done
+    for override in $OVERRIDES; do
+        applet=${override#+}
+        applet=${applet#-}
+        [ -n "$applet" ] || continue
+        case " $known_applets " in
+            *" $applet "*) ;;
+            *)
+                printf '%s\n' "gen-buildroot-busybox-config: invalid BusyBox applet override: $override" >&2
+                exit 2
+                ;;
+        esac
+    done
+}
+
+validate_selection
 cp "$base" "$outfile"
 
 enable_sym() {
