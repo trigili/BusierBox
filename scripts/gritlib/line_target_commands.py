@@ -70,6 +70,13 @@ def parse_line_copy_command(args):
     return {"action": "generated", "selector": " ".join(args).strip()}
 
 
+def parse_line_generated_commands_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    if cmd not in {"commands", "target-commands"}:
+        return {}
+    return {"action": "commands", "args": list(args or [])}
+
+
 def copy_line_service_command(cfg, subcmd, copy_func, start_command=None, stop_command=None):
     subcmd = str(subcmd or "").strip().lower()
     if subcmd not in {"start", "stop"}:

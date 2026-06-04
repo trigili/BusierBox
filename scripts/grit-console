@@ -230,7 +230,8 @@ from gritlib.line_targets import (
     select_line_target as line_targets_select_line_target,
 )
 from gritlib.line_target_commands import (
-    copy_line_generated_command, copy_line_service_command, parse_line_copy_command,
+    copy_line_generated_command, copy_line_service_command,
+    parse_line_copy_command, parse_line_generated_commands_command,
     run_line_generated_command,
 )
 from gritlib.line_workspace import (
@@ -7755,7 +7756,8 @@ def run_line_repl(cfg):
                 continue
             elif cmd in {"commands", "target-commands"}:
                 try:
-                    run_line_generated_command(cfg, console_args[1:])
+                    commands_cmd = parse_line_generated_commands_command(cmd, console_args[1:])
+                    run_line_generated_command(cfg, commands_cmd["args"])
                 except ValueError as exc:
                     print(exc)
                 continue
