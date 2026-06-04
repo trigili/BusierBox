@@ -43,6 +43,50 @@ def select_workbench_action(records, selector):
     raise ValueError(f"unknown workbench action: {text}")
 
 
+def dispatch_legacy_target_workflow_number(
+    choice,
+    cfg,
+    *,
+    input_func=None,
+    snapshot_func=None,
+    run_target_func=None,
+    scoped_target_cfg_func=None,
+    print_target_summary_func=None,
+):
+    if str(choice or "").strip() != "15":
+        return False
+    snap = snapshot_func(cfg) if snapshot_func else {}
+    actions = snap.get("target_workflow_actions") or []
+    for idx, rec in enumerate(actions, 1):
+        print(f"{idx}: {rec.get('id', '')} {rec.get('label', '')}")
+        print(
+            f"   target={rec.get('target_id', '')} "
+            f"workflow={rec.get('workflow', '')} "
+            f"input={'yes' if rec.get('requires_input') else 'no'}"
+        )
+    selected_line = input_func("target workflow action id or number> ") if input_func else None
+    selected = selected_line.strip() if selected_line is not None else ""
+    if selected:
+        try:
+            rec = select_workflow_action(actions, selected, "target")
+            rc = run_target_func(
+                cfg,
+                rec.get("id", selected),
+                input_func=input_func,
+                show_commands=False,
+            ) if run_target_func else 1
+            print(f"target_workflow_action_returncode={rc}")
+            target_id = str(rec.get("target_id") or "")
+            if target_id and scoped_target_cfg_func and print_target_summary_func and snapshot_func:
+                target_label = str(rec.get("target_label") or "")
+                scoped = scoped_target_cfg_func(cfg, target_id, target_label=target_label)
+                print("Target activity after action:")
+                print_target_summary_func(snapshot_func(scoped), limit=2)
+        except (ValueError, IndexError) as exc:
+            print(exc)
+    return True
+
+
 LINE_DAEMON_ACTION_LABELS = {
     "operator-daemon-start": ("Start operator daemon", "start"),
     "operator-daemon-status": ("Check operator daemon", "status"),
