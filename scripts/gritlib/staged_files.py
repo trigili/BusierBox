@@ -199,6 +199,27 @@ def enriched_staged_records(cfg, staged=None):
     return out
 
 
+def staged_status_context(cfg, target_filter_id=None):
+    staged_raw = load_staged(cfg).get("staged", {})
+    unfiltered_staged_raw = staged_raw if isinstance(staged_raw, dict) else {}
+    unfiltered_staged_count = len(unfiltered_staged_raw)
+    if target_filter_id and isinstance(staged_raw, dict):
+        staged_raw = {
+            name: rec for name, rec in unfiltered_staged_raw.items()
+            if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
+        }
+    staged = enriched_staged_records(cfg, staged_raw)
+    staged_records = staged_record_list(staged)
+    return {
+        "raw": staged_raw,
+        "unfiltered_raw": unfiltered_staged_raw,
+        "staged": staged,
+        "records": staged_records,
+        "indexes": staged_record_indexes(staged_records),
+        "unfiltered_count": unfiltered_staged_count,
+    }
+
+
 def reject_traversal_request_name(name):
     text = urllib.parse.unquote(str(name or "")).strip()
     if not text:

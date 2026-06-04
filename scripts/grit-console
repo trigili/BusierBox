@@ -294,12 +294,12 @@ from gritlib.service_lifecycle import (
 from gritlib.shell_utils import shquote
 from gritlib.ssh_keys import ensure_host_key, keys_equal, load_public_key
 from gritlib.staged_files import (
-    enriched_staged_records, file_sha256, load_staged,
+    file_sha256, load_staged,
     prepare_staged_artifact_for_configure, reject_traversal_request_name,
     print_staged, stage_dir, stage_file, staged_record_for_configure,
     staged_file_workflow_action_indexes, staged_file_workflow_action_records,
     staged_file_path,
-    staged_files_state_status, staged_record_indexes, staged_record_list,
+    staged_files_state_status, staged_status_context,
     staged_status_summary, unstage_file,
 )
 from gritlib.systemd_user import (
@@ -2494,16 +2494,12 @@ def workbench_snapshot(cfg):
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = configured_target_filter(cfg)
-    staged_raw = load_staged(cfg).get("staged", {})
-    unfiltered_staged_raw = staged_raw if isinstance(staged_raw, dict) else {}
-    unfiltered_staged_count = len(unfiltered_staged_raw)
-    if target_filter_id and isinstance(staged_raw, dict):
-        staged_raw = {
-            name: rec for name, rec in unfiltered_staged_raw.items()
-            if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_filter_id
-        }
-    staged = enriched_staged_records(cfg, staged_raw)
-    staged_records = staged_record_list(staged)
+    staged_context = staged_status_context(cfg, target_filter_id=target_filter_id)
+    staged_raw = staged_context["raw"]
+    unfiltered_staged_raw = staged_context["unfiltered_raw"]
+    staged = staged_context["staged"]
+    staged_records = staged_context["records"]
+    unfiltered_staged_count = staged_context["unfiltered_count"]
     (staged_by_request,
      staged_by_kind,
      staged_by_sha256,
@@ -2512,7 +2508,7 @@ def status_document(cfg):
      staged_by_fetch_command,
      staged_by_fetch_command_force,
      staged_by_source_exists,
-     staged_by_kind_source_exists) = staged_record_indexes(staged_records)
+     staged_by_kind_source_exists) = staged_context["indexes"]
     ips = local_ips()
     operator_network = operator_network_status(ips)
     selected_local_ip = operator_network["selected_local_ip"]

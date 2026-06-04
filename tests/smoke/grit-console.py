@@ -986,6 +986,73 @@ def run_build_config_dispatch_check():
     return 0
 
 
+def run_staged_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.staged_files import staged_status_context
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        staged_path = root / "staged-files.json"
+        source_a = root / "payload-a.bin"
+        source_a.write_text("payload", encoding="utf-8")
+        source_b = root / "payload-b.bin"
+        staged_path.write_text(json.dumps({
+            "schema": 1,
+            "staged": {
+                "payload-a": {
+                    "request_name": "payload-a",
+                    "source_path": str(source_a),
+                    "sha256": "aaa",
+                    "target_id": "target-a",
+                    "stage_kind": "operator-upload",
+                },
+                "payload-b": {
+                    "request_name": "payload-b",
+                    "source_path": str(source_b),
+                    "sha256": "bbb",
+                    "target_id": "target-b",
+                    "stage_kind": "release-artifact",
+                },
+            },
+        }), encoding="utf-8")
+        cfg = {
+            "staged_files": str(staged_path),
+            "operator_session_dir": str(root),
+            "GRIT_OPERATOR_HOST": "127.0.0.1",
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": 22444,
+        }
+        context = staged_status_context(cfg, target_filter_id="target-a")
+        records = context.get("records") or []
+        indexes = context.get("indexes") or ()
+        if context.get("unfiltered_count") != 2 or len(records) != 1:
+            print("staged status context did not preserve unfiltered count/filtering", file=sys.stderr)
+            print(context, file=sys.stderr)
+            return 1
+        if sorted((context.get("unfiltered_raw") or {}).keys()) != ["payload-a", "payload-b"]:
+            print("staged status context did not preserve unfiltered raw staged records", file=sys.stderr)
+            return 1
+        if sorted((context.get("raw") or {}).keys()) != ["payload-a"]:
+            print("staged status context did not preserve filtered raw staged records", file=sys.stderr)
+            return 1
+        rec = records[0]
+        if (rec.get("request_name") != "payload-a" or
+                rec.get("source_exists") is not True or
+                "payload-a" not in str(rec.get("fetch_command") or "")):
+            print("staged status context did not enrich filtered record", file=sys.stderr)
+            print(rec, file=sys.stderr)
+            return 1
+        if len(indexes) != 9:
+            print("staged status context returned unexpected index tuple", file=sys.stderr)
+            return 1
+        by_request, _by_kind, _by_sha256, by_target_id, *_rest = indexes
+        if by_request.get("payload-a") != rec or by_target_id.get("target-a") != [rec]:
+            print("staged status context did not preserve staged indexes", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4206,6 +4273,8 @@ def main(argv=None):
     if run_console_runtime_check() != 0:
         return 1
     if run_build_config_dispatch_check() != 0:
+        return 1
+    if run_staged_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1
