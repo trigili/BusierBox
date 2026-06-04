@@ -2908,6 +2908,7 @@ def run_line_repl_runtime_check():
     def fake_completion_builder(cfg, **kwargs):
         completion_calls.append(("builder", cfg.get("name"), sorted(kwargs)))
         kwargs["line_action_records_func"]()
+        kwargs["bridge_profile_records_func"](cfg)
         kwargs["service_completion_names_func"](kwargs["service_status_rows_func"](cfg))
         kwargs["service_names_func"](kwargs["service_status_rows_func"](cfg))
         kwargs["find_survey_uploads_func"](limit=7)
@@ -2926,12 +2927,12 @@ def run_line_repl_runtime_check():
             current_action_records_func=lambda snapshot_func: completion_calls.append(
                 ("actions", snapshot_func())
             ) or [],
-            bridge_profile_records_func=lambda cfg: [],
             release_context_func=lambda cfg: {},
             command_queue_summary_func=lambda cfg: {},
             generated_target_command_records_func=lambda cfg: [],
             workbench_config_field_records_func=lambda cfg: [],
             route_service_callbacks={
+                "bridge_profile_records": lambda: completion_calls.append("bridge-records") or [],
                 "service_rows": lambda: completion_calls.append("service-rows") or [],
                 "service_completion_names": lambda: completion_calls.append("service-completion-names") or [],
                 "service_names": lambda: completion_calls.append("service-names") or [],
@@ -2960,12 +2961,12 @@ def run_line_repl_runtime_check():
             have_readline=False,
             workbench_snapshot_func=lambda cfg: {},
             current_action_records_func=lambda snapshot_func: [],
-            bridge_profile_records_func=lambda cfg: [],
             release_context_func=lambda cfg: {},
             command_queue_summary_func=lambda cfg: {},
             generated_target_command_records_func=lambda cfg: [],
             workbench_config_field_records_func=lambda cfg: [],
             route_service_callbacks={
+                "bridge_profile_records": lambda: completion_calls.append("setup-bridge-records") or [],
                 "service_rows": lambda: completion_calls.append("setup-service-rows") or [],
                 "service_completion_names": lambda: completion_calls.append("setup-service-completion-names") or [],
                 "service_names": lambda: completion_calls.append("setup-service-names") or [],
@@ -3007,6 +3008,7 @@ def run_line_repl_runtime_check():
     expected_completion_markers = [
         ("snapshot", "completion-cfg"),
         ("actions", {"snap": True}),
+        "bridge-records",
         "service-rows",
         "service-completion-names",
         "service-names",

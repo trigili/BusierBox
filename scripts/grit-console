@@ -6076,7 +6076,6 @@ def run_line_repl(cfg):
         have_readline=HAVE_READLINE,
         workbench_snapshot_func=workbench_snapshot,
         current_action_records_func=current_line_action_records,
-        bridge_profile_records_func=bridge_profile_records,
         release_context_func=release_context,
         command_queue_summary_func=command_queue_summary,
         generated_target_command_records_func=generated_target_command_records,

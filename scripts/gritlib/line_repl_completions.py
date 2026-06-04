@@ -9,7 +9,7 @@ def build_line_completion_adapter(
     *,
     workbench_snapshot_func,
     current_action_records_func,
-    bridge_profile_records_func,
+    bridge_profile_records_func=None,
     release_context_func,
     command_queue_summary_func,
     generated_target_command_records_func,
@@ -50,7 +50,7 @@ def build_line_completion_bundle(
     *,
     workbench_snapshot_func,
     current_action_records_func,
-    bridge_profile_records_func,
+    bridge_profile_records_func=None,
     release_context_func,
     command_queue_summary_func,
     generated_target_command_records_func,
@@ -64,6 +64,8 @@ def build_line_completion_bundle(
     append_event_fn,
 ):
     if route_service_callbacks is not None:
+        if bridge_profile_records_func is None:
+            bridge_profile_records_func = lambda _cfg: route_service_callbacks["bridge_profile_records"]()
         if service_status_rows_func is None:
             service_status_rows_func = lambda _cfg: route_service_callbacks["service_rows"]()
         if service_completion_names_func is None:
@@ -117,7 +119,7 @@ def setup_line_completion_bundle(
     have_readline,
     workbench_snapshot_func,
     current_action_records_func,
-    bridge_profile_records_func,
+    bridge_profile_records_func=None,
     release_context_func,
     command_queue_summary_func,
     generated_target_command_records_func,
