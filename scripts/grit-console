@@ -149,6 +149,7 @@ from gritlib.line_context import (
 from gritlib.line_events import print_line_events_view
 from gritlib.line_state import line_action_state_text
 from gritlib.line_files import (
+    clear_line_files as line_files_clear_line_files,
     download_line_target as line_files_download_line_target,
     line_file_records_from_staged,
     parse_line_binary_command,
@@ -8097,28 +8098,12 @@ def run_line_repl(cfg):
                     except ValueError as exc:
                         print(exc)
                 elif files_cmd["action"] == "clear":
-                    staged = load_staged(cfg).get("staged", {})
-                    target_filter_id = configured_target_filter(cfg)
-                    if target_filter_id:
-                        staged = {n: r for n, r in staged.items()
-                                  if str(r.get("target_id") or "") == target_filter_id}
-                    if not staged:
-                        print("No staged files to clear.")
-                    else:
-                        for name in sorted(staged):
-                            print(f"  {name}")
-                        if not files_cmd["confirm"]:
-                            print(f"\n  {len(staged)} file(s) would be unstaged.  Run: files clear --confirm")
-                        else:
-                            removed = 0
-                            for name in list(staged):
-                                if unstage_file(cfg, name):
-                                    removed += 1
-                            print(f"\n  Cleared {removed} staged file(s).")
-                            append_event(cfg, "workbench", "workbench_files_cleared", details={
-                                "removed": removed,
-                                "target_filter": target_filter_id or "all",
-                            })
+                    line_files_clear_line_files(
+                        cfg,
+                        confirm=files_cmd["confirm"],
+                        target_filter_id=configured_target_filter(cfg),
+                        append_event_fn=append_event,
+                    )
                     set_line_collection("files")
                 else:
                     set_line_collection("files")

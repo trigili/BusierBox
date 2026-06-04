@@ -74,6 +74,35 @@ def parse_line_file_transfer_command(cmd, args):
     return {}
 
 
+def clear_line_files(cfg, confirm=False, target_filter_id="", append_event_fn=None):
+    staged = load_staged(cfg).get("staged", {})
+    target_filter_id = str(target_filter_id or "")
+    if target_filter_id:
+        staged = {
+            name: rec for name, rec in staged.items()
+            if str(rec.get("target_id") or "") == target_filter_id
+        }
+    if not staged:
+        print("No staged files to clear.")
+        return 0
+    for name in sorted(staged):
+        print(f"  {name}")
+    if not confirm:
+        print(f"\n  {len(staged)} file(s) would be unstaged.  Run: files clear --confirm")
+        return 0
+    removed = 0
+    for name in list(staged):
+        if unstage_file(cfg, name):
+            removed += 1
+    print(f"\n  Cleared {removed} staged file(s).")
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_files_cleared", details={
+            "removed": removed,
+            "target_filter": target_filter_id or "all",
+        })
+    return removed
+
+
 def parse_line_download_args(args):
     queue = False
     start_file_service = False
