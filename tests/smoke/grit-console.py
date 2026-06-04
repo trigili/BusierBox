@@ -417,6 +417,7 @@ def run_line_repl_runtime_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     import gritlib.line_repl_core as repl_core
+    import gritlib.line_repl_navigation as repl_navigation
     import gritlib.line_repl_utility as repl_utility
     from gritlib.line_repl_runtime import (
         dispatch_line_help_command,
@@ -1080,6 +1081,146 @@ def run_line_repl_runtime_check():
     ]
     if core_calls != expected_core_calls or "Workspace:" not in core_out.getvalue():
         print(f"line REPL core adapter wiring changed: {core_calls} output={core_out.getvalue()!r}", file=sys.stderr)
+        return 1
+
+    navigation_calls = []
+    original_navigation_dispatch = repl_navigation.dispatch_line_navigation_command
+
+    def fake_navigation_dispatch(command, args, **kwargs):
+        navigation_calls.append((
+            "dispatch",
+            command,
+            tuple(args),
+            kwargs["target_selected"],
+            kwargs["module"],
+        ))
+        kwargs["record_alias_func"]("t1", "target-1")
+        kwargs["clear_results_func"]()
+        kwargs["set_listeners_context_func"]()
+        kwargs["print_listeners_func"](verbose=True)
+        kwargs["select_listener_func"]("l1")
+        kwargs["set_targets_context_func"]()
+        kwargs["print_targets_func"]()
+        kwargs["select_target_func"]("t1")
+        kwargs["set_sessions_context_func"]()
+        kwargs["print_sessions_func"](verbose=True)
+        kwargs["clear_sessions_func"]()
+        kwargs["session_help_func"]("sessions")
+        kwargs["select_session_func"]("s1")
+        kwargs["interact_session_func"]("s1")
+        kwargs["set_routes_context_func"]()
+        kwargs["print_routes_func"](verbose=True)
+        kwargs["add_route_func"](["--port", "80"])
+        kwargs["start_route_func"]("r1")
+        kwargs["stop_route_func"]("r1")
+        kwargs["delete_route_func"]("r1")
+        kwargs["route_help_func"]("routes")
+        kwargs["select_route_func"]("r1")
+        kwargs["number_func"]("1")
+        kwargs["select_job_func"]("j1")
+        kwargs["select_action_func"]("a1")
+        kwargs["clear_target_func"]()
+        kwargs["root_func"](quiet=True)
+        kwargs["back_func"]()
+        kwargs["start_service_func"]("svc")
+        kwargs["stop_service_func"]("svc")
+        kwargs["start_job_func"]("job")
+        kwargs["cancel_job_func"]("job")
+        kwargs["run_action_func"]("action")
+        kwargs["interact_target_func"]("target")
+        return True
+
+    repl_navigation.dispatch_line_navigation_command = fake_navigation_dispatch
+    try:
+        nav_cfg = {"name": "nav-cfg", "_line_console_module": "targets", "target": "selected"}
+        dispatch_navigation = repl_navigation.build_line_navigation_dispatch_callback(
+            nav_cfg,
+            target_filter_func=lambda cfg: cfg.get("target"),
+            module_func=lambda cfg: cfg.get("_line_console_module"),
+            append_event_fn=lambda cfg, service, event, details=None: navigation_calls.append(
+                ("event", cfg.get("name"), service, event, details)
+            ),
+            clear_results_func=lambda cfg: navigation_calls.append(("clear-results", cfg.get("name"))),
+            set_context_func=lambda cfg, module: navigation_calls.append(("context", cfg.get("name"), module)),
+            print_listeners_func=lambda verbose=False: navigation_calls.append(("listeners", verbose)),
+            select_listener_func=lambda selector: navigation_calls.append(("select-listener", selector)),
+            print_targets_func=lambda: navigation_calls.append("targets"),
+            select_target_func=lambda selector, targets=None: navigation_calls.append(
+                ("select-target", selector, targets)
+            ),
+            print_sessions_func=lambda verbose=False: navigation_calls.append(("sessions", verbose)),
+            clear_sessions_func=lambda: navigation_calls.append("clear-sessions"),
+            session_help_func=lambda topic: navigation_calls.append(("session-help", topic)),
+            select_session_func=lambda selector: navigation_calls.append(("select-session", selector)),
+            interact_session_func=lambda selector: navigation_calls.append(("interact-session", selector)),
+            print_routes_func=lambda verbose=False: navigation_calls.append(("routes", verbose)),
+            add_route_func=lambda args: navigation_calls.append(("add-route", tuple(args))),
+            start_route_func=lambda selector: navigation_calls.append(("start-route", selector)),
+            stop_route_func=lambda selector: navigation_calls.append(("stop-route", selector)),
+            delete_route_func=lambda selector: navigation_calls.append(("delete-route", selector)),
+            route_help_func=lambda topic: navigation_calls.append(("route-help", topic)),
+            select_route_func=lambda selector: navigation_calls.append(("select-route", selector)),
+            number_func=lambda selector: navigation_calls.append(("number", selector)),
+            select_job_func=lambda selector: navigation_calls.append(("select-job", selector)),
+            select_action_func=lambda selector: navigation_calls.append(("select-action", selector)),
+            clear_console_context_func=lambda cfg, quiet=False: navigation_calls.append(
+                ("root", cfg.get("name"), quiet)
+            ),
+            back_func=lambda cfg: navigation_calls.append(("back", cfg.get("name"))),
+            start_service_func=lambda selector: navigation_calls.append(("start-service", selector)),
+            stop_service_func=lambda selector: navigation_calls.append(("stop-service", selector)),
+            start_job_func=lambda selector: navigation_calls.append(("start-job", selector)),
+            cancel_job_func=lambda selector: navigation_calls.append(("cancel-job", selector)),
+            run_action_func=lambda selector: navigation_calls.append(("run-action", selector)),
+            interact_target_func=lambda selector: navigation_calls.append(("interact-target", selector)),
+        )
+        if dispatch_navigation("targets", ["list"]) is not True:
+            print("line REPL navigation adapter did not return navigation dispatch result", file=sys.stderr)
+            return 1
+    finally:
+        repl_navigation.dispatch_line_navigation_command = original_navigation_dispatch
+    expected_navigation_calls = [
+        ("dispatch", "targets", ("list",), True, "targets"),
+        ("event", "nav-cfg", "workbench", "workbench_console_alias_used", {
+            "alias": "t1",
+            "canonical": "target-1",
+        }),
+        ("clear-results", "nav-cfg"),
+        ("context", "nav-cfg", "listeners"),
+        ("listeners", True),
+        ("select-listener", "l1"),
+        ("context", "nav-cfg", "targets"),
+        "targets",
+        ("select-target", "t1", None),
+        ("context", "nav-cfg", "sessions"),
+        ("sessions", True),
+        "clear-sessions",
+        ("session-help", "sessions"),
+        ("select-session", "s1"),
+        ("interact-session", "s1"),
+        ("context", "nav-cfg", "routes"),
+        ("routes", True),
+        ("add-route", ("--port", "80")),
+        ("start-route", "r1"),
+        ("stop-route", "r1"),
+        ("delete-route", "r1"),
+        ("route-help", "routes"),
+        ("select-route", "r1"),
+        ("number", "1"),
+        ("select-job", "j1"),
+        ("select-action", "a1"),
+        ("select-target", "all", []),
+        ("root", "nav-cfg", True),
+        ("back", "nav-cfg"),
+        ("start-service", "svc"),
+        ("stop-service", "svc"),
+        ("start-job", "job"),
+        ("cancel-job", "job"),
+        ("run-action", "action"),
+        ("interact-target", "target"),
+    ]
+    if navigation_calls != expected_navigation_calls:
+        print(f"line REPL navigation adapter wiring changed: {navigation_calls}", file=sys.stderr)
         return 1
     return 0
 
