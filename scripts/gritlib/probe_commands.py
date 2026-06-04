@@ -278,6 +278,63 @@ def dispatch_line_probe_command(
     raise ValueError("unsupported probe command")
 
 
+def dispatch_legacy_probe_number(
+    choice,
+    cfg,
+    *,
+    input_func,
+    snapshot_func,
+    append_event_fn,
+    start_service_func,
+):
+    if choice != "19":
+        return False
+
+    from gritlib.config_utils import DEFAULT_CONFIG
+
+    snap = snapshot_func(cfg)
+    actions_by_id = snap.get("probe_workflow_actions_by_id") or {}
+    show_action = actions_by_id.get("probe:show-probe-command") or {}
+    start_action = actions_by_id.get("probe:start-probe") or {}
+    rec = show_action or (snap.get("probe_workflow_actions") or [{}])[0]
+    argv_extra = []
+    if cfg.get("bridge_profile"):
+        argv_extra.extend(["--bridge-profile", str(cfg.get("bridge_profile"))])
+    headless = start_action.get("headless_command") or start_action.get("command") or (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --transport probe"
+    )
+    print("Probe:")
+    if rec:
+        print(f"  target_command: {rec.get('target_command', '')}")
+        print(f"  route={rec.get('route_kind', '')} bridge_profile={rec.get('bridge_profile', '') or '-'}")
+        if rec.get("bridge_route_path"):
+            print(f"  path={rec.get('bridge_route_path', '')}")
+        print(f"  probe_workflow_actions: {len(snap.get('probe_workflow_actions') or [])}")
+        print(f"  fleet_pending_work={rec.get('fleet_mailbox_pending_work_count', 0)} offline_targets={rec.get('fleet_offline_target_count', 0)} poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}")
+        print(f"  show_action_state={show_action.get('operator_action_state', '') or '-'} reason={show_action.get('operator_action_reason', '') or '-'}")
+        print(f"  start_action_state={start_action.get('operator_action_state', '') or '-'} reason={start_action.get('operator_action_reason', '') or '-'}")
+    else:
+        print("  target_command: unavailable")
+    start_line = input_func("start probe listener now? [y/N]> ")
+    if start_line is not None and start_line.strip().lower() in ("y", "yes"):
+        append_event_fn(cfg, "workbench", "workbench_probe_started", details={
+            "headless_command": headless,
+            "target_command": rec.get("target_command", "") if rec else "",
+            "route_kind": rec.get("route_kind", "") if rec else "",
+            "bridge_profile": rec.get("bridge_profile", "") if rec else "",
+            "probe_workflow_action_count": len(snap.get("probe_workflow_actions") or []),
+        })
+        start_service_func(
+            cfg,
+            "probe",
+            argv_extra=argv_extra,
+            headless_command=headless,
+        )
+    return True
+
+
 def parse_line_survey_args(args):
     return parse_line_probe_args(args)
 
