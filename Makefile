@@ -234,7 +234,7 @@ smoke-test:
 	@./dist/grit-native-full dd --help >/dev/null 2>&1
 	@./dist/grit-native-full nc --help >/dev/null 2>&1
 	@./dist/grit-native-full config-info >/dev/null
-	$(call run_if_python3,tmp=$$(mktemp -d); ./dist/grit-native-full survey --json > $$tmp/survey.json; python3 tests/smoke/validate-survey-json.py $$tmp/survey.json >/dev/null; scripts/lib/config-from-survey $$tmp/survey.json >/dev/null; rm -rf $$tmp,python3 survey config validation unavailable)
+	$(call run_if_python3,tests/smoke/survey-config-validation.sh dist/grit-native-full,python3 survey config validation unavailable)
 	@tests/smoke/out-of-cwd-extraction.sh dist/grit-native-full
 	@printf '%s\n' "smoke-test ok"
 
