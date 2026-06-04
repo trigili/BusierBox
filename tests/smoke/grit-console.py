@@ -627,6 +627,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         "files (2)" not in banner_hint_text or
         "sessions (1)" not in banner_hint_text or
         "routes (1)" not in banner_hint_text or
+        "listeners" not in banner_hint_text or
         "workspace" not in banner_hint_text
     ):
         print("line-oriented banner hint did not expose useful counts", file=sys.stderr)
