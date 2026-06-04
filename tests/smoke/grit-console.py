@@ -257,6 +257,7 @@ def run_line_local_ips_check():
         parse_line_config_args,
     )
     from gritlib.line_network import print_line_local_ips
+    from gritlib.line_workspace import line_repl_status_bar
     from gritlib.probe_commands import parse_line_probe_args
     from gritlib.probe_results import (
         append_probe_result,
@@ -295,6 +296,33 @@ def run_line_local_ips_check():
     if candidates != ["10.0.0.5", "192.168.8.2"]:
         print("operator local IP choice candidates were not sorted for interactive prompts", file=sys.stderr)
         print(candidates, file=sys.stderr)
+        return 1
+    status_text = line_repl_status_bar({
+        "summary": {
+            "listening_count": 1,
+            "target_count": 2,
+            "session_count": 3,
+            "staged_count": 4,
+            "bridge_profile_count": 5,
+            "event_count": 6,
+            "target_connectivity_state_counts": {"online": 1, "offline": 1},
+            "target_mailbox_pending_work_count": 7,
+        },
+        "warnings": [{"message": "example"}],
+        "target_filter": {
+            "active": True,
+            "target_id": "router-1",
+            "selected_target_label": "Lab Router",
+            "selected_target_connectivity_state": "online",
+        },
+    })
+    if ("Workspace:" not in status_text or
+            "Selected: Lab Router (router-1)  state online" not in status_text or
+            "Attention: 1 warnings  |  7 mailbox work" not in status_text or
+            "Events: 6" not in status_text or
+            "Status:" in status_text):
+        print("line status summary did not use concise workspace format", file=sys.stderr)
+        print(status_text, file=sys.stderr)
         return 1
     host_cfg = {}
     host_prompts = []

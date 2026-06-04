@@ -154,9 +154,6 @@ def line_repl_status_bar(snap):
     target_filter = snap.get("target_filter") or {}
     counts = summary.get("connectivity_state_counts") or summary.get("target_connectivity_state_counts") or {}
     state_text = format_counts(counts) if counts else "none"
-    selected = "-"
-    if target_filter.get("active"):
-        selected = str(target_filter.get("target_id") or target_filter.get("selected_target_id") or "-")
     pending_targets = (
         summary.get("mailbox_pending_target_count", "")
         if summary.get("mailbox_pending_target_count", "") != ""
@@ -172,26 +169,47 @@ def line_repl_status_bar(snap):
         if summary.get("poll_overdue_count", "") != ""
         else summary.get("target_poll_overdue_count", 0)
     )
-    parts = [
+    workspace_parts = [
         f"{summary.get('listening_count', 0)} listening",
         f"{summary.get('target_count', 0)} targets",
         f"states {state_text}",
+        f"{summary.get('session_count', 0)} sessions",
+        f"{summary.get('staged_count', 0)} staged",
+        f"{summary.get('bridge_profile_count', 0)} routes",
     ]
+    lines = ["Workspace: " + "  |  ".join(workspace_parts)]
+
+    if target_filter.get("active"):
+        label = (
+            target_filter.get("selected_target_label")
+            or target_filter.get("target_label")
+            or target_filter.get("target_id")
+            or target_filter.get("selected_target_id")
+            or "-"
+        )
+        state = target_filter.get("selected_target_connectivity_state") or "-"
+        selected_id = target_filter.get("target_id") or target_filter.get("selected_target_id") or ""
+        if selected_id and label != selected_id:
+            lines.append(f"Selected: {label} ({selected_id})  state {state}")
+        else:
+            lines.append(f"Selected: {label}  state {state}")
+
+    attention = []
     warnings = len(snap.get("warnings") or [])
     if warnings:
-        parts.append(f"{warnings} warnings")
+        attention.append(f"{warnings} warnings")
     if _count_value(pending_work):
-        parts.append(f"{pending_work} mailbox work")
+        attention.append(f"{pending_work} mailbox work")
     elif _count_value(pending_targets):
-        parts.append(f"{pending_targets} mailbox targets")
-    else:
-        parts.append("mailbox clear")
+        attention.append(f"{pending_targets} mailbox targets")
     if _count_value(poll_overdue):
-        parts.append(f"{poll_overdue} poll overdue")
-    if selected != "-":
-        parts.append(f"selected {selected}")
-    parts.append(f"{summary.get('event_count', 0)} events")
-    return "Status: " + "  |  ".join(parts) + "\n" + line_banner_hint(snap)
+        attention.append(f"{poll_overdue} poll overdue")
+    event_count = summary.get("event_count", 0)
+    if attention:
+        lines.append("Attention: " + "  |  ".join(attention))
+    lines.append(f"Events: {event_count}")
+    lines.append(line_banner_hint(snap))
+    return "\n".join(lines)
 
 
 def _count_value(value):
