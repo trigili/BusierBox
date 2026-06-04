@@ -502,6 +502,36 @@ def set_workbench_target_filter(cfg, selector, targets=None, default_config=DEFA
     }
 
 
+def select_workbench_target_record(selector, targets, *, current_target_id=""):
+    text = str(selector or "").strip()
+    if not text:
+        raise ValueError("target selector is required")
+    records = [rec for rec in targets or [] if isinstance(rec, dict)]
+    current = str(current_target_id or "").strip()
+    if text.lower() == "current":
+        if not current:
+            raise ValueError("no current target filter is selected")
+        for rec in records:
+            if str(rec.get("target_id") or "") == current:
+                return {"scope": "target", "target": rec}
+        raise ValueError(f"target not found: {current}")
+    if text.lower() in ("all", "*"):
+        return {"scope": "all", "target": {}}
+    if text.isdigit():
+        idx = int(text) - 1
+        if idx < 0 or idx >= len(records):
+            raise ValueError(f"target number out of range: {text}")
+        return {"scope": "target", "target": records[idx]}
+    lower = text.lower()
+    for rec in records:
+        target_id = str(rec.get("target_id") or "")
+        label = str(rec.get("label") or rec.get("target_label") or "")
+        aliases = [str(item) for item in rec.get("aliases") or []]
+        if text == target_id or lower == label.lower() or lower in [alias.lower() for alias in aliases]:
+            return {"scope": "target", "target": rec}
+    raise ValueError(f"target not found: {text}")
+
+
 def target_identity_from_headers(headers):
     headers = headers or {}
     target_id = str(headers.get("x-grit-target-id") or headers.get("x-grittykit-target-id") or headers.get("x-grit-target") or "").strip()

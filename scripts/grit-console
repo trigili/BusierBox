@@ -349,7 +349,7 @@ from gritlib.target_records import (
     configured_target_filter, details_with_target, event_for_target,
     load_targets, records_for_target, record_target_activity, scoped_target_cfg,
     selected_target_context, selected_target_record_for_update,
-    set_target_label, set_workbench_target_filter,
+    select_workbench_target_record, set_target_label, set_workbench_target_filter,
     target_attribution_record_indexes, target_attribution_record_summary,
     target_attribution_status, target_context_fields,
     target_filter_evidence_lines, target_filter_record_from_target,
@@ -7946,17 +7946,9 @@ def run_line_repl(cfg):
             if not selected:
                 continue
             try:
-                target = {}
-                if selected.lower() == "current":
-                    if not current:
-                        raise ValueError("no current target filter is selected")
-                    for rec in targets:
-                        if str(rec.get("target_id") or "") == current:
-                            target = rec
-                            break
-                    if not target:
-                        raise ValueError(f"target not found: {current}")
-                elif selected.lower() in ("all", "*"):
+                selection = select_workbench_target_record(selected, targets, current_target_id=current)
+                target = selection.get("target") or {}
+                if selection.get("scope") == "all":
                     headless = (
                         "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
@@ -7971,22 +7963,6 @@ def run_line_repl(cfg):
                         "target_activity_record_count": activity_count,
                     })
                     continue
-                elif selected.isdigit():
-                    idx = int(selected) - 1
-                    if idx < 0 or idx >= len(targets):
-                        raise ValueError(f"target number out of range: {selected}")
-                    target = targets[idx]
-                else:
-                    lower = selected.lower()
-                    for rec in targets:
-                        target_id = str(rec.get("target_id") or "")
-                        label = str(rec.get("label") or "")
-                        aliases = [str(item) for item in rec.get("aliases") or []]
-                        if selected == target_id or lower == label.lower() or lower in [alias.lower() for alias in aliases]:
-                            target = rec
-                            break
-                    if not target:
-                        raise ValueError(f"target not found: {selected}")
                 target_id = str(target.get("target_id") or "")
                 target_label = str(target.get("label") or target.get("target_label") or "")
                 scoped = scoped_target_cfg(cfg, target_id, target_label=target_label)
@@ -8093,38 +8069,9 @@ def run_line_repl(cfg):
             if not selected:
                 continue
             try:
-                scope = "target"
-                target = {}
-                target_id = ""
-                target_label = ""
-                if selected.lower() == "current":
-                    if not current:
-                        raise ValueError("no current target filter is selected")
-                    for rec in targets:
-                        if str(rec.get("target_id") or "") == current:
-                            target = rec
-                            break
-                    if not target:
-                        raise ValueError(f"target not found: {current}")
-                elif selected.lower() in ("all", "*"):
-                    scope = "all"
-                elif selected.isdigit():
-                    idx = int(selected) - 1
-                    if idx < 0 or idx >= len(targets):
-                        raise ValueError(f"target number out of range: {selected}")
-                    target = targets[idx]
-                else:
-                    lower = selected.lower()
-                    for rec in targets:
-                        candidate_id = str(rec.get("target_id") or "")
-                        label = str(rec.get("label") or "")
-                        aliases = [str(item) for item in rec.get("aliases") or []]
-                        if selected == candidate_id or lower == label.lower() or lower in [alias.lower() for alias in aliases]:
-                            target = rec
-                            break
-                    if not target:
-                        raise ValueError(f"target not found: {selected}")
-                if scope == "all":
+                selection = select_workbench_target_record(selected, targets, current_target_id=current)
+                target = selection.get("target") or {}
+                if selection.get("scope") == "all":
                     headless = (
                         "scripts/grit-console --config "
                         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
