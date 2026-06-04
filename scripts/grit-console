@@ -174,8 +174,8 @@ from gritlib.line_resources import (
 )
 from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
-    parse_line_command_args, read_line as line_repl_read_line, read_next_repl_line,
-    resolve_replay_command, restore_signal_handlers, should_parse_line_command,
+    prepare_repl_choice, read_line as line_repl_read_line, read_next_repl_line,
+    restore_signal_handlers,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
 from gritlib.line_repl_display import build_line_display_callbacks
@@ -6302,36 +6302,22 @@ def run_line_repl(cfg):
         render_full = prompt_result["render_full"]
         if line is None:
             break
-        choice = line.strip()
-        if not choice:
+        prepared = prepare_repl_choice(
+            line,
+            line_history,
+            history_command_func=line_history_command,
+            record_history_func=record_line_history,
+            clear_results_func=lambda: clear_line_search_results(cfg),
+            readline_module=_readline if HAVE_READLINE else None,
+        )
+        if prepared.get("compact_next_prompt"):
             compact_next_prompt = True
+        if prepared.get("continue"):
             continue
-        try:
-            choice, replayed_history = resolve_replay_command(
-                choice,
-                line_history,
-                line_history_command,
-            )
-            if replayed_history:
-                print(f"replay: {choice}")
-        except ValueError as exc:
-            print(exc)
-            continue
-        record_line_history(line_history, choice, readline_module=_readline if HAVE_READLINE else None)
-        if replayed_history and choice.isdigit():
-            clear_line_search_results(cfg)
-        console_args = []
-        if should_parse_line_command(choice):
-            try:
-                console_args = parse_line_command_args(choice)
-            except ValueError as exc:
-                print(exc)
-                continue
-            cmd = console_args[0].lower() if console_args else ""
-            compact_next_prompt = True
-            preserve_line_results = cmd == "use" and len(console_args) == 2 and console_args[1].isdigit()
-            if not preserve_line_results:
-                clear_line_search_results(cfg)
+        choice = prepared["choice"]
+        console_args = prepared["console_args"]
+        cmd = prepared["cmd"]
+        if console_args:
             # Handle "<topic> ?" syntax, e.g. "files ?", "routes ?"
             if len(console_args) >= 2 and console_args[-1] == "?":
                 print_line_command_help(cmd)

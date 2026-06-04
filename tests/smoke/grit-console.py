@@ -416,7 +416,7 @@ def run_line_repl_runtime_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from gritlib.line_repl_runtime import read_line, read_next_repl_line
+    from gritlib.line_repl_runtime import prepare_repl_choice, read_line, read_next_repl_line
 
     reasons = []
 
@@ -552,6 +552,75 @@ def run_line_repl_runtime_check():
         or calls != [("workbench", False), "snapshot"]
     ):
         print("line REPL runtime did not preserve full prompt frame", file=sys.stderr)
+        return 1
+
+    history = []
+    recorded = []
+    cleared = []
+    blank = prepare_repl_choice(
+        "   ",
+        history,
+        history_command_func=lambda _history, _selector: "",
+        record_history_func=lambda *args, **kwargs: recorded.append(args),
+        clear_results_func=lambda: cleared.append("clear"),
+    )
+    if blank.get("continue") is not True or blank.get("compact_next_prompt") is not True or recorded or cleared:
+        print("line REPL runtime did not preserve blank input preparation", file=sys.stderr)
+        return 1
+
+    parsed = prepare_repl_choice(
+        "targets list",
+        history,
+        history_command_func=lambda _history, _selector: "",
+        record_history_func=lambda line_history, command, readline_module=None: (
+            line_history.append(command),
+            recorded.append((command, readline_module)),
+        ),
+        clear_results_func=lambda: cleared.append("clear"),
+        readline_module="readline",
+    )
+    if (
+        parsed.get("continue") is not False
+        or parsed.get("choice") != "targets list"
+        or parsed.get("console_args") != ["targets", "list"]
+        or parsed.get("cmd") != "targets"
+        or history != ["targets list"]
+        or recorded[-1] != ("targets list", "readline")
+        or cleared[-1] != "clear"
+    ):
+        print("line REPL runtime did not preserve parsed command preparation", file=sys.stderr)
+        return 1
+
+    cleared.clear()
+    replay_out = io.StringIO()
+    with contextlib.redirect_stdout(replay_out):
+        replayed = prepare_repl_choice(
+            "!!",
+            history,
+            history_command_func=lambda _history, _selector: "7",
+            record_history_func=lambda line_history, command, readline_module=None: line_history.append(command),
+            clear_results_func=lambda: cleared.append("clear"),
+        )
+    if (
+        replayed.get("choice") != "7"
+        or replayed.get("console_args") != []
+        or replayed.get("cmd") != ""
+        or cleared != ["clear"]
+        or "replay: 7" not in replay_out.getvalue()
+    ):
+        print("line REPL runtime did not preserve replayed numeric preparation", file=sys.stderr)
+        return 1
+
+    cleared.clear()
+    use_result = prepare_repl_choice(
+        "use 3",
+        history,
+        history_command_func=lambda _history, _selector: "",
+        record_history_func=lambda line_history, command, readline_module=None: line_history.append(command),
+        clear_results_func=lambda: cleared.append("clear"),
+    )
+    if use_result.get("console_args") != ["use", "3"] or cleared:
+        print("line REPL runtime did not preserve use-number result context", file=sys.stderr)
         return 1
     return 0
 

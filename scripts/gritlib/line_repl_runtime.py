@@ -61,6 +61,75 @@ def parse_line_command_args(choice):
     return shlex.split(str(choice or ""))
 
 
+def prepare_repl_choice(
+    line,
+    line_history,
+    *,
+    history_command_func,
+    record_history_func,
+    clear_results_func,
+    readline_module=None,
+):
+    choice = str(line or "").strip()
+    if not choice:
+        return {
+            "continue": True,
+            "compact_next_prompt": True,
+            "choice": "",
+            "console_args": [],
+            "cmd": "",
+        }
+    try:
+        choice, replayed_history = resolve_replay_command(
+            choice,
+            line_history,
+            history_command_func,
+        )
+        if replayed_history:
+            print(f"replay: {choice}")
+    except ValueError as exc:
+        print(exc)
+        return {
+            "continue": True,
+            "choice": "",
+            "console_args": [],
+            "cmd": "",
+        }
+    record_history_func(line_history, choice, readline_module=readline_module)
+    if replayed_history and str(choice).isdigit():
+        clear_results_func()
+    if not should_parse_line_command(choice):
+        return {
+            "continue": False,
+            "choice": choice,
+            "console_args": [],
+            "cmd": "",
+        }
+    try:
+        console_args = parse_line_command_args(choice)
+    except ValueError as exc:
+        print(exc)
+        return {
+            "continue": True,
+            "choice": choice,
+            "console_args": [],
+            "cmd": "",
+        }
+    cmd = console_args[0].lower() if console_args else ""
+    preserve_line_results = (
+        cmd == "use" and len(console_args) == 2 and console_args[1].isdigit()
+    )
+    if not preserve_line_results:
+        clear_results_func()
+    return {
+        "continue": False,
+        "choice": choice,
+        "console_args": console_args,
+        "cmd": cmd,
+        "compact_next_prompt": True,
+    }
+
+
 def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull):
     stream = stdin if stdin is not None else sys.stdin
     null_fd = None
