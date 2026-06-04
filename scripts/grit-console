@@ -125,6 +125,7 @@ from gritlib.line_build import (
     unset_line_global_build_option,
 )
 from gritlib.line_command_queue import (
+    dispatch_legacy_line_queue_number,
     print_line_command_queue_view as line_command_queue_print_view,
     queue_line_command as line_command_queue_queue_command,
     run_line_queue_command as line_command_queue_run_command,
@@ -7796,8 +7797,8 @@ def run_line_repl(cfg):
                     argv_extra=argv_extra,
                     headless_command=headless,
                 )
-        elif choice == "20":
-            print_line_command_queue_view(detailed=True)
+        elif dispatch_legacy_line_queue_number(choice, view_func=print_line_command_queue_view):
+            continue
         elif choice == "21":
             unfiltered_cfg = dict(cfg)
             unfiltered_cfg.pop("_target_id_filter", None)

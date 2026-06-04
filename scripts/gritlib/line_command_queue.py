@@ -26,6 +26,14 @@ def line_command_queue_humanize(text):
     return str(text or "").replace("_", "-").replace("-", " ").strip().capitalize()
 
 
+def dispatch_legacy_line_queue_number(choice, *, view_func=None):
+    if str(choice or "").strip() != "20":
+        return False
+    if view_func:
+        view_func(detailed=True)
+    return True
+
+
 def line_command_queue_action_text(rec):
     action_id = str((rec or {}).get("action_id") or "")
     action_key = action_id.rsplit(":", 1)[-1]
