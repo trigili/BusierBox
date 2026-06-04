@@ -578,6 +578,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_legacy as repl_legacy
     import gritlib.line_repl_navigation as repl_navigation
     import gritlib.line_repl_options as repl_options
+    import gritlib.line_repl_probe as repl_probe
     import gritlib.line_repl_queue as repl_queue
     import gritlib.line_repl_routes as repl_routes
     import gritlib.line_repl_search as repl_search
@@ -1421,6 +1422,65 @@ def run_line_repl_runtime_check():
     ]
     if queue_bundle_calls != expected_queue_bundle_calls:
         print(f"line REPL queue bundle wiring changed: {queue_bundle_calls}", file=sys.stderr)
+        return 1
+
+    probe_bundle_calls = []
+    original_probe_start_builder = repl_probe.build_line_probe_start_callback
+
+    def fake_probe_start_builder(cfg, **kwargs):
+        probe_bundle_calls.append(("probe-builder", cfg.get("name")))
+
+        def probe_start(queue=False, start_service=False):
+            probe_bundle_calls.append(("probe-start", queue, start_service))
+            kwargs["service_rows_func"]({"name": "ignored"})
+            kwargs["service_record_func"]([], "probe")
+            return "probe-command"
+
+        return probe_start
+
+    repl_probe.build_line_probe_start_callback = fake_probe_start_builder
+    try:
+        probe_bundle = repl_probe.build_line_probe_callbacks(
+            {"name": "probe-cfg"},
+            choose_operator_host_func=lambda *args, **kwargs: None,
+            input_func=lambda prompt: "",
+            interactive_func=lambda: True,
+            render_probe_command_func=lambda cfg: "probe-command",
+            workbench_snapshot_func=lambda cfg: {},
+            service_start_command_func=lambda cfg, service: "start-probe",
+            service_start_func=lambda *args, **kwargs: None,
+            queue_command_func=lambda *args, **kwargs: {},
+            target_filter_func=lambda cfg: "",
+            target_context_func=lambda cfg: {},
+            probe_delivery_func=lambda cfg: probe_bundle_calls.append(("probe-delivery", cfg.get("name"))),
+            append_event_fn=lambda *args, **kwargs: None,
+            route_service_callbacks={
+                "service_rows": lambda: probe_bundle_calls.append("service-rows") or [],
+                "service_record": lambda rows, service: probe_bundle_calls.append(
+                    ("service-record", rows, service)
+                ),
+            },
+            probe_results_func=lambda: "results",
+            probe_config_func=lambda args: args,
+            probe_clear_func=lambda args: args,
+            probe_paste_func=lambda **kwargs: kwargs,
+            probe_script_func=lambda: "script",
+        )
+        if probe_bundle["probe_line_start"](queue=True, start_service=True) != "probe-command":
+            print("line REPL probe bundle did not return start callback result", file=sys.stderr)
+            return 1
+        probe_bundle["probe_delivery"]({"name": "probe-cfg"})
+    finally:
+        repl_probe.build_line_probe_start_callback = original_probe_start_builder
+    expected_probe_bundle_calls = [
+        ("probe-builder", "probe-cfg"),
+        ("probe-start", True, True),
+        "service-rows",
+        ("service-record", [], "probe"),
+        ("probe-delivery", "probe-cfg"),
+    ]
+    if probe_bundle_calls != expected_probe_bundle_calls:
+        print(f"line REPL probe bundle wiring changed: {probe_bundle_calls}", file=sys.stderr)
         return 1
 
     core_calls = []
