@@ -706,6 +706,13 @@ GRIT_DOTFILE_GDB_MODE="default"
 make smoke-test
 ```
 
+Opt-in longer console coverage starts from the transcript-capable line console
+workflow and is kept out of the default smoke path:
+
+```sh
+make unit-test
+```
+
 ---
 
 ## Documentation
