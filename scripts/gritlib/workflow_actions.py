@@ -43,6 +43,142 @@ def select_workbench_action(records, selector):
     raise ValueError(f"unknown workbench action: {text}")
 
 
+def dispatch_legacy_workbench_action_number(
+    choice,
+    cfg,
+    *,
+    input_func,
+    snapshot_func,
+    append_event_fn,
+    actions_func,
+    run_action_func,
+):
+    if str(choice or "").strip() != "11":
+        return False
+
+    from gritlib.config_utils import DEFAULT_CONFIG
+
+    headless = (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --status"
+    )
+    snap = snapshot_func(cfg)
+    summary = snap.get("summary") or {}
+    print(
+        "Workbench action summary: "
+        f"total={summary.get('workbench_action_count', 0)} "
+        f"background_supported={summary.get('workbench_action_background_supported_count', 0)} "
+        f"foreground_runnable={summary.get('workbench_action_foreground_runnable_count', 0)} "
+        f"requires_confirmation={summary.get('workbench_action_requires_confirmation_count', 0)}"
+    )
+    print(
+        "Operator daemon workflow action summary: "
+        f"total={summary.get('operator_daemon_workflow_action_count', 0)} "
+        f"attached={summary.get('operator_daemon_workflow_action_attached_count', 0)} "
+        f"enter_runnable={summary.get('operator_daemon_workflow_action_can_run_from_curses_enter_count', 0)} "
+        f"fleet_pending_work={format_counts(summary.get('operator_daemon_workflow_action_fleet_mailbox_pending_work_count_counts') or {})} "
+        f"fleet_offline={format_counts(summary.get('operator_daemon_workflow_action_fleet_offline_target_count_counts') or {})} "
+        f"fleet_poll_overdue={format_counts(summary.get('operator_daemon_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
+    )
+    action_preview = []
+    seen_action_ids = set()
+    for rec in snap.get("workbench_actions") or []:
+        rec_id = str(rec.get("id") or "")
+        if rec_id in (
+            "operator-daemon-start",
+            "operator-daemon-status",
+            "operator-daemon-stop",
+            "systemd-user-status",
+        ) or rec.get("background_supported") is True:
+            if rec_id and rec_id not in seen_action_ids:
+                seen_action_ids.add(rec_id)
+                action_preview.append(rec)
+        if len(action_preview) >= 8:
+            break
+    for idx, rec in enumerate(action_preview, 1):
+        print(f"{idx}: {rec.get('id', '')} {rec.get('label', '')}")
+        print(
+            f"   category={rec.get('category', '')} background_supported={'yes' if rec.get('background_supported') else 'no'} "
+            f"confirm={'yes' if rec.get('requires_confirmation') else 'no'} "
+            f"foreground_runnable={'yes' if rec.get('foreground_runnable') else 'no'} "
+            f"state={rec.get('operator_action_state', '') or '-'} "
+            f"reason={rec.get('operator_action_reason', '') or '-'} "
+            f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
+            f"enter_action={rec.get('curses_enter_action', '') or '-'} "
+            f"pending_work={rec.get('fleet_mailbox_pending_work_count', 0)} "
+            f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
+            f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
+        )
+    service_actions = snap.get("service_workflow_actions") or []
+    service_action_preview = []
+    seen_service_action_ids = set()
+    for rec in service_actions:
+        if rec.get("can_run_from_curses_enter") or rec.get("service") == "file-service":
+            rec_id = str(rec.get("id") or "")
+            if rec_id and rec_id not in seen_service_action_ids:
+                seen_service_action_ids.add(rec_id)
+                service_action_preview.append(rec)
+        if len(service_action_preview) >= 10:
+            break
+    if service_actions:
+        print(
+            "Service workflow actions: "
+            f"total={len(service_actions)} preview={len(service_action_preview)} "
+            f"runnable/file-service actions shown"
+        )
+    for idx, rec in enumerate(service_action_preview, 1):
+        print(f"service {idx}: {rec.get('id', '')} {rec.get('label', '')}")
+        print(
+            f"   service={rec.get('service', '')} category={rec.get('category', '')} "
+            f"actual={rec.get('actual', '') or '-'} configured={rec.get('configured', '') or '-'} "
+            f"confirm={'yes' if rec.get('requires_confirmation') else 'no'} "
+            f"state={rec.get('operator_action_state', '') or '-'} "
+            f"reason={rec.get('operator_action_reason', '') or '-'} "
+            f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
+            f"enter_action={rec.get('curses_enter_action', '') or '-'} "
+            f"pending_work={rec.get('fleet_mailbox_pending_work_count', 0)} "
+            f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
+            f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
+        )
+    target_actions = snap.get("target_workflow_actions") or []
+    if target_actions:
+        print(f"Target workflow actions: total={len(target_actions)}; use action 15 for the prompted target workflow list")
+    append_event_fn(cfg, "workbench", "workbench_actions_viewed", details={
+        "headless_command": headless,
+        "action_count": len(snap.get("workbench_actions") or []),
+        "service_workflow_action_count": len(snap.get("service_workflow_actions") or []),
+        "target_workflow_action_count": len(snap.get("target_workflow_actions") or []),
+    })
+    selected_line = input_func("operator action id/number to run, or blank> ")
+    selected = selected_line.strip() if selected_line is not None else ""
+    if selected:
+        try:
+            actions = actions_func()
+            action = select_workbench_action(actions, selected)
+            if action.get("background_supported") is True:
+                print("background action; use action 12 to start it as a managed job")
+                return True
+            dry_line = input_func("dry-run/preview only? [Y/n]> ")
+            dry_run = dry_line is None or dry_line.strip().lower() not in ("n", "no")
+            confirmed = False
+            if not dry_run and action.get("requires_confirmation") is True:
+                confirm_line = input_func("run confirmed action now? type yes> ")
+                confirmed = confirm_line is not None and confirm_line.strip().lower() == "yes"
+            rc = run_action_func(
+                cfg,
+                actions_func(),
+                action.get("id", selected),
+                dry_run=dry_run,
+                confirmed=confirmed,
+                show_commands=False,
+            )
+            print(f"workbench_action_returncode={rc}")
+        except (ValueError, IndexError) as exc:
+            print(exc)
+    return True
+
+
 def dispatch_legacy_target_workflow_number(
     choice,
     cfg,
