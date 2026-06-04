@@ -5,6 +5,7 @@ from pathlib import Path
 from gritlib.record_utils import (
     int_value, latest_record_value, record_count_by_key, records_by_key,
 )
+from gritlib.target_records import records_for_target
 
 
 def session_record_indexes(records):
@@ -114,6 +115,27 @@ def print_recent_sessions(records, updated_on_header=False):
                 )
     else:
         print("  none")
+
+
+def session_status_context(cfg, sessions, target_filter_id=None):
+    unfiltered_count = len(sessions or [])
+    records = records_for_target(sessions, target_filter_id) if target_filter_id else list(sessions or [])
+    target_filter_session_ids = {
+        str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
+        for rec in records or []
+        if isinstance(rec, dict) and (rec.get("session_id") or rec.get("path"))
+    }
+    root_status = session_root_state_status(cfg, records)
+    return {
+        "records": records,
+        "unfiltered_count": unfiltered_count,
+        "target_filter_session_ids": target_filter_session_ids,
+        "root_status": root_status,
+        "root_state": root_status["state_record"],
+        "root_state_records": root_status["state_records"],
+        "root_state_index_maps": root_status["state_index_maps"],
+        "indexes": session_record_indexes(records),
+    }
 
 
 def _index_counts(index):

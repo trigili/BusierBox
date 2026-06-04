@@ -1159,6 +1159,70 @@ def run_service_status_context_check():
     return 0
 
 
+def run_session_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.session_records import session_status_context
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        sessions = [
+            {
+                "session_id": "sess-a",
+                "path": str(root / "sess-a"),
+                "service": "tls-shell",
+                "state": "closed",
+                "exit_reason": "done",
+                "remote": "127.0.0.1:1",
+                "target_id": "target-a",
+                "upload_count": 1,
+                "fetch_count": 0,
+                "event_count": 2,
+                "artifact_count": 0,
+                "duration_sec": 5,
+                "metadata_exists": True,
+                "event_log_exists": True,
+                "session_log_exists": True,
+            },
+            {
+                "session_id": "sess-b",
+                "path": str(root / "sess-b"),
+                "service": "file-service",
+                "state": "closed",
+                "target_id": "target-b",
+            },
+        ]
+        context = session_status_context(
+            {"session_root": str(root)},
+            sessions,
+            target_filter_id="target-a",
+        )
+        records = context.get("records") or []
+        indexes = context.get("indexes") or ()
+        if context.get("unfiltered_count") != 2 or len(records) != 1:
+            print("session status context did not preserve unfiltered count/filtering", file=sys.stderr)
+            return 1
+        if context.get("target_filter_session_ids") != {"sess-a"}:
+            print("session status context did not preserve target-filter session ids", file=sys.stderr)
+            return 1
+        root_state = context.get("root_state") or {}
+        if root_state.get("recent_session_count") != 1 or root_state.get("total_upload_count") != 1:
+            print("session status context did not preserve root state", file=sys.stderr)
+            return 1
+        if len(indexes) != 18:
+            print("session status context returned unexpected index tuple", file=sys.stderr)
+            return 1
+        by_id, by_service, _by_state, *_rest = indexes
+        if by_id.get("sess-a") != records[0] or by_service.get("tls-shell") != [records[0]]:
+            print("session status context did not preserve session indexes", file=sys.stderr)
+            return 1
+        if not (context.get("root_state_records") or []) or "session_root_state_records_by_path" not in (context.get("root_state_index_maps") or {}):
+            print("session status context did not preserve root state indexes", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4385,6 +4449,8 @@ def main(argv=None):
     if run_target_command_status_context_check() != 0:
         return 1
     if run_service_status_context_check() != 0:
+        return 1
+    if run_session_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1
