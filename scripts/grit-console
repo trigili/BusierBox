@@ -159,7 +159,6 @@ from gritlib.line_files import (
     fetch_line_staged as line_files_fetch_line_staged,
     stage_line_binary as line_files_stage_line_binary,
     stage_line_file as line_files_stage_line_file,
-    staged_line_record as line_files_staged_line_record,
     unstage_line_file as line_files_unstage_line_file,
 )
 from gritlib.line_help import (
@@ -6388,19 +6387,6 @@ def run_line_repl(cfg):
         )
     )
 
-    def prompt_bridge_profile_save():
-        return prompt_line_bridge_profile_save(
-            cfg,
-            line_input,
-            headless_command_builder=bridge_profile_headless_command,
-        )
-
-    def record_line_alias(alias, canonical):
-        append_event(cfg, "workbench", "workbench_console_alias_used", details={
-            "alias": str(alias or ""),
-            "canonical": str(canonical or ""),
-        })
-
     def print_line_info():
         return print_current_line_info(
             cfg,
@@ -6603,7 +6589,7 @@ def run_line_repl(cfg):
             service_completion_names_func=line_service_completion_names,
             service_names_func=line_service_names,
             load_staged_func=load_staged,
-            find_survey_uploads_func=find_survey_uploads,
+            find_survey_uploads_func=lambda limit=20: configure_find_survey_uploads(cfg, limit=limit),
         )
 
     def line_completion_candidates(prefix=""):
@@ -6788,13 +6774,6 @@ def run_line_repl(cfg):
         })
         return command
 
-    # keep old name as alias
-    def survey_line_bootstrap(queue=False, start_service=False):
-        return probe_line_start(queue=queue, start_service=start_service)
-
-    def find_survey_uploads(limit=20):
-        return configure_find_survey_uploads(cfg, limit=limit)
-
     def line_session_record(selector):
         return current_line_session_record(lambda: workbench_snapshot(cfg), selector)
 
@@ -6959,9 +6938,6 @@ def run_line_repl(cfg):
             ),
             append_event_fn=append_event,
         )
-
-    def staged_line_record(request_name):
-        return line_files_staged_line_record(cfg, request_name)
 
     def fetch_line_staged(request_name, queue=False, start_file_service=False):
         return line_files_fetch_line_staged(
@@ -7161,11 +7137,15 @@ def run_line_repl(cfg):
                         cfg, append_event_fn=append_event,
                     ),
                     survey_config_func=lambda args: configure_line_survey_config(
-                        cfg, args, find_survey_uploads,
+                        cfg,
+                        args,
+                        lambda limit=20: configure_find_survey_uploads(cfg, limit=limit),
                         append_event_fn=append_event,
                     ),
                     survey_preset_func=lambda args: configure_line_survey_preset(
-                        cfg, args, find_survey_uploads,
+                        cfg,
+                        args,
+                        lambda limit=20: configure_find_survey_uploads(cfg, limit=limit),
                         append_event_fn=append_event,
                     ),
             )):
@@ -7178,7 +7158,15 @@ def run_line_repl(cfg):
                 console_args[1:],
                 target_selected=bool(configured_target_filter(cfg)),
                 module=cfg.get("_line_console_module"),
-                record_alias_func=record_line_alias,
+                record_alias_func=lambda alias, canonical: append_event(
+                    cfg,
+                    "workbench",
+                    "workbench_console_alias_used",
+                    details={
+                        "alias": str(alias or ""),
+                        "canonical": str(canonical or ""),
+                    },
+                ),
                 clear_results_func=lambda: clear_line_search_results(cfg),
                 set_listeners_context_func=lambda: set_line_collection_context(cfg, "listeners"),
                 print_listeners_func=print_line_services,
@@ -7362,7 +7350,11 @@ def run_line_repl(cfg):
             cfg,
             input_func=line_input,
             snapshot_func=workbench_snapshot,
-            save_profile_func=prompt_bridge_profile_save,
+            save_profile_func=lambda: prompt_line_bridge_profile_save(
+                cfg,
+                line_input,
+                headless_command_builder=bridge_profile_headless_command,
+            ),
             print_profile_func=print_bridge_profile,
             start_service_func=start_service_process,
             stop_service_func=stop_recorded_service,
