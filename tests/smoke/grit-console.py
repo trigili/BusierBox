@@ -2490,6 +2490,7 @@ def run_line_repl_runtime_check():
 
     completion_calls = []
     original_completion_builder = repl_completions.build_line_completion_callbacks
+    original_completion_installer = repl_completions.install_readline_completer
 
     def fake_completion_builder(cfg, **kwargs):
         completion_calls.append(("builder", cfg.get("name"), sorted(kwargs)))
@@ -2530,6 +2531,12 @@ def run_line_repl_runtime_check():
             print("line REPL completion bundle did not return candidates result", file=sys.stderr)
             return 1
         completion_bundle["print_line_completions"]("st")
+        repl_completions.install_readline_completer = (
+            lambda readline_module, have_readline, candidate_func: completion_calls.append(
+                ("install", readline_module, have_readline, candidate_func("in"))
+            )
+        )
+        repl_completions.install_line_completion_bundle("readline", True, completion_bundle)
         adapter_candidates, adapter_printer = repl_completions.build_line_completion_adapter(
             completion_cfg,
             workbench_snapshot_func=lambda cfg: {},
@@ -2552,6 +2559,7 @@ def run_line_repl_runtime_check():
         adapter_printer("ad")
     finally:
         repl_completions.build_line_completion_callbacks = original_completion_builder
+        repl_completions.install_readline_completer = original_completion_installer
     expected_completion_markers = [
         ("snapshot", "completion-cfg"),
         ("actions", {"snap": True}),
@@ -2559,6 +2567,8 @@ def run_line_repl_runtime_check():
         ("event", "completion-cfg", "workbench", "complete", {"prefix": "st"}),
         ("candidates", "st"),
         ("printer", "st"),
+        ("candidates", "in"),
+        ("install", "readline", True, ["status"]),
         ("candidates", "ad"),
         ("printer", "ad"),
     ]

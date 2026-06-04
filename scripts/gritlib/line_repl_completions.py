@@ -1,6 +1,7 @@
 """Line REPL completion callback adapters."""
 
 from gritlib.line_completions import build_line_completion_callbacks
+from gritlib.line_repl_runtime import install_readline_completer
 
 
 def build_line_completion_adapter(
@@ -86,3 +87,11 @@ def build_line_completion_bundle(
         "line_completion_candidates": line_completion_candidates,
         "print_line_completions": print_line_completions,
     }
+
+
+def install_line_completion_bundle(readline_module, have_readline, completion_callbacks):
+    return install_readline_completer(
+        readline_module,
+        have_readline,
+        completion_callbacks["line_completion_candidates"],
+    )

@@ -170,11 +170,14 @@ from gritlib.line_resources import (
 from gritlib.line_repl_runtime import (
     build_line_workbench_quit_stopped_callback,
     setup_line_repl_io,
-    install_readline_completer, run_configured_line_repl_loop, run_line_console_lifecycle,
+    run_configured_line_repl_loop, run_line_console_lifecycle,
     restore_signal_handlers,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
-from gritlib.line_repl_completions import build_line_completion_bundle
+from gritlib.line_repl_completions import (
+    build_line_completion_bundle,
+    install_line_completion_bundle,
+)
 from gritlib.line_repl_core import build_line_core_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_line_job_callbacks
@@ -6196,10 +6199,10 @@ def run_line_repl(cfg):
         append_event_fn=append_event,
     )
 
-    install_readline_completer(
+    install_line_completion_bundle(
         _readline,
         HAVE_READLINE,
-        line_completion_callbacks["line_completion_candidates"],
+        line_completion_callbacks,
     )
 
     line_utility_callbacks = build_line_utility_callbacks(
