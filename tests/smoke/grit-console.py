@@ -1439,6 +1439,8 @@ def run_line_repl_runtime_check():
             probe_bundle_calls.append(("probe-start", queue, start_service))
             kwargs["service_rows_func"]({"name": "ignored"})
             kwargs["service_record_func"]([], "probe")
+            kwargs["target_filter_func"]({"name": "ignored"})
+            kwargs["target_context_func"]({"name": "ignored"})
             return "probe-command"
 
         return probe_start
@@ -1455,8 +1457,6 @@ def run_line_repl_runtime_check():
             service_start_command_func=lambda cfg, service: "start-probe",
             service_start_func=lambda *args, **kwargs: None,
             queue_command_func=lambda *args, **kwargs: {},
-            target_filter_func=lambda cfg: "",
-            target_context_func=lambda cfg: {},
             probe_delivery_func=lambda cfg: probe_bundle_calls.append(("probe-delivery", cfg.get("name"))),
             append_event_fn=lambda *args, **kwargs: None,
             route_service_callbacks={
@@ -1464,6 +1464,12 @@ def run_line_repl_runtime_check():
                 "service_record": lambda rows, service: probe_bundle_calls.append(
                     ("service-record", rows, service)
                 ),
+            },
+            target_callbacks={
+                "target_filter": lambda: probe_bundle_calls.append("target-filter") or "target1",
+                "target_context": lambda: probe_bundle_calls.append("target-context") or {
+                    "target_label": "Target 1",
+                },
             },
             probe_results_func=lambda: "results",
             probe_config_func=lambda args: args,
@@ -1482,6 +1488,8 @@ def run_line_repl_runtime_check():
         ("probe-start", True, True),
         "service-rows",
         ("service-record", [], "probe"),
+        "target-filter",
+        "target-context",
         ("probe-delivery", "probe-cfg"),
     ]
     if probe_bundle_calls != expected_probe_bundle_calls:

@@ -12,6 +12,7 @@ def build_line_target_callbacks(
     *,
     workbench_snapshot_func,
     target_filter_func=None,
+    target_context_func=None,
     print_target_summary_func=None,
     quote,
 ):
@@ -38,10 +39,14 @@ def build_line_target_callbacks(
     def target_filter():
         return target_filter_func(cfg) if target_filter_func else ""
 
+    def target_context():
+        return target_context_func(cfg) if target_context_func else {}
+
     return {
         "print_line_targets": print_targets,
         "select_line_target": select_target,
         "interact_line_target": interact_target,
         "target_filter": target_filter,
+        "target_context": target_context,
         "print_target_summary": print_target_summary_func,
     }

@@ -14,11 +14,12 @@ def build_line_probe_callbacks(
     service_start_command_func,
     service_start_func,
     queue_command_func,
-    target_filter_func,
-    target_context_func,
+    target_filter_func=None,
+    target_context_func=None,
     probe_delivery_func,
     append_event_fn,
     route_service_callbacks=None,
+    target_callbacks=None,
     probe_results_func=None,
     probe_config_func=None,
     probe_clear_func=None,
@@ -29,6 +30,13 @@ def build_line_probe_callbacks(
         service_record_func = route_service_callbacks["service_record"]
     if service_rows_func is None and route_service_callbacks is not None:
         service_rows_func = lambda _cfg: route_service_callbacks["service_rows"]()
+    if target_callbacks is not None:
+        if target_filter_func is None:
+            target_filter = target_callbacks["target_filter"]
+            target_filter_func = lambda _cfg: target_filter()
+        if target_context_func is None:
+            target_context = target_callbacks["target_context"]
+            target_context_func = lambda _cfg: target_context()
 
     return {
         "probe_line_start": build_line_probe_start_callback(
