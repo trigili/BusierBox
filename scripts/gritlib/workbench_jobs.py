@@ -228,6 +228,11 @@ def line_job_record(snapshot, selector):
     )
 
 
+def current_line_job_record(snapshot_func, selector):
+    snapshot = snapshot_func() if snapshot_func else {}
+    return line_job_record(snapshot, selector)
+
+
 def print_line_jobs(
     cfg, snapshot, verbose=False, command_builder=None, quote=shquote
 ):
@@ -244,6 +249,19 @@ def print_line_jobs(
         "verbose": bool(verbose),
     })
     return jobs
+
+
+def print_current_line_jobs(
+    cfg, snapshot_func, verbose=False, command_builder=None, quote=shquote
+):
+    snapshot = snapshot_func() if snapshot_func else {}
+    return print_line_jobs(
+        cfg,
+        snapshot,
+        verbose=verbose,
+        command_builder=command_builder,
+        quote=quote,
+    )
 
 
 def select_line_job(cfg, snapshot, selector):
@@ -268,6 +286,11 @@ def select_line_job(cfg, snapshot, selector):
     return rec
 
 
+def select_current_line_job(cfg, snapshot_func, selector):
+    snapshot = snapshot_func() if snapshot_func else {}
+    return select_line_job(cfg, snapshot, selector)
+
+
 def cancel_line_job(
     cfg, snapshot, actions, selector, command_builder=None
 ):
@@ -290,6 +313,20 @@ def cancel_line_job(
     )
     print(f"cancel requested for {cancelled.get('id', job_id)}")
     return cancelled
+
+
+def cancel_current_line_job(
+    cfg, snapshot_func, actions_func, selector, command_builder=None
+):
+    snapshot = snapshot_func() if snapshot_func else {}
+    actions = actions_func() if actions_func else []
+    return cancel_line_job(
+        cfg,
+        snapshot,
+        actions,
+        selector,
+        command_builder=command_builder,
+    )
 
 
 def start_line_job(
