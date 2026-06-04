@@ -8171,6 +8171,8 @@ def run_line_repl(cfg):
                     })
             except ValueError as exc:
                 print(exc)
+        elif choice.isdigit():
+            print("no numbered result is active; run a list command first, then use N")
     restore_signal_handlers(signal_handlers)
     return 130 if SHUTDOWN_REASON in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
