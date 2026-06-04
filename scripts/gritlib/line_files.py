@@ -5,7 +5,11 @@ from pathlib import Path
 
 from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
-from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
+from gritlib.file_transfers import (
+    print_staged_fetch_target_options,
+    render_fetch_command,
+    render_file_service_command,
+)
 from gritlib.release_artifacts import release_context, release_nav_records, stage_release_selection
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged, stage_file, unstage_file
@@ -98,6 +102,76 @@ def parse_line_fetch_args(args, queue_default=False):
     if len(values) > 1:
         raise ValueError("usage: fetch [--queue] [--start] NAME")
     return (values[0] if values else ""), queue, start_file_service
+
+
+def download_line_target(
+    cfg,
+    target_path,
+    queue=False,
+    start_file_service=False,
+    target_id_fn=None,
+    target_context_fn=None,
+    queue_command_fn=None,
+    start_file_service_fn=None,
+    append_event_fn=None,
+):
+    path = str(target_path or "").strip()
+    if not path:
+        raise ValueError("usage: download [--queue] [--start] TARGET_PATH")
+    target_id = target_id_fn() if target_id_fn else ""
+    if not target_id:
+        raise ValueError("select an agent before download; use agent NAME or use target ID")
+    command = render_file_service_command(["put", path], cfg)
+    headless = (
+        "scripts/grit-console --config "
+        + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+        + " --target-id "
+        + shquote(target_id)
+        + " --run-target-workflow-action "
+        + shquote(f"{target_id}:show-upload-command")
+        + " --target-workflow-command "
+        + shquote(path)
+    )
+    started = False
+    if start_file_service:
+        if start_file_service_fn:
+            start_file_service_fn()
+        started = True
+    print("Target download command:")
+    print(f"  target={target_id}")
+    target_ctx = target_context_fn() if target_context_fn else {}
+    label = str((target_ctx or {}).get("target_label") or "")
+    if label:
+        print(f"  label={label}")
+    print(f"  target_upload_path={path}")
+    print(f"  target command: {command}")
+    print(f"  file service: {'started' if started else 'not started'}")
+    queued = {}
+    if queue:
+        if not queue_command_fn:
+            raise ValueError("queue support is unavailable")
+        queued = queue_command_fn(cfg, command, metadata={
+            "work_kind": "target-upload",
+            "workflow": "file-service",
+            "target_upload_path": path,
+            "route_kind": "bridge" if cfg.get("bridge_profile") else "direct",
+            "bridge_profile": str(cfg.get("bridge_profile") or ""),
+        })
+        print(f"queued {queued['id']}: {queued['command']}")
+        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_target_download_command_shown", details={
+            "headless_command": headless,
+            "target_id": target_id,
+            "target_label": label,
+            "target_upload_path": path,
+            "target_command": command,
+            "target_command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest() if command else "",
+            "queued": bool(queue),
+            "command_id": queued.get("id", "") if queued else "",
+            "started_file_service": started,
+        })
+    return command
 
 
 def line_file_size_text(rec):
