@@ -5650,6 +5650,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
                 "mailbox targets\n"
                 "queue\n"
                 "show queue -v\n"
+                "use 99\n"
                 "use 1\n"
                 "show options\n"
                 "set target.notes Rack shelf A\n"
@@ -6594,7 +6595,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     queue_view_start = line_console_stdout.find("grit[Console Router]/queue> queue", mailbox_targets_start + 1)
     queue_verbose_start = line_console_stdout.find("grit[Console Router]/queue> show queue -v", queue_view_start + 1)
     queue_view_end = queue_verbose_start
-    queue_verbose_end = line_console_stdout.find("grit[Console Router]/queue> use 1", queue_verbose_start + 1)
+    queue_verbose_end = line_console_stdout.find("grit[Console Router]/queue> use 99", queue_verbose_start + 1)
     mailbox_text = line_console_stdout[mailbox_start:mailbox_help_start] if mailbox_start != -1 and mailbox_help_start != -1 else ""
     mailbox_help_text = line_console_stdout[mailbox_help_start:queue_context_help_start] if mailbox_help_start != -1 and queue_context_help_start != -1 else ""
     queue_context_help_text = line_console_stdout[queue_context_help_start:mailbox_targets_start] if queue_context_help_start != -1 and mailbox_targets_start != -1 else ""
@@ -6633,6 +6634,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
     if "search result number out of range" in mailbox_queue_text:
         print("line-oriented mailbox/queue view consumed stale numbered results", file=sys.stderr)
         print(mailbox_queue_text, file=sys.stderr)
+        return 1
+    if ("command queue action number out of range: 99" not in line_console_stdout or
+            "numbered result not found: 99;" in line_console_stdout):
+        print("line-oriented command queue numbered action did not use queue-specific selection", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
         return 1
     if (not mailbox_help_text or
             "Help: queue" not in mailbox_help_text or

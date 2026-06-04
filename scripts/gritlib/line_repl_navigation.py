@@ -37,6 +37,7 @@ def build_line_navigation_dispatch_callback(
     cancel_job_func,
     run_action_func,
     interact_target_func,
+    select_queue_action_func=None,
 ):
     def record_alias(alias, canonical):
         append_event_fn(
@@ -50,6 +51,12 @@ def build_line_navigation_dispatch_callback(
         )
 
     def dispatch_navigation(command, args):
+        def select_number(selector):
+            module = str(cfg.get("_line_console_module") or "")
+            if module.startswith("queue") and select_queue_action_func:
+                return select_queue_action_func(selector)
+            return number_func(selector)
+
         return dispatch_line_navigation_command(
             command,
             args,
@@ -77,7 +84,7 @@ def build_line_navigation_dispatch_callback(
             delete_route_func=delete_route_func,
             route_help_func=route_help_func,
             select_route_func=select_route_func,
-            number_func=number_func,
+            number_func=select_number,
             select_job_func=select_job_func,
             select_action_func=select_action_func,
             clear_target_func=lambda: select_target_func("all", targets=[]),

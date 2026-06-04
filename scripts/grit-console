@@ -6343,6 +6343,7 @@ def run_line_repl(cfg):
         route_help_func=print_line_command_help,
         select_route_func=select_line_route,
         number_func=use_line_search_result,
+        select_queue_action_func=select_line_command_queue_action,
         select_job_func=select_line_job,
         select_action_func=select_line_action,
         clear_console_context_func=clear_line_console_context,
