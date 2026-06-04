@@ -1413,7 +1413,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root):
         if target_info_start != -1 and target_info_end != -1 else ""
     )
     if (not target_info_text or
-            "target: line-console-target (Console Router)  state online  mailbox 0 pending" not in target_info_text or
+            "selected agent: line-console-target (Console Router)  state online  mailbox 0 pending" not in target_info_text or
+            "  target: line-console-target" in target_info_text or
             "mailbox_pending=" in target_info_text or
             "target_cmds=" in target_info_text or
             "poll_overdue=" in target_info_text):

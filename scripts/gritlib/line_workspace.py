@@ -466,11 +466,11 @@ def print_line_info(
         print("Action: none")
     target_filter = (snap or {}).get("target_filter") or {}
     if target_filter.get("active"):
-        print(target_filter_brief_text(target_filter, prefix="  target:"))
+        print(target_filter_brief_text(target_filter, prefix="  selected agent:"))
         for line in target_filter_evidence_lines(target_filter):
             print(f"    {line}")
     else:
-        print("  target: all")
+        print("  selected agent: all")
 
 
 def print_line_next(
