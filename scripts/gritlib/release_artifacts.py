@@ -531,6 +531,21 @@ def release_state_status(cfg=None, release=None):
     }
 
 
+def release_status_context(cfg=None, release=None):
+    cfg = cfg or {}
+    release = release if release is not None else release_context(cfg)
+    release_status = release_state_status(cfg, release)
+    actions = release_artifact_workflow_action_records(cfg, release)
+    return {
+        "release": release,
+        "state_record": release_status["state_record"],
+        "state_records": release_status["state_records"],
+        "state_index_maps": release_status["state_index_maps"],
+        "workflow_actions": actions,
+        "workflow_action_index_maps": release_artifact_workflow_action_indexes(actions),
+    }
+
+
 def release_context(cfg=None):
     here = Path(str((cfg or {}).get("release_dir") or Path.cwd()))
     release_json = here / "release.json"

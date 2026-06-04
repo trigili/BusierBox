@@ -1414,6 +1414,60 @@ def run_target_activity_status_context_check():
     return 0
 
 
+def run_release_status_context_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.release_artifacts import release_status_context
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        release_dir = Path(tmpdir)
+        (release_dir / "bin").mkdir()
+        (release_dir / "scripts").mkdir()
+        (release_dir / "release.json").write_text(
+            json.dumps({"release_name": "smoke-release", "layout": {}}),
+            encoding="utf-8",
+        )
+        release = {
+            "release_dir": str(release_dir),
+            "release_name": "smoke-release",
+            "valid": True,
+            "artifacts": [
+                {
+                    "name": "grit-smoke",
+                    "release_path": "bin/grit-smoke",
+                    "payload_preset": "native",
+                    "compatibility_label": "native",
+                },
+            ],
+            "devices": ["router-a"],
+            "tuples": ["native-host"],
+        }
+        context = release_status_context(
+            {"release_dir": str(release_dir), "_config_path": "local/test-config.json"},
+            release=release,
+        )
+        state = context.get("state_record") or {}
+        actions = context.get("workflow_actions") or []
+        indexes = context.get("workflow_action_index_maps") or {}
+        if context.get("release") != release:
+            print("release status context did not preserve release document", file=sys.stderr)
+            return 1
+        if not state.get("present") or not state.get("valid") or state.get("artifact_count") != 1:
+            print("release status context did not preserve release state", file=sys.stderr)
+            return 1
+        if not any(action.get("action_id") == "inspect-release" for action in actions):
+            print("release status context did not preserve release workflow actions", file=sys.stderr)
+            return 1
+        if "release:inspect-release" not in indexes.get("release_artifact_workflow_actions_by_id", {}):
+            print("release status context did not preserve release workflow indexes", file=sys.stderr)
+            return 1
+        if "release_state_records_by_release_dir" not in (context.get("state_index_maps") or {}):
+            print("release status context did not preserve release state indexes", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_console_utility_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -4646,6 +4700,8 @@ def main(argv=None):
     if run_event_log_status_context_check() != 0:
         return 1
     if run_target_activity_status_context_check() != 0:
+        return 1
+    if run_release_status_context_check() != 0:
         return 1
     if run_console_utility_dispatch_check() != 0:
         return 1
