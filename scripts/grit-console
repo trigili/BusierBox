@@ -170,7 +170,7 @@ from gritlib.line_resources import (
 )
 from gritlib.line_repl_runtime import (
     configure_readline_history, install_line_repl_signal_handlers, install_readline_completer,
-    read_line as line_repl_read_line, run_line_repl_loop,
+    read_line as line_repl_read_line, run_line_console_lifecycle, run_line_repl_loop,
     restore_signal_handlers,
 )
 from gritlib.line_repl_actions import build_line_action_callbacks
@@ -6477,30 +6477,21 @@ def run_line_repl(cfg):
 
 def run_line_console(cfg):
     """Default interactive mode: readline line console."""
-    update_server_state(cfg, "workbench", "open", {"state_file": str(state_file_path(cfg)), "workbench_mode": "starting"})
-    if not sys.stdin.isatty() or not sys.stdout.isatty():
-        update_server_state(cfg, "workbench", "open", {
-            "state_file": str(state_file_path(cfg)),
-            "workbench_mode": "noninteractive",
-        })
-        append_event(cfg, "workbench", "workbench_opened", details={"mode": "noninteractive"})
-        print_workbench(cfg)
-        return 0
-    try:
-        update_server_state(cfg, "workbench", "open", {
-            "state_file": str(state_file_path(cfg)),
-            "workbench_mode": "line",
-        })
-        append_event(cfg, "workbench", "workbench_opened", details={"mode": "line"})
-        return run_line_repl(cfg)
-    except KeyboardInterrupt:
-        request_shutdown("keyboard_interrupt")
-        print("grit-console: interrupted, shutting down workbench", file=sys.stderr)
-        return 130
-    finally:
-        stop_workbench_started_services(cfg)
-        mark_service_stopped(cfg, "workbench", SHUTDOWN_REASON or "quit")
-        append_event(cfg, "workbench", "shutdown", details={"reason": SHUTDOWN_REASON or "quit"})
+    return run_line_console_lifecycle(
+        cfg,
+        stdin_isatty_func=sys.stdin.isatty,
+        stdout_isatty_func=sys.stdout.isatty,
+        state_file_path_func=state_file_path,
+        update_server_state_func=update_server_state,
+        append_event_func=append_event,
+        print_workbench_func=print_workbench,
+        run_repl_func=run_line_repl,
+        request_shutdown_func=request_shutdown,
+        stop_services_func=stop_workbench_started_services,
+        mark_stopped_func=mark_service_stopped,
+        shutdown_reason_func=lambda: SHUTDOWN_REASON,
+        stderr=sys.stderr,
+    )
 
 
 

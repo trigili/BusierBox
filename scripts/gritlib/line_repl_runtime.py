@@ -339,6 +339,66 @@ def run_line_repl_loop(
     return 130 if shutdown_reason_func() in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
 
 
+def run_line_console_lifecycle(
+    cfg,
+    *,
+    stdin_isatty_func,
+    stdout_isatty_func,
+    state_file_path_func,
+    update_server_state_func,
+    append_event_func,
+    print_workbench_func,
+    run_repl_func,
+    request_shutdown_func,
+    stop_services_func,
+    mark_stopped_func,
+    shutdown_reason_func,
+    stderr=None,
+):
+    """Run the line console with workbench state and cleanup handling."""
+    state_file = str(state_file_path_func(cfg))
+    update_server_state_func(
+        cfg,
+        "workbench",
+        "open",
+        {"state_file": state_file, "workbench_mode": "starting"},
+    )
+    if not stdin_isatty_func() or not stdout_isatty_func():
+        update_server_state_func(
+            cfg,
+            "workbench",
+            "open",
+            {
+                "state_file": state_file,
+                "workbench_mode": "noninteractive",
+            },
+        )
+        append_event_func(cfg, "workbench", "workbench_opened", details={"mode": "noninteractive"})
+        print_workbench_func(cfg)
+        return 0
+    try:
+        update_server_state_func(
+            cfg,
+            "workbench",
+            "open",
+            {
+                "state_file": state_file,
+                "workbench_mode": "line",
+            },
+        )
+        append_event_func(cfg, "workbench", "workbench_opened", details={"mode": "line"})
+        return run_repl_func(cfg)
+    except KeyboardInterrupt:
+        request_shutdown_func("keyboard_interrupt")
+        print("grit-console: interrupted, shutting down workbench", file=stderr or sys.stderr)
+        return 130
+    finally:
+        stop_services_func(cfg)
+        reason = shutdown_reason_func() or "quit"
+        mark_stopped_func(cfg, "workbench", reason)
+        append_event_func(cfg, "workbench", "shutdown", details={"reason": reason})
+
+
 def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull):
     stream = stdin if stdin is not None else sys.stdin
     null_fd = None

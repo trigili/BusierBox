@@ -430,6 +430,7 @@ def run_line_repl_runtime_check():
         prepare_repl_choice,
         read_line,
         read_next_repl_line,
+        run_line_console_lifecycle,
         run_line_repl_loop,
     )
 
@@ -1618,6 +1619,95 @@ def run_line_repl_runtime_check():
         if marker not in legacy_calls:
             print(f"line REPL legacy adapter missed {marker}: {legacy_calls}", file=sys.stderr)
             return 1
+
+    lifecycle_calls = []
+    lifecycle_cfg = {"name": "life-cfg"}
+
+    def lifecycle_state_file(cfg):
+        lifecycle_calls.append(("state-file", cfg.get("name")))
+        return Path("local/state.json")
+
+    def lifecycle_update(cfg, service, state, details):
+        lifecycle_calls.append(("update", cfg.get("name"), service, state, details))
+
+    def lifecycle_event(cfg, service, event, details=None):
+        lifecycle_calls.append(("event", cfg.get("name"), service, event, details))
+
+    noninteractive = run_line_console_lifecycle(
+        lifecycle_cfg,
+        stdin_isatty_func=lambda: False,
+        stdout_isatty_func=lambda: True,
+        state_file_path_func=lifecycle_state_file,
+        update_server_state_func=lifecycle_update,
+        append_event_func=lifecycle_event,
+        print_workbench_func=lambda cfg: lifecycle_calls.append(("print", cfg.get("name"))),
+        run_repl_func=lambda cfg: lifecycle_calls.append(("repl", cfg.get("name"))) or 0,
+        request_shutdown_func=lambda reason: lifecycle_calls.append(("shutdown-request", reason)),
+        stop_services_func=lambda cfg: lifecycle_calls.append(("stop-services", cfg.get("name"))),
+        mark_stopped_func=lambda cfg, service, reason: lifecycle_calls.append(
+            ("mark", cfg.get("name"), service, reason)
+        ),
+        shutdown_reason_func=lambda: "",
+        stderr=io.StringIO(),
+    )
+    if noninteractive != 0 or ("print", "life-cfg") not in lifecycle_calls or any(call[0] == "stop-services" for call in lifecycle_calls):
+        print(f"line console lifecycle did not preserve noninteractive behavior: {lifecycle_calls}", file=sys.stderr)
+        return 1
+
+    lifecycle_calls.clear()
+    interactive = run_line_console_lifecycle(
+        lifecycle_cfg,
+        stdin_isatty_func=lambda: True,
+        stdout_isatty_func=lambda: True,
+        state_file_path_func=lifecycle_state_file,
+        update_server_state_func=lifecycle_update,
+        append_event_func=lifecycle_event,
+        print_workbench_func=lambda cfg: lifecycle_calls.append(("print", cfg.get("name"))),
+        run_repl_func=lambda cfg: lifecycle_calls.append(("repl", cfg.get("name"))) or 7,
+        request_shutdown_func=lambda reason: lifecycle_calls.append(("shutdown-request", reason)),
+        stop_services_func=lambda cfg: lifecycle_calls.append(("stop-services", cfg.get("name"))),
+        mark_stopped_func=lambda cfg, service, reason: lifecycle_calls.append(
+            ("mark", cfg.get("name"), service, reason)
+        ),
+        shutdown_reason_func=lambda: "done",
+        stderr=io.StringIO(),
+    )
+    if (
+        interactive != 7
+        or ("repl", "life-cfg") not in lifecycle_calls
+        or ("stop-services", "life-cfg") not in lifecycle_calls
+        or ("mark", "life-cfg", "workbench", "done") not in lifecycle_calls
+    ):
+        print(f"line console lifecycle did not preserve interactive cleanup: {lifecycle_calls}", file=sys.stderr)
+        return 1
+
+    lifecycle_calls.clear()
+    stderr_buf = io.StringIO()
+    interrupted = run_line_console_lifecycle(
+        lifecycle_cfg,
+        stdin_isatty_func=lambda: True,
+        stdout_isatty_func=lambda: True,
+        state_file_path_func=lifecycle_state_file,
+        update_server_state_func=lifecycle_update,
+        append_event_func=lifecycle_event,
+        print_workbench_func=lambda cfg: lifecycle_calls.append(("print", cfg.get("name"))),
+        run_repl_func=lambda cfg: (_ for _ in ()).throw(KeyboardInterrupt()),
+        request_shutdown_func=lambda reason: lifecycle_calls.append(("shutdown-request", reason)),
+        stop_services_func=lambda cfg: lifecycle_calls.append(("stop-services", cfg.get("name"))),
+        mark_stopped_func=lambda cfg, service, reason: lifecycle_calls.append(
+            ("mark", cfg.get("name"), service, reason)
+        ),
+        shutdown_reason_func=lambda: "keyboard_interrupt",
+        stderr=stderr_buf,
+    )
+    if (
+        interrupted != 130
+        or ("shutdown-request", "keyboard_interrupt") not in lifecycle_calls
+        or "interrupted" not in stderr_buf.getvalue()
+        or ("mark", "life-cfg", "workbench", "keyboard_interrupt") not in lifecycle_calls
+    ):
+        print(f"line console lifecycle did not preserve KeyboardInterrupt handling: {lifecycle_calls}", file=sys.stderr)
+        return 1
     return 0
 
 
