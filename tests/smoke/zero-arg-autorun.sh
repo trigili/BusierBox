@@ -15,6 +15,11 @@ if GRIT_ZERO_ARG_MODE=help "$bb" >"$tmp/default.out" 2>&1; then
     :
 fi
 grep -Eq 'usage: grit|native applets:' "$tmp/default.out"
+if grep -q 'zero-arg mode=' "$tmp/default.out" || grep -q 'zero-arg exit=' "$tmp/default.out"; then
+    printf '%s\n' "zero-arg-autorun: quiet default printed status lines" >&2
+    cat "$tmp/default.out" >&2
+    exit 1
+fi
 
 GRIT_ZERO_ARG_MODE=help GRIT_ZERO_ARG_LOG_MODE=none "$bb" >"$tmp/none.out" 2>"$tmp/none.err" || true
 [ ! -s "$tmp/none.out" ]
