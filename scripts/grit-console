@@ -5487,13 +5487,15 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
     if action_id == "inspect-profile":
         return print_bridge_profile(cfg, profile, json_output=False)
     if action_id == "start-profile":
-        start_service_process(
+        proc = start_service_process(
             cfg,
             "bridge",
             argv_extra=["--bridge-profile", profile],
             headless_command=run_command or command,
             state_service=bridge_profile_service_name(profile),
         )
+        if proc is not None:
+            print(f"bridge started: {profile}")
         rc = 0
     elif action_id == "stop-profile":
         if rec.get("requires_confirmation") is True and not confirmed:
@@ -5504,6 +5506,9 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
             via="bridge-profile-workflow-action",
             headless_command=run_command or command,
         )
+        current = {row["name"]: row for row in service_status_rows(cfg)}.get(bridge_profile_service_name(profile), {})
+        if current.get("actual") == "stopped":
+            print(f"bridge stopped; port released: {profile}")
         rc = 0
     elif action_id == "delete-profile":
         if rec.get("requires_confirmation") is True and not confirmed:
