@@ -9449,6 +9449,9 @@ def main(argv=None):
     tls_io_src = (ROOT / "scripts" / "gritlib" / "tls_io.py").read_text()
     workbench_jobs_src = (ROOT / "scripts" / "gritlib" / "workbench_jobs.py").read_text()
     workflow_actions_src = (ROOT / "scripts" / "gritlib" / "workflow_actions.py").read_text()
+    workflow_operator_console_actions_src = (
+        ROOT / "scripts" / "gritlib" / "workflow_operator_console_actions.py"
+    ).read_text()
     workbench_pager_src = "\n".join((
         src,
         bridge_routes_src,
@@ -9474,6 +9477,7 @@ def main(argv=None):
         target_records_src,
         workbench_jobs_src,
         workflow_actions_src,
+        workflow_operator_console_actions_src,
     ))
     release_docs = (ROOT / "docs" / "release-bundles.md").read_text()
     for word in ("invalid_command_queue_policy",
