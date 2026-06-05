@@ -609,18 +609,17 @@ def serve_probe_ftp(cfg, timeout, max_sessions=0):
     return 0
 
 
-def serve_probe_dns(cfg, timeout, max_sessions=0):
-    service = "probe-dns"
-    port = int(cfg.get("GRIT_PROBE_DNS_PORT", 22210))
-    host = operator_advertised_host(cfg)
-    dns_name = str(cfg.get("GRIT_PROBE_DNS_NAME", "probe.grit")).strip().strip(".") or "probe.grit"
-    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
-    script_text = probe_script_fn(cfg, host, int(cfg.get("GRIT_PROBE_PORT", 22207)))
+def _probe_dns_name(cfg):
+    return str(cfg.get("GRIT_PROBE_DNS_NAME", "probe.grit")).strip().strip(".") or "probe.grit"
+
+
+def _probe_dns_txt_chunks(script_text):
     encoded = base64.b64encode(script_text.encode("utf-8")).decode("ascii")
-    txt_chunks = [encoded[i:i + 240] for i in range(0, len(encoded), 240)]
-    target_command = render_probe_dns_command(cfg, host=host, port=port)
-    log_dir = SESSION_MANAGER.log_dir(cfg, service)
-    session_details = {
+    return encoded, [encoded[i:i + 240] for i in range(0, len(encoded), 240)]
+
+
+def _probe_dns_session_details(port, dns_name, script_name, txt_chunks, target_command, cfg):
+    return {
         "port": port,
         "protocol": "udp",
         "dns_name": dns_name,
@@ -629,6 +628,12 @@ def serve_probe_dns(cfg, timeout, max_sessions=0):
         "target_command": target_command,
         "http_result_port": int(cfg.get("GRIT_PROBE_PORT", 22207)),
     }
+
+
+def _start_probe_dns_record(
+    cfg, service, log_dir, script_name, script_text, dns_name,
+    txt_chunks, port, target_command, session_details,
+):
     SESSION_MANAGER.start_record(cfg, service, log_dir, details=session_details)
     (log_dir / script_name).write_text(script_text, encoding="utf-8")
     (log_dir / f"{dns_name}.txt").write_text("\n".join(txt_chunks) + "\n", encoding="utf-8")
@@ -639,40 +644,102 @@ def serve_probe_dns(cfg, timeout, max_sessions=0):
     if port != 53:
         print("DNS note: nslookup usually needs this service exposed on port 53; custom ports use the generated dig command.")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **session_details})
-    sessions = 0
+
+
+def _bind_probe_dns_socket(cfg, port, timeout):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind((str(cfg["listen_host"]), port))
         register_socket(sock)
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
-        append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
+        return sock
+    except OSError:
+        try:
+            sock.close()
+        except OSError:
+            pass
+        raise
+
+
+def _mark_probe_dns_listening(cfg, service, log_dir, session_details):
+    update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
+    append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
+
+
+def _record_probe_dns_query(
+    cfg, service, log_dir, sock, packet, addr, dns_name, txt_chunks, encoded
+):
+    qname, qend = dns_parse_qname(packet)
+    qtype = int.from_bytes(packet[qend:qend + 2], "big") if qend + 2 <= len(packet) else 0
+    remote = f"{addr[0]}:{addr[1]}"
+    chunks = txt_chunks if qname.rstrip(".").lower() == dns_name.lower() else []
+    response = dns_txt_answer_packet(packet, chunks)
+    if response:
+        sock.sendto(response, addr)
+    metadata = {
+        "operation": "probe_dns_txt",
+        "status": "served" if chunks else "not-found",
+        "remote_addr": remote,
+        "dns_name": qname,
+        "query_type": qtype,
+        "txt_chunk_count": len(chunks),
+        "size": len(encoded) if chunks else 0,
+    }
+    SESSION_MANAGER.append_list_item(log_dir, "artifacts", metadata)
+    append_event(cfg, service, "probe_dns_query", remote=remote, session=str(log_dir), details=metadata)
+
+
+def _close_probe_dns_socket(sock):
+    try:
+        unregister_socket(sock)
+        sock.close()
+    except OSError:
+        pass
+
+
+def _stop_probe_dns_listener(cfg, service, log_dir, port):
+    stop_reason = current_shutdown_reason() or "server-exit"
+    if stop_reason == "bind_error":
+        return
+    mark_service_stopped(cfg, service, stop_reason)
+    SESSION_MANAGER.finish_record(cfg, service, log_dir, state="ended", exit_reason=stop_reason)
+    record_shutdown_event(cfg, service, session=log_dir)
+    append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "protocol": "udp", "reason": stop_reason})
+
+
+def serve_probe_dns(cfg, timeout, max_sessions=0):
+    service = "probe-dns"
+    port = int(cfg.get("GRIT_PROBE_DNS_PORT", 22210))
+    host = operator_advertised_host(cfg)
+    dns_name = _probe_dns_name(cfg)
+    script_name = _probe_script_name(cfg)
+    script_text = probe_script_fn(cfg, host, int(cfg.get("GRIT_PROBE_PORT", 22207)))
+    encoded, txt_chunks = _probe_dns_txt_chunks(script_text)
+    target_command = render_probe_dns_command(cfg, host=host, port=port)
+    log_dir = SESSION_MANAGER.log_dir(cfg, service)
+    session_details = _probe_dns_session_details(
+        port, dns_name, script_name, txt_chunks, target_command, cfg
+    )
+    _start_probe_dns_record(
+        cfg, service, log_dir, script_name, script_text, dns_name,
+        txt_chunks, port, target_command, session_details,
+    )
+    sessions = 0
+    sock = None
+    try:
+        sock = _bind_probe_dns_socket(cfg, port, timeout)
+        _mark_probe_dns_listening(cfg, service, log_dir, session_details)
         while not SHUTDOWN.is_set():
             try:
                 packet, addr = sock.recvfrom(4096)
             except socket.timeout:
                 print("timeout waiting for DNS probe request", file=sys.stderr)
                 return 1 if sessions == 0 else 0
-            qname, qend = dns_parse_qname(packet)
-            qtype = int.from_bytes(packet[qend:qend + 2], "big") if qend + 2 <= len(packet) else 0
-            remote = f"{addr[0]}:{addr[1]}"
-            chunks = txt_chunks if qname.rstrip(".").lower() == dns_name.lower() else []
-            response = dns_txt_answer_packet(packet, chunks)
-            if response:
-                sock.sendto(response, addr)
+            _record_probe_dns_query(
+                cfg, service, log_dir, sock, packet, addr, dns_name, txt_chunks, encoded
+            )
             sessions += 1
-            metadata = {
-                "operation": "probe_dns_txt",
-                "status": "served" if chunks else "not-found",
-                "remote_addr": remote,
-                "dns_name": qname,
-                "query_type": qtype,
-                "txt_chunk_count": len(chunks),
-                "size": len(encoded) if chunks else 0,
-            }
-            SESSION_MANAGER.append_list_item(log_dir, "artifacts", metadata)
-            append_event(cfg, service, "probe_dns_query", remote=remote, session=str(log_dir), details=metadata)
             if max_sessions and sessions >= max_sessions:
                 return 0
     except OSError as exc:
@@ -680,15 +747,7 @@ def serve_probe_dns(cfg, timeout, max_sessions=0):
         print(f"{service}: unable to bind UDP {cfg['listen_host']}:{port}: {exc}", file=sys.stderr)
         raise
     finally:
-        try:
-            unregister_socket(sock)
-            sock.close()
-        except OSError:
-            pass
-        stop_reason = current_shutdown_reason() or "server-exit"
-        if stop_reason != "bind_error":
-            mark_service_stopped(cfg, service, stop_reason)
-            SESSION_MANAGER.finish_record(cfg, service, log_dir, state="ended", exit_reason=stop_reason)
-            record_shutdown_event(cfg, service, session=log_dir)
-            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "protocol": "udp", "reason": stop_reason})
+        if sock is not None:
+            _close_probe_dns_socket(sock)
+        _stop_probe_dns_listener(cfg, service, log_dir, port)
     return 0
