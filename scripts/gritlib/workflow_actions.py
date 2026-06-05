@@ -15,6 +15,7 @@ import gritlib.workflow_operator_console_actions as workflow_operator_console_ac
 import gritlib.workflow_operator_daemon_actions as workflow_operator_daemon_actions
 import gritlib.workflow_target_actions as workflow_target_actions
 import gritlib.workflow_workbench_actions as workflow_workbench_actions
+import gritlib.workbench_jobs as workbench_jobs
 from gritlib.workbench_jobs import workbench_job_records
 
 
@@ -672,103 +673,19 @@ def workbench_action_status_context(cfg):
 
 
 def workbench_job_indexes(records):
-    return {
-        "workbench_jobs_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
-        "workbench_jobs_by_action": records_by_key(records, "action_id"),
-        "workbench_jobs_by_state": records_by_key(records, "state"),
-        "workbench_jobs_by_effective_state": records_by_key(records, "effective_state"),
-        "workbench_jobs_by_category": records_by_key(records, "category"),
-        "workbench_jobs_by_script": records_by_key(records, "script"),
-        "workbench_jobs_by_pid": records_by_key(records, "pid"),
-        "workbench_jobs_by_pid_managed": records_by_key(records, "pid_managed"),
-        "workbench_jobs_by_cancel_supported": records_by_key(records, "cancel_supported"),
-        "workbench_jobs_by_log_exists": records_by_key(records, "log_exists"),
-        "workbench_jobs_by_exit_status_known": records_by_key(records, "exit_status_known"),
-        "workbench_jobs_by_started_at_known": records_by_key(records, "started_at_known"),
-        "workbench_jobs_by_finished_at_known": records_by_key(records, "finished_at_known"),
-        "workbench_jobs_by_duration_known": records_by_key(records, "duration_known"),
-        "workbench_jobs_by_elapsed_known": records_by_key(records, "elapsed_known"),
-        "workbench_jobs_by_background_supported": records_by_key(records, "background_supported"),
-        "workbench_jobs_by_long_running": records_by_key(records, "long_running"),
-        "workbench_jobs_by_outcome": records_by_key(records, "outcome"),
-        "workbench_jobs_by_exit_status": records_by_key(records, "exit_status"),
-        "workbench_jobs_by_last_output_tail_truncated": records_by_key(records, "last_output_tail_truncated"),
-    }
+    return workbench_jobs.workbench_job_indexes(records)
 
 
 def workbench_job_summary(records):
-    return {
-        "total_count": len(records or []),
-        "running_count": len([rec for rec in records or [] if rec.get("effective_state") in ("starting", "running")]),
-        "pid_managed_count": len([rec for rec in records or [] if rec.get("pid_managed") is True]),
-        "cancel_supported_count": len([rec for rec in records or [] if rec.get("cancel_supported") is True]),
-        "log_exists_count": len([rec for rec in records or [] if rec.get("log_exists") is True]),
-        "log_total_size": record_sum_by_key(records, "log_size"),
-        "last_output_tail_truncated_count": len([rec for rec in records or [] if rec.get("last_output_tail_truncated") is True]),
-        "exit_status_known_count": len([rec for rec in records or [] if rec.get("exit_status_known") is True]),
-        "started_at_known_count": len([rec for rec in records or [] if rec.get("started_at_known") is True]),
-        "finished_at_known_count": len([rec for rec in records or [] if rec.get("finished_at_known") is True]),
-        "duration_known_count": len([rec for rec in records or [] if rec.get("duration_known") is True]),
-        "elapsed_known_count": len([rec for rec in records or [] if rec.get("elapsed_known") is True]),
-        "duration_total_sec": record_sum_by_key(records, "duration_sec"),
-        "elapsed_total_sec": record_sum_by_key(records, "elapsed_sec"),
-        "background_supported_count": len([rec for rec in records or [] if rec.get("background_supported") is True]),
-        "long_running_count": len([rec for rec in records or [] if rec.get("long_running") is True]),
-        "state_counts": record_count_by_key(records, "state"),
-        "effective_state_counts": record_count_by_key(records, "effective_state"),
-        "outcome_counts": record_count_by_key(records, "outcome"),
-        "exit_status_counts": record_count_by_key(records, "exit_status"),
-        "action_counts": record_count_by_key(records, "action_id"),
-        "category_counts": record_count_by_key(records, "category"),
-    }
+    return workbench_jobs.workbench_job_summary(records)
 
 
 def workbench_job_status_summary(stats=None):
-    stats = stats or {}
-    return {
-        "workbench_job_count": stats.get("total_count", 0),
-        "workbench_job_running_count": stats.get("running_count", 0),
-        "workbench_job_pid_managed_count": stats.get("pid_managed_count", 0),
-        "workbench_job_cancel_supported_count": stats.get("cancel_supported_count", 0),
-        "workbench_job_log_exists_count": stats.get("log_exists_count", 0),
-        "workbench_job_log_total_size": stats.get("log_total_size", 0),
-        "workbench_job_last_output_tail_truncated_count": stats.get(
-            "last_output_tail_truncated_count", 0
-        ),
-        "workbench_job_exit_status_known_count": stats.get(
-            "exit_status_known_count", 0
-        ),
-        "workbench_job_started_at_known_count": stats.get("started_at_known_count", 0),
-        "workbench_job_finished_at_known_count": stats.get(
-            "finished_at_known_count", 0
-        ),
-        "workbench_job_duration_known_count": stats.get("duration_known_count", 0),
-        "workbench_job_elapsed_known_count": stats.get("elapsed_known_count", 0),
-        "workbench_job_duration_total_sec": stats.get("duration_total_sec", 0),
-        "workbench_job_elapsed_total_sec": stats.get("elapsed_total_sec", 0),
-        "workbench_job_background_supported_count": stats.get(
-            "background_supported_count", 0
-        ),
-        "workbench_job_long_running_count": stats.get("long_running_count", 0),
-        "workbench_job_state_counts": stats.get("state_counts") or {},
-        "workbench_job_effective_state_counts": stats.get("effective_state_counts")
-        or {},
-        "workbench_job_outcome_counts": stats.get("outcome_counts") or {},
-        "workbench_job_exit_status_counts": stats.get("exit_status_counts") or {},
-        "workbench_job_action_counts": stats.get("action_counts") or {},
-        "workbench_job_category_counts": stats.get("category_counts") or {},
-    }
+    return workbench_jobs.workbench_job_status_summary(stats)
 
 
 def workbench_job_status_context(cfg, workbench_actions=None):
-    jobs = workbench_job_records(cfg, workbench_actions)
-    stats = workbench_job_summary(jobs)
-    return {
-        "jobs": jobs,
-        "index_maps": workbench_job_indexes(jobs),
-        "stats": stats,
-        "summary": workbench_job_status_summary(stats),
-    }
+    return workbench_jobs.workbench_job_status_context(cfg, workbench_actions)
 
 
 def operator_daemon_workflow_action_indexes(records):
