@@ -140,9 +140,7 @@ def _run_line_repl_loop(
     )
 
 
-def run_line_repl(cfg):
-    repl_io, line_input = _setup_line_repl_runtime_io()
-
+def _build_line_foundation_callbacks(cfg, line_input):
     line_target_callbacks = build_line_target_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
@@ -208,6 +206,29 @@ def run_line_repl(cfg):
         load_staged_func=load_staged,
         find_survey_uploads_func=line_configure.find_survey_uploads,
         append_event_fn=append_event,
+    )
+
+    return (
+        line_target_callbacks,
+        line_route_service_callbacks,
+        line_option_callbacks,
+        line_action_callbacks,
+        line_completion_callbacks,
+    )
+
+
+def run_line_repl(cfg):
+    repl_io, line_input = _setup_line_repl_runtime_io()
+
+    (
+        line_target_callbacks,
+        line_route_service_callbacks,
+        line_option_callbacks,
+        line_action_callbacks,
+        line_completion_callbacks,
+    ) = _build_line_foundation_callbacks(
+        cfg,
+        line_input,
     )
 
     line_job_callbacks = build_line_job_callbacks(
