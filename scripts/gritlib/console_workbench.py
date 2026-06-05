@@ -38,12 +38,7 @@ from gritlib.session_state import (
 from gritlib.session_records import (
     session_record_summary, session_status_context,
 )
-from gritlib.service_status import (
-    port_status_summary,
-    service_status_context, service_status_summary,
-    service_workflow_action_indexes, service_workflow_action_records,
-    service_workflow_action_status_summary,
-)
+import gritlib.service_status as service_status
 from gritlib.staged_files import (
     staged_file_workflow_action_indexes, staged_file_workflow_action_records,
     staged_file_path,
@@ -591,7 +586,9 @@ def _build_operator_network_status_context(cfg):
 
 
 def _build_service_status_context(cfg):
-    service_context = service_status_context(cfg, SERVICE_MANAGER.snapshot())
+    service_context = service_status.service_status_context(
+        cfg, SERVICE_MANAGER.snapshot()
+    )
     return {
         "service_context": service_context,
         "services": service_context["services"],
@@ -945,7 +942,9 @@ def _build_service_probe_workflow_status_context(
     services_by_name,
     targets,
 ):
-    service_workflow_actions = service_workflow_action_records(cfg, services, targets)
+    service_workflow_actions = service_status.service_workflow_action_records(
+        cfg, services, targets
+    )
     probe_workflow_actions = probe_workflow_action_records(
         cfg,
         services_by_name.get("probe") or {},
@@ -953,7 +952,7 @@ def _build_service_probe_workflow_status_context(
     )
     return {
         "service_workflow_actions": service_workflow_actions,
-        "service_workflow_action_index_maps": service_workflow_action_indexes(
+        "service_workflow_action_index_maps": service_status.service_workflow_action_indexes(
             service_workflow_actions
         ),
         "probe_workflow_actions": probe_workflow_actions,
@@ -963,7 +962,9 @@ def _build_service_probe_workflow_status_context(
             )
         ),
         "summary": {
-            **service_workflow_action_status_summary(service_workflow_actions),
+            **service_status.service_workflow_action_status_summary(
+                service_workflow_actions
+            ),
             **workflow_actions.probe_workflow_action_status_summary(
                 probe_workflow_actions
             ),
@@ -1812,8 +1813,10 @@ def status_document(cfg):
         **operator_state_file_summary_doc,
         **operator_state_summary,
         **staged_file_workflow_context["summary"],
-        **service_status_summary(services, service_manager, service_manager_status_doc),
-        **port_status_summary(ports),
+        **service_status.service_status_summary(
+            services, service_manager, service_manager_status_doc
+        ),
+        **service_status.port_status_summary(ports),
         **warning_summary_context["summary"],
         **file_transfers.upload_record_summary(uploads, target_attribution),
         **file_transfers.fetch_record_summary(fetches, target_attribution),
