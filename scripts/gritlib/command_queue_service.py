@@ -122,10 +122,9 @@ def handle_command_queue_http(cfg, conn, method, target, headers, body, addr):
         return handle_command_queue_result(cfg, conn, method, target, headers, body, addr)
     return handle_command_queue_poll(cfg, conn, method, target, headers, addr)
 
-def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
-    remote = f"{addr[0]}:{addr[1]}"
-    target_identity = target_identity_from_headers(headers)
-    poll_context = {
+
+def _command_queue_poll_context(headers):
+    return {
         "poll_mode": str(headers.get("x-grit-command-queue-mode") or headers.get("x-grittykit-command-queue-mode") or ""),
         "poll_interval_sec": str(headers.get("x-grit-command-queue-poll-interval-sec") or headers.get("x-grittykit-command-queue-poll-interval-sec") or ""),
         "poll_jitter_pct": str(headers.get("x-grit-command-queue-poll-jitter-pct") or headers.get("x-grittykit-command-queue-poll-jitter-pct") or ""),
@@ -133,87 +132,184 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "poll_max_interval_sec": str(headers.get("x-grit-command-queue-poll-max-interval-sec") or headers.get("x-grittykit-command-queue-poll-max-interval-sec") or ""),
         "max_polls": str(headers.get("x-grit-command-queue-max-polls") or headers.get("x-grittykit-command-queue-max-polls") or ""),
     }
-    if method not in {"GET", "HEAD"}:
-        payload = {"schema": 1, "status": "rejected", "reason": "command queue poll accepts only GET or HEAD"}
-        send_json_response(conn, 405, payload)
-        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 405, "method": method, "remote_addr": remote, **poll_context}, target_identity)
-    parsed = urllib.parse.urlparse(target)
-    if parsed.path not in {"/command-queue/poll", "/command-queue/poll/"}:
-        payload = {"schema": 1, "status": "rejected", "reason": "unknown command queue endpoint"}
-        send_json_response(conn, 404, payload)
-        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 404, "method": method, "remote_addr": remote, "reason": "unknown endpoint", **poll_context}, target_identity)
-    if not command_queue_token_valid(cfg, headers):
-        payload = {"schema": 1, "status": "rejected", "reason": "missing or invalid command queue token"}
-        send_json_response(conn, 403, payload)
-        return details_with_target(cfg, {"operation": "command_queue_poll", "status": "rejected", "http_status": 403, "method": method, "remote_addr": remote, "reason": "invalid token", **poll_context}, target_identity)
-    queue = command_queue_summary(cfg)
-    queued_count = int(queue.get("queued_count", 0) or 0)
+
+
+def _reject_command_queue_poll(
+    cfg,
+    conn,
+    *,
+    http_status,
+    reason,
+    method,
+    remote,
+    poll_context,
+    target_identity,
+    detail_reason=None,
+):
+    payload = {"schema": 1, "status": "rejected", "reason": reason}
+    send_json_response(conn, http_status, payload)
+    details = {
+        "operation": "command_queue_poll",
+        "status": "rejected",
+        "http_status": http_status,
+        "method": method,
+        "remote_addr": remote,
+        **poll_context,
+    }
+    if detail_reason:
+        details["reason"] = detail_reason
+    return details_with_target(cfg, details, target_identity)
+
+
+def _command_queue_execution_context(cfg, queue):
     execution_supported = bool(queue.get("execution_supported"))
     execution_decision = "pending" if execution_supported else "rejected"
-    execution_decision_reason = "" if execution_supported else command_queue_execution_rejection_reason(cfg)
-    target_id = str(target_identity.get("target_id") or "")
-    queued = [
+    execution_decision_reason = (
+        "" if execution_supported else command_queue_execution_rejection_reason(cfg)
+    )
+    return execution_supported, execution_decision, execution_decision_reason
+
+
+def _queued_commands_for_target(queue, target_id):
+    return [
         rec for rec in queue.get("commands", [])
         if isinstance(rec, dict) and rec.get("status") == "queued" and rec.get("id")
         and (str(rec.get("target_id") or "") in ("", target_id) if target_id else not str(rec.get("target_id") or ""))
     ]
-    if queued:
-        command = queued[0]
-        delivered = mark_command_delivered(cfg, command.get("id"), remote, target_identity=target_identity)
-        payload = {
-            "schema": 1,
-            "status": "delivered",
-            "id": command.get("id"),
-            "command_id": command.get("id"),
-            "command_sha256": command.get("command_sha256", ""),
-            "command": command.get("command", ""),
-            "timeout_sec": command.get("timeout_sec", 0),
-            "max_output_bytes": command.get("max_output_bytes", 0),
-            "execution_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
-            "delivery_supported": True,
-            "execution_supported": execution_supported,
-            "executes_commands": execution_supported,
-            "result_upload_supported": True,
-            "execution_decision": execution_decision,
-            "execution_decision_reason": execution_decision_reason,
-        }
-        payload.update({key: value for key, value in target_identity.items() if value not in (None, "")})
-        body = json.dumps(payload, sort_keys=True).encode("utf-8") + b"\n"
-        headers = {
-            "X-griTTYkit-Command-Queue-Status": "delivered",
-            "X-griTTYkit-Command-Id": str(command.get("id")),
-            "X-griTTYkit-Command-Sha256": str(command.get("command_sha256", "")),
-            "X-griTTYkit-Delivery-Supported": "yes",
-            "X-griTTYkit-Result-Upload-Supported": "yes",
-            "X-griTTYkit-Execution-Supported": "yes" if execution_supported else "no",
-            "X-griTTYkit-Executes-Commands": "yes" if execution_supported else "no",
-        }
-        if target_id:
-            headers["X-griTTYkit-Target-Id"] = target_id
-        if method == "HEAD":
-            body = b""
-        send_http_response(conn, 200, body, "application/json", headers=headers)
-        return details_with_target(cfg, {
-            "operation": "command_queue_poll",
-            "status": "delivered",
-            "http_status": 200,
-            "method": method,
-            "remote_addr": remote,
-            "command_id": command.get("id"),
-            "command_sha256": command.get("command_sha256", ""),
-            "queued_count_before": queued_count,
-            "delivered_count": 1 if delivered else 0,
-            **command_queue_work_metadata(command),
-            "delivery_supported": True,
-            "execution_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
-            "execution_supported": execution_supported,
-            "executes_commands": execution_supported,
-            "result_upload_supported": True,
-            "execution_decision": execution_decision,
-            "execution_decision_reason": execution_decision_reason,
-            **poll_context,
-        }, target_identity)
+
+
+def _delivered_command_payload(
+    cfg,
+    command,
+    target_identity,
+    execution_supported,
+    execution_decision,
+    execution_decision_reason,
+):
     payload = {
+        "schema": 1,
+        "status": "delivered",
+        "id": command.get("id"),
+        "command_id": command.get("id"),
+        "command_sha256": command.get("command_sha256", ""),
+        "command": command.get("command", ""),
+        "timeout_sec": command.get("timeout_sec", 0),
+        "max_output_bytes": command.get("max_output_bytes", 0),
+        "execution_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
+        "delivery_supported": True,
+        "execution_supported": execution_supported,
+        "executes_commands": execution_supported,
+        "result_upload_supported": True,
+        "execution_decision": execution_decision,
+        "execution_decision_reason": execution_decision_reason,
+    }
+    payload.update({key: value for key, value in target_identity.items() if value not in (None, "")})
+    return payload
+
+
+def _delivered_command_response_headers(command, target_id, execution_supported):
+    response_headers = {
+        "X-griTTYkit-Command-Queue-Status": "delivered",
+        "X-griTTYkit-Command-Id": str(command.get("id")),
+        "X-griTTYkit-Command-Sha256": str(command.get("command_sha256", "")),
+        "X-griTTYkit-Delivery-Supported": "yes",
+        "X-griTTYkit-Result-Upload-Supported": "yes",
+        "X-griTTYkit-Execution-Supported": "yes" if execution_supported else "no",
+        "X-griTTYkit-Executes-Commands": "yes" if execution_supported else "no",
+    }
+    if target_id:
+        response_headers["X-griTTYkit-Target-Id"] = target_id
+    return response_headers
+
+
+def _delivered_command_poll_details(
+    cfg,
+    method,
+    remote,
+    command,
+    queued_count,
+    delivered,
+    execution_supported,
+    execution_decision,
+    execution_decision_reason,
+    poll_context,
+):
+    return {
+        "operation": "command_queue_poll",
+        "status": "delivered",
+        "http_status": 200,
+        "method": method,
+        "remote_addr": remote,
+        "command_id": command.get("id"),
+        "command_sha256": command.get("command_sha256", ""),
+        "queued_count_before": queued_count,
+        "delivered_count": 1 if delivered else 0,
+        **command_queue_work_metadata(command),
+        "delivery_supported": True,
+        "execution_mode": str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only")),
+        "execution_supported": execution_supported,
+        "executes_commands": execution_supported,
+        "result_upload_supported": True,
+        "execution_decision": execution_decision,
+        "execution_decision_reason": execution_decision_reason,
+        **poll_context,
+    }
+
+
+def _handle_delivered_command_poll(
+    cfg,
+    conn,
+    *,
+    method,
+    remote,
+    target_identity,
+    target_id,
+    command,
+    queued_count,
+    execution_supported,
+    execution_decision,
+    execution_decision_reason,
+    poll_context,
+):
+    delivered = mark_command_delivered(
+        cfg, command.get("id"), remote, target_identity=target_identity
+    )
+    payload = _delivered_command_payload(
+        cfg, command, target_identity, execution_supported,
+        execution_decision, execution_decision_reason,
+    )
+    body = json.dumps(payload, sort_keys=True).encode("utf-8") + b"\n"
+    if method == "HEAD":
+        body = b""
+    send_http_response(
+        conn,
+        200,
+        body,
+        "application/json",
+        headers=_delivered_command_response_headers(
+            command, target_id, execution_supported
+        ),
+    )
+    return details_with_target(
+        cfg,
+        _delivered_command_poll_details(
+            cfg,
+            method,
+            remote,
+            command,
+            queued_count,
+            delivered,
+            execution_supported,
+            execution_decision,
+            execution_decision_reason,
+            poll_context,
+        ),
+        target_identity,
+    )
+
+
+def _no_command_poll_payload(cfg, queued_count, execution_supported):
+    return {
         "schema": 1,
         "status": "no-command",
         "queued_count": queued_count,
@@ -224,8 +320,10 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "result_upload_supported": True,
         "message": "no queued command available; target poll recorded only",
     }
-    body = b""
-    headers = {
+
+
+def _no_command_response_headers(queued_count, execution_supported):
+    return {
         "X-griTTYkit-Command-Queue-Status": "no-command",
         "X-griTTYkit-Queued-Count": str(queued_count),
         "X-griTTYkit-Delivery-Supported": "no",
@@ -233,10 +331,18 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "X-griTTYkit-Execution-Supported": "yes" if execution_supported else "no",
         "X-griTTYkit-Executes-Commands": "yes" if execution_supported else "no",
     }
-    if method == "HEAD":
-        body = b""
-    send_http_response(conn, 204, body, "application/json", headers=headers)
-    return details_with_target(cfg, {
+
+
+def _no_command_poll_details(
+    cfg,
+    *,
+    method,
+    remote,
+    queued_count,
+    execution_supported,
+    poll_context,
+):
+    return {
         "operation": "command_queue_poll",
         "status": "no-command",
         "http_status": 204,
@@ -249,7 +355,114 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         "executes_commands": execution_supported,
         "result_upload_supported": True,
         **poll_context,
-    }, target_identity)
+    }
+
+
+def _handle_no_command_poll(
+    cfg,
+    conn,
+    *,
+    method,
+    remote,
+    queued_count,
+    execution_supported,
+    poll_context,
+    target_identity,
+):
+    _no_command_poll_payload(cfg, queued_count, execution_supported)
+    send_http_response(
+        conn,
+        204,
+        b"",
+        "application/json",
+        headers=_no_command_response_headers(queued_count, execution_supported),
+    )
+    return details_with_target(
+        cfg,
+        _no_command_poll_details(
+            cfg,
+            method=method,
+            remote=remote,
+            queued_count=queued_count,
+            execution_supported=execution_supported,
+            poll_context=poll_context,
+        ),
+        target_identity,
+    )
+
+
+def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
+    remote = f"{addr[0]}:{addr[1]}"
+    target_identity = target_identity_from_headers(headers)
+    poll_context = _command_queue_poll_context(headers)
+    if method not in {"GET", "HEAD"}:
+        return _reject_command_queue_poll(
+            cfg,
+            conn,
+            http_status=405,
+            reason="command queue poll accepts only GET or HEAD",
+            method=method,
+            remote=remote,
+            poll_context=poll_context,
+            target_identity=target_identity,
+        )
+    parsed = urllib.parse.urlparse(target)
+    if parsed.path not in {"/command-queue/poll", "/command-queue/poll/"}:
+        return _reject_command_queue_poll(
+            cfg,
+            conn,
+            http_status=404,
+            reason="unknown command queue endpoint",
+            method=method,
+            remote=remote,
+            poll_context=poll_context,
+            target_identity=target_identity,
+            detail_reason="unknown endpoint",
+        )
+    if not command_queue_token_valid(cfg, headers):
+        return _reject_command_queue_poll(
+            cfg,
+            conn,
+            http_status=403,
+            reason="missing or invalid command queue token",
+            method=method,
+            remote=remote,
+            poll_context=poll_context,
+            target_identity=target_identity,
+            detail_reason="invalid token",
+        )
+    queue = command_queue_summary(cfg)
+    queued_count = int(queue.get("queued_count", 0) or 0)
+    execution_supported, execution_decision, execution_decision_reason = (
+        _command_queue_execution_context(cfg, queue)
+    )
+    target_id = str(target_identity.get("target_id") or "")
+    queued = _queued_commands_for_target(queue, target_id)
+    if queued:
+        return _handle_delivered_command_poll(
+            cfg,
+            conn,
+            method=method,
+            remote=remote,
+            target_identity=target_identity,
+            target_id=target_id,
+            command=queued[0],
+            queued_count=queued_count,
+            execution_supported=execution_supported,
+            execution_decision=execution_decision,
+            execution_decision_reason=execution_decision_reason,
+            poll_context=poll_context,
+        )
+    return _handle_no_command_poll(
+        cfg,
+        conn,
+        method=method,
+        remote=remote,
+        queued_count=queued_count,
+        execution_supported=execution_supported,
+        poll_context=poll_context,
+        target_identity=target_identity,
+    )
 
 def serve_command_queue(cfg, timeout, max_sessions=0):
     service = "command-queue"
