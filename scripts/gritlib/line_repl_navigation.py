@@ -103,6 +103,87 @@ def build_line_navigation_callbacks(
     return {"dispatch_line_navigation": dispatch_navigation}
 
 
+def _record_navigation_alias(ctx, alias, canonical):
+    ctx["append_event_fn"](
+        ctx["cfg"],
+        "workbench",
+        "workbench_console_alias_used",
+        details={
+            "alias": str(alias or ""),
+            "canonical": str(canonical or ""),
+        },
+    )
+
+
+def _select_navigation_number(ctx, selector):
+    module = str(ctx["cfg"].get("_line_console_module") or "")
+    if module.startswith("queue") and ctx["select_queue_action_func"]:
+        return ctx["select_queue_action_func"](selector)
+    return ctx["number_func"](selector)
+
+
+def _navigation_context_dispatch_kwargs(ctx):
+    cfg = ctx["cfg"]
+    return {
+        "target_selected": bool(ctx["target_filter_func"](cfg)),
+        "module": cfg.get("_line_console_module"),
+        "record_alias_func": lambda alias, canonical: _record_navigation_alias(ctx, alias, canonical),
+        "clear_results_func": lambda: ctx["clear_results_func"](cfg),
+        "set_listeners_context_func": lambda: ctx["set_context_func"](cfg, "listeners"),
+        "print_listeners_func": ctx["print_listeners_func"],
+        "select_listener_func": ctx["select_listener_func"],
+        "set_targets_context_func": lambda: ctx["set_context_func"](cfg, "targets"),
+        "print_targets_func": ctx["print_targets_func"],
+        "select_target_func": ctx["select_target_func"],
+        "set_sessions_context_func": lambda: ctx["set_context_func"](cfg, "sessions"),
+        "print_sessions_func": ctx["print_sessions_func"],
+        "clear_sessions_func": ctx["clear_sessions_func"],
+        "session_help_func": ctx["session_help_func"],
+        "select_session_func": ctx["select_session_func"],
+        "interact_session_func": ctx["interact_session_func"],
+    }
+
+
+def _navigation_route_dispatch_kwargs(ctx):
+    cfg = ctx["cfg"]
+    return {
+        "set_routes_context_func": lambda: ctx["set_context_func"](cfg, "routes"),
+        "print_routes_func": ctx["print_routes_func"],
+        "add_route_func": ctx["add_route_func"],
+        "start_route_func": ctx["start_route_func"],
+        "stop_route_func": ctx["stop_route_func"],
+        "delete_route_func": ctx["delete_route_func"],
+        "route_help_func": ctx["route_help_func"],
+        "select_route_func": ctx["select_route_func"],
+    }
+
+
+def _navigation_action_dispatch_kwargs(ctx):
+    cfg = ctx["cfg"]
+    return {
+        "number_func": lambda selector: _select_navigation_number(ctx, selector),
+        "select_job_func": ctx["select_job_func"],
+        "select_action_func": ctx["select_action_func"],
+        "clear_target_func": lambda: ctx["select_target_func"]("all", targets=[]),
+        "root_func": lambda quiet=False: ctx["clear_console_context_func"](cfg, quiet=quiet),
+        "back_func": lambda: ctx["back_func"](cfg),
+        "start_service_func": ctx["start_service_func"],
+        "stop_service_func": ctx["stop_service_func"],
+        "start_job_func": ctx["start_job_func"],
+        "cancel_job_func": ctx["cancel_job_func"],
+        "run_action_func": ctx["run_action_func"],
+        "interact_target_func": ctx["interact_target_func"],
+    }
+
+
+def _navigation_dispatch_kwargs(ctx):
+    kwargs = {}
+    kwargs.update(_navigation_context_dispatch_kwargs(ctx))
+    kwargs.update(_navigation_route_dispatch_kwargs(ctx))
+    kwargs.update(_navigation_action_dispatch_kwargs(ctx))
+    return kwargs
+
+
 def build_line_navigation_dispatch_callback(
     cfg,
     *,
@@ -139,63 +220,13 @@ def build_line_navigation_dispatch_callback(
     interact_target_func,
     select_queue_action_func=None,
 ):
-    def record_alias(alias, canonical):
-        append_event_fn(
-            cfg,
-            "workbench",
-            "workbench_console_alias_used",
-            details={
-                "alias": str(alias or ""),
-                "canonical": str(canonical or ""),
-            },
-        )
+    ctx = locals()
 
     def dispatch_navigation(command, args):
-        def select_number(selector):
-            module = str(cfg.get("_line_console_module") or "")
-            if module.startswith("queue") and select_queue_action_func:
-                return select_queue_action_func(selector)
-            return number_func(selector)
-
         return dispatch_line_navigation_command(
             command,
             args,
-            target_selected=bool(target_filter_func(cfg)),
-            module=cfg.get("_line_console_module"),
-            record_alias_func=record_alias,
-            clear_results_func=lambda: clear_results_func(cfg),
-            set_listeners_context_func=lambda: set_context_func(cfg, "listeners"),
-            print_listeners_func=print_listeners_func,
-            select_listener_func=select_listener_func,
-            set_targets_context_func=lambda: set_context_func(cfg, "targets"),
-            print_targets_func=print_targets_func,
-            select_target_func=select_target_func,
-            set_sessions_context_func=lambda: set_context_func(cfg, "sessions"),
-            print_sessions_func=print_sessions_func,
-            clear_sessions_func=clear_sessions_func,
-            session_help_func=session_help_func,
-            select_session_func=select_session_func,
-            interact_session_func=interact_session_func,
-            set_routes_context_func=lambda: set_context_func(cfg, "routes"),
-            print_routes_func=print_routes_func,
-            add_route_func=add_route_func,
-            start_route_func=start_route_func,
-            stop_route_func=stop_route_func,
-            delete_route_func=delete_route_func,
-            route_help_func=route_help_func,
-            select_route_func=select_route_func,
-            number_func=select_number,
-            select_job_func=select_job_func,
-            select_action_func=select_action_func,
-            clear_target_func=lambda: select_target_func("all", targets=[]),
-            root_func=lambda quiet=False: clear_console_context_func(cfg, quiet=quiet),
-            back_func=lambda: back_func(cfg),
-            start_service_func=start_service_func,
-            stop_service_func=stop_service_func,
-            start_job_func=start_job_func,
-            cancel_job_func=cancel_job_func,
-            run_action_func=run_action_func,
-            interact_target_func=interact_target_func,
+            **_navigation_dispatch_kwargs(ctx),
         )
 
     return dispatch_navigation
