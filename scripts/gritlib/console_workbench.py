@@ -857,6 +857,30 @@ def _build_target_filter_status_context(
     }
 
 
+def _build_target_attribution_status_context(uploads, fetches, sessions):
+    target_attribution_status_doc = target_attribution_status(
+        uploads,
+        fetches,
+        sessions,
+    )
+    target_attribution = target_attribution_status_doc["target_attribution"]
+    target_attribution_records = target_attribution_status_doc[
+        "target_attribution_records"
+    ]
+    return {
+        "target_attribution_status_doc": target_attribution_status_doc,
+        "target_attribution": target_attribution,
+        "target_attribution_records": target_attribution_records,
+        "target_attribution_index_maps": target_attribution_status_doc[
+            "target_attribution_index_maps"
+        ],
+        "summary": target_attribution_record_summary(
+            target_attribution_records,
+            target_attribution,
+        ),
+    }
+
+
 def _build_file_transfer_status_context(staged_records, uploads, fetches):
     file_transfer_context = file_transfer_status_context(uploads, fetches)
     target_file_transfer_context = target_file_transfer_status_context(
@@ -1455,14 +1479,19 @@ def status_document(cfg):
     summary = service_context["summary"]
     warnings = service_context["warnings"]
     service_index_maps = service_context["service_index_maps"]
-    target_attribution_status_doc = target_attribution_status(
-        uploads, fetches, sessions
+    target_attribution_context = _build_target_attribution_status_context(
+        uploads,
+        fetches,
+        sessions,
     )
-    target_attribution = target_attribution_status_doc["target_attribution"]
-    target_attribution_records = target_attribution_status_doc[
+    target_attribution_status_doc = target_attribution_context[
+        "target_attribution_status_doc"
+    ]
+    target_attribution = target_attribution_context["target_attribution"]
+    target_attribution_records = target_attribution_context[
         "target_attribution_records"
     ]
-    target_attribution_index_maps = target_attribution_status_doc[
+    target_attribution_index_maps = target_attribution_context[
         "target_attribution_index_maps"
     ]
     paths = {
@@ -1661,9 +1690,7 @@ def status_document(cfg):
         **target_summary,
         **target_registry_summary,
         **target_filter_context["summary"],
-        **target_attribution_record_summary(
-            target_attribution_records, target_attribution
-        ),
+        **target_attribution_context["summary"],
         **session_record_summary(
             sessions, session_root_state, session_root_state_records, target_attribution
         ),
