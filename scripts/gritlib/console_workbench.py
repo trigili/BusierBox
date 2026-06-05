@@ -3615,14 +3615,25 @@ def _build_status_api_collections(**data):
     }
 
 
-def _build_status_api_payload(
+def _status_api_metadata_payload(cfg, target_filter_id, selected_target, api_resources):
+    return {
+        "schema": 1,
+        "generated_at": session_state_module.utc_now(),
+        "api": _build_status_api_doc(
+            cfg,
+            target_filter_id,
+            selected_target,
+            api_resources,
+        ),
+    }
+
+
+def _status_api_target_filter_payload(
     *,
-    cfg,
     target_filter_id,
     selected_target,
     target_filter_record,
     unfiltered_counts,
-    api_collections,
     targets,
     uploads,
     fetches,
@@ -3635,26 +3646,8 @@ def _build_status_api_payload(
     target_phone_home_records,
     target_filter_records,
     target_filter_index_maps,
-    target_attribution,
-    target_attribution_records,
-    target_attribution_index_maps,
-    rshell_session_policy,
-    rshell_session_policy_records,
-    rshell_session_policy_index_maps,
-    operator_console_workflows,
-    operator_console_workflow_index_maps,
 ):
-    api_resources = status_indexes.api_resource_records(api_collections)
-    api_resource_indexes = status_indexes.api_resource_record_indexes(api_resources)
     return {
-        "schema": 1,
-        "generated_at": session_state_module.utc_now(),
-        "api": _build_status_api_doc(
-            cfg,
-            target_filter_id,
-            selected_target,
-            api_resources,
-        ),
         "target_filter": _build_target_filter_status_doc(
             target_filter_id,
             selected_target,
@@ -3673,9 +3666,33 @@ def _build_status_api_payload(
         ),
         "target_filter_records": target_filter_records,
         **target_filter_index_maps,
+    }
+
+
+def _status_api_attribution_payload(
+    target_attribution,
+    target_attribution_records,
+    target_attribution_index_maps,
+):
+    return {
         "target_attribution": target_attribution,
         "target_attribution_records": target_attribution_records,
         **target_attribution_index_maps,
+    }
+
+
+def _status_api_policy_resource_payload(
+    *,
+    rshell_session_policy,
+    rshell_session_policy_records,
+    rshell_session_policy_index_maps,
+    api_resources,
+    api_resource_indexes,
+    api_collections,
+    operator_console_workflows,
+    operator_console_workflow_index_maps,
+):
+    return {
         "GRIT_RSHELL_SESSION_POLICY": rshell_session_policy,
         "rshell_session_policy_records": rshell_session_policy_records,
         **rshell_session_policy_index_maps,
@@ -3684,6 +3701,56 @@ def _build_status_api_payload(
         "api_collections": api_collections,
         "operator_console_workflows": operator_console_workflows,
         **operator_console_workflow_index_maps,
+    }
+
+
+def _build_status_api_payload(**data):
+    api_resources = status_indexes.api_resource_records(data["api_collections"])
+    api_resource_indexes = status_indexes.api_resource_record_indexes(api_resources)
+    return {
+        **_status_api_metadata_payload(
+            data["cfg"],
+            data["target_filter_id"],
+            data["selected_target"],
+            api_resources,
+        ),
+        **_status_api_target_filter_payload(
+            target_filter_id=data["target_filter_id"],
+            selected_target=data["selected_target"],
+            target_filter_record=data["target_filter_record"],
+            unfiltered_counts=data["unfiltered_counts"],
+            targets=data["targets"],
+            uploads=data["uploads"],
+            fetches=data["fetches"],
+            sessions=data["sessions"],
+            events=data["events"],
+            command_queue=data["command_queue"],
+            staged_records=data["staged_records"],
+            staged_file_workflow_actions=data["staged_file_workflow_actions"],
+            target_command_records=data["target_command_records"],
+            target_phone_home_records=data["target_phone_home_records"],
+            target_filter_records=data["target_filter_records"],
+            target_filter_index_maps=data["target_filter_index_maps"],
+        ),
+        **_status_api_attribution_payload(
+            data["target_attribution"],
+            data["target_attribution_records"],
+            data["target_attribution_index_maps"],
+        ),
+        **_status_api_policy_resource_payload(
+            rshell_session_policy=data["rshell_session_policy"],
+            rshell_session_policy_records=data["rshell_session_policy_records"],
+            rshell_session_policy_index_maps=data[
+                "rshell_session_policy_index_maps"
+            ],
+            api_resources=api_resources,
+            api_resource_indexes=api_resource_indexes,
+            api_collections=data["api_collections"],
+            operator_console_workflows=data["operator_console_workflows"],
+            operator_console_workflow_index_maps=data[
+                "operator_console_workflow_index_maps"
+            ],
+        ),
     }
 
 
