@@ -531,8 +531,7 @@ def add_browser_path(records, kind, label, path_text, expected_kind="file", sour
     records.append(rec)
 
 
-def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, sessions, release):
-    records = []
+def _add_operator_config_browser_paths(records, paths):
     path_kinds = {
         "operator_session_dir": "operator-dir",
         "state_file": "server-state",
@@ -554,6 +553,9 @@ def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, 
             expected_kind="dir" if name in ("operator_session_dir", "session_root") else "file",
             source_id=name,
         )
+
+
+def _add_staged_browser_paths(records, staged_records):
     for rec in staged_records or []:
         request = rec.get("request_name") or rec.get("name") or ""
         metadata = {
@@ -573,21 +575,33 @@ def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, 
             description=str(rec.get("stage_kind") or "file"),
             metadata=metadata,
         )
+
+
+def _add_upload_browser_paths(records, uploads):
     for rec in uploads or []:
         filename = rec.get("filename") or rec.get("stored_path") or "upload"
         add_browser_path(records, "upload-metadata", filename, rec.get("metadata_path") or rec.get("_metadata_path", ""), source_id=rec.get("session_id", ""))
         add_browser_path(records, "upload-stored", filename, rec.get("stored_path", ""), source_id=rec.get("session_id", ""))
         add_browser_path(records, "upload-session", filename, rec.get("session_path", ""), expected_kind="dir", source_id=rec.get("session_id", ""))
+
+
+def _add_fetch_browser_paths(records, fetches):
     for rec in fetches or []:
         request = rec.get("request_name") or rec.get("source_path") or "fetch"
         add_browser_path(records, "fetch-source", request, rec.get("source_path", ""), source_id=rec.get("session_id", ""))
         add_browser_path(records, "fetch-metadata", request, rec.get("metadata_path") or rec.get("_metadata_path", ""), source_id=rec.get("session_id", ""))
         add_browser_path(records, "fetch-session", request, rec.get("session_path", ""), expected_kind="dir", source_id=rec.get("session_id", ""))
+
+
+def _add_session_browser_paths(records, sessions):
     for rec in sessions or []:
         session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
         add_browser_path(records, "session-dir", session_id, rec.get("path", ""), expected_kind="dir", source_id=session_id)
         add_browser_path(records, "session-metadata", session_id, rec.get("metadata_path", ""), source_id=session_id)
         add_browser_path(records, "session-event-log", session_id, rec.get("event_log", ""), source_id=session_id)
+
+
+def _add_release_browser_paths(records, release):
     if release:
         add_browser_path(records, "release-dir", release.get("release_name", "release"), release.get("release_dir", ""), expected_kind="dir")
         add_browser_path(records, "release-json", release.get("release_name", "release"), release.get("release_json", ""))
@@ -628,6 +642,16 @@ def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, 
             add_browser_path(records, "release-device-dir", rec.get("name", "device"), rec.get("path", ""), expected_kind="dir", source_id=rec.get("name", ""))
         for rec in release.get("tuples") or []:
             add_browser_path(records, "release-tuple-dir", rec.get("path", "tuple"), rec.get("filesystem_path", ""), expected_kind="dir", source_id=rec.get("path", ""))
+
+
+def operator_browser_path_records(cfg, paths, staged_records, uploads, fetches, sessions, release):
+    records = []
+    _add_operator_config_browser_paths(records, paths)
+    _add_staged_browser_paths(records, staged_records)
+    _add_upload_browser_paths(records, uploads)
+    _add_fetch_browser_paths(records, fetches)
+    _add_session_browser_paths(records, sessions)
+    _add_release_browser_paths(records, release)
     return records
 
 
