@@ -157,6 +157,52 @@ def _serve_console_listener_action(
     return 2
 
 
+def _handle_runtime_control_args(cfg, args, timeout):
+    command_queue_code = handle_command_queue_args(cfg, args)
+    if command_queue_code is not None:
+        return command_queue_code
+
+    control_code = console_actions.handle_console_control_args(
+        cfg,
+        args,
+        print_status_func=workflow_runners.print_status,
+        stop_recorded_service_func=workflow_runners.stop_recorded_service,
+        stop_managed_services_func=workflow_runners.stop_managed_services,
+        service_stop_headless_command_func=service_stop_headless_command,
+        systemd_user_action_func=handle_systemd_user_action,
+    )
+    if control_code is not None:
+        return control_code
+
+    daemon_code = console_runtime.handle_operator_daemon_args(
+        cfg,
+        args,
+        timeout=timeout,
+        run_operator_daemon_func=run_operator_daemon,
+    )
+    if daemon_code is not None:
+        return daemon_code
+    return None
+
+
+def _prepare_listener_action(cfg, args):
+    action = console_runtime.listener_action_from_args(cfg, args, resolve_transport)
+    script_bytes = console_runtime.script_bytes_from_args(args)
+    session_timeout = console_runtime.session_timeout_from_args(args)
+    staging_code, action = console_actions.handle_file_staging_args(
+        cfg,
+        args,
+        action,
+        stage_file_func=staged_files.stage_file,
+        stage_dir_func=staged_files.stage_dir,
+        stage_release_artifact_func=stage_release_artifact,
+        unstage_file_func=staged_files.unstage_file,
+        print_staged_func=staged_files.print_staged,
+        render_fetch_command_func=render_fetch_command,
+    )
+    return staging_code, action, script_bytes, session_timeout
+
+
 def main(argv=None):
     install_shutdown_handlers()
     raw_argv = list(sys.argv[1:] if argv is None else argv)
@@ -175,58 +221,13 @@ def main(argv=None):
         print(f"grit-console: {exc}", file=sys.stderr)
         return 2
 
-    try:
-        command_queue_code = handle_command_queue_args(cfg, args)
-        if command_queue_code is not None:
-            return command_queue_code
-    except ValueError as exc:
-        print(f"grit-console: {exc}", file=sys.stderr)
-        return 2
-
-    try:
-        control_code = console_actions.handle_console_control_args(
-            cfg,
-            args,
-            print_status_func=workflow_runners.print_status,
-            stop_recorded_service_func=workflow_runners.stop_recorded_service,
-            stop_managed_services_func=workflow_runners.stop_managed_services,
-            service_stop_headless_command_func=service_stop_headless_command,
-            systemd_user_action_func=handle_systemd_user_action,
-        )
-        if control_code is not None:
-            return control_code
-    except ValueError as exc:
-        print(f"grit-console: {exc}", file=sys.stderr)
-        return 2
-
     timeout = console_runtime.timeout_from_args(args)
     try:
-        daemon_code = console_runtime.handle_operator_daemon_args(
-            cfg,
-            args,
-            timeout=timeout,
-            run_operator_daemon_func=run_operator_daemon,
-        )
-        if daemon_code is not None:
-            return daemon_code
-    except ValueError as exc:
-        print(f"grit-console: {exc}", file=sys.stderr)
-        return 2
-    action = console_runtime.listener_action_from_args(cfg, args, resolve_transport)
-    script_bytes = console_runtime.script_bytes_from_args(args)
-    session_timeout = console_runtime.session_timeout_from_args(args)
-
-    try:
-        staging_code, action = console_actions.handle_file_staging_args(
-            cfg,
-            args,
-            action,
-            stage_file_func=staged_files.stage_file,
-            stage_dir_func=staged_files.stage_dir,
-            stage_release_artifact_func=stage_release_artifact,
-            unstage_file_func=staged_files.unstage_file,
-            print_staged_func=staged_files.print_staged,
-            render_fetch_command_func=render_fetch_command,
+        runtime_code = _handle_runtime_control_args(cfg, args, timeout)
+        if runtime_code is not None:
+            return runtime_code
+        staging_code, action, script_bytes, session_timeout = _prepare_listener_action(
+            cfg, args
         )
         if staging_code is not None:
             return staging_code
