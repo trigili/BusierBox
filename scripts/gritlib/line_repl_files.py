@@ -20,22 +20,12 @@ from gritlib import target_records
 from gritlib import workflow_runners
 
 
-def build_line_file_workflow_callbacks(
-    cfg,
-    *,
-    line_input_fn,
-    start_service_func,
-    service_start_command_func=None,
-    target_id_func=None,
-    target_context_func=None,
-    scoped_target_cfg_func,
-    queue_command_func,
-    target_callbacks=None,
-    route_service_callbacks=None,
-    load_staged_func,
-    fetch_command_func,
-    append_event_fn,
-    quote,
+def _resolve_file_workflow_dependencies(
+    service_start_command_func,
+    target_id_func,
+    target_context_func,
+    target_callbacks,
+    route_service_callbacks,
 ):
     if service_start_command_func is None and route_service_callbacks is not None:
         service_start_command = route_service_callbacks["service_start_command"]
@@ -47,7 +37,10 @@ def build_line_file_workflow_callbacks(
         if target_context_func is None:
             target_context = target_callbacks["target_context"]
             target_context_func = lambda _cfg: target_context()
+    return service_start_command_func, target_id_func, target_context_func
 
+
+def _build_file_service_start_callback(cfg, start_service_func, service_start_command_func):
     def start_file_service_process():
         return start_service_func(
             cfg,
@@ -55,6 +48,10 @@ def build_line_file_workflow_callbacks(
             headless_command=service_start_command_func(cfg, "file-service"),
         )
 
+    return start_file_service_process
+
+
+def _build_release_stage_callbacks(cfg, line_input_fn, start_file_service_process, append_event_fn):
     def stage_release(selector, start_file_service=False):
         return stage_line_release(
             cfg,
@@ -88,6 +85,14 @@ def build_line_file_workflow_callbacks(
     def configure_artifact(args):
         return configure_line_artifact(cfg, args, append_event_fn=append_event_fn)
 
+    return {
+        "stage_release": stage_release,
+        "stage_binary": stage_binary,
+        "configure_artifact": configure_artifact,
+    }
+
+
+def _build_staged_file_callbacks(cfg, start_file_service_process, append_event_fn):
     def stage_file(path_text="", request_name="", start_file_service=False):
         return stage_line_file(
             cfg,
@@ -98,6 +103,24 @@ def build_line_file_workflow_callbacks(
             append_event_fn=append_event_fn,
         )
 
+    def unstage_file(request_name):
+        return unstage_line_file(cfg, request_name, append_event_fn=append_event_fn)
+
+    return {
+        "stage_file": stage_file,
+        "unstage_file": unstage_file,
+    }
+
+
+def _build_target_file_transfer_callbacks(
+    cfg,
+    target_id_func,
+    target_context_func,
+    scoped_target_cfg_func,
+    queue_command_func,
+    start_file_service_process,
+    append_event_fn,
+):
     def download_target(target_path, queue=False, start_file_service=False):
         return download_line_target(
             cfg,
@@ -132,9 +155,14 @@ def build_line_file_workflow_callbacks(
             append_event_fn=append_event_fn,
         )
 
-    def unstage_file(request_name):
-        return unstage_line_file(cfg, request_name, append_event_fn=append_event_fn)
+    return {
+        "download_target": download_target,
+        "fetch_staged": fetch_staged,
+        "scoped_target_cfg": scoped_target_cfg,
+    }
 
+
+def _build_file_view_callbacks(cfg, target_id_func, load_staged_func, fetch_command_func, append_event_fn, quote):
     def view_path(*args, **_kwargs):
         path_text = args[-1] if args else ""
         return view_line_path(cfg, path_text, append_event_fn=append_event_fn)
@@ -151,16 +179,71 @@ def build_line_file_workflow_callbacks(
         )
 
     return {
-        "stage_release": stage_release,
-        "stage_binary": stage_binary,
-        "configure_artifact": configure_artifact,
-        "stage_file": stage_file,
-        "download_target": download_target,
-        "fetch_staged": fetch_staged,
-        "unstage_file": unstage_file,
-        "scoped_target_cfg": scoped_target_cfg,
         "view_path": view_path,
         "print_line_files": print_files,
+    }
+
+
+def build_line_file_workflow_callbacks(
+    cfg,
+    *,
+    line_input_fn,
+    start_service_func,
+    service_start_command_func=None,
+    target_id_func=None,
+    target_context_func=None,
+    scoped_target_cfg_func,
+    queue_command_func,
+    target_callbacks=None,
+    route_service_callbacks=None,
+    load_staged_func,
+    fetch_command_func,
+    append_event_fn,
+    quote,
+):
+    service_start_command_func, target_id_func, target_context_func = _resolve_file_workflow_dependencies(
+        service_start_command_func,
+        target_id_func,
+        target_context_func,
+        target_callbacks,
+        route_service_callbacks,
+    )
+    start_file_service_process = _build_file_service_start_callback(
+        cfg,
+        start_service_func,
+        service_start_command_func,
+    )
+    release_callbacks = _build_release_stage_callbacks(cfg, line_input_fn, start_file_service_process, append_event_fn)
+    staged_callbacks = _build_staged_file_callbacks(cfg, start_file_service_process, append_event_fn)
+    transfer_callbacks = _build_target_file_transfer_callbacks(
+        cfg,
+        target_id_func,
+        target_context_func,
+        scoped_target_cfg_func,
+        queue_command_func,
+        start_file_service_process,
+        append_event_fn,
+    )
+    view_callbacks = _build_file_view_callbacks(
+        cfg,
+        target_id_func,
+        load_staged_func,
+        fetch_command_func,
+        append_event_fn,
+        quote,
+    )
+
+    return {
+        "stage_release": release_callbacks["stage_release"],
+        "stage_binary": release_callbacks["stage_binary"],
+        "configure_artifact": release_callbacks["configure_artifact"],
+        "stage_file": staged_callbacks["stage_file"],
+        "download_target": transfer_callbacks["download_target"],
+        "fetch_staged": transfer_callbacks["fetch_staged"],
+        "unstage_file": staged_callbacks["unstage_file"],
+        "scoped_target_cfg": transfer_callbacks["scoped_target_cfg"],
+        "view_path": view_callbacks["view_path"],
+        "print_line_files": view_callbacks["print_line_files"],
     }
 
 
