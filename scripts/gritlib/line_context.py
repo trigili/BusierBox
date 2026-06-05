@@ -1,7 +1,61 @@
 """Line-console context helpers."""
 
+from dataclasses import dataclass
+
 from gritlib.event_log import append_event
 from gritlib.target_records import configured_target_filter, set_workbench_target_filter
+
+
+@dataclass(frozen=True)
+class LineContextState:
+    module: str = ""
+    target_id: str = ""
+    target_label: str = ""
+    action_kind: str = ""
+    action_id: str = ""
+
+    @property
+    def has_module(self):
+        return bool(self.module)
+
+    @property
+    def has_target(self):
+        return bool(self.target_id)
+
+    @property
+    def active(self):
+        return self.has_module or self.has_target
+
+
+@dataclass(frozen=True)
+class LineContextTransition:
+    action: str
+    module: str = ""
+    clear_module: bool = False
+    clear_target: bool = False
+
+
+def line_context_state(cfg):
+    cfg = cfg or {}
+    return LineContextState(
+        module=str(cfg.get("_line_console_module") or "").strip(),
+        target_id=str(cfg.get("_target_id_filter") or "").strip(),
+        target_label=str(cfg.get("_target_label_filter") or "").strip(),
+        action_kind=str(cfg.get("_line_console_action_kind") or "").strip(),
+        action_id=str(cfg.get("_line_console_action_id") or "").strip(),
+    )
+
+
+def line_context_back_transition(state):
+    state = state if isinstance(state, LineContextState) else LineContextState()
+    parent = line_module_parent(state.module)
+    if parent:
+        return LineContextTransition("parent", module=parent, clear_module=True)
+    if state.module:
+        return LineContextTransition("module-root", clear_module=True)
+    if state.target_id:
+        return LineContextTransition("target-root", clear_target=True)
+    return LineContextTransition("root")
 
 
 def parse_line_use_command(cmd, args):
@@ -195,8 +249,7 @@ def set_line_action_context(cfg, kind, action_id):
 
 
 def clear_line_console_context(cfg, quiet=False):
-    had_module = bool(str(cfg.get("_line_console_module") or ""))
-    had_target = bool(configured_target_filter(cfg))
+    state = line_context_state(cfg)
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
     cfg.pop("_line_console_module", None)
@@ -207,8 +260,8 @@ def clear_line_console_context(cfg, quiet=False):
         print("returned to main workspace")
         print("  next: workspace, agents, listeners, routes, sessions, show categories")
     append_event(cfg, "workbench", "workbench_console_main_selected", details={
-        "cleared_module": had_module,
-        "cleared_target": had_target,
+        "cleared_module": state.has_module,
+        "cleared_target": state.has_target,
     })
 
 
@@ -230,16 +283,15 @@ def line_module_parent(module):
 
 
 def back_line_module_context(cfg):
-    module = str(cfg.get("_line_console_module") or "").strip()
-    parent = line_module_parent(module)
+    transition = line_context_back_transition(line_context_state(cfg))
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
-    if parent:
-        cfg["_line_console_module"] = parent
-        return parent
-    if module:
+    if transition.module:
+        cfg["_line_console_module"] = transition.module
+        return transition.module
+    if transition.clear_module:
         cfg.pop("_line_console_module", None)
         return ""
-    if configured_target_filter(cfg):
+    if transition.clear_target:
         set_workbench_target_filter(cfg, "all", targets=[])
     return ""

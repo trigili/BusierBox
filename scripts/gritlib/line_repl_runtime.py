@@ -168,7 +168,7 @@ def dispatch_line_quit_choice(
     """Handle q/quit/exit and return REPL state updates."""
     if choice not in {"q", "quit", "exit"}:
         return {"handled": False}
-    if str(module or "") or target_selected:
+    if line_repl_has_context_scope(module=module, target_selected=target_selected):
         clear_context_func(quiet=True)
         return {
             "handled": True,
@@ -179,6 +179,10 @@ def dispatch_line_quit_choice(
         "handled": True,
         "exit_code": 0,
     }
+
+
+def line_repl_has_context_scope(*, module=None, target_selected=False):
+    return bool(str(module or "") or target_selected)
 
 
 def dispatch_line_parsed_command(

@@ -598,6 +598,7 @@ def run_line_repl_runtime_check():
         dispatch_line_parsed_command,
         dispatch_line_quit_choice,
         install_line_repl_signal_handlers,
+        line_repl_has_context_scope,
         line_repl_io_input,
         prepare_repl_choice,
         read_line,
@@ -1087,14 +1088,22 @@ def run_line_repl_runtime_check():
         return 1
 
     if dispatch_line_help_command(
-        "status",
-        ["status"],
+            "status",
+            ["status"],
         command_help_printer=lambda topic: help_calls.append(("command", topic)),
         context_help_printer=lambda module, target_selected=False, command_help_printer=None: help_calls.append(
             ("context", module, target_selected, command_help_printer is not None)
         ),
     ):
         print("line REPL runtime consumed a non-help command", file=sys.stderr)
+        return 1
+
+    if (
+        line_repl_has_context_scope(module="targets", target_selected=False) is not True
+        or line_repl_has_context_scope(module="", target_selected=True) is not True
+        or line_repl_has_context_scope(module="", target_selected=False) is not False
+    ):
+        print("line REPL runtime scoped-context helper changed", file=sys.stderr)
         return 1
 
     quit_calls = []
@@ -3403,6 +3412,71 @@ def run_line_repl_runtime_check():
     ):
         print(f"line console lifecycle did not preserve KeyboardInterrupt handling: {lifecycle_calls}", file=sys.stderr)
         return 1
+    return 0
+
+
+def run_line_context_transition_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    import gritlib.line_context as line_context
+
+    action_state = line_context.line_context_state({
+        "_line_console_module": "action/bridge:inspect-status",
+        "_line_console_action_kind": "bridge",
+        "_line_console_action_id": "bridge:inspect-status",
+    })
+    action_transition = line_context.line_context_back_transition(action_state)
+    if (
+        action_state.active is not True
+        or action_transition.action != "module-root"
+        or action_transition.clear_module is not True
+        or action_transition.module
+    ):
+        print(f"line context transition did not model action back: {action_state} {action_transition}", file=sys.stderr)
+        return 1
+
+    route_state = line_context.line_context_state({"_line_console_module": "route/field"})
+    route_transition = line_context.line_context_back_transition(route_state)
+    if route_transition.action != "parent" or route_transition.module != "routes":
+        print(f"line context transition did not model route parent: {route_transition}", file=sys.stderr)
+        return 1
+
+    target_state = line_context.line_context_state({
+        "_target_id_filter": "target-1",
+        "_target_label_filter": "Target One",
+    })
+    target_transition = line_context.line_context_back_transition(target_state)
+    if target_state.has_target is not True or target_transition.action != "target-root" or target_transition.clear_target is not True:
+        print(f"line context transition did not model target clear: {target_state} {target_transition}", file=sys.stderr)
+        return 1
+
+    original_set_filter = line_context.set_workbench_target_filter
+    original_configured = line_context.configured_target_filter
+    try:
+        clear_calls = []
+        line_context.set_workbench_target_filter = lambda cfg, selector, targets=None: (
+            clear_calls.append((selector, list(targets or []))),
+            cfg.pop("_target_id_filter", None),
+            cfg.pop("_target_label_filter", None),
+            {},
+        )[2]
+        line_context.configured_target_filter = lambda cfg: cfg.get("_target_id_filter", "")
+        cfg = {"_line_console_module": "route/field"}
+        if line_context.back_line_module_context(cfg) != "routes" or cfg.get("_line_console_module") != "routes":
+            print(f"line context back did not preserve route parent transition: {cfg}", file=sys.stderr)
+            return 1
+        cfg = {"_line_console_module": "targets"}
+        if line_context.back_line_module_context(cfg) != "" or "_line_console_module" in cfg:
+            print(f"line context back did not clear module context: {cfg}", file=sys.stderr)
+            return 1
+        cfg = {"_target_id_filter": "target-1", "_target_label_filter": "Target One"}
+        if line_context.back_line_module_context(cfg) != "" or cfg or clear_calls[-1] != ("all", []):
+            print(f"line context back did not clear target context: {cfg} {clear_calls}", file=sys.stderr)
+            return 1
+    finally:
+        line_context.set_workbench_target_filter = original_set_filter
+        line_context.configured_target_filter = original_configured
     return 0
 
 
@@ -9192,6 +9266,8 @@ def main(argv=None):
     if run_line_local_ips_check() != 0:
         return 1
     if run_line_repl_runtime_check() != 0:
+        return 1
+    if run_line_context_transition_check() != 0:
         return 1
     if run_service_runtime_state_check() != 0:
         return 1
