@@ -2,10 +2,7 @@
 
 import sys
 import time
-from gritlib.bridge_routes import (
-    bridge_profile_records,
-    bridge_profile_headless_command as bridge_routes_bridge_profile_headless_command,
-)
+import gritlib.bridge_routes as bridge_routes
 from gritlib.command_queue import (
     clear_command_queue, command_queue_summary, queue_command,
 )
@@ -192,8 +189,8 @@ def run_line_repl(cfg):
         cfg,
         service_status_rows_func=service_status_rows,
         service_record_func=line_service_record,
-        bridge_profile_records_func=bridge_profile_records,
-        bridge_command_func=bridge_routes_bridge_profile_headless_command,
+        bridge_profile_records_func=bridge_routes.bridge_profile_records,
+        bridge_command_func=bridge_routes.bridge_profile_headless_command,
         service_start_command_func=service_start_headless_command,
         service_stop_command_func=service_stop_headless_command,
         service_start_func=start_service_process,
