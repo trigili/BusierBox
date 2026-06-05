@@ -4867,6 +4867,36 @@ def _build_status_path_service_payload(
     }
 
 
+def _build_status_warning_network_payload(summary, foundation_context, tail_context):
+    f = foundation_context
+    tc = tail_context
+    service_context = f["service_context"]
+    return {
+        "summary": summary,
+        "warnings": service_context["warnings"],
+        "warnings_by_type": tc["warnings_by_type"],
+        "warnings_by_severity": tc["warnings_by_severity"],
+        "warnings_by_remediation_class": tc["warnings_by_remediation_class"],
+        "warnings_by_type_severity": tc["warnings_by_type_severity"],
+        "warnings_by_service": tc["warnings_by_service"],
+        "warnings_by_port": tc["warnings_by_port"],
+        "warnings_by_pid": tc["warnings_by_pid"],
+        "warnings_by_listener_pid": tc["warnings_by_listener_pid"],
+        "warnings_by_owner_pid": tc["warnings_by_owner_pid"],
+        "warnings_by_path": tc["warnings_by_path"],
+        "warnings_by_type_path": tc["warnings_by_type_path"],
+        "warnings_by_service_port": tc["warnings_by_service_port"],
+        "warnings_by_type_service_port": tc["warnings_by_type_service_port"],
+        "warning_stats": tc["warning_summary"],
+        "local_ips": f["ips"],
+        "selected_local_ip": f["selected_local_ip"],
+        "operator_network_records": f["operator_network_records"],
+        **f["operator_network_index_maps"],
+        "operator_network_state_records": f["operator_network_state_records"],
+        **f["operator_network_state_index_maps"],
+    }
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
@@ -5153,28 +5183,11 @@ def status_document(cfg):
             activity_queue_context=activity_queue_context,
             tail_context=tail_context,
         ),
-        "summary": summary,
-        "warnings": warnings,
-        "warnings_by_type": warnings_by_type,
-        "warnings_by_severity": warnings_by_severity,
-        "warnings_by_remediation_class": warnings_by_remediation_class,
-        "warnings_by_type_severity": warnings_by_type_severity,
-        "warnings_by_service": warnings_by_service,
-        "warnings_by_port": warnings_by_port,
-        "warnings_by_pid": warnings_by_pid,
-        "warnings_by_listener_pid": warnings_by_listener_pid,
-        "warnings_by_owner_pid": warnings_by_owner_pid,
-        "warnings_by_path": warnings_by_path,
-        "warnings_by_type_path": warnings_by_type_path,
-        "warnings_by_service_port": warnings_by_service_port,
-        "warnings_by_type_service_port": warnings_by_type_service_port,
-        "warning_stats": warning_summary,
-        "local_ips": ips,
-        "selected_local_ip": selected_local_ip,
-        "operator_network_records": operator_network_records,
-        **operator_network_index_maps,
-        "operator_network_state_records": operator_network_state_records,
-        **operator_network_state_index_maps,
+        **_build_status_warning_network_payload(
+            summary,
+            foundation_context,
+            tail_context,
+        ),
         "target_commands": [rec["command"] for rec in target_command_records],
         "target_command_records": target_command_records,
         "target_command_summary": target_command_summary,
