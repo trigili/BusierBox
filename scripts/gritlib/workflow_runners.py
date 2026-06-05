@@ -84,9 +84,7 @@ def print_workflow_action_header(label, rec_id, command="", headless_command="",
         print(f"command={command}")
 
 
-def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
-    snap = workbench_snapshot(cfg)
-    rec = select_workflow_action(snap.get("service_workflow_actions") or [], selector, "service")
+def _service_workflow_context(cfg, rec, dry_run=False, confirmed=False):
     rec_id = str(rec.get("id") or "")
     action_id = str(rec.get("action_id") or "")
     service = str(rec.get("service") or "")
@@ -99,76 +97,112 @@ def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
         confirmed=confirmed,
     )
     command = str(rec.get("headless_command") or rec.get("command") or "")
-    print_workflow_action_header("service", rec_id, command=command, headless_command=headless)
-    fleet_details = {
-        "fleet_target_count": rec.get("fleet_target_count", 0),
-        "fleet_offline_target_count": rec.get("fleet_offline_target_count", 0),
-        "fleet_stale_target_count": rec.get("fleet_stale_target_count", 0),
-        "fleet_mailbox_pending_target_count": rec.get("fleet_mailbox_pending_target_count", 0),
-        "fleet_mailbox_pending_work_count": rec.get("fleet_mailbox_pending_work_count", 0),
-        "fleet_poll_overdue_target_count": rec.get("fleet_poll_overdue_target_count", 0),
-        "fleet_has_offline_targets": bool(rec.get("fleet_has_offline_targets")),
-        "fleet_has_stale_targets": bool(rec.get("fleet_has_stale_targets")),
-        "fleet_has_mailbox_pending_work": bool(rec.get("fleet_has_mailbox_pending_work")),
-        "fleet_has_poll_overdue_targets": bool(rec.get("fleet_has_poll_overdue_targets")),
-    }
-    append_event(cfg, "workbench", "service_workflow_action_selected", details={
-        "id": rec_id,
+    return {
+        "rec_id": rec_id,
         "action_id": action_id,
         "service": service,
+        "headless": headless,
+        "command": command,
+        "fleet_details": {
+            "fleet_target_count": rec.get("fleet_target_count", 0),
+            "fleet_offline_target_count": rec.get("fleet_offline_target_count", 0),
+            "fleet_stale_target_count": rec.get("fleet_stale_target_count", 0),
+            "fleet_mailbox_pending_target_count": rec.get("fleet_mailbox_pending_target_count", 0),
+            "fleet_mailbox_pending_work_count": rec.get("fleet_mailbox_pending_work_count", 0),
+            "fleet_poll_overdue_target_count": rec.get("fleet_poll_overdue_target_count", 0),
+            "fleet_has_offline_targets": bool(rec.get("fleet_has_offline_targets")),
+            "fleet_has_stale_targets": bool(rec.get("fleet_has_stale_targets")),
+            "fleet_has_mailbox_pending_work": bool(rec.get("fleet_has_mailbox_pending_work")),
+            "fleet_has_poll_overdue_targets": bool(rec.get("fleet_has_poll_overdue_targets")),
+        },
+    }
+
+
+def _append_service_workflow_selected_event(cfg, rec, context, dry_run=False, confirmed=False):
+    append_event(cfg, "workbench", "service_workflow_action_selected", details={
+        "id": context["rec_id"],
+        "action_id": context["action_id"],
+        "service": context["service"],
         "workflow": rec.get("workflow", ""),
         "category": rec.get("category", ""),
         "operator_action_state": rec.get("operator_action_state", ""),
         "operator_action_reason": rec.get("operator_action_reason", ""),
         "dry_run": bool(dry_run),
         "confirmed": bool(confirmed),
-        "headless_command": headless,
-        "command": command,
-        **fleet_details,
+        "headless_command": context["headless"],
+        "command": context["command"],
+        **context["fleet_details"],
     })
-    if dry_run:
-        print("dry_run=yes")
-        append_event(cfg, "workbench", "service_workflow_action_dry_run", details={
-            "id": rec_id,
-            "action_id": action_id,
-            "service": service,
-            "headless_command": headless,
-            "command": command,
-            **fleet_details,
-        })
-        return 0
+
+
+def _run_service_workflow_dry_run(cfg, context):
+    print("dry_run=yes")
+    append_event(cfg, "workbench", "service_workflow_action_dry_run", details={
+        "id": context["rec_id"],
+        "action_id": context["action_id"],
+        "service": context["service"],
+        "headless_command": context["headless"],
+        "command": context["command"],
+        **context["fleet_details"],
+    })
+    return 0
+
+
+def _run_service_workflow_side_effect(cfg, rec, context, confirmed=False):
+    action_id = context["action_id"]
     if action_id == "inspect-status":
         rc = print_status(cfg, json_output=False)
     elif action_id == "start-service":
-        start_service_process(cfg, service, headless_command=headless)
+        start_service_process(cfg, context["service"], headless_command=context["headless"])
         rc = 0
     elif action_id == "stop-service":
         if rec.get("requires_confirmation") is True and not confirmed:
-            raise ValueError(f"service workflow action requires --confirm-service-workflow-action: {rec_id}")
+            raise ValueError(f"service workflow action requires --confirm-service-workflow-action: {context['rec_id']}")
         stop_recorded_service(
             cfg,
-            service,
+            context["service"],
             via="service-workflow-action",
-            headless_command=headless,
+            headless_command=context["headless"],
         )
         rc = 0
     else:
         raise ValueError(f"unsupported service workflow action: {action_id}")
+    return rc
+
+
+def _append_service_workflow_completed_event(cfg, rec, context, rc, dry_run=False, confirmed=False):
     append_event(cfg, "workbench", "service_workflow_action_completed", details={
-        "id": rec_id,
-        "action_id": action_id,
-        "service": service,
+        "id": context["rec_id"],
+        "action_id": context["action_id"],
+        "service": context["service"],
         "workflow": rec.get("workflow", ""),
         "category": rec.get("category", ""),
         "operator_action_state": rec.get("operator_action_state", ""),
         "operator_action_reason": rec.get("operator_action_reason", ""),
         "dry_run": bool(dry_run),
         "confirmed": bool(confirmed),
-        "headless_command": headless,
-        "command": command,
+        "headless_command": context["headless"],
+        "command": context["command"],
         "returncode": rc,
-        **fleet_details,
+        **context["fleet_details"],
     })
+
+
+def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
+    snap = workbench_snapshot(cfg)
+    rec = select_workflow_action(snap.get("service_workflow_actions") or [], selector, "service")
+    context = _service_workflow_context(cfg, rec, dry_run=dry_run, confirmed=confirmed)
+    print_workflow_action_header(
+        "service",
+        context["rec_id"],
+        command=context["command"],
+        headless_command=context["headless"],
+    )
+    _append_service_workflow_selected_event(cfg, rec, context, dry_run=dry_run, confirmed=confirmed)
+    if dry_run:
+        return _run_service_workflow_dry_run(cfg, context)
+    rc = _run_service_workflow_side_effect(cfg, rec, context, confirmed=confirmed)
+    _append_service_workflow_completed_event(cfg, rec, context, rc, dry_run=dry_run, confirmed=confirmed)
     return rc
 
 
