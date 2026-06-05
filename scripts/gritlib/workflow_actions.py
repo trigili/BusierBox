@@ -1094,7 +1094,7 @@ def operator_console_workflow_records(
     return annotate_operator_console_workflows(records, target_records, overdue_targets)
 
 
-def _workbench_configuration_tooling_action_records(config_path, build_config):
+def _workbench_configuration_action_records(config_path, build_config):
     return [
         {
             "id": "configure-binary",
@@ -1128,6 +1128,11 @@ def _workbench_configuration_tooling_action_records(config_path, build_config):
             "target_execution": False,
             "event": "workbench_action_selected",
         },
+    ]
+
+
+def _workbench_tooling_action_records(config_path):
+    return [
         {
             "id": "tool-provider-check",
             "category": "tooling",
@@ -1193,6 +1198,13 @@ def _workbench_configuration_tooling_action_records(config_path, build_config):
             "event": "workbench_action_selected",
         },
     ]
+
+
+def _workbench_configuration_tooling_action_records(config_path, build_config):
+    records = []
+    records.extend(_workbench_configuration_action_records(config_path, build_config))
+    records.extend(_workbench_tooling_action_records(config_path))
+    return records
 
 
 def _workbench_build_action_records(config_path):
