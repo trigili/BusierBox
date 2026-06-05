@@ -376,6 +376,21 @@ def record_target_activity(cfg, metadata, service, session_id=""):
     if not target_id:
         return {}
     now = utc_now()
+    data, targets, rec = _target_activity_record(cfg, target_id, now)
+    confidence, operation = _apply_target_activity_identity(rec, metadata, service, now)
+    _apply_command_queue_activity(rec, metadata, operation, now)
+    if session_id:
+        rec["latest_session_id"] = str(session_id)
+    if operation in {"upload", "fetch"}:
+        _apply_target_file_transfer_activity(rec, metadata, service, operation, now)
+    _apply_target_operation_activity(rec, metadata, service, operation, now)
+    targets[target_id] = rec
+    atomic_write_json(targets_path(cfg), data)
+    _append_target_activity_event(cfg, target_id, rec, metadata, service, session_id, confidence, operation)
+    return rec
+
+
+def _target_activity_record(cfg, target_id, now):
     data = load_targets(cfg)
     targets = data.setdefault("targets", {})
     rec = targets.get(target_id)
@@ -384,6 +399,10 @@ def record_target_activity(cfg, metadata, service, session_id=""):
     rec.setdefault("target_id", target_id)
     rec.setdefault("first_seen_at", now)
     rec["last_seen_at"] = now
+    return data, targets, rec
+
+
+def _apply_target_activity_identity(rec, metadata, service, now):
     label = str((metadata or {}).get("target_label") or "").strip()
     if label:
         rec["label"] = label
@@ -399,6 +418,10 @@ def record_target_activity(cfg, metadata, service, session_id=""):
     rec["latest_activity_operation"] = operation
     rec["latest_activity_remote_addr"] = str(metadata.get("remote_addr") or "")
     rec["latest_activity_status"] = str(metadata.get("status") or "")
+    return confidence, operation
+
+
+def _apply_command_queue_activity(rec, metadata, operation, now):
     if operation == "command_queue_poll":
         rec["latest_command_queue_poll_at"] = now
         for key in ("poll_mode", "poll_interval_sec", "poll_jitter_pct", "poll_backoff", "poll_max_interval_sec", "max_polls"):
@@ -408,60 +431,32 @@ def record_target_activity(cfg, metadata, service, session_id=""):
     if operation == "command_queue_result":
         rec["latest_command_result_activity_at"] = now
         rec["latest_command_result_status"] = str(metadata.get("result_status") or metadata.get("status") or "")
-    if session_id:
-        rec["latest_session_id"] = str(session_id)
-    if operation in {"upload", "fetch"}:
-        rec["latest_file_transfer_at"] = now
-        rec["latest_file_transfer_operation"] = operation
-        rec["latest_file_transfer_status"] = str(metadata.get("transfer_status") or metadata.get("status") or "")
-        rec["latest_file_transfer_service"] = str(service or "")
-        rec["latest_file_transfer_id"] = str(
-            metadata.get("metadata_path") or
-            metadata.get("stored_path") or
-            metadata.get("request_name") or
-            metadata.get("source_path") or
-            metadata.get("filename") or ""
-        )
-        rec["latest_file_transfer_path"] = str(metadata.get("stored_path") or metadata.get("source_path") or "")
-        rec["latest_file_transfer_sha256"] = str(metadata.get("sha256") or "")
-        rec["latest_file_transfer_route_kind"] = str(metadata.get("route_kind") or "")
-        rec["latest_file_transfer_route_host"] = str(metadata.get("route_host") or "")
-        rec["latest_file_transfer_route_port"] = metadata.get("route_port", "")
-        rec["latest_file_transfer_bridge_profile"] = str(metadata.get("bridge_profile") or "")
-        rec["latest_file_transfer_bridge_route_path"] = str(metadata.get("bridge_route_path") or "")
+
+
+def _apply_target_file_transfer_activity(rec, metadata, service, operation, now):
+    rec["latest_file_transfer_at"] = now
+    rec["latest_file_transfer_operation"] = operation
+    rec["latest_file_transfer_status"] = str(metadata.get("transfer_status") or metadata.get("status") or "")
+    rec["latest_file_transfer_service"] = str(service or "")
+    rec["latest_file_transfer_id"] = str(
+        metadata.get("metadata_path") or
+        metadata.get("stored_path") or
+        metadata.get("request_name") or
+        metadata.get("source_path") or
+        metadata.get("filename") or ""
+    )
+    rec["latest_file_transfer_path"] = str(metadata.get("stored_path") or metadata.get("source_path") or "")
+    rec["latest_file_transfer_sha256"] = str(metadata.get("sha256") or "")
+    rec["latest_file_transfer_route_kind"] = str(metadata.get("route_kind") or "")
+    rec["latest_file_transfer_route_host"] = str(metadata.get("route_host") or "")
+    rec["latest_file_transfer_route_port"] = metadata.get("route_port", "")
+    rec["latest_file_transfer_bridge_profile"] = str(metadata.get("bridge_profile") or "")
+    rec["latest_file_transfer_bridge_route_path"] = str(metadata.get("bridge_route_path") or "")
+
+
+def _apply_target_operation_activity(rec, metadata, service, operation, now):
     if operation == "upload":
-        rec["upload_count"] = int(rec.get("upload_count", 0) or 0) + 1
-        rec["latest_upload_id"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or metadata.get("filename") or "")
-        rec["latest_upload_at"] = now
-        rec["latest_upload_status"] = str(metadata.get("transfer_status") or metadata.get("status") or "")
-        if str(metadata.get("upload_kind") or "") in {"reality-test", "capability-report", "survey"}:
-            rec["latest_survey_result_at"] = now
-            rec["latest_survey_result_id"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
-            rec["latest_survey_result_status"] = str(metadata.get("transfer_status") or metadata.get("status") or "")
-            rec["latest_survey_result_kind"] = str(metadata.get("upload_kind") or "")
-            rec["latest_capability_report"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
-            rec["latest_capability_report_path"] = str(metadata.get("stored_path") or "")
-            rec["latest_capability_report_metadata_path"] = str(metadata.get("metadata_path") or "")
-            rec["latest_capability_report_kind"] = str(metadata.get("upload_kind") or "")
-            observed = capability_report_summary(metadata)
-            if observed:
-                rec["latest_capability_summary"] = observed
-                rec["observed_capabilities"] = list_merge_unique(rec.get("observed_capabilities") or [], observed.get("available") or [])
-                rec["observed_missing_capabilities"] = list_merge_unique(rec.get("observed_missing_capabilities") or [], observed.get("unavailable") or [])
-                rec["observed_constraints"] = observed.get("constraints") or {}
-        compatibility = compatibility_report_summary(metadata)
-        if compatibility:
-            rec["latest_compatibility_report"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
-            rec["latest_compatibility_report_path"] = str(metadata.get("stored_path") or "")
-            rec["latest_compatibility_report_metadata_path"] = str(metadata.get("metadata_path") or "")
-            rec["latest_compatibility_report_kind"] = str(metadata.get("upload_kind") or "")
-            rec["latest_compatibility_summary"] = compatibility
-            rec["latest_compatibility_label"] = compatibility.get("label", "")
-            rec["latest_compatibility_baseline_label"] = compatibility.get("baseline_label", "")
-            rec["latest_compatibility_release_name"] = compatibility.get("release_name", "")
-            rec["latest_compatibility_artifact"] = compatibility.get("artifact", "")
-            rec["latest_compatibility_tuple_path"] = compatibility.get("tuple_path", "")
-            rec["latest_compatibility_payload_preset"] = compatibility.get("payload_preset", "")
+        _apply_target_upload_activity(rec, metadata, now)
     elif operation == "fetch":
         rec["fetch_count"] = int(rec.get("fetch_count", 0) or 0) + 1
         rec["latest_fetch_id"] = str(metadata.get("request_name") or metadata.get("source_path") or "")
@@ -494,8 +489,44 @@ def record_target_activity(cfg, metadata, service, session_id=""):
         rec["latest_bridge_failure_reason"] = str(metadata.get("reason") or "") if operation == "bridge_error" or metadata.get("status") == "error" else ""
         if metadata.get("status") in {"closed", "connected", "listening"}:
             rec["latest_bridge_success_at"] = now
-    targets[target_id] = rec
-    atomic_write_json(targets_path(cfg), data)
+
+
+def _apply_target_upload_activity(rec, metadata, now):
+    rec["upload_count"] = int(rec.get("upload_count", 0) or 0) + 1
+    rec["latest_upload_id"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or metadata.get("filename") or "")
+    rec["latest_upload_at"] = now
+    rec["latest_upload_status"] = str(metadata.get("transfer_status") or metadata.get("status") or "")
+    if str(metadata.get("upload_kind") or "") in {"reality-test", "capability-report", "survey"}:
+        rec["latest_survey_result_at"] = now
+        rec["latest_survey_result_id"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
+        rec["latest_survey_result_status"] = str(metadata.get("transfer_status") or metadata.get("status") or "")
+        rec["latest_survey_result_kind"] = str(metadata.get("upload_kind") or "")
+        rec["latest_capability_report"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
+        rec["latest_capability_report_path"] = str(metadata.get("stored_path") or "")
+        rec["latest_capability_report_metadata_path"] = str(metadata.get("metadata_path") or "")
+        rec["latest_capability_report_kind"] = str(metadata.get("upload_kind") or "")
+        observed = capability_report_summary(metadata)
+        if observed:
+            rec["latest_capability_summary"] = observed
+            rec["observed_capabilities"] = list_merge_unique(rec.get("observed_capabilities") or [], observed.get("available") or [])
+            rec["observed_missing_capabilities"] = list_merge_unique(rec.get("observed_missing_capabilities") or [], observed.get("unavailable") or [])
+            rec["observed_constraints"] = observed.get("constraints") or {}
+    compatibility = compatibility_report_summary(metadata)
+    if compatibility:
+        rec["latest_compatibility_report"] = str(metadata.get("metadata_path") or metadata.get("stored_path") or "")
+        rec["latest_compatibility_report_path"] = str(metadata.get("stored_path") or "")
+        rec["latest_compatibility_report_metadata_path"] = str(metadata.get("metadata_path") or "")
+        rec["latest_compatibility_report_kind"] = str(metadata.get("upload_kind") or "")
+        rec["latest_compatibility_summary"] = compatibility
+        rec["latest_compatibility_label"] = compatibility.get("label", "")
+        rec["latest_compatibility_baseline_label"] = compatibility.get("baseline_label", "")
+        rec["latest_compatibility_release_name"] = compatibility.get("release_name", "")
+        rec["latest_compatibility_artifact"] = compatibility.get("artifact", "")
+        rec["latest_compatibility_tuple_path"] = compatibility.get("tuple_path", "")
+        rec["latest_compatibility_payload_preset"] = compatibility.get("payload_preset", "")
+
+
+def _append_target_activity_event(cfg, target_id, rec, metadata, service, session_id, confidence, operation):
     append_event(cfg, "targets", "target_seen", details={
         "target_id": target_id,
         "target_label": rec.get("label", ""),
@@ -506,7 +537,6 @@ def record_target_activity(cfg, metadata, service, session_id=""):
         "remote_addr": metadata.get("remote_addr", ""),
         "session_id": session_id,
     })
-    return rec
 
 
 def set_target_label(cfg, target_id, label, aliases=None, notes=None):
