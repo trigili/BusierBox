@@ -636,6 +636,38 @@ def _build_service_status_context(cfg):
     }
 
 
+def _build_staged_file_status_context(cfg, target_filter_id):
+    staged_context = staged_status_context(cfg, target_filter_id=target_filter_id)
+    (
+        staged_by_request,
+        staged_by_kind,
+        staged_by_sha256,
+        staged_by_target_id,
+        staged_by_source_path,
+        staged_by_fetch_command,
+        staged_by_fetch_command_force,
+        staged_by_source_exists,
+        staged_by_kind_source_exists,
+    ) = staged_context["indexes"]
+    return {
+        "staged_context": staged_context,
+        "staged_raw": staged_context["raw"],
+        "unfiltered_staged_raw": staged_context["unfiltered_raw"],
+        "staged": staged_context["staged"],
+        "staged_records": staged_context["records"],
+        "unfiltered_staged_count": staged_context["unfiltered_count"],
+        "staged_by_request": staged_by_request,
+        "staged_by_kind": staged_by_kind,
+        "staged_by_sha256": staged_by_sha256,
+        "staged_by_target_id": staged_by_target_id,
+        "staged_by_source_path": staged_by_source_path,
+        "staged_by_fetch_command": staged_by_fetch_command,
+        "staged_by_fetch_command_force": staged_by_fetch_command_force,
+        "staged_by_source_exists": staged_by_source_exists,
+        "staged_by_kind_source_exists": staged_by_kind_source_exists,
+    }
+
+
 def _build_command_queue_status_context(cfg):
     command_queue = command_queue_summary(cfg)
     command_queue_policy = command_queue_policy_status(command_queue)
@@ -971,21 +1003,21 @@ def _build_warning_status_context(
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = configured_target_filter(cfg)
-    staged_context = staged_status_context(cfg, target_filter_id=target_filter_id)
-    staged_raw = staged_context["raw"]
-    unfiltered_staged_raw = staged_context["unfiltered_raw"]
+    staged_context = _build_staged_file_status_context(cfg, target_filter_id)
+    staged_raw = staged_context["staged_raw"]
+    unfiltered_staged_raw = staged_context["unfiltered_staged_raw"]
     staged = staged_context["staged"]
-    staged_records = staged_context["records"]
-    unfiltered_staged_count = staged_context["unfiltered_count"]
-    (staged_by_request,
-     staged_by_kind,
-     staged_by_sha256,
-     staged_by_target_id,
-     staged_by_source_path,
-     staged_by_fetch_command,
-     staged_by_fetch_command_force,
-     staged_by_source_exists,
-     staged_by_kind_source_exists) = staged_context["indexes"]
+    staged_records = staged_context["staged_records"]
+    unfiltered_staged_count = staged_context["unfiltered_staged_count"]
+    staged_by_request = staged_context["staged_by_request"]
+    staged_by_kind = staged_context["staged_by_kind"]
+    staged_by_sha256 = staged_context["staged_by_sha256"]
+    staged_by_target_id = staged_context["staged_by_target_id"]
+    staged_by_source_path = staged_context["staged_by_source_path"]
+    staged_by_fetch_command = staged_context["staged_by_fetch_command"]
+    staged_by_fetch_command_force = staged_context["staged_by_fetch_command_force"]
+    staged_by_source_exists = staged_context["staged_by_source_exists"]
+    staged_by_kind_source_exists = staged_context["staged_by_kind_source_exists"]
     operator_network_context = _build_operator_network_status_context(cfg)
     ips = operator_network_context["ips"]
     operator_network = operator_network_context["operator_network"]
