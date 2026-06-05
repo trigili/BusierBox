@@ -905,190 +905,271 @@ def _release_context_devices_tuples(here, release, index):
     return devices, tuples
 
 
-def _release_artifact_index_state(artifacts, devices):
-    artifacts_by_release_path = {}
-    artifacts_by_name = {}
-    artifacts_by_sha256 = {}
-    artifacts_by_payload_preset = {}
-    artifacts_by_compatibility = {}
-    artifacts_by_source = {}
-    artifacts_by_tuple_path = {}
-    artifacts_by_tool = {}
-    artifacts_by_device_alias = {}
-    artifacts_by_feature = {}
-    artifacts_by_tool_payload_preset = {}
-    artifacts_by_device_payload_preset = {}
-    artifacts_by_feature_payload_preset = {}
-    artifacts_by_tuple_payload_preset = {}
-    artifacts_by_provider_tool = {}
-    artifacts_by_provider_status = {}
-    artifacts_by_doom_wad_filename = {}
-    artifacts_by_doom_wad_sha256 = {}
-    artifacts_by_command_queue_enabled = {}
-    artifacts_by_command_queue_execution_supported = {}
-    artifacts_by_command_queue_operator_supplied_command_execution = {}
-    artifact_compatibility_counts = {}
-    artifact_payload_preset_counts = {}
-    artifact_source_counts = {}
-    artifact_tool_counts = {}
-    artifact_device_alias_counts = {}
-    artifact_feature_counts = {}
-    artifact_provider_tool_counts = {}
-    artifact_provider_status_counts = {}
-    artifact_doom_wad_filename_counts = {}
-    artifact_doom_wad_sha256_counts = {}
-    artifact_command_queue_enabled_counts = {}
-    artifact_command_queue_execution_supported_counts = {}
-    artifact_command_queue_operator_supplied_command_execution_counts = {}
-    artifact_doom_wad_count = 0
-    artifact_total_size = 0
-    for rec in artifacts:
-        try:
-            artifact_total_size += int(rec.get("size", 0) or 0)
-        except (TypeError, ValueError):
-            pass
-        key = rec.get("release_path") or rec.get("path") or rec.get("name")
-        if key:
-            artifacts_by_release_path[str(key)] = rec
-        name = str(rec.get("name") or "")
-        sha256 = str(rec.get("sha256") or "")
-        payload_preset = str(rec.get("payload_preset") or "")
-        source = str(rec.get("source") or "")
-        tuple_path = str(rec.get("tuple_path") or "")
-        compatibility_label = str((rec.get("compatibility") or {}).get("label") or "")
-        command_queue = rec.get("command_queue") if isinstance(rec.get("command_queue"), dict) else {}
-        mode_summary = command_queue.get("mode_summary") if isinstance(command_queue.get("mode_summary"), dict) else {}
-        command_queue_enabled = "true" if command_queue.get("enabled") == "yes" or command_queue.get("enabled") is True else "false"
-        command_queue_execution_supported = "true" if command_queue.get("execution_supported") is True or command_queue.get("executes_commands") is True else "false"
-        command_queue_operator_supplied = (
-            "true" if int_value(mode_summary.get("operator_supplied_command_execution_mode_count")) > 0 else "false"
-        )
-        if name:
-            artifacts_by_name.setdefault(name, []).append(rec)
-        if sha256:
-            artifacts_by_sha256.setdefault(sha256, []).append(rec)
-        if payload_preset:
-            artifacts_by_payload_preset.setdefault(payload_preset, []).append(rec)
-            artifact_payload_preset_counts[payload_preset] = artifact_payload_preset_counts.get(payload_preset, 0) + 1
-        if tuple_path:
-            artifacts_by_tuple_path.setdefault(tuple_path, []).append(rec)
-        if tuple_path and payload_preset:
-            artifacts_by_tuple_payload_preset.setdefault(f"{tuple_path}:{payload_preset}", []).append(rec)
-        for device in devices or []:
-            if not isinstance(device, dict):
-                continue
-            alias = str(device.get("name") or "")
-            if not alias:
-                continue
-            refs = {str(item) for item in (device.get("artifacts") or []) if str(item)}
-            ref_names = {Path(item).name for item in refs}
-            device_tuple_path = str(device.get("tuple_path") or "")
-            release_path = str(rec.get("release_path") or "")
-            if not (
-                release_path in refs or
-                name in ref_names or
-                (device_tuple_path and tuple_path == device_tuple_path)
-            ):
-                continue
-            rec.setdefault("device_aliases", [])
-            if alias not in rec["device_aliases"]:
-                rec["device_aliases"].append(alias)
-                artifact_device_alias_counts[alias] = artifact_device_alias_counts.get(alias, 0) + 1
-            artifacts_by_device_alias.setdefault(alias, []).append(rec)
-            if payload_preset:
-                artifacts_by_device_payload_preset.setdefault(f"{alias}:{payload_preset}", []).append(rec)
-        if source:
-            artifacts_by_source.setdefault(source, []).append(rec)
-            artifact_source_counts[source] = artifact_source_counts.get(source, 0) + 1
-        if compatibility_label:
-            artifacts_by_compatibility.setdefault(compatibility_label, []).append(rec)
-            artifact_compatibility_counts[compatibility_label] = artifact_compatibility_counts.get(compatibility_label, 0) + 1
-        artifacts_by_command_queue_enabled.setdefault(command_queue_enabled, []).append(rec)
-        artifact_command_queue_enabled_counts[command_queue_enabled] = artifact_command_queue_enabled_counts.get(command_queue_enabled, 0) + 1
-        artifacts_by_command_queue_execution_supported.setdefault(command_queue_execution_supported, []).append(rec)
-        artifact_command_queue_execution_supported_counts[command_queue_execution_supported] = artifact_command_queue_execution_supported_counts.get(command_queue_execution_supported, 0) + 1
-        artifacts_by_command_queue_operator_supplied_command_execution.setdefault(command_queue_operator_supplied, []).append(rec)
-        artifact_command_queue_operator_supplied_command_execution_counts[command_queue_operator_supplied] = artifact_command_queue_operator_supplied_command_execution_counts.get(command_queue_operator_supplied, 0) + 1
-        for tool in rec.get("tools") or []:
-            tool_name = str(tool)
-            if tool_name:
-                artifacts_by_tool.setdefault(tool_name, []).append(rec)
-                artifact_tool_counts[tool_name] = artifact_tool_counts.get(tool_name, 0) + 1
-                if payload_preset:
-                    artifacts_by_tool_payload_preset.setdefault(f"{tool_name}:{payload_preset}", []).append(rec)
-        seen_features = set()
-        for feature in rec.get("features") or []:
-            feature_name = str(feature)
-            if feature_name and feature_name not in seen_features:
-                seen_features.add(feature_name)
-                artifacts_by_feature.setdefault(feature_name, []).append(rec)
-                artifact_feature_counts[feature_name] = artifact_feature_counts.get(feature_name, 0) + 1
-                if payload_preset:
-                    artifacts_by_feature_payload_preset.setdefault(f"{feature_name}:{payload_preset}", []).append(rec)
-        for provider_tool, provider_status in (rec.get("tool_provider_status") or {}).items():
-            if not isinstance(provider_status, dict):
-                continue
-            provider_tool = str(provider_tool)
-            overall = str(provider_status.get("overall") or provider_status.get("status") or "unknown")
-            if provider_tool:
-                artifacts_by_provider_tool.setdefault(provider_tool, []).append(rec)
-                artifact_provider_tool_counts[provider_tool] = artifact_provider_tool_counts.get(provider_tool, 0) + 1
-                status_key = f"{provider_tool}:{overall}"
-                artifacts_by_provider_status.setdefault(status_key, []).append(rec)
-                artifact_provider_status_counts[status_key] = artifact_provider_status_counts.get(status_key, 0) + 1
-        for wad in rec.get("doom_wads") or []:
-            if not isinstance(wad, dict):
-                continue
-            filename = str(wad.get("filename") or "")
-            wad_sha256 = str(wad.get("sha256") or "")
-            if filename:
-                artifact_doom_wad_count += 1
-                artifacts_by_doom_wad_filename.setdefault(filename, []).append(rec)
-                artifact_doom_wad_filename_counts[filename] = artifact_doom_wad_filename_counts.get(filename, 0) + 1
-            if wad_sha256:
-                artifacts_by_doom_wad_sha256.setdefault(wad_sha256, []).append(rec)
-                artifact_doom_wad_sha256_counts[wad_sha256] = artifact_doom_wad_sha256_counts.get(wad_sha256, 0) + 1
+def _empty_release_artifact_index_state():
     return {
-        "artifacts_by_release_path": artifacts_by_release_path,
-        "artifacts_by_name": artifacts_by_name,
-        "artifacts_by_sha256": artifacts_by_sha256,
-        "artifacts_by_payload_preset": artifacts_by_payload_preset,
-        "artifacts_by_compatibility": artifacts_by_compatibility,
-        "artifacts_by_source": artifacts_by_source,
-        "artifacts_by_tuple_path": artifacts_by_tuple_path,
-        "artifacts_by_tool": artifacts_by_tool,
-        "artifacts_by_device_alias": artifacts_by_device_alias,
-        "artifacts_by_feature": artifacts_by_feature,
-        "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
-        "artifacts_by_device_payload_preset": artifacts_by_device_payload_preset,
-        "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
-        "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
-        "artifacts_by_provider_tool": artifacts_by_provider_tool,
-        "artifacts_by_provider_status": artifacts_by_provider_status,
-        "artifacts_by_doom_wad_filename": artifacts_by_doom_wad_filename,
-        "artifacts_by_doom_wad_sha256": artifacts_by_doom_wad_sha256,
-        "artifacts_by_command_queue_enabled": artifacts_by_command_queue_enabled,
-        "artifacts_by_command_queue_execution_supported": artifacts_by_command_queue_execution_supported,
-        "artifacts_by_command_queue_operator_supplied_command_execution": artifacts_by_command_queue_operator_supplied_command_execution,
+        "artifacts_by_release_path": {},
+        "artifacts_by_name": {},
+        "artifacts_by_sha256": {},
+        "artifacts_by_payload_preset": {},
+        "artifacts_by_compatibility": {},
+        "artifacts_by_source": {},
+        "artifacts_by_tuple_path": {},
+        "artifacts_by_tool": {},
+        "artifacts_by_device_alias": {},
+        "artifacts_by_feature": {},
+        "artifacts_by_tool_payload_preset": {},
+        "artifacts_by_device_payload_preset": {},
+        "artifacts_by_feature_payload_preset": {},
+        "artifacts_by_tuple_payload_preset": {},
+        "artifacts_by_provider_tool": {},
+        "artifacts_by_provider_status": {},
+        "artifacts_by_doom_wad_filename": {},
+        "artifacts_by_doom_wad_sha256": {},
+        "artifacts_by_command_queue_enabled": {},
+        "artifacts_by_command_queue_execution_supported": {},
+        "artifacts_by_command_queue_operator_supplied_command_execution": {},
+        "artifact_compatibility_counts": {},
+        "artifact_payload_preset_counts": {},
+        "artifact_source_counts": {},
+        "artifact_tool_counts": {},
+        "artifact_device_alias_counts": {},
+        "artifact_feature_counts": {},
+        "artifact_provider_tool_counts": {},
+        "artifact_provider_status_counts": {},
+        "artifact_doom_wad_filename_counts": {},
+        "artifact_doom_wad_sha256_counts": {},
+        "artifact_command_queue_enabled_counts": {},
+        "artifact_command_queue_execution_supported_counts": {},
+        "artifact_command_queue_operator_supplied_command_execution_counts": {},
+        "artifact_doom_wad_count": 0,
+        "artifact_total_size": 0,
+    }
+
+
+def _release_artifact_index_values(rec):
+    command_queue = rec.get("command_queue") if isinstance(rec.get("command_queue"), dict) else {}
+    mode_summary = command_queue.get("mode_summary") if isinstance(command_queue.get("mode_summary"), dict) else {}
+    return {
+        "key": rec.get("release_path") or rec.get("path") or rec.get("name"),
+        "name": str(rec.get("name") or ""),
+        "sha256": str(rec.get("sha256") or ""),
+        "payload_preset": str(rec.get("payload_preset") or ""),
+        "source": str(rec.get("source") or ""),
+        "tuple_path": str(rec.get("tuple_path") or ""),
+        "compatibility_label": str((rec.get("compatibility") or {}).get("label") or ""),
+        "command_queue_enabled": "true" if command_queue.get("enabled") == "yes" or command_queue.get("enabled") is True else "false",
+        "command_queue_execution_supported": "true" if command_queue.get("execution_supported") is True or command_queue.get("executes_commands") is True else "false",
+        "command_queue_operator_supplied": (
+            "true" if int_value(mode_summary.get("operator_supplied_command_execution_mode_count")) > 0 else "false"
+        ),
+    }
+
+
+def _increment_count(counts, key):
+    counts[key] = counts.get(key, 0) + 1
+
+
+def _append_index(indexes, key, rec):
+    indexes.setdefault(key, []).append(rec)
+
+
+def _apply_release_artifact_base_indexes(state, rec, values):
+    if values["key"]:
+        state["artifacts_by_release_path"][str(values["key"])] = rec
+    if values["name"]:
+        _append_index(state["artifacts_by_name"], values["name"], rec)
+    if values["sha256"]:
+        _append_index(state["artifacts_by_sha256"], values["sha256"], rec)
+    if values["payload_preset"]:
+        _append_index(state["artifacts_by_payload_preset"], values["payload_preset"], rec)
+        _increment_count(state["artifact_payload_preset_counts"], values["payload_preset"])
+    if values["tuple_path"]:
+        _append_index(state["artifacts_by_tuple_path"], values["tuple_path"], rec)
+    if values["tuple_path"] and values["payload_preset"]:
+        _append_index(
+            state["artifacts_by_tuple_payload_preset"],
+            f"{values['tuple_path']}:{values['payload_preset']}",
+            rec,
+        )
+    if values["source"]:
+        _append_index(state["artifacts_by_source"], values["source"], rec)
+        _increment_count(state["artifact_source_counts"], values["source"])
+    if values["compatibility_label"]:
+        _append_index(state["artifacts_by_compatibility"], values["compatibility_label"], rec)
+        _increment_count(state["artifact_compatibility_counts"], values["compatibility_label"])
+
+
+def _apply_release_artifact_device_indexes(state, rec, values, devices):
+    for device in devices or []:
+        if not isinstance(device, dict):
+            continue
+        alias = str(device.get("name") or "")
+        if not alias:
+            continue
+        refs = {str(item) for item in (device.get("artifacts") or []) if str(item)}
+        ref_names = {Path(item).name for item in refs}
+        device_tuple_path = str(device.get("tuple_path") or "")
+        release_path = str(rec.get("release_path") or "")
+        if not (
+            release_path in refs or
+            values["name"] in ref_names or
+            (device_tuple_path and values["tuple_path"] == device_tuple_path)
+        ):
+            continue
+        rec.setdefault("device_aliases", [])
+        if alias not in rec["device_aliases"]:
+            rec["device_aliases"].append(alias)
+            _increment_count(state["artifact_device_alias_counts"], alias)
+        _append_index(state["artifacts_by_device_alias"], alias, rec)
+        if values["payload_preset"]:
+            _append_index(
+                state["artifacts_by_device_payload_preset"],
+                f"{alias}:{values['payload_preset']}",
+                rec,
+            )
+
+
+def _apply_release_artifact_command_queue_indexes(state, rec, values):
+    _append_index(state["artifacts_by_command_queue_enabled"], values["command_queue_enabled"], rec)
+    _increment_count(state["artifact_command_queue_enabled_counts"], values["command_queue_enabled"])
+    _append_index(
+        state["artifacts_by_command_queue_execution_supported"],
+        values["command_queue_execution_supported"],
+        rec,
+    )
+    _increment_count(
+        state["artifact_command_queue_execution_supported_counts"],
+        values["command_queue_execution_supported"],
+    )
+    _append_index(
+        state["artifacts_by_command_queue_operator_supplied_command_execution"],
+        values["command_queue_operator_supplied"],
+        rec,
+    )
+    _increment_count(
+        state["artifact_command_queue_operator_supplied_command_execution_counts"],
+        values["command_queue_operator_supplied"],
+    )
+
+
+def _apply_release_artifact_tool_indexes(state, rec, payload_preset):
+    for tool in rec.get("tools") or []:
+        tool_name = str(tool)
+        if tool_name:
+            _append_index(state["artifacts_by_tool"], tool_name, rec)
+            _increment_count(state["artifact_tool_counts"], tool_name)
+            if payload_preset:
+                _append_index(
+                    state["artifacts_by_tool_payload_preset"],
+                    f"{tool_name}:{payload_preset}",
+                    rec,
+                )
+
+
+def _apply_release_artifact_feature_indexes(state, rec, payload_preset):
+    seen_features = set()
+    for feature in rec.get("features") or []:
+        feature_name = str(feature)
+        if feature_name and feature_name not in seen_features:
+            seen_features.add(feature_name)
+            _append_index(state["artifacts_by_feature"], feature_name, rec)
+            _increment_count(state["artifact_feature_counts"], feature_name)
+            if payload_preset:
+                _append_index(
+                    state["artifacts_by_feature_payload_preset"],
+                    f"{feature_name}:{payload_preset}",
+                    rec,
+                )
+
+
+def _apply_release_artifact_provider_indexes(state, rec):
+    for provider_tool, provider_status in (rec.get("tool_provider_status") or {}).items():
+        if not isinstance(provider_status, dict):
+            continue
+        provider_tool = str(provider_tool)
+        overall = str(provider_status.get("overall") or provider_status.get("status") or "unknown")
+        if provider_tool:
+            _append_index(state["artifacts_by_provider_tool"], provider_tool, rec)
+            _increment_count(state["artifact_provider_tool_counts"], provider_tool)
+            status_key = f"{provider_tool}:{overall}"
+            _append_index(state["artifacts_by_provider_status"], status_key, rec)
+            _increment_count(state["artifact_provider_status_counts"], status_key)
+
+
+def _apply_release_artifact_doom_indexes(state, rec):
+    for wad in rec.get("doom_wads") or []:
+        if not isinstance(wad, dict):
+            continue
+        filename = str(wad.get("filename") or "")
+        wad_sha256 = str(wad.get("sha256") or "")
+        if filename:
+            state["artifact_doom_wad_count"] += 1
+            _append_index(state["artifacts_by_doom_wad_filename"], filename, rec)
+            _increment_count(state["artifact_doom_wad_filename_counts"], filename)
+        if wad_sha256:
+            _append_index(state["artifacts_by_doom_wad_sha256"], wad_sha256, rec)
+            _increment_count(state["artifact_doom_wad_sha256_counts"], wad_sha256)
+
+
+def _release_artifact_index_result(state):
+    return {
+        "artifacts_by_release_path": state["artifacts_by_release_path"],
+        "artifacts_by_name": state["artifacts_by_name"],
+        "artifacts_by_sha256": state["artifacts_by_sha256"],
+        "artifacts_by_payload_preset": state["artifacts_by_payload_preset"],
+        "artifacts_by_compatibility": state["artifacts_by_compatibility"],
+        "artifacts_by_source": state["artifacts_by_source"],
+        "artifacts_by_tuple_path": state["artifacts_by_tuple_path"],
+        "artifacts_by_tool": state["artifacts_by_tool"],
+        "artifacts_by_device_alias": state["artifacts_by_device_alias"],
+        "artifacts_by_feature": state["artifacts_by_feature"],
+        "artifacts_by_tool_payload_preset": state["artifacts_by_tool_payload_preset"],
+        "artifacts_by_device_payload_preset": state["artifacts_by_device_payload_preset"],
+        "artifacts_by_feature_payload_preset": state["artifacts_by_feature_payload_preset"],
+        "artifacts_by_tuple_payload_preset": state["artifacts_by_tuple_payload_preset"],
+        "artifacts_by_provider_tool": state["artifacts_by_provider_tool"],
+        "artifacts_by_provider_status": state["artifacts_by_provider_status"],
+        "artifacts_by_doom_wad_filename": state["artifacts_by_doom_wad_filename"],
+        "artifacts_by_doom_wad_sha256": state["artifacts_by_doom_wad_sha256"],
+        "artifacts_by_command_queue_enabled": state["artifacts_by_command_queue_enabled"],
+        "artifacts_by_command_queue_execution_supported": state["artifacts_by_command_queue_execution_supported"],
+        "artifacts_by_command_queue_operator_supplied_command_execution": state["artifacts_by_command_queue_operator_supplied_command_execution"],
         "artifact_stats": {
-            "total_size": artifact_total_size,
-            "by_compatibility": artifact_compatibility_counts,
-            "by_payload_preset": artifact_payload_preset_counts,
-            "by_source": artifact_source_counts,
-            "by_tool": artifact_tool_counts,
-            "by_device_alias": artifact_device_alias_counts,
-            "by_feature": artifact_feature_counts,
-            "by_provider_tool": artifact_provider_tool_counts,
-            "by_provider_status": artifact_provider_status_counts,
-            "by_doom_wad_filename": artifact_doom_wad_filename_counts,
-            "by_doom_wad_sha256": artifact_doom_wad_sha256_counts,
-            "by_command_queue_enabled": artifact_command_queue_enabled_counts,
-            "by_command_queue_execution_supported": artifact_command_queue_execution_supported_counts,
-            "by_command_queue_operator_supplied_command_execution": artifact_command_queue_operator_supplied_command_execution_counts,
-            "doom_wad_count": artifact_doom_wad_count,
+            "total_size": state["artifact_total_size"],
+            "by_compatibility": state["artifact_compatibility_counts"],
+            "by_payload_preset": state["artifact_payload_preset_counts"],
+            "by_source": state["artifact_source_counts"],
+            "by_tool": state["artifact_tool_counts"],
+            "by_device_alias": state["artifact_device_alias_counts"],
+            "by_feature": state["artifact_feature_counts"],
+            "by_provider_tool": state["artifact_provider_tool_counts"],
+            "by_provider_status": state["artifact_provider_status_counts"],
+            "by_doom_wad_filename": state["artifact_doom_wad_filename_counts"],
+            "by_doom_wad_sha256": state["artifact_doom_wad_sha256_counts"],
+            "by_command_queue_enabled": state["artifact_command_queue_enabled_counts"],
+            "by_command_queue_execution_supported": state["artifact_command_queue_execution_supported_counts"],
+            "by_command_queue_operator_supplied_command_execution": state["artifact_command_queue_operator_supplied_command_execution_counts"],
+            "doom_wad_count": state["artifact_doom_wad_count"],
         },
     }
 
+
+def _release_artifact_index_state(artifacts, devices):
+    state = _empty_release_artifact_index_state()
+    for rec in artifacts:
+        try:
+            state["artifact_total_size"] += int(rec.get("size", 0) or 0)
+        except (TypeError, ValueError):
+            pass
+        values = _release_artifact_index_values(rec)
+        _apply_release_artifact_base_indexes(state, rec, values)
+        _apply_release_artifact_device_indexes(state, rec, values, devices)
+        _apply_release_artifact_command_queue_indexes(state, rec, values)
+        _apply_release_artifact_tool_indexes(state, rec, values["payload_preset"])
+        _apply_release_artifact_feature_indexes(state, rec, values["payload_preset"])
+        _apply_release_artifact_provider_indexes(state, rec)
+        _apply_release_artifact_doom_indexes(state, rec)
+    return _release_artifact_index_result(state)
 
 def _release_recommendation_artifact_indexes(artifacts, artifact_state):
     return {
