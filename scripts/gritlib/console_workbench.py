@@ -491,6 +491,22 @@ def _build_operator_state_status_context(
     }
 
 
+def _build_release_status_context(cfg):
+    release_context_doc = release_status_context(cfg)
+    return {
+        "release_context_doc": release_context_doc,
+        "release": release_context_doc["release"],
+        "release_state": release_context_doc["state_record"],
+        "release_state_records": release_context_doc["state_records"],
+        "release_state_index_maps": release_context_doc["state_index_maps"],
+        "release_artifact_workflow_actions": release_context_doc["workflow_actions"],
+        "release_artifact_workflow_action_index_maps": release_context_doc[
+            "workflow_action_index_maps"
+        ],
+        "summary": release_context_doc["summary"],
+    }
+
+
 def _build_service_status_context(cfg):
     service_context = service_status_context(cfg, SERVICE_MANAGER.snapshot())
     return {
@@ -970,14 +986,16 @@ def status_document(cfg):
         "command_queue_mode_index_maps"
     ]
     unfiltered_counts["command_queue_commands"] = command_queue_context["unfiltered_count"]
-    release_context_doc = release_status_context(cfg)
+    release_context_doc = _build_release_status_context(cfg)
     release = release_context_doc["release"]
-    release_state = release_context_doc["state_record"]
-    release_state_records = release_context_doc["state_records"]
-    release_state_index_maps = release_context_doc["state_index_maps"]
-    release_artifact_workflow_actions = release_context_doc["workflow_actions"]
+    release_state = release_context_doc["release_state"]
+    release_state_records = release_context_doc["release_state_records"]
+    release_state_index_maps = release_context_doc["release_state_index_maps"]
+    release_artifact_workflow_actions = release_context_doc[
+        "release_artifact_workflow_actions"
+    ]
     release_artifact_workflow_action_index_maps = release_context_doc[
-        "workflow_action_index_maps"
+        "release_artifact_workflow_action_index_maps"
     ]
     rshell_session_policy_status_doc = rshell_session_policy_status(cfg)
     rshell_session_policy = rshell_session_policy_status_doc["policy"]
