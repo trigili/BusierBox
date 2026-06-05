@@ -56,9 +56,7 @@ from gritlib.line_services import (
     line_service_display_name,
     line_service_record,
 )
-from gritlib.line_target_commands import (
-    copy_line_generated_command, copy_line_service_command, run_line_generated_command,
-)
+import gritlib.line_target_commands as line_target_commands
 import gritlib.line_workspace as line_workspace
 from gritlib.operator_network import choose_operator_host_for_target
 import gritlib.probe_commands as probe_commands
@@ -298,11 +296,11 @@ def run_line_repl(cfg):
         events_func=print_line_events_view,
         search_callbacks=line_search_callbacks,
         display_callbacks=line_display_show_callbacks,
-        generated_run_func=run_line_generated_command,
+        generated_run_func=line_target_commands.run_line_generated_command,
         copy_text_func=copy_text_for_operator,
         route_service_callbacks=line_route_service_callbacks,
-        service_copy_command_func=copy_line_service_command,
-        generated_copy_func=copy_line_generated_command,
+        service_copy_command_func=line_target_commands.copy_line_service_command,
+        generated_copy_func=line_target_commands.copy_line_generated_command,
     )
     line_core_callbacks = build_line_core_callbacks(
         cfg,
