@@ -23,11 +23,7 @@ from gritlib.line_build import (
     unset_line_global_build_option,
 )
 import gritlib.line_configure as line_configure
-from gritlib.line_context import (
-    back_line_module_context,
-    clear_line_console_context, clear_line_module_context,
-    set_line_collection_context,
-)
+import gritlib.line_context as line_context
 import gritlib.line_daemon as line_daemon
 from gritlib.line_events import print_line_events_view
 import gritlib.line_files as line_files
@@ -157,7 +153,7 @@ def run_line_repl(cfg):
 
     line_option_callbacks = build_line_option_callbacks(
         cfg,
-        clear_module_func=clear_line_module_context,
+        clear_module_func=line_context.clear_line_module_context,
         set_global_option_func=set_line_global_build_option,
         set_context_option_func=line_options.set_line_option,
         unset_global_option_func=unset_line_global_build_option,
@@ -274,7 +270,7 @@ def run_line_repl(cfg):
         cfg,
         workbench_snapshot_func=workbench_snapshot,
         display_name_func=line_service_display_name,
-        set_context_func=set_line_collection_context,
+        set_context_func=line_context.set_line_collection_context,
         action_callbacks=line_action_callbacks,
         option_callbacks=line_option_callbacks,
         target_callbacks=line_target_callbacks,
@@ -297,10 +293,10 @@ def run_line_repl(cfg):
         load_config_func=load_config,
         defaults=DEFAULTS,
         workbench_snapshot_func=workbench_snapshot,
-        clear_module_context_func=clear_line_module_context,
+        clear_module_context_func=line_context.clear_line_module_context,
         print_workspace_snapshot_func=line_workspace.print_line_workspace_snapshot,
         reload_config_func=line_workspace.reload_line_config_for_repl,
-        clear_console_context_func=clear_line_console_context,
+        clear_console_context_func=line_context.clear_line_console_context,
         local_ips_func=print_line_local_ips,
     )
 
@@ -329,14 +325,14 @@ def run_line_repl(cfg):
     )
     line_core_callbacks = build_line_core_callbacks(
         cfg,
-        clear_module_func=clear_line_module_context,
+        clear_module_func=line_context.clear_line_module_context,
         probe_callbacks=line_probe_callbacks,
         file_callbacks=line_file_callbacks,
         display_callbacks=line_display_show_callbacks,
         option_callbacks=line_option_callbacks,
         workspace_callbacks=line_workspace_callbacks,
         survey_callbacks=line_survey_callbacks,
-        set_context_func=set_line_collection_context,
+        set_context_func=line_context.set_line_collection_context,
         build_run_func=run_line_build_command,
         help_func=print_line_command_help,
         append_event_fn=append_event,
@@ -345,9 +341,9 @@ def run_line_repl(cfg):
         cfg,
         append_event_fn=append_event,
         clear_results_func=clear_line_search_results,
-        set_context_func=set_line_collection_context,
-        clear_console_context_func=clear_line_console_context,
-        back_func=back_line_module_context,
+        set_context_func=line_context.set_line_collection_context,
+        clear_console_context_func=line_context.clear_line_console_context,
+        back_func=line_context.back_line_module_context,
         session_help_func=print_line_command_help,
         route_help_func=print_line_command_help,
         search_callbacks=line_search_callbacks,
@@ -361,7 +357,7 @@ def run_line_repl(cfg):
     line_workflow_callbacks = build_line_workflow_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        set_context_func=set_line_collection_context,
+        set_context_func=line_context.set_line_collection_context,
         daemon_runner_func=workflow_runners.run_operator_daemon_workflow_action,
         release_print_func=line_release.print_line_release,
         release_help_func=print_line_command_help,
@@ -391,7 +387,7 @@ def run_line_repl(cfg):
     try:
         result = line_repl_runtime.run_configured_line_repl_loop(
             cfg,
-            clear_console_context_func=clear_line_console_context,
+            clear_console_context_func=line_context.clear_line_console_context,
             workbench_mark_stopped_func=mark_service_stopped,
             shutdown_event=SHUTDOWN,
             shutdown_reason_func=current_shutdown_reason,
