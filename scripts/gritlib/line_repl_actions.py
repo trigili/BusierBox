@@ -1,5 +1,7 @@
 """Line REPL action callback adapters."""
 
+from gritlib.console_workbench import workbench_snapshot
+from gritlib.event_log import append_event
 from gritlib.line_actions import (
     current_line_action_records,
     print_current_line_actions,
@@ -12,6 +14,10 @@ from gritlib.line_command_queue import (
     select_current_line_command_queue_action,
 )
 from gritlib.line_state import line_action_state_text
+from gritlib.shell_utils import shquote
+from gritlib.workbench_jobs import run_workbench_action_record
+from gritlib.workflow_actions import workbench_action_records
+from gritlib import workflow_runners
 
 
 def build_line_action_callbacks(
@@ -110,3 +116,24 @@ def build_line_action_callbacks(
         "run_target_workflow": target_runner,
         "action_state_text": line_action_state_text,
     }
+
+
+def build_default_line_action_callbacks(
+    cfg,
+    *,
+    line_input,
+    line_route_service_callbacks,
+):
+    return build_line_action_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        route_service_callbacks=line_route_service_callbacks,
+        service_runner=workflow_runners.run_service_workflow_action,
+        daemon_runner=workflow_runners.run_operator_daemon_workflow_action,
+        workbench_runner=run_workbench_action_record,
+        target_runner=workflow_runners.run_target_workflow_action,
+        workbench_actions_func=workbench_action_records,
+        target_input_func=line_input,
+        append_event_fn=append_event,
+        quote=shquote,
+    )

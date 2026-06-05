@@ -1,5 +1,9 @@
 """Line REPL option callback adapters."""
 
+from gritlib.build_config import workbench_config_field_records
+from gritlib import line_build
+from gritlib import line_context
+from gritlib import line_options
 from gritlib.line_options import unset_line_target_option
 
 
@@ -51,3 +55,17 @@ def build_line_option_callbacks(
         "alias_target": alias_target_func,
         "workbench_config_fields": workbench_config_fields,
     }
+
+
+def build_default_line_option_callbacks(cfg):
+    return build_line_option_callbacks(
+        cfg,
+        clear_module_func=line_context.clear_line_module_context,
+        set_global_option_func=line_build.set_line_global_build_option,
+        set_context_option_func=line_options.set_line_option,
+        unset_global_option_func=line_build.unset_line_global_build_option,
+        rename_target_func=line_options.rename_line_target,
+        note_target_func=line_options.note_line_target,
+        alias_target_func=line_options.alias_line_target,
+        build_fields_func=workbench_config_field_records,
+    )

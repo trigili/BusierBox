@@ -1,7 +1,13 @@
 """Line REPL completion callback adapters."""
 
+from gritlib import command_queue as command_queue_module
+from gritlib.console_workbench import workbench_snapshot
+from gritlib.event_log import append_event
+from gritlib import line_configure
 from gritlib.line_completions import build_line_completion_callbacks
 from gritlib.line_repl_runtime import install_readline_completer
+from gritlib.release_artifacts import release_context
+from gritlib.staged_files import load_staged
 
 
 def build_line_completion_adapter(
@@ -175,3 +181,30 @@ def setup_line_completion_bundle(
     )
     install_line_completion_bundle(readline_module, have_readline, bundle)
     return bundle
+
+
+def setup_default_line_completion_bundle(
+    cfg,
+    *,
+    readline_module,
+    have_readline,
+    line_route_service_callbacks,
+    line_target_callbacks,
+    line_option_callbacks,
+    line_action_callbacks,
+):
+    return setup_line_completion_bundle(
+        cfg,
+        readline_module=readline_module,
+        have_readline=have_readline,
+        workbench_snapshot_func=workbench_snapshot,
+        action_callbacks=line_action_callbacks,
+        release_context_func=release_context,
+        command_queue_summary_func=command_queue_module.command_queue_summary,
+        route_service_callbacks=line_route_service_callbacks,
+        target_callbacks=line_target_callbacks,
+        option_callbacks=line_option_callbacks,
+        load_staged_func=load_staged,
+        find_survey_uploads_func=line_configure.find_survey_uploads,
+        append_event_fn=append_event,
+    )

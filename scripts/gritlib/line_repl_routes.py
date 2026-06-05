@@ -1,5 +1,7 @@
 """Line REPL route and listener callback adapters."""
 
+import time
+from gritlib import bridge_routes
 from gritlib.bridge_routes import (
     add_line_route,
     delete_bridge_profile,
@@ -11,14 +13,19 @@ from gritlib.bridge_routes import (
     start_line_route,
     stop_line_route,
 )
+from gritlib import probe_commands
+from gritlib import service_status
+from gritlib import workflow_runners
 from gritlib.line_services import (
     line_service_completion_names,
+    line_service_record,
     line_service_names,
     print_line_services,
     select_line_service,
     start_line_service,
     stop_line_service,
 )
+from gritlib.shell_utils import shquote
 
 
 def build_bridge_profile_headless_command_callback(cfg, bridge_command_func):
@@ -195,3 +202,20 @@ def build_line_route_service_callbacks(
         "start_line_service": start_service,
         "stop_line_service": stop_service,
     }
+
+
+def build_default_line_route_service_callbacks(cfg):
+    return build_line_route_service_callbacks(
+        cfg,
+        service_status_rows_func=service_status.service_status_rows,
+        service_record_func=line_service_record,
+        bridge_profile_records_func=bridge_routes.bridge_profile_records,
+        bridge_command_func=bridge_routes.bridge_profile_headless_command,
+        service_start_command_func=service_status.service_start_headless_command,
+        service_stop_command_func=service_status.service_stop_headless_command,
+        service_start_func=workflow_runners.start_service_process,
+        service_stop_func=workflow_runners.stop_recorded_service,
+        probe_delivery_func=probe_commands.print_probe_delivery,
+        sleep_func=time.sleep,
+        quote=shquote,
+    )
