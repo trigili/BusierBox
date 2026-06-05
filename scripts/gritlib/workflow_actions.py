@@ -940,17 +940,8 @@ def operator_console_workflow_records(
     return annotate_operator_console_workflows(records, target_records, overdue_targets)
 
 
-def workbench_action_records(cfg):
-    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    build_config = str(build_config_path(cfg))
-    release_dir = str(cfg.get("release_dir") or ".")
-    daemon_services = configured_daemon_services(cfg, [])
-    daemon_service_args = render_daemon_service_args(daemon_services)
-    daemon_command = "scripts/grit-console --config " + shquote(config_path) + " --daemon " + daemon_service_args
-    target_ctx = selected_target_context(cfg)
-    operator_host = operator_advertised_host(cfg)
-
-    records = [
+def _workbench_configuration_tooling_action_records(config_path, build_config):
+    return [
         {
             "id": "configure-binary",
             "category": "configuration",
@@ -1047,6 +1038,11 @@ def workbench_action_records(cfg):
             "target_execution": False,
             "event": "workbench_action_selected",
         },
+    ]
+
+
+def _workbench_build_artifact_release_action_records(config_path, release_dir, operator_host, target_ctx):
+    return [
         {
             "id": "package-artifact",
             "category": "build",
@@ -1223,6 +1219,11 @@ def workbench_action_records(cfg):
             "target_execution": False,
             "event": "workbench_action_selected",
         },
+    ]
+
+
+def _workbench_offline_action_records(config_path):
+    return [
         {
             "id": "verify-sources",
             "category": "offline",
@@ -1335,6 +1336,11 @@ def workbench_action_records(cfg):
             "target_execution": False,
             "event": "workbench_action_selected",
         },
+    ]
+
+
+def _workbench_daemon_action_records(config_path, daemon_service_args, daemon_command):
+    return [
         {
             "id": "operator-daemon-start",
             "category": "daemon",
@@ -1480,6 +1486,23 @@ def workbench_action_records(cfg):
             "event": "workbench_action_selected",
         },
     ]
+
+
+def workbench_action_records(cfg):
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    build_config = str(build_config_path(cfg))
+    release_dir = str(cfg.get("release_dir") or ".")
+    daemon_services = configured_daemon_services(cfg, [])
+    daemon_service_args = render_daemon_service_args(daemon_services)
+    daemon_command = "scripts/grit-console --config " + shquote(config_path) + " --daemon " + daemon_service_args
+    target_ctx = selected_target_context(cfg)
+    operator_host = operator_advertised_host(cfg)
+
+    records = []
+    records.extend(_workbench_configuration_tooling_action_records(config_path, build_config))
+    records.extend(_workbench_build_artifact_release_action_records(config_path, release_dir, operator_host, target_ctx))
+    records.extend(_workbench_offline_action_records(config_path))
+    records.extend(_workbench_daemon_action_records(config_path, daemon_service_args, daemon_command))
     return annotate_workbench_actions(
         records,
         cfg,
