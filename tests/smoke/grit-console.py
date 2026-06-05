@@ -8867,6 +8867,7 @@ def main(argv=None):
     command_queue_src = (ROOT / "scripts" / "gritlib" / "command_queue.py").read_text()
     console_workbench_src = (ROOT / "scripts" / "gritlib" / "console_workbench.py").read_text()
     workflow_runners_src = (ROOT / "scripts" / "gritlib" / "workflow_runners.py").read_text()
+    event_log_src = (ROOT / "scripts" / "gritlib" / "event_log.py").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
     file_service_src = (ROOT / "scripts" / "gritlib" / "file_service.py").read_text()
     shell_bridge_service_src = (ROOT / "scripts" / "gritlib" / "shell_bridge_service.py").read_text()
@@ -9036,7 +9037,7 @@ def main(argv=None):
                  "start_child_process", "from gritlib.runtime import", "EventLog", "Service",
                  "Session", "SessionManager", "SESSION_MANAGER = SessionManager()",
                  "SESSION_MANAGER.start_record", "SESSION_MANAGER.finish_record"):
-        if word not in src + console_app_src + service_runtime_src + probe_service_src:
+        if word not in src + console_app_src + event_log_src + service_runtime_src + probe_service_src:
             print(f"grit-console: service/session manager primitive missing: {word}", file=sys.stderr)
             return 1
     if "OWNED_TRANSPORTS.append(transport)" in src + service_runtime_src:
