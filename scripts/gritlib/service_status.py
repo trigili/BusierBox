@@ -575,10 +575,7 @@ def port_status_summary(ports):
     }
 
 
-def service_status_summary(services, manager_snapshot=None, manager_status=None):
-    services = services or []
-    manager_snapshot = manager_snapshot or {}
-    manager_status = manager_status or service_manager_status(manager_snapshot)
+def _service_status_index_counts(services):
     (
         _services_by_actual,
         _services_by_configured,
@@ -596,10 +593,6 @@ def service_status_summary(services, manager_snapshot=None, manager_status=None)
         services_by_has_error,
         services_by_stopped_reason,
     ) = service_record_indexes(services)
-    state_record = manager_status.get("state_record") or {}
-    state_records = manager_status.get("state_records") or []
-    resources = manager_status.get("resources") or []
-    resource_index_maps = manager_status.get("resource_index_maps") or {}
     return {
         "service_actual_counts": record_count_by_key(services, "actual"),
         "service_configured_counts": record_count_by_key(services, "configured"),
@@ -619,6 +612,11 @@ def service_status_summary(services, manager_snapshot=None, manager_status=None)
         ),
         "service_has_error_counts": _index_counts(services_by_has_error),
         "service_stopped_reason_counts": _index_counts(services_by_stopped_reason),
+    }
+
+
+def _service_manager_snapshot_summary(manager_snapshot):
+    return {
         "service_manager_shutdown_requested": bool(
             manager_snapshot.get("shutdown_requested", False)
         ),
@@ -640,6 +638,11 @@ def service_status_summary(services, manager_snapshot=None, manager_status=None)
         "service_manager_running_child_process_count": manager_snapshot.get(
             "running_child_process_count", 0
         ),
+    }
+
+
+def _service_manager_state_summary(state_record, state_records):
+    return {
         "service_manager_state_record_count": len(state_records),
         "service_manager_has_open_sockets": bool(
             state_record.get("has_open_sockets", False)
@@ -656,6 +659,11 @@ def service_status_summary(services, manager_snapshot=None, manager_status=None)
         "service_manager_has_resources": bool(
             state_record.get("has_resources", False)
         ),
+    }
+
+
+def _service_manager_resource_summary(resources, resource_index_maps):
+    return {
         "service_manager_resource_count": len(resources),
         "service_manager_resource_kind_counts": record_count_by_key(
             resources, "kind"
@@ -673,6 +681,22 @@ def service_status_summary(services, manager_snapshot=None, manager_status=None)
             resource_index_maps.get("service_manager_resources_by_kind_active")
         ),
     }
+
+
+def service_status_summary(services, manager_snapshot=None, manager_status=None):
+    services = services or []
+    manager_snapshot = manager_snapshot or {}
+    manager_status = manager_status or service_manager_status(manager_snapshot)
+    state_record = manager_status.get("state_record") or {}
+    state_records = manager_status.get("state_records") or []
+    resources = manager_status.get("resources") or []
+    resource_index_maps = manager_status.get("resource_index_maps") or {}
+    summary = {}
+    summary.update(_service_status_index_counts(services))
+    summary.update(_service_manager_snapshot_summary(manager_snapshot))
+    summary.update(_service_manager_state_summary(state_record, state_records))
+    summary.update(_service_manager_resource_summary(resources, resource_index_maps))
+    return summary
 
 
 def status_summary_and_warnings(services):
