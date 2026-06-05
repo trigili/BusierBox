@@ -257,6 +257,62 @@ SESSION_INDEX_KEYS = (
     "sessions_by_session_log_exists",
 )
 
+UPLOAD_INDEX_KEYS = (
+    "uploads_by_filename",
+    "uploads_by_kind",
+    "uploads_by_sha256",
+    "uploads_by_target_id",
+    "uploads_by_source_path",
+    "uploads_by_stored_path",
+    "uploads_by_stored_exists",
+    "uploads_by_metadata_exists",
+    "uploads_by_event_log_exists",
+    "uploads_by_remote_addr",
+    "uploads_by_status",
+    "uploads_by_kind_status",
+    "uploads_by_filename_status",
+    "uploads_by_status_stored_exists",
+    "uploads_by_status_remote_addr",
+)
+
+FETCH_INDEX_KEYS = (
+    "fetches_by_request",
+    "fetches_by_sha256",
+    "fetches_by_target_id",
+    "fetches_by_source_path",
+    "fetches_by_source_exists",
+    "fetches_by_metadata_exists",
+    "fetches_by_event_log_exists",
+    "fetches_by_status",
+    "fetches_by_http_status",
+    "fetches_by_remote_addr",
+    "fetches_by_request_status",
+    "fetches_by_status_source_exists",
+    "fetches_by_status_remote_addr",
+    "fetches_by_http_status_remote_addr",
+)
+
+
+def _build_file_transfer_status_context(staged_records, uploads, fetches):
+    file_transfer_context = file_transfer_status_context(uploads, fetches)
+    target_file_transfer_context = target_file_transfer_status_context(
+        staged_records,
+        uploads,
+        fetches,
+    )
+    return {
+        "upload_index_maps": dict(zip(
+            UPLOAD_INDEX_KEYS,
+            file_transfer_context["upload_indexes"],
+        )),
+        "fetch_index_maps": dict(zip(
+            FETCH_INDEX_KEYS,
+            file_transfer_context["fetch_indexes"],
+        )),
+        "target_file_transfer_records": target_file_transfer_context["records"],
+        "target_file_transfer_index_maps": target_file_transfer_context["index_maps"],
+    }
+
 
 def _build_session_status_context(cfg, *, target_filter_id):
     session_context = session_status_context(
@@ -731,43 +787,15 @@ def status_document(cfg):
     target_command_state_record = target_command_context["state_record"]
     target_command_state_records = target_command_context["state_records"]
     target_command_state_index_maps = target_command_context["state_index_maps"]
-    file_transfer_context = file_transfer_status_context(uploads, fetches)
-    (uploads_by_filename,
-     uploads_by_kind,
-     uploads_by_sha256,
-     uploads_by_target_id,
-     uploads_by_source_path,
-     uploads_by_stored_path,
-     uploads_by_stored_exists,
-     uploads_by_metadata_exists,
-     uploads_by_event_log_exists,
-     uploads_by_remote_addr,
-     uploads_by_status,
-     uploads_by_kind_status,
-     uploads_by_filename_status,
-     uploads_by_status_stored_exists,
-     uploads_by_status_remote_addr) = file_transfer_context["upload_indexes"]
-    (fetches_by_request,
-     fetches_by_sha256,
-     fetches_by_target_id,
-     fetches_by_source_path,
-     fetches_by_source_exists,
-     fetches_by_metadata_exists,
-     fetches_by_event_log_exists,
-     fetches_by_status,
-     fetches_by_http_status,
-     fetches_by_remote_addr,
-     fetches_by_request_status,
-     fetches_by_status_source_exists,
-     fetches_by_status_remote_addr,
-     fetches_by_http_status_remote_addr) = file_transfer_context["fetch_indexes"]
-    target_file_transfer_context = target_file_transfer_status_context(
+    file_transfer_context = _build_file_transfer_status_context(
         staged_records,
         uploads,
         fetches,
     )
-    target_file_transfer_records = target_file_transfer_context["records"]
-    target_file_transfer_index_maps = target_file_transfer_context["index_maps"]
+    upload_index_maps = file_transfer_context["upload_index_maps"]
+    fetch_index_maps = file_transfer_context["fetch_index_maps"]
+    target_file_transfer_records = file_transfer_context["target_file_transfer_records"]
+    target_file_transfer_index_maps = file_transfer_context["target_file_transfer_index_maps"]
     file_service_row = next((row for row in services if row.get("name") == "file-service"), {})
     file_service_workflow_context = file_service_workflow_status_context(
         cfg,
@@ -2425,37 +2453,10 @@ def status_document(cfg):
         **target_activity_index_maps,
         "uploads": uploads,
         "uploads_by_session": records_by_session(uploads),
-        "uploads_by_filename": uploads_by_filename,
-        "uploads_by_kind": uploads_by_kind,
-        "uploads_by_sha256": uploads_by_sha256,
-        "uploads_by_target_id": uploads_by_target_id,
-        "uploads_by_source_path": uploads_by_source_path,
-        "uploads_by_stored_path": uploads_by_stored_path,
-        "uploads_by_stored_exists": uploads_by_stored_exists,
-        "uploads_by_metadata_exists": uploads_by_metadata_exists,
-        "uploads_by_event_log_exists": uploads_by_event_log_exists,
-        "uploads_by_remote_addr": uploads_by_remote_addr,
-        "uploads_by_status": uploads_by_status,
-        "uploads_by_kind_status": uploads_by_kind_status,
-        "uploads_by_filename_status": uploads_by_filename_status,
-        "uploads_by_status_stored_exists": uploads_by_status_stored_exists,
-        "uploads_by_status_remote_addr": uploads_by_status_remote_addr,
+        **upload_index_maps,
         "fetches": fetches,
         "fetches_by_session": records_by_session(fetches),
-        "fetches_by_request": fetches_by_request,
-        "fetches_by_sha256": fetches_by_sha256,
-        "fetches_by_target_id": fetches_by_target_id,
-        "fetches_by_source_path": fetches_by_source_path,
-        "fetches_by_source_exists": fetches_by_source_exists,
-        "fetches_by_metadata_exists": fetches_by_metadata_exists,
-        "fetches_by_event_log_exists": fetches_by_event_log_exists,
-        "fetches_by_status": fetches_by_status,
-        "fetches_by_http_status": fetches_by_http_status,
-        "fetches_by_remote_addr": fetches_by_remote_addr,
-        "fetches_by_request_status": fetches_by_request_status,
-        "fetches_by_status_source_exists": fetches_by_status_source_exists,
-        "fetches_by_status_remote_addr": fetches_by_status_remote_addr,
-        "fetches_by_http_status_remote_addr": fetches_by_http_status_remote_addr,
+        **fetch_index_maps,
         "sessions": sessions,
         "session_root_state": session_root_state,
         "session_root_state_records": session_root_state_records,
