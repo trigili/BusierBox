@@ -102,20 +102,7 @@ from gritlib.workbench_jobs import (
     reconcile_workbench_job_completion_events,
     workbench_jobs_path, workbench_jobs_state_status,
 )
-from gritlib.workflow_actions import (
-    operator_daemon_workflow_action_status_context,
-    operator_daemon_workflow_action_status_summary,
-    operator_console_workflow_records,
-    operator_console_workflow_indexes,
-    operator_console_workflow_summary,
-    operator_console_workflow_status_summary,
-    probe_workflow_action_indexes,
-    probe_workflow_action_status_summary,
-    target_workflow_action_status_context,
-    target_workflow_action_status_summary,
-    workbench_action_status_context,
-    workbench_job_status_context,
-)
+import gritlib.workflow_actions as workflow_actions
 
 EVENT_INDEX_KEYS = (
     "events_by_id",
@@ -553,19 +540,23 @@ def _build_bridge_profile_status_context(cfg, targets):
 
 
 def _build_workbench_workflow_status_context(cfg, targets, bridge_profiles):
-    workbench_action_context = workbench_action_status_context(cfg)
+    workbench_action_context = workflow_actions.workbench_action_status_context(cfg)
     workbench_actions = workbench_action_context["actions"]
-    operator_daemon_workflow_context = operator_daemon_workflow_action_status_context(
-        cfg,
-        workbench_actions,
-        targets,
+    operator_daemon_workflow_context = (
+        workflow_actions.operator_daemon_workflow_action_status_context(
+            cfg,
+            workbench_actions,
+            targets,
+        )
     )
-    target_workflow_context = target_workflow_action_status_context(
+    target_workflow_context = workflow_actions.target_workflow_action_status_context(
         cfg,
         targets,
         bridge_profiles,
     )
-    workbench_job_context = workbench_job_status_context(cfg, workbench_actions)
+    workbench_job_context = workflow_actions.workbench_job_status_context(
+        cfg, workbench_actions
+    )
     operator_daemon_workflow_actions = operator_daemon_workflow_context["actions"]
     target_workflow_actions = target_workflow_context["actions"]
     workbench_jobs = workbench_job_context["jobs"]
@@ -583,9 +574,11 @@ def _build_workbench_workflow_status_context(cfg, targets, bridge_profiles):
         "workbench_jobs": workbench_jobs,
         "workbench_job_index_maps": workbench_job_context["index_maps"],
         "summary": {
-            **target_workflow_action_status_summary(target_workflow_actions),
+            **workflow_actions.target_workflow_action_status_summary(
+                target_workflow_actions
+            ),
             **workbench_action_context["summary"],
-            **operator_daemon_workflow_action_status_summary(
+            **workflow_actions.operator_daemon_workflow_action_status_summary(
                 operator_daemon_workflow_actions
             ),
             **workbench_job_context["summary"],
@@ -973,12 +966,16 @@ def _build_service_probe_workflow_status_context(
             service_workflow_actions
         ),
         "probe_workflow_actions": probe_workflow_actions,
-        "probe_workflow_action_index_maps": probe_workflow_action_indexes(
-            probe_workflow_actions
+        "probe_workflow_action_index_maps": (
+            workflow_actions.probe_workflow_action_indexes(
+                probe_workflow_actions
+            )
         ),
         "summary": {
             **service_workflow_action_status_summary(service_workflow_actions),
-            **probe_workflow_action_status_summary(probe_workflow_actions),
+            **workflow_actions.probe_workflow_action_status_summary(
+                probe_workflow_actions
+            ),
         },
     }
 
@@ -1006,7 +1003,7 @@ def _build_operator_console_workflow_status_context(
     release,
     warnings,
 ):
-    operator_console_workflows = operator_console_workflow_records(
+    operator_console_workflows = workflow_actions.operator_console_workflow_records(
         cfg,
         targets=targets,
         target_workflow_actions=target_workflow_actions,
@@ -1028,16 +1025,20 @@ def _build_operator_console_workflow_status_context(
         release=release,
         warnings=warnings,
     )
-    operator_console_workflow_stats = operator_console_workflow_summary(
-        operator_console_workflows
+    operator_console_workflow_stats = (
+        workflow_actions.operator_console_workflow_summary(
+            operator_console_workflows
+        )
     )
     return {
         "operator_console_workflows": operator_console_workflows,
-        "operator_console_workflow_index_maps": operator_console_workflow_indexes(
-            operator_console_workflows
+        "operator_console_workflow_index_maps": (
+            workflow_actions.operator_console_workflow_indexes(
+                operator_console_workflows
+            )
         ),
         "operator_console_workflow_stats": operator_console_workflow_stats,
-        "summary": operator_console_workflow_status_summary(
+        "summary": workflow_actions.operator_console_workflow_status_summary(
             operator_console_workflow_stats
         ),
     }
