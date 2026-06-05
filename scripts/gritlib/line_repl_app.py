@@ -117,15 +117,7 @@ from gritlib.workbench_jobs import (
 )
 from gritlib.workflow_actions import workbench_action_records
 from gritlib.console_workbench import workbench_snapshot
-from gritlib.workflow_runners import (
-    print_workbench,
-    start_service_process,
-    stop_workbench_started_services,
-    stop_recorded_service,
-    run_service_workflow_action,
-    run_operator_daemon_workflow_action,
-    run_target_workflow_action,
-)
+import gritlib.workflow_runners as workflow_runners
 
 try:
     import readline as _readline
@@ -161,8 +153,8 @@ def run_line_repl(cfg):
         bridge_command_func=bridge_routes.bridge_profile_headless_command,
         service_start_command_func=service_start_headless_command,
         service_stop_command_func=service_stop_headless_command,
-        service_start_func=start_service_process,
-        service_stop_func=stop_recorded_service,
+        service_start_func=workflow_runners.start_service_process,
+        service_stop_func=workflow_runners.stop_recorded_service,
         probe_delivery_func=probe_commands.print_probe_delivery,
         sleep_func=time.sleep,
         quote=shquote,
@@ -184,10 +176,10 @@ def run_line_repl(cfg):
         cfg,
         workbench_snapshot_func=workbench_snapshot,
         route_service_callbacks=line_route_service_callbacks,
-        service_runner=run_service_workflow_action,
-        daemon_runner=run_operator_daemon_workflow_action,
+        service_runner=workflow_runners.run_service_workflow_action,
+        daemon_runner=workflow_runners.run_operator_daemon_workflow_action,
         workbench_runner=run_workbench_action_record,
-        target_runner=run_target_workflow_action,
+        target_runner=workflow_runners.run_target_workflow_action,
         workbench_actions_func=workbench_action_records,
         target_input_func=line_input,
         append_event_fn=append_event,
@@ -236,7 +228,7 @@ def run_line_repl(cfg):
         interactive_func=sys.stdin.isatty,
         render_probe_command_func=probe_commands.render_probe_command,
         workbench_snapshot_func=workbench_snapshot,
-        service_start_func=start_service_process,
+        service_start_func=workflow_runners.start_service_process,
         queue_command_func=queue_command,
         probe_delivery_func=probe_commands.print_probe_delivery,
         append_event_fn=append_event,
@@ -260,7 +252,7 @@ def run_line_repl(cfg):
     line_file_callbacks = build_line_file_workflow_callbacks(
         cfg,
         line_input_fn=line_input,
-        start_service_func=start_service_process,
+        start_service_func=workflow_runners.start_service_process,
         target_callbacks=line_target_callbacks,
         route_service_callbacks=line_route_service_callbacks,
         scoped_target_cfg_func=scoped_target_cfg,
@@ -375,7 +367,7 @@ def run_line_repl(cfg):
         cfg,
         workbench_snapshot_func=workbench_snapshot,
         set_context_func=set_line_collection_context,
-        daemon_runner_func=run_operator_daemon_workflow_action,
+        daemon_runner_func=workflow_runners.run_operator_daemon_workflow_action,
         release_print_func=line_release.print_line_release,
         release_help_func=print_line_command_help,
         target_callbacks=line_target_callbacks,
@@ -416,7 +408,7 @@ def run_line_repl(cfg):
             workflow_callbacks=line_workflow_callbacks,
             legacy_callbacks=line_legacy_callbacks,
             workbench_snapshot_func=workbench_snapshot,
-            print_workbench_func=print_workbench,
+            print_workbench_func=workflow_runners.print_workbench,
             print_banner_func=line_workspace.print_line_console_banner,
             version_func=grit_version,
             prompt_func=line_workspace.line_repl_prompt_for_config,
@@ -442,10 +434,10 @@ def run_line_console(cfg):
         state_file_path_func=state_file_path,
         update_server_state_func=update_server_state,
         append_event_func=append_event,
-        print_workbench_func=print_workbench,
+        print_workbench_func=workflow_runners.print_workbench,
         run_repl_func=run_line_repl,
         request_shutdown_func=request_shutdown,
-        stop_services_func=stop_workbench_started_services,
+        stop_services_func=workflow_runners.stop_workbench_started_services,
         mark_stopped_func=mark_service_stopped,
         shutdown_reason_func=current_shutdown_reason,
         stderr=sys.stderr,
