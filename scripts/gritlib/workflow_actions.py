@@ -655,150 +655,19 @@ def operator_daemon_workflow_action_record(
 
 
 def workbench_action_indexes(records):
-    return {
-        "workbench_actions_by_id": {rec.get("id", ""): rec for rec in records or [] if rec.get("id")},
-        "workbench_actions_by_category": records_by_key(records, "category"),
-        "workbench_actions_by_script": records_by_key(records, "script"),
-        "workbench_actions_by_background_supported": records_by_key(records, "background_supported"),
-        "workbench_actions_by_long_running": records_by_key(records, "long_running"),
-        "workbench_actions_by_writes_config": records_by_key(records, "writes_config"),
-        "workbench_actions_by_runs_build": records_by_key(records, "runs_build"),
-        "workbench_actions_by_requires_confirmation": records_by_key(records, "requires_confirmation"),
-        "workbench_actions_by_execution_default": records_by_key(records, "execution_default"),
-        "workbench_actions_by_target_execution": records_by_key(records, "target_execution"),
-        "workbench_actions_by_event": records_by_key(records, "event"),
-        "workbench_actions_by_config_path": records_by_key(records, "config_path"),
-        "workbench_actions_by_foreground_runnable": records_by_key(records, "foreground_runnable"),
-        "workbench_actions_by_dry_run_supported": records_by_key(records, "dry_run_supported"),
-        "workbench_actions_by_has_placeholder": records_by_key(records, "has_placeholder"),
-        "workbench_actions_by_has_run_command": records_by_key(records, "has_run_command"),
-        "workbench_actions_by_has_dry_run_command": records_by_key(records, "has_dry_run_command"),
-        "workbench_actions_by_has_start_job_command": records_by_key(records, "has_start_job_command"),
-        "workbench_actions_by_operator_action_state": records_by_key(records, "operator_action_state"),
-        "workbench_actions_by_operator_action_reason": records_by_key(records, "operator_action_reason"),
-        "workbench_actions_by_can_run_from_curses_enter": records_by_key(records, "can_run_from_curses_enter"),
-        "workbench_actions_by_curses_enter_action": records_by_key(records, "curses_enter_action"),
-    }
+    return workflow_workbench_actions.workbench_action_indexes(records)
 
 
 def workbench_action_summary(records):
-    return {
-        "total_count": len(records or []),
-        "background_supported_count": len([rec for rec in records or [] if rec.get("background_supported") is True]),
-        "long_running_count": len([rec for rec in records or [] if rec.get("long_running") is True]),
-        "writes_config_count": len([rec for rec in records or [] if rec.get("writes_config") is True]),
-        "runs_build_count": len([rec for rec in records or [] if rec.get("runs_build") is True]),
-        "requires_confirmation_count": len([rec for rec in records or [] if rec.get("requires_confirmation") is True]),
-        "target_execution_count": len([rec for rec in records or [] if rec.get("target_execution") is True]),
-        "foreground_runnable_count": len([rec for rec in records or [] if rec.get("foreground_runnable") is True]),
-        "dry_run_supported_count": len([rec for rec in records or [] if rec.get("dry_run_supported") is True]),
-        "has_placeholder_count": len([rec for rec in records or [] if rec.get("has_placeholder") is True]),
-        "has_run_command_count": len([rec for rec in records or [] if rec.get("has_run_command") is True]),
-        "has_dry_run_command_count": len([rec for rec in records or [] if rec.get("has_dry_run_command") is True]),
-        "has_start_job_command_count": len([rec for rec in records or [] if rec.get("has_start_job_command") is True]),
-        "can_run_from_curses_enter_count": len([rec for rec in records or [] if rec.get("can_run_from_curses_enter") is True]),
-        "category_counts": record_count_by_key(records, "category"),
-        "script_counts": record_count_by_key(records, "script"),
-        "execution_default_counts": record_count_by_key(records, "execution_default"),
-        "event_counts": record_count_by_key(records, "event"),
-        "config_path_counts": record_count_by_key(records, "config_path"),
-        "foreground_runnable_counts": record_count_by_key(records, "foreground_runnable"),
-        "dry_run_supported_counts": record_count_by_key(records, "dry_run_supported"),
-        "has_placeholder_counts": record_count_by_key(records, "has_placeholder"),
-        "has_run_command_counts": record_count_by_key(records, "has_run_command"),
-        "has_dry_run_command_counts": record_count_by_key(records, "has_dry_run_command"),
-        "has_start_job_command_counts": record_count_by_key(records, "has_start_job_command"),
-        "operator_action_state_counts": record_count_by_key(records, "operator_action_state"),
-        "operator_action_reason_counts": record_count_by_key(records, "operator_action_reason"),
-        "can_run_from_curses_enter_counts": record_count_by_key(records, "can_run_from_curses_enter"),
-        "curses_enter_action_counts": record_count_by_key(records, "curses_enter_action"),
-    }
+    return workflow_workbench_actions.workbench_action_summary(records)
 
 
 def workbench_action_status_summary(stats=None):
-    stats = stats or {}
-    return {
-        "workbench_action_count": stats.get("total_count", 0),
-        "workbench_action_background_supported_count": stats.get(
-            "background_supported_count", 0
-        ),
-        "workbench_action_long_running_count": stats.get("long_running_count", 0),
-        "workbench_action_writes_config_count": stats.get("writes_config_count", 0),
-        "workbench_action_runs_build_count": stats.get("runs_build_count", 0),
-        "workbench_action_requires_confirmation_count": stats.get(
-            "requires_confirmation_count", 0
-        ),
-        "workbench_action_target_execution_count": stats.get(
-            "target_execution_count", 0
-        ),
-        "workbench_action_foreground_runnable_count": stats.get(
-            "foreground_runnable_count", 0
-        ),
-        "workbench_action_dry_run_supported_count": stats.get(
-            "dry_run_supported_count", 0
-        ),
-        "workbench_action_has_placeholder_count": stats.get(
-            "has_placeholder_count", 0
-        ),
-        "workbench_action_has_run_command_count": stats.get("has_run_command_count", 0),
-        "workbench_action_has_dry_run_command_count": stats.get(
-            "has_dry_run_command_count", 0
-        ),
-        "workbench_action_has_start_job_command_count": stats.get(
-            "has_start_job_command_count", 0
-        ),
-        "workbench_action_can_run_from_curses_enter_count": stats.get(
-            "can_run_from_curses_enter_count", 0
-        ),
-        "workbench_action_category_counts": stats.get("category_counts") or {},
-        "workbench_action_script_counts": stats.get("script_counts") or {},
-        "workbench_action_execution_default_counts": stats.get(
-            "execution_default_counts"
-        ) or {},
-        "workbench_action_event_counts": stats.get("event_counts") or {},
-        "workbench_action_config_path_counts": stats.get("config_path_counts") or {},
-        "workbench_action_foreground_runnable_counts": stats.get(
-            "foreground_runnable_counts"
-        ) or {},
-        "workbench_action_dry_run_supported_counts": stats.get(
-            "dry_run_supported_counts"
-        ) or {},
-        "workbench_action_has_placeholder_counts": stats.get(
-            "has_placeholder_counts"
-        ) or {},
-        "workbench_action_has_run_command_counts": stats.get(
-            "has_run_command_counts"
-        ) or {},
-        "workbench_action_has_dry_run_command_counts": stats.get(
-            "has_dry_run_command_counts"
-        ) or {},
-        "workbench_action_has_start_job_command_counts": stats.get(
-            "has_start_job_command_counts"
-        ) or {},
-        "workbench_action_operator_action_state_counts": stats.get(
-            "operator_action_state_counts"
-        ) or {},
-        "workbench_action_operator_action_reason_counts": stats.get(
-            "operator_action_reason_counts"
-        ) or {},
-        "workbench_action_can_run_from_curses_enter_counts": stats.get(
-            "can_run_from_curses_enter_counts"
-        ) or {},
-        "workbench_action_curses_enter_action_counts": stats.get(
-            "curses_enter_action_counts"
-        ) or {},
-    }
+    return workflow_workbench_actions.workbench_action_status_summary(stats)
 
 
 def workbench_action_status_context(cfg):
-    actions = workbench_action_records(cfg)
-    stats = workbench_action_summary(actions)
-    return {
-        "actions": actions,
-        "index_maps": workbench_action_indexes(actions),
-        "stats": stats,
-        "summary": workbench_action_status_summary(stats),
-    }
+    return workflow_workbench_actions.workbench_action_status_context(cfg)
 
 
 def workbench_job_indexes(records):
