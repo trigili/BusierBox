@@ -375,6 +375,52 @@ PORT_INDEX_KEYS = (
     "ports_by_actual",
 )
 
+BROWSER_PATH_INDEX_KEYS = (
+    "browser_paths_by_kind",
+    "browser_paths_by_path",
+    "browser_paths_by_source_id",
+    "browser_paths_by_stage_kind",
+    "browser_paths_by_release_path",
+    "browser_paths_by_kind_source_id",
+    "browser_paths_by_exists",
+    "browser_paths_by_readable",
+    "browser_paths_by_writable",
+    "browser_paths_by_expected_kind_mismatch",
+)
+
+
+def _build_path_browser_status_context(
+    cfg,
+    paths,
+    *,
+    staged_records,
+    uploads,
+    fetches,
+    sessions,
+    release,
+):
+    path_context = path_status_context(
+        cfg,
+        paths,
+        staged_records,
+        uploads,
+        fetches,
+        sessions,
+        release,
+    )
+    return {
+        "path_context": path_context,
+        "path_status": path_context["path_status"],
+        "path_status_records": path_context["path_status_records"],
+        "path_status_indexes": path_context["path_status_index_maps"],
+        "browser_paths": path_context["browser_paths"],
+        "browser_path_index_maps": dict(zip(
+            BROWSER_PATH_INDEX_KEYS,
+            path_context["browser_path_indexes"],
+        )),
+        "browser_summary": path_context["browser_summary"],
+    }
+
 
 def _build_service_status_context(cfg):
     service_context = service_status_context(cfg, SERVICE_MANAGER.snapshot())
@@ -1038,30 +1084,22 @@ def status_document(cfg):
         workbench_jobs_state,
         workbench_jobs_state_records,
     )
-    path_context = path_status_context(
+    path_browser_context = _build_path_browser_status_context(
         cfg,
         paths,
-        staged_records,
-        uploads,
-        fetches,
-        sessions,
-        release,
+        staged_records=staged_records,
+        uploads=uploads,
+        fetches=fetches,
+        sessions=sessions,
+        release=release,
     )
-    path_status = path_context["path_status"]
-    path_status_records = path_context["path_status_records"]
-    path_status_indexes = path_context["path_status_index_maps"]
-    browser_paths = path_context["browser_paths"]
-    (browser_paths_by_kind,
-     browser_paths_by_path,
-     browser_paths_by_source_id,
-     browser_paths_by_stage_kind,
-     browser_paths_by_release_path,
-     browser_paths_by_kind_source_id,
-     browser_paths_by_exists,
-     browser_paths_by_readable,
-     browser_paths_by_writable,
-     browser_paths_by_expected_kind_mismatch) = path_context["browser_path_indexes"]
-    browser_summary = path_context["browser_summary"]
+    path_context = path_browser_context["path_context"]
+    path_status = path_browser_context["path_status"]
+    path_status_records = path_browser_context["path_status_records"]
+    path_status_indexes = path_browser_context["path_status_indexes"]
+    browser_paths = path_browser_context["browser_paths"]
+    browser_path_index_maps = path_browser_context["browser_path_index_maps"]
+    browser_summary = path_browser_context["browser_summary"]
     services_by_name = service_context["services_by_name"]
     command_queue_workflow_actions = command_queue_workflow_action_records(
         cfg,
@@ -2437,16 +2475,7 @@ def status_document(cfg):
         "path_status_by_has_warnings": path_status_by_has_warnings,
         "path_status_by_warning_type": path_status_by_warning_type,
         "browser_paths": browser_paths,
-        "browser_paths_by_kind": browser_paths_by_kind,
-        "browser_paths_by_path": browser_paths_by_path,
-        "browser_paths_by_source_id": browser_paths_by_source_id,
-        "browser_paths_by_stage_kind": browser_paths_by_stage_kind,
-        "browser_paths_by_release_path": browser_paths_by_release_path,
-        "browser_paths_by_kind_source_id": browser_paths_by_kind_source_id,
-        "browser_paths_by_exists": browser_paths_by_exists,
-        "browser_paths_by_readable": browser_paths_by_readable,
-        "browser_paths_by_writable": browser_paths_by_writable,
-        "browser_paths_by_expected_kind_mismatch": browser_paths_by_expected_kind_mismatch,
+        **browser_path_index_maps,
         "browser_paths_by_has_warnings": browser_paths_by_has_warnings,
         "browser_paths_by_warning_type": browser_paths_by_warning_type,
         "browser_path_summary": browser_summary,
