@@ -4107,6 +4107,81 @@ def _build_status_activity_queue_context(
     }
 
 
+def _build_status_transfer_activity_context(
+    cfg,
+    *,
+    foundation_context,
+    activity_queue_context,
+):
+    f = foundation_context
+    aq = activity_queue_context
+    file_transfer_context = _build_file_transfer_status_context(
+        f["staged_records"],
+        f["uploads"],
+        f["fetches"],
+    )
+    target_file_transfer_records = file_transfer_context[
+        "target_file_transfer_records"
+    ]
+    file_service_workflow_context = _build_file_service_workflow_status_context(
+        cfg,
+        f["services"],
+        f["staged_records"],
+        f["uploads"],
+        f["fetches"],
+        target_file_transfer_records,
+        f["targets"],
+    )
+    target_activity_feed_context = _build_target_activity_feed_status_context(
+        f["targets"],
+        aq["target_mailbox_records"],
+        aq["target_phone_home_records"],
+        target_file_transfer_records,
+        aq["bridge_profiles"],
+        aq["sessions"],
+    )
+    target_attribution_context = _build_target_attribution_status_context(
+        f["uploads"],
+        f["fetches"],
+        aq["sessions"],
+    )
+    return {
+        "file_transfer_context": file_transfer_context,
+        "upload_index_maps": file_transfer_context["upload_index_maps"],
+        "fetch_index_maps": file_transfer_context["fetch_index_maps"],
+        "target_file_transfer_records": target_file_transfer_records,
+        "target_file_transfer_index_maps": file_transfer_context[
+            "target_file_transfer_index_maps"
+        ],
+        "file_service_workflow_context": file_service_workflow_context,
+        "file_service_row": file_service_workflow_context["file_service_row"],
+        "file_service_workflow_actions": file_service_workflow_context[
+            "file_service_workflow_actions"
+        ],
+        "file_service_workflow_action_index_maps": file_service_workflow_context[
+            "file_service_workflow_action_index_maps"
+        ],
+        "target_activity_feed_context": target_activity_feed_context,
+        "target_activity_records": target_activity_feed_context[
+            "target_activity_records"
+        ],
+        "target_activity_index_maps": target_activity_feed_context[
+            "target_activity_index_maps"
+        ],
+        "target_attribution_context": target_attribution_context,
+        "target_attribution_status_doc": target_attribution_context[
+            "target_attribution_status_doc"
+        ],
+        "target_attribution": target_attribution_context["target_attribution"],
+        "target_attribution_records": target_attribution_context[
+            "target_attribution_records"
+        ],
+        "target_attribution_index_maps": target_attribution_context[
+            "target_attribution_index_maps"
+        ],
+    }
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
@@ -4252,61 +4327,34 @@ def status_document(cfg):
     target_filter_record = aq["target_filter_record"]
     target_filter_records = aq["target_filter_records"]
     target_filter_index_maps = aq["target_filter_index_maps"]
-    file_transfer_context = _build_file_transfer_status_context(
-        staged_records,
-        uploads,
-        fetches,
-    )
-    upload_index_maps = file_transfer_context["upload_index_maps"]
-    fetch_index_maps = file_transfer_context["fetch_index_maps"]
-    target_file_transfer_records = file_transfer_context["target_file_transfer_records"]
-    target_file_transfer_index_maps = file_transfer_context["target_file_transfer_index_maps"]
-    file_service_workflow_context = _build_file_service_workflow_status_context(
+    transfer_activity_context = _build_status_transfer_activity_context(
         cfg,
-        services,
-        staged_records,
-        uploads,
-        fetches,
-        target_file_transfer_records,
-        targets,
+        foundation_context=foundation_context,
+        activity_queue_context=activity_queue_context,
     )
-    file_service_row = file_service_workflow_context["file_service_row"]
-    file_service_workflow_actions = file_service_workflow_context[
-        "file_service_workflow_actions"
-    ]
-    file_service_workflow_action_index_maps = file_service_workflow_context[
+    ta = transfer_activity_context
+    file_transfer_context = ta["file_transfer_context"]
+    upload_index_maps = ta["upload_index_maps"]
+    fetch_index_maps = ta["fetch_index_maps"]
+    target_file_transfer_records = ta["target_file_transfer_records"]
+    target_file_transfer_index_maps = ta["target_file_transfer_index_maps"]
+    file_service_workflow_context = ta["file_service_workflow_context"]
+    file_service_row = ta["file_service_row"]
+    file_service_workflow_actions = ta["file_service_workflow_actions"]
+    file_service_workflow_action_index_maps = ta[
         "file_service_workflow_action_index_maps"
     ]
-    target_activity_feed_context = _build_target_activity_feed_status_context(
-        targets,
-        target_mailbox_records,
-        target_phone_home_records,
-        target_file_transfer_records,
-        bridge_profiles,
-        sessions,
-    )
-    target_activity_records = target_activity_feed_context["target_activity_records"]
-    target_activity_index_maps = target_activity_feed_context[
-        "target_activity_index_maps"
-    ]
+    target_activity_feed_context = ta["target_activity_feed_context"]
+    target_activity_records = ta["target_activity_records"]
+    target_activity_index_maps = ta["target_activity_index_maps"]
     summary = service_context["summary"]
     warnings = service_context["warnings"]
     service_index_maps = service_context["service_index_maps"]
-    target_attribution_context = _build_target_attribution_status_context(
-        uploads,
-        fetches,
-        sessions,
-    )
-    target_attribution_status_doc = target_attribution_context[
-        "target_attribution_status_doc"
-    ]
-    target_attribution = target_attribution_context["target_attribution"]
-    target_attribution_records = target_attribution_context[
-        "target_attribution_records"
-    ]
-    target_attribution_index_maps = target_attribution_context[
-        "target_attribution_index_maps"
-    ]
+    target_attribution_context = ta["target_attribution_context"]
+    target_attribution_status_doc = ta["target_attribution_status_doc"]
+    target_attribution = ta["target_attribution"]
+    target_attribution_records = ta["target_attribution_records"]
+    target_attribution_index_maps = ta["target_attribution_index_maps"]
     paths = {
         "operator_session_dir": str(operator_dir),
         "state_file": str(session_state_module.state_file_path(cfg)),
