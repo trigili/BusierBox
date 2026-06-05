@@ -47,6 +47,70 @@ def build_default_line_display_show_callbacks(
     )
 
 
+def _resolve_display_show_dependencies(
+    build_fields_func,
+    target_command_records_func,
+    target_filter_func,
+    option_callbacks,
+    target_callbacks,
+    route_service_callbacks,
+    probe_callbacks,
+    service_status_rows_func,
+    service_record_func,
+    probe_delivery_func,
+):
+    if build_fields_func is None and option_callbacks is not None:
+        build_fields = option_callbacks["workbench_config_fields"]
+        build_fields_func = lambda _cfg: build_fields()
+    if target_command_records_func is None:
+        target_command_records = target_callbacks["target_command_records"]
+        target_command_records_func = lambda _cfg: target_command_records()
+    if target_filter_func is None:
+        target_filter = target_callbacks["target_filter"]
+        target_filter_func = lambda _cfg: target_filter()
+    if service_status_rows_func is None:
+        service_status_rows_func = lambda _cfg: route_service_callbacks["service_rows"]()
+    if service_record_func is None:
+        service_record_func = route_service_callbacks["service_record"]
+    if probe_delivery_func is None and probe_callbacks is not None:
+        probe_delivery_func = probe_callbacks["probe_delivery"]
+    return {
+        "build_fields_func": build_fields_func,
+        "target_command_records_func": target_command_records_func,
+        "target_filter_func": target_filter_func,
+        "service_status_rows_func": service_status_rows_func,
+        "service_record_func": service_record_func,
+        "probe_delivery_func": probe_delivery_func,
+    }
+
+
+def _build_line_display_triplet(
+    cfg,
+    workbench_snapshot_func,
+    action_callbacks,
+    route_service_callbacks,
+    session_callbacks,
+    job_callbacks,
+    display_name_func,
+    resolved,
+):
+    return build_line_display_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot_func,
+        selected_action_func=action_callbacks["selected_line_action"],
+        service_status_rows_func=resolved["service_status_rows_func"],
+        service_record_func=resolved["service_record_func"],
+        route_record_func=route_service_callbacks["line_route_record"],
+        session_record_func=session_callbacks["line_session_record"],
+        job_record_func=job_callbacks["line_job_record"],
+        probe_delivery_func=resolved["probe_delivery_func"],
+        bridge_command_builder=route_service_callbacks["bridge_profile_headless_command"],
+        display_name_func=display_name_func,
+        build_fields_func=resolved["build_fields_func"],
+        target_command_records_func=resolved["target_command_records_func"],
+    )
+
+
 def build_line_display_show_callbacks(
     cfg,
     *,
@@ -74,47 +138,33 @@ def build_line_display_show_callbacks(
     print_release_func,
     append_event_fn,
 ):
-    if build_fields_func is None and option_callbacks is not None:
-        build_fields = option_callbacks["workbench_config_fields"]
-        build_fields_func = lambda _cfg: build_fields()
-    if target_command_records_func is None:
-        target_command_records = target_callbacks["target_command_records"]
-        target_command_records_func = lambda _cfg: target_command_records()
-    if target_filter_func is None:
-        target_filter = target_callbacks["target_filter"]
-        target_filter_func = lambda _cfg: target_filter()
-
-    selected_action_func = action_callbacks["selected_line_action"]
-    route_record_func = route_service_callbacks["line_route_record"]
-    session_record_func = session_callbacks["line_session_record"]
-    job_record_func = job_callbacks["line_job_record"]
-    bridge_command_builder = route_service_callbacks["bridge_profile_headless_command"]
-    if service_status_rows_func is None:
-        service_status_rows_func = lambda _cfg: route_service_callbacks["service_rows"]()
-    if service_record_func is None:
-        service_record_func = route_service_callbacks["service_record"]
-    if probe_delivery_func is None and probe_callbacks is not None:
-        probe_delivery_func = probe_callbacks["probe_delivery"]
-    print_line_info, print_line_next, print_line_options = build_line_display_callbacks(
+    resolved = _resolve_display_show_dependencies(
+        build_fields_func,
+        target_command_records_func,
+        target_filter_func,
+        option_callbacks,
+        target_callbacks,
+        route_service_callbacks,
+        probe_callbacks,
+        service_status_rows_func,
+        service_record_func,
+        probe_delivery_func,
+    )
+    print_line_info, print_line_next, print_line_options = _build_line_display_triplet(
         cfg,
-        workbench_snapshot_func=workbench_snapshot_func,
-        selected_action_func=selected_action_func,
-        service_status_rows_func=service_status_rows_func,
-        service_record_func=service_record_func,
-        route_record_func=route_record_func,
-        session_record_func=session_record_func,
-        job_record_func=job_record_func,
-        probe_delivery_func=probe_delivery_func,
-        bridge_command_builder=bridge_command_builder,
-        display_name_func=display_name_func,
-        build_fields_func=build_fields_func,
-        target_command_records_func=target_command_records_func,
+        workbench_snapshot_func,
+        action_callbacks,
+        route_service_callbacks,
+        session_callbacks,
+        job_callbacks,
+        display_name_func,
+        resolved,
     )
     show_line_resource = build_line_show_resource_adapter(
         cfg,
         set_context_func=set_context_func,
         snapshot_func=workbench_snapshot_func,
-        target_filter_func=target_filter_func,
+        target_filter_func=resolved["target_filter_func"],
         action_callbacks=action_callbacks,
         target_callbacks=target_callbacks,
         route_service_callbacks=route_service_callbacks,
