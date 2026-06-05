@@ -167,6 +167,92 @@ def print_line_service_options(
     print("  set KEY VALUE  /  build  /  back")
 
 
+def _print_line_route_context_options(module, route_record):
+    route_name = module.split("/", 1)[1]
+    rec = route_record
+    print(f"Route: {route_name}")
+    if rec:
+        print(f"  listen: {rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
+        print(f"  destination: {rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
+        print(f"  path: {rec.get('route_path', '') or '-'}")
+        print(f"  state: {rec.get('current_state', '') or '-'}")
+        print(f"  active: {'yes' if rec.get('active') else 'no'}")
+        print(f"  hops: {rec.get('hop_count', 0)}")
+        print(f"  multi-hop: {'yes' if rec.get('multi_hop') else 'no'}")
+        print(f"  target: {rec.get('target_id', '') or '-'}")
+        print(f"  last success: {rec.get('last_successful_relay_at', '') or '-'}")
+        print(f"  last failure: {rec.get('last_failure_reason', '') or '-'}")
+    print(f"  commands: route {route_name}, route start {route_name}, route stop {route_name}, route delete {route_name}")
+    print("  next: options, start, stop, routes -v, back")
+
+
+def _print_line_session_context_options(module, session_record):
+    session_id = module.split("/", 1)[1]
+    rec = session_record
+    print(f"Session: {session_id}")
+    if rec:
+        path = str(rec.get("path") or "")
+        print(f"  service: {rec.get('service', '') or '-'}")
+        print(f"  state: {rec.get('state', '') or '-'}")
+        print(f"  exit reason: {rec.get('exit_reason', '') or '-'}")
+        print(f"  updated: {rec.get('updated_at', '') or '-'}")
+        print(f"  path: {path}")
+        print(
+            "  activity: "
+            f"{rec.get('upload_count', 0)} uploads, "
+            f"{rec.get('fetch_count', 0)} fetches, "
+            f"{rec.get('event_count', 0)} events"
+        )
+        if rec.get("session_log"):
+            print(f"  session log: {rec.get('session_log', '')}")
+        if rec.get("event_log"):
+            print(f"  event log: {rec.get('event_log', '')}")
+    print("  next: info, interact, sessions -v, view PATH, back")
+
+
+def _print_line_job_context_options(module, job_record):
+    job_id = module.split("/", 1)[1]
+    rec = job_record
+    print(f"Job: {job_id}")
+    if rec:
+        elapsed = rec.get("elapsed_sec", "")
+        exit_status = rec.get("exit_status", "")
+        print(f"  action: {rec.get('action_id', '') or '-'}")
+        print(f"  state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}")
+        print(f"  pid: {rec.get('pid', '') or '-'}")
+        print(f"  managed: {'yes' if rec.get('pid_managed') else 'no'}")
+        print(f"  cancel supported: {'yes' if rec.get('cancel_supported') else 'no'}")
+        print(f"  log: {rec.get('log_path', '') or '-'}")
+        print(f"  log exists: {'yes' if rec.get('log_exists') else 'no'}")
+        print(f"  elapsed: {elapsed if elapsed != '' else '-'} sec")
+        print(f"  exit: {exit_status if exit_status != '' else '-'}")
+    print("  next: info, jobs, jobs -v, back")
+
+
+def _print_line_action_context_options(action):
+    action_kind = action.get("kind", "")
+    action_id = action.get("id", "")
+    action_name = f"{action_kind}:{action_id}" if action_kind else action_id
+    print(f"Action: {action_name}")
+    print(f"  label: {action.get('label', '') or '-'}")
+    print(f"  category: {action.get('category', '') or '-'}")
+    print(f"  workflow: {action.get('workflow', '') or '-'}")
+    print(f"  state: {action.get('operator_action_state', '') or '-'}")
+    print(f"  reason: {action.get('operator_action_reason', '') or '-'}")
+    print(f"  confirmation: {'required' if action.get('requires_confirmation') else 'not required'}")
+    print(f"  background: {'supported' if action.get('background_supported') else 'not supported'}")
+    print("  commands: check, run, run --dry-run, run --confirm")
+    if action.get("background_supported"):
+        print("  background command: run -j")
+    print("  next: info, check, run, back")
+
+
+def _print_line_build_options_summary(cfg):
+    fields = workbench_config_field_records(cfg)
+    if fields:
+        print(f"  Build options: {len(fields)} configured  (run: build to view/edit)")
+
+
 def print_line_context_options(
     cfg,
     module,
@@ -182,87 +268,21 @@ def print_line_context_options(
     selected_action = selected_action if isinstance(selected_action, dict) else {}
 
     if module.startswith("route/"):
-        route_name = module.split("/", 1)[1]
-        rec = route_record
-        print(f"Route: {route_name}")
-        if rec:
-            print(f"  listen: {rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
-            print(f"  destination: {rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
-            print(f"  path: {rec.get('route_path', '') or '-'}")
-            print(f"  state: {rec.get('current_state', '') or '-'}")
-            print(f"  active: {'yes' if rec.get('active') else 'no'}")
-            print(f"  hops: {rec.get('hop_count', 0)}")
-            print(f"  multi-hop: {'yes' if rec.get('multi_hop') else 'no'}")
-            print(f"  target: {rec.get('target_id', '') or '-'}")
-            print(f"  last success: {rec.get('last_successful_relay_at', '') or '-'}")
-            print(f"  last failure: {rec.get('last_failure_reason', '') or '-'}")
-        print(f"  commands: route {route_name}, route start {route_name}, route stop {route_name}, route delete {route_name}")
-        print("  next: options, start, stop, routes -v, back")
+        _print_line_route_context_options(module, route_record)
 
     if module.startswith("session/"):
-        session_id = module.split("/", 1)[1]
-        rec = session_record
-        print(f"Session: {session_id}")
-        if rec:
-            path = str(rec.get("path") or "")
-            print(f"  service: {rec.get('service', '') or '-'}")
-            print(f"  state: {rec.get('state', '') or '-'}")
-            print(f"  exit reason: {rec.get('exit_reason', '') or '-'}")
-            print(f"  updated: {rec.get('updated_at', '') or '-'}")
-            print(f"  path: {path}")
-            print(
-                "  activity: "
-                f"{rec.get('upload_count', 0)} uploads, "
-                f"{rec.get('fetch_count', 0)} fetches, "
-                f"{rec.get('event_count', 0)} events"
-            )
-            if rec.get("session_log"):
-                print(f"  session log: {rec.get('session_log', '')}")
-            if rec.get("event_log"):
-                print(f"  event log: {rec.get('event_log', '')}")
-        print("  next: info, interact, sessions -v, view PATH, back")
+        _print_line_session_context_options(module, session_record)
 
     if module.startswith("job/"):
-        job_id = module.split("/", 1)[1]
-        rec = job_record
-        print(f"Job: {job_id}")
-        if rec:
-            elapsed = rec.get("elapsed_sec", "")
-            exit_status = rec.get("exit_status", "")
-            print(f"  action: {rec.get('action_id', '') or '-'}")
-            print(f"  state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}")
-            print(f"  pid: {rec.get('pid', '') or '-'}")
-            print(f"  managed: {'yes' if rec.get('pid_managed') else 'no'}")
-            print(f"  cancel supported: {'yes' if rec.get('cancel_supported') else 'no'}")
-            print(f"  log: {rec.get('log_path', '') or '-'}")
-            print(f"  log exists: {'yes' if rec.get('log_exists') else 'no'}")
-            print(f"  elapsed: {elapsed if elapsed != '' else '-'} sec")
-            print(f"  exit: {exit_status if exit_status != '' else '-'}")
-        print("  next: info, jobs, jobs -v, back")
+        _print_line_job_context_options(module, job_record)
 
     action = selected_action
     if action:
-        action_kind = action.get("kind", "")
-        action_id = action.get("id", "")
-        action_name = f"{action_kind}:{action_id}" if action_kind else action_id
-        print(f"Action: {action_name}")
-        print(f"  label: {action.get('label', '') or '-'}")
-        print(f"  category: {action.get('category', '') or '-'}")
-        print(f"  workflow: {action.get('workflow', '') or '-'}")
-        print(f"  state: {action.get('operator_action_state', '') or '-'}")
-        print(f"  reason: {action.get('operator_action_reason', '') or '-'}")
-        print(f"  confirmation: {'required' if action.get('requires_confirmation') else 'not required'}")
-        print(f"  background: {'supported' if action.get('background_supported') else 'not supported'}")
-        print("  commands: check, run, run --dry-run, run --confirm")
-        if action.get("background_supported"):
-            print("  background command: run -j")
-        print("  next: info, check, run, back")
+        _print_line_action_context_options(action)
     else:
         print("Action: none")
 
-    fields = workbench_config_field_records(cfg)
-    if fields:
-        print(f"  Build options: {len(fields)} configured  (run: build to view/edit)")
+    _print_line_build_options_summary(cfg)
 
 
 def print_line_options(
