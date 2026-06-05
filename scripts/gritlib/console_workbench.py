@@ -1495,6 +1495,27 @@ def _build_service_bridge_api_collections(
     bridge_hop_records,
 ):
     return {
+        **_build_service_record_api_collections(
+            services=services,
+        ),
+        **_build_service_workflow_api_collections(
+            service_workflow_actions=service_workflow_actions,
+            probe_workflow_actions=probe_workflow_actions,
+        ),
+        **_build_service_runtime_api_collections(
+            service_manager_resources=service_manager_resources,
+            service_manager_state_records=service_manager_state_records,
+        ),
+        **_build_bridge_api_collections(
+            bridge_profiles=bridge_profiles,
+            bridge_profile_workflow_actions=bridge_profile_workflow_actions,
+            bridge_hop_records=bridge_hop_records,
+        ),
+    }
+
+
+def _build_service_record_api_collections(*, services):
+    return {
         "services": status_indexes.api_collection_record(
             "services", services, "name", (
                 "services_by_name", "services_by_actual", "services_by_configured",
@@ -1507,6 +1528,11 @@ def _build_service_bridge_api_collections(
                 "services_by_warning_type",
             ), "service_count",
         ),
+    }
+
+
+def _build_service_workflow_api_collections(*, service_workflow_actions, probe_workflow_actions):
+    return {
         "service_workflow_actions": status_indexes.api_collection_record(
             "service_workflow_actions", service_workflow_actions, "id", (
                 "service_workflow_actions_by_id",
@@ -1566,6 +1592,11 @@ def _build_service_bridge_api_collections(
                 "probe_workflow_actions_by_curses_enter_action",
             ), "probe_workflow_action_count",
         ),
+    }
+
+
+def _build_service_runtime_api_collections(*, service_manager_resources, service_manager_state_records):
+    return {
         "service_manager_resources": status_indexes.api_collection_record(
             "service_manager_resources", service_manager_resources, "id", (
                 "service_manager_resources_by_id", "service_manager_resources_by_kind",
@@ -1585,6 +1616,16 @@ def _build_service_bridge_api_collections(
                 "service_manager_state_records_by_has_resources",
             ), "service_manager_state_record_count",
         ),
+    }
+
+
+def _build_bridge_api_collections(
+    *,
+    bridge_profiles,
+    bridge_profile_workflow_actions,
+    bridge_hop_records,
+):
+    return {
         "bridge_profiles": status_indexes.api_collection_record(
             "bridge_profiles", bridge_profiles, "name", (
                 "bridge_profiles_by_name", "bridge_profiles_by_target_id",
