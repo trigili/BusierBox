@@ -552,6 +552,22 @@ def _relay_plain_shell_session(conn, log_dir, use_stdin, script_bytes, expect, s
     return reason, False
 
 
+def _build_tls_shell_context(cert, key):
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    if hasattr(ssl, "TLSVersion"):
+        context.maximum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(str(cert), str(key))
+    return context
+
+
+def _relay_tls_shell_session(context, raw, log_dir, use_stdin, script_bytes, expect, session_timeout):
+    with context.wrap_socket(raw, server_side=True) as conn:
+        reason = relay_stdio(conn, log_dir, use_stdin=use_stdin,
+                              script_bytes=script_bytes, expect=expect,
+                              session_timeout=session_timeout)
+        return reason == "expectation_missing" and expect is not None
+
+
 
 
 
@@ -582,58 +598,34 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
     log_dir = SESSION_MANAGER.log_dir(cfg, "tls-shell")
     policy = rshell_session_policy_record(cfg)
     target_ctx = selected_target_context(cfg)
-    SESSION_MANAGER.start_record(cfg, service, log_dir, details=details_with_target(cfg, {
-        "port": port,
-        "tls": True,
-        "session_policy": policy.get("session_policy", ""),
-    }, target_ctx))
-    if target_ctx:
-        SESSION_MANAGER.update_record(log_dir, **target_ctx)
-        SESSION_MANAGER.upsert_state(cfg, log_dir, service, "starting", **target_ctx)
-        record_selected_target_activity(cfg, service, "listener", session_id=SESSION_MANAGER.session_id(log_dir))
-    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    if hasattr(ssl, "TLSVersion"):
-        context.maximum_version = ssl.TLSVersion.TLSv1_2
-    context.load_cert_chain(str(cert), str(key))
+    _start_shell_listener_record(cfg, service, log_dir, port, True, policy, target_ctx)
+    context = _build_tls_shell_context(cert, key)
     print(f"TLS shell listener — accepts builtin+tls and socat+tls transports")
     sessions = 0
-    update_server_state(cfg, service, "starting", {"session_log": str(log_dir)})
     sock = None
     bound = False
     try:
         sock = bind_listen_socket(cfg, service, port, 1)
         bound = True
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", details_with_target(cfg, {"session_log": str(log_dir)}, target_ctx))
-        append_event(cfg, service, "service_start", session=str(log_dir), details=details_with_target(cfg, {"port": port, "session_policy": policy.get("session_policy", "")}, target_ctx))
-        print_candidates(cfg, port)
+        _mark_shell_listener_listening(cfg, service, log_dir, port, policy, target_ctx)
         while not SHUTDOWN.is_set():
             print("Waiting for TLS shell connection...")
             try:
                 raw, addr = sock.accept()
             except socket.timeout:
-                print("timeout waiting for TLS shell connection", file=sys.stderr)
-                (Path(log_dir) / "exit-reason").write_text("timeout\n", encoding="utf-8")
-                print("relay exit reason: timeout", file=sys.stderr)
-                return 1 if sessions == 0 else 0
+                return _handle_shell_accept_timeout(log_dir, sessions, "TLS")
             except OSError:
                 if SHUTDOWN.is_set():
                     return 0
                 raise
             print(f"TLS connection from {addr[0]}:{addr[1]}")
             remote = f"{addr[0]}:{addr[1]}"
-            SESSION_MANAGER.update_record(log_dir, state="active", remote=remote, **target_ctx)
-            SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=remote, **target_ctx)
-            record_selected_target_activity(cfg, service, "session", remote=remote, session_id=SESSION_MANAGER.session_id(log_dir))
-            append_event(cfg, service, "shell_connected", session=str(log_dir), remote=remote, details=details_with_target(cfg, {}, target_ctx))
+            _record_shell_session_connected(cfg, service, log_dir, remote, target_ctx)
+            expectation_missing = False
             try:
-                with context.wrap_socket(raw, server_side=True) as conn:
-                    reason = relay_stdio(conn, log_dir, use_stdin=use_stdin,
-                                          script_bytes=script_bytes, expect=expect,
-                                          session_timeout=session_timeout)
-                    if expect is not None and reason == "expectation_missing":
-                        return 1
+                expectation_missing = _relay_tls_shell_session(
+                    context, raw, log_dir, use_stdin, script_bytes, expect, session_timeout)
             except ssl.SSLError as exc:
                 print(f"TLS session failed: {exc}", file=sys.stderr)
                 (Path(log_dir) / "exit-reason").write_text("tls_error\n", encoding="utf-8")
@@ -641,32 +633,17 @@ def serve_tls_shell(cfg, timeout, use_stdin=True, max_sessions=0, script_bytes=N
             finally:
                 exit_reason = SESSION_MANAGER.exit_reason(log_dir)
                 sessions += 1
-                SESSION_MANAGER.update_record(log_dir, state="listening", exit_reason=exit_reason, **target_ctx)
-                SESSION_MANAGER.upsert_state(cfg, log_dir, service, "listening", remote=remote, exit_reason=exit_reason, **target_ctx)
-                append_event(cfg, service, "shell_disconnected", session=str(log_dir), remote=remote, details=details_with_target(cfg, {}, target_ctx))
+                _record_shell_session_disconnected(cfg, service, log_dir, remote, exit_reason, target_ctx)
+            if expectation_missing:
+                return 1
             if max_sessions > 0 and sessions >= max_sessions:
-                print(f"Shell session ended; session_policy={policy.get('session_policy', '')} stops after first successful session.")
-                append_event(cfg, service, "shell_listener_policy_stop", session=str(log_dir), details=details_with_target(cfg, {
-                    "session_policy": policy.get("session_policy", ""),
-                    "sessions": sessions,
-                    "reason": "max_sessions",
-                }, target_ctx))
+                _record_shell_policy_stop(cfg, service, log_dir, policy, sessions, target_ctx)
                 break
             print("Shell session ended; listener remains open for target retry/reconnect.")
     finally:
-        if sock:
-            unregister_socket(sock)
-            try:
-                sock.close()
-            except OSError:
-                pass
+        _close_shell_listener_socket(sock)
         if bound:
-            stop_reason = SESSION_MANAGER.exit_reason(log_dir) or current_stop_reason("complete")
-            record_shutdown_event(cfg, service, session=log_dir)
-            mark_service_stopped(cfg, service, stop_reason)
-            SESSION_MANAGER.finish_record(cfg, service, log_dir, exit_reason=stop_reason)
-            append_event(cfg, service, "service_stop", session=str(log_dir),
-                         details=details_with_target(cfg, {"port": port, "reason": stop_reason}, target_ctx))
+            _stop_shell_listener(cfg, service, log_dir, port, target_ctx)
     return 0
 
 
