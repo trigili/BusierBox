@@ -48,11 +48,7 @@ from gritlib.target_commands import (
     target_command_status_summary,
 )
 import gritlib.target_records as target_records
-from gritlib.warnings import (
-    annotate_path_records_with_warnings, annotate_service_port_records_with_warnings,
-    annotate_warning_records,
-    warning_record_indexes, warning_stats, warning_status_summary,
-)
+import gritlib.warnings as warnings_module
 from gritlib.workbench_jobs import (
     reconcile_workbench_job_completion_events,
     workbench_jobs_path, workbench_jobs_state_status,
@@ -1270,8 +1266,8 @@ def _build_warning_status_context(
             "message": "rshell session policy is invalid; generated target command metadata is not usable for reconnect decisions",
             "suggested_action": "set rshell_session_policy to single, reconnect, or persistent",
         })
-    annotate_warning_records(warnings)
-    warning_index_maps = warning_record_indexes(warnings)
+    warnings_module.annotate_warning_records(warnings)
+    warning_index_maps = warnings_module.warning_record_indexes(warnings)
     (warnings_by_type,
      warnings_by_severity,
      warnings_by_remediation_class,
@@ -1285,11 +1281,13 @@ def _build_warning_status_context(
      warnings_by_type_path,
      warnings_by_service_port,
      warnings_by_type_service_port) = warning_index_maps
-    annotate_path_records_with_warnings(path_status, browser_paths, warnings_by_path)
+    warnings_module.annotate_path_records_with_warnings(
+        path_status, browser_paths, warnings_by_path
+    )
     path_warning_context = status_indexes.path_warning_status_context(
         path_status_records, browser_paths
     )
-    annotate_service_port_records_with_warnings(
+    warnings_module.annotate_service_port_records_with_warnings(
         services,
         ports,
         warnings_by_service,
@@ -1327,10 +1325,10 @@ def _build_warning_summary_status_context(
     ports_by_has_warnings,
     ports_by_warning_type,
 ):
-    warning_summary = warning_stats(warnings)
+    warning_summary = warnings_module.warning_stats(warnings)
     return {
         "warning_summary": warning_summary,
-        "summary": warning_status_summary(
+        "summary": warnings_module.warning_status_summary(
             warning_summary,
             services_by_has_warnings,
             services_by_warning_type,
