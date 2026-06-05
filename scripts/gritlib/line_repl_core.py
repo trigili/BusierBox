@@ -109,6 +109,109 @@ def build_line_core_callbacks(
     }
 
 
+def _core_survey_uploads(ctx, limit=20):
+    return ctx["find_survey_uploads_func"](ctx["cfg"], limit=limit)
+
+
+def _core_workspace_dispatch_kwargs(ctx):
+    cfg = ctx["cfg"]
+    return {
+        "status_func": lambda: ctx["print_func"](line_repl_status_bar(ctx["workbench_snapshot_func"](cfg))),
+        "ips_func": lambda: ctx["local_ips_func"](ctx["workbench_snapshot_func"](cfg)),
+        "workspace_func": lambda: (
+            ctx["clear_module_context_func"](cfg, quiet=True),
+            ctx["print_workspace_snapshot_func"](ctx["workbench_snapshot_func"](cfg)),
+        ),
+        "reload_func": lambda: ctx["reload_config_func"](
+            cfg,
+            default_config=ctx["default_config"],
+            load_config_fn=ctx["load_config_func"],
+            defaults=ctx["defaults"],
+            append_event_fn=ctx["append_event_fn"],
+        ),
+        "root_func": lambda quiet=False: ctx["clear_console_context_func"](cfg, quiet=quiet),
+        "info_func": ctx["info_func"],
+        "next_func": ctx["next_func"],
+        "options_func": ctx["options_func"],
+        "set_context_func": lambda module: ctx["set_context_func"](cfg, module),
+        "build_run_func": lambda build_args: ctx["build_run_func"](cfg, build_args),
+    }
+
+
+def _core_option_dispatch_kwargs(ctx):
+    cfg = ctx["cfg"]
+    return {
+        "set_global_option_func": lambda key, value: ctx["set_global_option_func"](cfg, key, value),
+        "set_context_option_func": lambda key, value: ctx["set_context_option_func"](cfg, key, value),
+        "unset_global_option_func": lambda key: ctx["unset_global_option_func"](cfg, key),
+        "unset_context_option_func": ctx["unset_context_option_func"],
+        "rename_target_func": lambda value: ctx["rename_target_func"](cfg, value),
+        "note_target_func": lambda value: ctx["note_target_func"](cfg, value),
+        "alias_target_func": lambda value: ctx["alias_target_func"](cfg, value),
+    }
+
+
+def _core_probe_dispatch_kwargs(ctx):
+    cfg = ctx["cfg"]
+    return {
+        "probe_results_func": lambda: ctx["probe_results_func"](cfg, append_event_fn=ctx["append_event_fn"]),
+        "probe_config_func": lambda probe_args: ctx["probe_config_func"](
+            cfg,
+            probe_args,
+            append_event_fn=ctx["append_event_fn"],
+        ),
+        "probe_clear_func": lambda probe_args: ctx["probe_clear_func"](
+            cfg,
+            probe_args,
+            append_event_fn=ctx["append_event_fn"],
+        ),
+        "probe_serve_func": lambda probe_args: run_line_probe_serve(
+            cfg,
+            probe_args,
+            ctx["probe_serve_input_func"],
+            ctx["probe_serve_stage_release_func"],
+            append_event_fn=ctx["append_event_fn"],
+        ),
+        "probe_delivery_func": lambda: ctx["probe_delivery_func"](cfg),
+        "probe_paste_func": lambda base64_mode=False: ctx["probe_paste_func"](
+            cfg,
+            paste=True,
+            base64_mode=base64_mode,
+        ),
+        "probe_script_func": lambda: ctx["probe_script_func"](cfg, paste=False),
+    }
+
+
+def _core_help_survey_dispatch_kwargs(ctx):
+    cfg = ctx["cfg"]
+    return {
+        "help_func": ctx["help_func"],
+        "probe_start_func": ctx["probe_start_func"],
+        "survey_results_func": lambda: ctx["survey_results_func"](cfg, append_event_fn=ctx["append_event_fn"]),
+        "survey_config_func": lambda survey_args: ctx["survey_config_func"](
+            cfg,
+            survey_args,
+            lambda limit=20: _core_survey_uploads(ctx, limit=limit),
+            append_event_fn=ctx["append_event_fn"],
+        ),
+        "survey_preset_func": lambda survey_args: ctx["survey_preset_func"](
+            cfg,
+            survey_args,
+            lambda limit=20: _core_survey_uploads(ctx, limit=limit),
+            append_event_fn=ctx["append_event_fn"],
+        ),
+    }
+
+
+def _core_dispatch_kwargs(ctx):
+    kwargs = {}
+    kwargs.update(_core_workspace_dispatch_kwargs(ctx))
+    kwargs.update(_core_option_dispatch_kwargs(ctx))
+    kwargs.update(_core_probe_dispatch_kwargs(ctx))
+    kwargs.update(_core_help_survey_dispatch_kwargs(ctx))
+    return kwargs
+
+
 def build_line_core_dispatch_callback(
     cfg,
     *,
@@ -150,79 +253,13 @@ def build_line_core_dispatch_callback(
     append_event_fn,
     print_func=print,
 ):
-    def survey_uploads(limit=20):
-        return find_survey_uploads_func(cfg, limit=limit)
+    ctx = locals()
 
     def dispatch_core(command, args):
         return dispatch_line_core_command(
             command,
             args,
-            status_func=lambda: print_func(line_repl_status_bar(workbench_snapshot_func(cfg))),
-            ips_func=lambda: local_ips_func(workbench_snapshot_func(cfg)),
-            workspace_func=lambda: (
-                clear_module_context_func(cfg, quiet=True),
-                print_workspace_snapshot_func(workbench_snapshot_func(cfg)),
-            ),
-            reload_func=lambda: reload_config_func(
-                cfg,
-                default_config=default_config,
-                load_config_fn=load_config_func,
-                defaults=defaults,
-                append_event_fn=append_event_fn,
-            ),
-            root_func=lambda quiet=False: clear_console_context_func(cfg, quiet=quiet),
-            info_func=info_func,
-            next_func=next_func,
-            options_func=options_func,
-            set_context_func=lambda module: set_context_func(cfg, module),
-            build_run_func=lambda build_args: build_run_func(cfg, build_args),
-            set_global_option_func=lambda key, value: set_global_option_func(cfg, key, value),
-            set_context_option_func=lambda key, value: set_context_option_func(cfg, key, value),
-            unset_global_option_func=lambda key: unset_global_option_func(cfg, key),
-            unset_context_option_func=unset_context_option_func,
-            rename_target_func=lambda value: rename_target_func(cfg, value),
-            note_target_func=lambda value: note_target_func(cfg, value),
-            alias_target_func=lambda value: alias_target_func(cfg, value),
-            probe_results_func=lambda: probe_results_func(cfg, append_event_fn=append_event_fn),
-            probe_config_func=lambda probe_args: probe_config_func(
-                cfg,
-                probe_args,
-                append_event_fn=append_event_fn,
-            ),
-            probe_clear_func=lambda probe_args: probe_clear_func(
-                cfg,
-                probe_args,
-                append_event_fn=append_event_fn,
-            ),
-            probe_serve_func=lambda probe_args: run_line_probe_serve(
-                cfg,
-                probe_args,
-                probe_serve_input_func,
-                probe_serve_stage_release_func,
-                append_event_fn=append_event_fn,
-            ),
-            probe_delivery_func=lambda: probe_delivery_func(cfg),
-            probe_paste_func=lambda base64_mode=False: probe_paste_func(
-                cfg,
-                paste=True,
-                base64_mode=base64_mode,
-            ),
-            probe_script_func=lambda: probe_script_func(cfg, paste=False),
-            help_func=help_func,
-            probe_start_func=probe_start_func,
-            survey_results_func=lambda: survey_results_func(cfg, append_event_fn=append_event_fn),
-            survey_config_func=lambda survey_args: survey_config_func(
-                cfg,
-                survey_args,
-                survey_uploads,
-                append_event_fn=append_event_fn,
-            ),
-            survey_preset_func=lambda survey_args: survey_preset_func(
-                cfg,
-                survey_args,
-                survey_uploads,
-                append_event_fn=append_event_fn,
-            ),
+            **_core_dispatch_kwargs(ctx),
         )
 
     return dispatch_core
