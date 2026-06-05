@@ -3701,6 +3701,77 @@ def run_line_action_command_registry_check():
     return 0
 
 
+def run_line_route_command_registry_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.bridge_routes import (
+        line_route_command_records,
+        parse_line_route_command,
+    )
+
+    records = {}
+    for rec in line_route_command_records():
+        records.setdefault(rec.get("action"), []).append(rec)
+    if not any(tuple(rec.get("commands") or ()) == ("route",) and tuple(rec.get("subcommands") or ()) == ("add",) for rec in records.get("add", [])):
+        print(f"route command registry lost add command: {records}", file=sys.stderr)
+        return 1
+    delete_subcommands = set()
+    for rec in records.get("delete", []):
+        delete_subcommands.update(rec.get("subcommands") or [])
+    if delete_subcommands != {"delete", "rm", "remove"}:
+        print(f"route command registry lost delete aliases: {delete_subcommands}", file=sys.stderr)
+        return 1
+    if not any(tuple(rec.get("commands") or ()) == ("routes", "route") and {"-h", "--help"} == set(rec.get("subcommands") or []) for rec in records.get("help", [])):
+        print(f"route command registry lost help aliases: {records}", file=sys.stderr)
+        return 1
+    if not any(tuple(rec.get("commands") or ()) == ("routes", "route") and {"-v", "--verbose"} == set(rec.get("subcommands") or []) and rec.get("verbose") for rec in records.get("list", [])):
+        print(f"route command registry lost verbose list aliases: {records}", file=sys.stderr)
+        return 1
+    if not any(tuple(rec.get("commands") or ()) == ("route",) and rec.get("positional") for rec in records.get("select", [])):
+        print(f"route command registry lost positional select command: {records}", file=sys.stderr)
+        return 1
+
+    add_args = ["add", "ssh-home", "2222", "127.0.0.1", "22"]
+    add = parse_line_route_command("route", add_args)
+    if add.get("action") != "add" or add.get("args") != add_args:
+        print(f"route parser did not preserve add behavior: {add}", file=sys.stderr)
+        return 1
+    for subcmd in ("start", "stop", "delete", "rm", "remove"):
+        parsed = parse_line_route_command("route", [subcmd, "ssh-home"])
+        expected_action = "delete" if subcmd in {"rm", "remove"} else subcmd
+        if parsed.get("action") != expected_action or parsed.get("selector") != "ssh-home":
+            print(f"route parser did not preserve {subcmd} behavior: {parsed}", file=sys.stderr)
+            return 1
+    if parse_line_route_command("routes", ["--help"]).get("action") != "help":
+        print("route parser did not preserve routes --help alias", file=sys.stderr)
+        return 1
+    verbose = parse_line_route_command("route", ["--verbose"])
+    if verbose.get("action") != "list" or verbose.get("verbose") is not True:
+        print(f"route parser did not preserve verbose list: {verbose}", file=sys.stderr)
+        return 1
+    printed = parse_line_route_command("route", ["print"])
+    if printed.get("action") != "list" or printed.get("verbose") is not False:
+        print(f"route parser did not preserve route print list: {printed}", file=sys.stderr)
+        return 1
+    selected = parse_line_route_command("route", ["ssh-home"])
+    if selected.get("action") != "select" or selected.get("selector") != "ssh-home":
+        print(f"route parser did not preserve positional select: {selected}", file=sys.stderr)
+        return 1
+    legacy_flag = parse_line_route_command("route", ["-l"])
+    if legacy_flag.get("action") != "select" or legacy_flag.get("selector") != "-l":
+        print(f"route parser did not preserve route -l selector fallback: {legacy_flag}", file=sys.stderr)
+        return 1
+    routes_field = parse_line_route_command("routes", ["ssh-home"])
+    if routes_field.get("action") != "list" or routes_field.get("verbose") is not False:
+        print(f"route parser did not preserve routes positional list fallback: {routes_field}", file=sys.stderr)
+        return 1
+    if parse_line_route_command("unknown", []):
+        print("route parser consumed unknown command", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_service_runtime_state_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -9497,6 +9568,8 @@ def main(argv=None):
     if run_line_session_command_registry_check() != 0:
         return 1
     if run_line_action_command_registry_check() != 0:
+        return 1
+    if run_line_route_command_registry_check() != 0:
         return 1
     if run_service_runtime_state_check() != 0:
         return 1

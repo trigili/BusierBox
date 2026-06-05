@@ -49,29 +49,106 @@ def bridge_profile_service_name(name):
     return f"bridge:{text}" if text else "bridge"
 
 
+LINE_ROUTE_COMMANDS = (
+    {
+        "action": "add",
+        "commands": ("route",),
+        "subcommands": ("add",),
+    },
+    {
+        "action": "start",
+        "commands": ("route",),
+        "subcommands": ("start",),
+    },
+    {
+        "action": "stop",
+        "commands": ("route",),
+        "subcommands": ("stop",),
+    },
+    {
+        "action": "delete",
+        "commands": ("route",),
+        "subcommands": ("delete", "rm", "remove"),
+    },
+    {
+        "action": "help",
+        "commands": ("routes", "route"),
+        "subcommands": ("-h", "--help"),
+    },
+    {
+        "action": "list",
+        "commands": ("routes", "route"),
+        "subcommands": ("-v", "--verbose"),
+        "verbose": True,
+    },
+    {
+        "action": "list",
+        "commands": ("route",),
+        "subcommands": ("print",),
+    },
+    {
+        "action": "select",
+        "commands": ("route",),
+        "subcommands": (),
+        "positional": True,
+    },
+    {
+        "action": "list",
+        "commands": ("routes", "route"),
+        "subcommands": (),
+    },
+)
+
+
+def line_route_command_records():
+    return [
+        {
+            "family": "route",
+            "action": rec["action"],
+            "commands": list(rec["commands"]),
+            "primary": rec["commands"][0],
+            "aliases": list(rec["commands"][1:]),
+            "subcommands": list(rec["subcommands"]),
+            "verbose": bool(rec.get("verbose")),
+            "positional": bool(rec.get("positional")),
+        }
+        for rec in LINE_ROUTE_COMMANDS
+    ]
+
+
 def parse_line_route_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
-    if cmd not in {"routes", "route"}:
+    records = [rec for rec in line_route_command_records() if cmd in rec["commands"]]
+    if not records:
         return {}
     subcmd = str(args[0]).lower() if args else ""
-    if cmd == "route" and subcmd == "add":
-        return {"action": "add", "args": args}
-    if cmd == "route" and subcmd == "start":
-        return {"action": "start", "selector": " ".join(args[1:]).strip()}
-    if cmd == "route" and subcmd == "stop":
-        return {"action": "stop", "selector": " ".join(args[1:]).strip()}
-    if cmd == "route" and subcmd in {"delete", "rm", "remove"}:
-        return {"action": "delete", "selector": " ".join(args[1:]).strip()}
-    if subcmd in {"-h", "--help"}:
-        return {"action": "help"}
-    if subcmd in {"-v", "--verbose"}:
-        return {"action": "list", "verbose": True}
-    if cmd == "route" and subcmd == "print":
-        return {"action": "list", "verbose": False}
-    if cmd == "route" and args:
-        return {"action": "select", "selector": " ".join(args).strip()}
-    return {"action": "list", "verbose": False}
+    for rec in records:
+        if subcmd not in rec["subcommands"]:
+            continue
+        if rec["action"] == "add":
+            return {"action": "add", "args": args, "command": cmd, "subcommand": subcmd}
+        if rec["action"] in {"start", "stop", "delete"}:
+            return {
+                "action": rec["action"],
+                "selector": " ".join(args[1:]).strip(),
+                "command": cmd,
+                "subcommand": subcmd,
+            }
+        return {
+            "action": rec["action"],
+            "verbose": bool(rec.get("verbose")),
+            "command": cmd,
+            "subcommand": subcmd,
+        }
+    if args:
+        for rec in records:
+            if rec["action"] == "select" and rec.get("positional"):
+                return {"action": "select", "selector": " ".join(args).strip(), "command": cmd}
+    for rec in records:
+        if rec["action"] == "list" and not rec["subcommands"]:
+            return {"action": "list", "verbose": False, "command": cmd}
+    return {}
 
 
 def dispatch_line_route_command(
