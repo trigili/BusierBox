@@ -545,45 +545,11 @@ def annotate_operator_console_workflows(records, target_records, overdue_targets
     return records
 
 
-def operator_console_workflow_records(
-    cfg,
-    targets=None,
-    target_workflow_actions=None,
-    target_mailbox_records=None,
-    bridge_profiles=None,
-    bridge_profile_workflow_actions=None,
-    staged_records=None,
-    staged_file_workflow_actions=None,
-    file_service_workflow_actions=None,
-    probe_workflow_actions=None,
-    command_queue_workflow_actions=None,
-    service_workflow_actions=None,
-    operator_daemon_workflow_actions=None,
-    workbench_actions=None,
-    workbench_config_fields=None,
-    workbench_jobs=None,
-    target_activity_records=None,
-    release_artifact_workflow_actions=None,
-    release=None,
-    warnings=None,
-):
-    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    base = "scripts/grit-console --config " + shquote(config_path)
-    release = release or {}
-
-    context = operator_console_workflow_context(targets, target_mailbox_records, release, warnings)
+def _operator_console_fleet_workflow_records(base, context, target_workflow_actions=None):
     target_records = context["target_records"]
-    mailbox_records = context["mailbox_records"]
     pending_mailbox = context["pending_mailbox"]
     overdue_targets = context["overdue_targets"]
-    stale_or_offline_targets = context["stale_or_offline_targets"]
-    warning_records = context["warning_records"]
-    release_artifacts = context["release_artifacts"]
-    release_recommendations = context["release_recommendations"]
-    release_devices = context["release_devices"]
-    release_tuples = context["release_tuples"]
-
-    records = [
+    return [
         {
             "id": "targets",
             "workflow": "targets",
@@ -627,6 +593,24 @@ def operator_console_workflow_records(
             "multi_target": True,
             "offline_queue_supported": True,
         },
+    ]
+
+
+def _operator_console_work_workflow_records(
+    base,
+    context,
+    target_workflow_actions=None,
+    bridge_profiles=None,
+    bridge_profile_workflow_actions=None,
+    staged_records=None,
+    staged_file_workflow_actions=None,
+    file_service_workflow_actions=None,
+    probe_workflow_actions=None,
+    command_queue_workflow_actions=None,
+):
+    mailbox_records = context["mailbox_records"]
+    pending_mailbox = context["pending_mailbox"]
+    return [
         {
             "id": "mailbox",
             "workflow": "mailbox",
@@ -721,6 +705,27 @@ def operator_console_workflow_records(
             "multi_target": True,
             "offline_queue_supported": True,
         },
+    ]
+
+
+def _operator_console_control_artifact_workflow_records(
+    base,
+    context,
+    release=None,
+    service_workflow_actions=None,
+    operator_daemon_workflow_actions=None,
+    workbench_actions=None,
+    workbench_config_fields=None,
+    workbench_jobs=None,
+    release_artifact_workflow_actions=None,
+):
+    release = release or {}
+    warning_records = context["warning_records"]
+    release_artifacts = context["release_artifacts"]
+    release_recommendations = context["release_recommendations"]
+    release_devices = context["release_devices"]
+    release_tuples = context["release_tuples"]
+    return [
         {
             "id": "daemon",
             "workflow": "daemon",
@@ -823,6 +828,13 @@ def operator_console_workflow_records(
             "multi_target": False,
             "offline_queue_supported": False,
         },
+    ]
+
+
+def _operator_console_observability_workflow_records(base, context, target_activity_records=None):
+    warning_records = context["warning_records"]
+    stale_or_offline_targets = context["stale_or_offline_targets"]
+    return [
         {
             "id": "events",
             "workflow": "events",
@@ -869,6 +881,62 @@ def operator_console_workflow_records(
             "offline_queue_supported": True,
         },
     ]
+
+
+def operator_console_workflow_records(
+    cfg,
+    targets=None,
+    target_workflow_actions=None,
+    target_mailbox_records=None,
+    bridge_profiles=None,
+    bridge_profile_workflow_actions=None,
+    staged_records=None,
+    staged_file_workflow_actions=None,
+    file_service_workflow_actions=None,
+    probe_workflow_actions=None,
+    command_queue_workflow_actions=None,
+    service_workflow_actions=None,
+    operator_daemon_workflow_actions=None,
+    workbench_actions=None,
+    workbench_config_fields=None,
+    workbench_jobs=None,
+    target_activity_records=None,
+    release_artifact_workflow_actions=None,
+    release=None,
+    warnings=None,
+):
+    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
+    base = "scripts/grit-console --config " + shquote(config_path)
+    release = release or {}
+    context = operator_console_workflow_context(targets, target_mailbox_records, release, warnings)
+    records = []
+    records.extend(_operator_console_fleet_workflow_records(base, context, target_workflow_actions))
+    records.extend(_operator_console_work_workflow_records(
+        base,
+        context,
+        target_workflow_actions,
+        bridge_profiles,
+        bridge_profile_workflow_actions,
+        staged_records,
+        staged_file_workflow_actions,
+        file_service_workflow_actions,
+        probe_workflow_actions,
+        command_queue_workflow_actions,
+    ))
+    records.extend(_operator_console_control_artifact_workflow_records(
+        base,
+        context,
+        release,
+        service_workflow_actions,
+        operator_daemon_workflow_actions,
+        workbench_actions,
+        workbench_config_fields,
+        workbench_jobs,
+        release_artifact_workflow_actions,
+    ))
+    records.extend(_operator_console_observability_workflow_records(base, context, target_activity_records))
+    target_records = context["target_records"]
+    overdue_targets = context["overdue_targets"]
     return annotate_operator_console_workflows(records, target_records, overdue_targets)
 
 
