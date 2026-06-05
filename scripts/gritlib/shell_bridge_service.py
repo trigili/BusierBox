@@ -243,6 +243,73 @@ class _KexGuess2CompatTransport(paramiko.Transport if HAVE_PARAMIKO else object)
         self.kex_engine.parse_next = _skip_once
 
 
+def _start_ssh_listener_record(cfg, service, log_dir, target_ctx):
+    SESSION_MANAGER.start_record(cfg, service, log_dir, details=details_with_target(cfg, {
+        "GRIT_RSHELL_TRANSPORT": "ssh",
+        "port": int(cfg["ssh_listen_port"]),
+    }, target_ctx))
+    if target_ctx:
+        SESSION_MANAGER.update_record(log_dir, **target_ctx)
+        SESSION_MANAGER.upsert_state(cfg, log_dir, service, "starting", **target_ctx)
+        record_selected_target_activity(cfg, service, "listener", session_id=SESSION_MANAGER.session_id(log_dir))
+    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
+    update_server_state(cfg, service, "starting", {"session_log": str(log_dir)})
+
+
+def _mark_ssh_listener_listening(cfg, service, log_dir, target_ctx):
+    port = int(cfg["ssh_listen_port"])
+    update_server_state(cfg, service, "listening", details_with_target(cfg, {"session_log": str(log_dir)}, target_ctx))
+    append_event(cfg, service, "service_start", session=str(log_dir),
+                 details=details_with_target(cfg, {"port": port}, target_ctx))
+    print_candidates(cfg, cfg["ssh_listen_port"])
+    print(f"Authorized target key: {cfg['authorized_dbclient_pubkey']}")
+
+
+def _record_ssh_connection_open(cfg, service, log_dir, remote, target_ctx):
+    SESSION_MANAGER.update_record(log_dir, state="active", remote=remote, **target_ctx)
+    SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=remote, **target_ctx)
+    record_selected_target_activity(cfg, service, "session", remote=remote, session_id=SESSION_MANAGER.session_id(log_dir))
+    append_event(cfg, service, "connection_open", session=str(log_dir), remote=remote,
+                 details=details_with_target(cfg, {}, target_ctx))
+
+
+def _start_reverse_ssh_transport(cfg, client, host_key, authorized, log_dir):
+    transport = register_transport(_KexGuess2CompatTransport(client))
+    transport.add_server_key(host_key)
+    # Pin to the one kex algorithm both Paramiko and the Dropbear build support.
+    # Dropbear's first preference is sntrup761 (PQ hybrid), which Paramiko
+    # doesn't implement, so we must pin to avoid an impossible negotiation.
+    security_options = transport.get_security_options()
+    security_options.kex = ("diffie-hellman-group14-sha256",)
+    server = ReverseSSHServer(cfg, log_dir, authorized, cfg["forward_host"], cfg["GRIT_OPERATOR_REMOTE_FORWARD_PORT"])
+    server.set_transport(transport)
+    transport.start_server(server=server)
+    return transport, server
+
+
+def _close_ssh_listener_resources(sock, transport, server):
+    if server:
+        server.close()
+    if transport:
+        unregister_transport(transport)
+        transport.close()
+    if sock:
+        unregister_socket(sock)
+        try:
+            sock.close()
+        except OSError:
+            pass
+
+
+def _stop_ssh_listener(cfg, service, log_dir, target_ctx):
+    stop_reason = current_stop_reason("complete")
+    record_shutdown_event(cfg, service, session=log_dir)
+    mark_service_stopped(cfg, service, stop_reason)
+    SESSION_MANAGER.finish_record(cfg, service, log_dir, exit_reason=stop_reason)
+    append_event(cfg, service, "service_stop", session=str(log_dir),
+                 details=details_with_target(cfg, {"port": int(cfg["ssh_listen_port"]), "reason": stop_reason}, target_ctx))
+
+
 def serve_ssh(cfg, timeout):
     service = "ssh"
     if not HAVE_PARAMIKO:
@@ -253,17 +320,7 @@ def serve_ssh(cfg, timeout):
     authorized = load_public_key(cfg["authorized_dbclient_pubkey"])
     log_dir = SESSION_MANAGER.log_dir(cfg, "ssh")
     target_ctx = selected_target_context(cfg)
-    SESSION_MANAGER.start_record(cfg, service, log_dir, details=details_with_target(cfg, {
-        "GRIT_RSHELL_TRANSPORT": "ssh",
-        "port": int(cfg["ssh_listen_port"]),
-    }, target_ctx))
-    if target_ctx:
-        SESSION_MANAGER.update_record(log_dir, **target_ctx)
-        SESSION_MANAGER.upsert_state(cfg, log_dir, service, "starting", **target_ctx)
-        record_selected_target_activity(cfg, service, "listener", session_id=SESSION_MANAGER.session_id(log_dir))
-    (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-
-    update_server_state(cfg, service, "starting", {"session_log": str(log_dir)})
+    _start_ssh_listener_record(cfg, service, log_dir, target_ctx)
     sock = None
     transport = None
     server = None
@@ -272,10 +329,7 @@ def serve_ssh(cfg, timeout):
         sock = bind_listen_socket(cfg, service, cfg["ssh_listen_port"], 20)
         bound = True
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", details_with_target(cfg, {"session_log": str(log_dir)}, target_ctx))
-        append_event(cfg, service, "service_start", session=str(log_dir), details=details_with_target(cfg, {"port": int(cfg["ssh_listen_port"])}, target_ctx))
-        print_candidates(cfg, cfg["ssh_listen_port"])
-        print(f"Authorized target key: {cfg['authorized_dbclient_pubkey']}")
+        _mark_ssh_listener_listening(cfg, service, log_dir, target_ctx)
         print("Waiting for dbclient reverse-forward connection...")
         try:
             client, addr = sock.accept()
@@ -288,43 +342,15 @@ def serve_ssh(cfg, timeout):
             raise
         print(f"Connection from {addr[0]}:{addr[1]}")
         remote = f"{addr[0]}:{addr[1]}"
-        SESSION_MANAGER.update_record(log_dir, state="active", remote=remote, **target_ctx)
-        SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=remote, **target_ctx)
-        record_selected_target_activity(cfg, service, "session", remote=remote, session_id=SESSION_MANAGER.session_id(log_dir))
-        append_event(cfg, service, "connection_open", session=str(log_dir), remote=remote, details=details_with_target(cfg, {}, target_ctx))
-
-        transport = register_transport(_KexGuess2CompatTransport(client))
-        transport.add_server_key(host_key)
-        # Pin to the one kex algorithm both Paramiko and the Dropbear build support.
-        # Dropbear's first preference is sntrup761 (PQ hybrid), which Paramiko
-        # doesn't implement, so we must pin to avoid an impossible negotiation.
-        _sec = transport.get_security_options()
-        _sec.kex = ("diffie-hellman-group14-sha256",)
-        server = ReverseSSHServer(cfg, log_dir, authorized, cfg["forward_host"], cfg["GRIT_OPERATOR_REMOTE_FORWARD_PORT"])
-        server.set_transport(transport)
-        transport.start_server(server=server)
+        _record_ssh_connection_open(cfg, service, log_dir, remote, target_ctx)
+        transport, server = _start_reverse_ssh_transport(cfg, client, host_key, authorized, log_dir)
         while not SHUTDOWN.is_set() and transport.is_active():
             time.sleep(0.5)
         append_event(cfg, service, "connection_close", session=str(log_dir), remote=remote, details=details_with_target(cfg, {}, target_ctx))
     finally:
-        if server:
-            server.close()
-        if transport:
-            unregister_transport(transport)
-            transport.close()
-        if sock:
-            unregister_socket(sock)
-            try:
-                sock.close()
-            except OSError:
-                pass
+        _close_ssh_listener_resources(sock, transport, server)
         if bound:
-            stop_reason = current_stop_reason("complete")
-            record_shutdown_event(cfg, service, session=log_dir)
-            mark_service_stopped(cfg, service, stop_reason)
-            SESSION_MANAGER.finish_record(cfg, service, log_dir, exit_reason=stop_reason)
-            append_event(cfg, service, "service_stop", session=str(log_dir),
-                         details=details_with_target(cfg, {"port": int(cfg["ssh_listen_port"]), "reason": stop_reason}, target_ctx))
+            _stop_ssh_listener(cfg, service, log_dir, target_ctx)
     return 0
 
 
