@@ -1171,96 +1171,126 @@ def _target_record_activity_indexes(records):
     )
 
 
+def _empty_target_record_identity_indexes():
+    return {
+        "by_id": {},
+        "by_label": {},
+        "by_alias": {},
+        "by_remote_addr": {},
+        "by_service": {},
+        "by_identity_confidence": {},
+        "by_identity_source": {},
+        "by_connectivity_state": {},
+        "by_last_seen_via": {},
+        "by_offline_age_bucket": {},
+        "by_has_next_expected_poll": {},
+        "by_poll_overdue": {},
+        "by_mailbox_pending_work": {},
+        "by_latest_phone_home_status": {},
+        "by_has_last_failed_phone_home": {},
+        "by_last_failed_phone_home_reason": {},
+        "by_last_failed_phone_home_status": {},
+        "by_has_notes": {},
+    }
+
+
+def _index_target_record_text(indexes, index_name, value, rec):
+    value = str(value or "")
+    if value:
+        indexes[index_name].setdefault(value, []).append(rec)
+
+
+def _index_target_record_iterable(indexes, index_name, values, rec):
+    for value in values or []:
+        _index_target_record_text(indexes, index_name, value, rec)
+
+
+def _update_target_record_identity_indexes(indexes, rec):
+    target_id = str(rec.get("target_id") or "")
+    if target_id:
+        indexes["by_id"][target_id] = rec
+    _index_target_record_text(indexes, "by_label", rec.get("label"), rec)
+    indexes["by_has_notes"].setdefault(
+        "yes" if str(rec.get("notes") or "").strip() else "no", []
+    ).append(rec)
+    _index_target_record_text(indexes, "by_identity_confidence", rec.get("identity_confidence"), rec)
+    _index_target_record_iterable(indexes, "by_identity_source", rec.get("identity_sources"), rec)
+    _index_target_record_text(indexes, "by_connectivity_state", rec.get("connectivity_state"), rec)
+    _index_target_record_text(indexes, "by_last_seen_via", rec.get("last_seen_via"), rec)
+    _index_target_record_text(indexes, "by_offline_age_bucket", rec.get("offline_age_bucket"), rec)
+    _update_target_record_presence_indexes(indexes, rec)
+    _update_target_record_phone_home_indexes(indexes, rec)
+    _index_target_record_iterable(indexes, "by_alias", rec.get("aliases"), rec)
+    _index_target_record_iterable(indexes, "by_remote_addr", rec.get("remote_addresses"), rec)
+    _index_target_record_iterable(indexes, "by_service", rec.get("services_seen"), rec)
+
+
+def _update_target_record_presence_indexes(indexes, rec):
+    indexes["by_has_next_expected_poll"].setdefault(
+        "yes" if str(rec.get("next_expected_poll") or "") else "no", []
+    ).append(rec)
+    indexes["by_poll_overdue"].setdefault(
+        "yes" if rec.get("poll_overdue") is True else "no", []
+    ).append(rec)
+    indexes["by_mailbox_pending_work"].setdefault(
+        "yes" if int(rec.get("mailbox_pending_work_count") or 0) > 0 else "no", []
+    ).append(rec)
+
+
+def _update_target_record_phone_home_indexes(indexes, rec):
+    indexes["by_has_last_failed_phone_home"].setdefault(
+        "yes" if rec.get("has_last_failed_phone_home") is True else "no", []
+    ).append(rec)
+    _index_target_record_text(
+        indexes,
+        "by_latest_phone_home_status",
+        rec.get("latest_phone_home_status"),
+        rec,
+    )
+    _index_target_record_text(
+        indexes,
+        "by_last_failed_phone_home_status",
+        rec.get("last_failed_phone_home_status"),
+        rec,
+    )
+    _index_target_record_text(
+        indexes,
+        "by_last_failed_phone_home_reason",
+        rec.get("last_failed_phone_home_reason"),
+        rec,
+    )
+
+
+def _target_record_identity_index_tuple(indexes):
+    return (
+        indexes["by_id"],
+        indexes["by_label"],
+        indexes["by_alias"],
+        indexes["by_remote_addr"],
+        indexes["by_service"],
+        indexes["by_identity_confidence"],
+        indexes["by_identity_source"],
+        indexes["by_connectivity_state"],
+        indexes["by_last_seen_via"],
+        indexes["by_offline_age_bucket"],
+        indexes["by_has_next_expected_poll"],
+        indexes["by_poll_overdue"],
+        indexes["by_mailbox_pending_work"],
+        indexes["by_latest_phone_home_status"],
+        indexes["by_has_last_failed_phone_home"],
+        indexes["by_last_failed_phone_home_reason"],
+        indexes["by_last_failed_phone_home_status"],
+        indexes["by_has_notes"],
+    )
+
+
 def _target_record_identity_indexes(records):
-    by_id = {}
-    by_label = {}
-    by_alias = {}
-    by_remote_addr = {}
-    by_service = {}
-    by_identity_confidence = {}
-    by_identity_source = {}
-    by_connectivity_state = {}
-    by_last_seen_via = {}
-    by_offline_age_bucket = {}
-    by_has_next_expected_poll = {}
-    by_poll_overdue = {}
-    by_mailbox_pending_work = {}
-    by_latest_phone_home_status = {}
-    by_has_last_failed_phone_home = {}
-    by_last_failed_phone_home_reason = {}
-    by_last_failed_phone_home_status = {}
-    by_has_notes = {}
+    indexes = _empty_target_record_identity_indexes()
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
-        target_id = str(rec.get("target_id") or "")
-        if target_id:
-            by_id[target_id] = rec
-        label = str(rec.get("label") or "")
-        if label:
-            by_label.setdefault(label, []).append(rec)
-        by_has_notes.setdefault("yes" if str(rec.get("notes") or "").strip() else "no", []).append(rec)
-        confidence = str(rec.get("identity_confidence") or "")
-        if confidence:
-            by_identity_confidence.setdefault(confidence, []).append(rec)
-        for source in rec.get("identity_sources") or []:
-            source = str(source or "")
-            if source:
-                by_identity_source.setdefault(source, []).append(rec)
-        connectivity_state = str(rec.get("connectivity_state") or "")
-        if connectivity_state:
-            by_connectivity_state.setdefault(connectivity_state, []).append(rec)
-        last_seen_via = str(rec.get("last_seen_via") or "")
-        if last_seen_via:
-            by_last_seen_via.setdefault(last_seen_via, []).append(rec)
-        offline_age_bucket = str(rec.get("offline_age_bucket") or "")
-        if offline_age_bucket:
-            by_offline_age_bucket.setdefault(offline_age_bucket, []).append(rec)
-        by_has_next_expected_poll.setdefault("yes" if str(rec.get("next_expected_poll") or "") else "no", []).append(rec)
-        by_poll_overdue.setdefault("yes" if rec.get("poll_overdue") is True else "no", []).append(rec)
-        by_mailbox_pending_work.setdefault("yes" if int(rec.get("mailbox_pending_work_count") or 0) > 0 else "no", []).append(rec)
-        by_has_last_failed_phone_home.setdefault("yes" if rec.get("has_last_failed_phone_home") is True else "no", []).append(rec)
-        latest_phone_home_status = str(rec.get("latest_phone_home_status") or "")
-        if latest_phone_home_status:
-            by_latest_phone_home_status.setdefault(latest_phone_home_status, []).append(rec)
-        last_failed_status = str(rec.get("last_failed_phone_home_status") or "")
-        if last_failed_status:
-            by_last_failed_phone_home_status.setdefault(last_failed_status, []).append(rec)
-        last_failed_reason = str(rec.get("last_failed_phone_home_reason") or "")
-        if last_failed_reason:
-            by_last_failed_phone_home_reason.setdefault(last_failed_reason, []).append(rec)
-        for alias in rec.get("aliases") or []:
-            alias = str(alias or "")
-            if alias:
-                by_alias.setdefault(alias, []).append(rec)
-        for remote in rec.get("remote_addresses") or []:
-            remote = str(remote or "")
-            if remote:
-                by_remote_addr.setdefault(remote, []).append(rec)
-        for service in rec.get("services_seen") or []:
-            service = str(service or "")
-            if service:
-                by_service.setdefault(service, []).append(rec)
-    return (
-        by_id,
-        by_label,
-        by_alias,
-        by_remote_addr,
-        by_service,
-        by_identity_confidence,
-        by_identity_source,
-        by_connectivity_state,
-        by_last_seen_via,
-        by_offline_age_bucket,
-        by_has_next_expected_poll,
-        by_poll_overdue,
-        by_mailbox_pending_work,
-        by_latest_phone_home_status,
-        by_has_last_failed_phone_home,
-        by_last_failed_phone_home_reason,
-        by_last_failed_phone_home_status,
-        by_has_notes,
-    )
+        _update_target_record_identity_indexes(indexes, rec)
+    return _target_record_identity_index_tuple(indexes)
 
 
 def target_record_indexes(records):
