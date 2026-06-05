@@ -123,84 +123,103 @@ def _release_artifact_selector(rec):
     return str(rec.get("release_path") or rec.get("name") or rec.get("path") or "")
 
 
-def print_line_release(cfg, append_event_fn=None):
-    rel, checked_releases = discover_release_context(cfg)
-    if not rel:
-        print("Release  (none detected)")
-        print("")
-        print("  Looked for a release bundle in:")
-        for state in checked_releases[:8]:
-            markers = state.get("detection_reason") or "not-a-release"
-            print(f"    {state.get('release_dir', '')}  ({markers})")
-        if len(checked_releases) > 8:
-            print(f"    ... {len(checked_releases) - 8} more")
-        print("")
-        print("  Run make release-full, extract the tarball, or set a release root here:")
-        print("    set release_dir /path/to/extracted-release")
-        return None
-    if rel.get("release_discovery_source") == "auto":
-        cfg["release_dir"] = rel.get("release_dir", "")
-    name = rel.get("release_name") or "-"
-    rdir = rel.get("release_dir") or "-"
-    recommendations = rel.get("recommendation_records") or []
-    artifacts = rel.get("artifacts") or []
-    devices = rel.get("devices") or []
-    tuples = rel.get("tuples") or []
+def _print_missing_release(checked_releases):
+    print("Release  (none detected)")
+    print("")
+    print("  Looked for a release bundle in:")
+    for state in checked_releases[:8]:
+        markers = state.get("detection_reason") or "not-a-release"
+        print(f"    {state.get('release_dir', '')}  ({markers})")
+    if len(checked_releases) > 8:
+        print(f"    ... {len(checked_releases) - 8} more")
+    print("")
+    print("  Run make release-full, extract the tarball, or set a release root here:")
+    print("    set release_dir /path/to/extracted-release")
 
-    print(f"Release  {name}  ({rdir})")
+
+def _release_view_context(rel):
+    return {
+        "name": rel.get("release_name") or "-",
+        "rdir": rel.get("release_dir") or "-",
+        "recommendations": rel.get("recommendation_records") or [],
+        "artifacts": rel.get("artifacts") or [],
+        "devices": rel.get("devices") or [],
+        "tuples": rel.get("tuples") or [],
+    }
+
+
+def _print_release_summary(view):
+    print(f"Release  {view['name']}  ({view['rdir']})")
     print(
-        f"  {len(recommendations)} recommendations  {len(artifacts)} artifacts  "
-        f"{len(devices)} devices  {len(tuples)} tuples"
+        f"  {len(view['recommendations'])} recommendations  {len(view['artifacts'])} artifacts  "
+        f"{len(view['devices'])} devices  {len(view['tuples'])} tuples"
     )
     print("")
 
-    search_records = []
-    if recommendations:
-        console_table(
-            f"Recommendations  ({len(recommendations[:8])} shown)",
-            recommendations[:8],
-            [
-                ("Selector",     _release_recommendation_selector),
-                ("Scope:Key",    lambda r: f"{r.get('scope','')}:{r.get('key','')}"),
-                ("Artifact",     lambda r: r.get("artifact") or r.get("artifact_name") or "-"),
-                ("Preset",       lambda r: r.get("payload_preset") or "-"),
-                ("Compat",       _release_compat_label),
-            ],
-        )
-        search_records += [
-            {
-                "kind": "release-recommendation",
-                "label": (
-                    f"{rec.get('scope','')}:{rec.get('key','')} -> "
-                    f"{rec.get('artifact') or rec.get('artifact_name') or ''}"
-                ),
-                "rec": rec,
-                "command": f"release stage {_release_recommendation_selector(rec)}",
-                "use_hint": f"release stage {_release_recommendation_selector(rec)}",
-            }
-            for rec in recommendations[:8]
-        ]
-    if artifacts:
-        console_table(
-            f"Artifacts  ({len(artifacts[:8])} shown)",
-            artifacts[:8],
-            [
-                ("Name",   lambda r: r.get("name") or "-"),
-                ("Tuple",  lambda r: r.get("tuple_path") or "-"),
-                ("Preset", lambda r: r.get("payload_preset") or "-"),
-                ("Compat", _release_compat_label),
-            ],
-        )
-        search_records += [
-            {
-                "kind": "release-artifact",
-                "label": rec.get("name") or _release_artifact_selector(rec),
-                "rec": rec,
-                "command": f"release stage {_release_artifact_selector(rec)}",
-                "use_hint": f"release stage {_release_artifact_selector(rec)}",
-            }
-            for rec in artifacts[:8]
-        ]
+
+def _release_recommendation_search_records(recommendations):
+    return [
+        {
+            "kind": "release-recommendation",
+            "label": (
+                f"{rec.get('scope','')}:{rec.get('key','')} -> "
+                f"{rec.get('artifact') or rec.get('artifact_name') or ''}"
+            ),
+            "rec": rec,
+            "command": f"release stage {_release_recommendation_selector(rec)}",
+            "use_hint": f"release stage {_release_recommendation_selector(rec)}",
+        }
+        for rec in recommendations[:8]
+    ]
+
+
+def _release_artifact_search_records(artifacts):
+    return [
+        {
+            "kind": "release-artifact",
+            "label": rec.get("name") or _release_artifact_selector(rec),
+            "rec": rec,
+            "command": f"release stage {_release_artifact_selector(rec)}",
+            "use_hint": f"release stage {_release_artifact_selector(rec)}",
+        }
+        for rec in artifacts[:8]
+    ]
+
+
+def _print_release_recommendations(recommendations):
+    if not recommendations:
+        return []
+    console_table(
+        f"Recommendations  ({len(recommendations[:8])} shown)",
+        recommendations[:8],
+        [
+            ("Selector",     _release_recommendation_selector),
+            ("Scope:Key",    lambda r: f"{r.get('scope','')}:{r.get('key','')}"),
+            ("Artifact",     lambda r: r.get("artifact") or r.get("artifact_name") or "-"),
+            ("Preset",       lambda r: r.get("payload_preset") or "-"),
+            ("Compat",       _release_compat_label),
+        ],
+    )
+    return _release_recommendation_search_records(recommendations)
+
+
+def _print_release_artifacts(artifacts):
+    if not artifacts:
+        return []
+    console_table(
+        f"Artifacts  ({len(artifacts[:8])} shown)",
+        artifacts[:8],
+        [
+            ("Name",   lambda r: r.get("name") or "-"),
+            ("Tuple",  lambda r: r.get("tuple_path") or "-"),
+            ("Preset", lambda r: r.get("payload_preset") or "-"),
+            ("Compat", _release_compat_label),
+        ],
+    )
+    return _release_artifact_search_records(artifacts)
+
+
+def _print_release_selectors(devices, tuples, recommendations):
     if devices:
         selectors = "  ".join(f"by_device:{rec.get('name')}" for rec in devices[:8] if rec.get("name"))
         print(f"  Device selectors:  {selectors}")
@@ -214,19 +233,39 @@ def print_line_release(cfg, append_event_fn=None):
     ]
     if preset_selectors:
         print(f"  Preset selectors:  {'  '.join(preset_selectors[:6])}")
+
+
+def _append_release_view_event(cfg, append_event_fn, rel, view):
+    if not append_event_fn:
+        return
+    append_event_fn(cfg, "workbench", "workbench_release_console_viewed", details={
+        "release_dir": rel.get("release_dir", ""),
+        "release_name": view["name"],
+        "artifact_count": len(view["artifacts"]),
+        "recommendation_count": len(view["recommendations"]),
+        "device_count": len(view["devices"]),
+        "tuple_count": len(view["tuples"]),
+    })
+
+
+def print_line_release(cfg, append_event_fn=None):
+    rel, checked_releases = discover_release_context(cfg)
+    if not rel:
+        _print_missing_release(checked_releases)
+        return None
+    if rel.get("release_discovery_source") == "auto":
+        cfg["release_dir"] = rel.get("release_dir", "")
+
+    view = _release_view_context(rel)
+    _print_release_summary(view)
+    search_records = []
+    search_records += _print_release_recommendations(view["recommendations"])
+    search_records += _print_release_artifacts(view["artifacts"])
+    _print_release_selectors(view["devices"], view["tuples"], view["recommendations"])
     print("")
     print("  release stage SELECTOR  |  release ? for help")
-
     set_line_search_results(cfg, search_records)
-    if append_event_fn:
-        append_event_fn(cfg, "workbench", "workbench_release_console_viewed", details={
-            "release_dir": rel.get("release_dir", ""),
-            "release_name": name,
-            "artifact_count": len(artifacts),
-            "recommendation_count": len(recommendations),
-            "device_count": len(devices),
-            "tuple_count": len(tuples),
-        })
+    _append_release_view_event(cfg, append_event_fn, rel, view)
     return rel
 
 
