@@ -265,12 +265,7 @@ def _add_console_queue_config_args(parser):
                         help="clear explicit operator command queue entries")
 
 
-def build_arg_parser():
-    parser = _build_console_arg_parser_base()
-    _add_console_core_args(parser)
-    _add_console_file_target_args(parser)
-    _add_console_workflow_action_args(parser)
-    _add_console_queue_config_args(parser)
+def _add_console_listener_bridge_probe_args(parser):
     parser.add_argument("--listen-host", help="listener bind address")
     parser.add_argument("--ssh-port", type=int, help="SSH reverse-forward listener port")
     parser.add_argument("--shell-port", type=int,
@@ -319,6 +314,15 @@ def build_arg_parser():
                         help="probe DNS TXT query name, default probe.grit")
     parser.add_argument("--probe-name",
                         help="probe script filename, default probe.sh")
+
+
+def build_arg_parser():
+    parser = _build_console_arg_parser_base()
+    _add_console_core_args(parser)
+    _add_console_file_target_args(parser)
+    _add_console_workflow_action_args(parser)
+    _add_console_queue_config_args(parser)
+    _add_console_listener_bridge_probe_args(parser)
     parser.add_argument("--file-service-tls", choices=("yes", "no"),
                         help="use TLS for file-service uploads (default yes)")
     parser.add_argument("--timeout", type=float, default=0,
