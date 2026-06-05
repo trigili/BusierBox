@@ -5,11 +5,9 @@ import time
 from gritlib.command_copy import copy_text_for_operator
 import gritlib.config_utils as config_utils
 from gritlib.event_log import append_event
-from gritlib.line_actions import print_current_line_module_categories
 import gritlib.line_build as line_build
 import gritlib.line_configure as line_configure
 import gritlib.line_context as line_context
-import gritlib.line_daemon as line_daemon
 from gritlib.line_events import print_line_events_view
 import gritlib.line_files as line_files
 import gritlib.line_help as line_help
@@ -33,7 +31,7 @@ from gritlib.line_repl_routes import (
 )
 from gritlib.line_repl_search import build_default_line_search_bundle
 from gritlib.line_repl_sessions import build_default_line_session_callbacks
-from gritlib.line_repl_show import build_line_display_show_callbacks
+from gritlib.line_repl_show import build_default_line_display_show_callbacks
 from gritlib.line_repl_survey import build_line_survey_callbacks
 from gritlib.line_repl_targets import build_default_line_target_callbacks
 from gritlib.line_repl_utility import build_line_utility_callbacks
@@ -43,9 +41,6 @@ import gritlib.line_release as line_release
 from gritlib.line_search import (
     clear_line_search_results,
 )
-from gritlib.line_services import (
-    line_service_display_name,
-)
 import gritlib.line_target_commands as line_target_commands
 import gritlib.line_workspace as line_workspace
 import gritlib.service_runtime as service_runtime
@@ -53,7 +48,6 @@ import gritlib.session_state as session_state
 from gritlib.staged_files import (
     print_staged,
 )
-from gritlib.target_activity import print_target_activity_records
 from gritlib.version import grit_version
 from gritlib.console_workbench import workbench_snapshot
 import gritlib.workflow_runners as workflow_runners
@@ -190,25 +184,17 @@ def _build_line_operational_callbacks(
         line_job_callbacks=line_job_callbacks,
         line_queue_callbacks=line_queue_callbacks,
     )
-    line_display_show_callbacks = build_line_display_show_callbacks(
+    line_display_show_callbacks = build_default_line_display_show_callbacks(
         cfg,
-        workbench_snapshot_func=workbench_snapshot,
-        display_name_func=line_service_display_name,
-        set_context_func=line_context.set_line_collection_context,
-        action_callbacks=line_action_callbacks,
-        option_callbacks=line_option_callbacks,
-        target_callbacks=line_target_callbacks,
-        route_service_callbacks=line_route_service_callbacks,
-        probe_callbacks=line_probe_callbacks,
-        file_callbacks=line_file_callbacks,
-        job_callbacks=line_job_callbacks,
-        session_callbacks=line_session_callbacks,
-        queue_callbacks=line_queue_callbacks,
-        print_daemon_func=line_daemon.print_line_daemon_actions,
-        print_categories_func=print_current_line_module_categories,
-        print_events_func=print_target_activity_records,
-        print_release_func=line_release.print_line_release,
-        append_event_fn=append_event,
+        line_action_callbacks=line_action_callbacks,
+        line_option_callbacks=line_option_callbacks,
+        line_target_callbacks=line_target_callbacks,
+        line_route_service_callbacks=line_route_service_callbacks,
+        line_probe_callbacks=line_probe_callbacks,
+        line_file_callbacks=line_file_callbacks,
+        line_job_callbacks=line_job_callbacks,
+        line_session_callbacks=line_session_callbacks,
+        line_queue_callbacks=line_queue_callbacks,
     )
 
     return (

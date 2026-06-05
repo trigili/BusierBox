@@ -1,7 +1,50 @@
 """Line REPL show-resource callback adapters."""
 
+from gritlib.console_workbench import workbench_snapshot
+from gritlib.event_log import append_event
+from gritlib.line_actions import print_current_line_module_categories
+import gritlib.line_context as line_context
+import gritlib.line_daemon as line_daemon
+import gritlib.line_release as line_release
 from gritlib.line_show import build_line_show_resource_callback
 from gritlib.line_repl_display import build_line_display_callbacks
+from gritlib.line_services import line_service_display_name
+from gritlib.target_activity import print_target_activity_records
+
+
+def build_default_line_display_show_callbacks(
+    cfg,
+    *,
+    line_action_callbacks,
+    line_option_callbacks,
+    line_target_callbacks,
+    line_route_service_callbacks,
+    line_probe_callbacks,
+    line_file_callbacks,
+    line_job_callbacks,
+    line_session_callbacks,
+    line_queue_callbacks,
+):
+    return build_line_display_show_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        display_name_func=line_service_display_name,
+        set_context_func=line_context.set_line_collection_context,
+        action_callbacks=line_action_callbacks,
+        option_callbacks=line_option_callbacks,
+        target_callbacks=line_target_callbacks,
+        route_service_callbacks=line_route_service_callbacks,
+        probe_callbacks=line_probe_callbacks,
+        file_callbacks=line_file_callbacks,
+        job_callbacks=line_job_callbacks,
+        session_callbacks=line_session_callbacks,
+        queue_callbacks=line_queue_callbacks,
+        print_daemon_func=line_daemon.print_line_daemon_actions,
+        print_categories_func=print_current_line_module_categories,
+        print_events_func=print_target_activity_records,
+        print_release_func=line_release.print_line_release,
+        append_event_fn=append_event,
+    )
 
 
 def build_line_display_show_callbacks(
