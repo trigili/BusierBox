@@ -14,10 +14,7 @@ from gritlib.file_transfers import (
     render_fetch_command,
 )
 from gritlib.line_actions import print_current_line_module_categories
-from gritlib.line_build import (
-    run_line_build_command, set_line_global_build_option,
-    unset_line_global_build_option,
-)
+import gritlib.line_build as line_build
 import gritlib.line_configure as line_configure
 import gritlib.line_context as line_context
 import gritlib.line_daemon as line_daemon
@@ -142,9 +139,9 @@ def run_line_repl(cfg):
     line_option_callbacks = build_line_option_callbacks(
         cfg,
         clear_module_func=line_context.clear_line_module_context,
-        set_global_option_func=set_line_global_build_option,
+        set_global_option_func=line_build.set_line_global_build_option,
         set_context_option_func=line_options.set_line_option,
-        unset_global_option_func=unset_line_global_build_option,
+        unset_global_option_func=line_build.unset_line_global_build_option,
         rename_target_func=line_options.rename_line_target,
         note_target_func=line_options.note_line_target,
         alias_target_func=line_options.alias_line_target,
@@ -321,7 +318,7 @@ def run_line_repl(cfg):
         workspace_callbacks=line_workspace_callbacks,
         survey_callbacks=line_survey_callbacks,
         set_context_func=line_context.set_line_collection_context,
-        build_run_func=run_line_build_command,
+        build_run_func=line_build.run_line_build_command,
         help_func=print_line_command_help,
         append_event_fn=append_event,
     )
