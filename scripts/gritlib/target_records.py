@@ -1609,9 +1609,7 @@ def target_record_summary(records):
     }
 
 
-def target_registry_state_status(target_summary, selected_target=None, target_filter_id="", unfiltered_target_count=0):
-    target_summary = target_summary if isinstance(target_summary, dict) else {}
-    selected_target = selected_target if isinstance(selected_target, dict) else {}
+def _target_registry_selected_target_fields(selected_target):
     selected_target_sources = selected_target.get("identity_sources") or []
     selected_target_capability_summary = selected_target.get("latest_capability_summary") or {}
     if not isinstance(selected_target_capability_summary, dict):
@@ -1619,12 +1617,7 @@ def target_registry_state_status(target_summary, selected_target=None, target_fi
     selected_target_compatibility_summary = selected_target.get("latest_compatibility_summary") or {}
     if not isinstance(selected_target_compatibility_summary, dict):
         selected_target_compatibility_summary = {}
-    state_record = {
-        "id": "target-registry",
-        "target_count": int_value(target_summary.get("target_count", 0)),
-        "unfiltered_target_count": int_value(unfiltered_target_count),
-        "filter_active": bool(target_filter_id),
-        "filter_target_id": target_filter_id,
+    return {
         "selected_target_found": bool(selected_target),
         "selected_target_label": str(selected_target.get("label") or ""),
         "selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
@@ -1675,6 +1668,11 @@ def target_registry_state_status(target_summary, selected_target=None, target_fi
         "selected_target_latest_compatibility_release_name": str(selected_target.get("latest_compatibility_release_name") or ""),
         "selected_target_latest_compatibility_payload_preset": str(selected_target.get("latest_compatibility_payload_preset") or ""),
         "selected_target_latest_compatibility_reason_count": int_value(selected_target_compatibility_summary.get("reason_count", 0)),
+    }
+
+
+def _target_registry_summary_fields(target_summary):
+    return {
         "latest_target_id": str(target_summary.get("latest_target_id") or ""),
         "latest_target_label": str(target_summary.get("latest_target_label") or ""),
         "latest_target_seen_at": str(target_summary.get("latest_target_seen_at") or ""),
@@ -1708,6 +1706,9 @@ def target_registry_state_status(target_summary, selected_target=None, target_fi
         "compatibility_release_counts": target_summary.get("target_compatibility_release_counts") or {},
         "compatibility_payload_preset_counts": target_summary.get("target_compatibility_payload_preset_counts") or {},
     }
+
+
+def _apply_target_registry_state_flags(state_record, selected_target=None):
     state_record.update({
         "has_targets": state_record.get("target_count", 0) > 0,
         "has_unfiltered_targets": state_record.get("unfiltered_target_count", 0) > 0,
@@ -1727,11 +1728,24 @@ def target_registry_state_status(target_summary, selected_target=None, target_fi
         "has_capability_reports": state_record.get("capability_report_count", 0) > 0,
         "has_compatibility_reports": state_record.get("compatibility_report_count", 0) > 0,
     })
-    state_records = [state_record]
-    state_index_maps = {
-        "target_registry_state_records_by_id": {rec.get("id", ""): rec for rec in state_records if rec.get("id")},
-        "target_registry_state_records_by_has_targets": records_by_key(state_records, "has_targets"),
-        "target_registry_state_records_by_has_unfiltered_targets": records_by_key(state_records, "has_unfiltered_targets"),
+
+
+def _target_registry_state_record(target_summary, selected_target, target_filter_id, unfiltered_target_count):
+    state_record = {
+        "id": "target-registry",
+        "target_count": int_value(target_summary.get("target_count", 0)),
+        "unfiltered_target_count": int_value(unfiltered_target_count),
+        "filter_active": bool(target_filter_id),
+        "filter_target_id": target_filter_id,
+        **_target_registry_selected_target_fields(selected_target),
+        **_target_registry_summary_fields(target_summary),
+    }
+    _apply_target_registry_state_flags(state_record, selected_target)
+    return state_record
+
+
+def _target_registry_selected_state_indexes(state_records):
+    return {
         "target_registry_state_records_by_filter_active": records_by_key(state_records, "filter_active"),
         "target_registry_state_records_by_filter_target_id": records_by_key(state_records, "filter_target_id"),
         "target_registry_state_records_by_selected_target_found": records_by_key(state_records, "selected_target_found"),
@@ -1752,6 +1766,11 @@ def target_registry_state_status(target_summary, selected_target=None, target_fi
         "target_registry_state_records_by_selected_target_latest_capability_report_kind": records_by_key(state_records, "selected_target_latest_capability_report_kind"),
         "target_registry_state_records_by_selected_target_latest_compatibility_label": records_by_key(state_records, "selected_target_latest_compatibility_label"),
         "target_registry_state_records_by_selected_target_latest_compatibility_release_name": records_by_key(state_records, "selected_target_latest_compatibility_release_name"),
+    }
+
+
+def _target_registry_state_flag_indexes(state_records):
+    return {
         "target_registry_state_records_by_has_latest_activity": records_by_key(state_records, "has_latest_activity"),
         "target_registry_state_records_by_has_next_expected_polls": records_by_key(state_records, "has_next_expected_polls"),
         "target_registry_state_records_by_has_poll_overdue": records_by_key(state_records, "has_poll_overdue"),
@@ -1764,6 +1783,30 @@ def target_registry_state_status(target_summary, selected_target=None, target_fi
         "target_registry_state_records_by_has_capability_reports": records_by_key(state_records, "has_capability_reports"),
         "target_registry_state_records_by_has_compatibility_reports": records_by_key(state_records, "has_compatibility_reports"),
     }
+
+
+def _target_registry_state_index_maps(state_records):
+    indexes = {
+        "target_registry_state_records_by_id": {rec.get("id", ""): rec for rec in state_records if rec.get("id")},
+        "target_registry_state_records_by_has_targets": records_by_key(state_records, "has_targets"),
+        "target_registry_state_records_by_has_unfiltered_targets": records_by_key(state_records, "has_unfiltered_targets"),
+    }
+    indexes.update(_target_registry_selected_state_indexes(state_records))
+    indexes.update(_target_registry_state_flag_indexes(state_records))
+    return indexes
+
+
+def target_registry_state_status(target_summary, selected_target=None, target_filter_id="", unfiltered_target_count=0):
+    target_summary = target_summary if isinstance(target_summary, dict) else {}
+    selected_target = selected_target if isinstance(selected_target, dict) else {}
+    state_record = _target_registry_state_record(
+        target_summary,
+        selected_target,
+        target_filter_id,
+        unfiltered_target_count,
+    )
+    state_records = [state_record]
+    state_index_maps = _target_registry_state_index_maps(state_records)
     summary = target_registry_state_summary(state_record, state_records)
     return {
         "state_record": state_record,
@@ -1771,7 +1814,6 @@ def target_registry_state_status(target_summary, selected_target=None, target_fi
         "state_index_maps": state_index_maps,
         "summary": summary,
     }
-
 
 def target_registry_state_summary(state_record=None, state_records=None):
     state_record = state_record or {}
