@@ -597,6 +597,134 @@ def _operator_console_fleet_workflow_records(base, context, target_workflow_acti
     ]
 
 
+def _operator_console_mailbox_workflow_record(base, context, command_queue_workflow_actions=None):
+    mailbox_records = context["mailbox_records"]
+    pending_mailbox = context["pending_mailbox"]
+    return {
+        "id": "mailbox",
+        "workflow": "mailbox",
+        "group": "work",
+        "label": "Mailbox",
+        "description": "Queue offline work and inspect delivered, completed, failed, expired, and pending target commands.",
+        "primary_collection": "target_mailbox_records",
+        "source_collections": ["target_mailbox_records", "command_queue.commands", "target_phone_home_records"],
+        "action_collections": ["command_queue_workflow_actions"],
+        "record_count": len(mailbox_records),
+        "action_count": workflow_action_count(command_queue_workflow_actions),
+        "enter_runnable_action_count": workflow_enter_count(command_queue_workflow_actions),
+        "queueable_offline_action_count": workflow_queue_count(command_queue_workflow_actions),
+        "pending_work_count": len(pending_mailbox),
+        "warning_count": len([rec for rec in mailbox_records if rec.get("expired") is True]),
+        "headless_command": operator_console_headless_command("mailbox", base),
+        "tui_shortcut": "m",
+        "line_mode_action": "20",
+        "target_scoped": True,
+        "multi_target": True,
+        "offline_queue_supported": True,
+    }
+
+
+def _operator_console_bridges_workflow_record(
+    base,
+    context,
+    target_workflow_actions=None,
+    bridge_profiles=None,
+    bridge_profile_workflow_actions=None,
+):
+    pending_mailbox = context["pending_mailbox"]
+    return {
+        "id": "bridges",
+        "workflow": "bridges",
+        "group": "routes",
+        "label": "Bridge Routes",
+        "description": "Inspect, start, stop, and audit one-hop or multi-hop bridge profiles.",
+        "primary_collection": "bridge_profiles",
+        "source_collections": ["bridge_profiles", "bridge_hop_records", "target_workflow_actions"],
+        "action_collections": ["bridge_profile_workflow_actions", "target_workflow_actions"],
+        "record_count": len(bridge_profiles or []),
+        "action_count": workflow_action_count(bridge_profile_workflow_actions),
+        "enter_runnable_action_count": workflow_enter_count(bridge_profile_workflow_actions),
+        "queueable_offline_action_count": workflow_queue_count(target_workflow_actions),
+        "pending_work_count": workflow_command_prefix_count(pending_mailbox, "bridge:"),
+        "warning_count": len([
+            rec for rec in bridge_profiles or []
+            if rec.get("has_last_failure") is True
+        ]),
+        "headless_command": operator_console_headless_command("bridges", base),
+        "tui_shortcut": "b",
+        "line_mode_action": "19",
+        "target_scoped": True,
+        "multi_target": True,
+        "offline_queue_supported": True,
+    }
+
+
+def _operator_console_files_workflow_record(
+    base,
+    context,
+    staged_records=None,
+    staged_file_workflow_actions=None,
+    file_service_workflow_actions=None,
+):
+    pending_mailbox = context["pending_mailbox"]
+    return {
+        "id": "files",
+        "workflow": "files",
+        "group": "work",
+        "label": "Files",
+        "description": "Stage files, show fetch/upload commands, and queue target file-transfer requests.",
+        "primary_collection": "staged_records",
+        "source_collections": ["staged_records", "target_file_transfer_records", "uploads", "fetches"],
+        "action_collections": ["file_service_workflow_actions", "staged_file_workflow_actions"],
+        "record_count": len(staged_records or []),
+        "action_count": workflow_action_count(file_service_workflow_actions) + workflow_action_count(staged_file_workflow_actions),
+        "enter_runnable_action_count": workflow_enter_count(file_service_workflow_actions) + workflow_enter_count(staged_file_workflow_actions),
+        "queueable_offline_action_count": workflow_queue_count(staged_file_workflow_actions),
+        "pending_work_count": workflow_command_prefix_count(pending_mailbox, "fetch:"),
+        "warning_count": len([
+            rec for rec in staged_records or []
+            if rec.get("source_exists") is False
+        ]),
+        "headless_command": operator_console_headless_command("files", base),
+        "tui_shortcut": "f",
+        "line_mode_action": "7",
+        "target_scoped": True,
+        "multi_target": True,
+        "offline_queue_supported": True,
+    }
+
+
+def _operator_console_survey_workflow_record(
+    base,
+    context,
+    target_workflow_actions=None,
+    probe_workflow_actions=None,
+):
+    pending_mailbox = context["pending_mailbox"]
+    return {
+        "id": "survey",
+        "workflow": "survey",
+        "group": "work",
+        "label": "Survey",
+        "description": "Serve direct or bridged probe commands and queue probe requests.",
+        "primary_collection": "probe_workflow_actions",
+        "source_collections": ["probe_workflow_actions", "target_command_records"],
+        "action_collections": ["probe_workflow_actions", "target_workflow_actions"],
+        "record_count": workflow_action_count(probe_workflow_actions),
+        "action_count": workflow_action_count(probe_workflow_actions),
+        "enter_runnable_action_count": workflow_enter_count(probe_workflow_actions),
+        "queueable_offline_action_count": workflow_queue_count(target_workflow_actions),
+        "pending_work_count": workflow_command_prefix_count(pending_mailbox, "survey:"),
+        "warning_count": 0,
+        "headless_command": operator_console_headless_command("survey", base),
+        "tui_shortcut": "w",
+        "line_mode_action": "18",
+        "target_scoped": True,
+        "multi_target": True,
+        "offline_queue_supported": True,
+    }
+
+
 def _operator_console_work_workflow_records(
     base,
     context,
@@ -609,103 +737,32 @@ def _operator_console_work_workflow_records(
     probe_workflow_actions=None,
     command_queue_workflow_actions=None,
 ):
-    mailbox_records = context["mailbox_records"]
-    pending_mailbox = context["pending_mailbox"]
     return [
-        {
-            "id": "mailbox",
-            "workflow": "mailbox",
-            "group": "work",
-            "label": "Mailbox",
-            "description": "Queue offline work and inspect delivered, completed, failed, expired, and pending target commands.",
-            "primary_collection": "target_mailbox_records",
-            "source_collections": ["target_mailbox_records", "command_queue.commands", "target_phone_home_records"],
-            "action_collections": ["command_queue_workflow_actions"],
-            "record_count": len(mailbox_records),
-            "action_count": workflow_action_count(command_queue_workflow_actions),
-            "enter_runnable_action_count": workflow_enter_count(command_queue_workflow_actions),
-            "queueable_offline_action_count": workflow_queue_count(command_queue_workflow_actions),
-            "pending_work_count": len(pending_mailbox),
-            "warning_count": len([rec for rec in mailbox_records if rec.get("expired") is True]),
-            "headless_command": operator_console_headless_command("mailbox", base),
-            "tui_shortcut": "m",
-            "line_mode_action": "20",
-            "target_scoped": True,
-            "multi_target": True,
-            "offline_queue_supported": True,
-        },
-        {
-            "id": "bridges",
-            "workflow": "bridges",
-            "group": "routes",
-            "label": "Bridge Routes",
-            "description": "Inspect, start, stop, and audit one-hop or multi-hop bridge profiles.",
-            "primary_collection": "bridge_profiles",
-            "source_collections": ["bridge_profiles", "bridge_hop_records", "target_workflow_actions"],
-            "action_collections": ["bridge_profile_workflow_actions", "target_workflow_actions"],
-            "record_count": len(bridge_profiles or []),
-            "action_count": workflow_action_count(bridge_profile_workflow_actions),
-            "enter_runnable_action_count": workflow_enter_count(bridge_profile_workflow_actions),
-            "queueable_offline_action_count": workflow_queue_count(target_workflow_actions),
-            "pending_work_count": workflow_command_prefix_count(pending_mailbox, "bridge:"),
-            "warning_count": len([
-                rec for rec in bridge_profiles or []
-                if rec.get("has_last_failure") is True
-            ]),
-            "headless_command": operator_console_headless_command("bridges", base),
-            "tui_shortcut": "b",
-            "line_mode_action": "19",
-            "target_scoped": True,
-            "multi_target": True,
-            "offline_queue_supported": True,
-        },
-        {
-            "id": "files",
-            "workflow": "files",
-            "group": "work",
-            "label": "Files",
-            "description": "Stage files, show fetch/upload commands, and queue target file-transfer requests.",
-            "primary_collection": "staged_records",
-            "source_collections": ["staged_records", "target_file_transfer_records", "uploads", "fetches"],
-            "action_collections": ["file_service_workflow_actions", "staged_file_workflow_actions"],
-            "record_count": len(staged_records or []),
-            "action_count": workflow_action_count(file_service_workflow_actions) + workflow_action_count(staged_file_workflow_actions),
-            "enter_runnable_action_count": workflow_enter_count(file_service_workflow_actions) + workflow_enter_count(staged_file_workflow_actions),
-            "queueable_offline_action_count": workflow_queue_count(staged_file_workflow_actions),
-            "pending_work_count": workflow_command_prefix_count(pending_mailbox, "fetch:"),
-            "warning_count": len([
-                rec for rec in staged_records or []
-                if rec.get("source_exists") is False
-            ]),
-            "headless_command": operator_console_headless_command("files", base),
-            "tui_shortcut": "f",
-            "line_mode_action": "7",
-            "target_scoped": True,
-            "multi_target": True,
-            "offline_queue_supported": True,
-        },
-        {
-            "id": "survey",
-            "workflow": "survey",
-            "group": "work",
-            "label": "Survey",
-            "description": "Serve direct or bridged probe commands and queue probe requests.",
-            "primary_collection": "probe_workflow_actions",
-            "source_collections": ["probe_workflow_actions", "target_command_records"],
-            "action_collections": ["probe_workflow_actions", "target_workflow_actions"],
-            "record_count": workflow_action_count(probe_workflow_actions),
-            "action_count": workflow_action_count(probe_workflow_actions),
-            "enter_runnable_action_count": workflow_enter_count(probe_workflow_actions),
-            "queueable_offline_action_count": workflow_queue_count(target_workflow_actions),
-            "pending_work_count": workflow_command_prefix_count(pending_mailbox, "survey:"),
-            "warning_count": 0,
-            "headless_command": operator_console_headless_command("survey", base),
-            "tui_shortcut": "w",
-            "line_mode_action": "18",
-            "target_scoped": True,
-            "multi_target": True,
-            "offline_queue_supported": True,
-        },
+        _operator_console_mailbox_workflow_record(
+            base,
+            context,
+            command_queue_workflow_actions=command_queue_workflow_actions,
+        ),
+        _operator_console_bridges_workflow_record(
+            base,
+            context,
+            target_workflow_actions=target_workflow_actions,
+            bridge_profiles=bridge_profiles,
+            bridge_profile_workflow_actions=bridge_profile_workflow_actions,
+        ),
+        _operator_console_files_workflow_record(
+            base,
+            context,
+            staged_records=staged_records,
+            staged_file_workflow_actions=staged_file_workflow_actions,
+            file_service_workflow_actions=file_service_workflow_actions,
+        ),
+        _operator_console_survey_workflow_record(
+            base,
+            context,
+            target_workflow_actions=target_workflow_actions,
+            probe_workflow_actions=probe_workflow_actions,
+        ),
     ]
 
 
