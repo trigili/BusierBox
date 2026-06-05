@@ -572,6 +572,33 @@ def _build_workbench_workflow_status_context(cfg, targets, bridge_profiles):
     }
 
 
+def _build_operator_network_status_context(cfg):
+    ips = local_ips()
+    operator_network = operator_network_status(ips)
+    operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
+    event_log_path = operator_dir / "events.jsonl"
+    return {
+        "ips": ips,
+        "operator_network": operator_network,
+        "selected_local_ip": operator_network["selected_local_ip"],
+        "operator_network_records": operator_network["operator_network_records"],
+        "operator_network_index_maps": operator_network["operator_network_index_maps"],
+        "operator_network_state_record": operator_network[
+            "operator_network_state_record"
+        ],
+        "operator_network_state_records": operator_network[
+            "operator_network_state_records"
+        ],
+        "operator_network_state_index_maps": operator_network[
+            "operator_network_state_index_maps"
+        ],
+        "operator_dir": operator_dir,
+        "event_log_path": event_log_path,
+        "session_root": str(cfg.get("session_root", "local/sessions")),
+        "summary": operator_network["summary"],
+    }
+
+
 def _build_service_status_context(cfg):
     service_context = service_status_context(cfg, SERVICE_MANAGER.snapshot())
     return {
@@ -948,17 +975,24 @@ def status_document(cfg):
      staged_by_fetch_command_force,
      staged_by_source_exists,
      staged_by_kind_source_exists) = staged_context["indexes"]
-    ips = local_ips()
-    operator_network = operator_network_status(ips)
-    selected_local_ip = operator_network["selected_local_ip"]
-    operator_network_records = operator_network["operator_network_records"]
-    operator_network_index_maps = operator_network["operator_network_index_maps"]
-    operator_network_state_record = operator_network["operator_network_state_record"]
-    operator_network_state_records = operator_network["operator_network_state_records"]
-    operator_network_state_index_maps = operator_network["operator_network_state_index_maps"]
-    operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
-    event_log_path = operator_dir / "events.jsonl"
-    session_root = str(cfg.get("session_root", "local/sessions"))
+    operator_network_context = _build_operator_network_status_context(cfg)
+    ips = operator_network_context["ips"]
+    operator_network = operator_network_context["operator_network"]
+    selected_local_ip = operator_network_context["selected_local_ip"]
+    operator_network_records = operator_network_context["operator_network_records"]
+    operator_network_index_maps = operator_network_context["operator_network_index_maps"]
+    operator_network_state_record = operator_network_context[
+        "operator_network_state_record"
+    ]
+    operator_network_state_records = operator_network_context[
+        "operator_network_state_records"
+    ]
+    operator_network_state_index_maps = operator_network_context[
+        "operator_network_state_index_maps"
+    ]
+    operator_dir = operator_network_context["operator_dir"]
+    event_log_path = operator_network_context["event_log_path"]
+    session_root = operator_network_context["session_root"]
     service_context = _build_service_status_context(cfg)
     services = service_context["services"]
     service_manager = service_context["service_manager"]
@@ -1378,7 +1412,7 @@ def status_document(cfg):
             event_stats, event_log_state, event_log_state_records,
             events, event_summary_stats,
         ),
-        **operator_network["summary"],
+        **operator_network_context["summary"],
         **command_queue_status_summary(command_queue, command_queue_policy_records),
         **target_mailbox_record_summary(target_mailbox_records),
         **target_phone_home_record_summary(target_phone_home_records),
