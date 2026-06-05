@@ -2,13 +2,9 @@
 
 import sys
 import time
-import gritlib.command_queue as command_queue_module
 from gritlib.command_copy import copy_text_for_operator
 import gritlib.config_utils as config_utils
 from gritlib.event_log import append_event
-from gritlib.file_transfers import (
-    render_fetch_command,
-)
 from gritlib.line_actions import print_current_line_module_categories
 import gritlib.line_build as line_build
 import gritlib.line_configure as line_configure
@@ -25,7 +21,7 @@ from gritlib.line_repl_completions import (
     setup_default_line_completion_bundle,
 )
 from gritlib.line_repl_core import build_line_core_callbacks
-from gritlib.line_repl_files import build_line_file_workflow_callbacks
+from gritlib.line_repl_files import build_default_line_file_workflow_callbacks
 from gritlib.line_repl_jobs import build_default_line_job_callbacks
 from gritlib.line_repl_legacy import build_line_legacy_callbacks
 from gritlib.line_repl_navigation import build_line_navigation_callbacks
@@ -56,10 +52,9 @@ import gritlib.service_runtime as service_runtime
 import gritlib.session_state as session_state
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import (
-    load_staged, print_staged,
+    print_staged,
 )
 from gritlib.target_activity import print_target_activity_records
-import gritlib.target_records as target_records
 from gritlib.version import grit_version
 from gritlib.console_workbench import workbench_snapshot
 import gritlib.workflow_runners as workflow_runners
@@ -180,18 +175,11 @@ def _build_line_operational_callbacks(
 
     line_session_callbacks = build_default_line_session_callbacks(cfg)
 
-    line_file_callbacks = build_line_file_workflow_callbacks(
+    line_file_callbacks = build_default_line_file_workflow_callbacks(
         cfg,
-        line_input_fn=line_input,
-        start_service_func=workflow_runners.start_service_process,
-        target_callbacks=line_target_callbacks,
-        route_service_callbacks=line_route_service_callbacks,
-        scoped_target_cfg_func=target_records.scoped_target_cfg,
-        queue_command_func=command_queue_module.queue_command,
-        load_staged_func=load_staged,
-        fetch_command_func=render_fetch_command,
-        append_event_fn=append_event,
-        quote=shquote,
+        line_input=line_input,
+        line_target_callbacks=line_target_callbacks,
+        line_route_service_callbacks=line_route_service_callbacks,
     )
 
     line_search_callbacks = build_line_search_bundle(

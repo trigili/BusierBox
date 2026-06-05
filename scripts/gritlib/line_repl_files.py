@@ -1,5 +1,8 @@
 """Line REPL file/release workflow callback adapters."""
 
+from gritlib import command_queue as command_queue_module
+from gritlib.event_log import append_event
+from gritlib.file_transfers import render_fetch_command
 from gritlib.line_configure import configure_line_artifact
 from gritlib.line_files import (
     download_line_target,
@@ -11,6 +14,10 @@ from gritlib.line_files import (
 )
 from gritlib.line_release import stage_line_release
 from gritlib.operator_io import view_line_path
+from gritlib.shell_utils import shquote
+from gritlib.staged_files import load_staged
+from gritlib import target_records
+from gritlib import workflow_runners
 
 
 def build_line_file_workflow_callbacks(
@@ -154,3 +161,25 @@ def build_line_file_workflow_callbacks(
         "view_path": view_path,
         "print_line_files": print_files,
     }
+
+
+def build_default_line_file_workflow_callbacks(
+    cfg,
+    *,
+    line_input,
+    line_target_callbacks,
+    line_route_service_callbacks,
+):
+    return build_line_file_workflow_callbacks(
+        cfg,
+        line_input_fn=line_input,
+        start_service_func=workflow_runners.start_service_process,
+        target_callbacks=line_target_callbacks,
+        route_service_callbacks=line_route_service_callbacks,
+        scoped_target_cfg_func=target_records.scoped_target_cfg,
+        queue_command_func=command_queue_module.queue_command,
+        load_staged_func=load_staged,
+        fetch_command_func=render_fetch_command,
+        append_event_fn=append_event,
+        quote=shquote,
+    )
