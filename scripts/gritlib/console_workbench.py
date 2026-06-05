@@ -2649,6 +2649,109 @@ def _build_history_api_collections(
     }
 
 
+def _build_status_summary_updates(
+    *,
+    path_context,
+    bridge_profile_context,
+    path_warning_context,
+    operator_state_file_summary_doc,
+    operator_state_summary,
+    staged_file_workflow_context,
+    services,
+    service_manager,
+    service_manager_status_doc,
+    ports,
+    warning_summary_context,
+    uploads,
+    fetches,
+    target_attribution,
+    target_file_transfer_records,
+    file_service_workflow_context,
+    target_activity_feed_context,
+    target_summary,
+    target_registry_summary,
+    target_filter_context,
+    target_attribution_context,
+    sessions,
+    session_root_state,
+    session_root_state_records,
+    target_command_summary,
+    target_command_state_record,
+    target_command_state_records,
+    rshell_session_policy_record_item,
+    rshell_session_policy_records,
+    workflow_context,
+    event_stats,
+    event_log_state,
+    event_log_state_records,
+    events,
+    event_summary_stats,
+    operator_network_context,
+    command_queue,
+    command_queue_policy_records,
+    target_activity_context,
+    release_context_doc,
+    release_artifact_workflow_actions,
+    operator_console_workflow_context,
+    workbench_config_context,
+    command_queue_workflow_context,
+    service_probe_workflow_context,
+):
+    return {
+        **path_context["path_summary"],
+        **bridge_profile_context["summary"],
+        **path_context["browser_status_summary"],
+        **path_warning_context["summary"],
+        **operator_state_file_summary_doc,
+        **operator_state_summary,
+        **staged_file_workflow_context["summary"],
+        **service_status.service_status_summary(
+            services, service_manager, service_manager_status_doc
+        ),
+        **service_status.port_status_summary(ports),
+        **warning_summary_context["summary"],
+        **file_transfers.upload_record_summary(uploads, target_attribution),
+        **file_transfers.fetch_record_summary(fetches, target_attribution),
+        **file_transfers.target_file_transfer_record_summary(
+            target_file_transfer_records
+        ),
+        **file_service_workflow_context["summary"],
+        **target_activity_feed_context["summary"],
+        **target_summary,
+        **target_registry_summary,
+        **target_filter_context["summary"],
+        **target_attribution_context["summary"],
+        **session_record_summary(
+            sessions, session_root_state, session_root_state_records, target_attribution
+        ),
+        **target_command_status_summary(
+            target_command_summary,
+            target_command_state_record,
+            target_command_state_records,
+            rshell_session_policy_record_item,
+            rshell_session_policy_records,
+        ),
+        **workflow_context["summary"],
+        **event_status_summary(
+            event_stats, event_log_state, event_log_state_records,
+            events, event_summary_stats,
+        ),
+        **operator_network_context["summary"],
+        **command_queue_module.command_queue_status_summary(
+            command_queue, command_queue_policy_records
+        ),
+        **target_activity_context["summary"],
+        **release_context_doc["summary"],
+        **release_artifact_workflow_action_status_summary(
+            release_artifact_workflow_actions
+        ),
+        **operator_console_workflow_context["summary"],
+        **workbench_config_context["summary"],
+        **command_queue_workflow_context["summary"],
+        **service_probe_workflow_context["summary"],
+    }
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
@@ -3113,57 +3216,53 @@ def status_document(cfg):
         ports_by_warning_type=ports_by_warning_type,
     )
     warning_summary = warning_summary_context["warning_summary"]
-    summary.update({
-        **path_context["path_summary"],
-        **bridge_profile_context["summary"],
-        **path_context["browser_status_summary"],
-        **path_warning_context["summary"],
-        **operator_state_file_summary_doc,
-        **operator_state_summary,
-        **staged_file_workflow_context["summary"],
-        **service_status.service_status_summary(
-            services, service_manager, service_manager_status_doc
-        ),
-        **service_status.port_status_summary(ports),
-        **warning_summary_context["summary"],
-        **file_transfers.upload_record_summary(uploads, target_attribution),
-        **file_transfers.fetch_record_summary(fetches, target_attribution),
-        **file_transfers.target_file_transfer_record_summary(
-            target_file_transfer_records
-        ),
-        **file_service_workflow_context["summary"],
-        **target_activity_feed_context["summary"],
-        **target_summary,
-        **target_registry_summary,
-        **target_filter_context["summary"],
-        **target_attribution_context["summary"],
-        **session_record_summary(
-            sessions, session_root_state, session_root_state_records, target_attribution
-        ),
-        **target_command_status_summary(
-            target_command_summary,
-            target_command_state_record,
-            target_command_state_records,
-            rshell_session_policy_record_item,
-            rshell_session_policy_records,
-        ),
-        **workflow_context["summary"],
-        **event_status_summary(
-            event_stats, event_log_state, event_log_state_records,
-            events, event_summary_stats,
-        ),
-        **operator_network_context["summary"],
-        **command_queue_module.command_queue_status_summary(
-            command_queue, command_queue_policy_records
-        ),
-        **target_activity_context["summary"],
-        **release_context_doc["summary"],
-        **release_artifact_workflow_action_status_summary(release_artifact_workflow_actions),
-        **operator_console_workflow_context["summary"],
-        **workbench_config_context["summary"],
-        **command_queue_workflow_context["summary"],
-        **service_probe_workflow_context["summary"],
-    })
+    summary.update(_build_status_summary_updates(
+        path_context=path_context,
+        bridge_profile_context=bridge_profile_context,
+        path_warning_context=path_warning_context,
+        operator_state_file_summary_doc=operator_state_file_summary_doc,
+        operator_state_summary=operator_state_summary,
+        staged_file_workflow_context=staged_file_workflow_context,
+        services=services,
+        service_manager=service_manager,
+        service_manager_status_doc=service_manager_status_doc,
+        ports=ports,
+        warning_summary_context=warning_summary_context,
+        uploads=uploads,
+        fetches=fetches,
+        target_attribution=target_attribution,
+        target_file_transfer_records=target_file_transfer_records,
+        file_service_workflow_context=file_service_workflow_context,
+        target_activity_feed_context=target_activity_feed_context,
+        target_summary=target_summary,
+        target_registry_summary=target_registry_summary,
+        target_filter_context=target_filter_context,
+        target_attribution_context=target_attribution_context,
+        sessions=sessions,
+        session_root_state=session_root_state,
+        session_root_state_records=session_root_state_records,
+        target_command_summary=target_command_summary,
+        target_command_state_record=target_command_state_record,
+        target_command_state_records=target_command_state_records,
+        rshell_session_policy_record_item=rshell_session_policy_record_item,
+        rshell_session_policy_records=rshell_session_policy_records,
+        workflow_context=workflow_context,
+        event_stats=event_stats,
+        event_log_state=event_log_state,
+        event_log_state_records=event_log_state_records,
+        events=events,
+        event_summary_stats=event_summary_stats,
+        operator_network_context=operator_network_context,
+        command_queue=command_queue,
+        command_queue_policy_records=command_queue_policy_records,
+        target_activity_context=target_activity_context,
+        release_context_doc=release_context_doc,
+        release_artifact_workflow_actions=release_artifact_workflow_actions,
+        operator_console_workflow_context=operator_console_workflow_context,
+        workbench_config_context=workbench_config_context,
+        command_queue_workflow_context=command_queue_workflow_context,
+        service_probe_workflow_context=service_probe_workflow_context,
+    ))
     api_collections = {
         **_build_service_bridge_api_collections(
             services=services,
