@@ -217,20 +217,14 @@ def _build_line_foundation_callbacks(cfg, line_input):
     )
 
 
-def run_line_repl(cfg):
-    repl_io, line_input = _setup_line_repl_runtime_io()
-
-    (
-        line_target_callbacks,
-        line_route_service_callbacks,
-        line_option_callbacks,
-        line_action_callbacks,
-        line_completion_callbacks,
-    ) = _build_line_foundation_callbacks(
-        cfg,
-        line_input,
-    )
-
+def _build_line_operational_callbacks(
+    cfg,
+    line_input,
+    line_target_callbacks,
+    line_route_service_callbacks,
+    line_option_callbacks,
+    line_action_callbacks,
+):
     line_job_callbacks = build_line_job_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
@@ -323,6 +317,48 @@ def run_line_repl(cfg):
         print_events_func=print_target_activity_records,
         print_release_func=line_release.print_line_release,
         append_event_fn=append_event,
+    )
+
+    return (
+        line_job_callbacks,
+        line_queue_callbacks,
+        line_probe_callbacks,
+        line_session_callbacks,
+        line_file_callbacks,
+        line_search_callbacks,
+        line_display_show_callbacks,
+    )
+
+
+def run_line_repl(cfg):
+    repl_io, line_input = _setup_line_repl_runtime_io()
+
+    (
+        line_target_callbacks,
+        line_route_service_callbacks,
+        line_option_callbacks,
+        line_action_callbacks,
+        line_completion_callbacks,
+    ) = _build_line_foundation_callbacks(
+        cfg,
+        line_input,
+    )
+
+    (
+        line_job_callbacks,
+        line_queue_callbacks,
+        line_probe_callbacks,
+        line_session_callbacks,
+        line_file_callbacks,
+        line_search_callbacks,
+        line_display_show_callbacks,
+    ) = _build_line_operational_callbacks(
+        cfg,
+        line_input,
+        line_target_callbacks,
+        line_route_service_callbacks,
+        line_option_callbacks,
+        line_action_callbacks,
     )
 
     line_workspace_callbacks = build_line_workspace_callbacks(
