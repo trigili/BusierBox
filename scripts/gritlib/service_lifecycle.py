@@ -29,114 +29,128 @@ from gritlib.staged_files import staged_file_path
 
 def stop_managed_services(cfg):
     headless = operator_stop_headless_command(cfg)
-    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
-    services = state.get("services") if isinstance(state, dict) else {}
-    if not isinstance(services, dict):
-        services = {}
+    services = _managed_services_from_state(cfg)
     stopped = 0
     skipped = 0
     failed = 0
     for name, rec in sorted(services.items()):
-        pid = rec.get("pid") if isinstance(rec, dict) else None
-        if isinstance(rec, dict) and rec.get("status") == "stopped":
-            print(f"{name}: already stopped")
-            skipped += 1
-            continue
-        if not pid:
-            mark_service_stopped(cfg, name, "server-stop:no-pid")
-            append_event(
-                cfg,
-                name,
-                "service_stop",
-                details={"reason": "no-pid", "via": "server-stop", "headless_command": headless},
-            )
-            print(f"{name}: no pid recorded; marked stopped")
-            skipped += 1
-            continue
-        if not pid_alive(pid):
-            mark_service_stopped(cfg, name, "server-stop:stale-pid")
-            append_event(
-                cfg,
-                name,
-                "service_stop",
-                details={"pid": pid, "reason": "stale-pid", "via": "server-stop", "headless_command": headless},
-            )
-            print(f"{name}: stale pid {pid}; marked stopped")
-            skipped += 1
-            continue
-        ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec)
-        if not ownership_evidence:
-            print(f"{name}: skipped pid {pid}; not clearly a managed grit-console process")
-            append_event(
-                cfg,
-                name,
-                "service_stop_skipped",
-                details={
-                    "pid": pid,
-                    "reason": "unmanaged-pid",
-                    "via": "server-stop",
-                    "headless_command": headless,
-                },
-            )
-            skipped += 1
-            continue
-        try:
-            append_event(
-                cfg,
-                name,
-                "shutdown",
-                details={
-                    "pid": pid,
-                    "reason": "SIGTERM",
-                    "via": "server-stop",
-                    "ownership_evidence": ownership_evidence,
-                    "headless_command": headless,
-                },
-            )
-            os.kill(int(pid), signal.SIGTERM)
-            if wait_service_port_released(cfg, name, pid=pid):
-                stopped += 1
-                mark_service_stopped(cfg, name, "server-stop:SIGTERM")
-                append_event(
-                    cfg,
-                    name,
-                    "service_stop",
-                    details={
-                        "pid": pid,
-                        "via": "server-stop",
-                        "ownership_evidence": ownership_evidence,
-                        "port_released": True,
-                        "headless_command": headless,
-                    },
-                )
-                print(f"{name}: stopped pid {pid}; port released")
-            else:
-                raise TimeoutError(f"listener port {service_port(cfg, name)} still appears bound after SIGTERM")
-        except OSError as exc:
-            mark_service_error(cfg, name, exc)
-            print(f"{name}: failed to stop pid {pid}: {exc}", file=sys.stderr)
+        outcome = _stop_managed_service_record(cfg, headless, name, rec)
+        if outcome == "stopped":
+            stopped += 1
+        elif outcome == "failed":
             failed += 1
-        except TimeoutError as exc:
-            mark_service_error(cfg, name, exc)
-            append_event(
-                cfg,
-                name,
-                "service_stop_failed",
-                "error",
-                details={
-                    "pid": pid,
-                    "reason": "port-still-bound",
-                    "via": "server-stop",
-                    "error": str(exc),
-                    "headless_command": headless,
-                },
-            )
-            print(f"{name}: failed to stop pid {pid}: {exc}", file=sys.stderr)
-            failed += 1
+        else:
+            skipped += 1
     if stopped == 0 and skipped == 0 and failed == 0:
         print("No managed services recorded.")
     print(f"Stop summary: stopped={stopped} skipped={skipped} failed={failed}")
     return 1 if failed else 0
+
+
+def _managed_services_from_state(cfg):
+    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+    services = state.get("services") if isinstance(state, dict) else {}
+    if not isinstance(services, dict):
+        services = {}
+    return services
+
+
+def _stop_managed_service_record(cfg, headless, name, rec):
+    pid = rec.get("pid") if isinstance(rec, dict) else None
+    if isinstance(rec, dict) and rec.get("status") == "stopped":
+        print(f"{name}: already stopped")
+        return "skipped"
+    if not pid:
+        mark_service_stopped(cfg, name, "server-stop:no-pid")
+        append_event(
+            cfg,
+            name,
+            "service_stop",
+            details={"reason": "no-pid", "via": "server-stop", "headless_command": headless},
+        )
+        print(f"{name}: no pid recorded; marked stopped")
+        return "skipped"
+    if not pid_alive(pid):
+        mark_service_stopped(cfg, name, "server-stop:stale-pid")
+        append_event(
+            cfg,
+            name,
+            "service_stop",
+            details={"pid": pid, "reason": "stale-pid", "via": "server-stop", "headless_command": headless},
+        )
+        print(f"{name}: stale pid {pid}; marked stopped")
+        return "skipped"
+    ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec)
+    if not ownership_evidence:
+        print(f"{name}: skipped pid {pid}; not clearly a managed grit-console process")
+        append_event(
+            cfg,
+            name,
+            "service_stop_skipped",
+            details={
+                "pid": pid,
+                "reason": "unmanaged-pid",
+                "via": "server-stop",
+                "headless_command": headless,
+            },
+        )
+        return "skipped"
+    return _terminate_managed_service(cfg, headless, name, pid, ownership_evidence)
+
+
+def _terminate_managed_service(cfg, headless, name, pid, ownership_evidence):
+    try:
+        append_event(
+            cfg,
+            name,
+            "shutdown",
+            details={
+                "pid": pid,
+                "reason": "SIGTERM",
+                "via": "server-stop",
+                "ownership_evidence": ownership_evidence,
+                "headless_command": headless,
+            },
+        )
+        os.kill(int(pid), signal.SIGTERM)
+        if wait_service_port_released(cfg, name, pid=pid):
+            mark_service_stopped(cfg, name, "server-stop:SIGTERM")
+            append_event(
+                cfg,
+                name,
+                "service_stop",
+                details={
+                    "pid": pid,
+                    "via": "server-stop",
+                    "ownership_evidence": ownership_evidence,
+                    "port_released": True,
+                    "headless_command": headless,
+                },
+            )
+            print(f"{name}: stopped pid {pid}; port released")
+            return "stopped"
+        raise TimeoutError(f"listener port {service_port(cfg, name)} still appears bound after SIGTERM")
+    except OSError as exc:
+        mark_service_error(cfg, name, exc)
+        print(f"{name}: failed to stop pid {pid}: {exc}", file=sys.stderr)
+        return "failed"
+    except TimeoutError as exc:
+        mark_service_error(cfg, name, exc)
+        append_event(
+            cfg,
+            name,
+            "service_stop_failed",
+            "error",
+            details={
+                "pid": pid,
+                "reason": "port-still-bound",
+                "via": "server-stop",
+                "error": str(exc),
+                "headless_command": headless,
+            },
+        )
+        print(f"{name}: failed to stop pid {pid}: {exc}", file=sys.stderr)
+        return "failed"
 
 
 def start_service_process(
