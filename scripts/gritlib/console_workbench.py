@@ -2,11 +2,8 @@
 
 from pathlib import Path
 import gritlib.bridge_routes as bridge_routes
+import gritlib.command_copy as command_copy_module
 import gritlib.command_queue as command_queue_module
-from gritlib.command_copy import (
-    command_copy_indexes, command_copy_path, command_copy_record,
-    command_copy_state_status,
-)
 from gritlib.config_utils import (
     DEFAULT_CONFIG, DEFAULT_OPERATOR_SESSION_DIR,
 )
@@ -375,8 +372,8 @@ def _build_operator_state_status_context(
     command_queue_status = command_queue_module.command_queue_state_status(cfg)
     command_queue_state = command_queue_status["state_record"]
     command_queue_state_records = command_queue_status["state_records"]
-    command_copy = command_copy_record(cfg)
-    command_copy_state = command_copy_state_status(command_copy)
+    command_copy = command_copy_module.command_copy_record(cfg)
+    command_copy_state = command_copy_module.command_copy_state_status(command_copy)
     workbench_jobs_status = workbench_jobs_state_status(cfg)
     workbench_jobs_state = workbench_jobs_status["state_record"]
     workbench_jobs_state_records = workbench_jobs_status["state_records"]
@@ -415,7 +412,9 @@ def _build_operator_state_status_context(
         "command_queue_state_index_maps": command_queue_status["state_index_maps"],
         "command_copy": command_copy,
         "command_copy_records": [command_copy],
-        "command_copy_record_indexes": command_copy_indexes([command_copy]),
+        "command_copy_record_indexes": command_copy_module.command_copy_indexes(
+            [command_copy]
+        ),
         "command_copy_state_record": command_copy_state["state_record"],
         "command_copy_state_records": command_copy_state["state_records"],
         "command_copy_state_index_maps": command_copy_state["state_index_maps"],
@@ -1622,7 +1621,7 @@ def status_document(cfg):
         "state_file": str(state_file_path(cfg)),
         "staged_files": str(staged_files.staged_file_path(cfg)),
         "command_queue_file": str(command_queue_module.command_queue_path(cfg)),
-        "command_copy_file": str(command_copy_path(cfg)),
+        "command_copy_file": str(command_copy_module.command_copy_path(cfg)),
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
         "targets_file": str(target_records.targets_path(cfg)),
         "build_config": str(build_config_path(cfg)),
@@ -3052,7 +3051,7 @@ def status_document(cfg):
         "state_file": str(state_file_path(cfg)),
         "staged_files": str(staged_files.staged_file_path(cfg)),
         "command_queue_file": str(command_queue_module.command_queue_path(cfg)),
-        "command_copy_file": str(command_copy_path(cfg)),
+        "command_copy_file": str(command_copy_module.command_copy_path(cfg)),
         "bridge_profiles_file": str(bridge_routes.bridge_profiles_path(cfg)),
         "command_copy": command_copy,
         "command_copy_records": command_copy_records,
