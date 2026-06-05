@@ -8980,7 +8980,7 @@ def main(argv=None):
                  "Jobs", "cancel_line_job", "start_line_job",
                  "line_action_records", "start_workbench_job_record", "run_workbench_action_record",
                  "Operator Daemon", "run_line_daemon_action", "operator_daemon_workflow_actions"):
-        if word not in workbench_pager_src + console_workbench_src + workflow_runners_src:
+        if word not in workbench_pager_src + console_workbench_src + workflow_runners_src + event_log_src:
             print(f"grit-console: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
     for word in (
