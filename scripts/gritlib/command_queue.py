@@ -832,19 +832,7 @@ def _command_queue_policy_counts(commands):
     }
 
 
-def command_queue_summary(cfg):
-    commands, target_filter_id, unfiltered_command_count = _command_queue_visible_commands(cfg)
-    queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
-    delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
-    command_indexes = _command_queue_record_indexes(commands)
-    policy_context = _command_queue_policy_context(cfg)
-    policy_indexes = _command_queue_policy_indexes(commands)
-    policy_counts = _command_queue_policy_counts(commands)
-    result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
-    result_exceeded_count = len([
-        rec for rec in commands
-        if isinstance(rec, dict) and rec.get("result_output_exceeded_limit") is True
-    ])
+def _command_queue_config_summary(cfg, policy_context):
     return {
         "path": str(command_queue_path(cfg)),
         "enabled": policy_context["enabled"],
@@ -873,6 +861,11 @@ def command_queue_summary(cfg):
         "mode_records": policy_context["mode_records"],
         **policy_context["mode_indexes"],
         "mode_summary": policy_context["mode_summary"],
+    }
+
+
+def _command_queue_index_summary(commands, command_indexes, policy_indexes):
+    return {
         "commands": commands,
         "commands_by_id": command_indexes["commands_by_id"],
         "commands_by_status": command_indexes["commands_by_status"],
@@ -893,6 +886,11 @@ def command_queue_summary(cfg):
         "commands_by_result_output_exceeded": command_indexes["commands_by_result_output_exceeded"],
         "commands_by_result_output_size_bucket": command_indexes["commands_by_result_output_size_bucket"],
         **policy_indexes,
+    }
+
+
+def _command_queue_count_summary(commands, command_indexes, policy_counts):
+    return {
         "status_counts": command_indexes["status_counts"],
         "timeout_sec_counts": record_count_by_key(commands, "timeout_sec"),
         "max_output_bytes_counts": record_count_by_key(commands, "max_output_bytes"),
@@ -906,14 +904,47 @@ def command_queue_summary(cfg):
         **policy_counts,
         "latest_created_at": command_indexes["latest_created_at"],
         "latest_result_received_at": command_indexes["latest_result_received_at"],
-        "queued_count": len(queued),
-        "delivered_count": len(delivered),
-        "result_count": result_count,
-        "result_output_exceeded_count": result_exceeded_count,
+    }
+
+
+def _command_queue_result_counts(commands):
+    return {
+        "result_count": len([
+            rec for rec in commands
+            if isinstance(rec, dict) and rec.get("status") == "result-received"
+        ]),
+        "result_output_exceeded_count": len([
+            rec for rec in commands
+            if isinstance(rec, dict) and rec.get("result_output_exceeded_limit") is True
+        ]),
+    }
+
+
+def _command_queue_delivery_counts(commands):
+    return {
+        "queued_count": len([
+            rec for rec in commands
+            if isinstance(rec, dict) and rec.get("status") == "queued"
+        ]),
+        "delivered_count": len([
+            rec for rec in commands
+            if isinstance(rec, dict) and rec.get("status") == "delivered"
+        ]),
+        **_command_queue_result_counts(commands),
         "total_count": len(commands),
+    }
+
+
+def _command_queue_filter_summary(target_filter_id, unfiltered_command_count):
+    return {
         "target_filter_active": bool(target_filter_id),
         "target_filter_id": target_filter_id,
         "unfiltered_total_count": unfiltered_command_count,
+    }
+
+
+def _command_queue_capability_summary(policy_context):
+    return {
         "execution_supported": policy_context["execution_supported"],
         "delivery_supported": False,
         "result_upload_supported": True,
@@ -928,6 +959,22 @@ def command_queue_summary(cfg):
         "arbitrary_execution_allowed": policy_context["arbitrary_execution_allowed"],
         "safety_boundary": "explicit operator queue records only; execution requires explicit target poll and execute policy",
     }
+
+
+def command_queue_summary(cfg):
+    commands, target_filter_id, unfiltered_command_count = _command_queue_visible_commands(cfg)
+    command_indexes = _command_queue_record_indexes(commands)
+    policy_context = _command_queue_policy_context(cfg)
+    policy_indexes = _command_queue_policy_indexes(commands)
+    policy_counts = _command_queue_policy_counts(commands)
+    summary = {}
+    summary.update(_command_queue_config_summary(cfg, policy_context))
+    summary.update(_command_queue_index_summary(commands, command_indexes, policy_indexes))
+    summary.update(_command_queue_count_summary(commands, command_indexes, policy_counts))
+    summary.update(_command_queue_delivery_counts(commands))
+    summary.update(_command_queue_filter_summary(target_filter_id, unfiltered_command_count))
+    summary.update(_command_queue_capability_summary(policy_context))
+    return summary
 
 
 def command_queue_expired(rec, now_epoch=None):
