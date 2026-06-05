@@ -2483,6 +2483,21 @@ def _build_command_queue_api_collections(
     command_queue_policy_records,
 ):
     return {
+        **_build_command_queue_command_api_collections(
+            command_queue=command_queue,
+        ),
+        **_build_command_queue_workflow_api_collections(
+            command_queue_workflow_actions=command_queue_workflow_actions,
+        ),
+        **_build_command_queue_policy_api_collections(
+            command_queue=command_queue,
+            command_queue_policy_records=command_queue_policy_records,
+        ),
+    }
+
+
+def _build_command_queue_command_api_collections(*, command_queue):
+    return {
         "command_queue_commands": status_indexes.api_collection_record(
             "command_queue_commands", command_queue.get("commands") or [], "id", (
                 "commands_by_id", "commands_by_status", "commands_by_command_sha256",
@@ -2504,6 +2519,11 @@ def _build_command_queue_api_collections(
                 "commands_by_delivery_policy_active_control_channel",
             ), "command_queue_total_count",
         ),
+    }
+
+
+def _build_command_queue_workflow_api_collections(*, command_queue_workflow_actions):
+    return {
         "command_queue_workflow_actions": status_indexes.api_collection_record(
             "command_queue_workflow_actions", command_queue_workflow_actions, "id", (
                 "command_queue_workflow_actions_by_id",
@@ -2543,6 +2563,11 @@ def _build_command_queue_api_collections(
                 "command_queue_workflow_actions_by_curses_enter_action",
             ), "command_queue_workflow_action_count",
         ),
+    }
+
+
+def _build_command_queue_policy_api_collections(*, command_queue, command_queue_policy_records):
+    return {
         "command_queue_policy_records": status_indexes.api_collection_record(
             "command_queue_policy_records", command_queue_policy_records, "id", (
                 "command_queue_policy_records_by_id",
