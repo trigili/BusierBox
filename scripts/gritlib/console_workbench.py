@@ -678,6 +678,24 @@ def _build_staged_file_status_context(cfg, target_filter_id):
     }
 
 
+def _build_staged_file_workflow_status_context(cfg, staged_records, targets):
+    staged_file_workflow_actions = staged_file_workflow_action_records(
+        cfg,
+        staged_records,
+        targets,
+    )
+    return {
+        "staged_file_workflow_actions": staged_file_workflow_actions,
+        "staged_file_workflow_action_index_maps": (
+            staged_file_workflow_action_indexes(staged_file_workflow_actions)
+        ),
+        "summary": staged_status_summary(
+            staged_records,
+            staged_file_workflow_actions,
+        ),
+    }
+
+
 def _build_command_queue_status_context(cfg):
     command_queue = command_queue_summary(cfg)
     command_queue_policy = command_queue_policy_status(command_queue)
@@ -1298,8 +1316,17 @@ def status_document(cfg):
     bridge_profile_index_maps = bridge_profile_context["bridge_profile_index_maps"]
     bridge_hop_records = bridge_profile_context["bridge_hop_records"]
     bridge_hop_index_maps = bridge_profile_context["bridge_hop_index_maps"]
-    staged_file_workflow_actions = staged_file_workflow_action_records(cfg, staged_records, targets)
-    staged_file_workflow_action_index_maps = staged_file_workflow_action_indexes(staged_file_workflow_actions)
+    staged_file_workflow_context = _build_staged_file_workflow_status_context(
+        cfg,
+        staged_records,
+        targets,
+    )
+    staged_file_workflow_actions = staged_file_workflow_context[
+        "staged_file_workflow_actions"
+    ]
+    staged_file_workflow_action_index_maps = staged_file_workflow_context[
+        "staged_file_workflow_action_index_maps"
+    ]
     bridge_profile_workflow_actions = bridge_profile_context[
         "bridge_profile_workflow_actions"
     ]
@@ -1672,7 +1699,7 @@ def status_document(cfg):
         **path_warning_context["summary"],
         **operator_state_file_summary_doc,
         **operator_state_summary,
-        **staged_status_summary(staged_records, staged_file_workflow_actions),
+        **staged_file_workflow_context["summary"],
         **service_status_summary(services, service_manager, service_manager_status_doc),
         **port_status_summary(ports),
         **warning_status_summary(
