@@ -40,12 +40,16 @@ Reference:
 """)
 
 
-def print_console_help_reference():
-    print("""\
+def _console_help_header_text():
+    return """\
 usage: grit-console
 
 griTTYkit operator console reference.
+"""
 
+
+def _console_help_discovery_text():
+    return """\
 Discovery:
   workspace                     show fleet/listener/session overview
   search TERM                   search agents, listeners, modules, sessions, jobs, files, queue
@@ -59,7 +63,11 @@ Discovery:
   show modules -v [FILTER]      include generated run commands
   show stagers|loot|sessions    inspect files and sessions
   help COMMAND                  focused help inside the console
+"""
 
+
+def _console_help_context_text():
+    return """\
 Context:
   use N                         select a numbered search/list/module result
   use agent ID|LABEL|NUMBER     select a target device
@@ -77,7 +85,11 @@ Context:
   main, home, root              clear selected target/module context
   back, background              clear selected module context
   clear target                  return to all targets
+"""
 
+
+def _console_help_operations_text():
+    return """\
 Operations:
   serve-binary [--start] [PATH] [NAME]
                                 stage and optionally serve a griTTYkit binary
@@ -132,7 +144,11 @@ Operations:
   interact agent ID|LABEL       select and inspect an agent work context
   daemon [-v]                   list daemon/systemd workflows; -v shows commands
   daemon ACTION [--dry-run]     preview or run daemon/systemd workflow
+"""
 
+
+def _console_help_automation_text():
+    return """\
 Automation:
   resource FILE                 run console commands from a file
   makerc FILE                   save command history as a resource script
@@ -142,6 +158,26 @@ Automation:
                                 show or update binary build config
   set KEY VALUE                 set selected target/build option
   setg KEY VALUE                set global build/workbench option
+"""
 
+
+def _console_help_footer_text():
+    return """\
 Headless equivalents remain available through --help-all.
-""")
+"""
+
+
+def print_console_help_reference():
+    print("".join((
+        _console_help_header_text(),
+        "\n",
+        _console_help_discovery_text(),
+        "\n",
+        _console_help_context_text(),
+        "\n",
+        _console_help_operations_text(),
+        "\n",
+        _console_help_automation_text(),
+        "\n",
+        _console_help_footer_text(),
+    )))
