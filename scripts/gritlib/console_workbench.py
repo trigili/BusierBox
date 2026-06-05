@@ -1060,6 +1060,18 @@ def _build_session_status_context(cfg, *, target_filter_id):
     }
 
 
+def _build_event_source_status_context(cfg):
+    all_event_records, all_event_invalid = EventLog(cfg).records()
+    all_target_phone_home_records = target_phone_home_records_from_events(
+        all_event_records
+    )
+    return {
+        "all_event_records": all_event_records,
+        "all_event_invalid": all_event_invalid,
+        "all_target_phone_home_records": all_target_phone_home_records,
+    }
+
+
 def _build_target_registry_context(
     cfg,
     *,
@@ -1305,6 +1317,27 @@ def _build_warning_status_context(
     }
 
 
+def _build_warning_summary_status_context(
+    warnings,
+    *,
+    services_by_has_warnings,
+    services_by_warning_type,
+    ports_by_has_warnings,
+    ports_by_warning_type,
+):
+    warning_summary = warning_stats(warnings)
+    return {
+        "warning_summary": warning_summary,
+        "summary": warning_status_summary(
+            warning_summary,
+            services_by_has_warnings,
+            services_by_warning_type,
+            ports_by_has_warnings,
+            ports_by_warning_type,
+        ),
+    }
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = configured_target_filter(cfg)
@@ -1356,8 +1389,11 @@ def status_document(cfg):
     ]
     ports = service_context["ports"]
     port_index_maps = service_context["port_index_maps"]
-    all_event_records, _all_event_invalid = EventLog(cfg).records()
-    all_target_phone_home_records = target_phone_home_records_from_events(all_event_records)
+    event_source_context = _build_event_source_status_context(cfg)
+    all_event_records = event_source_context["all_event_records"]
+    all_target_phone_home_records = event_source_context[
+        "all_target_phone_home_records"
+    ]
     target_context = _build_target_registry_context(
         cfg,
         target_filter_id=target_filter_id,
@@ -1758,7 +1794,14 @@ def status_document(cfg):
     operator_console_workflow_stats = operator_console_workflow_context[
         "operator_console_workflow_stats"
     ]
-    warning_summary = warning_stats(warnings)
+    warning_summary_context = _build_warning_summary_status_context(
+        warnings,
+        services_by_has_warnings=services_by_has_warnings,
+        services_by_warning_type=services_by_warning_type,
+        ports_by_has_warnings=ports_by_has_warnings,
+        ports_by_warning_type=ports_by_warning_type,
+    )
+    warning_summary = warning_summary_context["warning_summary"]
     summary.update({
         **path_context["path_summary"],
         **bridge_profile_context["summary"],
@@ -1769,13 +1812,7 @@ def status_document(cfg):
         **staged_file_workflow_context["summary"],
         **service_status_summary(services, service_manager, service_manager_status_doc),
         **port_status_summary(ports),
-        **warning_status_summary(
-            warning_summary,
-            services_by_has_warnings,
-            services_by_warning_type,
-            ports_by_has_warnings,
-            ports_by_warning_type,
-        ),
+        **warning_summary_context["summary"],
         **upload_record_summary(uploads, target_attribution),
         **fetch_record_summary(fetches, target_attribution),
         **target_file_transfer_record_summary(target_file_transfer_records),
