@@ -51,13 +51,7 @@ from gritlib.staged_files import (
     staged_status_summary,
 )
 import gritlib.status_indexes as status_indexes
-from gritlib.target_activity import (
-    apply_target_phone_home_summary,
-    target_activity_feed_status_context, target_activity_status_context,
-    target_activity_record_summary,
-    target_mailbox_record_summary,
-    target_phone_home_record_summary, target_phone_home_records_from_events,
-)
+import gritlib.target_activity as target_activity
 from gritlib.target_commands import (
     rshell_session_policy_status,
     target_command_status_context,
@@ -733,7 +727,7 @@ def _build_target_activity_status_context(
     target_filter_id,
     target_filter_session_ids,
 ):
-    target_activity_context = target_activity_status_context(
+    target_activity_context = target_activity.target_activity_status_context(
         command_queue,
         targets_by_id,
         all_event_records,
@@ -753,10 +747,10 @@ def _build_target_activity_status_context(
             "target_phone_home_index_maps"
         ],
         "summary": {
-            **target_mailbox_record_summary(
+            **target_activity.target_mailbox_record_summary(
                 target_activity_context["target_mailbox_records"]
             ),
-            **target_phone_home_record_summary(
+            **target_activity.target_phone_home_record_summary(
                 target_activity_context["target_phone_home_records"]
             ),
         },
@@ -771,20 +765,24 @@ def _build_target_activity_feed_status_context(
     bridge_profiles,
     sessions,
 ):
-    target_activity_feed_context = target_activity_feed_status_context(
-        targets,
-        target_mailbox_records,
-        target_phone_home_records,
-        target_file_transfer_records,
-        bridge_profiles,
-        sessions,
+    target_activity_feed_context = (
+        target_activity.target_activity_feed_status_context(
+            targets,
+            target_mailbox_records,
+            target_phone_home_records,
+            target_file_transfer_records,
+            bridge_profiles,
+            sessions,
+        )
     )
     target_activity_records = target_activity_feed_context["records"]
     return {
         "target_activity_feed_context": target_activity_feed_context,
         "target_activity_records": target_activity_records,
         "target_activity_index_maps": target_activity_feed_context["index_maps"],
-        "summary": target_activity_record_summary(target_activity_records),
+        "summary": target_activity.target_activity_record_summary(
+            target_activity_records
+        ),
     }
 
 
@@ -1056,8 +1054,8 @@ def _build_session_status_context(cfg, *, target_filter_id):
 
 def _build_event_source_status_context(cfg):
     all_event_records, all_event_invalid = EventLog(cfg).records()
-    all_target_phone_home_records = target_phone_home_records_from_events(
-        all_event_records
+    all_target_phone_home_records = (
+        target_activity.target_phone_home_records_from_events(all_event_records)
     )
     return {
         "all_event_records": all_event_records,
@@ -1076,7 +1074,7 @@ def _build_target_registry_context(
     uploads = file_transfers.recent_upload_metadata(cfg)
     fetches = file_transfers.recent_fetch_metadata(cfg)
     targets = target_records.target_records(cfg)
-    targets = apply_target_phone_home_summary(
+    targets = target_activity.apply_target_phone_home_summary(
         targets,
         all_target_phone_home_records,
     )
