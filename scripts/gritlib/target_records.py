@@ -973,6 +973,63 @@ def target_records(cfg):
     return records
 
 
+def _target_record_report_indexes(records):
+    by_capability_report_kind = {}
+    by_compatibility_report_kind = {}
+    by_compatibility_label = {}
+    by_compatibility_baseline_label = {}
+    by_compatibility_release = {}
+    by_compatibility_payload_preset = {}
+    by_observed_capability = {}
+    by_missing_capability = {}
+    by_observed_constraint = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        report_kind = str(rec.get("latest_capability_report_kind") or "")
+        if report_kind:
+            by_capability_report_kind.setdefault(report_kind, []).append(rec)
+        compatibility_kind = str(rec.get("latest_compatibility_report_kind") or "")
+        if compatibility_kind:
+            by_compatibility_report_kind.setdefault(compatibility_kind, []).append(rec)
+        compatibility_label = str(rec.get("latest_compatibility_label") or "")
+        if compatibility_label:
+            by_compatibility_label.setdefault(compatibility_label, []).append(rec)
+        compatibility_baseline = str(rec.get("latest_compatibility_baseline_label") or "")
+        if compatibility_baseline:
+            by_compatibility_baseline_label.setdefault(compatibility_baseline, []).append(rec)
+        compatibility_release = str(rec.get("latest_compatibility_release_name") or "")
+        if compatibility_release:
+            by_compatibility_release.setdefault(compatibility_release, []).append(rec)
+        compatibility_payload = str(rec.get("latest_compatibility_payload_preset") or "")
+        if compatibility_payload:
+            by_compatibility_payload_preset.setdefault(compatibility_payload, []).append(rec)
+        for capability in rec.get("observed_capabilities") or []:
+            capability = str(capability or "")
+            if capability:
+                by_observed_capability.setdefault(capability, []).append(rec)
+        for capability in rec.get("observed_missing_capabilities") or []:
+            capability = str(capability or "")
+            if capability:
+                by_missing_capability.setdefault(capability, []).append(rec)
+        constraints = rec.get("observed_constraints") if isinstance(rec.get("observed_constraints"), dict) else {}
+        for name, value in sorted(constraints.items()):
+            name = str(name or "")
+            if name:
+                by_observed_constraint.setdefault(f"{name}:{str(bool(value)).lower()}", []).append(rec)
+    return (
+        by_capability_report_kind,
+        by_compatibility_report_kind,
+        by_compatibility_label,
+        by_compatibility_baseline_label,
+        by_compatibility_release,
+        by_compatibility_payload_preset,
+        by_observed_capability,
+        by_missing_capability,
+        by_observed_constraint,
+    )
+
+
 def target_record_indexes(records):
     by_id = {}
     by_label = {}
@@ -1005,15 +1062,6 @@ def target_record_indexes(records):
     by_latest_bridge_status = {}
     by_has_latest_bridge_activity = {}
     by_has_notes = {}
-    by_capability_report_kind = {}
-    by_compatibility_report_kind = {}
-    by_compatibility_label = {}
-    by_compatibility_baseline_label = {}
-    by_compatibility_release = {}
-    by_compatibility_payload_preset = {}
-    by_observed_capability = {}
-    by_missing_capability = {}
-    by_observed_constraint = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
@@ -1102,37 +1150,17 @@ def target_record_indexes(records):
             service = str(service or "")
             if service:
                 by_service.setdefault(service, []).append(rec)
-        report_kind = str(rec.get("latest_capability_report_kind") or "")
-        if report_kind:
-            by_capability_report_kind.setdefault(report_kind, []).append(rec)
-        compatibility_kind = str(rec.get("latest_compatibility_report_kind") or "")
-        if compatibility_kind:
-            by_compatibility_report_kind.setdefault(compatibility_kind, []).append(rec)
-        compatibility_label = str(rec.get("latest_compatibility_label") or "")
-        if compatibility_label:
-            by_compatibility_label.setdefault(compatibility_label, []).append(rec)
-        compatibility_baseline = str(rec.get("latest_compatibility_baseline_label") or "")
-        if compatibility_baseline:
-            by_compatibility_baseline_label.setdefault(compatibility_baseline, []).append(rec)
-        compatibility_release = str(rec.get("latest_compatibility_release_name") or "")
-        if compatibility_release:
-            by_compatibility_release.setdefault(compatibility_release, []).append(rec)
-        compatibility_payload = str(rec.get("latest_compatibility_payload_preset") or "")
-        if compatibility_payload:
-            by_compatibility_payload_preset.setdefault(compatibility_payload, []).append(rec)
-        for capability in rec.get("observed_capabilities") or []:
-            capability = str(capability or "")
-            if capability:
-                by_observed_capability.setdefault(capability, []).append(rec)
-        for capability in rec.get("observed_missing_capabilities") or []:
-            capability = str(capability or "")
-            if capability:
-                by_missing_capability.setdefault(capability, []).append(rec)
-        constraints = rec.get("observed_constraints") if isinstance(rec.get("observed_constraints"), dict) else {}
-        for name, value in sorted(constraints.items()):
-            name = str(name or "")
-            if name:
-                by_observed_constraint.setdefault(f"{name}:{str(bool(value)).lower()}", []).append(rec)
+    (
+        by_capability_report_kind,
+        by_compatibility_report_kind,
+        by_compatibility_label,
+        by_compatibility_baseline_label,
+        by_compatibility_release,
+        by_compatibility_payload_preset,
+        by_observed_capability,
+        by_missing_capability,
+        by_observed_constraint,
+    ) = _target_record_report_indexes(records)
     return (
         by_id, by_label, by_alias, by_remote_addr, by_service,
         by_identity_confidence, by_identity_source,
