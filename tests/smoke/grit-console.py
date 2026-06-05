@@ -3651,6 +3651,56 @@ def run_line_session_command_registry_check():
     return 0
 
 
+def run_line_action_command_registry_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.line_actions import (
+        line_action_command_records,
+        parse_line_action_command,
+    )
+
+    records = {rec.get("action"): [] for rec in line_action_command_records()}
+    for rec in line_action_command_records():
+        records.setdefault(rec.get("action"), []).append(rec)
+    run_records = records.get("run") or []
+    if not any(tuple(rec.get("commands") or ()) == ("run", "execute", "exploit") for rec in run_records):
+        print(f"action command registry lost run aliases: {records}", file=sys.stderr)
+        return 1
+    if not any(tuple(rec.get("commands") or ()) == ("check",) and rec.get("dry_run") is True for rec in run_records):
+        print(f"action command registry lost check dry-run command: {records}", file=sys.stderr)
+        return 1
+    cancel_records = records.get("cancel-job") or []
+    if not any(tuple(rec.get("commands") or ()) == ("kill", "cancel") for rec in cancel_records):
+        print(f"action command registry lost cancel aliases: {records}", file=sys.stderr)
+        return 1
+
+    run = parse_line_action_command("run", ["bridge:inspect"])
+    if run.get("action") != "run" or run.get("args") != ["bridge:inspect"] or run.get("dry_run") is not False:
+        print(f"action parser did not preserve run behavior: {run}", file=sys.stderr)
+        return 1
+    execute = parse_line_action_command("execute", ["bridge:inspect"])
+    if execute.get("action") != "run" or execute.get("alias") != "execute" or execute.get("canonical") != "run":
+        print(f"action parser did not preserve execute alias: {execute}", file=sys.stderr)
+        return 1
+    start_job = parse_line_action_command("exploit", ["--job", "bridge:inspect"])
+    if start_job.get("action") != "start-job" or start_job.get("selector") != "bridge:inspect" or start_job.get("alias") != "exploit":
+        print(f"action parser did not preserve exploit job alias: {start_job}", file=sys.stderr)
+        return 1
+    check = parse_line_action_command("check", ["-j", "bridge:inspect"])
+    if check.get("action") != "run" or check.get("dry_run") is not True or check.get("args") != ["-j", "bridge:inspect"]:
+        print(f"action parser did not preserve check dry-run behavior: {check}", file=sys.stderr)
+        return 1
+    cancel = parse_line_action_command("kill", ["job-1"])
+    if cancel.get("action") != "cancel-job" or cancel.get("selector") != "job-1":
+        print(f"action parser did not preserve kill alias: {cancel}", file=sys.stderr)
+        return 1
+    if parse_line_action_command("unknown", []):
+        print("action parser consumed unknown command", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_service_runtime_state_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -9445,6 +9495,8 @@ def main(argv=None):
     if run_line_target_service_command_registry_check() != 0:
         return 1
     if run_line_session_command_registry_check() != 0:
+        return 1
+    if run_line_action_command_registry_check() != 0:
         return 1
     if run_service_runtime_state_check() != 0:
         return 1

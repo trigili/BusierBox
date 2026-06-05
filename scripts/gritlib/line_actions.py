@@ -141,29 +141,73 @@ def split_line_run_args(values):
     return " ".join(selector_parts).strip(), flags
 
 
+LINE_ACTION_COMMANDS = (
+    {
+        "action": "run",
+        "commands": ("run", "execute", "exploit"),
+        "canonical": "run",
+    },
+    {
+        "action": "run",
+        "commands": ("check",),
+        "canonical": "check",
+        "dry_run": True,
+    },
+    {
+        "action": "cancel-job",
+        "commands": ("kill", "cancel"),
+        "canonical": "cancel",
+    },
+)
+
+
+def line_action_command_records():
+    return [
+        {
+            "family": "action",
+            "action": rec["action"],
+            "commands": list(rec["commands"]),
+            "primary": rec["commands"][0],
+            "aliases": list(rec["commands"][1:]),
+            "canonical": rec["canonical"],
+            "dry_run": bool(rec.get("dry_run")),
+        }
+        for rec in LINE_ACTION_COMMANDS
+    ]
+
+
 def parse_line_action_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
-    if cmd in {"run", "execute", "exploit"}:
-        if any(item in {"-j", "--job"} for item in args):
-            selector = " ".join(item for item in args if item not in {"-j", "--job"}).strip()
+    for rec in line_action_command_records():
+        if cmd not in rec["commands"]:
+            continue
+        canonical = rec["canonical"]
+        alias = cmd if cmd != canonical else ""
+        if rec["action"] == "run":
+            if not rec.get("dry_run") and any(item in {"-j", "--job"} for item in args):
+                selector = " ".join(item for item in args if item not in {"-j", "--job"}).strip()
+                return {
+                    "action": "start-job",
+                    "selector": selector,
+                    "alias": alias,
+                    "canonical": canonical,
+                    "command": cmd,
+                }
             return {
-                "action": "start-job",
-                "selector": selector,
-                "alias": cmd if cmd != "run" else "",
-                "canonical": "run",
+                "action": "run",
+                "args": args,
+                "dry_run": bool(rec.get("dry_run")),
+                "alias": alias,
+                "canonical": canonical,
+                "command": cmd,
             }
-        return {
-            "action": "run",
-            "args": args,
-            "dry_run": False,
-            "alias": cmd if cmd != "run" else "",
-            "canonical": "run",
-        }
-    if cmd == "check":
-        return {"action": "run", "args": args, "dry_run": True}
-    if cmd in {"kill", "cancel"}:
-        return {"action": "cancel-job", "selector": " ".join(args).strip()}
+        if rec["action"] == "cancel-job":
+            return {
+                "action": "cancel-job",
+                "selector": " ".join(args).strip(),
+                "command": cmd,
+            }
     return {}
 
 
