@@ -28,13 +28,9 @@ from gritlib.line_context import (
     clear_line_console_context, clear_line_module_context,
     set_line_collection_context,
 )
-from gritlib.line_daemon import (
-    print_line_daemon_actions as line_daemon_print_actions,
-)
+import gritlib.line_daemon as line_daemon
 from gritlib.line_events import print_line_events_view
-from gritlib.line_files import (
-    clear_line_files as line_files_clear_line_files,
-)
+import gritlib.line_files as line_files
 from gritlib.line_help import (
     line_unknown_command_message,
     print_context_line_help,
@@ -72,9 +68,7 @@ from gritlib.line_repl_targets import build_line_target_callbacks
 from gritlib.line_repl_utility import build_line_utility_callbacks
 from gritlib.line_repl_workflow import build_line_workflow_callbacks
 from gritlib.line_repl_workspace import build_line_workspace_callbacks
-from gritlib.line_release import (
-    print_line_release as line_release_print_line_release,
-)
+import gritlib.line_release as line_release
 from gritlib.line_search import (
     clear_line_search_results,
 )
@@ -85,11 +79,7 @@ from gritlib.line_services import (
 from gritlib.line_target_commands import (
     copy_line_generated_command, copy_line_service_command, run_line_generated_command,
 )
-from gritlib.line_workspace import (
-    line_repl_prompt_for_config,
-    print_line_console_banner,
-    print_line_workspace_snapshot, reload_line_config_for_repl as line_workspace_reload_line_config_for_repl,
-)
+import gritlib.line_workspace as line_workspace
 from gritlib.operator_network import choose_operator_host_for_target
 import gritlib.probe_commands as probe_commands
 import gritlib.probe_results as probe_results
@@ -307,10 +297,10 @@ def run_line_repl(cfg):
         job_callbacks=line_job_callbacks,
         session_callbacks=line_session_callbacks,
         queue_callbacks=line_queue_callbacks,
-        print_daemon_func=line_daemon_print_actions,
+        print_daemon_func=line_daemon.print_line_daemon_actions,
         print_categories_func=print_current_line_module_categories,
         print_events_func=print_target_activity_records,
-        print_release_func=line_release_print_line_release,
+        print_release_func=line_release.print_line_release,
         append_event_fn=append_event,
     )
 
@@ -321,8 +311,8 @@ def run_line_repl(cfg):
         defaults=DEFAULTS,
         workbench_snapshot_func=workbench_snapshot,
         clear_module_context_func=clear_line_module_context,
-        print_workspace_snapshot_func=print_line_workspace_snapshot,
-        reload_config_func=line_workspace_reload_line_config_for_repl,
+        print_workspace_snapshot_func=line_workspace.print_line_workspace_snapshot,
+        reload_config_func=line_workspace.reload_line_config_for_repl,
         clear_console_context_func=clear_line_console_context,
         local_ips_func=print_line_local_ips,
     )
@@ -386,10 +376,10 @@ def run_line_repl(cfg):
         workbench_snapshot_func=workbench_snapshot,
         set_context_func=set_line_collection_context,
         daemon_runner_func=run_operator_daemon_workflow_action,
-        release_print_func=line_release_print_line_release,
+        release_print_func=line_release.print_line_release,
         release_help_func=print_line_command_help,
         target_callbacks=line_target_callbacks,
-        clear_files_func=line_files_clear_line_files,
+        clear_files_func=line_files.clear_line_files,
         file_callbacks=line_file_callbacks,
         queue_callbacks=line_queue_callbacks,
         job_callbacks=line_job_callbacks,
@@ -427,9 +417,9 @@ def run_line_repl(cfg):
             legacy_callbacks=line_legacy_callbacks,
             workbench_snapshot_func=workbench_snapshot,
             print_workbench_func=print_workbench,
-            print_banner_func=print_line_console_banner,
+            print_banner_func=line_workspace.print_line_console_banner,
             version_func=grit_version,
-            prompt_func=line_repl_prompt_for_config,
+            prompt_func=line_workspace.line_repl_prompt_for_config,
             input_func=line_input,
             history_command_func=line_resources.line_history_command,
             record_history_func=line_resources.record_line_history,
