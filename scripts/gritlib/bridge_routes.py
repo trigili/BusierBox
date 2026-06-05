@@ -199,16 +199,35 @@ def dispatch_legacy_bridge_profile_number(
 ):
     if str(choice or "").strip() != "17":
         return False
+    return _dispatch_legacy_bridge_profile_menu(
+        cfg,
+        input_func=input_func,
+        snapshot_func=snapshot_func,
+        save_profile_func=save_profile_func,
+        print_profile_func=print_profile_func,
+        start_service_func=start_service_func,
+        stop_service_func=stop_service_func,
+        delete_profile_func=delete_profile_func,
+        append_event_fn=append_event_fn,
+    )
+
+
+def _dispatch_legacy_bridge_profile_menu(
+    cfg,
+    *,
+    input_func=None,
+    snapshot_func=None,
+    save_profile_func=None,
+    print_profile_func=None,
+    start_service_func=None,
+    stop_service_func=None,
+    delete_profile_func=None,
+    append_event_fn=None,
+):
     snap = snapshot_func(cfg) if snapshot_func else {}
     records = snap.get("bridge_profiles") or []
     bridge_actions_by_profile = snap.get("bridge_profile_workflow_actions_by_bridge_profile") or {}
-    for idx, rec in enumerate(records, 1):
-        print(
-            f"{idx}: {rec.get('name', '')} "
-            f"state={rec.get('current_state', '')} "
-            f"target={rec.get('target_id', '') or '-'} "
-            f"path={rec.get('route_path', '')}"
-        )
+    _print_legacy_bridge_profile_choices(records)
     print("new: create or update a bridge profile")
     selected_line = input_func("bridge profile number/name, or new> ") if input_func else None
     selected = selected_line.strip() if selected_line is not None else ""
@@ -219,76 +238,165 @@ def dispatch_legacy_bridge_profile_number(
             save_profile_func()
         return True
     try:
-        if selected.isdigit():
-            idx = int(selected) - 1
-            if idx < 0 or idx >= len(records):
-                raise ValueError(f"bridge profile number out of range: {selected}")
-            rec = records[idx]
-        else:
-            matches = [item for item in records if str(item.get("name") or "") == selected]
-            if not matches:
-                raise ValueError(f"bridge profile not found: {selected}")
-            rec = matches[0]
+        rec = _select_legacy_bridge_profile(records, selected)
         name = str(rec.get("name") or "")
         profile_actions = bridge_actions_by_profile.get(name) or []
         profile_actions_by_id = {str(item.get("action_id") or ""): item for item in profile_actions}
-        print(f"selected bridge profile {name}")
-        print(f"  route_path: {rec.get('route_path', '')}")
-        print(f"  bridge_profile_workflow_actions: {len(profile_actions)}")
-        for action_id in ("inspect-profile", "start-profile", "stop-profile", "delete-profile"):
-            action_rec = profile_actions_by_id.get(action_id) or {}
-            if action_rec:
-                print(
-                    f"  {action_id}: state={action_rec.get('operator_action_state', '') or '-'} "
-                    f"reason={action_rec.get('operator_action_reason', '') or '-'} "
-                    f"enter={'yes' if action_rec.get('can_run_from_curses_enter') else 'no'} "
-                    f"pending_work={action_rec.get('fleet_mailbox_pending_work_count', 0)} "
-                    f"offline_targets={action_rec.get('fleet_offline_target_count', 0)} "
-                    f"poll_overdue={action_rec.get('fleet_poll_overdue_target_count', 0)}"
-                )
+        _print_legacy_bridge_profile_selection(
+            name,
+            rec,
+            profile_actions_by_id,
+            profile_action_count=len(profile_actions),
+        )
         action_line = input_func("bridge action inspect/start/stop/delete, or blank> ") if input_func else None
         action = action_line.strip().lower() if action_line is not None else ""
-        if action == "inspect":
-            action_rec = profile_actions_by_id.get("inspect-profile") or {}
-            if print_profile_func:
-                print_profile_func(cfg, name)
-            if append_event_fn:
-                append_event_fn(cfg, "workbench", "workbench_bridge_profile_inspected", details={
-                    "name": name,
-                    "route_path": rec.get("route_path", ""),
-                    "headless_command": action_rec.get("headless_command", bridge_profile_headless_command(cfg, "inspect", name)),
-                })
-        elif action == "start":
-            action_rec = profile_actions_by_id.get("start-profile") or {}
-            headless = action_rec.get("headless_command", bridge_profile_headless_command(cfg, "start", name))
-            if start_service_func:
-                start_service_func(
-                    cfg,
-                    "bridge",
-                    argv_extra=["--bridge-profile", name],
-                    headless_command=headless,
-                )
-        elif action == "stop":
-            action_rec = profile_actions_by_id.get("stop-profile") or {}
-            headless = action_rec.get("headless_command", bridge_profile_headless_command(cfg, "stop", name))
-            if stop_service_func:
-                stop_service_func(cfg, "bridge", headless_command=headless)
-        elif action == "delete":
-            action_rec = profile_actions_by_id.get("delete-profile") or {}
-            if delete_profile_func:
-                deleted = delete_profile_func(cfg, name)
-                print(f"deleted bridge profile {deleted.get('name', '')}: {deleted.get('route_path', '')}")
-                if append_event_fn:
-                    append_event_fn(cfg, "workbench", "workbench_bridge_profile_deleted", details={
-                        "name": name,
-                        "route_path": deleted.get("route_path", ""),
-                        "headless_command": action_rec.get("headless_command", bridge_profile_headless_command(cfg, "delete", name)),
-                    })
-        elif action:
-            print(f"unknown bridge action: {action}")
+        _dispatch_legacy_bridge_profile_action(
+            cfg,
+            name,
+            rec,
+            action,
+            profile_actions_by_id,
+            print_profile_func=print_profile_func,
+            start_service_func=start_service_func,
+            stop_service_func=stop_service_func,
+            delete_profile_func=delete_profile_func,
+            append_event_fn=append_event_fn,
+        )
     except ValueError as exc:
         print(exc)
     return True
+
+
+def _print_legacy_bridge_profile_choices(records):
+    for idx, rec in enumerate(records, 1):
+        print(
+            f"{idx}: {rec.get('name', '')} "
+            f"state={rec.get('current_state', '')} "
+            f"target={rec.get('target_id', '') or '-'} "
+            f"path={rec.get('route_path', '')}"
+        )
+
+
+def _select_legacy_bridge_profile(records, selected):
+    if selected.isdigit():
+        idx = int(selected) - 1
+        if idx < 0 or idx >= len(records):
+            raise ValueError(f"bridge profile number out of range: {selected}")
+        return records[idx]
+    matches = [item for item in records if str(item.get("name") or "") == selected]
+    if not matches:
+        raise ValueError(f"bridge profile not found: {selected}")
+    return matches[0]
+
+
+def _print_legacy_bridge_profile_selection(
+    name,
+    rec,
+    profile_actions_by_id,
+    *,
+    profile_action_count=0,
+):
+    print(f"selected bridge profile {name}")
+    print(f"  route_path: {rec.get('route_path', '')}")
+    print(f"  bridge_profile_workflow_actions: {profile_action_count}")
+    for action_id in ("inspect-profile", "start-profile", "stop-profile", "delete-profile"):
+        action_rec = profile_actions_by_id.get(action_id) or {}
+        if action_rec:
+            print(
+                f"  {action_id}: state={action_rec.get('operator_action_state', '') or '-'} "
+                f"reason={action_rec.get('operator_action_reason', '') or '-'} "
+                f"enter={'yes' if action_rec.get('can_run_from_curses_enter') else 'no'} "
+                f"pending_work={action_rec.get('fleet_mailbox_pending_work_count', 0)} "
+                f"offline_targets={action_rec.get('fleet_offline_target_count', 0)} "
+                f"poll_overdue={action_rec.get('fleet_poll_overdue_target_count', 0)}"
+            )
+
+
+def _dispatch_legacy_bridge_profile_action(
+    cfg,
+    name,
+    rec,
+    action,
+    profile_actions_by_id,
+    *,
+    print_profile_func=None,
+    start_service_func=None,
+    stop_service_func=None,
+    delete_profile_func=None,
+    append_event_fn=None,
+):
+    if action == "inspect":
+        _dispatch_legacy_bridge_profile_inspect(
+            cfg,
+            name,
+            rec,
+            profile_actions_by_id.get("inspect-profile") or {},
+            print_profile_func=print_profile_func,
+            append_event_fn=append_event_fn,
+        )
+    elif action == "start":
+        action_rec = profile_actions_by_id.get("start-profile") or {}
+        headless = action_rec.get("headless_command", bridge_profile_headless_command(cfg, "start", name))
+        if start_service_func:
+            start_service_func(
+                cfg,
+                "bridge",
+                argv_extra=["--bridge-profile", name],
+                headless_command=headless,
+            )
+    elif action == "stop":
+        action_rec = profile_actions_by_id.get("stop-profile") or {}
+        headless = action_rec.get("headless_command", bridge_profile_headless_command(cfg, "stop", name))
+        if stop_service_func:
+            stop_service_func(cfg, "bridge", headless_command=headless)
+    elif action == "delete":
+        _dispatch_legacy_bridge_profile_delete(
+            cfg,
+            name,
+            profile_actions_by_id.get("delete-profile") or {},
+            delete_profile_func=delete_profile_func,
+            append_event_fn=append_event_fn,
+        )
+    elif action:
+        print(f"unknown bridge action: {action}")
+
+
+def _dispatch_legacy_bridge_profile_inspect(
+    cfg,
+    name,
+    rec,
+    action_rec,
+    *,
+    print_profile_func=None,
+    append_event_fn=None,
+):
+    if print_profile_func:
+        print_profile_func(cfg, name)
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_bridge_profile_inspected", details={
+            "name": name,
+            "route_path": rec.get("route_path", ""),
+            "headless_command": action_rec.get("headless_command", bridge_profile_headless_command(cfg, "inspect", name)),
+        })
+
+
+def _dispatch_legacy_bridge_profile_delete(
+    cfg,
+    name,
+    action_rec,
+    *,
+    delete_profile_func=None,
+    append_event_fn=None,
+):
+    if delete_profile_func:
+        deleted = delete_profile_func(cfg, name)
+        print(f"deleted bridge profile {deleted.get('name', '')}: {deleted.get('route_path', '')}")
+        if append_event_fn:
+            append_event_fn(cfg, "workbench", "workbench_bridge_profile_deleted", details={
+                "name": name,
+                "route_path": deleted.get("route_path", ""),
+                "headless_command": action_rec.get("headless_command", bridge_profile_headless_command(cfg, "delete", name)),
+            })
 
 
 def bridge_profiles_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
