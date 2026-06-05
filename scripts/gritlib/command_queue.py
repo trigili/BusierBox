@@ -6,6 +6,7 @@ import os
 import time
 from pathlib import Path
 
+from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.event_log import append_event
 from gritlib.record_utils import (
     format_counts, int_value, record_count_by_key, record_count_by_nested_key,
@@ -14,6 +15,11 @@ from gritlib.record_utils import (
 from gritlib.session_state import (
     atomic_write_json, parse_utc_timestamp, read_json_file, utc_from_epoch,
     utc_now,
+)
+from gritlib.shell_utils import shquote
+from gritlib.workflow_support import (
+    optional_target_id_arg, optional_target_scoped_command,
+    scoped_service_workflow_run_command, workflow_fleet_metrics,
 )
 
 
@@ -1419,6 +1425,100 @@ def command_queue_workflow_action_indexes(records):
     }
 
 
+def command_queue_workflow_action_record(
+    action_id,
+    category,
+    label,
+    command,
+    workflow,
+    run_command,
+    target_filter_id,
+    service_row,
+    queue_path,
+    queued_count,
+    total_count,
+    result_count,
+    mailbox_records,
+    pending_mailbox_records,
+    pending_mailbox_target_ids,
+    fleet_metrics,
+    command_queue,
+    action_state,
+    action_reason,
+    available=True,
+    requires_input=False,
+    requires_confirmation=False,
+    queues_offline_work=False,
+    target_phone_home_required=False,
+    can_run_from_curses_enter=False,
+    curses_enter_action="",
+):
+    service_row = service_row or {}
+    mailbox_records = [rec for rec in mailbox_records or [] if isinstance(rec, dict)]
+    pending_mailbox_records = [rec for rec in pending_mailbox_records or [] if isinstance(rec, dict)]
+    command_queue = command_queue or {}
+    return {
+        "id": f"command-queue:{action_id}",
+        "action_id": action_id,
+        "service": "command-queue",
+        "actual": str(service_row.get("actual") or "unknown"),
+        "category": category,
+        "workflow": workflow,
+        "label": label,
+        "command": command,
+        "headless_command": command,
+        "run_command": run_command,
+        "target_id_filter": target_filter_id,
+        "target_filter_active": bool(target_filter_id),
+        "queue_path": str(queue_path),
+        "queued_count": queued_count,
+        "total_count": total_count,
+        "result_count": result_count,
+        "target_mailbox_record_count": len(mailbox_records),
+        "target_mailbox_pending_work_count": len(pending_mailbox_records),
+        "target_mailbox_pending_target_count": len(pending_mailbox_target_ids or []),
+        "target_mailbox_pending_connectivity_state_counts": record_count_by_key(pending_mailbox_records, "target_connectivity_state"),
+        "target_mailbox_pending_offline_age_bucket_counts": record_count_by_key(pending_mailbox_records, "target_offline_age_bucket"),
+        "target_mailbox_pending_poll_overdue_count": len([rec for rec in pending_mailbox_records if rec.get("target_poll_overdue") is True]),
+        **(fleet_metrics or {}),
+        "policy_valid": bool(command_queue.get("policy_valid", True)),
+        "configured_for_polling": bool(command_queue.get("configured_for_polling", False)),
+        "poll_transport_supported": bool(command_queue.get("poll_transport_supported", False)),
+        "live_polling_supported": bool(command_queue.get("live_polling_supported", False)),
+        "result_upload_supported": bool(command_queue.get("result_upload_supported", False)),
+        "execution_supported": bool(command_queue.get("execution_supported", False)),
+        "delivery_supported": bool(command_queue.get("delivery_supported", False)),
+        "operator_queue_records_only": bool(command_queue.get("operator_queue_records_only", True)),
+        "available": bool(available),
+        "requires_input": bool(requires_input),
+        "requires_confirmation": bool(requires_confirmation),
+        "requires_target_online": False,
+        "queues_offline_work": bool(queues_offline_work),
+        "target_phone_home_required": bool(target_phone_home_required),
+        "operator_action_state": action_state,
+        "operator_action_reason": action_reason,
+        "can_run_from_curses_enter": bool(can_run_from_curses_enter),
+        "curses_enter_action": curses_enter_action,
+        "execution_default": "show-command",
+        "target_execution": False,
+        "tui_visible": True,
+        "safety_boundary": "operator-side command queue metadata; target execution requires explicit target poll and execute policy",
+    }
+
+
+def command_queue_listener_action_states(service_row):
+    actual = str((service_row or {}).get("actual") or "unknown")
+    listening = actual == "listening"
+    return {
+        "start_state": "already-running" if listening else "ready",
+        "start_reason": "service-already-listening" if listening else "run-now",
+        "start_enter": not listening,
+        "stop_state": "ready" if listening else "already-stopped",
+        "stop_reason": "run-now" if listening else "service-not-listening",
+        "stop_enter": listening,
+    }
+
+
 def command_queue_workflow_action_records(
     cfg,
     command_queue,
@@ -1426,17 +1526,7 @@ def command_queue_workflow_action_records(
     service_row=None,
     targets=None,
 ):
-    from gritlib.config_utils import DEFAULT_CONFIG
-    from gritlib.shell_utils import shquote
     from gritlib.target_records import configured_target_filter
-    from gritlib.workflow_actions import (
-        command_queue_listener_action_states,
-        command_queue_workflow_action_record,
-        optional_target_id_arg,
-        optional_target_scoped_command,
-        scoped_service_workflow_run_command,
-        workflow_fleet_metrics,
-    )
 
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)

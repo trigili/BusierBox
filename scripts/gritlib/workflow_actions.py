@@ -3,11 +3,17 @@
 import shlex
 
 from gritlib.console_display import console_table
+from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.line_state import line_action_state_text
 from gritlib.record_utils import (
     format_counts, int_value, record_count_by_key, record_sum_by_key, records_by_key,
 )
 from gritlib.shell_utils import shquote
+from gritlib.workflow_support import (
+    optional_target_id_arg, optional_target_scoped_command, target_id_arg,
+    target_scoped_command, scoped_service_workflow_run_command,
+    workflow_fleet_metrics,
+)
 
 
 def select_workflow_action(records, selector, label, extra_keys=()):
@@ -55,8 +61,6 @@ def dispatch_legacy_workbench_action_number(
 ):
     if str(choice or "").strip() != "11":
         return False
-
-    from gritlib.config_utils import DEFAULT_CONFIG
 
     headless = (
         "scripts/grit-console --config "
@@ -567,8 +571,6 @@ def operator_console_workflow_records(
     release=None,
     warnings=None,
 ):
-    from gritlib.config_utils import DEFAULT_CONFIG
-
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)
     release = release or {}
@@ -876,7 +878,6 @@ def operator_console_workflow_records(
 
 def workbench_action_records(cfg):
     from gritlib.build_config import build_config_path
-    from gritlib.config_utils import DEFAULT_CONFIG
     from gritlib.operator_network import operator_advertised_host
     from gritlib.service_status import configured_daemon_services
     from gritlib.target_records import selected_target_context
@@ -1521,41 +1522,11 @@ def bridge_profiles_by_target_id(bridge_profiles):
     return bridge_by_target
 
 
-def target_id_arg(target_id):
-    return " --target-id " + shquote(target_id)
-
-
-def optional_target_id_arg(target_id):
-    return target_id_arg(target_id) if target_id else ""
-
-
-def target_scoped_command(base_command, target_id, suffix):
-    return str(base_command) + target_id_arg(target_id) + str(suffix)
-
-
-def optional_target_scoped_command(base_command, target_arg, suffix):
-    return str(base_command) + str(target_arg or "") + str(suffix)
-
-
 def target_workflow_run_command(base_command, target_id, action_id, extra_args=""):
     command = (
         str(base_command)
         + " --run-target-workflow-action "
         + shquote(f"{target_id}:{action_id}")
-    )
-    if extra_args:
-        command += str(extra_args)
-    return command
-
-
-def scoped_service_workflow_run_command(base_command, target_arg, service_name, action_id, extra_args=""):
-    command = (
-        str(base_command)
-        + str(target_arg or "")
-        + " --run-"
-        + str(service_name)
-        + "-workflow-action "
-        + shquote(f"{service_name}:{action_id}")
     )
     if extra_args:
         command += str(extra_args)
@@ -1676,7 +1647,6 @@ def target_workflow_action_record(
 
 
 def target_workflow_action_records(cfg, targets, bridge_profiles=None):
-    from gritlib.config_utils import DEFAULT_CONFIG
     from gritlib.release_artifacts import release_context
 
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
@@ -1846,43 +1816,6 @@ def target_workflow_action_records(cfg, targets, bridge_profiles=None):
     return records
 
 
-def workflow_fleet_metrics(target_records):
-    target_records = [rec for rec in target_records or [] if isinstance(rec, dict)]
-    fleet_mailbox_pending_work_count = sum(
-        int_value(rec.get("mailbox_pending_work_count", 0))
-        for rec in target_records
-    )
-    fleet_offline_target_count = len([
-        rec for rec in target_records
-        if str(rec.get("connectivity_state") or "") == "offline"
-    ])
-    fleet_stale_target_count = len([
-        rec for rec in target_records
-        if str(rec.get("connectivity_state") or "") == "stale"
-    ])
-    fleet_mailbox_pending_target_count = len([
-        rec for rec in target_records
-        if int_value(rec.get("mailbox_pending_work_count", 0)) > 0
-    ])
-    fleet_poll_overdue_target_count = len([
-        rec for rec in target_records
-        if rec.get("poll_overdue") is True
-    ])
-    return {
-        "fleet_target_count": len(target_records),
-        "fleet_connectivity_state_counts": record_count_by_key(target_records, "connectivity_state"),
-        "fleet_offline_target_count": fleet_offline_target_count,
-        "fleet_stale_target_count": fleet_stale_target_count,
-        "fleet_mailbox_pending_target_count": fleet_mailbox_pending_target_count,
-        "fleet_mailbox_pending_work_count": fleet_mailbox_pending_work_count,
-        "fleet_poll_overdue_target_count": fleet_poll_overdue_target_count,
-        "fleet_has_offline_targets": fleet_offline_target_count > 0,
-        "fleet_has_stale_targets": fleet_stale_target_count > 0,
-        "fleet_has_mailbox_pending_work": fleet_mailbox_pending_work_count > 0,
-        "fleet_has_poll_overdue_targets": fleet_poll_overdue_target_count > 0,
-    }
-
-
 def service_workflow_action_record(
     service,
     action_id,
@@ -2045,100 +1978,6 @@ def file_service_workflow_action_record(
         "target_execution": False,
         "tui_visible": True,
         "safety_boundary": "operator-side file workflow metadata; target upload/fetch still requires explicit target-side command or poll",
-    }
-
-
-def command_queue_workflow_action_record(
-    action_id,
-    category,
-    label,
-    command,
-    workflow,
-    run_command,
-    target_filter_id,
-    service_row,
-    queue_path,
-    queued_count,
-    total_count,
-    result_count,
-    mailbox_records,
-    pending_mailbox_records,
-    pending_mailbox_target_ids,
-    fleet_metrics,
-    command_queue,
-    action_state,
-    action_reason,
-    available=True,
-    requires_input=False,
-    requires_confirmation=False,
-    queues_offline_work=False,
-    target_phone_home_required=False,
-    can_run_from_curses_enter=False,
-    curses_enter_action="",
-):
-    service_row = service_row or {}
-    mailbox_records = [rec for rec in mailbox_records or [] if isinstance(rec, dict)]
-    pending_mailbox_records = [rec for rec in pending_mailbox_records or [] if isinstance(rec, dict)]
-    command_queue = command_queue or {}
-    return {
-        "id": f"command-queue:{action_id}",
-        "action_id": action_id,
-        "service": "command-queue",
-        "actual": str(service_row.get("actual") or "unknown"),
-        "category": category,
-        "workflow": workflow,
-        "label": label,
-        "command": command,
-        "headless_command": command,
-        "run_command": run_command,
-        "target_id_filter": target_filter_id,
-        "target_filter_active": bool(target_filter_id),
-        "queue_path": str(queue_path),
-        "queued_count": queued_count,
-        "total_count": total_count,
-        "result_count": result_count,
-        "target_mailbox_record_count": len(mailbox_records),
-        "target_mailbox_pending_work_count": len(pending_mailbox_records),
-        "target_mailbox_pending_target_count": len(pending_mailbox_target_ids or []),
-        "target_mailbox_pending_connectivity_state_counts": record_count_by_key(pending_mailbox_records, "target_connectivity_state"),
-        "target_mailbox_pending_offline_age_bucket_counts": record_count_by_key(pending_mailbox_records, "target_offline_age_bucket"),
-        "target_mailbox_pending_poll_overdue_count": len([rec for rec in pending_mailbox_records if rec.get("target_poll_overdue") is True]),
-        **(fleet_metrics or {}),
-        "policy_valid": bool(command_queue.get("policy_valid", True)),
-        "configured_for_polling": bool(command_queue.get("configured_for_polling", False)),
-        "poll_transport_supported": bool(command_queue.get("poll_transport_supported", False)),
-        "live_polling_supported": bool(command_queue.get("live_polling_supported", False)),
-        "result_upload_supported": bool(command_queue.get("result_upload_supported", False)),
-        "execution_supported": bool(command_queue.get("execution_supported", False)),
-        "delivery_supported": bool(command_queue.get("delivery_supported", False)),
-        "operator_queue_records_only": bool(command_queue.get("operator_queue_records_only", True)),
-        "available": bool(available),
-        "requires_input": bool(requires_input),
-        "requires_confirmation": bool(requires_confirmation),
-        "requires_target_online": False,
-        "queues_offline_work": bool(queues_offline_work),
-        "target_phone_home_required": bool(target_phone_home_required),
-        "operator_action_state": action_state,
-        "operator_action_reason": action_reason,
-        "can_run_from_curses_enter": bool(can_run_from_curses_enter),
-        "curses_enter_action": curses_enter_action,
-        "execution_default": "show-command",
-        "target_execution": False,
-        "tui_visible": True,
-        "safety_boundary": "operator-side command queue metadata; target execution requires explicit target poll and execute policy",
-    }
-
-
-def command_queue_listener_action_states(service_row):
-    actual = str((service_row or {}).get("actual") or "unknown")
-    listening = actual == "listening"
-    return {
-        "start_state": "already-running" if listening else "ready",
-        "start_reason": "service-already-listening" if listening else "run-now",
-        "start_enter": not listening,
-        "stop_state": "ready" if listening else "already-stopped",
-        "stop_reason": "run-now" if listening else "service-not-listening",
-        "stop_enter": listening,
     }
 
 
@@ -2717,7 +2556,6 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets
     from pathlib import Path
 
     from gritlib.command_queue import command_queue_path, load_command_queue
-    from gritlib.config_utils import DEFAULT_CONFIG
     from gritlib.process_status import pid_alive
     from gritlib.service_status import configured_daemon_services
     from gritlib.session_state import read_json_file, state_file_path

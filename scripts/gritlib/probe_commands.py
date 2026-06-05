@@ -3,8 +3,10 @@
 import base64
 
 from .bridge_routes import attach_target_route_fields, target_route_context
+from .config_utils import DEFAULT_CONFIG
 from .operator_network import operator_advertised_host
 from .shell_utils import shquote
+from .workflow_support import workflow_fleet_metrics
 
 
 def probe_route_context(cfg, host=None, port=None):
@@ -311,8 +313,6 @@ def dispatch_legacy_probe_number(
     if choice != "19":
         return False
 
-    from gritlib.config_utils import DEFAULT_CONFIG
-
     snap = snapshot_func(cfg)
     actions_by_id = snap.get("probe_workflow_actions_by_id") or {}
     show_action = actions_by_id.get("probe:show-probe-command") or {}
@@ -441,12 +441,10 @@ def render_probe_dns_command(cfg, host=None, port=None):
 
 
 def probe_workflow_action_records(cfg, service_row=None, targets=None):
-    from gritlib.config_utils import DEFAULT_CONFIG
     from gritlib.workflow_actions import (
         probe_listener_action_states,
         probe_workflow_action_record,
         probe_workflow_run_command,
-        workflow_fleet_metrics,
     )
 
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))

@@ -7,7 +7,7 @@ import urllib.parse
 from pathlib import Path
 
 from gritlib.bridge_routes import target_route_context
-from gritlib.config_utils import yes
+from gritlib.config_utils import DEFAULT_CONFIG, yes
 from gritlib.operator_network import operator_advertised_host
 from gritlib.record_utils import (
     latest_record_value, record_bool_counts, record_count_by_key, record_sum_by_key,
@@ -17,6 +17,10 @@ from gritlib.session_state import read_json_file
 from gritlib.shell_utils import shquote
 from gritlib.target_records import (
     attach_target_identity, selected_target_context, target_identity_from_headers,
+)
+from gritlib.workflow_support import (
+    optional_target_id_arg, optional_target_scoped_command,
+    scoped_service_workflow_run_command, workflow_fleet_metrics,
 )
 
 
@@ -870,16 +874,11 @@ def file_service_workflow_action_records(
     transfer_records=None,
     targets=None,
 ):
-    from gritlib.config_utils import DEFAULT_CONFIG
     from gritlib.service_status import service_start_headless_command, service_stop_headless_command
     from gritlib.target_records import configured_target_filter
     from gritlib.workflow_actions import (
         file_service_workflow_action_record,
-        optional_target_id_arg,
-        optional_target_scoped_command,
-        scoped_service_workflow_run_command,
         service_lifecycle_action_states,
-        workflow_fleet_metrics,
     )
 
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))

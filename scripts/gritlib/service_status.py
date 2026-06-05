@@ -20,6 +20,7 @@ from gritlib.session_state import read_json_file, state_file_path
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged, staged_file_path
 from gritlib.target_records import targets_path
+from gritlib.workflow_support import workflow_fleet_metrics
 
 
 DEFAULT_CONFIG = Path("local/server-config.json")
@@ -751,11 +752,9 @@ def status_summary_and_warnings(services):
 
 
 def service_workflow_action_records(cfg, services, targets=None):
-    from gritlib.config_utils import DEFAULT_CONFIG
     from gritlib.workflow_actions import (
         service_lifecycle_action_states,
         service_workflow_action_record,
-        workflow_fleet_metrics,
     )
 
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
