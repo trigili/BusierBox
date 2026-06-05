@@ -17,7 +17,7 @@ from gritlib.session_state import (
     utc_now,
 )
 from gritlib.shell_utils import shquote
-from gritlib.target_records import (
+from gritlib.target_context import (
     configured_target_filter, records_for_target, target_context_fields,
 )
 from gritlib.workflow_support import (

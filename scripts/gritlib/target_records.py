@@ -11,34 +11,21 @@ from gritlib.record_utils import (
 )
 from gritlib.shell_utils import shquote
 from gritlib.session_state import (
-    atomic_write_json, parse_utc_timestamp, read_json_file, update_server_state,
-    utc_from_epoch, utc_now,
+    atomic_write_json, parse_utc_timestamp, update_server_state, utc_from_epoch,
+    utc_now,
+)
+from gritlib.target_context import (
+    configured_target_filter, details_with_target, records_for_target,
+    selected_target_context, target_context_fields,
 )
 from gritlib.target_mailbox import mailbox_wait_bucket
+from gritlib.target_store import load_targets, targets_path
 
 
-DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
 DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 TARGET_ONLINE_WINDOW_SEC = 300
 TARGET_RECENT_WINDOW_SEC = 3600
 TARGET_STALE_WINDOW_SEC = 86400
-
-
-def targets_path(cfg, default_operator_session_dir=DEFAULT_OPERATOR_SESSION_DIR):
-    return Path(str(
-        cfg.get("targets_file") or
-        Path(str(cfg.get("operator_session_dir", default_operator_session_dir))) / "targets.json"
-    ))
-
-
-def load_targets(cfg):
-    data = read_json_file(targets_path(cfg), {"schema": 1, "targets": {}})
-    if not isinstance(data, dict):
-        data = {"schema": 1, "targets": {}}
-    if not isinstance(data.get("targets"), dict):
-        data["targets"] = {}
-    data.setdefault("schema", 1)
-    return data
 
 
 def scoped_target_cfg(cfg, target_id, target_label=""):
@@ -719,101 +706,6 @@ def dispatch_legacy_target_filter_number(choice, cfg, *, input_func=None, snapsh
     return True
 
 
-def dispatch_legacy_target_detail_number(
-    choice,
-    cfg,
-    *,
-    input_func=None,
-    snapshot_func=None,
-    append_event_fn=None,
-    scoped_target_cfg_func=None,
-    print_summary_func=None,
-    action_state_text_func=None,
-):
-    if str(choice or "").strip() != "18":
-        return False
-    # Local import preserves the target_activity -> target_records top-level
-    # boundary; this legacy prompt only needs the activity printer on demand.
-    from gritlib.target_activity import print_target_activity_records
-
-    unfiltered_cfg = dict(cfg)
-    unfiltered_cfg.pop("_target_id_filter", None)
-    unfiltered_cfg.pop("_target_label_filter", None)
-    snap = snapshot_func(unfiltered_cfg) if snapshot_func else {}
-    targets = snap.get("targets") or []
-    current = configured_target_filter(cfg)
-    print_workbench_target_selector(targets, current_target_id=current)
-    selected_line = input_func("target number/id/label, current, or all> ") if input_func else None
-    selected = selected_line.strip() if selected_line is not None else ""
-    if not selected:
-        return True
-    try:
-        selection = select_workbench_target_record(selected, targets, current_target_id=current)
-        target = selection.get("target") or {}
-        if selection.get("scope") == "all":
-            headless = (
-                "scripts/grit-console --config "
-                + shquote(str(cfg.get("_config_path", DEFAULT_SERVER_CONFIG)))
-                + " --status"
-            )
-            if print_summary_func:
-                print_summary_func(snap)
-            activity_count = len(snap.get("target_activity_records") or [])
-            if append_event_fn:
-                append_event_fn(cfg, "workbench", "workbench_targets_inspected", details={
-                    "headless_command": headless,
-                    "scope": "all",
-                    "target_count": len(targets),
-                    "target_activity_record_count": activity_count,
-                })
-            return True
-        target_id = str(target.get("target_id") or "")
-        target_label = str(target.get("label") or target.get("target_label") or "")
-        scoped = (
-            scoped_target_cfg_func(cfg, target_id, target_label=target_label)
-            if scoped_target_cfg_func else cfg
-        )
-        scoped_snap = snapshot_func(scoped) if snapshot_func else {}
-        headless = (
-            "scripts/grit-console --config "
-            + shquote(str(cfg.get("_config_path", DEFAULT_SERVER_CONFIG)))
-            + " --target-id "
-            + shquote(target_id)
-            + " --status"
-        )
-        print(f"Target detail: {target_id} label={target_label or '-'}")
-        if print_summary_func:
-            print_summary_func(scoped_snap, limit=3)
-        target_activity_count = len(scoped_snap.get("target_activity_records") or [])
-        print_target_activity_records(scoped_snap, target_id=target_id, limit=5)
-        actions = scoped_snap.get("target_workflow_actions") or []
-        if actions:
-            print("Target workflow actions:")
-            for idx, rec in enumerate(actions[:8], 1):
-                state = action_state_text_func(rec) if action_state_text_func else str(rec.get("operator_action_state") or "-")
-                print(f"  {idx}: {rec.get('id', '')} {rec.get('label', '')}")
-                print(
-                    f"     offline={'yes' if rec.get('offline_supported') else 'no'} "
-                    f"requires_online={'yes' if rec.get('requires_target_online') else 'no'} "
-                    f"queues_offline_work={'yes' if rec.get('queues_offline_work') else 'no'} "
-                    f"state={state} "
-                    f"reason={rec.get('operator_action_reason', '') or '-'} "
-                    f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}"
-                )
-        if append_event_fn:
-            append_event_fn(cfg, "workbench", "workbench_target_inspected", details={
-                "target_id": target_id,
-                "target_label": target_label,
-                "headless_command": headless,
-                "mailbox_pending_work_count": target.get("mailbox_pending_work_count", 0),
-                "last_seen": target.get("last_seen", "") or target.get("last_seen_at", ""),
-                "target_activity_record_count": target_activity_count,
-            })
-    except ValueError as exc:
-        print(exc)
-    return True
-
-
 def target_identity_from_headers(headers):
     headers = headers or {}
     target_id = str(headers.get("x-grit-target-id") or headers.get("x-grittykit-target-id") or headers.get("x-grit-target") or "").strip()
@@ -935,10 +827,6 @@ def compatibility_report_summary(metadata):
     }
 
 
-def configured_target_filter(cfg):
-    return str(cfg.get("_target_id_filter") or "").strip()
-
-
 def selected_target_record_for_update(cfg):
     target_id = configured_target_filter(cfg)
     if not target_id:
@@ -947,48 +835,6 @@ def selected_target_record_for_update(cfg):
     if not isinstance(rec, dict):
         rec = {"target_id": target_id, "label": "", "aliases": [], "notes": ""}
     return target_id, rec
-
-
-def records_for_target(records, target_id):
-    if not target_id:
-        return list(records or [])
-    return [
-        rec for rec in records or []
-        if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_id
-    ]
-
-
-def target_context_fields(cfg, target_id):
-    target_id = str(target_id or "").strip()
-    if not target_id:
-        return {}
-    rec = (load_targets(cfg).get("targets") or {}).get(target_id)
-    if not isinstance(rec, dict):
-        rec = {}
-    aliases = list_merge_unique(rec.get("aliases") or [], cfg.get("_target_alias_filter") or [])
-    return {
-        "target_id": target_id,
-        "target_label": str(cfg.get("_target_label_filter") or rec.get("label") or ""),
-        "target_aliases": [
-            str(item) for item in aliases
-            if str(item or "")
-        ],
-        "target_identity_source": "operator-selection",
-        "target_identity_confidence": "operator-assigned",
-    }
-
-
-def selected_target_context(cfg):
-    return target_context_fields(cfg, configured_target_filter(cfg))
-
-
-def details_with_target(cfg, details=None, target_context=None):
-    out = dict(details or {})
-    ctx = dict(target_context if target_context is not None else selected_target_context(cfg))
-    for key, value in ctx.items():
-        if value not in (None, ""):
-            out.setdefault(key, value)
-    return out
 
 
 def target_connectivity_state(offline_for_sec):
