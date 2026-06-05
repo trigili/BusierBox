@@ -15,6 +15,7 @@ from gritlib.bridge_routes import (
     bridge_profile_record,
     bridge_profile_service_name,
     bridge_profiles_path,
+    load_bridge_profiles,
 )
 from gritlib.crypto import generate_tls_cert
 from gritlib.event_log import append_event

@@ -130,10 +130,12 @@ def build_line_route_service_callbacks(
             headless_command_builder=bridge_profile_headless_command,
         )
 
-    def print_profile(name):
+    def print_profile(*args):
+        name = args[-1] if args else ""
         return print_bridge_profile(cfg, name)
 
-    def delete_profile(name):
+    def delete_profile(*args):
+        name = args[-1] if args else ""
         return delete_bridge_profile(cfg, name)
 
     def select_service(selector):
@@ -155,7 +157,10 @@ def build_line_route_service_callbacks(
             quote=quote,
         )
 
-    def start_service(service):
+    def start_service(*args, **kwargs):
+        if len(args) != 1 or kwargs:
+            return service_start_func(*args, **kwargs)
+        service = args[0]
         return start_line_service(
             cfg,
             service,
@@ -168,7 +173,10 @@ def build_line_route_service_callbacks(
             sleep_func=sleep_func,
         )
 
-    def stop_service(service):
+    def stop_service(*args, **kwargs):
+        if len(args) != 1 or kwargs:
+            return service_stop_func(*args, **kwargs)
+        service = args[0]
         return stop_line_service(
             cfg,
             service,
