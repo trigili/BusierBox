@@ -2317,7 +2317,7 @@ def _build_staged_record_api_collections(*, staged_records):
     }
 
 
-def _build_file_workflow_api_collections(*, staged_file_workflow_actions, file_service_workflow_actions):
+def _build_staged_file_workflow_api_collections(*, staged_file_workflow_actions):
     return {
         "staged_file_workflow_actions": status_indexes.api_collection_record(
             "staged_file_workflow_actions", staged_file_workflow_actions, "id", (
@@ -2358,6 +2358,11 @@ def _build_file_workflow_api_collections(*, staged_file_workflow_actions, file_s
                 "staged_file_workflow_actions_by_curses_enter_action",
             ), "staged_file_workflow_action_count",
         ),
+    }
+
+
+def _build_file_service_workflow_api_collections(*, file_service_workflow_actions):
+    return {
         "file_service_workflow_actions": status_indexes.api_collection_record(
             "file_service_workflow_actions", file_service_workflow_actions, "id", (
                 "file_service_workflow_actions_by_id",
@@ -2390,6 +2395,17 @@ def _build_file_workflow_api_collections(*, staged_file_workflow_actions, file_s
                 "file_service_workflow_actions_by_can_run_from_curses_enter",
                 "file_service_workflow_actions_by_curses_enter_action",
             ), "file_service_workflow_action_count",
+        ),
+    }
+
+
+def _build_file_workflow_api_collections(*, staged_file_workflow_actions, file_service_workflow_actions):
+    return {
+        **_build_staged_file_workflow_api_collections(
+            staged_file_workflow_actions=staged_file_workflow_actions,
+        ),
+        **_build_file_service_workflow_api_collections(
+            file_service_workflow_actions=file_service_workflow_actions,
         ),
     }
 
