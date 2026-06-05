@@ -8,7 +8,9 @@ from pathlib import Path
 
 from gritlib.bridge_routes import attach_target_route_fields, target_route_context
 from gritlib.event_log import append_event
-from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
+from gritlib.file_fetch_commands import (
+    print_staged_fetch_target_options, render_fetch_command,
+)
 from gritlib.operator_network import operator_advertised_host
 from gritlib.record_utils import (
     int_value, latest_record_value, record_count_by_key, records_by_key,
