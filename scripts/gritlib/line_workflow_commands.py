@@ -17,6 +17,143 @@ from gritlib.workbench_jobs import dispatch_line_jobs_command, parse_line_jobs_c
 from gritlib.workflow_actions import dispatch_line_daemon_command, parse_line_daemon_command
 
 
+def _files_context_callback(callbacks):
+    set_context_func = callbacks.get("set_context_func")
+    return lambda: set_context_func("files") if set_context_func else None
+
+
+def _dispatch_line_download_family(cmd, args, callbacks):
+    download_cmd = parse_line_download_command(cmd, args)
+    if not download_cmd:
+        return False
+    dispatch_line_download_command(
+        download_cmd,
+        download_func=callbacks.get("download_func"),
+        set_context_func=_files_context_callback(callbacks),
+    )
+    return True
+
+
+def _dispatch_line_daemon_family(cmd, args, callbacks):
+    daemon_cmd = parse_line_daemon_command(cmd, args)
+    if not daemon_cmd:
+        return False
+    dispatch_line_daemon_command(
+        daemon_cmd,
+        set_context_func=callbacks.get("set_context_func"),
+        run_func=callbacks.get("daemon_run_func"),
+    )
+    return True
+
+
+def _dispatch_line_release_family(cmd, args, callbacks):
+    release_cmd = parse_line_release_alias_command(cmd, args)
+    if not release_cmd:
+        return False
+    dispatch_line_release_command(
+        release_cmd,
+        list_func=callbacks.get("release_list_func"),
+        stage_func=callbacks.get("release_stage_func"),
+        help_func=callbacks.get("release_help_func"),
+    )
+    return True
+
+
+def _dispatch_line_file_transfer_family(cmd, args, callbacks):
+    file_cmd = parse_line_file_transfer_command(cmd, args)
+    if not file_cmd:
+        return False
+    dispatch_line_file_command(
+        file_cmd,
+        upload_func=callbacks.get("upload_file_func"),
+        fetch_func=callbacks.get("fetch_file_func"),
+        unstage_func=callbacks.get("unstage_file_func"),
+        set_context_func=_files_context_callback(callbacks),
+    )
+    return True
+
+
+def _dispatch_line_view_family(cmd, args, callbacks):
+    view_cmd = parse_line_view_command(cmd, args)
+    if not view_cmd:
+        return False
+    dispatch_line_view_command(view_cmd, view_func=callbacks.get("view_path_func"))
+    return True
+
+
+def _dispatch_line_files_family(cmd, args, callbacks):
+    files_cmd = parse_line_files_command(cmd, args)
+    if not files_cmd:
+        return False
+    dispatch_line_file_command(
+        files_cmd,
+        upload_func=callbacks.get("upload_file_func"),
+        fetch_func=callbacks.get("fetch_file_func"),
+        unstage_func=callbacks.get("unstage_file_func"),
+        clear_func=callbacks.get("clear_files_func"),
+        list_func=callbacks.get("list_files_func"),
+        set_context_func=_files_context_callback(callbacks),
+    )
+    return True
+
+
+def _dispatch_line_queue_family(cmd, args, callbacks):
+    queue_cmd = parse_line_queue_command(cmd, args)
+    if not queue_cmd:
+        return False
+    set_context_func = callbacks.get("set_context_func")
+    dispatch_line_queue_command(
+        queue_cmd,
+        original_cmd=cmd,
+        set_context_func=lambda: set_context_func("queue") if set_context_func else None,
+        run_func=callbacks.get("run_queue_func"),
+        view_func=callbacks.get("view_queue_func"),
+    )
+    return True
+
+
+def _dispatch_line_jobs_family(cmd, args, callbacks):
+    jobs_cmd = parse_line_jobs_command(cmd, args)
+    if not jobs_cmd:
+        return False
+    set_context_func = callbacks.get("set_context_func")
+    list_jobs_func = callbacks.get("list_jobs_func")
+    dispatch_line_jobs_command(
+        jobs_cmd,
+        cancel_func=callbacks.get("cancel_job_func"),
+        select_func=callbacks.get("select_job_func"),
+        list_func=lambda verbose=False: (
+            set_context_func("jobs") if set_context_func else None,
+            list_jobs_func(verbose=verbose),
+        ),
+    )
+    return True
+
+
+def _dispatch_line_binary_family(cmd, args, callbacks):
+    binary_cmd = parse_line_binary_command(cmd, args)
+    if not binary_cmd:
+        return False
+    dispatch_line_binary_command(
+        binary_cmd,
+        stage_binary_func=callbacks.get("stage_binary_func"),
+        set_context_func=_files_context_callback(callbacks),
+    )
+    return True
+
+
+def _dispatch_line_configure_family(cmd, args, callbacks):
+    configure_cmd = parse_line_configure_command(cmd, args)
+    if not configure_cmd:
+        return False
+    dispatch_line_configure_command(
+        configure_cmd,
+        configure_func=callbacks.get("configure_func"),
+        set_context_func=_files_context_callback(callbacks),
+    )
+    return True
+
+
 def dispatch_line_workflow_command(
     cmd,
     args,
@@ -42,83 +179,19 @@ def dispatch_line_workflow_command(
     configure_func=None,
 ):
     args = list(args or [])
-    if download_cmd := parse_line_download_command(cmd, args):
-        dispatch_line_download_command(
-            download_cmd,
-            download_func=download_func,
-            set_context_func=lambda: set_context_func("files") if set_context_func else None,
-        )
-        return True
-    if daemon_cmd := parse_line_daemon_command(cmd, args):
-        dispatch_line_daemon_command(
-            daemon_cmd,
-            set_context_func=set_context_func,
-            run_func=daemon_run_func,
-        )
-        return True
-    if release_cmd := parse_line_release_alias_command(cmd, args):
-        dispatch_line_release_command(
-            release_cmd,
-            list_func=release_list_func,
-            stage_func=release_stage_func,
-            help_func=release_help_func,
-        )
-        return True
-    if file_cmd := parse_line_file_transfer_command(cmd, args):
-        dispatch_line_file_command(
-            file_cmd,
-            upload_func=upload_file_func,
-            fetch_func=fetch_file_func,
-            unstage_func=unstage_file_func,
-            set_context_func=lambda: set_context_func("files") if set_context_func else None,
-        )
-        return True
-    if view_cmd := parse_line_view_command(cmd, args):
-        dispatch_line_view_command(view_cmd, view_func=view_path_func)
-        return True
-    if files_cmd := parse_line_files_command(cmd, args):
-        dispatch_line_file_command(
-            files_cmd,
-            upload_func=upload_file_func,
-            fetch_func=fetch_file_func,
-            unstage_func=unstage_file_func,
-            clear_func=clear_files_func,
-            list_func=list_files_func,
-            set_context_func=lambda: set_context_func("files") if set_context_func else None,
-        )
-        return True
-    if queue_cmd := parse_line_queue_command(cmd, args):
-        dispatch_line_queue_command(
-            queue_cmd,
-            original_cmd=cmd,
-            set_context_func=lambda: set_context_func("queue") if set_context_func else None,
-            run_func=run_queue_func,
-            view_func=view_queue_func,
-        )
-        return True
-    if jobs_cmd := parse_line_jobs_command(cmd, args):
-        dispatch_line_jobs_command(
-            jobs_cmd,
-            cancel_func=cancel_job_func,
-            select_func=select_job_func,
-            list_func=lambda verbose=False: (
-                set_context_func("jobs") if set_context_func else None,
-                list_jobs_func(verbose=verbose),
-            ),
-        )
-        return True
-    if binary_cmd := parse_line_binary_command(cmd, args):
-        dispatch_line_binary_command(
-            binary_cmd,
-            stage_binary_func=stage_binary_func,
-            set_context_func=lambda: set_context_func("files") if set_context_func else None,
-        )
-        return True
-    if configure_cmd := parse_line_configure_command(cmd, args):
-        dispatch_line_configure_command(
-            configure_cmd,
-            configure_func=configure_func,
-            set_context_func=lambda: set_context_func("files") if set_context_func else None,
-        )
-        return True
+    callbacks = locals()
+    for dispatch_func in (
+        _dispatch_line_download_family,
+        _dispatch_line_daemon_family,
+        _dispatch_line_release_family,
+        _dispatch_line_file_transfer_family,
+        _dispatch_line_view_family,
+        _dispatch_line_files_family,
+        _dispatch_line_queue_family,
+        _dispatch_line_jobs_family,
+        _dispatch_line_binary_family,
+        _dispatch_line_configure_family,
+    ):
+        if dispatch_func(cmd, args, callbacks):
+            return True
     return False
