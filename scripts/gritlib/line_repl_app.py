@@ -63,9 +63,7 @@ import gritlib.probe_commands as probe_commands
 import gritlib.probe_results as probe_results
 import gritlib.service_runtime as service_runtime
 from gritlib.release_artifacts import release_context
-from gritlib.session_state import (
-    mark_service_stopped, state_file_path, update_server_state,
-)
+import gritlib.session_state as session_state
 import gritlib.service_status as service_status
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import (
@@ -363,7 +361,7 @@ def run_line_repl(cfg):
         result = line_repl_runtime.run_configured_line_repl_loop(
             cfg,
             clear_console_context_func=line_context.clear_line_console_context,
-            workbench_mark_stopped_func=mark_service_stopped,
+            workbench_mark_stopped_func=session_state.mark_service_stopped,
             shutdown_event=service_runtime.SHUTDOWN,
             shutdown_reason_func=service_runtime.current_shutdown_reason,
             target_callbacks=line_target_callbacks,
@@ -397,14 +395,14 @@ def run_line_console(cfg):
         cfg,
         stdin_isatty_func=sys.stdin.isatty,
         stdout_isatty_func=sys.stdout.isatty,
-        state_file_path_func=state_file_path,
-        update_server_state_func=update_server_state,
+        state_file_path_func=session_state.state_file_path,
+        update_server_state_func=session_state.update_server_state,
         append_event_func=append_event,
         print_workbench_func=workflow_runners.print_workbench,
         run_repl_func=run_line_repl,
         request_shutdown_func=service_runtime.request_shutdown,
         stop_services_func=workflow_runners.stop_workbench_started_services,
-        mark_stopped_func=mark_service_stopped,
+        mark_stopped_func=session_state.mark_service_stopped,
         shutdown_reason_func=service_runtime.current_shutdown_reason,
         stderr=sys.stderr,
     )
