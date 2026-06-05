@@ -4097,6 +4097,54 @@ def _build_status_target_command_filter_context(
     }
 
 
+def _build_status_activity_base_contexts(
+    cfg,
+    *,
+    event_limit,
+    target_filter_id,
+    foundation_context,
+):
+    f = foundation_context
+    bridge_profile_context = _build_bridge_profile_status_context(
+        cfg, f["targets"]
+    )
+    staged_file_workflow_context = _build_staged_file_workflow_status_context(
+        cfg,
+        f["staged_records"],
+        f["targets"],
+    )
+    command_queue_context = _build_command_queue_status_context(cfg)
+    session_event_activity_context = _build_status_session_event_activity_context(
+        cfg,
+        event_limit=event_limit,
+        target_filter_id=target_filter_id,
+        foundation_context=foundation_context,
+        unfiltered_counts=f["unfiltered_counts"],
+        command_queue=command_queue_context["command_queue"],
+    )
+    return {
+        "bridge_profile_context": bridge_profile_context,
+        "staged_file_workflow_context": staged_file_workflow_context,
+        "command_queue_context": command_queue_context,
+        "session_event_activity_context": session_event_activity_context,
+    }
+
+
+def _build_status_activity_workbench_contexts(cfg, targets, bridge_profiles):
+    return {
+        "release_context_doc": _build_release_status_context(cfg),
+        "rshell_session_policy_context": (
+            _build_rshell_session_policy_status_context(cfg)
+        ),
+        "workbench_config_context": _build_workbench_config_status_context(cfg),
+        "workflow_context": _build_workbench_workflow_status_context(
+            cfg,
+            targets,
+            bridge_profiles,
+        ),
+    }
+
+
 def _build_status_activity_queue_context(
     cfg,
     *,
@@ -4105,26 +4153,18 @@ def _build_status_activity_queue_context(
     foundation_context,
 ):
     f = foundation_context
-    targets = f["targets"]
-    staged_records = f["staged_records"]
-    unfiltered_counts = f["unfiltered_counts"]
-    bridge_profile_context = _build_bridge_profile_status_context(cfg, targets)
-    bridge_profiles = bridge_profile_context["bridge_profiles"]
-    staged_file_workflow_context = _build_staged_file_workflow_status_context(
-        cfg,
-        staged_records,
-        targets,
-    )
-    command_queue_context = _build_command_queue_status_context(cfg)
-    command_queue = command_queue_context["command_queue"]
-    session_event_activity_context = _build_status_session_event_activity_context(
+    base_contexts = _build_status_activity_base_contexts(
         cfg,
         event_limit=event_limit,
         target_filter_id=target_filter_id,
         foundation_context=foundation_context,
-        unfiltered_counts=unfiltered_counts,
-        command_queue=command_queue,
     )
+    bridge_profile_context = base_contexts["bridge_profile_context"]
+    bridge_profiles = bridge_profile_context["bridge_profiles"]
+    staged_file_workflow_context = base_contexts["staged_file_workflow_context"]
+    command_queue_context = base_contexts["command_queue_context"]
+    command_queue = command_queue_context["command_queue"]
+    session_event_activity_context = base_contexts["session_event_activity_context"]
     session_context = session_event_activity_context["session_context"]
     target_filter_session_ids = session_event_activity_context[
         "target_filter_session_ids"
@@ -4133,19 +4173,20 @@ def _build_status_activity_queue_context(
     target_activity_context = session_event_activity_context[
         "target_activity_context"
     ]
-    release_context_doc = _build_release_status_context(cfg)
-    rshell_session_policy_context = _build_rshell_session_policy_status_context(cfg)
-    workbench_config_context = _build_workbench_config_status_context(cfg)
-    workflow_context = _build_workbench_workflow_status_context(
-        cfg,
-        targets,
-        bridge_profiles,
+    workbench_contexts = _build_status_activity_workbench_contexts(
+        cfg, f["targets"], bridge_profiles
     )
+    release_context_doc = workbench_contexts["release_context_doc"]
+    rshell_session_policy_context = workbench_contexts[
+        "rshell_session_policy_context"
+    ]
+    workbench_config_context = workbench_contexts["workbench_config_context"]
+    workflow_context = workbench_contexts["workflow_context"]
     target_command_filter_context = _build_status_target_command_filter_context(
         cfg,
         target_filter_id=target_filter_id,
         foundation_context=foundation_context,
-        unfiltered_counts=unfiltered_counts,
+        unfiltered_counts=f["unfiltered_counts"],
         session_context=session_context,
         event_context=event_context,
         command_queue=command_queue,
@@ -4169,7 +4210,6 @@ def _build_status_activity_queue_context(
         **_status_activity_target_command_fields(target_command_context),
         **_status_activity_target_filter_fields(target_filter_context),
     }
-
 
 def _status_transfer_file_fields(file_transfer_context):
     return {
