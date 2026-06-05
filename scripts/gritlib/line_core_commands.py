@@ -16,6 +16,122 @@ from gritlib.probe_commands import (
 )
 
 
+def _dispatch_line_workspace_family(
+    cmd,
+    args,
+    callbacks,
+):
+    workspace_cmd = parse_line_workspace_command(cmd, args)
+    if not workspace_cmd:
+        return ""
+    workspace_result = dispatch_line_workspace_command(
+        workspace_cmd,
+        status_func=callbacks.get("status_func"),
+        ips_func=callbacks.get("ips_func"),
+        workspace_func=callbacks.get("workspace_func"),
+        reload_func=callbacks.get("reload_func"),
+        root_func=callbacks.get("root_func"),
+        info_func=callbacks.get("info_func"),
+        next_func=callbacks.get("next_func"),
+        options_func=callbacks.get("options_func"),
+    )
+    return "refresh" if workspace_result == "refresh" else "handled"
+
+
+def _dispatch_line_build_family(
+    cmd,
+    args,
+    callbacks,
+):
+    build_cmd = parse_line_build_command(cmd, args)
+    if not build_cmd:
+        return ""
+    dispatch_line_build_command(
+        build_cmd,
+        set_context_func=callbacks.get("set_context_func"),
+        run_func=callbacks.get("build_run_func"),
+    )
+    return "handled"
+
+
+def _dispatch_line_option_family(
+    cmd,
+    args,
+    callbacks,
+):
+    option_cmd = parse_line_option_command(cmd, args)
+    if not option_cmd:
+        return ""
+    dispatch_line_option_command(
+        option_cmd,
+        set_global_func=callbacks.get("set_global_option_func"),
+        set_context_func=callbacks.get("set_context_option_func"),
+        unset_global_func=callbacks.get("unset_global_option_func"),
+        unset_context_func=callbacks.get("unset_context_option_func"),
+    )
+    return "handled"
+
+
+def _dispatch_line_target_metadata_family(
+    cmd,
+    args,
+    callbacks,
+):
+    metadata_cmd = parse_line_target_metadata_command(cmd, args)
+    if not metadata_cmd:
+        return ""
+    dispatch_line_target_metadata_command(
+        metadata_cmd,
+        rename_func=callbacks.get("rename_target_func"),
+        note_func=callbacks.get("note_target_func"),
+        alias_func=callbacks.get("alias_target_func"),
+    )
+    return "handled"
+
+
+def _dispatch_line_probe_family(
+    cmd,
+    args,
+    callbacks,
+):
+    probe_cmd = parse_line_probe_command(cmd, args)
+    if not probe_cmd:
+        return ""
+    dispatch_line_probe_command(
+        probe_cmd,
+        set_context_func=callbacks.get("set_context_func"),
+        results_func=callbacks.get("probe_results_func"),
+        config_func=callbacks.get("probe_config_func"),
+        clear_func=callbacks.get("probe_clear_func"),
+        serve_func=callbacks.get("probe_serve_func"),
+        delivery_func=callbacks.get("probe_delivery_func"),
+        paste_func=callbacks.get("probe_paste_func"),
+        script_func=callbacks.get("probe_script_func"),
+        help_func=callbacks.get("help_func"),
+        start_func=callbacks.get("probe_start_func"),
+    )
+    return "handled"
+
+
+def _dispatch_line_survey_family(
+    cmd,
+    args,
+    callbacks,
+):
+    survey_cmd = parse_line_survey_command(cmd, args)
+    if not survey_cmd:
+        return ""
+    dispatch_line_survey_command(
+        survey_cmd,
+        set_context_func=callbacks.get("set_context_func"),
+        results_func=callbacks.get("survey_results_func"),
+        config_func=callbacks.get("survey_config_func"),
+        preset_func=callbacks.get("survey_preset_func"),
+        help_func=callbacks.get("help_func"),
+    )
+    return "handled"
+
+
 def dispatch_line_core_command(
     cmd,
     args,
@@ -51,66 +167,17 @@ def dispatch_line_core_command(
     survey_preset_func=None,
 ):
     args = list(args or [])
-    if workspace_cmd := parse_line_workspace_command(cmd, args):
-        workspace_result = dispatch_line_workspace_command(
-            workspace_cmd,
-            status_func=status_func,
-            ips_func=ips_func,
-            workspace_func=workspace_func,
-            reload_func=reload_func,
-            root_func=root_func,
-            info_func=info_func,
-            next_func=next_func,
-            options_func=options_func,
-        )
-        return "refresh" if workspace_result == "refresh" else "handled"
-    if build_cmd := parse_line_build_command(cmd, args):
-        dispatch_line_build_command(
-            build_cmd,
-            set_context_func=set_context_func,
-            run_func=build_run_func,
-        )
+    callbacks = locals()
+    if workspace_result := _dispatch_line_workspace_family(cmd, args, callbacks):
+        return workspace_result
+    if _dispatch_line_build_family(cmd, args, callbacks):
         return "handled"
-    if option_cmd := parse_line_option_command(cmd, args):
-        dispatch_line_option_command(
-            option_cmd,
-            set_global_func=set_global_option_func,
-            set_context_func=set_context_option_func,
-            unset_global_func=unset_global_option_func,
-            unset_context_func=unset_context_option_func,
-        )
+    if _dispatch_line_option_family(cmd, args, callbacks):
         return "handled"
-    if metadata_cmd := parse_line_target_metadata_command(cmd, args):
-        dispatch_line_target_metadata_command(
-            metadata_cmd,
-            rename_func=rename_target_func,
-            note_func=note_target_func,
-            alias_func=alias_target_func,
-        )
+    if _dispatch_line_target_metadata_family(cmd, args, callbacks):
         return "handled"
-    if probe_cmd := parse_line_probe_command(cmd, args):
-        dispatch_line_probe_command(
-            probe_cmd,
-            set_context_func=set_context_func,
-            results_func=probe_results_func,
-            config_func=probe_config_func,
-            clear_func=probe_clear_func,
-            serve_func=probe_serve_func,
-            delivery_func=probe_delivery_func,
-            paste_func=probe_paste_func,
-            script_func=probe_script_func,
-            help_func=help_func,
-            start_func=probe_start_func,
-        )
+    if _dispatch_line_probe_family(cmd, args, callbacks):
         return "handled"
-    if survey_cmd := parse_line_survey_command(cmd, args):
-        dispatch_line_survey_command(
-            survey_cmd,
-            set_context_func=set_context_func,
-            results_func=survey_results_func,
-            config_func=survey_config_func,
-            preset_func=survey_preset_func,
-            help_func=help_func,
-        )
+    if _dispatch_line_survey_family(cmd, args, callbacks):
         return "handled"
     return ""
