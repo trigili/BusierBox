@@ -74,12 +74,7 @@ import gritlib.line_workspace as line_workspace
 from gritlib.operator_network import choose_operator_host_for_target
 import gritlib.probe_commands as probe_commands
 import gritlib.probe_results as probe_results
-from gritlib.service_runtime import (
-    SESSION_MANAGER,
-    SHUTDOWN,
-    current_shutdown_reason,
-    request_shutdown,
-)
+import gritlib.service_runtime as service_runtime
 from gritlib.release_artifacts import release_context
 from gritlib.session_state import (
     mark_service_stopped, state_file_path, update_server_state,
@@ -121,8 +116,8 @@ def run_line_repl(cfg):
     repl_io = line_repl_runtime.setup_line_repl_io(
         _readline,
         HAVE_READLINE,
-        shutdown_event=SHUTDOWN,
-        request_shutdown_func=request_shutdown,
+        shutdown_event=service_runtime.SHUTDOWN,
+        request_shutdown_func=service_runtime.request_shutdown,
     )
     line_input = line_repl_runtime.line_repl_io_input(repl_io)
 
@@ -235,7 +230,7 @@ def run_line_repl(cfg):
     line_session_callbacks = build_line_session_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        session_root_func=SESSION_MANAGER.root,
+        session_root_func=service_runtime.SESSION_MANAGER.root,
         append_event_fn=append_event,
         quote=shquote,
     )
@@ -389,8 +384,8 @@ def run_line_repl(cfg):
             cfg,
             clear_console_context_func=line_context.clear_line_console_context,
             workbench_mark_stopped_func=mark_service_stopped,
-            shutdown_event=SHUTDOWN,
-            shutdown_reason_func=current_shutdown_reason,
+            shutdown_event=service_runtime.SHUTDOWN,
+            shutdown_reason_func=service_runtime.current_shutdown_reason,
             target_callbacks=line_target_callbacks,
             utility_callbacks=line_utility_callbacks,
             search_callbacks=line_search_callbacks,
@@ -427,9 +422,9 @@ def run_line_console(cfg):
         append_event_func=append_event,
         print_workbench_func=workflow_runners.print_workbench,
         run_repl_func=run_line_repl,
-        request_shutdown_func=request_shutdown,
+        request_shutdown_func=service_runtime.request_shutdown,
         stop_services_func=workflow_runners.stop_workbench_started_services,
         mark_stopped_func=mark_service_stopped,
-        shutdown_reason_func=current_shutdown_reason,
+        shutdown_reason_func=service_runtime.current_shutdown_reason,
         stderr=sys.stderr,
     )
