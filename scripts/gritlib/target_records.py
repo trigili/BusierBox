@@ -2100,80 +2100,63 @@ def target_filter_record_from_target(target_filter_id="", selected_target=None):
     }
 
 
-def apply_target_filter_activity_counts(record, target_filter_id="", unfiltered=None, filtered=None):
-    record = record if isinstance(record, dict) else {}
-    unfiltered = unfiltered if isinstance(unfiltered, dict) else {}
-    filtered = filtered if isinstance(filtered, dict) else {}
-    record.update({
-        "unfiltered_target_count": unfiltered.get("targets", 0),
-        "unfiltered_upload_count": unfiltered.get("uploads", 0),
-        "unfiltered_fetch_count": unfiltered.get("fetches", 0),
-        "unfiltered_staged_count": unfiltered.get("staged", 0),
-        "unfiltered_session_count": unfiltered.get("sessions", 0),
-        "unfiltered_event_tail_count": unfiltered.get("event_tail", 0),
-        "unfiltered_command_queue_command_count": unfiltered.get(
+def _target_filter_activity_count_fields(prefix, counts):
+    return {
+        f"{prefix}_target_count": counts.get("targets", 0),
+        f"{prefix}_upload_count": counts.get("uploads", 0),
+        f"{prefix}_fetch_count": counts.get("fetches", 0),
+        f"{prefix}_staged_count": counts.get("staged", 0),
+        f"{prefix}_session_count": counts.get("sessions", 0),
+        f"{prefix}_event_tail_count": counts.get("event_tail", 0),
+        f"{prefix}_command_queue_command_count": counts.get(
             "command_queue_commands", 0
         ),
-        "unfiltered_target_command_record_count": unfiltered.get(
+        f"{prefix}_target_command_record_count": counts.get(
             "target_command_records", 0
         ),
-        "unfiltered_target_phone_home_record_count": unfiltered.get(
+        f"{prefix}_target_phone_home_record_count": counts.get(
             "target_phone_home_records", 0
         ),
-        "filtered_target_count": filtered.get("targets", 0),
-        "filtered_upload_count": filtered.get("uploads", 0),
-        "filtered_fetch_count": filtered.get("fetches", 0),
-        "filtered_staged_count": filtered.get("staged", 0),
-        "filtered_session_count": filtered.get("sessions", 0),
-        "filtered_event_tail_count": filtered.get("event_tail", 0),
-        "filtered_command_queue_command_count": filtered.get(
-            "command_queue_commands", 0
-        ),
-        "filtered_target_command_record_count": filtered.get(
-            "target_command_records", 0
-        ),
-        "filtered_target_phone_home_record_count": filtered.get(
-            "target_phone_home_records", 0
-        ),
-    })
-    record["unfiltered_activity_count"] = (
-        record["unfiltered_upload_count"] +
-        record["unfiltered_fetch_count"] +
-        record["unfiltered_staged_count"] +
-        record["unfiltered_session_count"] +
-        record["unfiltered_event_tail_count"] +
-        record["unfiltered_command_queue_command_count"] +
-        record["unfiltered_target_command_record_count"] +
-        record["unfiltered_target_phone_home_record_count"]
+    }
+
+
+def _target_filter_activity_total(record, prefix, *, include_command_records=True):
+    total = (
+        record[f"{prefix}_upload_count"] +
+        record[f"{prefix}_fetch_count"] +
+        record[f"{prefix}_staged_count"] +
+        record[f"{prefix}_session_count"] +
+        record[f"{prefix}_event_tail_count"] +
+        record[f"{prefix}_command_queue_command_count"] +
+        record[f"{prefix}_target_phone_home_record_count"]
     )
-    record["filtered_activity_count"] = (
-        record["filtered_upload_count"] +
-        record["filtered_fetch_count"] +
-        record["filtered_staged_count"] +
-        record["filtered_session_count"] +
-        record["filtered_event_tail_count"] +
-        record["filtered_command_queue_command_count"] +
-        record["filtered_target_command_record_count"] +
-        record["filtered_target_phone_home_record_count"]
+    if include_command_records:
+        total += record[f"{prefix}_target_command_record_count"]
+    return total
+
+
+def _apply_target_filter_activity_totals(record):
+    record["unfiltered_activity_count"] = _target_filter_activity_total(
+        record,
+        "unfiltered",
     )
-    record["unfiltered_observed_activity_count"] = (
-        record["unfiltered_upload_count"] +
-        record["unfiltered_fetch_count"] +
-        record["unfiltered_staged_count"] +
-        record["unfiltered_session_count"] +
-        record["unfiltered_event_tail_count"] +
-        record["unfiltered_command_queue_command_count"] +
-        record["unfiltered_target_phone_home_record_count"]
+    record["filtered_activity_count"] = _target_filter_activity_total(
+        record,
+        "filtered",
     )
-    record["filtered_observed_activity_count"] = (
-        record["filtered_upload_count"] +
-        record["filtered_fetch_count"] +
-        record["filtered_staged_count"] +
-        record["filtered_session_count"] +
-        record["filtered_event_tail_count"] +
-        record["filtered_command_queue_command_count"] +
-        record["filtered_target_phone_home_record_count"]
+    record["unfiltered_observed_activity_count"] = _target_filter_activity_total(
+        record,
+        "unfiltered",
+        include_command_records=False,
     )
+    record["filtered_observed_activity_count"] = _target_filter_activity_total(
+        record,
+        "filtered",
+        include_command_records=False,
+    )
+
+
+def _apply_target_filter_activity_flags(record, target_filter_id=""):
     record["has_unfiltered_activity"] = record["unfiltered_activity_count"] > 0
     record["has_filtered_activity"] = record["filtered_activity_count"] > 0
     record["filter_reduced_activity"] = (
@@ -2191,6 +2174,16 @@ def apply_target_filter_activity_counts(record, target_filter_id="", unfiltered=
         record["filtered_observed_activity_count"] <
         record["unfiltered_observed_activity_count"]
     )
+
+
+def apply_target_filter_activity_counts(record, target_filter_id="", unfiltered=None, filtered=None):
+    record = record if isinstance(record, dict) else {}
+    unfiltered = unfiltered if isinstance(unfiltered, dict) else {}
+    filtered = filtered if isinstance(filtered, dict) else {}
+    record.update(_target_filter_activity_count_fields("unfiltered", unfiltered))
+    record.update(_target_filter_activity_count_fields("filtered", filtered))
+    _apply_target_filter_activity_totals(record)
+    _apply_target_filter_activity_flags(record, target_filter_id)
     return record
 
 
