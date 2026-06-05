@@ -1578,7 +1578,7 @@ def command_queue_listener_action_states(service_row):
     }
 
 
-def command_queue_workflow_action_records(
+def _command_queue_workflow_context(
     cfg,
     command_queue,
     target_mailbox_records=None,
@@ -1595,7 +1595,6 @@ def command_queue_workflow_action_records(
     result_count = int(command_queue.get("result_count", 0) or 0)
     mailbox_records = [rec for rec in (target_mailbox_records or []) if isinstance(rec, dict)]
     pending_mailbox_records = [rec for rec in mailbox_records if rec.get("pending_work") is True]
-    pending_mailbox_count = len(pending_mailbox_records)
     target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
     pending_mailbox_target_ids = {
         str(rec.get("target_id") or "")
@@ -1604,122 +1603,191 @@ def command_queue_workflow_action_records(
     }
     fleet_metrics = workflow_fleet_metrics(target_records)
     lifecycle_states = command_queue_listener_action_states(service_row)
-    records = []
+    return {
+        "base": base,
+        "target_arg": target_arg,
+        "target_filter_id": target_filter_id,
+        "service_row": service_row,
+        "queue_path": command_queue.get("path") or command_queue_path(cfg),
+        "queued_count": queued_count,
+        "total_count": total_count,
+        "result_count": result_count,
+        "mailbox_records": mailbox_records,
+        "pending_mailbox_records": pending_mailbox_records,
+        "pending_mailbox_target_ids": pending_mailbox_target_ids,
+        "fleet_metrics": fleet_metrics,
+        "command_queue": command_queue,
+        "lifecycle_states": lifecycle_states,
+    }
 
-    def add(action_id, category, label, command, workflow, action_state, action_reason,
-            available=True, requires_input=False, requires_confirmation=False,
-            queues_offline_work=False, target_phone_home_required=False,
-            can_run_from_curses_enter=False, curses_enter_action=""):
-        records.append(command_queue_workflow_action_record(
+
+def _command_queue_workflow_action(
+    context,
+    action_id,
+    category,
+    label,
+    command,
+    workflow,
+    action_state,
+    action_reason,
+    available=True,
+    requires_input=False,
+    requires_confirmation=False,
+    queues_offline_work=False,
+    target_phone_home_required=False,
+    can_run_from_curses_enter=False,
+    curses_enter_action="",
+    run_command_suffix="",
+):
+    return command_queue_workflow_action_record(
+        action_id,
+        category,
+        label,
+        command,
+        workflow,
+        scoped_service_workflow_run_command(
+            context["base"],
+            context["target_arg"],
+            "command-queue",
             action_id,
-            category,
-            label,
-            command,
-            workflow,
-            scoped_service_workflow_run_command(base, target_arg, "command-queue", action_id),
-            target_filter_id,
-            service_row,
-            command_queue.get("path") or command_queue_path(cfg),
-            queued_count,
-            total_count,
-            result_count,
-            mailbox_records,
-            pending_mailbox_records,
-            pending_mailbox_target_ids,
-            fleet_metrics,
-            command_queue,
-            action_state,
-            action_reason,
-            available=available,
-            requires_input=requires_input,
-            requires_confirmation=requires_confirmation,
-            queues_offline_work=queues_offline_work,
-            target_phone_home_required=target_phone_home_required,
-            can_run_from_curses_enter=can_run_from_curses_enter,
-            curses_enter_action=curses_enter_action,
-        ))
+            run_command_suffix,
+        ),
+        context["target_filter_id"],
+        context["service_row"],
+        context["queue_path"],
+        context["queued_count"],
+        context["total_count"],
+        context["result_count"],
+        context["mailbox_records"],
+        context["pending_mailbox_records"],
+        context["pending_mailbox_target_ids"],
+        context["fleet_metrics"],
+        context["command_queue"],
+        action_state,
+        action_reason,
+        available=available,
+        requires_input=requires_input,
+        requires_confirmation=requires_confirmation,
+        queues_offline_work=queues_offline_work,
+        target_phone_home_required=target_phone_home_required,
+        can_run_from_curses_enter=can_run_from_curses_enter,
+        curses_enter_action=curses_enter_action,
+    )
 
-    add(
-        "inspect-command-queue",
-        "inspect",
-        "Inspect command queue, target mailbox, and policy state",
-        optional_target_scoped_command(base, target_arg, " --status"),
-        "command-queue",
-        "ready",
-        "run-now",
-    )
-    add(
-        "list-command-queue",
-        "mailbox",
-        "List command queue and mailbox records",
-        optional_target_scoped_command(base, target_arg, " --list-command-queue"),
-        "command-queue",
-        "ready",
-        "run-now",
-        can_run_from_curses_enter=True,
-        curses_enter_action="list-command-queue",
-    )
-    add(
-        "queue-command",
-        "mailbox",
-        "Queue command for target mailbox delivery",
-        optional_target_scoped_command(base, target_arg, " --queue-command COMMAND"),
-        "command-queue",
-        "needs-input",
-        "input-required",
-        requires_input=True,
-        queues_offline_work=True,
-        target_phone_home_required=True,
-    )
-    if records:
-        records[-1]["run_command"] = scoped_service_workflow_run_command(
-            base,
-            target_arg,
+
+def _command_queue_inspect_workflow_actions(context):
+    base = context["base"]
+    target_arg = context["target_arg"]
+    return [
+        _command_queue_workflow_action(
+            context,
+            "inspect-command-queue",
+            "inspect",
+            "Inspect command queue, target mailbox, and policy state",
+            optional_target_scoped_command(base, target_arg, " --status"),
             "command-queue",
+            "ready",
+            "run-now",
+        )
+    ]
+
+
+def _command_queue_mailbox_workflow_actions(context):
+    base = context["base"]
+    target_arg = context["target_arg"]
+    total_count = context["total_count"]
+    return [
+        _command_queue_workflow_action(
+            context,
+            "list-command-queue",
+            "mailbox",
+            "List command queue and mailbox records",
+            optional_target_scoped_command(base, target_arg, " --list-command-queue"),
+            "command-queue",
+            "ready",
+            "run-now",
+            can_run_from_curses_enter=True,
+            curses_enter_action="list-command-queue",
+        ),
+        _command_queue_workflow_action(
+            context,
             "queue-command",
-            " --command-queue-workflow-command COMMAND",
-        )
-    add(
-        "clear-command-queue",
-        "mailbox",
-        "Clear queued command records",
-        optional_target_scoped_command(base, target_arg, " --clear-command-queue --list-command-queue"),
-        "command-queue",
-        "confirm-required" if total_count else "already-empty",
-        "confirmation-required" if total_count else "queue-empty",
-        requires_confirmation=True,
-    )
-    if records:
-        records[-1]["run_command"] = scoped_service_workflow_run_command(
-            base,
-            target_arg,
+            "mailbox",
+            "Queue command for target mailbox delivery",
+            optional_target_scoped_command(base, target_arg, " --queue-command COMMAND"),
             "command-queue",
+            "needs-input",
+            "input-required",
+            requires_input=True,
+            queues_offline_work=True,
+            target_phone_home_required=True,
+            run_command_suffix=" --command-queue-workflow-command COMMAND",
+        ),
+        _command_queue_workflow_action(
+            context,
             "clear-command-queue",
-            " --confirm-command-queue-workflow-action",
-        )
-    add(
-        "start-command-queue-listener",
-        "service",
-        "Start command queue poll listener",
-        base + " --transport command-queue",
-        "command-queue",
-        lifecycle_states["start_state"],
-        lifecycle_states["start_reason"],
-        can_run_from_curses_enter=lifecycle_states["start_enter"],
-        curses_enter_action="start-command-queue-listener" if lifecycle_states["start_enter"] else "stop-command-queue-listener",
+            "mailbox",
+            "Clear queued command records",
+            optional_target_scoped_command(base, target_arg, " --clear-command-queue --list-command-queue"),
+            "command-queue",
+            "confirm-required" if total_count else "already-empty",
+            "confirmation-required" if total_count else "queue-empty",
+            requires_confirmation=True,
+            run_command_suffix=" --confirm-command-queue-workflow-action",
+        ),
+    ]
+
+
+def _command_queue_listener_workflow_actions(context):
+    base = context["base"]
+    lifecycle_states = context["lifecycle_states"]
+    return [
+        _command_queue_workflow_action(
+            context,
+            "start-command-queue-listener",
+            "service",
+            "Start command queue poll listener",
+            base + " --transport command-queue",
+            "command-queue",
+            lifecycle_states["start_state"],
+            lifecycle_states["start_reason"],
+            can_run_from_curses_enter=lifecycle_states["start_enter"],
+            curses_enter_action="start-command-queue-listener" if lifecycle_states["start_enter"] else "stop-command-queue-listener",
+        ),
+        _command_queue_workflow_action(
+            context,
+            "stop-command-queue-listener",
+            "service",
+            "Stop command queue poll listener",
+            base + " --stop-service command-queue",
+            "command-queue",
+            lifecycle_states["stop_state"],
+            lifecycle_states["stop_reason"],
+            requires_confirmation=True,
+            can_run_from_curses_enter=lifecycle_states["stop_enter"],
+            curses_enter_action="stop-command-queue-listener" if lifecycle_states["stop_enter"] else "start-command-queue-listener",
+        ),
+    ]
+
+
+def command_queue_workflow_action_records(
+    cfg,
+    command_queue,
+    target_mailbox_records=None,
+    service_row=None,
+    targets=None,
+):
+    context = _command_queue_workflow_context(
+        cfg,
+        command_queue,
+        target_mailbox_records=target_mailbox_records,
+        service_row=service_row,
+        targets=targets,
     )
-    add(
-        "stop-command-queue-listener",
-        "service",
-        "Stop command queue poll listener",
-        base + " --stop-service command-queue",
-        "command-queue",
-        lifecycle_states["stop_state"],
-        lifecycle_states["stop_reason"],
-        requires_confirmation=True,
-        can_run_from_curses_enter=lifecycle_states["stop_enter"],
-        curses_enter_action="stop-command-queue-listener" if lifecycle_states["stop_enter"] else "start-command-queue-listener",
-    )
+    records = []
+    records.extend(_command_queue_inspect_workflow_actions(context))
+    records.extend(_command_queue_mailbox_workflow_actions(context))
+    records.extend(_command_queue_listener_workflow_actions(context))
     records.sort(key=lambda rec: (rec.get("category", ""), rec.get("action_id", "")))
     return records
 
