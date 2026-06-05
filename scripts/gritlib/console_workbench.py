@@ -2528,6 +2528,26 @@ def _build_workbench_api_collections(
     workbench_jobs,
 ):
     return {
+        **_build_operator_console_workflow_api_collections(
+            operator_console_workflows=operator_console_workflows,
+        ),
+        **_build_workbench_action_api_collections(
+            workbench_actions=workbench_actions,
+        ),
+        **_build_operator_daemon_action_api_collections(
+            operator_daemon_workflow_actions=operator_daemon_workflow_actions,
+        ),
+        **_build_workbench_config_api_collections(
+            workbench_config_fields=workbench_config_fields,
+        ),
+        **_build_workbench_job_api_collections(
+            workbench_jobs=workbench_jobs,
+        ),
+    }
+
+
+def _build_operator_console_workflow_api_collections(*, operator_console_workflows):
+    return {
         "operator_console_workflows": status_indexes.api_collection_record(
             "operator_console_workflows", operator_console_workflows, "id", (
                 "operator_console_workflows_by_id",
@@ -2558,6 +2578,11 @@ def _build_workbench_api_collections(
                 "operator_console_workflows_by_line_mode_action",
             ), "operator_console_workflow_count",
         ),
+    }
+
+
+def _build_workbench_action_api_collections(*, workbench_actions):
+    return {
         "workbench_actions": status_indexes.api_collection_record(
             "workbench_actions", workbench_actions, "id", (
                 "workbench_actions_by_id", "workbench_actions_by_category",
@@ -2579,6 +2604,11 @@ def _build_workbench_api_collections(
                 "workbench_actions_by_curses_enter_action",
             ), "workbench_action_count",
         ),
+    }
+
+
+def _build_operator_daemon_action_api_collections(*, operator_daemon_workflow_actions):
+    return {
         "operator_daemon_workflow_actions": status_indexes.api_collection_record(
             "operator_daemon_workflow_actions", operator_daemon_workflow_actions, "id", (
                 "operator_daemon_workflow_actions_by_id",
@@ -2621,6 +2651,11 @@ def _build_workbench_api_collections(
                 "operator_daemon_workflow_actions_by_curses_enter_action",
             ), "operator_daemon_workflow_action_count",
         ),
+    }
+
+
+def _build_workbench_config_api_collections(*, workbench_config_fields):
+    return {
         "workbench_config_fields": status_indexes.api_collection_record(
             "workbench_config_fields", workbench_config_fields, "key", (
                 "workbench_config_fields_by_key", "workbench_config_fields_by_category",
@@ -2633,6 +2668,11 @@ def _build_workbench_api_collections(
                 "workbench_config_fields_by_requires_explicit_operator_choice",
             ), "workbench_config_field_count",
         ),
+    }
+
+
+def _build_workbench_job_api_collections(*, workbench_jobs):
+    return {
         "workbench_jobs": status_indexes.api_collection_record(
             "workbench_jobs", workbench_jobs, "id", (
                 "workbench_jobs_by_id", "workbench_jobs_by_action",
