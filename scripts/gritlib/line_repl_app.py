@@ -20,11 +20,7 @@ import gritlib.line_context as line_context
 import gritlib.line_daemon as line_daemon
 from gritlib.line_events import print_line_events_view
 import gritlib.line_files as line_files
-from gritlib.line_help import (
-    line_unknown_command_message,
-    print_context_line_help,
-    print_line_command_help,
-)
+import gritlib.line_help as line_help
 import gritlib.line_options as line_options
 from gritlib.line_network import print_line_local_ips
 import gritlib.line_resources as line_resources
@@ -319,7 +315,7 @@ def run_line_repl(cfg):
         survey_callbacks=line_survey_callbacks,
         set_context_func=line_context.set_line_collection_context,
         build_run_func=line_build.run_line_build_command,
-        help_func=print_line_command_help,
+        help_func=line_help.print_line_command_help,
         append_event_fn=append_event,
     )
     line_navigation_callbacks = build_line_navigation_callbacks(
@@ -329,8 +325,8 @@ def run_line_repl(cfg):
         set_context_func=line_context.set_line_collection_context,
         clear_console_context_func=line_context.clear_line_console_context,
         back_func=line_context.back_line_module_context,
-        session_help_func=print_line_command_help,
-        route_help_func=print_line_command_help,
+        session_help_func=line_help.print_line_command_help,
+        route_help_func=line_help.print_line_command_help,
         search_callbacks=line_search_callbacks,
         target_callbacks=line_target_callbacks,
         route_service_callbacks=line_route_service_callbacks,
@@ -345,7 +341,7 @@ def run_line_repl(cfg):
         set_context_func=line_context.set_line_collection_context,
         daemon_runner_func=workflow_runners.run_operator_daemon_workflow_action,
         release_print_func=line_release.print_line_release,
-        release_help_func=print_line_command_help,
+        release_help_func=line_help.print_line_command_help,
         target_callbacks=line_target_callbacks,
         clear_files_func=line_files.clear_line_files,
         file_callbacks=line_file_callbacks,
@@ -392,9 +388,9 @@ def run_line_repl(cfg):
             history_command_func=line_resources.line_history_command,
             record_history_func=line_resources.record_line_history,
             readline_module=_readline if HAVE_READLINE else None,
-            command_help_printer=print_line_command_help,
-            context_help_printer=print_context_line_help,
-            unknown_message_func=line_unknown_command_message,
+            command_help_printer=line_help.print_line_command_help,
+            context_help_printer=line_help.print_context_line_help,
+            unknown_message_func=line_help.line_unknown_command_message,
         )
     finally:
         line_repl_runtime.restore_line_repl_io(repl_io)
