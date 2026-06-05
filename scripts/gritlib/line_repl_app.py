@@ -330,37 +330,22 @@ def _build_line_operational_callbacks(
     )
 
 
-def run_line_repl(cfg):
-    repl_io, line_input = _setup_line_repl_runtime_io()
-
-    (
-        line_target_callbacks,
-        line_route_service_callbacks,
-        line_option_callbacks,
-        line_action_callbacks,
-        line_completion_callbacks,
-    ) = _build_line_foundation_callbacks(
-        cfg,
-        line_input,
-    )
-
-    (
-        line_job_callbacks,
-        line_queue_callbacks,
-        line_probe_callbacks,
-        line_session_callbacks,
-        line_file_callbacks,
-        line_search_callbacks,
-        line_display_show_callbacks,
-    ) = _build_line_operational_callbacks(
-        cfg,
-        line_input,
-        line_target_callbacks,
-        line_route_service_callbacks,
-        line_option_callbacks,
-        line_action_callbacks,
-    )
-
+def _build_line_dispatch_callbacks(
+    cfg,
+    line_input,
+    line_target_callbacks,
+    line_route_service_callbacks,
+    line_option_callbacks,
+    line_action_callbacks,
+    line_completion_callbacks,
+    line_job_callbacks,
+    line_queue_callbacks,
+    line_probe_callbacks,
+    line_session_callbacks,
+    line_file_callbacks,
+    line_search_callbacks,
+    line_display_show_callbacks,
+):
     line_workspace_callbacks = build_line_workspace_callbacks(
         cfg,
         default_config=config_utils.DEFAULT_CONFIG,
@@ -456,6 +441,69 @@ def run_line_repl(cfg):
         file_callbacks=line_file_callbacks,
         queue_callbacks=line_queue_callbacks,
         action_callbacks=line_action_callbacks,
+    )
+
+    return (
+        line_utility_callbacks,
+        line_core_callbacks,
+        line_navigation_callbacks,
+        line_workflow_callbacks,
+        line_legacy_callbacks,
+    )
+
+
+def run_line_repl(cfg):
+    repl_io, line_input = _setup_line_repl_runtime_io()
+
+    (
+        line_target_callbacks,
+        line_route_service_callbacks,
+        line_option_callbacks,
+        line_action_callbacks,
+        line_completion_callbacks,
+    ) = _build_line_foundation_callbacks(
+        cfg,
+        line_input,
+    )
+
+    (
+        line_job_callbacks,
+        line_queue_callbacks,
+        line_probe_callbacks,
+        line_session_callbacks,
+        line_file_callbacks,
+        line_search_callbacks,
+        line_display_show_callbacks,
+    ) = _build_line_operational_callbacks(
+        cfg,
+        line_input,
+        line_target_callbacks,
+        line_route_service_callbacks,
+        line_option_callbacks,
+        line_action_callbacks,
+    )
+
+    (
+        line_utility_callbacks,
+        line_core_callbacks,
+        line_navigation_callbacks,
+        line_workflow_callbacks,
+        line_legacy_callbacks,
+    ) = _build_line_dispatch_callbacks(
+        cfg,
+        line_input,
+        line_target_callbacks,
+        line_route_service_callbacks,
+        line_option_callbacks,
+        line_action_callbacks,
+        line_completion_callbacks,
+        line_job_callbacks,
+        line_queue_callbacks,
+        line_probe_callbacks,
+        line_session_callbacks,
+        line_file_callbacks,
+        line_search_callbacks,
+        line_display_show_callbacks,
     )
 
     try:
