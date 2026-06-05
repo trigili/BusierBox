@@ -5009,179 +5009,23 @@ def _build_status_session_release_workbench_payload(
     }
 
 
-def status_document(cfg):
+def _build_status_document_contexts(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
     foundation_context = _build_status_foundation_context(
         cfg, target_filter_id=target_filter_id
     )
-    f = foundation_context
-    all_event_records = f["all_event_records"]
-    event_log_path = f["event_log_path"]
-    fetches = f["fetches"]
-    ips = f["ips"]
-    operator_dir = f["operator_dir"]
-    operator_network_context = f["operator_network_context"]
-    operator_network_index_maps = f["operator_network_index_maps"]
-    operator_network_records = f["operator_network_records"]
-    operator_network_state_index_maps = f["operator_network_state_index_maps"]
-    operator_network_state_records = f["operator_network_state_records"]
-    port_index_maps = f["port_index_maps"]
-    ports = f["ports"]
-    selected_local_ip = f["selected_local_ip"]
-    service_context = f["service_context"]
-    service_manager = f["service_manager"]
-    service_manager_resource_index_maps = f["service_manager_resource_index_maps"]
-    service_manager_resources = f["service_manager_resources"]
-    service_manager_state_index_maps = f["service_manager_state_index_maps"]
-    service_manager_state_records = f["service_manager_state_records"]
-    service_manager_status_doc = f["service_manager_status_doc"]
-    services = f["services"]
-    session_root = f["session_root"]
-    staged = f["staged"]
-    staged_by_fetch_command = f["staged_by_fetch_command"]
-    staged_by_fetch_command_force = f["staged_by_fetch_command_force"]
-    staged_by_kind = f["staged_by_kind"]
-    staged_by_kind_source_exists = f["staged_by_kind_source_exists"]
-    staged_by_request = f["staged_by_request"]
-    staged_by_sha256 = f["staged_by_sha256"]
-    staged_by_source_exists = f["staged_by_source_exists"]
-    staged_by_source_path = f["staged_by_source_path"]
-    staged_by_target_id = f["staged_by_target_id"]
-    staged_raw = f["staged_raw"]
-    staged_records = f["staged_records"]
-    target_index_maps = f["target_index_maps"]
-    target_registry_state_index_maps = f["target_registry_state_index_maps"]
-    target_registry_state_records = f["target_registry_state_records"]
-    target_registry_summary = f["target_registry_summary"]
-    target_summary = f["target_summary"]
-    targets = f["targets"]
-    targets_by_id = f["targets_by_id"]
-    unfiltered_counts = f["unfiltered_counts"]
-    unfiltered_staged_raw = f["unfiltered_staged_raw"]
-    uploads = f["uploads"]
     activity_queue_context = _build_status_activity_queue_context(
         cfg,
         event_limit=event_limit,
         target_filter_id=target_filter_id,
         foundation_context=foundation_context,
     )
-    aq = activity_queue_context
-    bridge_profile_context = aq["bridge_profile_context"]
-    bridge_profiles = aq["bridge_profiles"]
-    bridge_profile_index_maps = aq["bridge_profile_index_maps"]
-    bridge_hop_records = aq["bridge_hop_records"]
-    bridge_hop_index_maps = aq["bridge_hop_index_maps"]
-    bridge_profile_workflow_actions = aq["bridge_profile_workflow_actions"]
-    bridge_profile_workflow_action_index_maps = aq[
-        "bridge_profile_workflow_action_index_maps"
-    ]
-    staged_file_workflow_context = aq["staged_file_workflow_context"]
-    staged_file_workflow_actions = aq["staged_file_workflow_actions"]
-    staged_file_workflow_action_index_maps = aq[
-        "staged_file_workflow_action_index_maps"
-    ]
-    selected_target = f["selected_target"]
-    target_registry_state_record = f["target_registry_state_record"]
-    target_registry_state_records = f["target_registry_state_records"]
-    target_registry_state_index_maps = f["target_registry_state_index_maps"]
-    target_registry_summary = f["target_registry_summary"]
-    session_context = aq["session_context"]
-    sessions = aq["sessions"]
-    target_filter_session_ids = aq["target_filter_session_ids"]
-    session_root_state = aq["session_root_state"]
-    session_root_state_records = aq["session_root_state_records"]
-    session_root_state_index_maps = aq["session_root_state_index_maps"]
-    session_index_maps = aq["session_index_maps"]
-    event_context = aq["event_context"]
-    event_stats = aq["event_stats"]
-    event_log_state = aq["event_log_state"]
-    event_log_state_records = aq["event_log_state_records"]
-    event_log_state_index_maps = aq["event_log_state_index_maps"]
-    events = aq["events"]
-    event_index_maps = aq["event_index_maps"]
-    event_summary_stats = aq["event_summary_stats"]
-    command_queue_context = aq["command_queue_context"]
-    command_queue = aq["command_queue"]
-    command_queue_policy_records = aq["command_queue_policy_records"]
-    command_queue_policy_index_maps = aq["command_queue_policy_index_maps"]
-    command_queue_index_maps = aq["command_queue_index_maps"]
-    command_queue_mode_records = aq["command_queue_mode_records"]
-    command_queue_mode_index_maps = aq["command_queue_mode_index_maps"]
-    target_activity_context = aq["target_activity_context"]
-    target_mailbox_records = aq["target_mailbox_records"]
-    target_mailbox_index_maps = aq["target_mailbox_index_maps"]
-    target_phone_home_records = aq["target_phone_home_records"]
-    target_phone_home_index_maps = aq["target_phone_home_index_maps"]
-    release_context_doc = aq["release_context_doc"]
-    release = aq["release"]
-    release_state = aq["release_state"]
-    release_state_records = aq["release_state_records"]
-    release_state_index_maps = aq["release_state_index_maps"]
-    release_artifact_workflow_actions = aq["release_artifact_workflow_actions"]
-    release_artifact_workflow_action_index_maps = aq[
-        "release_artifact_workflow_action_index_maps"
-    ]
-    rshell_session_policy_context = aq["rshell_session_policy_context"]
-    rshell_session_policy = aq["rshell_session_policy"]
-    rshell_session_policy_record_item = aq["rshell_session_policy_record_item"]
-    rshell_session_policy_records = aq["rshell_session_policy_records"]
-    rshell_session_policy_index_maps = aq["rshell_session_policy_index_maps"]
-    workbench_config_context = aq["workbench_config_context"]
-    workbench_config_fields = aq["workbench_config_fields"]
-    workbench_config_field_index_maps = aq["workbench_config_field_index_maps"]
-    workflow_context = aq["workflow_context"]
-    workbench_action_context = aq["workbench_action_context"]
-    workbench_actions = aq["workbench_actions"]
-    workbench_action_index_maps = aq["workbench_action_index_maps"]
-    operator_daemon_workflow_actions = aq["operator_daemon_workflow_actions"]
-    operator_daemon_workflow_action_index_maps = aq[
-        "operator_daemon_workflow_action_index_maps"
-    ]
-    target_workflow_actions = aq["target_workflow_actions"]
-    target_workflow_action_index_maps = aq["target_workflow_action_index_maps"]
-    workbench_job_context = aq["workbench_job_context"]
-    workbench_jobs = aq["workbench_jobs"]
-    workbench_job_index_maps = aq["workbench_job_index_maps"]
-    target_command_context = aq["target_command_context"]
-    target_command_records = aq["target_command_records"]
-    target_command_index_maps = aq["target_command_index_maps"]
-    target_command_summary = aq["target_command_summary"]
-    target_command_state_record = aq["target_command_state_record"]
-    target_command_state_records = aq["target_command_state_records"]
-    target_command_state_index_maps = aq["target_command_state_index_maps"]
-    target_filter_context = aq["target_filter_context"]
-    target_filter_record = aq["target_filter_record"]
-    target_filter_records = aq["target_filter_records"]
-    target_filter_index_maps = aq["target_filter_index_maps"]
     transfer_activity_context = _build_status_transfer_activity_context(
         cfg,
         foundation_context=foundation_context,
         activity_queue_context=activity_queue_context,
     )
-    ta = transfer_activity_context
-    file_transfer_context = ta["file_transfer_context"]
-    upload_index_maps = ta["upload_index_maps"]
-    fetch_index_maps = ta["fetch_index_maps"]
-    target_file_transfer_records = ta["target_file_transfer_records"]
-    target_file_transfer_index_maps = ta["target_file_transfer_index_maps"]
-    file_service_workflow_context = ta["file_service_workflow_context"]
-    file_service_row = ta["file_service_row"]
-    file_service_workflow_actions = ta["file_service_workflow_actions"]
-    file_service_workflow_action_index_maps = ta[
-        "file_service_workflow_action_index_maps"
-    ]
-    target_activity_feed_context = ta["target_activity_feed_context"]
-    target_activity_records = ta["target_activity_records"]
-    target_activity_index_maps = ta["target_activity_index_maps"]
-    summary = service_context["summary"]
-    warnings = service_context["warnings"]
-    service_index_maps = service_context["service_index_maps"]
-    target_attribution_context = ta["target_attribution_context"]
-    target_attribution_status_doc = ta["target_attribution_status_doc"]
-    target_attribution = ta["target_attribution"]
-    target_attribution_records = ta["target_attribution_records"]
-    target_attribution_index_maps = ta["target_attribution_index_maps"]
     tail_context = _build_status_tail_context(
         cfg,
         target_filter_id=target_filter_id,
@@ -5189,81 +5033,8 @@ def status_document(cfg):
         activity_queue_context=activity_queue_context,
         transfer_activity_context=transfer_activity_context,
     )
-    tc = tail_context
-    paths = tc["paths"]
-    server_state = tc["server_state"]
-    server_state_records = tc["server_state_records"]
-    server_state_index_maps = tc["server_state_index_maps"]
-    staged_files_state = tc["staged_files_state"]
-    staged_files_state_records = tc["staged_files_state_records"]
-    staged_files_state_index_maps = tc["staged_files_state_index_maps"]
-    command_queue_state = tc["command_queue_state"]
-    command_queue_state_records = tc["command_queue_state_records"]
-    command_queue_state_index_maps = tc["command_queue_state_index_maps"]
-    command_copy = tc["command_copy"]
-    command_copy_records = tc["command_copy_records"]
-    command_copy_record_indexes = tc["command_copy_record_indexes"]
-    command_copy_state_record = tc["command_copy_state_record"]
-    command_copy_state_records = tc["command_copy_state_records"]
-    command_copy_state_index_maps = tc["command_copy_state_index_maps"]
-    workbench_jobs_state = tc["workbench_jobs_state"]
-    workbench_jobs_state_records = tc["workbench_jobs_state_records"]
-    workbench_jobs_state_index_maps = tc["workbench_jobs_state_index_maps"]
-    operator_state_records_list = tc["operator_state_records_list"]
-    operator_state_index_maps = tc["operator_state_index_maps"]
-    operator_state_summary = tc["operator_state_summary"]
-    operator_state_file_summary_doc = tc["operator_state_file_summary_doc"]
-    path_context = tc["path_context"]
-    path_status = tc["path_status"]
-    path_status_records = tc["path_status_records"]
-    path_status_indexes = tc["path_status_indexes"]
-    browser_paths = tc["browser_paths"]
-    browser_path_index_maps = tc["browser_path_index_maps"]
-    browser_summary = tc["browser_summary"]
-    services_by_name = tc["services_by_name"]
-    command_queue_workflow_context = tc["command_queue_workflow_context"]
-    command_queue_workflow_actions = tc["command_queue_workflow_actions"]
-    command_queue_workflow_action_index_maps = tc[
-        "command_queue_workflow_action_index_maps"
-    ]
-    warning_context = tc["warning_context"]
-    warnings_by_type = tc["warnings_by_type"]
-    warnings_by_severity = tc["warnings_by_severity"]
-    warnings_by_remediation_class = tc["warnings_by_remediation_class"]
-    warnings_by_type_severity = tc["warnings_by_type_severity"]
-    warnings_by_service = tc["warnings_by_service"]
-    warnings_by_port = tc["warnings_by_port"]
-    warnings_by_pid = tc["warnings_by_pid"]
-    warnings_by_listener_pid = tc["warnings_by_listener_pid"]
-    warnings_by_owner_pid = tc["warnings_by_owner_pid"]
-    warnings_by_path = tc["warnings_by_path"]
-    warnings_by_type_path = tc["warnings_by_type_path"]
-    warnings_by_service_port = tc["warnings_by_service_port"]
-    warnings_by_type_service_port = tc["warnings_by_type_service_port"]
-    path_warning_context = tc["path_warning_context"]
-    path_status_by_has_warnings = tc["path_status_by_has_warnings"]
-    path_status_by_warning_type = tc["path_status_by_warning_type"]
-    browser_paths_by_has_warnings = tc["browser_paths_by_has_warnings"]
-    browser_paths_by_warning_type = tc["browser_paths_by_warning_type"]
-    services_by_has_warnings = tc["services_by_has_warnings"]
-    services_by_warning_type = tc["services_by_warning_type"]
-    ports_by_has_warnings = tc["ports_by_has_warnings"]
-    ports_by_warning_type = tc["ports_by_warning_type"]
-    service_probe_workflow_context = tc["service_probe_workflow_context"]
-    service_workflow_actions = tc["service_workflow_actions"]
-    service_workflow_action_index_maps = tc["service_workflow_action_index_maps"]
-    probe_workflow_actions = tc["probe_workflow_actions"]
-    probe_workflow_action_index_maps = tc["probe_workflow_action_index_maps"]
-    operator_console_workflow_context = tc["operator_console_workflow_context"]
-    operator_console_workflows = tc["operator_console_workflows"]
-    operator_console_workflow_index_maps = tc[
-        "operator_console_workflow_index_maps"
-    ]
-    operator_console_workflow_stats = tc["operator_console_workflow_stats"]
-    warning_summary_context = tc["warning_summary_context"]
-    warning_summary = tc["warning_summary"]
     _apply_status_summary_updates(
-        summary,
+        foundation_context["service_context"]["summary"],
         foundation_context=foundation_context,
         activity_queue_context=activity_queue_context,
         transfer_activity_context=transfer_activity_context,
@@ -5275,6 +5046,25 @@ def status_document(cfg):
         transfer_activity_context=transfer_activity_context,
         tail_context=tail_context,
     )
+    return {
+        "target_filter_id": target_filter_id,
+        "foundation_context": foundation_context,
+        "activity_queue_context": activity_queue_context,
+        "transfer_activity_context": transfer_activity_context,
+        "tail_context": tail_context,
+        "api_collections": api_collections,
+    }
+
+
+def status_document(cfg):
+    contexts = _build_status_document_contexts(cfg)
+    target_filter_id = contexts["target_filter_id"]
+    foundation_context = contexts["foundation_context"]
+    activity_queue_context = contexts["activity_queue_context"]
+    transfer_activity_context = contexts["transfer_activity_context"]
+    tail_context = contexts["tail_context"]
+    api_collections = contexts["api_collections"]
+    summary = foundation_context["service_context"]["summary"]
     return {
         **_build_status_api_payload_from_contexts(
             cfg=cfg,
