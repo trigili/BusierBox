@@ -1646,6 +1646,101 @@ def _build_service_bridge_api_collections(
     }
 
 
+def _build_operator_health_api_collections(
+    *,
+    ports,
+    path_status_records,
+    server_state_records,
+    operator_state_records_list,
+    operator_network_records,
+    operator_network_state_records,
+    browser_paths,
+    warnings,
+):
+    return {
+        "ports": status_indexes.api_collection_record(
+            "ports", ports, "service", (
+                "ports_by_number", "ports_by_service", "ports_by_actual",
+                "ports_by_has_warnings", "ports_by_warning_type",
+            ), "port_count",
+        ),
+        "path_status_records": status_indexes.api_collection_record(
+            "path_status_records", path_status_records, "name", (
+                "path_status_by_name", "path_status_by_path",
+                "path_status_by_expected_kind", "path_status_by_exists",
+                "path_status_by_parent_exists", "path_status_by_writable",
+                "path_status_by_expected_kind_mismatch",
+                "path_status_by_has_warnings", "path_status_by_warning_type",
+            ), "path_status_count",
+        ),
+        "server_state_records": status_indexes.api_collection_record(
+            "server_state_records", server_state_records, "path", (
+                "server_state_records_by_path",
+                "server_state_records_by_exists",
+                "server_state_records_by_valid",
+                "server_state_records_by_has_services",
+                "server_state_records_by_has_sessions",
+                "server_state_records_by_schema",
+            ), "server_state_record_count",
+        ),
+        "operator_state_records": status_indexes.api_collection_record(
+            "operator_state_records", operator_state_records_list, "name", (
+                "operator_state_records_by_name", "operator_state_records_by_kind",
+                "operator_state_records_by_status", "operator_state_records_by_exists",
+                "operator_state_records_by_valid", "operator_state_records_by_unhealthy",
+                "operator_state_records_by_severity",
+                "operator_state_records_by_remediation_class",
+                "operator_state_records_by_requires_operator_action",
+                "operator_state_records_by_path",
+                "operator_state_records_by_kind_status",
+            ), "operator_state_count",
+        ),
+        "operator_network_records": status_indexes.api_collection_record(
+            "operator_network_records", operator_network_records, "id", (
+                "operator_network_records_by_id",
+                "operator_network_records_by_kind",
+                "operator_network_records_by_ip",
+                "operator_network_records_by_selected",
+                "operator_network_records_by_placeholder",
+                "operator_network_records_by_source",
+                "operator_network_records_by_usable_for_generated_commands",
+            ), "operator_network_record_count",
+        ),
+        "operator_network_state_records": status_indexes.api_collection_record(
+            "operator_network_state_records", operator_network_state_records, "id", (
+                "operator_network_state_records_by_id",
+                "operator_network_state_records_by_selected_ip",
+                "operator_network_state_records_by_selected_source",
+                "operator_network_state_records_by_selected_placeholder",
+                "operator_network_state_records_by_has_detected_ip",
+                "operator_network_state_records_by_uses_placeholder",
+                "operator_network_state_records_by_has_generated_command_ip",
+                "operator_network_state_records_by_has_multiple_ips",
+            ), "operator_network_state_record_count",
+        ),
+        "browser_paths": status_indexes.api_collection_record(
+            "browser_paths", browser_paths, "id", (
+                "browser_paths_by_kind", "browser_paths_by_path",
+                "browser_paths_by_source_id", "browser_paths_by_stage_kind",
+                "browser_paths_by_release_path", "browser_paths_by_kind_source_id",
+                "browser_paths_by_exists", "browser_paths_by_readable",
+                "browser_paths_by_writable", "browser_paths_by_expected_kind_mismatch",
+                "browser_paths_by_has_warnings", "browser_paths_by_warning_type",
+            ), "browser_path_count",
+        ),
+        "warnings": status_indexes.api_collection_record(
+            "warnings", warnings, "type", (
+                "warnings_by_type", "warnings_by_severity",
+                "warnings_by_remediation_class", "warnings_by_type_severity",
+                "warnings_by_service", "warnings_by_port",
+                "warnings_by_pid", "warnings_by_listener_pid", "warnings_by_owner_pid",
+                "warnings_by_path", "warnings_by_type_path",
+                "warnings_by_service_port", "warnings_by_type_service_port",
+            ), "warning_count",
+        ),
+    }
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
@@ -2172,85 +2267,15 @@ def status_document(cfg):
             bridge_profile_workflow_actions=bridge_profile_workflow_actions,
             bridge_hop_records=bridge_hop_records,
         ),
-        "ports": status_indexes.api_collection_record(
-            "ports", ports, "service", (
-                "ports_by_number", "ports_by_service", "ports_by_actual",
-                "ports_by_has_warnings", "ports_by_warning_type",
-            ), "port_count",
-        ),
-        "path_status_records": status_indexes.api_collection_record(
-            "path_status_records", path_status_records, "name", (
-                "path_status_by_name", "path_status_by_path",
-                "path_status_by_expected_kind", "path_status_by_exists",
-                "path_status_by_parent_exists", "path_status_by_writable",
-                "path_status_by_expected_kind_mismatch",
-                "path_status_by_has_warnings", "path_status_by_warning_type",
-            ), "path_status_count",
-        ),
-        "server_state_records": status_indexes.api_collection_record(
-            "server_state_records", server_state_records, "path", (
-                "server_state_records_by_path",
-                "server_state_records_by_exists",
-                "server_state_records_by_valid",
-                "server_state_records_by_has_services",
-                "server_state_records_by_has_sessions",
-                "server_state_records_by_schema",
-            ), "server_state_record_count",
-        ),
-        "operator_state_records": status_indexes.api_collection_record(
-            "operator_state_records", operator_state_records_list, "name", (
-                "operator_state_records_by_name", "operator_state_records_by_kind",
-                "operator_state_records_by_status", "operator_state_records_by_exists",
-                "operator_state_records_by_valid", "operator_state_records_by_unhealthy",
-                "operator_state_records_by_severity",
-                "operator_state_records_by_remediation_class",
-                "operator_state_records_by_requires_operator_action",
-                "operator_state_records_by_path",
-                "operator_state_records_by_kind_status",
-            ), "operator_state_count",
-        ),
-        "operator_network_records": status_indexes.api_collection_record(
-            "operator_network_records", operator_network_records, "id", (
-                "operator_network_records_by_id",
-                "operator_network_records_by_kind",
-                "operator_network_records_by_ip",
-                "operator_network_records_by_selected",
-                "operator_network_records_by_placeholder",
-                "operator_network_records_by_source",
-                "operator_network_records_by_usable_for_generated_commands",
-            ), "operator_network_record_count",
-        ),
-        "operator_network_state_records": status_indexes.api_collection_record(
-            "operator_network_state_records", operator_network_state_records, "id", (
-                "operator_network_state_records_by_id",
-                "operator_network_state_records_by_selected_ip",
-                "operator_network_state_records_by_selected_source",
-                "operator_network_state_records_by_selected_placeholder",
-                "operator_network_state_records_by_has_detected_ip",
-                "operator_network_state_records_by_uses_placeholder",
-                "operator_network_state_records_by_has_generated_command_ip",
-                "operator_network_state_records_by_has_multiple_ips",
-            ), "operator_network_state_record_count",
-        ),
-        "browser_paths": status_indexes.api_collection_record(
-            "browser_paths", browser_paths, "id", (
-                "browser_paths_by_kind", "browser_paths_by_path",
-                "browser_paths_by_source_id", "browser_paths_by_stage_kind",
-                "browser_paths_by_release_path", "browser_paths_by_kind_source_id",
-                "browser_paths_by_exists", "browser_paths_by_readable",
-                "browser_paths_by_writable", "browser_paths_by_expected_kind_mismatch",
-                "browser_paths_by_has_warnings", "browser_paths_by_warning_type",
-            ), "browser_path_count",
-        ),
-        "warnings": status_indexes.api_collection_record(
-            "warnings", warnings, "type", (
-                "warnings_by_type", "warnings_by_severity",
-                "warnings_by_remediation_class", "warnings_by_type_severity",
-                "warnings_by_service", "warnings_by_port",
-                "warnings_by_pid", "warnings_by_listener_pid", "warnings_by_owner_pid",
-                "warnings_by_path", "warnings_by_type_path",
-                "warnings_by_service_port", "warnings_by_type_service_port",
-            ), "warning_count",
+        **_build_operator_health_api_collections(
+            ports=ports,
+            path_status_records=path_status_records,
+            server_state_records=server_state_records,
+            operator_state_records_list=operator_state_records_list,
+            operator_network_records=operator_network_records,
+            operator_network_state_records=operator_network_state_records,
+            browser_paths=browser_paths,
+            warnings=warnings,
         ),
         "target_command_records": status_indexes.api_collection_record(
             "target_command_records", target_command_records, "command", (
