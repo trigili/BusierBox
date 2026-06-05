@@ -24,9 +24,7 @@ from gritlib.service_runtime import current_shutdown_reason, start_child_process
 from gritlib.service_status import (
     run_service_workflow_action_headless_command, service_status_rows,
 )
-from gritlib.staged_files import (
-    load_staged, print_staged, stage_file, unstage_file,
-)
+import gritlib.staged_files as staged_files
 from gritlib.status_print import print_status_document, print_workbench_snapshot
 from gritlib.target_records import (
     configured_target_filter, scoped_target_cfg,
@@ -506,14 +504,14 @@ def run_file_service_workflow_action(cfg, selector, local_file="", request_name=
     if action_id == "inspect-file-workflows":
         return print_status(cfg, json_output=False)
     if action_id == "list-staged-files":
-        print_staged(cfg)
+        staged_files.print_staged(cfg)
         rc = 0
     elif action_id == "stage-file":
         path = str(local_file or "").strip()
         if not path:
             raise ValueError("stage-file workflow action requires --file-service-workflow-local-file")
         request = str(request_name or "").strip() or Path(path).name
-        staged = stage_file(cfg, path, request)
+        staged = staged_files.stage_file(cfg, path, request)
         print(f"staged {staged['request_name']} <- {staged['source_path']}")
         if staged.get("target_id"):
             print(f"target: {staged.get('target_id', '')} ({staged.get('target_label', '') or '-'})")
@@ -839,7 +837,7 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
     if not request:
         raise ValueError(f"staged file workflow action is missing request name: {rec_id}")
     if action_id == "inspect-staged":
-        print_staged(cfg)
+        staged_files.print_staged(cfg)
         rc = 0
     elif action_id == "show-fetch-command":
         fetch_command = str(rec.get("fetch_command") or render_fetch_command(request, cfg))
@@ -853,7 +851,7 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
         if not target_id:
             raise ValueError("queue-staged-fetch staged file workflow action requires --target-id")
         scoped = scoped_target_cfg(cfg, target_id, target_label=str(rec.get("target_label") or cfg.get("_target_label_filter") or ""))
-        staged = (load_staged(cfg).get("staged") or {}).get(request) or {}
+        staged = (staged_files.load_staged(cfg).get("staged") or {}).get(request) or {}
         if not isinstance(staged, dict) or not staged:
             raise ValueError(f"staged request not found: {request}")
         staged_target = str(staged.get("target_id") or "")
@@ -896,7 +894,7 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
     elif action_id == "unstage":
         if rec.get("requires_confirmation") is True and not confirmed:
             raise ValueError(f"staged file workflow action requires --confirm-staged-file-workflow-action: {rec_id}")
-        existed = unstage_file(cfg, request)
+        existed = staged_files.unstage_file(cfg, request)
         print(f"unstaged {request}" if existed else f"not staged {request}")
         rc = 0
     else:
@@ -1019,7 +1017,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             raise ValueError("stage-file-fetch target workflow action requires a local file")
         if not request.strip():
             request = Path(path).name
-        staged = stage_file(scoped, path, request)
+        staged = staged_files.stage_file(scoped, path, request)
         print(f"staged {staged['request_name']} <- {staged['source_path']}")
         print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
         print(render_fetch_command(staged["request_name"], scoped))
@@ -1113,7 +1111,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         request = request.strip()
         if not request:
             raise ValueError("queue-staged-fetch target workflow action requires a staged request name")
-        staged = (load_staged(cfg).get("staged") or {}).get(request) or {}
+        staged = (staged_files.load_staged(cfg).get("staged") or {}).get(request) or {}
         if not isinstance(staged, dict) or not staged:
             raise ValueError(f"staged request not found: {request}")
         staged_target = str(staged.get("target_id") or "")
