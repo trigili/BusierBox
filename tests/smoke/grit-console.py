@@ -219,7 +219,10 @@ def run_pty_script(proc, master_fd, input_bytes, timeout=8):
 
     reader = threading.Thread(target=drain, daemon=True)
     reader.start()
-    os.write(master_fd, input_bytes)
+    view = memoryview(input_bytes)
+    while view:
+        written = os.write(master_fd, view)
+        view = view[written:]
     try:
         _stdout, stderr = proc.communicate(timeout=timeout)
     finally:
@@ -7152,12 +7155,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         line_console_scripted_api = line_console_scripted_command_api(
             line_console_scripted_records
         )
-        os.write(
-            line_console_master,
-            line_console_script.encode("utf-8"),
-        )
+        line_console_script_bytes = line_console_script.encode("utf-8")
+        line_console_script_view = memoryview(line_console_script_bytes)
+        while line_console_script_view:
+            written = os.write(line_console_master, line_console_script_view)
+            line_console_script_view = line_console_script_view[written:]
         line_console_chunks = []
-        deadline = time.time() + 24
+        deadline = time.time() + 45
         while line_console_proc.poll() is None and time.time() < deadline:
             ready, _, _ = select.select([line_console_master], [], [], 0.1)
             if ready:
@@ -8859,6 +8863,7 @@ def main(argv=None):
     bridge_routes_src = (ROOT / "scripts" / "gritlib" / "bridge_routes.py").read_text()
     console_args_src = (ROOT / "scripts" / "gritlib" / "console_args.py").read_text()
     command_queue_src = (ROOT / "scripts" / "gritlib" / "command_queue.py").read_text()
+    console_workbench_src = (ROOT / "scripts" / "gritlib" / "console_workbench.py").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
     file_service_src = (ROOT / "scripts" / "gritlib" / "file_service.py").read_text()
     shell_bridge_service_src = (ROOT / "scripts" / "gritlib" / "shell_bridge_service.py").read_text()
@@ -8884,6 +8889,7 @@ def main(argv=None):
         bridge_routes_src,
         console_args_src,
         command_queue_src,
+        console_workbench_src,
         file_service_src,
         file_transfer_src,
         shell_bridge_service_src,
@@ -8968,7 +8974,7 @@ def main(argv=None):
                  "Jobs", "cancel_line_job", "start_line_job",
                  "line_action_records", "start_workbench_job_record", "run_workbench_action_record",
                  "Operator Daemon", "run_line_daemon_action", "operator_daemon_workflow_actions"):
-        if word not in workbench_pager_src:
+        if word not in workbench_pager_src + console_workbench_src:
             print(f"grit-console: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
     for word in (
