@@ -31,7 +31,7 @@ from gritlib.line_repl_queue import build_default_line_queue_callbacks
 from gritlib.line_repl_routes import (
     build_default_line_route_service_callbacks,
 )
-from gritlib.line_repl_search import build_line_search_bundle
+from gritlib.line_repl_search import build_default_line_search_bundle
 from gritlib.line_repl_sessions import build_default_line_session_callbacks
 from gritlib.line_repl_show import build_line_display_show_callbacks
 from gritlib.line_repl_survey import build_line_survey_callbacks
@@ -50,7 +50,6 @@ import gritlib.line_target_commands as line_target_commands
 import gritlib.line_workspace as line_workspace
 import gritlib.service_runtime as service_runtime
 import gritlib.session_state as session_state
-from gritlib.shell_utils import shquote
 from gritlib.staged_files import (
     print_staged,
 )
@@ -182,17 +181,14 @@ def _build_line_operational_callbacks(
         line_route_service_callbacks=line_route_service_callbacks,
     )
 
-    line_search_callbacks = build_line_search_bundle(
+    line_search_callbacks = build_default_line_search_bundle(
         cfg,
-        workbench_snapshot_func=workbench_snapshot,
-        target_callbacks=line_target_callbacks,
-        route_service_callbacks=line_route_service_callbacks,
-        action_callbacks=line_action_callbacks,
-        session_callbacks=line_session_callbacks,
-        job_callbacks=line_job_callbacks,
-        queue_callbacks=line_queue_callbacks,
-        append_event_fn=append_event,
-        quote=shquote,
+        line_target_callbacks=line_target_callbacks,
+        line_route_service_callbacks=line_route_service_callbacks,
+        line_action_callbacks=line_action_callbacks,
+        line_session_callbacks=line_session_callbacks,
+        line_job_callbacks=line_job_callbacks,
+        line_queue_callbacks=line_queue_callbacks,
     )
     line_display_show_callbacks = build_line_display_show_callbacks(
         cfg,

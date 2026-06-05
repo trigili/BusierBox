@@ -1,5 +1,7 @@
 """Line REPL search callback adapters."""
 
+from gritlib.console_workbench import workbench_snapshot
+from gritlib.event_log import append_event
 from gritlib.line_actions import current_line_action_records
 from gritlib.line_configure import run_line_probe_config
 from gritlib.line_search import (
@@ -8,6 +10,7 @@ from gritlib.line_search import (
     run_line_search,
     use_line_search_result,
 )
+from gritlib.shell_utils import shquote
 from gritlib.workbench_jobs import cancel_workbench_job_headless_command
 
 
@@ -114,3 +117,27 @@ def build_line_search_callbacks(
         "search_line_resources": search_line_resources,
         "use_line_search_result": use_search_result,
     }
+
+
+def build_default_line_search_bundle(
+    cfg,
+    *,
+    line_target_callbacks,
+    line_route_service_callbacks,
+    line_action_callbacks,
+    line_session_callbacks,
+    line_job_callbacks,
+    line_queue_callbacks,
+):
+    return build_line_search_bundle(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        target_callbacks=line_target_callbacks,
+        route_service_callbacks=line_route_service_callbacks,
+        action_callbacks=line_action_callbacks,
+        session_callbacks=line_session_callbacks,
+        job_callbacks=line_job_callbacks,
+        queue_callbacks=line_queue_callbacks,
+        append_event_fn=append_event,
+        quote=shquote,
+    )
