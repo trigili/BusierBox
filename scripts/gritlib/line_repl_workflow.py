@@ -83,6 +83,85 @@ def build_line_workflow_callbacks(
     return {"dispatch_line_workflow": dispatch_workflow}
 
 
+def _run_line_workflow_daemon_action(ctx, daemon_args):
+    cfg = ctx["cfg"]
+    return run_line_daemon_action(
+        daemon_args,
+        snapshot_func=lambda: ctx["workbench_snapshot_func"](cfg),
+        run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
+            ctx["daemon_runner_func"](
+                cfg,
+                selector,
+                dry_run=dry_run,
+                confirmed=confirmed,
+                show_commands=show_commands,
+            )
+        ),
+    )
+
+
+def _workflow_release_dispatch_kwargs(ctx):
+    cfg = ctx["cfg"]
+    return {
+        "release_list_func": lambda: (
+            ctx["set_context_func"](cfg, "release"),
+            ctx["release_print_func"](cfg, append_event_fn=ctx["append_event_fn"]),
+        ),
+        "release_stage_func": lambda selector, start_file_service=False: (
+            ctx["release_stage_func"](
+                selector,
+                start_file_service=start_file_service,
+            ),
+            ctx["set_context_func"](cfg, "files"),
+        ),
+        "release_help_func": ctx["release_help_func"],
+    }
+
+
+def _workflow_file_dispatch_kwargs(ctx):
+    cfg = ctx["cfg"]
+    return {
+        "upload_file_func": ctx["upload_file_func"],
+        "fetch_file_func": ctx["fetch_file_func"],
+        "unstage_file_func": ctx["unstage_file_func"],
+        "view_path_func": ctx["view_path_func"],
+        "clear_files_func": lambda confirm=False: ctx["clear_files_func"](
+            cfg,
+            confirm=confirm,
+            target_filter_id=ctx["target_filter_func"](cfg),
+            append_event_fn=ctx["append_event_fn"],
+        ),
+        "list_files_func": lambda verbose=False: ctx["list_files_func"](verbose=verbose),
+    }
+
+
+def _workflow_queue_job_dispatch_kwargs(ctx):
+    return {
+        "run_queue_func": ctx["run_queue_func"],
+        "view_queue_func": ctx["view_queue_func"],
+        "cancel_job_func": ctx["cancel_job_func"],
+        "select_job_func": ctx["select_job_func"],
+        "list_jobs_func": ctx["list_jobs_func"],
+    }
+
+
+def _workflow_dispatch_kwargs(ctx):
+    cfg = ctx["cfg"]
+    kwargs = {
+        "set_context_func": lambda module: ctx["set_context_func"](cfg, module),
+        "download_func": ctx["download_func"],
+        "daemon_run_func": lambda daemon_args: _run_line_workflow_daemon_action(ctx, daemon_args),
+    }
+    kwargs.update(_workflow_release_dispatch_kwargs(ctx))
+    kwargs.update(_workflow_file_dispatch_kwargs(ctx))
+    kwargs.update(_workflow_queue_job_dispatch_kwargs(ctx))
+    kwargs.update({
+        "stage_binary_func": ctx["stage_binary_func"],
+        "configure_func": ctx["configure_func"],
+    })
+    return kwargs
+
+
 def build_line_workflow_dispatch_callback(
     cfg,
     *,
@@ -109,58 +188,13 @@ def build_line_workflow_dispatch_callback(
     configure_func,
     append_event_fn,
 ):
-    def run_daemon_action(daemon_args):
-        return run_line_daemon_action(
-            daemon_args,
-            snapshot_func=lambda: workbench_snapshot_func(cfg),
-            run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: (
-                daemon_runner_func(
-                    cfg,
-                    selector,
-                    dry_run=dry_run,
-                    confirmed=confirmed,
-                    show_commands=show_commands,
-                )
-            ),
-        )
+    ctx = locals()
 
     def dispatch_workflow(command, args):
         return dispatch_line_workflow_command(
             command,
             args,
-            set_context_func=lambda module: set_context_func(cfg, module),
-            download_func=download_func,
-            daemon_run_func=run_daemon_action,
-            release_list_func=lambda: (
-                set_context_func(cfg, "release"),
-                release_print_func(cfg, append_event_fn=append_event_fn),
-            ),
-            release_stage_func=lambda selector, start_file_service=False: (
-                release_stage_func(
-                    selector,
-                    start_file_service=start_file_service,
-                ),
-                set_context_func(cfg, "files"),
-            ),
-            release_help_func=release_help_func,
-            upload_file_func=upload_file_func,
-            fetch_file_func=fetch_file_func,
-            unstage_file_func=unstage_file_func,
-            view_path_func=view_path_func,
-            clear_files_func=lambda confirm=False: clear_files_func(
-                cfg,
-                confirm=confirm,
-                target_filter_id=target_filter_func(cfg),
-                append_event_fn=append_event_fn,
-            ),
-            list_files_func=lambda verbose=False: list_files_func(verbose=verbose),
-            run_queue_func=run_queue_func,
-            view_queue_func=view_queue_func,
-            cancel_job_func=cancel_job_func,
-            select_job_func=select_job_func,
-            list_jobs_func=list_jobs_func,
-            stage_binary_func=stage_binary_func,
-            configure_func=configure_func,
+            **_workflow_dispatch_kwargs(ctx),
         )
 
     return dispatch_workflow
