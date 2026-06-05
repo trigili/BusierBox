@@ -22,12 +22,7 @@ from gritlib.probe_commands import (
 from gritlib.release_artifacts import (
     stage_release_selection,
 )
-from gritlib.service_lifecycle import (
-    start_service_process as lifecycle_start_service_process,
-    stop_managed_services as lifecycle_stop_managed_services,
-    stop_recorded_service as lifecycle_stop_recorded_service,
-    stop_workbench_started_services as lifecycle_stop_workbench_started_services,
-)
+import gritlib.service_lifecycle as service_lifecycle
 from gritlib.service_runtime import current_shutdown_reason, start_child_process
 from gritlib.service_status import (
     run_service_workflow_action_headless_command, service_status_rows,
@@ -51,7 +46,7 @@ def print_status(cfg, json_output=False):
 
 
 def stop_managed_services(cfg):
-    return lifecycle_stop_managed_services(cfg)
+    return service_lifecycle.stop_managed_services(cfg)
 
 
 def print_workbench(cfg, include_api_summary=True):
@@ -59,7 +54,7 @@ def print_workbench(cfg, include_api_summary=True):
 
 
 def start_service_process(cfg, service, argv_extra=None, headless_command="", state_service=None):
-    return lifecycle_start_service_process(
+    return service_lifecycle.start_service_process(
         cfg,
         service,
         argv_extra=argv_extra,
@@ -71,11 +66,14 @@ def start_service_process(cfg, service, argv_extra=None, headless_command="", st
 
 
 def stop_workbench_started_services(cfg):
-    return lifecycle_stop_workbench_started_services(cfg, stop_service=stop_recorded_service)
+    return service_lifecycle.stop_workbench_started_services(
+        cfg,
+        stop_service=stop_recorded_service,
+    )
 
 
 def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="", quiet=False):
-    return lifecycle_stop_recorded_service(
+    return service_lifecycle.stop_recorded_service(
         cfg,
         service,
         via=via,
