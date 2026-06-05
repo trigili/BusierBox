@@ -10,26 +10,37 @@ from gritlib.target_records import (
 )
 
 
+LINE_WORKSPACE_COMMANDS = (
+    {"action": "status", "commands": ("status", "summary")},
+    {"action": "ips", "commands": ("ips", "local-ips", "list-local-ips")},
+    {"action": "workspace", "commands": ("workspace", "overview", "dashboard")},
+    {"action": "reload", "commands": ("reload",)},
+    {"action": "refresh", "commands": ("refresh",)},
+    {"action": "root", "commands": ("main", "home", "root")},
+    {"action": "info", "commands": ("info",)},
+    {"action": "next", "commands": ("next",)},
+    {"action": "options", "commands": ("options", "opts")},
+)
+
+
+def line_workspace_command_records():
+    return [
+        {
+            "family": "workspace",
+            "action": rec["action"],
+            "commands": list(rec["commands"]),
+            "primary": rec["commands"][0],
+            "aliases": list(rec["commands"][1:]),
+        }
+        for rec in LINE_WORKSPACE_COMMANDS
+    ]
+
+
 def parse_line_workspace_command(cmd, args=None):
     cmd = str(cmd or "").strip().lower()
-    if cmd in {"status", "summary"}:
-        return {"action": "status"}
-    if cmd in {"ips", "local-ips", "list-local-ips"}:
-        return {"action": "ips"}
-    if cmd in {"workspace", "overview", "dashboard"}:
-        return {"action": "workspace"}
-    if cmd == "reload":
-        return {"action": "reload"}
-    if cmd in {"refresh"}:
-        return {"action": "refresh"}
-    if cmd in {"main", "home", "root"}:
-        return {"action": "root"}
-    if cmd == "info":
-        return {"action": "info"}
-    if cmd == "next":
-        return {"action": "next"}
-    if cmd in {"options", "opts"}:
-        return {"action": "options"}
+    for rec in line_workspace_command_records():
+        if cmd in rec["commands"]:
+            return {"action": rec["action"], "command": cmd}
     return {}
 
 

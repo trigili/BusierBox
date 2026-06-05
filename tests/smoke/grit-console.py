@@ -3480,6 +3480,44 @@ def run_line_context_transition_check():
     return 0
 
 
+def run_line_workspace_command_registry_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.line_workspace import (
+        line_workspace_command_records,
+        parse_line_workspace_command,
+    )
+
+    records = line_workspace_command_records()
+    by_action = {rec.get("action"): rec for rec in records}
+    expected = {
+        "status": ("status", "summary"),
+        "ips": ("ips", "local-ips", "list-local-ips"),
+        "workspace": ("workspace", "overview", "dashboard"),
+        "reload": ("reload",),
+        "refresh": ("refresh",),
+        "root": ("main", "home", "root"),
+        "info": ("info",),
+        "next": ("next",),
+        "options": ("options", "opts"),
+    }
+    for action, commands in expected.items():
+        rec = by_action.get(action) or {}
+        if tuple(rec.get("commands") or ()) != commands:
+            print(f"workspace command registry lost aliases for {action}: {rec}", file=sys.stderr)
+            return 1
+        for command in commands:
+            parsed = parse_line_workspace_command(command)
+            if parsed.get("action") != action or parsed.get("command") != command:
+                print(f"workspace command parser did not use registry entry: {command} -> {parsed}", file=sys.stderr)
+                return 1
+    if parse_line_workspace_command("unknown"):
+        print("workspace command parser consumed unknown command", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_service_runtime_state_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -9268,6 +9306,8 @@ def main(argv=None):
     if run_line_repl_runtime_check() != 0:
         return 1
     if run_line_context_transition_check() != 0:
+        return 1
+    if run_line_workspace_command_registry_check() != 0:
         return 1
     if run_service_runtime_state_check() != 0:
         return 1
