@@ -1,6 +1,35 @@
 """Line REPL utility command callback adapters."""
 
+from gritlib.command_copy import copy_text_for_operator
+from gritlib.line_events import print_line_events_view
+import gritlib.line_resources as line_resources
+import gritlib.line_target_commands as line_target_commands
 from gritlib.line_utility_commands import dispatch_line_utility_command
+
+
+def build_default_line_utility_callbacks(
+    cfg,
+    *,
+    line_completion_callbacks,
+    line_search_callbacks,
+    line_display_show_callbacks,
+    line_route_service_callbacks,
+):
+    return build_line_utility_callbacks(
+        cfg,
+        completion_callbacks=line_completion_callbacks,
+        resource_history_func=line_resources.print_line_history,
+        resource_load_func=line_resources.load_line_resource,
+        resource_save_func=line_resources.write_line_makerc,
+        events_func=print_line_events_view,
+        search_callbacks=line_search_callbacks,
+        display_callbacks=line_display_show_callbacks,
+        generated_run_func=line_target_commands.run_line_generated_command,
+        copy_text_func=copy_text_for_operator,
+        route_service_callbacks=line_route_service_callbacks,
+        service_copy_command_func=line_target_commands.copy_line_service_command,
+        generated_copy_func=line_target_commands.copy_line_generated_command,
+    )
 
 
 def build_line_utility_callbacks(

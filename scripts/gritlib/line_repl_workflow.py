@@ -1,7 +1,38 @@
 """Line REPL workflow command callback adapters."""
 
+from gritlib.console_workbench import workbench_snapshot
+from gritlib.event_log import append_event
+import gritlib.line_context as line_context
 from gritlib.line_daemon import run_line_daemon_action
+import gritlib.line_files as line_files
+import gritlib.line_help as line_help
+import gritlib.line_release as line_release
 from gritlib.line_workflow_commands import dispatch_line_workflow_command
+import gritlib.workflow_runners as workflow_runners
+
+
+def build_default_line_workflow_callbacks(
+    cfg,
+    *,
+    line_target_callbacks,
+    line_file_callbacks,
+    line_queue_callbacks,
+    line_job_callbacks,
+):
+    return build_line_workflow_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        set_context_func=line_context.set_line_collection_context,
+        daemon_runner_func=workflow_runners.run_operator_daemon_workflow_action,
+        release_print_func=line_release.print_line_release,
+        release_help_func=line_help.print_line_command_help,
+        target_callbacks=line_target_callbacks,
+        clear_files_func=line_files.clear_line_files,
+        file_callbacks=line_file_callbacks,
+        queue_callbacks=line_queue_callbacks,
+        job_callbacks=line_job_callbacks,
+        append_event_fn=append_event,
+    )
 
 
 def build_line_workflow_callbacks(

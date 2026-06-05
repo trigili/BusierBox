@@ -1,6 +1,40 @@
 """Line REPL navigation command callback adapters."""
 
+from gritlib.event_log import append_event
+import gritlib.line_context as line_context
+import gritlib.line_help as line_help
 from gritlib.line_navigation_commands import dispatch_line_navigation_command
+from gritlib.line_search import clear_line_search_results
+
+
+def build_default_line_navigation_callbacks(
+    cfg,
+    *,
+    line_search_callbacks,
+    line_target_callbacks,
+    line_route_service_callbacks,
+    line_session_callbacks,
+    line_job_callbacks,
+    line_action_callbacks,
+    line_queue_callbacks,
+):
+    return build_line_navigation_callbacks(
+        cfg,
+        append_event_fn=append_event,
+        clear_results_func=clear_line_search_results,
+        set_context_func=line_context.set_line_collection_context,
+        clear_console_context_func=line_context.clear_line_console_context,
+        back_func=line_context.back_line_module_context,
+        session_help_func=line_help.print_line_command_help,
+        route_help_func=line_help.print_line_command_help,
+        search_callbacks=line_search_callbacks,
+        target_callbacks=line_target_callbacks,
+        route_service_callbacks=line_route_service_callbacks,
+        session_callbacks=line_session_callbacks,
+        job_callbacks=line_job_callbacks,
+        action_callbacks=line_action_callbacks,
+        queue_callbacks=line_queue_callbacks,
+    )
 
 
 def build_line_navigation_callbacks(

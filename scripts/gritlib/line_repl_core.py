@@ -1,9 +1,39 @@
 """Line REPL core command callback adapters."""
 
+from gritlib.event_log import append_event
+import gritlib.line_build as line_build
+import gritlib.line_context as line_context
 from gritlib.line_core_commands import dispatch_line_core_command
+import gritlib.line_help as line_help
 from gritlib.line_repl_options import build_unset_line_option_callback
 from gritlib.line_probe_serve import run_line_probe_serve
 from gritlib.line_workspace import line_repl_status_bar
+
+
+def build_default_line_core_callbacks(
+    cfg,
+    *,
+    line_probe_callbacks,
+    line_file_callbacks,
+    line_display_show_callbacks,
+    line_option_callbacks,
+    line_workspace_callbacks,
+    line_survey_callbacks,
+):
+    return build_line_core_callbacks(
+        cfg,
+        clear_module_func=line_context.clear_line_module_context,
+        probe_callbacks=line_probe_callbacks,
+        file_callbacks=line_file_callbacks,
+        display_callbacks=line_display_show_callbacks,
+        option_callbacks=line_option_callbacks,
+        workspace_callbacks=line_workspace_callbacks,
+        survey_callbacks=line_survey_callbacks,
+        set_context_func=line_context.set_line_collection_context,
+        build_run_func=line_build.run_line_build_command,
+        help_func=line_help.print_line_command_help,
+        append_event_fn=append_event,
+    )
 
 
 def build_line_core_callbacks(

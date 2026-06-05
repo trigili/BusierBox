@@ -1,12 +1,45 @@
 """Line REPL legacy choice dispatch callback adapters."""
 
 import inspect
+import time
 
+from gritlib.console_workbench import workbench_snapshot
+from gritlib.event_log import append_event
 from gritlib.line_legacy_dispatch import dispatch_legacy_line_choice
+from gritlib.line_search import clear_line_search_results
 from gritlib.service_status import (
     service_start_headless_command,
     service_stop_headless_command,
 )
+from gritlib.staged_files import print_staged
+
+
+def build_default_line_legacy_callbacks(
+    cfg,
+    *,
+    line_input,
+    line_search_callbacks,
+    line_route_service_callbacks,
+    line_target_callbacks,
+    line_file_callbacks,
+    line_queue_callbacks,
+    line_action_callbacks,
+):
+    return build_line_legacy_callbacks(
+        cfg,
+        input_func=line_input,
+        search_callbacks=line_search_callbacks,
+        clear_results_func=clear_line_search_results,
+        sleep_func=time.sleep,
+        append_event_fn=append_event,
+        print_staged_func=print_staged,
+        snapshot_func=workbench_snapshot,
+        route_service_callbacks=line_route_service_callbacks,
+        target_callbacks=line_target_callbacks,
+        file_callbacks=line_file_callbacks,
+        queue_callbacks=line_queue_callbacks,
+        action_callbacks=line_action_callbacks,
+    )
 
 
 def _accepts_two_positional_args(func):
