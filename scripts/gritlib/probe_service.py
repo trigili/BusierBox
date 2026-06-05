@@ -358,6 +358,100 @@ def serve_probe_tftp(cfg, timeout, max_sessions=0):
     return 0
 
 
+def _close_probe_ftp_data_socket(data_sock):
+    if not data_sock:
+        return
+    try:
+        unregister_socket(data_sock)
+        data_sock.close()
+    except OSError:
+        pass
+
+
+def _handle_probe_ftp_basic_command(conn, command):
+    replies = {
+        "USER": "331 password not required",
+        "PASS": "230 logged in",
+        "SYST": "215 UNIX Type: L8",
+        "PWD": '257 "/"',
+        "TYPE": "200 type set",
+        "CWD": "200 ok",
+        "NOOP": "200 ok",
+    }
+    reply = replies.get(command)
+    if not reply:
+        return False
+    ftp_send_line(conn, reply)
+    return True
+
+
+def _handle_probe_ftp_size(conn, arg, script_name, payload):
+    name = arg.lstrip("/")
+    if name == script_name:
+        ftp_send_line(conn, f"213 {len(payload)}")
+    else:
+        ftp_send_line(conn, "550 file not found")
+
+
+def _open_probe_ftp_data_socket(cfg):
+    data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    data_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    data_sock.bind((str(cfg.get("listen_host", "0.0.0.0")), 0))
+    data_sock.listen(1)
+    register_socket(data_sock)
+    return data_sock
+
+
+def _handle_probe_ftp_passive_command(cfg, conn, command, data_sock, host):
+    _close_probe_ftp_data_socket(data_sock)
+    data_sock = _open_probe_ftp_data_socket(cfg)
+    data_port = data_sock.getsockname()[1]
+    if command == "PASV":
+        pasv_host = ftp_pasv_reply_host(host, local_ips()).replace(".", ",")
+        ftp_send_line(conn, f"227 Entering Passive Mode ({pasv_host},{data_port // 256},{data_port % 256})")
+    else:
+        ftp_send_line(conn, f"229 Entering Extended Passive Mode (|||{data_port}|)")
+    return data_sock
+
+
+def _record_probe_ftp_rejection(cfg, log_dir, remote, filename):
+    append_event(cfg, "probe-ftp", "probe_ftp_rejected", "warning", remote=remote, session=str(log_dir), details={
+        "filename": filename,
+        "reason": "file-not-found",
+    })
+
+
+def _handle_probe_ftp_retr(cfg, conn, arg, script_name, payload, log_dir, remote, data_sock):
+    name = arg.lstrip("/")
+    if name != script_name:
+        ftp_send_line(conn, "550 file not found")
+        _record_probe_ftp_rejection(cfg, log_dir, remote, name)
+        return data_sock, 0
+    if not data_sock:
+        ftp_send_line(conn, "425 use PASV first")
+        return data_sock, 0
+    ftp_send_line(conn, "150 opening data connection")
+    data_sock.settimeout(5.0)
+    data_conn, data_addr = data_sock.accept()
+    with data_conn:
+        data_conn.sendall(payload)
+    unregister_socket(data_sock)
+    data_sock.close()
+    data_sock = None
+    metadata = {
+        "operation": "probe_ftp_script",
+        "status": "served",
+        "remote_addr": remote,
+        "data_remote_addr": f"{data_addr[0]}:{data_addr[1]}",
+        "script_name": script_name,
+        "size": len(payload),
+    }
+    SESSION_MANAGER.append_list_item(log_dir, "artifacts", metadata)
+    append_event(cfg, "probe-ftp", "probe_ftp_served", remote=remote, session=str(log_dir), details=metadata)
+    ftp_send_line(conn, "226 transfer complete")
+    return data_sock, 1
+
+
 def handle_probe_ftp_session(cfg, conn, addr, script_name, payload, log_dir, host):
     remote = f"{addr[0]}:{addr[1]}"
     data_sock = None
@@ -371,97 +465,26 @@ def handle_probe_ftp_session(cfg, conn, addr, script_name, payload, log_dir, hos
             command, _, arg = line.partition(" ")
             command = command.upper()
             arg = arg.strip()
-            if command == "USER":
-                ftp_send_line(conn, "331 password not required")
-            elif command == "PASS":
-                ftp_send_line(conn, "230 logged in")
-            elif command == "SYST":
-                ftp_send_line(conn, "215 UNIX Type: L8")
-            elif command == "PWD":
-                ftp_send_line(conn, '257 "/"')
-            elif command == "TYPE":
-                ftp_send_line(conn, "200 type set")
-            elif command in {"CWD", "NOOP"}:
-                ftp_send_line(conn, "200 ok")
+            if _handle_probe_ftp_basic_command(conn, command):
+                continue
             elif command == "SIZE":
-                name = arg.lstrip("/")
-                if name == script_name:
-                    ftp_send_line(conn, f"213 {len(payload)}")
-                else:
-                    ftp_send_line(conn, "550 file not found")
-            elif command == "PASV":
-                if data_sock:
-                    try:
-                        unregister_socket(data_sock)
-                        data_sock.close()
-                    except OSError:
-                        pass
-                data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                data_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                data_sock.bind((str(cfg.get("listen_host", "0.0.0.0")), 0))
-                data_sock.listen(1)
-                register_socket(data_sock)
-                pasv_host = ftp_pasv_reply_host(host, local_ips()).replace(".", ",")
-                data_port = data_sock.getsockname()[1]
-                ftp_send_line(conn, f"227 Entering Passive Mode ({pasv_host},{data_port // 256},{data_port % 256})")
-            elif command == "EPSV":
-                if data_sock:
-                    try:
-                        unregister_socket(data_sock)
-                        data_sock.close()
-                    except OSError:
-                        pass
-                data_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                data_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-                data_sock.bind((str(cfg.get("listen_host", "0.0.0.0")), 0))
-                data_sock.listen(1)
-                register_socket(data_sock)
-                data_port = data_sock.getsockname()[1]
-                ftp_send_line(conn, f"229 Entering Extended Passive Mode (|||{data_port}|)")
+                _handle_probe_ftp_size(conn, arg, script_name, payload)
+            elif command in {"PASV", "EPSV"}:
+                data_sock = _handle_probe_ftp_passive_command(
+                    cfg, conn, command, data_sock, host
+                )
             elif command == "RETR":
-                name = arg.lstrip("/")
-                if name != script_name:
-                    ftp_send_line(conn, "550 file not found")
-                    append_event(cfg, "probe-ftp", "probe_ftp_rejected", "warning", remote=remote, session=str(log_dir), details={
-                        "filename": name,
-                        "reason": "file-not-found",
-                    })
-                    continue
-                if not data_sock:
-                    ftp_send_line(conn, "425 use PASV first")
-                    continue
-                ftp_send_line(conn, "150 opening data connection")
-                data_sock.settimeout(5.0)
-                data_conn, data_addr = data_sock.accept()
-                with data_conn:
-                    data_conn.sendall(payload)
-                unregister_socket(data_sock)
-                data_sock.close()
-                data_sock = None
-                retrievals += 1
-                metadata = {
-                    "operation": "probe_ftp_script",
-                    "status": "served",
-                    "remote_addr": remote,
-                    "data_remote_addr": f"{data_addr[0]}:{data_addr[1]}",
-                    "script_name": script_name,
-                    "size": len(payload),
-                }
-                SESSION_MANAGER.append_list_item(log_dir, "artifacts", metadata)
-                append_event(cfg, "probe-ftp", "probe_ftp_served", remote=remote, session=str(log_dir), details=metadata)
-                ftp_send_line(conn, "226 transfer complete")
+                data_sock, retrieved = _handle_probe_ftp_retr(
+                    cfg, conn, arg, script_name, payload, log_dir, remote, data_sock
+                )
+                retrievals += retrieved
             elif command == "QUIT":
                 ftp_send_line(conn, "221 bye")
                 break
             else:
                 ftp_send_line(conn, "502 command not implemented")
     finally:
-        if data_sock:
-            try:
-                unregister_socket(data_sock)
-                data_sock.close()
-            except OSError:
-                pass
+        _close_probe_ftp_data_socket(data_sock)
     return retrievals
 
 
