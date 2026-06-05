@@ -127,26 +127,15 @@ def line_searchable_text(rec):
     return " ".join(parts).lower()
 
 
-def print_line_search_results(
-    query,
-    snap=None,
-    service_records=None,
-    route_records=None,
-    action_records=None,
-    route_command_builder=None,
-    job_cancel_command_builder=None,
-    quote=None,
+def _line_search_matches(
+    term,
+    snap,
+    service_records,
+    route_records,
+    action_records,
+    route_command_builder,
+    job_cancel_command_builder,
 ):
-    term = str(query or "").strip().lower()
-    if not term:
-        raise ValueError("usage: search TERM")
-    snap = snap or {}
-    service_records = list(service_records or [])
-    route_records = list(route_records or [])
-    action_records = list(action_records or [])
-    route_command_builder = route_command_builder or (lambda _action, _name: "")
-    job_cancel_command_builder = job_cancel_command_builder or (lambda _job_id: "")
-    quote = quote or (lambda text: str(text))
     matches = []
 
     def add(kind, label, rec, command=""):
@@ -194,28 +183,32 @@ def print_line_search_results(
         add("file", f"{name}  kind {item.get('stage_kind', 'file')}  source {item.get('source_path', '')}", item)
     for rec in (snap.get("command_queue") or {}).get("commands") or []:
         add("queue", f"{rec.get('id', '')}  status {rec.get('status', '') or '-'}  command {rec.get('command', '')}", rec)
+    return matches
 
-    print(f"Search results for {query}:")
-    if not matches:
-        print("  none")
+
+def _line_search_use_hint(kind, rec, quote):
+    if kind == "target":
+        return f"use target {quote(str(rec.get('target_id', '')))}"
+    if kind == "service":
+        return f"use service {quote(str(rec.get('name', '')))}"
+    if kind == "route":
+        return f"use route {quote(str(rec.get('name', '')))}"
+    if kind == "action":
+        return f"use action {quote(str(rec.get('id', '')))}"
+    if kind == "session":
+        session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
+        return f"use session {quote(str(session_id))}"
+    if kind == "job":
+        return f"use job {quote(str(rec.get('id', '')))}"
+    return ""
+
+
+def _print_line_search_matches(matches, quote):
     search_records = []
     for idx, (kind, label, rec, command) in enumerate(matches, 1):
         print(f"  {idx}: {kind} {label}")
-        use_hint = ""
+        use_hint = _line_search_use_hint(kind, rec, quote)
         stored_command = command
-        if kind == "target":
-            use_hint = f"use target {quote(str(rec.get('target_id', '')))}"
-        elif kind == "service":
-            use_hint = f"use service {quote(str(rec.get('name', '')))}"
-        elif kind == "route":
-            use_hint = f"use route {quote(str(rec.get('name', '')))}"
-        elif kind == "action":
-            use_hint = f"use action {quote(str(rec.get('id', '')))}"
-        elif kind == "session":
-            session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
-            use_hint = f"use session {quote(str(session_id))}"
-        elif kind == "job":
-            use_hint = f"use job {quote(str(rec.get('id', '')))}"
         if use_hint:
             print(f"     use: use {idx}")
             print(f"     command: {use_hint}")
@@ -227,6 +220,42 @@ def print_line_search_results(
             "use_hint": use_hint,
         })
     return search_records
+
+
+def print_line_search_results(
+    query,
+    snap=None,
+    service_records=None,
+    route_records=None,
+    action_records=None,
+    route_command_builder=None,
+    job_cancel_command_builder=None,
+    quote=None,
+):
+    term = str(query or "").strip().lower()
+    if not term:
+        raise ValueError("usage: search TERM")
+    snap = snap or {}
+    service_records = list(service_records or [])
+    route_records = list(route_records or [])
+    action_records = list(action_records or [])
+    route_command_builder = route_command_builder or (lambda _action, _name: "")
+    job_cancel_command_builder = job_cancel_command_builder or (lambda _job_id: "")
+    quote = quote or (lambda text: str(text))
+    matches = _line_search_matches(
+        term,
+        snap,
+        service_records,
+        route_records,
+        action_records,
+        route_command_builder,
+        job_cancel_command_builder,
+    )
+
+    print(f"Search results for {query}:")
+    if not matches:
+        print("  none")
+    return _print_line_search_matches(matches, quote)
 
 
 def run_line_search(
