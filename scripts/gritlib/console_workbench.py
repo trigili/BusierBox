@@ -4733,6 +4733,52 @@ def _build_status_api_collections_from_contexts(
     )
 
 
+def _build_status_api_payload_from_contexts(
+    *,
+    cfg,
+    target_filter_id,
+    api_collections,
+    foundation_context,
+    activity_queue_context,
+    transfer_activity_context,
+    tail_context,
+):
+    f = foundation_context
+    aq = activity_queue_context
+    ta = transfer_activity_context
+    tc = tail_context
+    return _build_status_api_payload(
+        cfg=cfg,
+        target_filter_id=target_filter_id,
+        selected_target=f["selected_target"],
+        target_filter_record=aq["target_filter_record"],
+        unfiltered_counts=f["unfiltered_counts"],
+        api_collections=api_collections,
+        targets=f["targets"],
+        uploads=f["uploads"],
+        fetches=f["fetches"],
+        sessions=aq["sessions"],
+        events=aq["events"],
+        command_queue=aq["command_queue"],
+        staged_records=f["staged_records"],
+        staged_file_workflow_actions=aq["staged_file_workflow_actions"],
+        target_command_records=aq["target_command_records"],
+        target_phone_home_records=aq["target_phone_home_records"],
+        target_filter_records=aq["target_filter_records"],
+        target_filter_index_maps=aq["target_filter_index_maps"],
+        target_attribution=ta["target_attribution"],
+        target_attribution_records=ta["target_attribution_records"],
+        target_attribution_index_maps=ta["target_attribution_index_maps"],
+        rshell_session_policy=aq["rshell_session_policy"],
+        rshell_session_policy_records=aq["rshell_session_policy_records"],
+        rshell_session_policy_index_maps=aq["rshell_session_policy_index_maps"],
+        operator_console_workflows=tc["operator_console_workflows"],
+        operator_console_workflow_index_maps=tc[
+            "operator_console_workflow_index_maps"
+        ],
+    )
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
@@ -5000,33 +5046,14 @@ def status_document(cfg):
         tail_context=tail_context,
     )
     return {
-        **_build_status_api_payload(
+        **_build_status_api_payload_from_contexts(
             cfg=cfg,
             target_filter_id=target_filter_id,
-            selected_target=selected_target,
-            target_filter_record=target_filter_record,
-            unfiltered_counts=unfiltered_counts,
             api_collections=api_collections,
-            targets=targets,
-            uploads=uploads,
-            fetches=fetches,
-            sessions=sessions,
-            events=events,
-            command_queue=command_queue,
-            staged_records=staged_records,
-            staged_file_workflow_actions=staged_file_workflow_actions,
-            target_command_records=target_command_records,
-            target_phone_home_records=target_phone_home_records,
-            target_filter_records=target_filter_records,
-            target_filter_index_maps=target_filter_index_maps,
-            target_attribution=target_attribution,
-            target_attribution_records=target_attribution_records,
-            target_attribution_index_maps=target_attribution_index_maps,
-            rshell_session_policy=rshell_session_policy,
-            rshell_session_policy_records=rshell_session_policy_records,
-            rshell_session_policy_index_maps=rshell_session_policy_index_maps,
-            operator_console_workflows=operator_console_workflows,
-            operator_console_workflow_index_maps=operator_console_workflow_index_maps,
+            foundation_context=foundation_context,
+            activity_queue_context=activity_queue_context,
+            transfer_activity_context=transfer_activity_context,
+            tail_context=tail_context,
         ),
         "operator_session_dir": str(operator_dir),
         "state_file": str(session_state_module.state_file_path(cfg)),
