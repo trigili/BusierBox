@@ -39,12 +39,7 @@ from gritlib.session_records import (
     session_record_summary, session_status_context,
 )
 import gritlib.service_status as service_status
-from gritlib.staged_files import (
-    staged_file_workflow_action_indexes, staged_file_workflow_action_records,
-    staged_file_path,
-    staged_files_state_status, staged_status_context,
-    staged_status_summary,
-)
+import gritlib.staged_files as staged_files
 import gritlib.status_indexes as status_indexes
 import gritlib.target_activity as target_activity
 from gritlib.target_commands import (
@@ -378,7 +373,7 @@ def _build_operator_state_status_context(
     server_status = server_state_status(cfg)
     server_state = server_status["state_record"]
     server_state_records = server_status["state_records"]
-    staged_files_status = staged_files_state_status(cfg)
+    staged_files_status = staged_files.staged_files_state_status(cfg)
     staged_files_state = staged_files_status["state_record"]
     staged_files_state_records = staged_files_status["state_records"]
     command_queue_status = command_queue_module.command_queue_state_status(cfg)
@@ -614,7 +609,9 @@ def _build_service_status_context(cfg):
 
 
 def _build_staged_file_status_context(cfg, target_filter_id):
-    staged_context = staged_status_context(cfg, target_filter_id=target_filter_id)
+    staged_context = staged_files.staged_status_context(
+        cfg, target_filter_id=target_filter_id
+    )
     (
         staged_by_request,
         staged_by_kind,
@@ -646,7 +643,7 @@ def _build_staged_file_status_context(cfg, target_filter_id):
 
 
 def _build_staged_file_workflow_status_context(cfg, staged_records, targets):
-    staged_file_workflow_actions = staged_file_workflow_action_records(
+    staged_file_workflow_actions = staged_files.staged_file_workflow_action_records(
         cfg,
         staged_records,
         targets,
@@ -654,9 +651,11 @@ def _build_staged_file_workflow_status_context(cfg, staged_records, targets):
     return {
         "staged_file_workflow_actions": staged_file_workflow_actions,
         "staged_file_workflow_action_index_maps": (
-            staged_file_workflow_action_indexes(staged_file_workflow_actions)
+            staged_files.staged_file_workflow_action_indexes(
+                staged_file_workflow_actions
+            )
         ),
-        "summary": staged_status_summary(
+        "summary": staged_files.staged_status_summary(
             staged_records,
             staged_file_workflow_actions,
         ),
@@ -1623,7 +1622,7 @@ def status_document(cfg):
     paths = {
         "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),
-        "staged_files": str(staged_file_path(cfg)),
+        "staged_files": str(staged_files.staged_file_path(cfg)),
         "command_queue_file": str(command_queue_module.command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
@@ -3053,7 +3052,7 @@ def status_document(cfg):
         **operator_console_workflow_index_maps,
         "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),
-        "staged_files": str(staged_file_path(cfg)),
+        "staged_files": str(staged_files.staged_file_path(cfg)),
         "command_queue_file": str(command_queue_module.command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
         "bridge_profiles_file": str(bridge_routes.bridge_profiles_path(cfg)),
