@@ -73,112 +73,128 @@ def copy_generated_command(cfg, index, default_config="local/operator-session/co
     })
 
 
-def generated_target_command_records(cfg, staged=None):
-    staged = staged if staged is not None else load_staged(cfg).get("staged", {})
-    host = operator_advertised_host(cfg)
-    file_route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
-    survey_route = probe_route_context(cfg, host=host, port=cfg.get("GRIT_PROBE_PORT", 22207))
-    records = [
-        attach_target_route_fields({
-            "command": render_file_service_command(["put", "/etc/config/network"], cfg, host=host),
-            "purpose": "explicitly upload a target file to the operator file service",
-            "side": "target",
-            "service": "file-service",
-            "network": True,
-            "requires_explicit_target_action": True,
-            "executes_operator_supplied_commands": False,
-        }, file_route),
-        attach_target_route_fields({
-            "command": render_file_service_command(["survey", "push"], cfg, host=host),
-            "purpose": "explicitly upload passive target survey evidence",
-            "side": "target",
-            "service": "file-service",
-            "network": True,
-            "requires_explicit_target_action": True,
-            "executes_operator_supplied_commands": False,
-        }, file_route),
-        attach_target_route_fields({
-            "command": render_file_service_command(["reality-test", "push"], cfg, host=host),
-            "purpose": "explicitly upload active target capability evidence",
-            "side": "target",
-            "service": "file-service",
-            "network": True,
-            "requires_explicit_target_action": True,
-            "executes_operator_supplied_commands": False,
-        }, file_route),
-        attach_target_route_fields({
-            "command": render_file_service_command(["manifest", "push"], cfg, host=host),
-            "purpose": "explicitly upload runtime manifest metadata",
-            "side": "target",
-            "service": "file-service",
-            "network": True,
-            "requires_explicit_target_action": True,
-            "executes_operator_supplied_commands": False,
-        }, file_route),
-        attach_target_route_fields({
-            "command": render_file_service_command(["config-push"], cfg, host=host),
-            "purpose": "explicitly upload effective runtime configuration",
-            "side": "target",
-            "service": "file-service",
-            "network": True,
-            "requires_explicit_target_action": True,
-            "executes_operator_supplied_commands": False,
-        }, file_route),
-        attach_target_route_fields({
-            "command": render_file_service_command(["evidence", "push"], cfg, host=host),
-            "purpose": "explicitly upload an evidence bundle",
-            "side": "target",
-            "service": "file-service",
-            "network": True,
-            "requires_explicit_target_action": True,
-            "executes_operator_supplied_commands": False,
-        }, file_route),
-        attach_target_route_fields({
-            "command": render_probe_command(cfg, host=host, port=cfg.get("GRIT_PROBE_PORT", 22207)),
-            "purpose": "download and run the architecture-agnostic probe script",
-            "side": "target",
-            "service": "probe",
-            "network": True,
-            "requires_explicit_target_action": True,
-            "executes_operator_supplied_commands": False,
-        }, survey_route),
-        {
-            "command": "./grit rshell start",
-            "purpose": "start the configured reverse shell transport from the target",
-            "side": "target",
-            "service": "rshell",
-            "network": True,
-            "requires_explicit_target_action": True,
-            "executes_operator_supplied_commands": False,
-            "metadata": rshell_session_policy_record(cfg),
-        },
+def _target_command_route_contexts(cfg, host):
+    return (
+        target_route_context(
+            cfg,
+            "file-service",
+            direct_host=host,
+            direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204),
+        ),
+        probe_route_context(cfg, host=host, port=cfg.get("GRIT_PROBE_PORT", 22207)),
+    )
+
+
+def _file_service_target_command_record(cfg, host, file_route, args, purpose):
+    return attach_target_route_fields({
+        "command": render_file_service_command(args, cfg, host=host),
+        "purpose": purpose,
+        "side": "target",
+        "service": "file-service",
+        "network": True,
+        "requires_explicit_target_action": True,
+        "executes_operator_supplied_commands": False,
+    }, file_route)
+
+
+def _base_file_service_target_command_records(cfg, host, file_route):
+    return [
+        _file_service_target_command_record(
+            cfg, host, file_route, ["put", "/etc/config/network"],
+            "explicitly upload a target file to the operator file service",
+        ),
+        _file_service_target_command_record(
+            cfg, host, file_route, ["survey", "push"],
+            "explicitly upload passive target survey evidence",
+        ),
+        _file_service_target_command_record(
+            cfg, host, file_route, ["reality-test", "push"],
+            "explicitly upload active target capability evidence",
+        ),
+        _file_service_target_command_record(
+            cfg, host, file_route, ["manifest", "push"],
+            "explicitly upload runtime manifest metadata",
+        ),
+        _file_service_target_command_record(
+            cfg, host, file_route, ["config-push"],
+            "explicitly upload effective runtime configuration",
+        ),
+        _file_service_target_command_record(
+            cfg, host, file_route, ["evidence", "push"],
+            "explicitly upload an evidence bundle",
+        ),
     ]
+
+
+def _probe_target_command_record(cfg, host, survey_route):
+    return attach_target_route_fields({
+        "command": render_probe_command(cfg, host=host, port=cfg.get("GRIT_PROBE_PORT", 22207)),
+        "purpose": "download and run the architecture-agnostic probe script",
+        "side": "target",
+        "service": "probe",
+        "network": True,
+        "requires_explicit_target_action": True,
+        "executes_operator_supplied_commands": False,
+    }, survey_route)
+
+
+def _rshell_target_command_record(cfg):
+    return {
+        "command": "./grit rshell start",
+        "purpose": "start the configured reverse shell transport from the target",
+        "side": "target",
+        "service": "rshell",
+        "network": True,
+        "requires_explicit_target_action": True,
+        "executes_operator_supplied_commands": False,
+        "metadata": rshell_session_policy_record(cfg),
+    }
+
+
+def _base_target_command_records(cfg, host, file_route, survey_route):
+    return [
+        *_base_file_service_target_command_records(cfg, host, file_route),
+        _probe_target_command_record(cfg, host, survey_route),
+        _rshell_target_command_record(cfg),
+    ]
+
+
+def _staged_target_command_record(cfg, host, file_route, name, rec):
+    record = attach_target_route_fields({
+        "command": render_fetch_command(name, cfg, host=host),
+        "purpose": "explicitly fetch an operator-staged file",
+        "side": "target",
+        "service": "file-service",
+        "network": True,
+        "requires_explicit_target_action": True,
+        "executes_operator_supplied_commands": False,
+        "request_name": name,
+        "source_path": str((rec or {}).get("source_path", "")) if isinstance(rec, dict) else "",
+        "source_sha256": str((rec or {}).get("sha256", "")) if isinstance(rec, dict) else "",
+        "source_size": (rec or {}).get("size", "") if isinstance(rec, dict) else "",
+        "stage_kind": str((rec or {}).get("stage_kind") or "file") if isinstance(rec, dict) else "file",
+    }, file_route)
+    if isinstance(rec, dict):
+        for key in (
+            "target_id", "target_label", "target_identity_source",
+            "target_identity_confidence", "release_path", "tuple_path",
+            "payload_preset", "selected_by_recommendation", "compatibility",
+        ):
+            value = rec.get(key)
+            if value not in (None, ""):
+                record[key] = value
+    return record
+
+
+def _staged_target_command_records(cfg, host, file_route, staged):
+    records = []
     for name in sorted(staged):
         rec = staged.get(name) if isinstance(staged, dict) else {}
-        record = attach_target_route_fields({
-            "command": render_fetch_command(name, cfg, host=host),
-            "purpose": "explicitly fetch an operator-staged file",
-            "side": "target",
-            "service": "file-service",
-            "network": True,
-            "requires_explicit_target_action": True,
-            "executes_operator_supplied_commands": False,
-            "request_name": name,
-            "source_path": str((rec or {}).get("source_path", "")) if isinstance(rec, dict) else "",
-            "source_sha256": str((rec or {}).get("sha256", "")) if isinstance(rec, dict) else "",
-            "source_size": (rec or {}).get("size", "") if isinstance(rec, dict) else "",
-            "stage_kind": str((rec or {}).get("stage_kind") or "file") if isinstance(rec, dict) else "file",
-        }, file_route)
-        if isinstance(rec, dict):
-            for key in (
-                "target_id", "target_label", "target_identity_source",
-                "target_identity_confidence", "release_path", "tuple_path",
-                "payload_preset", "selected_by_recommendation", "compatibility",
-            ):
-                value = rec.get(key)
-                if value not in (None, ""):
-                    record[key] = value
-        records.append(record)
+        records.append(_staged_target_command_record(cfg, host, file_route, name, rec))
+    return records
+
+
+def _attach_target_command_copy_fields(cfg, records):
     for idx, record in enumerate(records, 1):
         command = str(record.get("command") or "")
         record["ordinal"] = idx
@@ -190,6 +206,15 @@ def generated_target_command_records(cfg, staged=None):
         copy_cmd.extend(["--copy-target-command", str(idx)])
         record["copy_command"] = " ".join(shquote(part) for part in copy_cmd)
         record["command_sha256"] = hashlib.sha256(command.encode("utf-8")).hexdigest() if command else ""
+
+
+def generated_target_command_records(cfg, staged=None):
+    staged = staged if staged is not None else load_staged(cfg).get("staged", {})
+    host = operator_advertised_host(cfg)
+    file_route, survey_route = _target_command_route_contexts(cfg, host)
+    records = _base_target_command_records(cfg, host, file_route, survey_route)
+    records.extend(_staged_target_command_records(cfg, host, file_route, staged))
+    _attach_target_command_copy_fields(cfg, records)
     return records
 
 
