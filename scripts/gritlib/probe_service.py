@@ -101,21 +101,20 @@ def handle_probe_http(cfg, conn, method, target, headers, body, addr, script_tex
     }, route_doc), headers)
 
 
-def serve_probe(cfg, timeout, max_sessions=0):
-    service = "probe"
-    port = int(cfg.get("GRIT_PROBE_PORT", 22207))
+def _probe_http_host(cfg):
     host = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
     if not host or host in ("0.0.0.0", "::"):
         candidates = local_ips()
         host = candidates[0] if candidates else "OPERATOR_IP"
-    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
-    route = probe_route_context(cfg, host=host, port=port)
-    route_host = str(route.get("host") or host)
-    route_port = int(route.get("port") or port)
-    target_command = render_probe_command(cfg, host=host, port=port)
-    script_text = probe_script_fn(cfg, route_host, route_port)
-    log_dir = SESSION_MANAGER.log_dir(cfg, service)
-    session_details = {
+    return host
+
+
+def _probe_script_name(cfg):
+    return str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
+
+
+def _probe_http_session_details(port, script_name, route, route_host, route_port, target_command):
+    return {
         "port": port,
         "script_name": script_name,
         "url": f"http://{route_host}:{route_port}/{script_name}",
@@ -128,15 +127,103 @@ def serve_probe(cfg, timeout, max_sessions=0):
         "bridge_route_path": route.get("bridge_route_path", ""),
         "requires_bridge": bool(route.get("requires_bridge")),
     }
+
+
+def _start_probe_http_record(cfg, service, log_dir, script_name, script_text, session_details):
     SESSION_MANAGER.start_record(cfg, service, log_dir, details=session_details)
     (log_dir / script_name).write_text(script_text, encoding="utf-8")
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-    print(f"Probe listener. Binding on http://{cfg.get('listen_host', '0.0.0.0')}:{port}/{script_name}")
-    print(f"Probe target URL: http://{route_host}:{route_port}/{script_name}")
-    if route.get("route_kind") == "bridge":
-        print(f"Probe route: bridge profile {route.get('bridge_profile', '')} {route.get('bridge_route_path', '')}")
-    print(f"Target command: {target_command}")
+    print(f"Probe listener. Binding on http://{cfg.get('listen_host', '0.0.0.0')}:{session_details['port']}/{script_name}")
+    print(f"Probe target URL: {session_details['url']}")
+    if session_details.get("route_kind") == "bridge":
+        print(f"Probe route: bridge profile {session_details.get('bridge_profile', '')} {session_details.get('bridge_route_path', '')}")
+    print(f"Target command: {session_details['target_command']}")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **session_details})
+
+
+def _mark_probe_http_listening(cfg, service, log_dir, port, route_host, route_port, session_details):
+    update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
+    append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
+    print_candidates(cfg, port, advertised_host=route_host, advertised_port=route_port)
+
+
+def _record_probe_http_request(cfg, service, log_dir, addr, metadata):
+    remote = f"{addr[0]}:{addr[1]}"
+    target_rec = record_target_activity(cfg, metadata, service, session_id=log_dir.name)
+    if metadata.get("target_id"):
+        SESSION_MANAGER.update_record(
+            log_dir,
+            target_id=metadata.get("target_id", ""),
+            target_label=target_rec.get("label", metadata.get("target_label", "")),
+        )
+        SESSION_MANAGER.upsert_state(
+            cfg,
+            log_dir,
+            service,
+            "active",
+            remote=remote,
+            target_id=metadata.get("target_id", ""),
+            target_label=target_rec.get("label", metadata.get("target_label", "")),
+        )
+    event = "probe_result" if metadata.get("operation") == "probe_result" else "probe_request"
+    append_event(cfg, service, event, session=str(log_dir), remote=remote, details=metadata)
+    print(f"probe {metadata.get('status')}: {metadata.get('operation', '')}")
+
+
+def _handle_probe_http_connection(cfg, service, log_dir, conn, addr, script_text, route):
+    metadata = {}
+    try:
+        with conn:
+            method, target, _version, headers, body = read_http_headers(conn)
+            metadata = handle_probe_http(
+                cfg, conn, method, target, headers, body, addr, script_text, route=route
+            )
+            _record_probe_http_request(cfg, service, log_dir, addr, metadata)
+    except Exception as exc:
+        metadata = {"operation": "probe", "status": "error", "reason": str(exc)}
+        try:
+            send_json_response(conn, 500, {"schema": 1, "status": "error", "reason": str(exc)})
+        except Exception:
+            pass
+        append_event(cfg, service, "probe_error", "error", session=str(log_dir), details=metadata)
+        print(f"probe failed: {exc}", file=sys.stderr)
+    return metadata
+
+
+def _stop_probe_http_listener(cfg, service, log_dir, port, script_name, route_host, route_port):
+    stop_reason = current_stop_reason("complete")
+    update_server_state(cfg, service, "stopped", {
+        "session_log": str(log_dir),
+        "script_name": script_name,
+        "url": f"http://{route_host}:{route_port}/{script_name}",
+        "pid": "",
+        "managed_by": "",
+        "stopped_at": utc_now(),
+        "stopped_reason": stop_reason,
+    })
+    SESSION_MANAGER.update_record(log_dir, state="ended", exit_reason=stop_reason)
+    SESSION_MANAGER.upsert_state(cfg, log_dir, service, "ended", exit_reason=stop_reason)
+    record_shutdown_event(cfg, service, session=log_dir)
+    append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
+
+
+def serve_probe(cfg, timeout, max_sessions=0):
+    service = "probe"
+    port = int(cfg.get("GRIT_PROBE_PORT", 22207))
+    host = _probe_http_host(cfg)
+    script_name = _probe_script_name(cfg)
+    route = probe_route_context(cfg, host=host, port=port)
+    route_host = str(route.get("host") or host)
+    route_port = int(route.get("port") or port)
+    target_command = render_probe_command(cfg, host=host, port=port)
+    script_text = probe_script_fn(cfg, route_host, route_port)
+    log_dir = SESSION_MANAGER.log_dir(cfg, service)
+    session_details = _probe_http_session_details(
+        port, script_name, route, route_host, route_port, target_command
+    )
+    _start_probe_http_record(
+        cfg, service, log_dir, script_name, script_text, session_details
+    )
     sessions = 0
     sock = None
     bound = False
@@ -144,9 +231,9 @@ def serve_probe(cfg, timeout, max_sessions=0):
         sock = bind_listen_socket(cfg, service, port, 20)
         bound = True
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
-        append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
-        print_candidates(cfg, port, advertised_host=route_host, advertised_port=route_port)
+        _mark_probe_http_listening(
+            cfg, service, log_dir, port, route_host, route_port, session_details
+        )
         while not SHUTDOWN.is_set():
             print("Waiting for probe request...")
             try:
@@ -158,28 +245,10 @@ def serve_probe(cfg, timeout, max_sessions=0):
                 if SHUTDOWN.is_set():
                     return 0
                 raise
-            metadata = {}
-            try:
-                with conn:
-                    method, target, _version, headers, body = read_http_headers(conn)
-                    metadata = handle_probe_http(cfg, conn, method, target, headers, body, addr, script_text, route=route)
-                    target_rec = record_target_activity(cfg, metadata, service, session_id=log_dir.name)
-                    if metadata.get("target_id"):
-                        SESSION_MANAGER.update_record(log_dir, target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", metadata.get("target_label", "")))
-                        SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}", target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", metadata.get("target_label", "")))
-                    event = "probe_result" if metadata.get("operation") == "probe_result" else "probe_request"
-                    append_event(cfg, service, event, session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
-                    print(f"probe {metadata.get('status')}: {metadata.get('operation', '')}")
-            except Exception as exc:
-                metadata = {"operation": "probe", "status": "error", "reason": str(exc)}
-                try:
-                    send_json_response(conn, 500, {"schema": 1, "status": "error", "reason": str(exc)})
-                except Exception:
-                    pass
-                append_event(cfg, service, "probe_error", "error", session=str(log_dir), details=metadata)
-                print(f"probe failed: {exc}", file=sys.stderr)
-            finally:
-                sessions += 1
+            _handle_probe_http_connection(
+                cfg, service, log_dir, conn, addr, script_text, route
+            )
+            sessions += 1
             if max_sessions > 0 and sessions >= max_sessions:
                 break
     finally:
@@ -190,20 +259,9 @@ def serve_probe(cfg, timeout, max_sessions=0):
             except OSError:
                 pass
         if bound:
-            stop_reason = current_stop_reason("complete")
-            update_server_state(cfg, service, "stopped", {
-                "session_log": str(log_dir),
-                "script_name": script_name,
-                "url": f"http://{route_host}:{route_port}/{script_name}",
-                "pid": "",
-                "managed_by": "",
-                "stopped_at": utc_now(),
-                "stopped_reason": stop_reason,
-            })
-            SESSION_MANAGER.update_record(log_dir, state="ended", exit_reason=stop_reason)
-            SESSION_MANAGER.upsert_state(cfg, log_dir, service, "ended", exit_reason=stop_reason)
-            record_shutdown_event(cfg, service, session=log_dir)
-            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
+            _stop_probe_http_listener(
+                cfg, service, log_dir, port, script_name, route_host, route_port
+            )
     return 0
 
 
