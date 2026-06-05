@@ -180,71 +180,59 @@ def print_line_mailbox_records(mailbox_records, title=None):
         console_table(title or "Mailbox  (none)", [], [], footer="queue COMMAND  |  queue ? for help")
 
 
-def print_line_command_queue_records(
-    queue_summary,
-    mailbox_records,
-    command_queue_actions,
-    include_queue_summary=True,
-    include_actions=True,
-    detailed=False,
-):
-    queue_summary = queue_summary or {}
-    mailbox_records = list(mailbox_records or [])
-    command_queue_actions = list(command_queue_actions or [])
-    command_records = queue_summary.get("commands") or []
-
-    if include_queue_summary:
-        pending_count = len([rec for rec in mailbox_records if rec.get("pending_work")])
-        status_bits = [
-            f"enabled {queue_summary.get('enabled', 'no')}",
-            f"queued {len(command_records)}",
-            f"results {queue_summary.get('result_count', 0)}",
-            f"mailbox pending {pending_count}",
-        ]
-        print(f"Command queue  ({'  '.join(status_bits)})")
-        policy_errors = queue_summary.get("policy_errors") or []
-        if policy_errors:
-            print(f"  policy: invalid  errors={len(policy_errors)}")
-        elif queue_summary.get("policy_valid"):
-            print("  policy: valid")
-        else:
-            print("  policy: not configured")
-        if detailed:
-            print(
-                "  policy details: "
-                f"execution {queue_summary.get('execution_mode', '-') or '-'}  "
-                f"delivery {'yes' if queue_summary.get('delivery_supported') else 'no'}  "
-                f"result upload {'yes' if queue_summary.get('result_upload_supported') else 'no'}"
-            )
-            limits = queue_summary.get("command_limits") if isinstance(queue_summary.get("command_limits"), dict) else {}
-            if limits:
-                print(
-                    "  limits: "
-                    f"timeout={limits.get('timeout_sec', '-') or '-'} "
-                    f"max_output={limits.get('max_output_bytes', '-') or '-'} "
-                    f"expire={limits.get('expire_sec', '-') or '-'}"
-                )
-        if command_records:
-            command_cols = [
-                ("Command", lambda r: str(r.get("id") or "-")[:20]),
-                ("Status", lambda r: r.get("status") or "-"),
-                ("Target", lambda r: r.get("target_id") or "-"),
-                ("Result", line_command_queue_result_text),
-                ("Created", lambda r: line_command_queue_time_text(r.get("created_at"))),
-            ]
-            console_table(
-                f"Queued commands  ({len(command_records)} total)",
-                command_records[:8], command_cols,
-                footer="queue result N  |  queue clear --confirm  |  queue ? for help",
-            )
-        else:
-            print("  no queued commands")
-
-    print_line_mailbox_records(mailbox_records)
-
-    if not include_actions:
+def _print_line_command_queue_summary(queue_summary, mailbox_records, command_records, detailed=False):
+    pending_count = len([rec for rec in mailbox_records if rec.get("pending_work")])
+    status_bits = [
+        f"enabled {queue_summary.get('enabled', 'no')}",
+        f"queued {len(command_records)}",
+        f"results {queue_summary.get('result_count', 0)}",
+        f"mailbox pending {pending_count}",
+    ]
+    print(f"Command queue  ({'  '.join(status_bits)})")
+    policy_errors = queue_summary.get("policy_errors") or []
+    if policy_errors:
+        print(f"  policy: invalid  errors={len(policy_errors)}")
+    elif queue_summary.get("policy_valid"):
+        print("  policy: valid")
+    else:
+        print("  policy: not configured")
+    if not detailed:
         return
+    print(
+        "  policy details: "
+        f"execution {queue_summary.get('execution_mode', '-') or '-'}  "
+        f"delivery {'yes' if queue_summary.get('delivery_supported') else 'no'}  "
+        f"result upload {'yes' if queue_summary.get('result_upload_supported') else 'no'}"
+    )
+    limits = queue_summary.get("command_limits") if isinstance(queue_summary.get("command_limits"), dict) else {}
+    if limits:
+        print(
+            "  limits: "
+            f"timeout={limits.get('timeout_sec', '-') or '-'} "
+            f"max_output={limits.get('max_output_bytes', '-') or '-'} "
+            f"expire={limits.get('expire_sec', '-') or '-'}"
+        )
 
+
+def _print_line_queued_command_records(command_records):
+    if not command_records:
+        print("  no queued commands")
+        return
+    command_cols = [
+        ("Command", lambda r: str(r.get("id") or "-")[:20]),
+        ("Status", lambda r: r.get("status") or "-"),
+        ("Target", lambda r: r.get("target_id") or "-"),
+        ("Result", line_command_queue_result_text),
+        ("Created", lambda r: line_command_queue_time_text(r.get("created_at"))),
+    ]
+    console_table(
+        f"Queued commands  ({len(command_records)} total)",
+        command_records[:8], command_cols,
+        footer="queue result N  |  queue clear --confirm  |  queue ? for help",
+    )
+
+
+def _print_line_command_queue_actions(command_queue_actions):
     if command_queue_actions:
         action_summary = line_command_queue_action_summary(command_queue_actions)
         if action_summary:
@@ -262,6 +250,36 @@ def print_line_command_queue_records(
         )
     else:
         print("\n  queue COMMAND  |  queue list  |  queue ? for help")
+
+
+def print_line_command_queue_records(
+    queue_summary,
+    mailbox_records,
+    command_queue_actions,
+    include_queue_summary=True,
+    include_actions=True,
+    detailed=False,
+):
+    queue_summary = queue_summary or {}
+    mailbox_records = list(mailbox_records or [])
+    command_queue_actions = list(command_queue_actions or [])
+    command_records = queue_summary.get("commands") or []
+
+    if include_queue_summary:
+        _print_line_command_queue_summary(
+            queue_summary,
+            mailbox_records,
+            command_records,
+            detailed=detailed,
+        )
+        _print_line_queued_command_records(command_records)
+
+    print_line_mailbox_records(mailbox_records)
+
+    if not include_actions:
+        return
+
+    _print_line_command_queue_actions(command_queue_actions)
 
 
 def print_line_command_queue_view(
