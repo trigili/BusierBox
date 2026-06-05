@@ -79,6 +79,107 @@ def build_line_probe_callbacks(
     }
 
 
+def _prepare_line_probe_command(
+    cfg,
+    choose_operator_host_func,
+    input_func,
+    interactive_func,
+    render_probe_command_func,
+):
+    choose_operator_host_func(
+        cfg,
+        input_func=input_func,
+        interactive=interactive_func(),
+    )
+    return render_probe_command_func(cfg)
+
+
+def _line_probe_start_command(cfg, workbench_snapshot_func, service_start_command_func):
+    snap = workbench_snapshot_func(cfg)
+    actions = snap.get("probe_workflow_actions_by_id") or {}
+    start_action = actions.get("probe:start-probe") or {}
+    return (
+        start_action.get("run_command")
+        or start_action.get("headless_command")
+        or service_start_command_func(cfg, "probe")
+    )
+
+
+def _line_probe_listener_state(cfg, service_record_func, service_rows_func):
+    svc = service_record_func(service_rows_func(cfg), "probe")
+    return str(svc.get("actual") or "") == "listening"
+
+
+def _maybe_start_line_probe_listener(
+    cfg,
+    start_service,
+    already_listening,
+    service_start_func,
+    start_headless,
+):
+    started = False
+    if start_service and not already_listening:
+        service_start_func(cfg, "probe", headless_command=start_headless)
+        started = True
+    elif start_service and already_listening:
+        print("Probe listener already running.")
+    return started
+
+
+def _print_line_probe_start_summary(cfg, already_listening, started):
+    port = cfg.get("GRIT_PROBE_PORT", 22207)
+    script_name = cfg.get("GRIT_PROBE_NAME", "probe.sh")
+    if not already_listening and not started:
+        print(f"Probe listener is not running on port {port}.")
+        print("  start it with: probe start")
+        print("")
+    state = "listening" if (already_listening or started) else "not listening"
+    print(f"Probe  —  port {port}  |  script {script_name}  |  {state}")
+    return port, script_name
+
+
+def _queue_line_probe_command(cfg, queue, command, script_name, target_id, queue_command_func):
+    if not queue:
+        return {}
+    if not target_id:
+        raise ValueError("select an agent before probe queue; use agent NAME or use target ID")
+    queued = queue_command_func(cfg, command, metadata={
+        "work_kind": "probe",
+        "workflow": "probe",
+        "request_name": str(script_name),
+        "route_kind": "bridge" if cfg.get("bridge_profile") else "direct",
+        "bridge_profile": str(cfg.get("bridge_profile") or ""),
+    })
+    print(f"  queued: {queued['id']}")
+    print(f"  target: {queued.get('target_id', '')} ({queued.get('target_label', '') or '-'})")
+    return queued
+
+
+def _record_line_probe_command_event(
+    cfg,
+    append_event_fn,
+    command,
+    target_id,
+    target_context_func,
+    queued,
+    started,
+    already_listening,
+    script_name,
+    port,
+):
+    append_event_fn(cfg, "workbench", "workbench_probe_command_shown", details={
+        "target_command": command,
+        "target_id": target_id,
+        "target_label": str(target_context_func(cfg).get("target_label") or ""),
+        "queued": bool(queued),
+        "command_id": queued.get("id", "") if queued else "",
+        "started_service": started,
+        "already_listening": already_listening,
+        "GRIT_PROBE_NAME": str(script_name),
+        "GRIT_PROBE_PORT": port,
+    })
+
+
 def build_line_probe_start_callback(
     cfg,
     *,
@@ -98,72 +199,41 @@ def build_line_probe_start_callback(
     append_event_fn,
 ):
     def probe_line_start(queue=False, start_service=False):
-        choose_operator_host_func(
+        command = _prepare_line_probe_command(
             cfg,
-            input_func=input_func,
-            interactive=interactive_func(),
+            choose_operator_host_func,
+            input_func,
+            interactive_func,
+            render_probe_command_func,
         )
-
-        command = render_probe_command_func(cfg)
-        snap = workbench_snapshot_func(cfg)
-        actions = snap.get("probe_workflow_actions_by_id") or {}
-        start_action = actions.get("probe:start-probe") or {}
-        start_headless = (
-            start_action.get("run_command")
-            or start_action.get("headless_command")
-            or service_start_command_func(cfg, "probe")
+        start_headless = _line_probe_start_command(cfg, workbench_snapshot_func, service_start_command_func)
+        already_listening = _line_probe_listener_state(cfg, service_record_func, service_rows_func)
+        started = _maybe_start_line_probe_listener(
+            cfg,
+            start_service,
+            already_listening,
+            service_start_func,
+            start_headless,
         )
-
-        svc = service_record_func(service_rows_func(cfg), "probe")
-        already_listening = str(svc.get("actual") or "") == "listening"
-
-        started = False
-        if start_service and not already_listening:
-            service_start_func(cfg, "probe", headless_command=start_headless)
-            started = True
-        elif start_service and already_listening:
-            print("Probe listener already running.")
-
-        port = cfg.get("GRIT_PROBE_PORT", 22207)
-        script_name = cfg.get("GRIT_PROBE_NAME", "probe.sh")
-
-        if not already_listening and not started:
-            print(f"Probe listener is not running on port {port}.")
-            print("  start it with: probe start")
-            print("")
-
-        state = "listening" if (already_listening or started) else "not listening"
-        print(f"Probe  —  port {port}  |  script {script_name}  |  {state}")
-
-        queued = {}
+        port, script_name = _print_line_probe_start_summary(cfg, already_listening, started)
         target_id = target_filter_func(cfg)
-        if queue:
-            if not target_id:
-                raise ValueError("select an agent before probe queue; use agent NAME or use target ID")
-            queued = queue_command_func(cfg, command, metadata={
-                "work_kind": "probe",
-                "workflow": "probe",
-                "request_name": str(script_name),
-                "route_kind": "bridge" if cfg.get("bridge_profile") else "direct",
-                "bridge_profile": str(cfg.get("bridge_profile") or ""),
-            })
-            print(f"  queued: {queued['id']}")
-            print(f"  target: {queued.get('target_id', '')} ({queued.get('target_label', '') or '-'})")
+        queued = _queue_line_probe_command(cfg, queue, command, script_name, target_id, queue_command_func)
 
         if already_listening or started:
             probe_delivery_func(cfg)
 
-        append_event_fn(cfg, "workbench", "workbench_probe_command_shown", details={
-            "target_command": command,
-            "target_id": target_id,
-            "target_label": str(target_context_func(cfg).get("target_label") or ""),
-            "queued": bool(queue),
-            "command_id": queued.get("id", "") if queued else "",
-            "started_service": started,
-            "already_listening": already_listening,
-            "GRIT_PROBE_NAME": str(script_name),
-            "GRIT_PROBE_PORT": port,
-        })
+        _record_line_probe_command_event(
+            cfg,
+            append_event_fn,
+            command,
+            target_id,
+            target_context_func,
+            queued,
+            started,
+            already_listening,
+            script_name,
+            port,
+        )
         return command
 
     return probe_line_start
