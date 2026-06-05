@@ -14,7 +14,7 @@ from gritlib.session_state import (
     atomic_write_json, parse_utc_timestamp, read_json_file, update_server_state,
     utc_from_epoch, utc_now,
 )
-from gritlib.target_activity import mailbox_wait_bucket, target_mailbox_counts
+from gritlib.target_mailbox import mailbox_wait_bucket
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
@@ -47,6 +47,39 @@ def scoped_target_cfg(cfg, target_id, target_label=""):
     if target_label:
         scoped["_target_label_filter"] = str(target_label or "")
     return scoped
+
+
+def target_mailbox_counts(cfg):
+    from gritlib.command_queue import command_queue_expired, load_command_queue
+
+    counts = {}
+    latest_result = {}
+    latest_result_at = {}
+    now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
+    for rec in (load_command_queue(cfg).get("commands") or []):
+        if not isinstance(rec, dict):
+            continue
+        target_id = str(rec.get("target_id") or "")
+        if not target_id:
+            continue
+        target_counts = counts.setdefault(target_id, {
+            "queued": 0,
+            "delivered": 0,
+            "result-received": 0,
+            "expired": 0,
+            "total": 0,
+        })
+        status = str(rec.get("status") or "")
+        if command_queue_expired(rec, now_epoch=now_epoch):
+            status = "expired"
+        target_counts["total"] = target_counts.get("total", 0) + 1
+        if status in target_counts:
+            target_counts[status] = target_counts.get(status, 0) + 1
+        result_received_at = str(rec.get("result_received_at") or "")
+        if result_received_at and result_received_at >= latest_result_at.get(target_id, ""):
+            latest_result_at[target_id] = result_received_at
+            latest_result[target_id] = rec
+    return counts, latest_result
 
 
 def print_target_summary(doc, limit=8):

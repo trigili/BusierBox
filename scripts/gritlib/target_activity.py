@@ -13,6 +13,7 @@ from gritlib.record_utils import (
     records_by_key,
 )
 from gritlib.session_state import parse_utc_timestamp, utc_now
+from gritlib.target_mailbox import mailbox_elapsed_seconds, mailbox_wait_bucket
 
 
 def dispatch_legacy_target_activity_number(
@@ -93,55 +94,6 @@ def dispatch_legacy_target_activity_number(
     except ValueError as exc:
         print(exc)
     return True
-
-
-def mailbox_wait_bucket(seconds):
-    if seconds in ("", None):
-        return ""
-    try:
-        value = int(seconds)
-    except (TypeError, ValueError):
-        return ""
-    if value < 60:
-        return "under-minute"
-    if value < 3600:
-        return "under-hour"
-    if value < 86400:
-        return "under-day"
-    return "day-plus"
-
-
-def mailbox_elapsed_seconds(start, end):
-    start_epoch = parse_utc_timestamp(str(start or ""))
-    end_epoch = parse_utc_timestamp(str(end or ""))
-    if start_epoch is None or end_epoch is None:
-        return ""
-    return max(int(end_epoch - start_epoch), 0)
-
-
-def target_mailbox_counts(cfg):
-    counts = {}
-    latest_result = {}
-    latest_result_at = {}
-    now_epoch = parse_utc_timestamp(utc_now()) or int(time.time())
-    for rec in (load_command_queue(cfg).get("commands") or []):
-        if not isinstance(rec, dict):
-            continue
-        target_id = str(rec.get("target_id") or "")
-        if not target_id:
-            continue
-        target_counts = counts.setdefault(target_id, {"queued": 0, "delivered": 0, "result-received": 0, "expired": 0, "total": 0})
-        status = str(rec.get("status") or "")
-        if command_queue_expired(rec, now_epoch=now_epoch):
-            status = "expired"
-        target_counts["total"] = target_counts.get("total", 0) + 1
-        if status in target_counts:
-            target_counts[status] = target_counts.get(status, 0) + 1
-        result_received_at = str(rec.get("result_received_at") or "")
-        if result_received_at and result_received_at >= latest_result_at.get(target_id, ""):
-            latest_result_at[target_id] = result_received_at
-            latest_result[target_id] = rec
-    return counts, latest_result
 
 
 def target_mailbox_record_from_command(rec, targets_by_id=None, now_epoch=None):
