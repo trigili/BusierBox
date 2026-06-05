@@ -39,12 +39,7 @@ from gritlib.line_help import (
 import gritlib.line_options as line_options
 from gritlib.line_network import print_line_local_ips
 import gritlib.line_resources as line_resources
-from gritlib.line_repl_runtime import (
-    line_repl_io_input,
-    restore_line_repl_io,
-    setup_line_repl_io,
-    run_configured_line_repl_loop, run_line_console_lifecycle,
-)
+import gritlib.line_repl_runtime as line_repl_runtime
 from gritlib.line_repl_actions import build_line_action_callbacks
 from gritlib.line_repl_completions import (
     setup_line_completion_bundle,
@@ -127,13 +122,13 @@ except ImportError:
     HAVE_READLINE = False
 
 def run_line_repl(cfg):
-    repl_io = setup_line_repl_io(
+    repl_io = line_repl_runtime.setup_line_repl_io(
         _readline,
         HAVE_READLINE,
         shutdown_event=SHUTDOWN,
         request_shutdown_func=request_shutdown,
     )
-    line_input = line_repl_io_input(repl_io)
+    line_input = line_repl_runtime.line_repl_io_input(repl_io)
 
     line_target_callbacks = build_line_target_callbacks(
         cfg,
@@ -394,7 +389,7 @@ def run_line_repl(cfg):
     )
 
     try:
-        result = run_configured_line_repl_loop(
+        result = line_repl_runtime.run_configured_line_repl_loop(
             cfg,
             clear_console_context_func=clear_line_console_context,
             workbench_mark_stopped_func=mark_service_stopped,
@@ -421,13 +416,13 @@ def run_line_repl(cfg):
             unknown_message_func=line_unknown_command_message,
         )
     finally:
-        restore_line_repl_io(repl_io)
+        line_repl_runtime.restore_line_repl_io(repl_io)
     return result
 
 
 def run_line_console(cfg):
     """Default interactive mode: readline line console."""
-    return run_line_console_lifecycle(
+    return line_repl_runtime.run_line_console_lifecycle(
         cfg,
         stdin_isatty_func=sys.stdin.isatty,
         stdout_isatty_func=sys.stdout.isatty,
