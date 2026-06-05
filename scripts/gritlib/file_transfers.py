@@ -270,6 +270,66 @@ def render_file_service_command(parts, cfg, host=None):
 
 
 def read_http_upload(conn, files_dir, addr):
+    method, target, headers, body = _read_http_upload_request(conn)
+    if method not in {"PUT", "POST"}:
+        return _upload_rejection_metadata(
+            headers,
+            addr,
+            method,
+            target,
+            "receive-only file service accepts only PUT or POST",
+        ), 405
+    if "content-length" not in headers:
+        return _upload_rejection_metadata(
+            headers,
+            addr,
+            method,
+            target,
+            "missing Content-Length",
+        ), 411
+    try:
+        expected = int(headers["content-length"])
+    except ValueError:
+        return _upload_rejection_metadata(
+            headers,
+            addr,
+            method,
+            target,
+            "invalid Content-Length",
+        ), 400
+
+    source_path = (
+        headers.get("x-grit-source-path") or
+        headers.get("x-grittykit-source-path") or
+        urllib.parse.urlparse(target).path
+    )
+    upload_kind = (
+        headers.get("x-grit-upload-kind") or
+        headers.get("x-grittykit-upload-kind") or
+        "file"
+    )
+    out_path = _unique_upload_path(files_dir, safe_upload_name(source_path))
+    written, digest = _write_upload_payload(conn, out_path, body, expected)
+    status = "ok" if written == expected else "truncated"
+    metadata = _upload_success_metadata(
+        headers,
+        addr,
+        method,
+        source_path,
+        upload_kind,
+        out_path,
+        written,
+        expected,
+        digest,
+        status,
+    )
+    meta_path = files_dir / f"{out_path.name}.metadata.json"
+    metadata["metadata_path"] = str(meta_path)
+    meta_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return metadata, 200 if status == "ok" else 400
+
+
+def _read_http_upload_request(conn):
     deadline = time.monotonic() + 30
     raw = bytearray()
     while b"\r\n\r\n" not in raw:
@@ -291,43 +351,30 @@ def read_http_upload(conn, files_dir, addr):
         if ":" in line:
             key, value = line.split(":", 1)
             headers[key.strip().lower()] = value.strip()
-    if method not in {"PUT", "POST"}:
-        return attach_target_identity({
-            "operation": "upload",
-            "status": "rejected",
-            "reason": "receive-only file service accepts only PUT or POST",
-            "method": method,
-            "source_path": target,
-            "remote_addr": f"{addr[0]}:{addr[1]}",
-        }, headers), 405
-    if "content-length" not in headers:
-        return attach_target_identity({
-            "operation": "upload",
-            "status": "rejected",
-            "reason": "missing Content-Length",
-            "method": method,
-            "source_path": target,
-            "remote_addr": f"{addr[0]}:{addr[1]}",
-        }, headers), 411
-    try:
-        expected = int(headers["content-length"])
-    except ValueError:
-        return attach_target_identity({
-            "operation": "upload",
-            "status": "rejected",
-            "reason": "invalid Content-Length",
-            "method": method,
-            "source_path": target,
-            "remote_addr": f"{addr[0]}:{addr[1]}",
-        }, headers), 400
-    source_path = headers.get("x-grit-source-path") or headers.get("x-grittykit-source-path") or urllib.parse.urlparse(target).path
-    upload_kind = headers.get("x-grit-upload-kind") or headers.get("x-grittykit-upload-kind") or "file"
-    out_name = safe_upload_name(source_path)
+    return method, target, headers, body
+
+
+def _upload_rejection_metadata(headers, addr, method, target, reason):
+    return attach_target_identity({
+        "operation": "upload",
+        "status": "rejected",
+        "reason": reason,
+        "method": method,
+        "source_path": target,
+        "remote_addr": f"{addr[0]}:{addr[1]}",
+    }, headers)
+
+
+def _unique_upload_path(files_dir, out_name):
     out_path = files_dir / out_name
     if out_path.exists():
         stem = out_path.stem
         suffix = out_path.suffix
         out_path = files_dir / f"{stem}-{int(time.time())}{suffix}"
+    return out_path
+
+
+def _write_upload_payload(conn, out_path, body, expected):
     h = hashlib.sha256()
     written = 0
     with out_path.open("wb") as fh:
@@ -343,7 +390,21 @@ def read_http_upload(conn, files_dir, addr):
             fh.write(chunk)
             h.update(chunk)
             written += len(chunk)
-    status = "ok" if written == expected else "truncated"
+    return written, h.hexdigest()
+
+
+def _upload_success_metadata(
+    headers,
+    addr,
+    method,
+    source_path,
+    upload_kind,
+    out_path,
+    written,
+    expected,
+    digest,
+    status,
+):
     metadata = {
         "schema": 1,
         "operation": "upload",
@@ -355,7 +416,7 @@ def read_http_upload(conn, files_dir, addr):
         "filename": out_path.name,
         "size": written,
         "expected_size": expected,
-        "sha256": h.hexdigest(),
+        "sha256": digest,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "remote_addr": f"{addr[0]}:{addr[1]}",
         "uid": headers.get("x-grit-uid", ""),
@@ -364,10 +425,7 @@ def read_http_upload(conn, files_dir, addr):
         "transfer_status": status,
     }
     metadata.update(target_identity_from_headers(headers))
-    meta_path = files_dir / f"{out_path.name}.metadata.json"
-    metadata["metadata_path"] = str(meta_path)
-    meta_path.write_text(json.dumps(metadata, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return metadata, 200 if status == "ok" else 400
+    return metadata
 
 
 def read_http_headers(conn):
