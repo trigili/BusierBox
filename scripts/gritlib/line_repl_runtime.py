@@ -236,6 +236,224 @@ def dispatch_line_parsed_command(
     return {"handled": True}
 
 
+def _line_repl_shutdown_exit_code(shutdown_reason_func):
+    if shutdown_reason_func() in ("SIGINT", "SIGTERM", "keyboard_interrupt"):
+        return 130
+    return 0
+
+
+def _read_prepared_repl_choice(
+    cfg,
+    *,
+    compact_next_prompt,
+    render_full,
+    pending_console_lines,
+    workbench_snapshot_func,
+    print_workbench_func,
+    print_banner_func,
+    version_func,
+    prompt_func,
+    input_func,
+    line_history,
+    history_command_func,
+    record_history_func,
+    clear_results_func,
+    readline_module,
+):
+    prompt_result = read_next_repl_line(
+        cfg,
+        compact_next_prompt=compact_next_prompt,
+        render_full=render_full,
+        pending_console_lines=pending_console_lines,
+        workbench_snapshot_func=workbench_snapshot_func,
+        print_workbench_func=print_workbench_func,
+        print_banner_func=print_banner_func,
+        version_func=version_func,
+        prompt_func=prompt_func,
+        input_func=input_func,
+    )
+    line = prompt_result["line"]
+    if line is None:
+        return {
+            "line": None,
+            "compact_next_prompt": prompt_result["compact_next_prompt"],
+            "render_full": prompt_result["render_full"],
+        }
+    prepared = prepare_repl_choice(
+        line,
+        line_history,
+        history_command_func=history_command_func,
+        record_history_func=record_history_func,
+        clear_results_func=clear_results_func,
+        readline_module=readline_module,
+    )
+    compact_next_prompt = prompt_result["compact_next_prompt"]
+    if prepared.get("compact_next_prompt"):
+        compact_next_prompt = True
+    prepared.update({
+        "line": line,
+        "compact_next_prompt": compact_next_prompt,
+        "render_full": prompt_result["render_full"],
+    })
+    return prepared
+
+
+def _dispatch_prepared_line_command(
+    cfg,
+    prepared,
+    *,
+    module_func,
+    target_selected_func,
+    command_help_printer,
+    context_help_printer,
+    utility_dispatch_func,
+    core_dispatch_func,
+    navigation_dispatch_func,
+    workflow_dispatch_func,
+    unknown_message_func,
+):
+    if not prepared.get("console_args"):
+        return {"handled": False, "choice": prepared["choice"]}
+    parsed_result = dispatch_line_parsed_command(
+        prepared["cmd"],
+        prepared["console_args"],
+        module=module_func(cfg),
+        target_selected=target_selected_func(cfg),
+        command_help_printer=command_help_printer,
+        context_help_printer=context_help_printer,
+        utility_dispatch_func=utility_dispatch_func,
+        core_dispatch_func=core_dispatch_func,
+        navigation_dispatch_func=navigation_dispatch_func,
+        workflow_dispatch_func=workflow_dispatch_func,
+        unknown_message_func=unknown_message_func,
+    )
+    result = {"handled": parsed_result.get("handled"), "choice": prepared["choice"]}
+    if "choice" in parsed_result:
+        result["choice"] = parsed_result["choice"]
+    if "compact_next_prompt" in parsed_result:
+        result["compact_next_prompt"] = parsed_result["compact_next_prompt"]
+    return result
+
+
+def _dispatch_repl_quit_or_legacy(
+    cfg,
+    choice,
+    *,
+    module_func,
+    target_selected_func,
+    clear_context_func,
+    mark_stopped_func,
+    legacy_dispatch_func,
+):
+    quit_result = dispatch_line_quit_choice(
+        choice,
+        module=module_func(cfg),
+        target_selected=target_selected_func(cfg),
+        clear_context_func=clear_context_func,
+        mark_stopped_func=mark_stopped_func,
+    )
+    if quit_result.get("handled"):
+        return quit_result
+    return legacy_dispatch_func(choice)
+
+
+def _apply_repl_dispatch_state(loop_state, dispatch_result):
+    if dispatch_result.get("compact_next_prompt"):
+        loop_state["compact_next_prompt"] = True
+    if dispatch_result.get("render_full"):
+        loop_state["render_full"] = True
+
+
+def _line_repl_iteration_exit_result(dispatch_result):
+    if "exit_code" in dispatch_result:
+        return {"continue": False, "exit_code": dispatch_result.get("exit_code", 0)}
+    return {"continue": dispatch_result.get("handled", False)}
+
+
+def _apply_prepared_repl_state(loop_state, prepared):
+    loop_state["compact_next_prompt"] = prepared["compact_next_prompt"]
+    loop_state["render_full"] = prepared["render_full"]
+
+
+def _run_line_repl_iteration(
+    cfg,
+    loop_state,
+    *,
+    pending_console_lines,
+    workbench_snapshot_func,
+    print_workbench_func,
+    print_banner_func,
+    version_func,
+    prompt_func,
+    input_func,
+    line_history,
+    history_command_func,
+    record_history_func,
+    clear_results_func,
+    readline_module,
+    module_func,
+    target_selected_func,
+    command_help_printer,
+    context_help_printer,
+    utility_dispatch_func,
+    core_dispatch_func,
+    navigation_dispatch_func,
+    workflow_dispatch_func,
+    unknown_message_func,
+    clear_context_func,
+    mark_stopped_func,
+    legacy_dispatch_func,
+):
+    prepared = _read_prepared_repl_choice(
+        cfg,
+        compact_next_prompt=loop_state["compact_next_prompt"],
+        render_full=loop_state["render_full"],
+        pending_console_lines=pending_console_lines,
+        workbench_snapshot_func=workbench_snapshot_func,
+        print_workbench_func=print_workbench_func,
+        print_banner_func=print_banner_func,
+        version_func=version_func,
+        prompt_func=prompt_func,
+        input_func=input_func,
+        line_history=line_history,
+        history_command_func=history_command_func,
+        record_history_func=record_history_func,
+        clear_results_func=clear_results_func,
+        readline_module=readline_module,
+    )
+    _apply_prepared_repl_state(loop_state, prepared)
+    if prepared["line"] is None or prepared.get("continue"):
+        return {"continue": prepared["line"] is not None}
+    parsed_result = _dispatch_prepared_line_command(
+        cfg,
+        prepared,
+        module_func=module_func,
+        target_selected_func=target_selected_func,
+        command_help_printer=command_help_printer,
+        context_help_printer=context_help_printer,
+        utility_dispatch_func=utility_dispatch_func,
+        core_dispatch_func=core_dispatch_func,
+        navigation_dispatch_func=navigation_dispatch_func,
+        workflow_dispatch_func=workflow_dispatch_func,
+        unknown_message_func=unknown_message_func,
+    )
+    if "compact_next_prompt" in parsed_result:
+        loop_state["compact_next_prompt"] = parsed_result["compact_next_prompt"]
+    if parsed_result.get("handled"):
+        return {"continue": True}
+    dispatch_result = _dispatch_repl_quit_or_legacy(
+        cfg,
+        parsed_result["choice"],
+        module_func=module_func,
+        target_selected_func=target_selected_func,
+        clear_context_func=clear_context_func,
+        mark_stopped_func=mark_stopped_func,
+        legacy_dispatch_func=legacy_dispatch_func,
+    )
+    _apply_repl_dispatch_state(loop_state, dispatch_result)
+    return _line_repl_iteration_exit_result(dispatch_result)
+
+
 def run_line_repl_loop(
     cfg,
     *,
@@ -266,13 +484,14 @@ def run_line_repl_loop(
     mark_stopped_func,
     legacy_dispatch_func,
 ):
-    render_full = False
-    compact_next_prompt = False
+    loop_state = {
+        "render_full": False,
+        "compact_next_prompt": False,
+    }
     while not shutdown_event.is_set():
-        prompt_result = read_next_repl_line(
+        iteration = _run_line_repl_iteration(
             cfg,
-            compact_next_prompt=compact_next_prompt,
-            render_full=render_full,
+            loop_state,
             pending_console_lines=pending_console_lines,
             workbench_snapshot_func=workbench_snapshot_func,
             print_workbench_func=print_workbench_func,
@@ -280,67 +499,29 @@ def run_line_repl_loop(
             version_func=version_func,
             prompt_func=prompt_func,
             input_func=input_func,
-        )
-        line = prompt_result["line"]
-        compact_next_prompt = prompt_result["compact_next_prompt"]
-        render_full = prompt_result["render_full"]
-        if line is None:
-            break
-        prepared = prepare_repl_choice(
-            line,
-            line_history,
+            line_history=line_history,
             history_command_func=history_command_func,
             record_history_func=record_history_func,
             clear_results_func=clear_results_func,
             readline_module=readline_module,
-        )
-        if prepared.get("compact_next_prompt"):
-            compact_next_prompt = True
-        if prepared.get("continue"):
-            continue
-        choice = prepared["choice"]
-        console_args = prepared["console_args"]
-        cmd = prepared["cmd"]
-        if console_args:
-            parsed_result = dispatch_line_parsed_command(
-                cmd,
-                console_args,
-                module=module_func(cfg),
-                target_selected=target_selected_func(cfg),
-                command_help_printer=command_help_printer,
-                context_help_printer=context_help_printer,
-                utility_dispatch_func=utility_dispatch_func,
-                core_dispatch_func=core_dispatch_func,
-                navigation_dispatch_func=navigation_dispatch_func,
-                workflow_dispatch_func=workflow_dispatch_func,
-                unknown_message_func=unknown_message_func,
-            )
-            if "choice" in parsed_result:
-                choice = parsed_result["choice"]
-            if "compact_next_prompt" in parsed_result:
-                compact_next_prompt = parsed_result["compact_next_prompt"]
-            if parsed_result.get("handled"):
-                continue
-        quit_result = dispatch_line_quit_choice(
-            choice,
-            module=module_func(cfg),
-            target_selected=target_selected_func(cfg),
+            module_func=module_func,
+            target_selected_func=target_selected_func,
+            command_help_printer=command_help_printer,
+            context_help_printer=context_help_printer,
+            utility_dispatch_func=utility_dispatch_func,
+            core_dispatch_func=core_dispatch_func,
+            navigation_dispatch_func=navigation_dispatch_func,
+            workflow_dispatch_func=workflow_dispatch_func,
+            unknown_message_func=unknown_message_func,
             clear_context_func=clear_context_func,
             mark_stopped_func=mark_stopped_func,
+            legacy_dispatch_func=legacy_dispatch_func,
         )
-        if quit_result.get("handled"):
-            if quit_result.get("compact_next_prompt"):
-                compact_next_prompt = True
-                continue
-            return quit_result.get("exit_code", 0)
-        legacy_result = legacy_dispatch_func(choice)
-        if legacy_result.get("handled"):
-            if legacy_result.get("render_full"):
-                render_full = True
-            if legacy_result.get("compact_next_prompt"):
-                compact_next_prompt = True
-            continue
-    return 130 if shutdown_reason_func() in ("SIGINT", "SIGTERM", "keyboard_interrupt") else 0
+        if "exit_code" in iteration:
+            return iteration["exit_code"]
+        if not iteration.get("continue"):
+            break
+    return _line_repl_shutdown_exit_code(shutdown_reason_func)
 
 
 def run_configured_line_repl_loop(
