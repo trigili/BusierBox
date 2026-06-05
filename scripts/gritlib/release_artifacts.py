@@ -1372,14 +1372,27 @@ def _release_shquote(value):
     return "'" + text.replace("'", "'\\''") + "'"
 
 
-def release_artifact_workflow_action_records(cfg, release, default_config="local/server-config.json"):
-    release = release or {}
+def _release_artifact_workflow_context(cfg, release, default_config):
     config_path = str(cfg.get("_config_path", default_config))
-    base = "scripts/grit-console --config " + _release_shquote(config_path)
     release_dir = str(release.get("release_dir") or cfg.get("release_dir") or ".")
     release_present = bool(release)
     release_valid = bool(release.get("valid", release_present))
-    records = [
+    return {
+        "base": "scripts/grit-console --config " + _release_shquote(config_path),
+        "release_dir": release_dir,
+        "release_name": str(release.get("release_name") or ""),
+        "release_present": release_present,
+        "release_valid": release_valid,
+    }
+
+
+def _release_artifact_release_workflow_actions(release, context):
+    base = context["base"]
+    release_dir = context["release_dir"]
+    release_present = context["release_present"]
+    release_valid = context["release_valid"]
+    release_name = context["release_name"]
+    return [
         {
             "id": "release:inspect-release",
             "action_id": "inspect-release",
@@ -1387,7 +1400,7 @@ def release_artifact_workflow_action_records(cfg, release, default_config="local
             "workflow": "release-inspection",
             "label": "Inspect release bundle",
             "release_dir": release_dir,
-            "release_name": str(release.get("release_name") or ""),
+            "release_name": release_name,
             "release_present": release_present,
             "release_valid": release_valid,
             "selector": "",
@@ -1417,7 +1430,7 @@ def release_artifact_workflow_action_records(cfg, release, default_config="local
             "workflow": "release-validation",
             "label": "Run release self-test",
             "release_dir": release_dir,
-            "release_name": str(release.get("release_name") or ""),
+            "release_name": release_name,
             "release_present": release_present,
             "release_valid": release_valid,
             "selector": "",
@@ -1441,6 +1454,15 @@ def release_artifact_workflow_action_records(cfg, release, default_config="local
             "tui_visible": True,
         },
     ]
+
+
+def _release_artifact_stage_workflow_actions(release, context):
+    base = context["base"]
+    release_dir = context["release_dir"]
+    release_name = context["release_name"]
+    release_present = context["release_present"]
+    release_valid = context["release_valid"]
+    records = []
     for artifact in release.get("artifacts") or []:
         release_path = str(artifact.get("release_path") or artifact.get("name") or artifact.get("path") or "")
         compatibility = artifact.get("compatibility") if isinstance(artifact.get("compatibility"), dict) else {}
@@ -1481,6 +1503,16 @@ def release_artifact_workflow_action_records(cfg, release, default_config="local
             "target_scoped": False,
             "tui_visible": True,
         })
+    return records
+
+
+def _release_artifact_recommendation_workflow_actions(release, context):
+    base = context["base"]
+    release_dir = context["release_dir"]
+    release_name = context["release_name"]
+    release_present = context["release_present"]
+    release_valid = context["release_valid"]
+    records = []
     for rec in release.get("recommendation_records") or []:
         rec_id = str(rec.get("id") or "")
         artifact_name = str(rec.get("artifact_name") or rec.get("artifact") or "")
@@ -1520,6 +1552,16 @@ def release_artifact_workflow_action_records(cfg, release, default_config="local
             "tui_visible": True,
         })
     return records
+
+
+def release_artifact_workflow_action_records(cfg, release, default_config="local/server-config.json"):
+    release = release or {}
+    context = _release_artifact_workflow_context(cfg, release, default_config)
+    return (
+        _release_artifact_release_workflow_actions(release, context)
+        + _release_artifact_stage_workflow_actions(release, context)
+        + _release_artifact_recommendation_workflow_actions(release, context)
+    )
 
 
 
