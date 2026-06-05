@@ -69,6 +69,104 @@ def completion_provider(providers, name, default=None):
     return list(value or [])
 
 
+def _completion_target_names(cfg, workbench_snapshot_func):
+    names = []
+    unfiltered_cfg = dict(cfg)
+    unfiltered_cfg.pop("_target_id_filter", None)
+    unfiltered_cfg.pop("_target_label_filter", None)
+    for rec in workbench_snapshot_func(unfiltered_cfg).get("targets") or []:
+        for item in [rec.get("target_id"), rec.get("label"), *(rec.get("aliases") or [])]:
+            value = str(item or "").strip()
+            if value:
+                names.append(value)
+    return names
+
+
+def _completion_session_names(cfg, workbench_snapshot_func):
+    names = []
+    for rec in workbench_snapshot_func(cfg).get("sessions") or []:
+        value = str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
+        if value:
+            names.append(value)
+    return names
+
+
+def _completion_action_names(line_action_records_func):
+    names = []
+    for rec in line_action_records_func():
+        rec_id = str(rec.get("id") or "")
+        kind = str(rec.get("kind") or "")
+        if rec_id:
+            names.append(rec_id)
+            if kind:
+                names.append(f"{kind}:{rec_id}")
+    return names
+
+
+def _completion_release_selectors(cfg, release_context_func):
+    rel = release_context_func(cfg)
+    if not rel:
+        return []
+    selectors = []
+    for rec in rel.get("artifacts") or []:
+        selectors.extend([rec.get("release_path"), rec.get("name"), rec.get("path")])
+    for rec in rel.get("recommendation_records") or []:
+        selectors.extend([rec.get("id"), rec.get("artifact")])
+    for rec in rel.get("devices") or []:
+        name = str(rec.get("name") or "")
+        if name:
+            selectors.append(f"by_device:{name}")
+    for rec in rel.get("tuples") or []:
+        path = str(rec.get("path") or "")
+        if path:
+            selectors.append(f"by_tuple_path:{path}")
+    return [str(item or "") for item in selectors if str(item or "")]
+
+
+def _completion_command_queue_ids(cfg, command_queue_summary_func):
+    ids = []
+    for idx, rec in enumerate((command_queue_summary_func(cfg).get("commands") or []), 1):
+        ids.append(str(idx))
+        command_id = str(rec.get("id") or "")
+        if command_id:
+            ids.append(command_id)
+    return ids
+
+
+def _completion_daemon_action_ids(cfg, workbench_snapshot_func):
+    snap = workbench_snapshot_func(cfg)
+    return [
+        str(rec.get("id") or "") for rec in (snap.get("operator_daemon_workflow_actions") or [])
+        if rec.get("id")
+    ]
+
+
+def _completion_staged_names_snapshot(cfg, workbench_snapshot_func):
+    return [
+        str(name or "")
+        for name in sorted((workbench_snapshot_func(cfg).get("staged") or {}).keys())
+        if str(name or "")
+    ]
+
+
+def _completion_session_paths(cfg, workbench_snapshot_func):
+    path_values = []
+    for rec in workbench_snapshot_func(cfg).get("sessions") or []:
+        for key in ("path", "session_log", "event_log"):
+            value = str(rec.get(key) or "").strip()
+            if value:
+                path_values.append(value)
+    return path_values
+
+
+def _completion_survey_upload_paths(find_survey_uploads_func):
+    return [
+        rec.get("stored_path") or ""
+        for rec in find_survey_uploads_func()
+        if rec.get("stored_path")
+    ]
+
+
 def build_line_completion_providers(
     cfg,
     *,
@@ -85,98 +183,9 @@ def build_line_completion_providers(
     load_staged_func,
     find_survey_uploads_func,
 ):
-    def target_names():
-        names = []
-        unfiltered_cfg = dict(cfg)
-        unfiltered_cfg.pop("_target_id_filter", None)
-        unfiltered_cfg.pop("_target_label_filter", None)
-        for rec in workbench_snapshot_func(unfiltered_cfg).get("targets") or []:
-            for item in [rec.get("target_id"), rec.get("label"), *(rec.get("aliases") or [])]:
-                value = str(item or "").strip()
-                if value:
-                    names.append(value)
-        return names
-
-    def session_names():
-        names = []
-        for rec in workbench_snapshot_func(cfg).get("sessions") or []:
-            value = str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
-            if value:
-                names.append(value)
-        return names
-
-    def action_names():
-        names = []
-        for rec in line_action_records_func():
-            rec_id = str(rec.get("id") or "")
-            kind = str(rec.get("kind") or "")
-            if rec_id:
-                names.append(rec_id)
-                if kind:
-                    names.append(f"{kind}:{rec_id}")
-        return names
-
-    def release_selectors():
-        rel = release_context_func(cfg)
-        if not rel:
-            return []
-        selectors = []
-        for rec in rel.get("artifacts") or []:
-            selectors.extend([rec.get("release_path"), rec.get("name"), rec.get("path")])
-        for rec in rel.get("recommendation_records") or []:
-            selectors.extend([rec.get("id"), rec.get("artifact")])
-        for rec in rel.get("devices") or []:
-            name = str(rec.get("name") or "")
-            if name:
-                selectors.append(f"by_device:{name}")
-        for rec in rel.get("tuples") or []:
-            path = str(rec.get("path") or "")
-            if path:
-                selectors.append(f"by_tuple_path:{path}")
-        return [str(item or "") for item in selectors if str(item or "")]
-
-    def command_queue_ids():
-        ids = []
-        for idx, rec in enumerate((command_queue_summary_func(cfg).get("commands") or []), 1):
-            ids.append(str(idx))
-            command_id = str(rec.get("id") or "")
-            if command_id:
-                ids.append(command_id)
-        return ids
-
-    def daemon_action_ids():
-        snap = workbench_snapshot_func(cfg)
-        return [
-            str(rec.get("id") or "") for rec in (snap.get("operator_daemon_workflow_actions") or [])
-            if rec.get("id")
-        ]
-
-    def staged_names_snapshot():
-        return [
-            str(name or "")
-            for name in sorted((workbench_snapshot_func(cfg).get("staged") or {}).keys())
-            if str(name or "")
-        ]
-
-    def session_paths():
-        path_values = []
-        for rec in workbench_snapshot_func(cfg).get("sessions") or []:
-            for key in ("path", "session_log", "event_log"):
-                value = str(rec.get(key) or "").strip()
-                if value:
-                    path_values.append(value)
-        return path_values
-
-    def survey_upload_paths():
-        return [
-            rec.get("stored_path") or ""
-            for rec in find_survey_uploads_func()
-            if rec.get("stored_path")
-        ]
-
     return {
-        "target_names": target_names,
-        "session_names": session_names,
+        "target_names": lambda: _completion_target_names(cfg, workbench_snapshot_func),
+        "session_names": lambda: _completion_session_names(cfg, workbench_snapshot_func),
         "job_names": lambda: [
             str(rec.get("id") or "") for rec in workbench_snapshot_func(cfg).get("workbench_jobs") or []
             if str(rec.get("id") or "")
@@ -185,9 +194,9 @@ def build_line_completion_providers(
             str(rec.get("name") or "") for rec in bridge_profile_records_func(cfg)
             if str(rec.get("name") or "")
         ],
-        "action_names": action_names,
-        "release_selectors": release_selectors,
-        "command_queue_ids": command_queue_ids,
+        "action_names": lambda: _completion_action_names(line_action_records_func),
+        "release_selectors": lambda: _completion_release_selectors(cfg, release_context_func),
+        "command_queue_ids": lambda: _completion_command_queue_ids(cfg, command_queue_summary_func),
         "generated_command_ids": lambda: [
             str(idx) for idx, _rec in enumerate(generated_target_command_records_func(cfg), 1)
         ],
@@ -197,11 +206,11 @@ def build_line_completion_providers(
         ],
         "service_completion_names": lambda: service_completion_names_func(service_status_rows_func(cfg)),
         "service_names": lambda: service_names_func(service_status_rows_func(cfg)),
-        "daemon_action_ids": daemon_action_ids,
+        "daemon_action_ids": lambda: _completion_daemon_action_ids(cfg, workbench_snapshot_func),
         "staged_names_load": lambda: sorted((load_staged_func(cfg).get("staged") or {}).keys()),
-        "staged_names_snapshot": staged_names_snapshot,
-        "session_paths": session_paths,
-        "survey_upload_paths": survey_upload_paths,
+        "staged_names_snapshot": lambda: _completion_staged_names_snapshot(cfg, workbench_snapshot_func),
+        "session_paths": lambda: _completion_session_paths(cfg, workbench_snapshot_func),
+        "survey_upload_paths": lambda: _completion_survey_upload_paths(find_survey_uploads_func),
     }
 
 
