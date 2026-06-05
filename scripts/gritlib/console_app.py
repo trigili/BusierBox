@@ -1,8 +1,6 @@
 """Application entrypoint for grit-console."""
 
 import sys
-import gritlib.bridge_routes as bridge_routes
-from gritlib.build_config import handle_build_config_args
 from gritlib.command_queue import handle_command_queue_args
 from gritlib.command_queue_service import serve_command_queue
 from gritlib.config_utils import load_config
@@ -13,9 +11,9 @@ from gritlib.console_args import (
     has_explicit_console_action,
 )
 from gritlib.console_bringup import handle_bringup_command
+from gritlib.console_headless import handle_headless_action_args
 import gritlib.console_runtime as console_runtime
 from gritlib.console_help import print_concise_help, print_console_help_reference
-from gritlib.event_log import append_event
 from gritlib.file_service import serve_file_service
 from gritlib.file_transfers import render_fetch_command
 from gritlib.line_repl_app import run_line_console
@@ -32,8 +30,6 @@ import gritlib.staged_files as staged_files
 from gritlib.systemd_user import handle_systemd_user_action
 from gritlib.target_commands import shell_listener_max_sessions
 from gritlib.version import grit_version
-import gritlib.workbench_jobs as workbench_jobs
-from gritlib.workflow_actions import workbench_action_records
 import gritlib.workflow_runners as workflow_runners
 
 
@@ -65,53 +61,6 @@ def _load_console_invocation(raw_argv):
         print(f"grit-console: {exc}", file=sys.stderr)
         return 2, None, None
     return None, cfg, args
-
-
-def _handle_headless_action_args(cfg, args):
-    bridge_profile_code = console_actions.handle_bridge_profile_args(
-        cfg,
-        args,
-        save_bridge_profile_func=bridge_routes.save_bridge_profile,
-        delete_bridge_profile_func=bridge_routes.delete_bridge_profile,
-        print_bridge_profile_func=bridge_routes.print_bridge_profile,
-        print_bridge_profiles_func=bridge_routes.print_bridge_profiles,
-        bridge_profiles_path_func=bridge_routes.bridge_profiles_path,
-    )
-    if bridge_profile_code is not None:
-        return bridge_profile_code
-    workbench_job_code = console_actions.handle_workbench_job_args(
-        cfg,
-        args,
-        workbench_action_records_func=workbench_action_records,
-        start_workbench_job_headless_command_func=workbench_jobs.start_workbench_job_headless_command,
-        start_workbench_job_record_func=workbench_jobs.start_workbench_job_record,
-        cancel_workbench_job_headless_command_func=workbench_jobs.cancel_workbench_job_headless_command,
-        cancel_workbench_job_record_func=workbench_jobs.cancel_workbench_job_record,
-        run_workbench_action_record_func=workbench_jobs.run_workbench_action_record,
-    )
-    if workbench_job_code is not None:
-        return workbench_job_code
-    workflow_code = console_actions.handle_workflow_action_args(
-        cfg,
-        args,
-        run_service_workflow_action_func=workflow_runners.run_service_workflow_action,
-        run_operator_daemon_workflow_action_func=workflow_runners.run_operator_daemon_workflow_action,
-        run_release_artifact_workflow_action_func=workflow_runners.run_release_artifact_workflow_action,
-        run_command_queue_workflow_action_func=workflow_runners.run_command_queue_workflow_action,
-        run_probe_workflow_action_func=workflow_runners.run_probe_workflow_action,
-        run_bridge_profile_workflow_action_func=workflow_runners.run_bridge_profile_workflow_action,
-        run_file_service_workflow_action_func=workflow_runners.run_file_service_workflow_action,
-        run_staged_file_workflow_action_func=workflow_runners.run_staged_file_workflow_action,
-        run_target_workflow_action_func=workflow_runners.run_target_workflow_action,
-    )
-    if workflow_code is not None:
-        return workflow_code
-    build_config_code = handle_build_config_args(cfg, args, append_event_fn=append_event)
-    if build_config_code is not None:
-        return build_config_code
-    return console_actions.handle_console_utility_args(
-        cfg, args, append_event_fn=append_event
-    )
 
 
 def _serve_console_listener_action(
@@ -214,7 +163,7 @@ def main(argv=None):
         return invocation_code
 
     try:
-        headless_code = _handle_headless_action_args(cfg, args)
+        headless_code = handle_headless_action_args(cfg, args)
         if headless_code is not None:
             return headless_code
     except ValueError as exc:
