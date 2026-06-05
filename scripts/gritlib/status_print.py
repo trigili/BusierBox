@@ -36,10 +36,7 @@ from gritlib.workbench_jobs import (
 from gritlib.workflow_actions import print_workbench_action_summary
 
 
-def print_status_document(doc, json_output=False):
-    if json_output:
-        print(json.dumps(doc, indent=2, sort_keys=True))
-        return 0
+def _print_status_header(doc):
     print("griTTYkit server status")
     print(f"  state_file: {doc['state_file']}")
     print(f"  staged_files: {doc['staged_files']}")
@@ -66,11 +63,9 @@ def print_status_document(doc, json_output=False):
         f"children={manager.get('running_child_process_count', 0)}/{manager.get('child_process_count', 0)} "
         f"resources={len(doc.get('service_manager_resources') or [])}"
     )
-    print("")
-    print_activity_summary(doc.get("summary") or {})
-    print_warning_summary(doc.get("summary") or {})
-    print_api_resource_summary(doc)
-    print("")
+
+
+def _print_path_health(doc):
     print("Path health:")
     for name in sorted(doc.get("path_status") or {}):
         rec = doc["path_status"][name]
@@ -78,11 +73,9 @@ def print_status_document(doc, json_output=False):
         parent_exists = "yes" if rec.get("parent_exists") else "no"
         writable = "yes" if rec.get("writable") else "no"
         print(f"  {name}: exists={exists} parent_exists={parent_exists} writable={writable} kind={rec.get('expected_kind', '')} path={rec.get('path', '')}")
-    print("")
-    print_operator_state_records(doc)
-    print("")
-    print_target_summary(doc)
-    print("")
+
+
+def _print_service_rows(doc):
     print("Services:")
     for row in doc["services"]:
         stale = " stale-state" if row["stale"] else ""
@@ -113,13 +106,18 @@ def print_status_document(doc, json_output=False):
             print(f"    process_log: {row['process_log']}")
         if row["session_log"]:
             print(f"    session_log: {row['session_log']}")
+
+
+def _print_status_warnings(doc):
     warnings_printed = False
+
     def print_warnings_header_once():
         nonlocal warnings_printed
         if not warnings_printed:
             print("")
             print("Warnings:")
             warnings_printed = True
+
     if doc["summary"].get("path_kind_mismatch_count", 0):
         print_warnings_header_once()
         for rec in (doc.get("path_status") or {}).values():
@@ -175,19 +173,17 @@ def print_status_document(doc, json_output=False):
             print(f"  rshell session policy is invalid: {warning.get('session_policy', '')}")
             for error in warning.get("session_policy_errors") or []:
                 print(f"    {error}")
-    print("")
-    print_recent_sessions(doc["sessions"])
-    print("")
-    print_recent_uploads(doc["uploads"], include_stored_exists=True)
-    print("")
-    print_recent_fetches(doc["fetches"], include_source_exists=True)
-    print("")
+
+
+def _print_generated_target_commands(doc):
     print("Generated target commands:")
     print_target_command_summary(doc)
     for rec in doc.get("target_command_records") or []:
         if isinstance(rec, dict):
             print("  " + target_command_display_line(rec))
-    print("")
+
+
+def _print_operator_workflow_actions(doc):
     print("Operator workflow actions:")
     print_workbench_action_summary(doc)
     for rec in doc.get("workbench_actions") or []:
@@ -202,6 +198,9 @@ def print_status_document(doc, json_output=False):
             print(f"    run: {rec.get('run_command', '')}")
         if rec.get("start_job_command"):
             print(f"    start_job: {rec.get('start_job_command', '')}")
+
+
+def _print_target_workflow_actions(doc):
     if doc.get("target_workflow_actions"):
         print("Target workflow actions:")
         for rec in doc.get("target_workflow_actions") or []:
@@ -219,6 +218,9 @@ def print_status_document(doc, json_output=False):
                 f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'}{bridge}"
             )
             print(f"    {rec.get('headless_command', rec.get('command', ''))}")
+
+
+def _print_workbench_jobs(doc):
     print_workbench_job_summary(doc)
     for rec in doc.get("workbench_jobs") or []:
         cancel = "yes" if rec.get("cancel_supported") else "no"
@@ -237,12 +239,9 @@ def print_status_document(doc, json_output=False):
             print(f"    finished_at: {rec.get('finished_at', '')}")
         for line in rec.get("last_output_tail") or []:
             print(f"    | {line}")
-    print("")
-    print_workbench_command_queue_summary(doc["command_queue"], include_polling=True)
-    print("")
-    print_workbench_phone_home_attempts(doc, limit=8, include_work_details=True)
-    print("")
-    print_event_log_summary(doc)
+
+
+def _print_release_browser(doc):
     if doc["release"]:
         print("")
         print("Release browser:")
@@ -266,10 +265,9 @@ def print_status_document(doc, json_output=False):
             print(f"  tuple {item.get('path', '')} artifacts={item.get('artifact_count', len(item.get('artifacts') or []))}")
             for path in (item.get("artifact_paths") or [])[:3]:
                 print(f"    artifact_path: {path}")
-    return 0
 
 
-def print_workbench_snapshot(cfg, snap, include_api_summary=True):
+def _print_snapshot_header(cfg, snap, include_api_summary):
     summary = snap.get("summary") or {}
     print("griTTYkit Operator Workbench")
     print(f"Current time: {utc_now()}")
@@ -295,7 +293,9 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
     print_warning_summary(summary)
     if include_api_summary:
         print_api_resource_summary(snap)
-    print("")
+
+
+def _print_snapshot_operator_paths(cfg, snap):
     print("Operator paths:")
     paths = snap.get("paths") or {}
     for label, key in (
@@ -311,7 +311,9 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
         print(f"  {label}: {paths.get(key, snap.get(key, ''))}")
     print(f"  tls_cert: {cfg.get('tls_cert', '')}")
     print(f"  tls_key: {cfg.get('tls_key', '')}")
-    print("")
+
+
+def _print_snapshot_path_health(snap):
     print("Path health:")
     path_status = snap.get("path_status") or {}
     for name in sorted(path_status):
@@ -320,11 +322,9 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
         parent_exists = "yes" if rec.get("parent_exists") else "no"
         writable = "yes" if rec.get("writable") else "no"
         print(f"  {name}: exists={exists} parent_exists={parent_exists} writable={writable} kind={rec.get('expected_kind', '')}")
-    print("")
-    print_operator_state_records(snap)
-    print("")
-    print_target_summary(snap)
-    print("")
+
+
+def _print_snapshot_local_ip_candidates(snap):
     print("Local IP candidates:")
     candidates = sorted_local_ips(snap["local_ips"])
     if candidates:
@@ -332,7 +332,9 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
             print(f"  {ip}")
     else:
         print("  OPERATOR_IP")
-    print("")
+
+
+def _print_snapshot_services(snap):
     print("Services:")
     for row in snap["services"].values():
         item = row["status_row"]
@@ -343,7 +345,9 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
             print(f"    error: {item['error']}")
         if item["session_log"]:
             print(f"    log: {item['session_log']}")
-    print("")
+
+
+def _print_snapshot_warnings(snap):
     print("Warnings:")
     warnings = snap.get("warnings") or []
     if warnings:
@@ -365,7 +369,9 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
                 print(f"    listener_pid={pid}")
     else:
         print("  none")
-    print("")
+
+
+def _print_snapshot_staged_files(cfg, snap):
     print("Staged files:")
     if snap["staged"]:
         for name in sorted(snap["staged"]):
@@ -379,19 +385,9 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
             print(f"    {rec.get('fetch_command') or render_fetch_command(name, cfg)}")
     else:
         print("  none")
-    print("")
-    print_recent_uploads(recent_upload_metadata(cfg), title="Received uploads:")
-    print("")
-    print_recent_fetches(snap.get("fetches") or [])
-    print("")
-    print_recent_sessions(snap["sessions"], updated_on_header=True)
-    print("")
-    print("Generated target commands:")
-    print_target_command_summary(snap)
-    for rec in snap.get("target_command_records") or []:
-        if isinstance(rec, dict):
-            print("  " + target_command_display_line(rec))
-    print("")
+
+
+def _print_snapshot_workflow_actions(snap):
     print("Operator workflow actions:")
     print_workbench_action_summary(snap)
     actions = snap.get("workbench_actions") or []
@@ -410,6 +406,9 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
             print(f"    start_job: {rec.get('start_job_command', '')}")
     if len(actions) > preview_action_limit:
         print(f"  ... {len(actions) - preview_action_limit} more operator workflow action(s); choose action 11 in line mode for the full list")
+
+
+def _print_snapshot_target_workflow_actions(snap):
     if snap.get("target_workflow_actions"):
         print("Target workflow actions:")
         actions = snap.get("target_workflow_actions") or []
@@ -430,6 +429,9 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
             print(f"    {rec.get('headless_command', rec.get('command', ''))}")
         if len(actions) > 3:
             print(f"  ... {len(actions) - 3} more target workflow action(s); choose action 11 in line mode for the full list")
+
+
+def _print_snapshot_workbench_jobs(snap):
     print_workbench_job_summary(snap)
     for rec in snap.get("workbench_jobs") or []:
         cancel = "yes" if rec.get("cancel_supported") else "no"
@@ -444,12 +446,9 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
             print(f"    finished_at: {rec.get('finished_at', '')}")
         for line in rec.get("last_output_tail") or []:
             print(f"    | {line}")
-    print("")
-    print_workbench_command_queue_summary(snap["command_queue"])
-    print("")
-    print_workbench_phone_home_attempts(snap)
-    print("")
-    print_event_log_summary(snap)
+
+
+def _print_snapshot_release_browser(cfg, snap):
     rel = release_context(cfg)
     if rel:
         print("")
@@ -487,3 +486,82 @@ def print_workbench_snapshot(cfg, snap, include_api_summary=True):
             print(f"  {item.get('path', '')} artifacts={item.get('artifact_count', len(item.get('artifacts') or []))}")
             for path in (item.get("artifact_paths") or [])[:3]:
                 print(f"    artifact_path: {path}")
+
+
+def print_status_document(doc, json_output=False):
+    if json_output:
+        print(json.dumps(doc, indent=2, sort_keys=True))
+        return 0
+    _print_status_header(doc)
+    print("")
+    print_activity_summary(doc.get("summary") or {})
+    print_warning_summary(doc.get("summary") or {})
+    print_api_resource_summary(doc)
+    print("")
+    _print_path_health(doc)
+    print("")
+    print_operator_state_records(doc)
+    print("")
+    print_target_summary(doc)
+    print("")
+    _print_service_rows(doc)
+    _print_status_warnings(doc)
+    print("")
+    print_recent_sessions(doc["sessions"])
+    print("")
+    print_recent_uploads(doc["uploads"], include_stored_exists=True)
+    print("")
+    print_recent_fetches(doc["fetches"], include_source_exists=True)
+    print("")
+    _print_generated_target_commands(doc)
+    print("")
+    _print_operator_workflow_actions(doc)
+    _print_target_workflow_actions(doc)
+    _print_workbench_jobs(doc)
+    print("")
+    print_workbench_command_queue_summary(doc["command_queue"], include_polling=True)
+    print("")
+    print_workbench_phone_home_attempts(doc, limit=8, include_work_details=True)
+    print("")
+    print_event_log_summary(doc)
+    _print_release_browser(doc)
+    return 0
+
+
+def print_workbench_snapshot(cfg, snap, include_api_summary=True):
+    _print_snapshot_header(cfg, snap, include_api_summary)
+    print("")
+    _print_snapshot_operator_paths(cfg, snap)
+    print("")
+    _print_snapshot_path_health(snap)
+    print("")
+    print_operator_state_records(snap)
+    print("")
+    print_target_summary(snap)
+    print("")
+    _print_snapshot_local_ip_candidates(snap)
+    print("")
+    _print_snapshot_services(snap)
+    print("")
+    _print_snapshot_warnings(snap)
+    print("")
+    _print_snapshot_staged_files(cfg, snap)
+    print("")
+    print_recent_uploads(recent_upload_metadata(cfg), title="Received uploads:")
+    print("")
+    print_recent_fetches(snap.get("fetches") or [])
+    print("")
+    print_recent_sessions(snap["sessions"], updated_on_header=True)
+    print("")
+    _print_generated_target_commands(snap)
+    print("")
+    _print_snapshot_workflow_actions(snap)
+    _print_snapshot_target_workflow_actions(snap)
+    _print_snapshot_workbench_jobs(snap)
+    print("")
+    print_workbench_command_queue_summary(snap["command_queue"])
+    print("")
+    print_workbench_phone_home_attempts(snap)
+    print("")
+    print_event_log_summary(snap)
+    _print_snapshot_release_browser(cfg, snap)
