@@ -66,11 +66,7 @@ from gritlib.release_artifacts import release_context
 from gritlib.session_state import (
     mark_service_stopped, state_file_path, update_server_state,
 )
-from gritlib.service_status import (
-    service_status_rows,
-    service_start_headless_command,
-    service_stop_headless_command,
-)
+import gritlib.service_status as service_status
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import (
     load_staged, print_staged,
@@ -117,12 +113,12 @@ def run_line_repl(cfg):
 
     line_route_service_callbacks = build_line_route_service_callbacks(
         cfg,
-        service_status_rows_func=service_status_rows,
+        service_status_rows_func=service_status.service_status_rows,
         service_record_func=line_service_record,
         bridge_profile_records_func=bridge_routes.bridge_profile_records,
         bridge_command_func=bridge_routes.bridge_profile_headless_command,
-        service_start_command_func=service_start_headless_command,
-        service_stop_command_func=service_stop_headless_command,
+        service_start_command_func=service_status.service_start_headless_command,
+        service_stop_command_func=service_status.service_stop_headless_command,
         service_start_func=workflow_runners.start_service_process,
         service_stop_func=workflow_runners.stop_recorded_service,
         probe_delivery_func=probe_commands.print_probe_delivery,
