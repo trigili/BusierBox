@@ -3590,6 +3590,67 @@ def run_line_target_service_command_registry_check():
     return 0
 
 
+def run_line_session_command_registry_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.line_sessions import (
+        line_session_command_records,
+        parse_line_sessions_command,
+    )
+
+    records = line_session_command_records()
+    actions = {}
+    for rec in records:
+        actions.setdefault(rec.get("action"), []).append(rec)
+    if not any(tuple(rec.get("commands") or ()) == ("sessions", "session") for rec in actions.get("clear", [])):
+        print(f"session command registry lost clear commands: {records}", file=sys.stderr)
+        return 1
+    clear_subcommands = set()
+    for rec in actions.get("clear", []):
+        clear_subcommands.update(rec.get("subcommands") or [])
+    if clear_subcommands != {"clear", "prune", "clean"}:
+        print(f"session command registry lost clear aliases: {clear_subcommands}", file=sys.stderr)
+        return 1
+    if not any({"-h", "--help"} == set(rec.get("subcommands") or []) for rec in actions.get("help", [])):
+        print(f"session command registry lost help aliases: {records}", file=sys.stderr)
+        return 1
+    if not any({"-v", "--verbose"} == set(rec.get("subcommands") or []) and rec.get("verbose") for rec in actions.get("list", [])):
+        print(f"session command registry lost verbose aliases: {records}", file=sys.stderr)
+        return 1
+
+    clear = parse_line_sessions_command("sessions", ["prune", "--all", "--confirm"])
+    if clear.get("action") != "clear" or clear.get("all_sessions") is not True or clear.get("confirm") is not True:
+        print(f"session parser did not preserve clear flags: {clear}", file=sys.stderr)
+        return 1
+    if parse_line_sessions_command("sessions", ["--help"]).get("action") != "help":
+        print("session parser did not preserve help alias", file=sys.stderr)
+        return 1
+    verbose = parse_line_sessions_command("sessions", ["--verbose"])
+    if verbose.get("action") != "list" or verbose.get("verbose") is not True:
+        print(f"session parser did not preserve verbose list: {verbose}", file=sys.stderr)
+        return 1
+    if parse_line_sessions_command("sessions", ["--list"]).get("action") != "list":
+        print("session parser did not preserve explicit list flag", file=sys.stderr)
+        return 1
+    interact = parse_line_sessions_command("sessions", ["--interact", "sess-1"])
+    if interact.get("action") != "interact" or interact.get("selector") != "sess-1":
+        print(f"session parser did not preserve interact flag: {interact}", file=sys.stderr)
+        return 1
+    positional = parse_line_sessions_command("session", ["sess-2"])
+    if positional.get("action") != "interact" or positional.get("selector") != "sess-2":
+        print(f"session parser did not preserve positional session selector: {positional}", file=sys.stderr)
+        return 1
+    legacy_edge = parse_line_sessions_command("sessions", ["-i"])
+    if legacy_edge.get("action") != "interact" or legacy_edge.get("selector") != "-i":
+        print(f"session parser did not preserve legacy bare -i selector fallback: {legacy_edge}", file=sys.stderr)
+        return 1
+    if parse_line_sessions_command("unknown", []):
+        print("session parser consumed unknown command", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_service_runtime_state_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -9382,6 +9443,8 @@ def main(argv=None):
     if run_line_workspace_command_registry_check() != 0:
         return 1
     if run_line_target_service_command_registry_check() != 0:
+        return 1
+    if run_line_session_command_registry_check() != 0:
         return 1
     if run_service_runtime_state_check() != 0:
         return 1

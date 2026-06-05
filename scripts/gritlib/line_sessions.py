@@ -13,30 +13,119 @@ from gritlib.session_state import read_json_file
 _FINISHED_SESSION_STATES = {"ended", "stopped", "complete", "done", "error", "failed"}
 
 
+LINE_SESSION_COMMANDS = (
+    {
+        "action": "clear",
+        "commands": ("sessions", "session"),
+        "subcommands": ("clear", "prune", "clean"),
+    },
+    {
+        "action": "help",
+        "commands": ("sessions", "session"),
+        "subcommands": ("-h", "--help"),
+    },
+    {
+        "action": "list",
+        "commands": ("sessions", "session"),
+        "subcommands": ("-l", "--list"),
+    },
+    {
+        "action": "list",
+        "commands": ("sessions", "session"),
+        "subcommands": ("-v", "--verbose"),
+        "verbose": True,
+    },
+    {
+        "action": "interact",
+        "commands": ("sessions", "session"),
+        "subcommands": ("-i", "--interact"),
+    },
+    {
+        "action": "interact",
+        "commands": ("session",),
+        "subcommands": (),
+        "positional": True,
+    },
+    {
+        "action": "interact",
+        "commands": ("sessions",),
+        "subcommands": (),
+        "positional": True,
+    },
+    {
+        "action": "list",
+        "commands": ("sessions", "session"),
+        "subcommands": (),
+    },
+)
+
+
+def line_session_command_records():
+    return [
+        {
+            "family": "session",
+            "action": rec["action"],
+            "commands": list(rec["commands"]),
+            "primary": rec["commands"][0],
+            "aliases": list(rec["commands"][1:]),
+            "subcommands": list(rec["subcommands"]),
+            "verbose": bool(rec.get("verbose")),
+            "positional": bool(rec.get("positional")),
+        }
+        for rec in LINE_SESSION_COMMANDS
+    ]
+
+
 def parse_line_sessions_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
-    if cmd not in {"sessions", "session"}:
+    records = [rec for rec in line_session_command_records() if cmd in rec["commands"]]
+    if not records:
         return {}
     first = str(args[0]).lower() if args else ""
-    if first in {"clear", "prune", "clean"}:
-        flags = {str(item).lower() for item in args[1:]}
+    for rec in records:
+        if first not in rec["subcommands"]:
+            continue
+        if rec["action"] == "clear":
+            flags = {str(item).lower() for item in args[1:]}
+            return {
+                "action": "clear",
+                "all_sessions": "--all" in flags,
+                "confirm": "--confirm" in flags,
+                "command": cmd,
+                "subcommand": first,
+            }
+        if rec["action"] == "interact":
+            if len(args) < 2:
+                continue
+            return {
+                "action": "interact",
+                "selector": " ".join(args[1:]).strip(),
+                "command": cmd,
+                "subcommand": first,
+            }
         return {
-            "action": "clear",
-            "all_sessions": "--all" in flags,
-            "confirm": "--confirm" in flags,
+            "action": rec["action"],
+            "verbose": bool(rec.get("verbose")),
+            "command": cmd,
+            "subcommand": first,
         }
-    if first in {"-h", "--help"}:
-        return {"action": "help"}
-    if first in {"-v", "--verbose"}:
-        return {"action": "list", "verbose": True}
-    if cmd == "session" and args:
-        return {"action": "interact", "selector": " ".join(args).strip()}
-    if len(args) >= 2 and first in {"-i", "--interact"}:
-        return {"action": "interact", "selector": " ".join(args[1:]).strip()}
     if args and first not in {"-l", "--list"}:
-        return {"action": "interact", "selector": " ".join(args).strip()}
-    return {"action": "list", "verbose": False}
+        for rec in records:
+            if rec["action"] == "interact" and rec.get("positional"):
+                return {
+                    "action": "interact",
+                    "selector": " ".join(args).strip(),
+                    "command": cmd,
+                }
+    for rec in records:
+        if rec["action"] == "list" and not rec["subcommands"]:
+            return {
+                "action": "list",
+                "verbose": False,
+                "command": cmd,
+            }
+    return {}
 
 
 def dispatch_line_sessions_command(
