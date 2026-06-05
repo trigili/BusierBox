@@ -1281,8 +1281,7 @@ def file_service_workflow_action_summary(records):
     }
 
 
-def file_service_workflow_status_summary(records):
-    summary = file_service_workflow_action_summary(records)
+def _file_service_workflow_total_status_summary(summary):
     return {
         "file_service_workflow_action_count": summary.get("total_count", 0),
         "file_service_workflow_action_available_count": summary.get(
@@ -1300,6 +1299,11 @@ def file_service_workflow_status_summary(records):
         "file_service_workflow_action_can_run_from_curses_enter_count": summary.get(
             "can_run_from_curses_enter_count", 0
         ),
+    }
+
+
+def _file_service_workflow_category_status_summary(summary):
+    return {
         "file_service_workflow_action_action_counts": summary.get("action_counts") or {},
         "file_service_workflow_action_service_counts": summary.get("service_counts") or {},
         "file_service_workflow_action_category_counts": summary.get("category_counts") or {},
@@ -1318,6 +1322,11 @@ def file_service_workflow_status_summary(records):
         "file_service_workflow_action_requires_bridge_counts": summary.get(
             "requires_bridge_counts"
         ) or {},
+    }
+
+
+def _file_service_workflow_fleet_status_summary(summary):
+    return {
         "file_service_workflow_action_fleet_target_count_counts": summary.get(
             "fleet_target_count_counts"
         ) or {},
@@ -1348,6 +1357,11 @@ def file_service_workflow_status_summary(records):
         "file_service_workflow_action_fleet_has_poll_overdue_targets_counts": summary.get(
             "fleet_has_poll_overdue_targets_counts"
         ) or {},
+    }
+
+
+def _file_service_workflow_operator_status_summary(summary):
+    return {
         "file_service_workflow_action_available_counts": summary.get(
             "available_counts"
         ) or {},
@@ -1373,3 +1387,13 @@ def file_service_workflow_status_summary(records):
             "curses_enter_action_counts"
         ) or {},
     }
+
+
+def file_service_workflow_status_summary(records):
+    summary = file_service_workflow_action_summary(records)
+    status = {}
+    status.update(_file_service_workflow_total_status_summary(summary))
+    status.update(_file_service_workflow_category_status_summary(summary))
+    status.update(_file_service_workflow_fleet_status_summary(summary))
+    status.update(_file_service_workflow_operator_status_summary(summary))
+    return status
