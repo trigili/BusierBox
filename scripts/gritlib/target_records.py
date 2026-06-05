@@ -1809,7 +1809,7 @@ def target_registry_state_summary(state_record=None, state_records=None):
     }
 
 
-def target_filter_record_indexes(records):
+def _target_filter_base_record_indexes(records):
     return {
         "target_filter_records_by_id": {rec["id"]: rec for rec in records},
         "target_filter_records_by_active": records_by_key(records, "active"),
@@ -1820,6 +1820,11 @@ def target_filter_record_indexes(records):
         "target_filter_records_by_selected_target_label": records_by_key(
             records, "selected_target_label"
         ),
+    }
+
+
+def _target_filter_selected_state_indexes(records):
+    return {
         "target_filter_records_by_selected_target_identity_confidence": records_by_key(
             records, "selected_target_identity_confidence"
         ),
@@ -1847,6 +1852,11 @@ def target_filter_record_indexes(records):
         "target_filter_records_by_selected_target_notes_present": records_by_key(
             records, "selected_target_notes_present"
         ),
+    }
+
+
+def _target_filter_latest_activity_indexes(records):
+    return {
         "target_filter_records_by_selected_target_latest_activity_service": records_by_key(
             records, "selected_target_latest_activity_service"
         ),
@@ -1871,6 +1881,11 @@ def target_filter_record_indexes(records):
         "target_filter_records_by_selected_target_latest_bridge_status": records_by_key(
             records, "selected_target_latest_bridge_status"
         ),
+    }
+
+
+def _target_filter_report_indexes(records):
+    return {
         "target_filter_records_by_selected_target_latest_capability_report_kind": records_by_key(
             records, "selected_target_latest_capability_report_kind"
         ),
@@ -1886,6 +1901,11 @@ def target_filter_record_indexes(records):
         "target_filter_records_by_selected_target_latest_compatibility_payload_preset": records_by_key(
             records, "selected_target_latest_compatibility_payload_preset"
         ),
+    }
+
+
+def _target_filter_activity_count_indexes(records):
+    return {
         "target_filter_records_by_has_unfiltered_activity": records_by_key(
             records, "has_unfiltered_activity"
         ),
@@ -1905,6 +1925,15 @@ def target_filter_record_indexes(records):
             records, "filter_reduced_observed_activity"
         ),
     }
+
+
+def target_filter_record_indexes(records):
+    indexes = _target_filter_base_record_indexes(records)
+    indexes.update(_target_filter_selected_state_indexes(records))
+    indexes.update(_target_filter_latest_activity_indexes(records))
+    indexes.update(_target_filter_report_indexes(records))
+    indexes.update(_target_filter_activity_count_indexes(records))
+    return indexes
 
 
 def target_filter_record_from_target(target_filter_id="", selected_target=None):
