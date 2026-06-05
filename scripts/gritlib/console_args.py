@@ -164,10 +164,7 @@ def _add_console_file_target_args(parser):
                         help="open a local operator path in the configured pager when viewable")
 
 
-def build_arg_parser():
-    parser = _build_console_arg_parser_base()
-    _add_console_core_args(parser)
-    _add_console_file_target_args(parser)
+def _add_console_workflow_action_args(parser):
     parser.add_argument("--start-workbench-job",
                         help="start a background-capable operator workflow action by id")
     parser.add_argument("--cancel-workbench-job",
@@ -241,6 +238,13 @@ def build_arg_parser():
                         help="local file path for the stage-file-fetch target workflow action")
     parser.add_argument("--target-workflow-request-name",
                         help="target request name for the stage-file-fetch target workflow action")
+
+
+def build_arg_parser():
+    parser = _build_console_arg_parser_base()
+    _add_console_core_args(parser)
+    _add_console_file_target_args(parser)
+    _add_console_workflow_action_args(parser)
     parser.add_argument("--list-build-config", action="store_true",
                         help="list guided griTTYkit build configuration fields")
     parser.add_argument("--set-build-config", action="append", default=[],
