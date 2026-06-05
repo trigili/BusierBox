@@ -1067,6 +1067,87 @@ def _run_target_show_upload_command_action(
     return 0
 
 
+def _run_target_stage_release_artifact_action(
+    cfg,
+    scoped,
+    rec,
+    action_id,
+    target_id,
+    target_label,
+    command_input="",
+    input_func=None,
+):
+    selector = str(command_input or "")
+    if not selector and input_func:
+        value = input_func("release artifact selector> ")
+        selector = value if value is not None else ""
+    selector = selector.strip()
+    if not selector:
+        raise ValueError("stage-release-artifact target workflow action requires a release selector")
+    staged = stage_release_selection(scoped, selector)
+    print(f"staged {staged['request_name']} <- {staged['source_path']}")
+    print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
+    print(f"release_path={staged.get('release_path', '')} tuple_path={staged.get('tuple_path', '')} payload_preset={staged.get('payload_preset', '')}")
+    print(render_fetch_command(staged["request_name"], scoped))
+    _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
+        "result": "staged-release-artifact",
+        "selector": selector,
+        "request_name": staged.get("request_name", ""),
+        "source_path": staged.get("source_path", ""),
+        "sha256": staged.get("sha256", ""),
+        "release_artifact_name": staged.get("release_artifact_name", ""),
+        "release_path": staged.get("release_path", ""),
+        "tuple_path": staged.get("tuple_path", ""),
+        "payload_preset": staged.get("payload_preset", ""),
+        "compatibility": staged.get("compatibility") or {},
+    })
+    return 0
+
+
+def _run_target_queue_staged_fetch_action(
+    cfg,
+    scoped,
+    rec,
+    action_id,
+    target_id,
+    target_label,
+    request_name="",
+    input_func=None,
+):
+    request = str(request_name or "")
+    if not request and input_func:
+        value = input_func("staged request name> ")
+        request = value if value is not None else ""
+    request = request.strip()
+    if not request:
+        raise ValueError("queue-staged-fetch target workflow action requires a staged request name")
+    staged = (staged_files.load_staged(cfg).get("staged") or {}).get(request) or {}
+    if not isinstance(staged, dict) or not staged:
+        raise ValueError(f"staged request not found: {request}")
+    staged_target = str(staged.get("target_id") or "")
+    if staged_target and staged_target != target_id:
+        raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
+    command = render_fetch_command(request, scoped)
+    queued = command_queue_module.queue_command(scoped, command, metadata={
+        "work_kind": "staged-fetch",
+        "workflow": "file-service",
+        "request_name": request,
+        "route_kind": str(staged.get("route_kind") or "direct"),
+        "bridge_profile": str(staged.get("bridge_profile") or ""),
+        "bridge_route_path": str(staged.get("bridge_route_path") or ""),
+    })
+    print(f"queued {queued['id']}: {queued['command']}")
+    print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+    _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
+        "result": "queued-staged-fetch",
+        "command_id": queued.get("id", ""),
+        "command_sha256": queued.get("command_sha256", ""),
+        "request_name": request,
+        "queued_command": queued.get("command", ""),
+    })
+    return 0
+
+
 def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None, show_commands=True):
     snap = workbench_snapshot(cfg)
     rec = select_workflow_action(snap.get("target_workflow_actions") or [], selector, "target")
@@ -1126,64 +1207,27 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             input_func=input_func,
         )
     if action_id == "stage-release-artifact":
-        selector = str(command_input or "")
-        if not selector and input_func:
-            value = input_func("release artifact selector> ")
-            selector = value if value is not None else ""
-        selector = selector.strip()
-        if not selector:
-            raise ValueError("stage-release-artifact target workflow action requires a release selector")
-        staged = stage_release_selection(scoped, selector)
-        print(f"staged {staged['request_name']} <- {staged['source_path']}")
-        print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
-        print(f"release_path={staged.get('release_path', '')} tuple_path={staged.get('tuple_path', '')} payload_preset={staged.get('payload_preset', '')}")
-        print(render_fetch_command(staged["request_name"], scoped))
-        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
-            "result": "staged-release-artifact",
-            "selector": selector,
-            "request_name": staged.get("request_name", ""),
-            "source_path": staged.get("source_path", ""),
-            "sha256": staged.get("sha256", ""),
-            "release_artifact_name": staged.get("release_artifact_name", ""),
-            "release_path": staged.get("release_path", ""),
-            "tuple_path": staged.get("tuple_path", ""),
-            "payload_preset": staged.get("payload_preset", ""),
-            "compatibility": staged.get("compatibility") or {},
-        })
-        return 0
+        return _run_target_stage_release_artifact_action(
+            cfg,
+            scoped,
+            rec,
+            action_id,
+            target_id,
+            target_label,
+            command_input=command_input,
+            input_func=input_func,
+        )
     if action_id == "queue-staged-fetch":
-        request = str(request_name or "")
-        if not request and input_func:
-            value = input_func("staged request name> ")
-            request = value if value is not None else ""
-        request = request.strip()
-        if not request:
-            raise ValueError("queue-staged-fetch target workflow action requires a staged request name")
-        staged = (staged_files.load_staged(cfg).get("staged") or {}).get(request) or {}
-        if not isinstance(staged, dict) or not staged:
-            raise ValueError(f"staged request not found: {request}")
-        staged_target = str(staged.get("target_id") or "")
-        if staged_target and staged_target != target_id:
-            raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
-        command = render_fetch_command(request, scoped)
-        queued = command_queue_module.queue_command(scoped, command, metadata={
-            "work_kind": "staged-fetch",
-            "workflow": "file-service",
-            "request_name": request,
-            "route_kind": str(staged.get("route_kind") or "direct"),
-            "bridge_profile": str(staged.get("bridge_profile") or ""),
-            "bridge_route_path": str(staged.get("bridge_route_path") or ""),
-        })
-        print(f"queued {queued['id']}: {queued['command']}")
-        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
-            "result": "queued-staged-fetch",
-            "command_id": queued.get("id", ""),
-            "command_sha256": queued.get("command_sha256", ""),
-            "request_name": request,
-            "queued_command": queued.get("command", ""),
-        })
-        return 0
+        return _run_target_queue_staged_fetch_action(
+            cfg,
+            scoped,
+            rec,
+            action_id,
+            target_id,
+            target_label,
+            request_name=request_name,
+            input_func=input_func,
+        )
     if action_id == "start-file-service":
         start_service_process(scoped, "file-service")
         _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
