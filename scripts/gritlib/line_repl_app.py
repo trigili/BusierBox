@@ -3,68 +3,24 @@
 import sys
 import time
 from gritlib.bridge_routes import (
-    attach_target_route_fields,
-    bridge_hop_indexes, bridge_hop_records_from_profiles, bridge_hops_from_args,
-    bridge_profile_indexes, bridge_profile_record, bridge_profile_records,
+    bridge_profile_records,
     bridge_profile_headless_command as bridge_routes_bridge_profile_headless_command,
-    bridge_profile_service_name,
-    bridge_profile_record_summary,
-    bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_records,
-    bridge_profile_workflow_action_status_summary, bridge_profiles_path, bridge_route_path,
-    default_bridge_hops, load_bridge_profiles, parse_bridge_hop, ROUTE_HELP_LINES,
-    target_route_context,
-    save_bridge_profile, delete_bridge_profile, apply_bridge_profile,
-    print_bridge_profile, print_bridge_profiles, valid_profile_name,
 )
 from gritlib.command_queue import (
-    append_command_queue_poll_events, append_command_queue_result_events,
-    COMMAND_QUEUE_WORK_METADATA_FIELDS, command_queue_delivery_policy_snapshot,
-    command_queue_execution_supported, command_queue_expired, command_queue_policy_snapshot,
-    command_queue_mode_record_indexes, command_queue_mode_records,
-    command_queue_mode_semantics, command_queue_mode_summary,
-    command_queue_path, command_queue_policy_errors, command_queue_policy_status,
-    command_queue_policy_yes_no, command_queue_state_status,
-    command_queue_status_summary, command_queue_summary,
-    command_queue_workflow_action_indexes, command_queue_workflow_action_records,
-    command_queue_workflow_action_status_summary,
-    clear_command_queue, load_command_queue, queue_command,
-    handle_command_queue_args, print_command_queue, print_command_queue_mode_lines,
-    print_workbench_command_queue_summary, save_command_queue, yes_no,
+    clear_command_queue, command_queue_summary, queue_command,
 )
-from gritlib.command_copy import (
-    command_copy_indexes, command_copy_path, command_copy_record,
-    command_copy_state_status, copy_text_for_operator,
-)
+from gritlib.command_copy import copy_text_for_operator
 from gritlib.config_utils import (
-    DEFAULTS, DEFAULT_CONFIG, DEFAULT_OPERATOR_SESSION_DIR, load_config, yes,
+    DEFAULTS, DEFAULT_CONFIG, load_config,
 )
 from gritlib.build_config import (
-    build_config_path, handle_build_config_args,
-    unset_workbench_build_config, workbench_config_field_records,
-    workbench_config_status_context,
+    workbench_config_field_records,
 )
-from gritlib.event_log import (
-    EventLog, append_event, compact_event_details, event_log_status_context,
-    event_tail,
-    event_status_summary,
-    event_tail_availability_text,
-    print_event_log_summary,
-)
+from gritlib.event_log import append_event
 from gritlib.file_transfers import (
-    fetch_record_summary, file_service_workflow_status_context,
-    file_service_workflow_status_summary, file_transfer_status_context,
-recent_fetch_metadata, recent_upload_metadata,
-    print_recent_fetches, print_recent_uploads, print_staged_fetch_target_options,
     render_fetch_command,
-    staged_fetch_output_name, staged_fetch_target_commands,
-target_file_transfer_record_summary,
-    target_file_transfer_status_context,
-    upload_record_summary,
 )
-from gritlib.line_actions import (
-    current_line_action_records,
-    print_current_line_module_categories,
-)
+from gritlib.line_actions import print_current_line_module_categories
 from gritlib.line_build import (
     run_line_build_command, set_line_global_build_option,
     unset_line_global_build_option,
@@ -92,7 +48,6 @@ from gritlib.line_help import (
     line_unknown_command_message,
     print_context_line_help,
     print_line_command_help,
-    print_line_console_help,
 )
 from gritlib.line_options import (
     alias_line_target as line_options_alias_line_target,
@@ -153,155 +108,57 @@ from gritlib.line_workspace import (
     print_line_console_banner,
     print_line_workspace_snapshot, reload_line_config_for_repl as line_workspace_reload_line_config_for_repl,
 )
-from gritlib.operator_network import (
-    choose_operator_host_for_target, local_ips, operator_advertised_host, print_candidates,
-    target_visible_host,
-)
+from gritlib.operator_network import choose_operator_host_for_target
 from gritlib.probe_commands import (
-    probe_route_context, probe_script_fn,
     print_probe_delivery,
-    render_probe_command, render_probe_dns_command, render_probe_ftp_command,
+    render_probe_command,
     print_line_probe_script as probe_commands_print_line_probe_script,
-    render_probe_tftp_command, probe_workflow_action_records,
 )
 from gritlib.probe_results import (
     clear_line_probe_results as probe_results_clear_line_probe_results,
     print_line_probe_results as probe_results_print_line_probe_results,
 )
 from gritlib.service_runtime import (
-    SERVICE_MANAGER,
     SESSION_MANAGER,
     SHUTDOWN,
-    bind_listen_socket,
     current_shutdown_reason,
-    current_stop_reason,
-    install_shutdown_handlers,
-    pipe,
-    record_shutdown_event,
-    register_socket,
-    register_thread,
-    register_transport,
     request_shutdown,
-    start_child_process,
-    unregister_socket,
-    unregister_transport,
 )
-from gritlib.release_artifacts import (
-    artifact_compatibility_lines, artifact_doom_wad_lines,
-    artifact_provider_status_lines, discover_release_context,
-    release_context,
-    release_recommendation_lines,
-    release_nav_records, print_release_summary, stage_release_artifact,
-    stage_release_nav_item, stage_release_selection,
-    release_artifact_workflow_action_status_summary, release_status_context,
-)
+from gritlib.release_artifacts import release_context
 from gritlib.session_state import (
-    atomic_write_json, count_file_lines, elapsed_seconds, mark_service_error,
-    mark_service_stopped, parse_utc_timestamp,
-    read_json_file, server_state_status, state_file_path, update_server_state,
-    utc_from_epoch, utc_now, utc_now_from_mtime,
+    mark_service_stopped, state_file_path, update_server_state,
 )
 from gritlib.service_status import (
-    DAEMON_SERVICE_CHOICES, configured_daemon_services, daemon_child_command,
-    operator_daemon_headless_command, operator_stop_headless_command,
-    resolve_transport, service_port,
-    port_status_summary,
-    service_status_context, service_status_rows, service_status_summary,
+    service_status_rows,
     service_start_headless_command,
     service_stop_headless_command,
-    service_tls_enabled, run_service_workflow_action_headless_command,
-    service_workflow_action_indexes, service_workflow_action_records,
-    service_workflow_action_status_summary,
-    wait_service_port_released,
 )
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import (
-    file_sha256, load_staged,
-    prepare_staged_artifact_for_configure,
-    print_staged, stage_dir, stage_file, staged_record_for_configure,
-    staged_file_workflow_action_indexes, staged_file_workflow_action_records,
-    staged_file_path,
-    staged_files_state_status, staged_status_context,
-    staged_status_summary, unstage_file,
+    load_staged, print_staged,
 )
-from gritlib.target_activity import (
-    apply_target_phone_home_summary,
-    mailbox_wait_bucket,
-    print_target_activity_records, print_workbench_phone_home_attempts,
-    record_selected_target_activity,
-    target_activity_feed_status_context, target_activity_status_context,
-    target_activity_record_summary,
-    target_mailbox_record_summary,
-    target_phone_home_record_summary, target_phone_home_records_from_events,
-)
+from gritlib.target_activity import print_target_activity_records
 from gritlib.target_commands import (
     generated_target_command_records,
-    rshell_session_policy_record, rshell_session_policy_status,
-    shell_listener_max_sessions,
-    print_target_command_summary, target_command_display_line,
-    target_command_status_context,
-    target_command_route_text, target_command_status_summary,
 )
 from gritlib.target_records import (
-    attach_target_identity, configured_target_filter, details_with_target,
-    event_for_target,
-    load_targets, records_for_target, record_target_activity, scoped_target_cfg,
-    selected_target_context, selected_target_record_for_update,
-    target_attribution_record_summary, target_attribution_status,
-    target_context_fields,
-    target_filter_evidence_lines, target_filter_status_context,
-    target_filter_summary_text, target_record_indexes, target_record_summary,
-    target_registry_state_status, print_target_summary, target_records, targets_path,
+    configured_target_filter, scoped_target_cfg, selected_target_context,
+    print_target_summary,
 )
 from gritlib.version import grit_version
 from gritlib.workbench_jobs import (
-    cancel_workbench_job_headless_command, cancel_workbench_job_record,
-    load_workbench_jobs,
-    reconcile_workbench_job_completion_events,
-    print_workbench_job_ownership, print_workbench_job_summary,
-    run_workbench_action_headless_command,
     run_workbench_action_record,
     start_workbench_job_record,
-    start_workbench_job_headless_command,
-    workbench_jobs_path, workbench_jobs_state_status,
 )
-from gritlib.workflow_actions import (
-    operator_daemon_workflow_action_status_context,
-    operator_daemon_workflow_action_status_summary,
-    optional_target_id_arg,
-    optional_target_scoped_command,
-    operator_console_workflow_records,
-    operator_console_workflow_indexes,
-    operator_console_workflow_summary,
-    operator_console_workflow_status_summary,
-    print_workbench_action_summary,
-    probe_workflow_action_indexes,
-    probe_workflow_run_command,
-    probe_workflow_action_status_summary,
-    scoped_service_workflow_run_command,
-    select_workflow_action,
-    target_workflow_action_status_context,
-    target_workflow_action_status_summary,
-    workbench_action_status_context,
-    workbench_action_records,
-    workbench_job_status_context,
-)
-from gritlib.console_workbench import status_document, workbench_snapshot
+from gritlib.workflow_actions import workbench_action_records
+from gritlib.console_workbench import workbench_snapshot
 from gritlib.workflow_runners import (
-    print_status,
-    stop_managed_services,
     print_workbench,
     start_service_process,
     stop_workbench_started_services,
     stop_recorded_service,
     run_service_workflow_action,
     run_operator_daemon_workflow_action,
-    run_release_artifact_workflow_action,
-    run_command_queue_workflow_action,
-    run_file_service_workflow_action,
-    run_probe_workflow_action,
-    run_bridge_profile_workflow_action,
-    run_staged_file_workflow_action,
     run_target_workflow_action,
 )
 
