@@ -40,32 +40,20 @@ def build_bridge_profile_headless_command_callback(cfg, bridge_command_func):
     return bridge_profile_headless_command
 
 
-def build_line_route_service_callbacks(
-    cfg,
-    *,
-    service_status_rows_func,
-    service_record_func=None,
-    bridge_profile_records_func,
-    bridge_command_func,
-    service_start_command_func,
-    service_stop_command_func,
-    service_start_func,
-    service_stop_func,
-    probe_delivery_func,
-    sleep_func,
-    quote,
-):
-    bridge_profile_headless_command = build_bridge_profile_headless_command_callback(
-        cfg,
-        bridge_command_func,
-    )
-
+def _build_line_route_record_callbacks(cfg, bridge_profile_records_func):
     def route_record(name):
         return line_route_record(bridge_profile_records_func(cfg), name)
 
     def route_records():
         return bridge_profile_records_func(cfg)
 
+    return {
+        "bridge_profile_records": route_records,
+        "line_route_record": route_record,
+    }
+
+
+def _build_line_service_record_callbacks(cfg, service_status_rows_func):
     def service_rows():
         return service_status_rows_func(cfg)
 
@@ -75,12 +63,15 @@ def build_line_route_service_callbacks(
     def service_completion_names():
         return line_service_completion_names(service_rows())
 
-    def service_start_command(service):
-        return service_start_command_func(cfg, service)
+    return {
+        "service_rows": service_rows,
+        "service_names": service_names,
+        "service_completion_names": service_completion_names,
+    }
 
-    def service_stop_command(service):
-        return service_stop_command_func(cfg, service)
 
+def _build_line_route_action_callbacks(cfg, bridge_profile_records_func, bridge_profile_headless_command,
+                                       service_start_func, service_stop_func, quote):
     def print_routes(verbose=False):
         return print_line_routes(
             cfg,
@@ -130,6 +121,17 @@ def build_line_route_service_callbacks(
             headless_command_builder=bridge_profile_headless_command,
         )
 
+    return {
+        "print_line_routes": print_routes,
+        "select_line_route": select_route,
+        "add_line_route": add_route,
+        "start_line_route": start_route,
+        "stop_line_route": stop_route,
+        "delete_line_route": delete_route,
+    }
+
+
+def _build_line_bridge_profile_callbacks(cfg):
     def print_profile(*args):
         name = args[-1] if args else ""
         return print_bridge_profile(cfg, name)
@@ -138,6 +140,26 @@ def build_line_route_service_callbacks(
         name = args[-1] if args else ""
         return delete_bridge_profile(cfg, name)
 
+    return {
+        "print_bridge_profile": print_profile,
+        "delete_bridge_profile": delete_profile,
+    }
+
+
+def _build_line_service_action_callbacks(
+    cfg,
+    service_rows,
+    route_record,
+    start_route,
+    stop_route,
+    service_start_command,
+    service_stop_command,
+    service_start_func,
+    service_stop_func,
+    probe_delivery_func,
+    sleep_func,
+    quote,
+):
     def select_service(selector):
         return select_line_service(
             cfg,
@@ -188,27 +210,76 @@ def build_line_route_service_callbacks(
         )
 
     return {
-        "bridge_profile_headless_command": bridge_profile_headless_command,
-        "bridge_profile_records": route_records,
-        "line_route_record": route_record,
-        "service_rows": service_rows,
-        "service_names": service_names,
-        "service_completion_names": service_completion_names,
-        "service_record": service_record_func,
-        "service_start_command": service_start_command,
-        "service_stop_command": service_stop_command,
-        "print_line_routes": print_routes,
-        "select_line_route": select_route,
-        "add_line_route": add_route,
-        "start_line_route": start_route,
-        "stop_line_route": stop_route,
-        "delete_line_route": delete_route,
-        "print_bridge_profile": print_profile,
-        "delete_bridge_profile": delete_profile,
         "select_line_service": select_service,
         "print_line_services": print_services,
         "start_line_service": start_service,
         "stop_line_service": stop_service,
+    }
+
+
+def build_line_route_service_callbacks(
+    cfg,
+    *,
+    service_status_rows_func,
+    service_record_func=None,
+    bridge_profile_records_func,
+    bridge_command_func,
+    service_start_command_func,
+    service_stop_command_func,
+    service_start_func,
+    service_stop_func,
+    probe_delivery_func,
+    sleep_func,
+    quote,
+):
+    bridge_profile_headless_command = build_bridge_profile_headless_command_callback(
+        cfg,
+        bridge_command_func,
+    )
+    route_callbacks = _build_line_route_record_callbacks(cfg, bridge_profile_records_func)
+    service_record_callbacks = _build_line_service_record_callbacks(cfg, service_status_rows_func)
+    route_record = route_callbacks["line_route_record"]
+    service_rows = service_record_callbacks["service_rows"]
+
+    def service_start_command(service):
+        return service_start_command_func(cfg, service)
+
+    def service_stop_command(service):
+        return service_stop_command_func(cfg, service)
+
+    route_action_callbacks = _build_line_route_action_callbacks(
+        cfg,
+        bridge_profile_records_func,
+        bridge_profile_headless_command,
+        service_start_func,
+        service_stop_func,
+        quote,
+    )
+    service_action_callbacks = _build_line_service_action_callbacks(
+        cfg,
+        service_rows,
+        route_record,
+        route_action_callbacks["start_line_route"],
+        route_action_callbacks["stop_line_route"],
+        service_start_command,
+        service_stop_command,
+        service_start_func,
+        service_stop_func,
+        probe_delivery_func,
+        sleep_func,
+        quote,
+    )
+
+    return {
+        "bridge_profile_headless_command": bridge_profile_headless_command,
+        **route_callbacks,
+        **service_record_callbacks,
+        "service_record": service_record_func,
+        "service_start_command": service_start_command,
+        "service_stop_command": service_stop_command,
+        **route_action_callbacks,
+        **_build_line_bridge_profile_callbacks(cfg),
+        **service_action_callbacks,
     }
 
 
