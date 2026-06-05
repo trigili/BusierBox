@@ -1,12 +1,7 @@
 """Status document and workbench snapshot composition for grit-console."""
 
 from pathlib import Path
-from gritlib.bridge_routes import (
-    bridge_hop_indexes, bridge_hop_records_from_profiles,
-    bridge_profile_indexes, bridge_profile_records, bridge_profile_record_summary,
-    bridge_profile_workflow_action_indexes, bridge_profile_workflow_action_records,
-    bridge_profile_workflow_action_status_summary, bridge_profiles_path,
-)
+import gritlib.bridge_routes as bridge_routes
 from gritlib.command_queue import (
     command_queue_path, command_queue_policy_status, command_queue_state_status,
     command_queue_status_summary, command_queue_summary,
@@ -511,23 +506,35 @@ def _build_workbench_config_status_context(cfg):
 
 
 def _build_bridge_profile_status_context(cfg, targets):
-    bridge_profiles = bridge_profile_records(cfg)
-    bridge_hop_records = bridge_hop_records_from_profiles(bridge_profiles)
-    bridge_profile_workflow_actions = bridge_profile_workflow_action_records(
-        cfg, bridge_profiles, targets
+    bridge_profiles = bridge_routes.bridge_profile_records(cfg)
+    bridge_hop_records = bridge_routes.bridge_hop_records_from_profiles(
+        bridge_profiles
+    )
+    bridge_profile_workflow_actions = (
+        bridge_routes.bridge_profile_workflow_action_records(
+            cfg, bridge_profiles, targets
+        )
     )
     return {
         "bridge_profiles": bridge_profiles,
-        "bridge_profile_index_maps": bridge_profile_indexes(bridge_profiles),
+        "bridge_profile_index_maps": bridge_routes.bridge_profile_indexes(
+            bridge_profiles
+        ),
         "bridge_hop_records": bridge_hop_records,
-        "bridge_hop_index_maps": bridge_hop_indexes(bridge_hop_records),
+        "bridge_hop_index_maps": bridge_routes.bridge_hop_indexes(
+            bridge_hop_records
+        ),
         "bridge_profile_workflow_actions": bridge_profile_workflow_actions,
         "bridge_profile_workflow_action_index_maps": (
-            bridge_profile_workflow_action_indexes(bridge_profile_workflow_actions)
+            bridge_routes.bridge_profile_workflow_action_indexes(
+                bridge_profile_workflow_actions
+            )
         ),
         "summary": {
-            **bridge_profile_record_summary(bridge_profiles, bridge_hop_records),
-            **bridge_profile_workflow_action_status_summary(
+            **bridge_routes.bridge_profile_record_summary(
+                bridge_profiles, bridge_hop_records
+            ),
+            **bridge_routes.bridge_profile_workflow_action_status_summary(
                 bridge_profile_workflow_actions
             ),
         },
@@ -3045,7 +3052,7 @@ def status_document(cfg):
         "staged_files": str(staged_file_path(cfg)),
         "command_queue_file": str(command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
-        "bridge_profiles_file": str(bridge_profiles_path(cfg)),
+        "bridge_profiles_file": str(bridge_routes.bridge_profiles_path(cfg)),
         "command_copy": command_copy,
         "command_copy_records": command_copy_records,
         **command_copy_record_indexes,
