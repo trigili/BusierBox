@@ -362,8 +362,9 @@ def tftp_get_with_retry(port, filename, timeout=5):
 
 
 def run_local_ips_cache_check(server):
-    ns = runpy.run_path(str(server), run_name="__grit_console_smoke__")
-    globals_ns = ns["local_ips"].__globals__
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from gritlib.operator_network import local_ips
+    globals_ns = local_ips.__globals__
     mod_socket = globals_ns["socket"]
     original_getaddrinfo = mod_socket.getaddrinfo
     globals_ns["LOCAL_IPS_SLOW_LOOKUP_SEC"] = 0.01
@@ -377,10 +378,10 @@ def run_local_ips_cache_check(server):
     mod_socket.getaddrinfo = slow_getaddrinfo
     try:
         started = time.monotonic()
-        ns["local_ips"]()
+        local_ips()
         first_elapsed = time.monotonic() - started
         started = time.monotonic()
-        ns["local_ips"]()
+        local_ips()
         second_elapsed = time.monotonic() - started
     finally:
         mod_socket.getaddrinfo = original_getaddrinfo
@@ -8862,6 +8863,7 @@ def main(argv=None):
     src = (ROOT / "scripts" / "grit-console").read_text()
     bridge_routes_src = (ROOT / "scripts" / "gritlib" / "bridge_routes.py").read_text()
     console_args_src = (ROOT / "scripts" / "gritlib" / "console_args.py").read_text()
+    console_app_src = (ROOT / "scripts" / "gritlib" / "console_app.py").read_text()
     command_queue_src = (ROOT / "scripts" / "gritlib" / "command_queue.py").read_text()
     console_workbench_src = (ROOT / "scripts" / "gritlib" / "console_workbench.py").read_text()
     workflow_runners_src = (ROOT / "scripts" / "gritlib" / "workflow_runners.py").read_text()
@@ -8889,6 +8891,7 @@ def main(argv=None):
         src,
         bridge_routes_src,
         console_args_src,
+        console_app_src,
         command_queue_src,
         console_workbench_src,
         workflow_runners_src,
@@ -9033,7 +9036,7 @@ def main(argv=None):
                  "start_child_process", "from gritlib.runtime import", "EventLog", "Service",
                  "Session", "SessionManager", "SESSION_MANAGER = SessionManager()",
                  "SESSION_MANAGER.start_record", "SESSION_MANAGER.finish_record"):
-        if word not in src + service_runtime_src + probe_service_src:
+        if word not in src + console_app_src + service_runtime_src + probe_service_src:
             print(f"grit-console: service/session manager primitive missing: {word}", file=sys.stderr)
             return 1
     if "OWNED_TRANSPORTS.append(transport)" in src + service_runtime_src:
