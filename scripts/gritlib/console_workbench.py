@@ -983,6 +983,66 @@ def _build_service_probe_workflow_status_context(
     }
 
 
+def _build_operator_console_workflow_status_context(
+    cfg,
+    *,
+    targets,
+    target_workflow_actions,
+    target_mailbox_records,
+    bridge_profiles,
+    bridge_profile_workflow_actions,
+    staged_records,
+    staged_file_workflow_actions,
+    file_service_workflow_actions,
+    probe_workflow_actions,
+    command_queue_workflow_actions,
+    service_workflow_actions,
+    operator_daemon_workflow_actions,
+    workbench_actions,
+    workbench_config_fields,
+    workbench_jobs,
+    target_activity_records,
+    release_artifact_workflow_actions,
+    release,
+    warnings,
+):
+    operator_console_workflows = operator_console_workflow_records(
+        cfg,
+        targets=targets,
+        target_workflow_actions=target_workflow_actions,
+        target_mailbox_records=target_mailbox_records,
+        bridge_profiles=bridge_profiles,
+        bridge_profile_workflow_actions=bridge_profile_workflow_actions,
+        staged_records=staged_records,
+        staged_file_workflow_actions=staged_file_workflow_actions,
+        file_service_workflow_actions=file_service_workflow_actions,
+        probe_workflow_actions=probe_workflow_actions,
+        command_queue_workflow_actions=command_queue_workflow_actions,
+        service_workflow_actions=service_workflow_actions,
+        operator_daemon_workflow_actions=operator_daemon_workflow_actions,
+        workbench_actions=workbench_actions,
+        workbench_config_fields=workbench_config_fields,
+        workbench_jobs=workbench_jobs,
+        target_activity_records=target_activity_records,
+        release_artifact_workflow_actions=release_artifact_workflow_actions,
+        release=release,
+        warnings=warnings,
+    )
+    operator_console_workflow_stats = operator_console_workflow_summary(
+        operator_console_workflows
+    )
+    return {
+        "operator_console_workflows": operator_console_workflows,
+        "operator_console_workflow_index_maps": operator_console_workflow_indexes(
+            operator_console_workflows
+        ),
+        "operator_console_workflow_stats": operator_console_workflow_stats,
+        "summary": operator_console_workflow_status_summary(
+            operator_console_workflow_stats
+        ),
+    }
+
+
 def _build_session_status_context(cfg, *, target_filter_id):
     session_context = session_status_context(
         cfg,
@@ -1667,7 +1727,7 @@ def status_document(cfg):
     probe_workflow_action_index_maps = service_probe_workflow_context[
         "probe_workflow_action_index_maps"
     ]
-    operator_console_workflows = operator_console_workflow_records(
+    operator_console_workflow_context = _build_operator_console_workflow_status_context(
         cfg,
         targets=targets,
         target_workflow_actions=target_workflow_actions,
@@ -1689,8 +1749,15 @@ def status_document(cfg):
         release=release,
         warnings=warnings,
     )
-    operator_console_workflow_index_maps = operator_console_workflow_indexes(operator_console_workflows)
-    operator_console_workflow_stats = operator_console_workflow_summary(operator_console_workflows)
+    operator_console_workflows = operator_console_workflow_context[
+        "operator_console_workflows"
+    ]
+    operator_console_workflow_index_maps = operator_console_workflow_context[
+        "operator_console_workflow_index_maps"
+    ]
+    operator_console_workflow_stats = operator_console_workflow_context[
+        "operator_console_workflow_stats"
+    ]
     warning_summary = warning_stats(warnings)
     summary.update({
         **path_context["path_summary"],
@@ -1738,7 +1805,7 @@ def status_document(cfg):
         **target_activity_context["summary"],
         **release_context_doc["summary"],
         **release_artifact_workflow_action_status_summary(release_artifact_workflow_actions),
-        **operator_console_workflow_status_summary(operator_console_workflow_stats),
+        **operator_console_workflow_context["summary"],
         **workbench_config_context["summary"],
         **command_queue_workflow_context["summary"],
         **service_probe_workflow_context["summary"],
