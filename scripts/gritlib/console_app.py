@@ -114,6 +114,49 @@ def _handle_headless_action_args(cfg, args):
     )
 
 
+def _serve_console_listener_action(
+    cfg,
+    args,
+    action,
+    *,
+    timeout,
+    script_bytes,
+    session_timeout,
+):
+    try:
+        listen_code = console_runtime.serve_listener_action(
+            cfg,
+            args,
+            action,
+            timeout=timeout,
+            script_bytes=script_bytes,
+            session_timeout=session_timeout,
+            shell_listener_max_sessions_func=shell_listener_max_sessions,
+            serve_ssh_func=shell_bridge_service.serve_ssh,
+            serve_tls_shell_func=shell_bridge_service.serve_tls_shell,
+            serve_plain_shell_func=shell_bridge_service.serve_plain_shell,
+            serve_file_service_func=serve_file_service,
+            serve_command_queue_func=serve_command_queue,
+            serve_bridge_func=shell_bridge_service.serve_bridge,
+            serve_probe_func=probe_service.serve_probe,
+            serve_probe_tftp_func=probe_service.serve_probe_tftp,
+            serve_probe_ftp_func=probe_service.serve_probe_ftp,
+            serve_probe_dns_func=probe_service.serve_probe_dns,
+        )
+        if listen_code is not None:
+            return listen_code
+    except KeyboardInterrupt:
+        print("grit-console: interrupted, shutting down", file=sys.stderr)
+        request_shutdown("keyboard_interrupt")
+        record_shutdown_event(cfg, action)
+        mark_service_stopped(cfg, action, "keyboard_interrupt")
+        return 130
+    except OSError:
+        return 1
+    print(f"unsupported transport: {action}", file=sys.stderr)
+    return 2
+
+
 def main(argv=None):
     install_shutdown_handlers()
     raw_argv = list(sys.argv[1:] if argv is None else argv)
@@ -194,35 +237,11 @@ def main(argv=None):
     if not has_explicit_console_action(args) and not args.no_console:
         return run_line_console(cfg)
 
-    try:
-        listen_code = console_runtime.serve_listener_action(
-            cfg,
-            args,
-            action,
-            timeout=timeout,
-            script_bytes=script_bytes,
-            session_timeout=session_timeout,
-            shell_listener_max_sessions_func=shell_listener_max_sessions,
-            serve_ssh_func=shell_bridge_service.serve_ssh,
-            serve_tls_shell_func=shell_bridge_service.serve_tls_shell,
-            serve_plain_shell_func=shell_bridge_service.serve_plain_shell,
-            serve_file_service_func=serve_file_service,
-            serve_command_queue_func=serve_command_queue,
-            serve_bridge_func=shell_bridge_service.serve_bridge,
-            serve_probe_func=probe_service.serve_probe,
-            serve_probe_tftp_func=probe_service.serve_probe_tftp,
-            serve_probe_ftp_func=probe_service.serve_probe_ftp,
-            serve_probe_dns_func=probe_service.serve_probe_dns,
-        )
-        if listen_code is not None:
-            return listen_code
-    except KeyboardInterrupt:
-        print("grit-console: interrupted, shutting down", file=sys.stderr)
-        request_shutdown("keyboard_interrupt")
-        record_shutdown_event(cfg, action)
-        mark_service_stopped(cfg, action, "keyboard_interrupt")
-        return 130
-    except OSError:
-        return 1
-    print(f"unsupported transport: {action}", file=sys.stderr)
-    return 2
+    return _serve_console_listener_action(
+        cfg,
+        args,
+        action,
+        timeout=timeout,
+        script_bytes=script_bytes,
+        session_timeout=session_timeout,
+    )
