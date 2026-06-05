@@ -1004,6 +1004,69 @@ def _run_target_queue_probe_action(cfg, scoped, rec, action_id, target_id, targe
     return 0
 
 
+def _run_target_stage_file_fetch_action(
+    cfg,
+    scoped,
+    rec,
+    action_id,
+    target_id,
+    target_label,
+    local_file="",
+    request_name="",
+    input_func=None,
+):
+    path = str(local_file or "")
+    if not path and input_func:
+        value = input_func("local file> ")
+        path = value if value is not None else ""
+    request = str(request_name or "")
+    if not request and input_func:
+        value = input_func("target request name> ")
+        request = value if value is not None else ""
+    if not path.strip():
+        raise ValueError("stage-file-fetch target workflow action requires a local file")
+    if not request.strip():
+        request = Path(path).name
+    staged = staged_files.stage_file(scoped, path, request)
+    print(f"staged {staged['request_name']} <- {staged['source_path']}")
+    print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
+    print(render_fetch_command(staged["request_name"], scoped))
+    _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
+        "result": "staged-file-fetch",
+        "request_name": staged.get("request_name", ""),
+        "source_path": staged.get("source_path", ""),
+        "sha256": staged.get("sha256", ""),
+    })
+    return 0
+
+
+def _run_target_show_upload_command_action(
+    cfg,
+    scoped,
+    rec,
+    action_id,
+    target_id,
+    target_label,
+    command_input="",
+    input_func=None,
+):
+    target_path = str(command_input or "")
+    if not target_path and input_func:
+        value = input_func("target file to upload> ")
+        target_path = value if value is not None else ""
+    target_path = target_path.strip() or "/etc/config/network"
+    command = render_file_service_command(["put", target_path], scoped)
+    print(f"target_upload_path={target_path}")
+    print(f"target_command={command}")
+    _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
+        "result": "shown-upload-command",
+        "target_upload_path": target_path,
+        "target_command": command,
+        "target_command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest() if command else "",
+    })
+    return 0
+
+
 def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None, show_commands=True):
     snap = workbench_snapshot(cfg)
     rec = select_workflow_action(snap.get("target_workflow_actions") or [], selector, "target")
@@ -1040,45 +1103,28 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
     if action_id == "queue-probe":
         return _run_target_queue_probe_action(cfg, scoped, rec, action_id, target_id, target_label)
     if action_id == "stage-file-fetch":
-        path = str(local_file or "")
-        if not path and input_func:
-            value = input_func("local file> ")
-            path = value if value is not None else ""
-        request = str(request_name or "")
-        if not request and input_func:
-            value = input_func("target request name> ")
-            request = value if value is not None else ""
-        if not path.strip():
-            raise ValueError("stage-file-fetch target workflow action requires a local file")
-        if not request.strip():
-            request = Path(path).name
-        staged = staged_files.stage_file(scoped, path, request)
-        print(f"staged {staged['request_name']} <- {staged['source_path']}")
-        print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
-        print(render_fetch_command(staged["request_name"], scoped))
-        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
-            "result": "staged-file-fetch",
-            "request_name": staged.get("request_name", ""),
-            "source_path": staged.get("source_path", ""),
-            "sha256": staged.get("sha256", ""),
-        })
-        return 0
+        return _run_target_stage_file_fetch_action(
+            cfg,
+            scoped,
+            rec,
+            action_id,
+            target_id,
+            target_label,
+            local_file=local_file,
+            request_name=request_name,
+            input_func=input_func,
+        )
     if action_id == "show-upload-command":
-        target_path = str(command_input or "")
-        if not target_path and input_func:
-            value = input_func("target file to upload> ")
-            target_path = value if value is not None else ""
-        target_path = target_path.strip() or "/etc/config/network"
-        command = render_file_service_command(["put", target_path], scoped)
-        print(f"target_upload_path={target_path}")
-        print(f"target_command={command}")
-        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
-            "result": "shown-upload-command",
-            "target_upload_path": target_path,
-            "target_command": command,
-            "target_command_sha256": hashlib.sha256(command.encode("utf-8")).hexdigest() if command else "",
-        })
-        return 0
+        return _run_target_show_upload_command_action(
+            cfg,
+            scoped,
+            rec,
+            action_id,
+            target_id,
+            target_label,
+            command_input=command_input,
+            input_func=input_func,
+        )
     if action_id == "stage-release-artifact":
         selector = str(command_input or "")
         if not selector and input_func:
