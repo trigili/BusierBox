@@ -2702,6 +2702,26 @@ def _build_history_api_collections(
     event_log_state_records,
 ):
     return {
+        **_build_workbench_job_history_api_collections(
+            workbench_jobs_state_records=workbench_jobs_state_records,
+        ),
+        **_build_file_transfer_history_api_collections(
+            uploads=uploads,
+            fetches=fetches,
+        ),
+        **_build_session_history_api_collections(
+            session_root_state_records=session_root_state_records,
+            sessions=sessions,
+        ),
+        **_build_event_history_api_collections(
+            events=events,
+            event_log_state_records=event_log_state_records,
+        ),
+    }
+
+
+def _build_workbench_job_history_api_collections(*, workbench_jobs_state_records):
+    return {
         "workbench_jobs_state_records": status_indexes.api_collection_record(
             "workbench_jobs_state_records", workbench_jobs_state_records, "path", (
                 "workbench_jobs_state_records_by_path",
@@ -2710,6 +2730,11 @@ def _build_history_api_collections(
                 "workbench_jobs_state_records_by_has_jobs",
             ), "workbench_jobs_state_record_count",
         ),
+    }
+
+
+def _build_file_transfer_history_api_collections(*, uploads, fetches):
+    return {
         "uploads": status_indexes.api_collection_record(
             "uploads", uploads, "metadata_path", (
                 "uploads_by_session", "uploads_by_filename", "uploads_by_kind", "uploads_by_sha256",
@@ -2730,6 +2755,11 @@ def _build_history_api_collections(
                 "fetches_by_status_remote_addr", "fetches_by_http_status_remote_addr",
             ), "fetch_count",
         ),
+    }
+
+
+def _build_session_history_api_collections(*, session_root_state_records, sessions):
+    return {
         "session_root_state_records": status_indexes.api_collection_record(
             "session_root_state_records", session_root_state_records, "path", (
                 "session_root_state_records_by_path",
@@ -2752,6 +2782,11 @@ def _build_history_api_collections(
                 "sessions_by_event_log_exists", "sessions_by_session_log_exists",
             ), "session_count",
         ),
+    }
+
+
+def _build_event_history_api_collections(*, events, event_log_state_records):
+    return {
         "events": status_indexes.api_collection_record(
             "events", events, "id", (
                 "events_by_id", "events_by_session", "events_by_service",
