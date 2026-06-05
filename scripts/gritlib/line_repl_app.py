@@ -1,6 +1,8 @@
 """Line-console REPL application wiring for grit-console."""
 
 import sys
+from typing import NamedTuple
+
 from gritlib.event_log import append_event
 import gritlib.line_context as line_context
 import gritlib.line_help as line_help
@@ -44,6 +46,32 @@ except ImportError:
     HAVE_READLINE = False
 
 
+class LineFoundationCallbacks(NamedTuple):
+    target: object
+    route_service: object
+    option: object
+    action: object
+    completion: object
+
+
+class LineOperationalCallbacks(NamedTuple):
+    job: object
+    queue: object
+    probe: object
+    session: object
+    file: object
+    search: object
+    display_show: object
+
+
+class LineDispatchCallbacks(NamedTuple):
+    utility: object
+    core: object
+    navigation: object
+    workflow: object
+    legacy: object
+
+
 def _setup_line_repl_runtime_io():
     repl_io = line_repl_runtime.setup_line_repl_io(
         _readline,
@@ -57,13 +85,9 @@ def _setup_line_repl_runtime_io():
 def _run_line_repl_loop(
     cfg,
     line_input,
-    line_target_callbacks,
-    line_utility_callbacks,
-    line_search_callbacks,
-    line_core_callbacks,
-    line_navigation_callbacks,
-    line_workflow_callbacks,
-    line_legacy_callbacks,
+    foundation_callbacks,
+    operational_callbacks,
+    dispatch_callbacks,
 ):
     return line_repl_runtime.run_configured_line_repl_loop(
         cfg,
@@ -71,13 +95,13 @@ def _run_line_repl_loop(
         workbench_mark_stopped_func=session_state.mark_service_stopped,
         shutdown_event=service_runtime.SHUTDOWN,
         shutdown_reason_func=service_runtime.current_shutdown_reason,
-        target_callbacks=line_target_callbacks,
-        utility_callbacks=line_utility_callbacks,
-        search_callbacks=line_search_callbacks,
-        core_callbacks=line_core_callbacks,
-        navigation_callbacks=line_navigation_callbacks,
-        workflow_callbacks=line_workflow_callbacks,
-        legacy_callbacks=line_legacy_callbacks,
+        target_callbacks=foundation_callbacks.target,
+        utility_callbacks=dispatch_callbacks.utility,
+        search_callbacks=operational_callbacks.search,
+        core_callbacks=dispatch_callbacks.core,
+        navigation_callbacks=dispatch_callbacks.navigation,
+        workflow_callbacks=dispatch_callbacks.workflow,
+        legacy_callbacks=dispatch_callbacks.legacy,
         workbench_snapshot_func=workbench_snapshot,
         print_workbench_func=workflow_runners.print_workbench,
         print_banner_func=line_workspace.print_line_console_banner,
@@ -116,38 +140,35 @@ def _build_line_foundation_callbacks(cfg, line_input):
         line_action_callbacks=line_action_callbacks,
     )
 
-    return (
-        line_target_callbacks,
-        line_route_service_callbacks,
-        line_option_callbacks,
-        line_action_callbacks,
-        line_completion_callbacks,
+    return LineFoundationCallbacks(
+        target=line_target_callbacks,
+        route_service=line_route_service_callbacks,
+        option=line_option_callbacks,
+        action=line_action_callbacks,
+        completion=line_completion_callbacks,
     )
 
 
 def _build_line_operational_callbacks(
     cfg,
     line_input,
-    line_target_callbacks,
-    line_route_service_callbacks,
-    line_option_callbacks,
-    line_action_callbacks,
+    foundation_callbacks,
 ):
     line_job_callbacks = build_default_line_job_callbacks(
         cfg,
-        line_action_callbacks=line_action_callbacks,
+        line_action_callbacks=foundation_callbacks.action,
     )
 
     line_queue_callbacks = build_default_line_queue_callbacks(
         cfg,
-        line_target_callbacks=line_target_callbacks,
+        line_target_callbacks=foundation_callbacks.target,
     )
 
     line_probe_callbacks = build_default_line_probe_callbacks(
         cfg,
         line_input=line_input,
-        line_route_service_callbacks=line_route_service_callbacks,
-        line_target_callbacks=line_target_callbacks,
+        line_route_service_callbacks=foundation_callbacks.route_service,
+        line_target_callbacks=foundation_callbacks.target,
     )
 
     line_session_callbacks = build_default_line_session_callbacks(cfg)
@@ -155,25 +176,25 @@ def _build_line_operational_callbacks(
     line_file_callbacks = build_default_line_file_workflow_callbacks(
         cfg,
         line_input=line_input,
-        line_target_callbacks=line_target_callbacks,
-        line_route_service_callbacks=line_route_service_callbacks,
+        line_target_callbacks=foundation_callbacks.target,
+        line_route_service_callbacks=foundation_callbacks.route_service,
     )
 
     line_search_callbacks = build_default_line_search_bundle(
         cfg,
-        line_target_callbacks=line_target_callbacks,
-        line_route_service_callbacks=line_route_service_callbacks,
-        line_action_callbacks=line_action_callbacks,
+        line_target_callbacks=foundation_callbacks.target,
+        line_route_service_callbacks=foundation_callbacks.route_service,
+        line_action_callbacks=foundation_callbacks.action,
         line_session_callbacks=line_session_callbacks,
         line_job_callbacks=line_job_callbacks,
         line_queue_callbacks=line_queue_callbacks,
     )
     line_display_show_callbacks = build_default_line_display_show_callbacks(
         cfg,
-        line_action_callbacks=line_action_callbacks,
-        line_option_callbacks=line_option_callbacks,
-        line_target_callbacks=line_target_callbacks,
-        line_route_service_callbacks=line_route_service_callbacks,
+        line_action_callbacks=foundation_callbacks.action,
+        line_option_callbacks=foundation_callbacks.option,
+        line_target_callbacks=foundation_callbacks.target,
+        line_route_service_callbacks=foundation_callbacks.route_service,
         line_probe_callbacks=line_probe_callbacks,
         line_file_callbacks=line_file_callbacks,
         line_job_callbacks=line_job_callbacks,
@@ -181,32 +202,22 @@ def _build_line_operational_callbacks(
         line_queue_callbacks=line_queue_callbacks,
     )
 
-    return (
-        line_job_callbacks,
-        line_queue_callbacks,
-        line_probe_callbacks,
-        line_session_callbacks,
-        line_file_callbacks,
-        line_search_callbacks,
-        line_display_show_callbacks,
+    return LineOperationalCallbacks(
+        job=line_job_callbacks,
+        queue=line_queue_callbacks,
+        probe=line_probe_callbacks,
+        session=line_session_callbacks,
+        file=line_file_callbacks,
+        search=line_search_callbacks,
+        display_show=line_display_show_callbacks,
     )
 
 
 def _build_line_dispatch_callbacks(
     cfg,
     line_input,
-    line_target_callbacks,
-    line_route_service_callbacks,
-    line_option_callbacks,
-    line_action_callbacks,
-    line_completion_callbacks,
-    line_job_callbacks,
-    line_queue_callbacks,
-    line_probe_callbacks,
-    line_session_callbacks,
-    line_file_callbacks,
-    line_search_callbacks,
-    line_display_show_callbacks,
+    foundation_callbacks,
+    operational_callbacks,
 ):
     line_workspace_callbacks = build_default_line_workspace_callbacks(cfg)
 
@@ -214,122 +225,85 @@ def _build_line_dispatch_callbacks(
 
     line_utility_callbacks = build_default_line_utility_callbacks(
         cfg,
-        line_completion_callbacks=line_completion_callbacks,
-        line_search_callbacks=line_search_callbacks,
-        line_display_show_callbacks=line_display_show_callbacks,
-        line_route_service_callbacks=line_route_service_callbacks,
+        line_completion_callbacks=foundation_callbacks.completion,
+        line_search_callbacks=operational_callbacks.search,
+        line_display_show_callbacks=operational_callbacks.display_show,
+        line_route_service_callbacks=foundation_callbacks.route_service,
     )
     line_core_callbacks = build_default_line_core_callbacks(
         cfg,
-        line_probe_callbacks=line_probe_callbacks,
-        line_file_callbacks=line_file_callbacks,
-        line_display_show_callbacks=line_display_show_callbacks,
-        line_option_callbacks=line_option_callbacks,
+        line_probe_callbacks=operational_callbacks.probe,
+        line_file_callbacks=operational_callbacks.file,
+        line_display_show_callbacks=operational_callbacks.display_show,
+        line_option_callbacks=foundation_callbacks.option,
         line_workspace_callbacks=line_workspace_callbacks,
         line_survey_callbacks=line_survey_callbacks,
     )
     line_navigation_callbacks = build_default_line_navigation_callbacks(
         cfg,
-        line_search_callbacks=line_search_callbacks,
-        line_target_callbacks=line_target_callbacks,
-        line_route_service_callbacks=line_route_service_callbacks,
-        line_session_callbacks=line_session_callbacks,
-        line_job_callbacks=line_job_callbacks,
-        line_action_callbacks=line_action_callbacks,
-        line_queue_callbacks=line_queue_callbacks,
+        line_search_callbacks=operational_callbacks.search,
+        line_target_callbacks=foundation_callbacks.target,
+        line_route_service_callbacks=foundation_callbacks.route_service,
+        line_session_callbacks=operational_callbacks.session,
+        line_job_callbacks=operational_callbacks.job,
+        line_action_callbacks=foundation_callbacks.action,
+        line_queue_callbacks=operational_callbacks.queue,
     )
     line_workflow_callbacks = build_default_line_workflow_callbacks(
         cfg,
-        line_target_callbacks=line_target_callbacks,
-        line_file_callbacks=line_file_callbacks,
-        line_queue_callbacks=line_queue_callbacks,
-        line_job_callbacks=line_job_callbacks,
+        line_target_callbacks=foundation_callbacks.target,
+        line_file_callbacks=operational_callbacks.file,
+        line_queue_callbacks=operational_callbacks.queue,
+        line_job_callbacks=operational_callbacks.job,
     )
     line_legacy_callbacks = build_default_line_legacy_callbacks(
         cfg,
         line_input=line_input,
-        line_search_callbacks=line_search_callbacks,
-        line_route_service_callbacks=line_route_service_callbacks,
-        line_target_callbacks=line_target_callbacks,
-        line_file_callbacks=line_file_callbacks,
-        line_queue_callbacks=line_queue_callbacks,
-        line_action_callbacks=line_action_callbacks,
+        line_search_callbacks=operational_callbacks.search,
+        line_route_service_callbacks=foundation_callbacks.route_service,
+        line_target_callbacks=foundation_callbacks.target,
+        line_file_callbacks=operational_callbacks.file,
+        line_queue_callbacks=operational_callbacks.queue,
+        line_action_callbacks=foundation_callbacks.action,
     )
 
-    return (
-        line_utility_callbacks,
-        line_core_callbacks,
-        line_navigation_callbacks,
-        line_workflow_callbacks,
-        line_legacy_callbacks,
+    return LineDispatchCallbacks(
+        utility=line_utility_callbacks,
+        core=line_core_callbacks,
+        navigation=line_navigation_callbacks,
+        workflow=line_workflow_callbacks,
+        legacy=line_legacy_callbacks,
     )
 
 
 def run_line_repl(cfg):
     repl_io, line_input = _setup_line_repl_runtime_io()
 
-    (
-        line_target_callbacks,
-        line_route_service_callbacks,
-        line_option_callbacks,
-        line_action_callbacks,
-        line_completion_callbacks,
-    ) = _build_line_foundation_callbacks(
+    foundation_callbacks = _build_line_foundation_callbacks(
         cfg,
         line_input,
     )
 
-    (
-        line_job_callbacks,
-        line_queue_callbacks,
-        line_probe_callbacks,
-        line_session_callbacks,
-        line_file_callbacks,
-        line_search_callbacks,
-        line_display_show_callbacks,
-    ) = _build_line_operational_callbacks(
+    operational_callbacks = _build_line_operational_callbacks(
         cfg,
         line_input,
-        line_target_callbacks,
-        line_route_service_callbacks,
-        line_option_callbacks,
-        line_action_callbacks,
+        foundation_callbacks,
     )
 
-    (
-        line_utility_callbacks,
-        line_core_callbacks,
-        line_navigation_callbacks,
-        line_workflow_callbacks,
-        line_legacy_callbacks,
-    ) = _build_line_dispatch_callbacks(
+    dispatch_callbacks = _build_line_dispatch_callbacks(
         cfg,
         line_input,
-        line_target_callbacks,
-        line_route_service_callbacks,
-        line_option_callbacks,
-        line_action_callbacks,
-        line_completion_callbacks,
-        line_job_callbacks,
-        line_queue_callbacks,
-        line_probe_callbacks,
-        line_session_callbacks,
-        line_file_callbacks,
-        line_search_callbacks,
-        line_display_show_callbacks,
+        foundation_callbacks,
+        operational_callbacks,
     )
 
     try:
         result = _run_line_repl_loop(
             cfg,
             line_input=line_input,
-            line_target_callbacks=line_target_callbacks,
-            line_utility_callbacks=line_utility_callbacks,
-            line_search_callbacks=line_search_callbacks,
-            line_core_callbacks=line_core_callbacks,
-            line_navigation_callbacks=line_navigation_callbacks,
-            line_workflow_callbacks=line_workflow_callbacks,
-            line_legacy_callbacks=line_legacy_callbacks,
+            foundation_callbacks=foundation_callbacks,
+            operational_callbacks=operational_callbacks,
+            dispatch_callbacks=dispatch_callbacks,
         )
     finally:
         line_repl_runtime.restore_line_repl_io(repl_io)
