@@ -2048,6 +2048,25 @@ def _build_staged_file_activity_api_collections(
     staged_files_state_records,
 ):
     return {
+        **_build_staged_record_api_collections(
+            staged_records=staged_records,
+        ),
+        **_build_file_workflow_api_collections(
+            staged_file_workflow_actions=staged_file_workflow_actions,
+            file_service_workflow_actions=file_service_workflow_actions,
+        ),
+        **_build_target_file_activity_api_collections(
+            target_file_transfer_records=target_file_transfer_records,
+            target_activity_records=target_activity_records,
+        ),
+        **_build_staged_state_api_collections(
+            staged_files_state_records=staged_files_state_records,
+        ),
+    }
+
+
+def _build_staged_record_api_collections(*, staged_records):
+    return {
         "staged_records": status_indexes.api_collection_record(
             "staged_records", staged_records, "request_name", (
                 "staged_by_request", "staged_by_kind", "staged_by_sha256",
@@ -2056,6 +2075,11 @@ def _build_staged_file_activity_api_collections(
                 "staged_by_source_exists", "staged_by_kind_source_exists",
             ), "staged_count",
         ),
+    }
+
+
+def _build_file_workflow_api_collections(*, staged_file_workflow_actions, file_service_workflow_actions):
+    return {
         "staged_file_workflow_actions": status_indexes.api_collection_record(
             "staged_file_workflow_actions", staged_file_workflow_actions, "id", (
                 "staged_file_workflow_actions_by_id",
@@ -2128,6 +2152,11 @@ def _build_staged_file_activity_api_collections(
                 "file_service_workflow_actions_by_curses_enter_action",
             ), "file_service_workflow_action_count",
         ),
+    }
+
+
+def _build_target_file_activity_api_collections(*, target_file_transfer_records, target_activity_records):
+    return {
         "target_file_transfer_records": status_indexes.api_collection_record(
             "target_file_transfer_records", target_file_transfer_records, "id", (
                 "target_file_transfer_records_by_id",
@@ -2167,6 +2196,11 @@ def _build_staged_file_activity_api_collections(
                 "target_activity_records_by_target_mailbox_pending_work_count",
             ), "target_activity_record_count",
         ),
+    }
+
+
+def _build_staged_state_api_collections(*, staged_files_state_records):
+    return {
         "staged_files_state_records": status_indexes.api_collection_record(
             "staged_files_state_records", staged_files_state_records, "path", (
                 "staged_files_state_records_by_path",
