@@ -135,7 +135,8 @@ def build_line_file_workflow_callbacks(
     def unstage_file(request_name):
         return unstage_line_file(cfg, request_name, append_event_fn=append_event_fn)
 
-    def view_path(path_text):
+    def view_path(*args, **_kwargs):
+        path_text = args[-1] if args else ""
         return view_line_path(cfg, path_text, append_event_fn=append_event_fn)
 
     def print_files(verbose=False):
