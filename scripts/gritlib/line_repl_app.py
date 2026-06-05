@@ -42,11 +42,7 @@ from gritlib.line_help import (
 )
 import gritlib.line_options as line_options
 from gritlib.line_network import print_line_local_ips
-from gritlib.line_resources import (
-    line_history_command, load_line_resource,
-    print_line_history as line_resources_print_line_history,
-    record_line_history, write_line_makerc,
-)
+import gritlib.line_resources as line_resources
 from gritlib.line_repl_runtime import (
     line_repl_io_input,
     restore_line_repl_io,
@@ -95,15 +91,8 @@ from gritlib.line_workspace import (
     print_line_workspace_snapshot, reload_line_config_for_repl as line_workspace_reload_line_config_for_repl,
 )
 from gritlib.operator_network import choose_operator_host_for_target
-from gritlib.probe_commands import (
-    print_probe_delivery,
-    render_probe_command,
-    print_line_probe_script as probe_commands_print_line_probe_script,
-)
-from gritlib.probe_results import (
-    clear_line_probe_results as probe_results_clear_line_probe_results,
-    print_line_probe_results as probe_results_print_line_probe_results,
-)
+import gritlib.probe_commands as probe_commands
+import gritlib.probe_results as probe_results
 from gritlib.service_runtime import (
     SESSION_MANAGER,
     SHUTDOWN,
@@ -184,7 +173,7 @@ def run_line_repl(cfg):
         service_stop_command_func=service_stop_headless_command,
         service_start_func=start_service_process,
         service_stop_func=stop_recorded_service,
-        probe_delivery_func=print_probe_delivery,
+        probe_delivery_func=probe_commands.print_probe_delivery,
         sleep_func=time.sleep,
         quote=shquote,
     )
@@ -255,19 +244,19 @@ def run_line_repl(cfg):
         choose_operator_host_func=choose_operator_host_for_target,
         input_func=line_input,
         interactive_func=sys.stdin.isatty,
-        render_probe_command_func=render_probe_command,
+        render_probe_command_func=probe_commands.render_probe_command,
         workbench_snapshot_func=workbench_snapshot,
         service_start_func=start_service_process,
         queue_command_func=queue_command,
-        probe_delivery_func=print_probe_delivery,
+        probe_delivery_func=probe_commands.print_probe_delivery,
         append_event_fn=append_event,
         route_service_callbacks=line_route_service_callbacks,
         target_callbacks=line_target_callbacks,
-        probe_results_func=probe_results_print_line_probe_results,
+        probe_results_func=probe_results.print_line_probe_results,
         probe_config_func=line_configure.run_line_probe_config,
-        probe_clear_func=probe_results_clear_line_probe_results,
-        probe_paste_func=probe_commands_print_line_probe_script,
-        probe_script_func=probe_commands_print_line_probe_script,
+        probe_clear_func=probe_results.clear_line_probe_results,
+        probe_paste_func=probe_commands.print_line_probe_script,
+        probe_script_func=probe_commands.print_line_probe_script,
     )
 
     line_session_callbacks = build_line_session_callbacks(
@@ -349,9 +338,9 @@ def run_line_repl(cfg):
     line_utility_callbacks = build_line_utility_callbacks(
         cfg,
         completion_callbacks=line_completion_callbacks,
-        resource_history_func=line_resources_print_line_history,
-        resource_load_func=load_line_resource,
-        resource_save_func=write_line_makerc,
+        resource_history_func=line_resources.print_line_history,
+        resource_load_func=line_resources.load_line_resource,
+        resource_save_func=line_resources.write_line_makerc,
         events_func=print_line_events_view,
         search_callbacks=line_search_callbacks,
         display_callbacks=line_display_show_callbacks,
@@ -442,8 +431,8 @@ def run_line_repl(cfg):
             version_func=grit_version,
             prompt_func=line_repl_prompt_for_config,
             input_func=line_input,
-            history_command_func=line_history_command,
-            record_history_func=record_line_history,
+            history_command_func=line_resources.line_history_command,
+            record_history_func=line_resources.record_line_history,
             readline_module=_readline if HAVE_READLINE else None,
             command_help_printer=print_line_command_help,
             context_help_printer=print_context_line_help,
