@@ -2222,6 +2222,22 @@ def _build_command_mailbox_api_collections(
     target_phone_home_records,
 ):
     return {
+        **_build_command_copy_api_collections(
+            command_copy_records=command_copy_records,
+            command_copy_state_records=command_copy_state_records,
+        ),
+        **_build_command_queue_state_api_collections(
+            command_queue_state_records=command_queue_state_records,
+        ),
+        **_build_target_mailbox_phone_home_api_collections(
+            target_mailbox_records=target_mailbox_records,
+            target_phone_home_records=target_phone_home_records,
+        ),
+    }
+
+
+def _build_command_copy_api_collections(*, command_copy_records, command_copy_state_records):
+    return {
         "command_copy_records": status_indexes.api_collection_record(
             "command_copy_records", command_copy_records, "path", (
                 "command_copy_records_by_path", "command_copy_records_by_exists",
@@ -2241,6 +2257,11 @@ def _build_command_mailbox_api_collections(
                 "command_copy_state_records_by_command_sha256",
             ), "command_copy_state_record_count",
         ),
+    }
+
+
+def _build_command_queue_state_api_collections(*, command_queue_state_records):
+    return {
         "command_queue_state_records": status_indexes.api_collection_record(
             "command_queue_state_records", command_queue_state_records, "path", (
                 "command_queue_state_records_by_path",
@@ -2249,6 +2270,11 @@ def _build_command_mailbox_api_collections(
                 "command_queue_state_records_by_has_commands",
             ), "command_queue_state_record_count",
         ),
+    }
+
+
+def _build_target_mailbox_phone_home_api_collections(*, target_mailbox_records, target_phone_home_records):
+    return {
         "target_mailbox_records": status_indexes.api_collection_record(
             "target_mailbox_records", target_mailbox_records, "command_id", (
                 "target_mailbox_records_by_id",
