@@ -318,6 +318,61 @@ TARGET_COMMAND_INDEX_KEYS = (
     "target_commands_by_retry_post_disconnect_count",
 )
 
+COMMAND_QUEUE_INDEX_KEYS = (
+    "commands_by_target_id",
+    "commands_by_timeout_sec",
+    "commands_by_max_output_bytes",
+    "commands_by_expire_sec",
+    "commands_by_expires_at",
+    "commands_by_expired",
+    "commands_by_queue_policy_enabled",
+    "commands_by_queue_policy_valid",
+    "commands_by_queue_policy_execution_mode",
+    "commands_by_queue_policy_allowed_commands",
+    "commands_by_delivery_policy_enabled",
+    "commands_by_delivery_policy_valid",
+    "commands_by_delivery_policy_execution_mode",
+    "commands_by_delivery_policy_delivery_supported",
+    "commands_by_delivery_policy_result_upload_supported",
+    "commands_by_delivery_policy_active_control_channel",
+)
+
+COMMAND_QUEUE_MODE_INDEX_KEYS = (
+    "command_queue_modes_by_mode",
+    "command_queue_modes_by_lifecycle",
+    "command_queue_modes_by_requires_operator_host",
+    "command_queue_modes_by_would_poll_if_configured",
+    "command_queue_modes_by_live_supported",
+    "command_queue_modes_by_live_transport_supported",
+    "command_queue_modes_by_delivery_supported",
+    "command_queue_modes_by_result_upload_supported",
+    "command_queue_modes_by_execution_supported",
+    "command_queue_modes_by_active_control_channel",
+    "command_queue_modes_by_operator_supplied_command_execution",
+)
+
+
+def _build_command_queue_status_context(cfg):
+    command_queue = command_queue_summary(cfg)
+    command_queue_policy = command_queue_policy_status(command_queue)
+    return {
+        "command_queue": command_queue,
+        "command_queue_policy_records": command_queue_policy["policy_records"],
+        "command_queue_policy_index_maps": command_queue_policy["policy_index_maps"],
+        "unfiltered_count": command_queue.get(
+            "unfiltered_total_count",
+            len(command_queue.get("commands") or []),
+        ),
+        "command_queue_index_maps": {
+            key: command_queue.get(key) or {} for key in COMMAND_QUEUE_INDEX_KEYS
+        },
+        "command_queue_mode_records": command_queue.get("mode_records") or [],
+        "command_queue_mode_index_maps": {
+            key: command_queue.get(key) or {}
+            for key in COMMAND_QUEUE_MODE_INDEX_KEYS
+        },
+    }
+
 
 def _build_target_command_status_context(
     cfg,
@@ -725,7 +780,8 @@ def status_document(cfg):
     unfiltered_counts["event_tail"] = event_context["unfiltered_tail_count"]
     event_index_maps = event_context["event_index_maps"]
     event_summary_stats = event_context["event_summary_stats"]
-    command_queue = command_queue_summary(cfg)
+    command_queue_context = _build_command_queue_status_context(cfg)
+    command_queue = command_queue_context["command_queue"]
     target_activity_context = target_activity_status_context(
         command_queue,
         targets_by_id,
@@ -737,13 +793,16 @@ def status_document(cfg):
     target_mailbox_index_maps = target_activity_context["target_mailbox_index_maps"]
     target_phone_home_records = target_activity_context["target_phone_home_records"]
     target_phone_home_index_maps = target_activity_context["target_phone_home_index_maps"]
-    command_queue_policy = command_queue_policy_status(command_queue)
-    command_queue_policy_record = command_queue_policy["policy_record"]
-    command_queue_policy_records = command_queue_policy["policy_records"]
-    command_queue_policy_index_maps = command_queue_policy["policy_index_maps"]
-    unfiltered_counts["command_queue_commands"] = command_queue.get(
-        "unfiltered_total_count", len(command_queue.get("commands") or [])
-    )
+    command_queue_policy_records = command_queue_context["command_queue_policy_records"]
+    command_queue_policy_index_maps = command_queue_context[
+        "command_queue_policy_index_maps"
+    ]
+    command_queue_index_maps = command_queue_context["command_queue_index_maps"]
+    command_queue_mode_records = command_queue_context["command_queue_mode_records"]
+    command_queue_mode_index_maps = command_queue_context[
+        "command_queue_mode_index_maps"
+    ]
+    unfiltered_counts["command_queue_commands"] = command_queue_context["unfiltered_count"]
     release_context_doc = release_status_context(cfg)
     release = release_context_doc["release"]
     release_state = release_context_doc["state_record"]
@@ -2501,34 +2560,9 @@ def status_document(cfg):
         **command_queue_workflow_action_index_maps,
         "command_queue_policy_records": command_queue_policy_records,
         **command_queue_policy_index_maps,
-        "commands_by_target_id": command_queue.get("commands_by_target_id") or {},
-        "commands_by_timeout_sec": command_queue.get("commands_by_timeout_sec") or {},
-        "commands_by_max_output_bytes": command_queue.get("commands_by_max_output_bytes") or {},
-        "commands_by_expire_sec": command_queue.get("commands_by_expire_sec") or {},
-        "commands_by_expires_at": command_queue.get("commands_by_expires_at") or {},
-        "commands_by_expired": command_queue.get("commands_by_expired") or {},
-        "commands_by_queue_policy_enabled": command_queue.get("commands_by_queue_policy_enabled") or {},
-        "commands_by_queue_policy_valid": command_queue.get("commands_by_queue_policy_valid") or {},
-        "commands_by_queue_policy_execution_mode": command_queue.get("commands_by_queue_policy_execution_mode") or {},
-        "commands_by_queue_policy_allowed_commands": command_queue.get("commands_by_queue_policy_allowed_commands") or {},
-        "commands_by_delivery_policy_enabled": command_queue.get("commands_by_delivery_policy_enabled") or {},
-        "commands_by_delivery_policy_valid": command_queue.get("commands_by_delivery_policy_valid") or {},
-        "commands_by_delivery_policy_execution_mode": command_queue.get("commands_by_delivery_policy_execution_mode") or {},
-        "commands_by_delivery_policy_delivery_supported": command_queue.get("commands_by_delivery_policy_delivery_supported") or {},
-        "commands_by_delivery_policy_result_upload_supported": command_queue.get("commands_by_delivery_policy_result_upload_supported") or {},
-        "commands_by_delivery_policy_active_control_channel": command_queue.get("commands_by_delivery_policy_active_control_channel") or {},
-        "command_queue_mode_records": command_queue.get("mode_records") or [],
-        "command_queue_modes_by_mode": command_queue.get("command_queue_modes_by_mode") or {},
-        "command_queue_modes_by_lifecycle": command_queue.get("command_queue_modes_by_lifecycle") or {},
-        "command_queue_modes_by_requires_operator_host": command_queue.get("command_queue_modes_by_requires_operator_host") or {},
-        "command_queue_modes_by_would_poll_if_configured": command_queue.get("command_queue_modes_by_would_poll_if_configured") or {},
-        "command_queue_modes_by_live_supported": command_queue.get("command_queue_modes_by_live_supported") or {},
-        "command_queue_modes_by_live_transport_supported": command_queue.get("command_queue_modes_by_live_transport_supported") or {},
-        "command_queue_modes_by_delivery_supported": command_queue.get("command_queue_modes_by_delivery_supported") or {},
-        "command_queue_modes_by_result_upload_supported": command_queue.get("command_queue_modes_by_result_upload_supported") or {},
-        "command_queue_modes_by_execution_supported": command_queue.get("command_queue_modes_by_execution_supported") or {},
-        "command_queue_modes_by_active_control_channel": command_queue.get("command_queue_modes_by_active_control_channel") or {},
-        "command_queue_modes_by_operator_supplied_command_execution": command_queue.get("command_queue_modes_by_operator_supplied_command_execution") or {},
+        **command_queue_index_maps,
+        "command_queue_mode_records": command_queue_mode_records,
+        **command_queue_mode_index_maps,
         "workbench_config_fields": workbench_config_fields,
         **workbench_config_field_index_maps,
         "workbench_actions": workbench_actions,
