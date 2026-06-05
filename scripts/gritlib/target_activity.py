@@ -342,15 +342,45 @@ def target_phone_home_pending_reason(kind, details):
     return ""
 
 
+def _target_phone_home_event_kind(event_name):
+    if event_name == "command_queue_poll":
+        return "poll"
+    if event_name == "command_queue_result_upload":
+        return "result"
+    return ""
+
+
+def _target_phone_home_queued_remaining_count(kind, status, details):
+    if kind == "poll" and status == "delivered":
+        return max(
+            int_value(details.get("queued_count_before")) - int_value(details.get("delivered_count")),
+            0,
+        )
+    if kind == "poll" and status == "no-command":
+        return int_value(details.get("queued_count"))
+    return ""
+
+
+def _target_phone_home_target_fields(target_rec):
+    return {
+        "target_connectivity_state": str(target_rec.get("connectivity_state") or ""),
+        "target_last_seen": str(target_rec.get("last_seen") or target_rec.get("last_seen_at") or ""),
+        "target_last_seen_via": str(target_rec.get("last_seen_via") or ""),
+        "target_offline_for_sec": target_rec.get("offline_for_sec", ""),
+        "target_offline_age_bucket": str(target_rec.get("offline_age_bucket") or ""),
+        "target_next_expected_poll": str(target_rec.get("next_expected_poll") or ""),
+        "target_poll_overdue": bool(target_rec.get("poll_overdue") is True),
+        "target_poll_overdue_for_sec": target_rec.get("poll_overdue_for_sec", ""),
+        "target_mailbox_pending_work_count": int_value(target_rec.get("mailbox_pending_work_count", 0)),
+    }
+
+
 def target_phone_home_record_from_event(event, targets_by_id=None):
     if not isinstance(event, dict):
         return None
     event_name = str(event.get("event") or "")
-    if event_name == "command_queue_poll":
-        kind = "poll"
-    elif event_name == "command_queue_result_upload":
-        kind = "result"
-    else:
+    kind = _target_phone_home_event_kind(event_name)
+    if not kind:
         return None
     details = event.get("details") if isinstance(event.get("details"), dict) else {}
     status = str(details.get("status") or "")
@@ -360,14 +390,7 @@ def target_phone_home_record_from_event(event, targets_by_id=None):
     success = status in ("delivered", "no-command", "result-received")
     failed = status in ("rejected", "error")
     pending_reason = target_phone_home_pending_reason(kind, details)
-    queued_remaining_count = ""
-    if kind == "poll" and status == "delivered":
-        queued_remaining_count = max(
-            int_value(details.get("queued_count_before")) - int_value(details.get("delivered_count")),
-            0,
-        )
-    elif kind == "poll" and status == "no-command":
-        queued_remaining_count = int_value(details.get("queued_count"))
+    queued_remaining_count = _target_phone_home_queued_remaining_count(kind, status, details)
     rec = {
         "id": str(event.get("id") or ""),
         "event_id": str(event.get("id") or ""),
@@ -386,15 +409,7 @@ def target_phone_home_record_from_event(event, targets_by_id=None):
         "contact_path": f"{event.get('service', '')}:{remote}" if remote else str(event.get("service") or ""),
         "target_id": target_id,
         "target_label": str(details.get("target_label") or ""),
-        "target_connectivity_state": str(target_rec.get("connectivity_state") or ""),
-        "target_last_seen": str(target_rec.get("last_seen") or target_rec.get("last_seen_at") or ""),
-        "target_last_seen_via": str(target_rec.get("last_seen_via") or ""),
-        "target_offline_for_sec": target_rec.get("offline_for_sec", ""),
-        "target_offline_age_bucket": str(target_rec.get("offline_age_bucket") or ""),
-        "target_next_expected_poll": str(target_rec.get("next_expected_poll") or ""),
-        "target_poll_overdue": bool(target_rec.get("poll_overdue") is True),
-        "target_poll_overdue_for_sec": target_rec.get("poll_overdue_for_sec", ""),
-        "target_mailbox_pending_work_count": int_value(target_rec.get("mailbox_pending_work_count", 0)),
+        **_target_phone_home_target_fields(target_rec),
         "has_target_identity": bool(target_id),
         "target_identity_source": str(details.get("target_identity_source") or ""),
         "target_identity_confidence": str(details.get("target_identity_confidence") or ""),
