@@ -9,12 +9,7 @@ from gritlib.build_config import handle_build_config_args
 from gritlib.command_queue import handle_command_queue_args
 from gritlib.command_queue_service import serve_command_queue
 from gritlib.config_utils import load_config
-from gritlib.console_actions import (
-    handle_bridge_profile_args, handle_console_control_args,
-    handle_console_utility_args, handle_file_staging_args,
-    handle_workbench_job_args,
-    handle_workflow_action_args,
-)
+import gritlib.console_actions as console_actions
 from gritlib.console_artifact import handle_artifact_command
 from gritlib.console_args import (
     apply_console_arg_overrides, build_arg_parser, handle_early_console_args,
@@ -80,7 +75,7 @@ def main(argv=None):
         return 2
 
     try:
-        bridge_profile_code = handle_bridge_profile_args(
+        bridge_profile_code = console_actions.handle_bridge_profile_args(
             cfg,
             args,
             save_bridge_profile_func=save_bridge_profile,
@@ -91,7 +86,7 @@ def main(argv=None):
         )
         if bridge_profile_code is not None:
             return bridge_profile_code
-        workbench_job_code = handle_workbench_job_args(
+        workbench_job_code = console_actions.handle_workbench_job_args(
             cfg,
             args,
             workbench_action_records_func=workbench_action_records,
@@ -103,7 +98,7 @@ def main(argv=None):
         )
         if workbench_job_code is not None:
             return workbench_job_code
-        workflow_code = handle_workflow_action_args(
+        workflow_code = console_actions.handle_workflow_action_args(
             cfg,
             args,
             run_service_workflow_action_func=workflow_runners.run_service_workflow_action,
@@ -121,7 +116,9 @@ def main(argv=None):
         build_config_code = handle_build_config_args(cfg, args, append_event_fn=append_event)
         if build_config_code is not None:
             return build_config_code
-        utility_code = handle_console_utility_args(cfg, args, append_event_fn=append_event)
+        utility_code = console_actions.handle_console_utility_args(
+            cfg, args, append_event_fn=append_event
+        )
         if utility_code is not None:
             return utility_code
     except ValueError as exc:
@@ -137,7 +134,7 @@ def main(argv=None):
         return 2
 
     try:
-        control_code = handle_console_control_args(
+        control_code = console_actions.handle_console_control_args(
             cfg,
             args,
             print_status_func=workflow_runners.print_status,
@@ -170,7 +167,7 @@ def main(argv=None):
     session_timeout = session_timeout_from_args(args)
 
     try:
-        staging_code, action = handle_file_staging_args(
+        staging_code, action = console_actions.handle_file_staging_args(
             cfg,
             args,
             action,
