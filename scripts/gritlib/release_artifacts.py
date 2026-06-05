@@ -286,13 +286,19 @@ def release_artifact_matches_probe(release, artifact, probe_arch, probe_kernel_f
     return False
 
 
-def release_license_record(release_dir):
-    release_dir = Path(release_dir)
-    policy_rel = "manifests/license-policy.json"
-    policy_path = release_dir / policy_rel
-    notice_files = [rel for rel in RELEASE_LICENSE_NOTICE_FILES if (release_dir / rel).is_file()]
-    missing_notice_files = [rel for rel in RELEASE_LICENSE_NOTICE_FILES if rel not in notice_files]
-    rec = {
+def _release_license_notice_state(release_dir):
+    notice_files = [
+        rel for rel in RELEASE_LICENSE_NOTICE_FILES if (release_dir / rel).is_file()
+    ]
+    missing_notice_files = [
+        rel for rel in RELEASE_LICENSE_NOTICE_FILES if rel not in notice_files
+    ]
+    return notice_files, missing_notice_files
+
+
+def _release_license_base_record(release_dir, policy_rel, policy_path):
+    notice_files, missing_notice_files = _release_license_notice_state(release_dir)
+    return {
         "schema": 1,
         "path": str(policy_path),
         "license_policy_path": policy_rel,
@@ -326,16 +332,18 @@ def release_license_record(release_dir):
         "missing_notice_files": missing_notice_files,
         "missing_notice_count": len(missing_notice_files),
     }
-    if not policy_path.is_file():
-        return rec
-    policy = read_json_file(policy_path, {})
-    if not isinstance(policy, dict):
-        return rec
+
+
+def _release_license_policy_sections(policy):
     project = policy.get("project") if isinstance(policy.get("project"), dict) else {}
     compatibility = policy.get("compatibility") if isinstance(policy.get("compatibility"), dict) else {}
     license_evidence = policy.get("license_evidence") if isinstance(policy.get("license_evidence"), dict) else {}
     artifact_distribution = policy.get("artifact_distribution") if isinstance(policy.get("artifact_distribution"), dict) else {}
     corresponding_source = artifact_distribution.get("corresponding_source_strategy") if isinstance(artifact_distribution.get("corresponding_source_strategy"), dict) else {}
+    return project, compatibility, license_evidence, corresponding_source
+
+
+def _release_license_policy_items(policy, license_evidence, corresponding_source):
     components = [
         item for item in (policy.get("components") or [])
         if isinstance(item, dict) and item.get("name")
@@ -350,7 +358,25 @@ def release_license_record(release_dir):
     corresponding_source_reconstruction_inputs = [
         str(item) for item in (corresponding_source.get("source_reconstruction_inputs") or [])
     ]
-    rec.update({
+    return (
+        components,
+        evidence_sources,
+        corresponding_source_release_inputs,
+        corresponding_source_reconstruction_inputs,
+    )
+
+
+def _release_license_policy_fields(policy):
+    project, compatibility, license_evidence, corresponding_source = (
+        _release_license_policy_sections(policy)
+    )
+    (
+        components,
+        evidence_sources,
+        corresponding_source_release_inputs,
+        corresponding_source_reconstruction_inputs,
+    ) = _release_license_policy_items(policy, license_evidence, corresponding_source)
+    return {
         "valid": True,
         "project_license": project.get("license", ""),
         "combined_gplv2_compatible": compatibility.get("combined_gplv2_compatible") is True,
@@ -383,9 +409,21 @@ def release_license_record(release_dir):
             str(item.get("name")): str(item.get("url") or "")
             for item in evidence_sources
         },
-    })
-    return rec
+    }
 
+
+def release_license_record(release_dir):
+    release_dir = Path(release_dir)
+    policy_rel = "manifests/license-policy.json"
+    policy_path = release_dir / policy_rel
+    rec = _release_license_base_record(release_dir, policy_rel, policy_path)
+    if not policy_path.is_file():
+        return rec
+    policy = read_json_file(policy_path, {})
+    if not isinstance(policy, dict):
+        return rec
+    rec.update(_release_license_policy_fields(policy))
+    return rec
 
 def release_state_record(cfg=None, release=None):
     cfg = cfg or {}
