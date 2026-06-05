@@ -1030,26 +1030,9 @@ def _target_record_report_indexes(records):
     )
 
 
-def target_record_indexes(records):
-    by_id = {}
-    by_label = {}
-    by_alias = {}
-    by_remote_addr = {}
-    by_service = {}
-    by_identity_confidence = {}
-    by_identity_source = {}
+def _target_record_activity_indexes(records):
     by_latest_activity_service = {}
     by_latest_activity_operation = {}
-    by_connectivity_state = {}
-    by_last_seen_via = {}
-    by_offline_age_bucket = {}
-    by_has_next_expected_poll = {}
-    by_poll_overdue = {}
-    by_mailbox_pending_work = {}
-    by_latest_phone_home_status = {}
-    by_has_last_failed_phone_home = {}
-    by_last_failed_phone_home_reason = {}
-    by_last_failed_phone_home_status = {}
     by_latest_file_transfer_operation = {}
     by_latest_file_transfer_status = {}
     by_latest_file_transfer_route_kind = {}
@@ -1061,52 +1044,15 @@ def target_record_indexes(records):
     by_latest_bridge_profile = {}
     by_latest_bridge_status = {}
     by_has_latest_bridge_activity = {}
-    by_has_notes = {}
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
-        target_id = str(rec.get("target_id") or "")
-        if target_id:
-            by_id[target_id] = rec
-        label = str(rec.get("label") or "")
-        if label:
-            by_label.setdefault(label, []).append(rec)
-        by_has_notes.setdefault("yes" if str(rec.get("notes") or "").strip() else "no", []).append(rec)
-        confidence = str(rec.get("identity_confidence") or "")
-        if confidence:
-            by_identity_confidence.setdefault(confidence, []).append(rec)
-        for source in rec.get("identity_sources") or []:
-            source = str(source or "")
-            if source:
-                by_identity_source.setdefault(source, []).append(rec)
         activity_service = str(rec.get("latest_activity_service") or "")
         if activity_service:
             by_latest_activity_service.setdefault(activity_service, []).append(rec)
         activity_operation = str(rec.get("latest_activity_operation") or "")
         if activity_operation:
             by_latest_activity_operation.setdefault(activity_operation, []).append(rec)
-        connectivity_state = str(rec.get("connectivity_state") or "")
-        if connectivity_state:
-            by_connectivity_state.setdefault(connectivity_state, []).append(rec)
-        last_seen_via = str(rec.get("last_seen_via") or "")
-        if last_seen_via:
-            by_last_seen_via.setdefault(last_seen_via, []).append(rec)
-        offline_age_bucket = str(rec.get("offline_age_bucket") or "")
-        if offline_age_bucket:
-            by_offline_age_bucket.setdefault(offline_age_bucket, []).append(rec)
-        by_has_next_expected_poll.setdefault("yes" if str(rec.get("next_expected_poll") or "") else "no", []).append(rec)
-        by_poll_overdue.setdefault("yes" if rec.get("poll_overdue") is True else "no", []).append(rec)
-        by_mailbox_pending_work.setdefault("yes" if int(rec.get("mailbox_pending_work_count") or 0) > 0 else "no", []).append(rec)
-        by_has_last_failed_phone_home.setdefault("yes" if rec.get("has_last_failed_phone_home") is True else "no", []).append(rec)
-        latest_phone_home_status = str(rec.get("latest_phone_home_status") or "")
-        if latest_phone_home_status:
-            by_latest_phone_home_status.setdefault(latest_phone_home_status, []).append(rec)
-        last_failed_status = str(rec.get("last_failed_phone_home_status") or "")
-        if last_failed_status:
-            by_last_failed_phone_home_status.setdefault(last_failed_status, []).append(rec)
-        last_failed_reason = str(rec.get("last_failed_phone_home_reason") or "")
-        if last_failed_reason:
-            by_last_failed_phone_home_reason.setdefault(last_failed_reason, []).append(rec)
         by_has_latest_bridge_activity.setdefault("yes" if str(rec.get("latest_bridge_activity_at") or "") else "no", []).append(rec)
         file_op = str(rec.get("latest_file_transfer_operation") or "")
         if file_op:
@@ -1138,6 +1084,81 @@ def target_record_indexes(records):
         bridge_status = str(rec.get("latest_bridge_status") or "")
         if bridge_status:
             by_latest_bridge_status.setdefault(bridge_status, []).append(rec)
+    return (
+        by_latest_activity_service,
+        by_latest_activity_operation,
+        by_latest_file_transfer_operation,
+        by_latest_file_transfer_status,
+        by_latest_file_transfer_route_kind,
+        by_latest_file_transfer_bridge_profile,
+        by_latest_survey_result_kind,
+        by_latest_survey_result_status,
+        by_latest_survey_result_route_kind,
+        by_latest_survey_result_bridge_profile,
+        by_latest_bridge_profile,
+        by_latest_bridge_status,
+        by_has_latest_bridge_activity,
+    )
+
+
+def target_record_indexes(records):
+    by_id = {}
+    by_label = {}
+    by_alias = {}
+    by_remote_addr = {}
+    by_service = {}
+    by_identity_confidence = {}
+    by_identity_source = {}
+    by_connectivity_state = {}
+    by_last_seen_via = {}
+    by_offline_age_bucket = {}
+    by_has_next_expected_poll = {}
+    by_poll_overdue = {}
+    by_mailbox_pending_work = {}
+    by_latest_phone_home_status = {}
+    by_has_last_failed_phone_home = {}
+    by_last_failed_phone_home_reason = {}
+    by_last_failed_phone_home_status = {}
+    by_has_notes = {}
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        target_id = str(rec.get("target_id") or "")
+        if target_id:
+            by_id[target_id] = rec
+        label = str(rec.get("label") or "")
+        if label:
+            by_label.setdefault(label, []).append(rec)
+        by_has_notes.setdefault("yes" if str(rec.get("notes") or "").strip() else "no", []).append(rec)
+        confidence = str(rec.get("identity_confidence") or "")
+        if confidence:
+            by_identity_confidence.setdefault(confidence, []).append(rec)
+        for source in rec.get("identity_sources") or []:
+            source = str(source or "")
+            if source:
+                by_identity_source.setdefault(source, []).append(rec)
+        connectivity_state = str(rec.get("connectivity_state") or "")
+        if connectivity_state:
+            by_connectivity_state.setdefault(connectivity_state, []).append(rec)
+        last_seen_via = str(rec.get("last_seen_via") or "")
+        if last_seen_via:
+            by_last_seen_via.setdefault(last_seen_via, []).append(rec)
+        offline_age_bucket = str(rec.get("offline_age_bucket") or "")
+        if offline_age_bucket:
+            by_offline_age_bucket.setdefault(offline_age_bucket, []).append(rec)
+        by_has_next_expected_poll.setdefault("yes" if str(rec.get("next_expected_poll") or "") else "no", []).append(rec)
+        by_poll_overdue.setdefault("yes" if rec.get("poll_overdue") is True else "no", []).append(rec)
+        by_mailbox_pending_work.setdefault("yes" if int(rec.get("mailbox_pending_work_count") or 0) > 0 else "no", []).append(rec)
+        by_has_last_failed_phone_home.setdefault("yes" if rec.get("has_last_failed_phone_home") is True else "no", []).append(rec)
+        latest_phone_home_status = str(rec.get("latest_phone_home_status") or "")
+        if latest_phone_home_status:
+            by_latest_phone_home_status.setdefault(latest_phone_home_status, []).append(rec)
+        last_failed_status = str(rec.get("last_failed_phone_home_status") or "")
+        if last_failed_status:
+            by_last_failed_phone_home_status.setdefault(last_failed_status, []).append(rec)
+        last_failed_reason = str(rec.get("last_failed_phone_home_reason") or "")
+        if last_failed_reason:
+            by_last_failed_phone_home_reason.setdefault(last_failed_reason, []).append(rec)
         for alias in rec.get("aliases") or []:
             alias = str(alias or "")
             if alias:
@@ -1150,6 +1171,21 @@ def target_record_indexes(records):
             service = str(service or "")
             if service:
                 by_service.setdefault(service, []).append(rec)
+    (
+        by_latest_activity_service,
+        by_latest_activity_operation,
+        by_latest_file_transfer_operation,
+        by_latest_file_transfer_status,
+        by_latest_file_transfer_route_kind,
+        by_latest_file_transfer_bridge_profile,
+        by_latest_survey_result_kind,
+        by_latest_survey_result_status,
+        by_latest_survey_result_route_kind,
+        by_latest_survey_result_bridge_profile,
+        by_latest_bridge_profile,
+        by_latest_bridge_status,
+        by_has_latest_bridge_activity,
+    ) = _target_record_activity_indexes(records)
     (
         by_capability_report_kind,
         by_compatibility_report_kind,
