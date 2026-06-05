@@ -1155,6 +1155,69 @@ def target_record_indexes(records):
     )
 
 
+def _target_record_report_summary(records):
+    report_kind_counts = {}
+    compatibility_report_kind_counts = {}
+    compatibility_label_counts = {}
+    compatibility_baseline_label_counts = {}
+    compatibility_release_counts = {}
+    compatibility_payload_preset_counts = {}
+    observed_capability_counts = {}
+    missing_capability_counts = {}
+    observed_constraint_counts = {}
+    report_count = 0
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        report_kind = str(rec.get("latest_capability_report_kind") or "")
+        if report_kind:
+            report_kind_counts[report_kind] = report_kind_counts.get(report_kind, 0) + 1
+        if rec.get("latest_capability_report") or rec.get("latest_capability_report_path"):
+            report_count += 1
+        if rec.get("latest_compatibility_report") or rec.get("latest_compatibility_report_path"):
+            compatibility_report_kind = str(rec.get("latest_compatibility_report_kind") or "")
+            if compatibility_report_kind:
+                compatibility_report_kind_counts[compatibility_report_kind] = compatibility_report_kind_counts.get(compatibility_report_kind, 0) + 1
+            compatibility_label = str(rec.get("latest_compatibility_label") or "")
+            if compatibility_label:
+                compatibility_label_counts[compatibility_label] = compatibility_label_counts.get(compatibility_label, 0) + 1
+            compatibility_baseline = str(rec.get("latest_compatibility_baseline_label") or "")
+            if compatibility_baseline:
+                compatibility_baseline_label_counts[compatibility_baseline] = compatibility_baseline_label_counts.get(compatibility_baseline, 0) + 1
+            compatibility_release = str(rec.get("latest_compatibility_release_name") or "")
+            if compatibility_release:
+                compatibility_release_counts[compatibility_release] = compatibility_release_counts.get(compatibility_release, 0) + 1
+            compatibility_payload = str(rec.get("latest_compatibility_payload_preset") or "")
+            if compatibility_payload:
+                compatibility_payload_preset_counts[compatibility_payload] = compatibility_payload_preset_counts.get(compatibility_payload, 0) + 1
+        for capability in rec.get("observed_capabilities") or []:
+            capability = str(capability or "")
+            if capability:
+                observed_capability_counts[capability] = observed_capability_counts.get(capability, 0) + 1
+        for capability in rec.get("observed_missing_capabilities") or []:
+            capability = str(capability or "")
+            if capability:
+                missing_capability_counts[capability] = missing_capability_counts.get(capability, 0) + 1
+        constraints = rec.get("observed_constraints") if isinstance(rec.get("observed_constraints"), dict) else {}
+        for name, value in sorted(constraints.items()):
+            name = str(name or "")
+            if name:
+                key = f"{name}:{str(bool(value)).lower()}"
+                observed_constraint_counts[key] = observed_constraint_counts.get(key, 0) + 1
+    return {
+        "report_count": report_count,
+        "report_kind_counts": report_kind_counts,
+        "compatibility_report_kind_counts": compatibility_report_kind_counts,
+        "compatibility_label_counts": compatibility_label_counts,
+        "compatibility_baseline_label_counts": compatibility_baseline_label_counts,
+        "compatibility_release_counts": compatibility_release_counts,
+        "compatibility_payload_preset_counts": compatibility_payload_preset_counts,
+        "observed_capability_counts": observed_capability_counts,
+        "missing_capability_counts": missing_capability_counts,
+        "observed_constraint_counts": observed_constraint_counts,
+    }
+
+
 def target_record_summary(records):
     latest = (records or [{}])[0] if records else {}
     service_counts = {}
@@ -1174,17 +1237,7 @@ def target_record_summary(records):
     latest_survey_result_bridge_profile_counts = {}
     latest_bridge_profile_counts = {}
     latest_bridge_status_counts = {}
-    report_kind_counts = {}
-    compatibility_report_kind_counts = {}
-    compatibility_label_counts = {}
-    compatibility_baseline_label_counts = {}
-    compatibility_release_counts = {}
-    compatibility_payload_preset_counts = {}
-    observed_capability_counts = {}
-    missing_capability_counts = {}
-    observed_constraint_counts = {}
     remote_count = 0
-    report_count = 0
     notes_count = 0
     next_expected_poll_count = 0
     poll_overdue_count = 0
@@ -1278,41 +1331,7 @@ def target_record_summary(records):
             bridge_status = str(rec.get("latest_bridge_status") or "")
             if bridge_status:
                 latest_bridge_status_counts[bridge_status] = latest_bridge_status_counts.get(bridge_status, 0) + 1
-        report_kind = str(rec.get("latest_capability_report_kind") or "")
-        if report_kind:
-            report_kind_counts[report_kind] = report_kind_counts.get(report_kind, 0) + 1
-        if rec.get("latest_capability_report") or rec.get("latest_capability_report_path"):
-            report_count += 1
-        if rec.get("latest_compatibility_report") or rec.get("latest_compatibility_report_path"):
-            compatibility_report_kind = str(rec.get("latest_compatibility_report_kind") or "")
-            if compatibility_report_kind:
-                compatibility_report_kind_counts[compatibility_report_kind] = compatibility_report_kind_counts.get(compatibility_report_kind, 0) + 1
-            compatibility_label = str(rec.get("latest_compatibility_label") or "")
-            if compatibility_label:
-                compatibility_label_counts[compatibility_label] = compatibility_label_counts.get(compatibility_label, 0) + 1
-            compatibility_baseline = str(rec.get("latest_compatibility_baseline_label") or "")
-            if compatibility_baseline:
-                compatibility_baseline_label_counts[compatibility_baseline] = compatibility_baseline_label_counts.get(compatibility_baseline, 0) + 1
-            compatibility_release = str(rec.get("latest_compatibility_release_name") or "")
-            if compatibility_release:
-                compatibility_release_counts[compatibility_release] = compatibility_release_counts.get(compatibility_release, 0) + 1
-            compatibility_payload = str(rec.get("latest_compatibility_payload_preset") or "")
-            if compatibility_payload:
-                compatibility_payload_preset_counts[compatibility_payload] = compatibility_payload_preset_counts.get(compatibility_payload, 0) + 1
-        for capability in rec.get("observed_capabilities") or []:
-            capability = str(capability or "")
-            if capability:
-                observed_capability_counts[capability] = observed_capability_counts.get(capability, 0) + 1
-        for capability in rec.get("observed_missing_capabilities") or []:
-            capability = str(capability or "")
-            if capability:
-                missing_capability_counts[capability] = missing_capability_counts.get(capability, 0) + 1
-        constraints = rec.get("observed_constraints") if isinstance(rec.get("observed_constraints"), dict) else {}
-        for name, value in sorted(constraints.items()):
-            name = str(name or "")
-            if name:
-                key = f"{name}:{str(bool(value)).lower()}"
-                observed_constraint_counts[key] = observed_constraint_counts.get(key, 0) + 1
+    report_summary = _target_record_report_summary(records)
     return {
         "target_count": len(records or []),
         "latest_target_id": latest.get("target_id", ""),
@@ -1355,17 +1374,17 @@ def target_record_summary(records):
         "target_latest_bridge_activity_count": latest_bridge_activity_count,
         "target_latest_bridge_profile_counts": latest_bridge_profile_counts,
         "target_latest_bridge_status_counts": latest_bridge_status_counts,
-        "target_capability_report_count": report_count,
-        "target_capability_report_kind_counts": report_kind_counts,
-        "target_compatibility_report_count": sum(compatibility_report_kind_counts.values()),
-        "target_compatibility_report_kind_counts": compatibility_report_kind_counts,
-        "target_compatibility_label_counts": compatibility_label_counts,
-        "target_compatibility_baseline_label_counts": compatibility_baseline_label_counts,
-        "target_compatibility_release_counts": compatibility_release_counts,
-        "target_compatibility_payload_preset_counts": compatibility_payload_preset_counts,
-        "target_observed_capability_counts": observed_capability_counts,
-        "target_missing_capability_counts": missing_capability_counts,
-        "target_observed_constraint_counts": observed_constraint_counts,
+        "target_capability_report_count": report_summary["report_count"],
+        "target_capability_report_kind_counts": report_summary["report_kind_counts"],
+        "target_compatibility_report_count": sum(report_summary["compatibility_report_kind_counts"].values()),
+        "target_compatibility_report_kind_counts": report_summary["compatibility_report_kind_counts"],
+        "target_compatibility_label_counts": report_summary["compatibility_label_counts"],
+        "target_compatibility_baseline_label_counts": report_summary["compatibility_baseline_label_counts"],
+        "target_compatibility_release_counts": report_summary["compatibility_release_counts"],
+        "target_compatibility_payload_preset_counts": report_summary["compatibility_payload_preset_counts"],
+        "target_observed_capability_counts": report_summary["observed_capability_counts"],
+        "target_missing_capability_counts": report_summary["missing_capability_counts"],
+        "target_observed_constraint_counts": report_summary["observed_constraint_counts"],
     }
 
 
