@@ -193,6 +193,101 @@ EVENT_INDEX_KEYS = (
     "events_by_service_detail_target_identity_confidence",
 )
 
+TARGET_INDEX_KEYS = (
+    "targets_by_id",
+    "targets_by_label",
+    "targets_by_alias",
+    "targets_by_remote_addr",
+    "targets_by_service",
+    "targets_by_identity_confidence",
+    "targets_by_identity_source",
+    "targets_by_latest_activity_service",
+    "targets_by_latest_activity_operation",
+    "targets_by_connectivity_state",
+    "targets_by_last_seen_via",
+    "targets_by_offline_age_bucket",
+    "targets_by_has_next_expected_poll",
+    "targets_by_poll_overdue",
+    "targets_by_mailbox_pending_work",
+    "targets_by_latest_phone_home_status",
+    "targets_by_has_last_failed_phone_home",
+    "targets_by_last_failed_phone_home_reason",
+    "targets_by_last_failed_phone_home_status",
+    "targets_by_latest_file_transfer_operation",
+    "targets_by_latest_file_transfer_status",
+    "targets_by_latest_file_transfer_route_kind",
+    "targets_by_latest_file_transfer_bridge_profile",
+    "targets_by_latest_survey_result_kind",
+    "targets_by_latest_survey_result_status",
+    "targets_by_latest_survey_result_route_kind",
+    "targets_by_latest_survey_result_bridge_profile",
+    "targets_by_latest_bridge_profile",
+    "targets_by_latest_bridge_status",
+    "targets_by_has_latest_bridge_activity",
+    "targets_by_has_notes",
+    "targets_by_capability_report_kind",
+    "targets_by_compatibility_report_kind",
+    "targets_by_compatibility_label",
+    "targets_by_compatibility_baseline_label",
+    "targets_by_compatibility_release",
+    "targets_by_compatibility_payload_preset",
+    "targets_by_observed_capability",
+    "targets_by_missing_capability",
+    "targets_by_observed_constraint",
+)
+
+
+def _build_target_registry_context(
+    cfg,
+    *,
+    target_filter_id,
+    all_target_phone_home_records,
+    unfiltered_staged_count,
+):
+    uploads = recent_upload_metadata(cfg)
+    fetches = recent_fetch_metadata(cfg)
+    targets = target_records(cfg)
+    targets = apply_target_phone_home_summary(
+        targets,
+        all_target_phone_home_records,
+    )
+    unfiltered_counts = {
+        "targets": len(targets),
+        "uploads": len(uploads),
+        "fetches": len(fetches),
+        "staged": unfiltered_staged_count,
+        "target_phone_home_records": len(all_target_phone_home_records),
+    }
+    if target_filter_id:
+        uploads = records_for_target(uploads, target_filter_id)
+        fetches = records_for_target(fetches, target_filter_id)
+        targets = records_for_target(targets, target_filter_id)
+    target_index_maps = dict(zip(TARGET_INDEX_KEYS, target_record_indexes(targets)))
+    target_summary = target_record_summary(targets)
+    selected_target = (
+        dict(target_index_maps["targets_by_id"].get(target_filter_id) or {})
+        if target_filter_id else {}
+    )
+    target_registry_state = target_registry_state_status(
+        target_summary,
+        selected_target,
+        target_filter_id,
+        unfiltered_counts.get("targets", 0),
+    )
+    return {
+        "uploads": uploads,
+        "fetches": fetches,
+        "targets": targets,
+        "unfiltered_counts": unfiltered_counts,
+        "target_index_maps": target_index_maps,
+        "target_summary": target_summary,
+        "selected_target": selected_target,
+        "target_registry_state_record": target_registry_state["state_record"],
+        "target_registry_state_records": target_registry_state["state_records"],
+        "target_registry_state_index_maps": target_registry_state["state_index_maps"],
+        "target_registry_summary": target_registry_state["summary"],
+    }
+
 
 def _build_event_status_context(
     cfg,
@@ -435,77 +530,28 @@ def status_document(cfg):
      ports_by_actual) = service_context["port_indexes"]
     all_event_records, _all_event_invalid = EventLog(cfg).records()
     all_target_phone_home_records = target_phone_home_records_from_events(all_event_records)
-    uploads = recent_upload_metadata(cfg)
-    fetches = recent_fetch_metadata(cfg)
-    targets = target_records(cfg)
-    targets = apply_target_phone_home_summary(targets, all_target_phone_home_records)
-    unfiltered_counts = {
-        "targets": len(targets),
-        "uploads": len(uploads),
-        "fetches": len(fetches),
-        "staged": unfiltered_staged_count,
-        "target_phone_home_records": len(all_target_phone_home_records),
-    }
-    if target_filter_id:
-        uploads = records_for_target(uploads, target_filter_id)
-        fetches = records_for_target(fetches, target_filter_id)
-        targets = records_for_target(targets, target_filter_id)
-    (targets_by_id,
-     targets_by_label,
-     targets_by_alias,
-     targets_by_remote_addr,
-     targets_by_service,
-     targets_by_identity_confidence,
-     targets_by_identity_source,
-     targets_by_latest_activity_service,
-     targets_by_latest_activity_operation,
-     targets_by_connectivity_state,
-     targets_by_last_seen_via,
-     targets_by_offline_age_bucket,
-     targets_by_has_next_expected_poll,
-     targets_by_poll_overdue,
-     targets_by_mailbox_pending_work,
-     targets_by_latest_phone_home_status,
-     targets_by_has_last_failed_phone_home,
-     targets_by_last_failed_phone_home_reason,
-     targets_by_last_failed_phone_home_status,
-     targets_by_latest_file_transfer_operation,
-     targets_by_latest_file_transfer_status,
-     targets_by_latest_file_transfer_route_kind,
-     targets_by_latest_file_transfer_bridge_profile,
-     targets_by_latest_survey_result_kind,
-     targets_by_latest_survey_result_status,
-     targets_by_latest_survey_result_route_kind,
-     targets_by_latest_survey_result_bridge_profile,
-     targets_by_latest_bridge_profile,
-     targets_by_latest_bridge_status,
-     targets_by_has_latest_bridge_activity,
-     targets_by_has_notes,
-     targets_by_capability_report_kind,
-     targets_by_compatibility_report_kind,
-     targets_by_compatibility_label,
-     targets_by_compatibility_baseline_label,
-     targets_by_compatibility_release,
-     targets_by_compatibility_payload_preset,
-     targets_by_observed_capability,
-     targets_by_missing_capability,
-     targets_by_observed_constraint) = target_record_indexes(targets)
-    target_summary = target_record_summary(targets)
+    target_context = _build_target_registry_context(
+        cfg,
+        target_filter_id=target_filter_id,
+        all_target_phone_home_records=all_target_phone_home_records,
+        unfiltered_staged_count=unfiltered_staged_count,
+    )
+    uploads = target_context["uploads"]
+    fetches = target_context["fetches"]
+    targets = target_context["targets"]
+    unfiltered_counts = target_context["unfiltered_counts"]
+    target_index_maps = target_context["target_index_maps"]
+    targets_by_id = target_index_maps["targets_by_id"]
+    target_summary = target_context["target_summary"]
     staged_file_workflow_actions = staged_file_workflow_action_records(cfg, staged_records, targets)
     staged_file_workflow_action_index_maps = staged_file_workflow_action_indexes(staged_file_workflow_actions)
     bridge_profile_workflow_actions = bridge_profile_workflow_action_records(cfg, bridge_profiles, targets)
     bridge_profile_workflow_action_index_maps = bridge_profile_workflow_action_indexes(bridge_profile_workflow_actions)
-    selected_target = dict(targets_by_id.get(target_filter_id) or {}) if target_filter_id else {}
-    target_registry_state = target_registry_state_status(
-        target_summary,
-        selected_target,
-        target_filter_id,
-        unfiltered_counts.get("targets", 0),
-    )
-    target_registry_state_record = target_registry_state["state_record"]
-    target_registry_state_records = target_registry_state["state_records"]
-    target_registry_state_index_maps = target_registry_state["state_index_maps"]
-    target_registry_summary = target_registry_state["summary"]
+    selected_target = target_context["selected_target"]
+    target_registry_state_record = target_context["target_registry_state_record"]
+    target_registry_state_records = target_context["target_registry_state_records"]
+    target_registry_state_index_maps = target_context["target_registry_state_index_maps"]
+    target_registry_summary = target_context["target_registry_summary"]
     session_context = session_status_context(
         cfg,
         SESSION_MANAGER.recent_records(cfg),
@@ -2333,46 +2379,7 @@ def status_document(cfg):
         "target_summary": target_summary,
         "target_registry_state_records": target_registry_state_records,
         **target_registry_state_index_maps,
-        "targets_by_id": targets_by_id,
-        "targets_by_label": targets_by_label,
-        "targets_by_alias": targets_by_alias,
-        "targets_by_remote_addr": targets_by_remote_addr,
-        "targets_by_service": targets_by_service,
-        "targets_by_identity_confidence": targets_by_identity_confidence,
-        "targets_by_identity_source": targets_by_identity_source,
-        "targets_by_latest_activity_service": targets_by_latest_activity_service,
-        "targets_by_latest_activity_operation": targets_by_latest_activity_operation,
-        "targets_by_connectivity_state": targets_by_connectivity_state,
-        "targets_by_last_seen_via": targets_by_last_seen_via,
-        "targets_by_offline_age_bucket": targets_by_offline_age_bucket,
-        "targets_by_has_next_expected_poll": targets_by_has_next_expected_poll,
-        "targets_by_poll_overdue": targets_by_poll_overdue,
-        "targets_by_mailbox_pending_work": targets_by_mailbox_pending_work,
-        "targets_by_latest_phone_home_status": targets_by_latest_phone_home_status,
-        "targets_by_has_last_failed_phone_home": targets_by_has_last_failed_phone_home,
-        "targets_by_last_failed_phone_home_reason": targets_by_last_failed_phone_home_reason,
-        "targets_by_last_failed_phone_home_status": targets_by_last_failed_phone_home_status,
-        "targets_by_latest_file_transfer_operation": targets_by_latest_file_transfer_operation,
-        "targets_by_latest_file_transfer_status": targets_by_latest_file_transfer_status,
-        "targets_by_latest_file_transfer_route_kind": targets_by_latest_file_transfer_route_kind,
-        "targets_by_latest_file_transfer_bridge_profile": targets_by_latest_file_transfer_bridge_profile,
-        "targets_by_latest_survey_result_kind": targets_by_latest_survey_result_kind,
-        "targets_by_latest_survey_result_status": targets_by_latest_survey_result_status,
-        "targets_by_latest_survey_result_route_kind": targets_by_latest_survey_result_route_kind,
-        "targets_by_latest_survey_result_bridge_profile": targets_by_latest_survey_result_bridge_profile,
-        "targets_by_latest_bridge_profile": targets_by_latest_bridge_profile,
-        "targets_by_latest_bridge_status": targets_by_latest_bridge_status,
-        "targets_by_has_latest_bridge_activity": targets_by_has_latest_bridge_activity,
-        "targets_by_has_notes": targets_by_has_notes,
-        "targets_by_capability_report_kind": targets_by_capability_report_kind,
-        "targets_by_compatibility_report_kind": targets_by_compatibility_report_kind,
-        "targets_by_compatibility_label": targets_by_compatibility_label,
-        "targets_by_compatibility_baseline_label": targets_by_compatibility_baseline_label,
-        "targets_by_compatibility_release": targets_by_compatibility_release,
-        "targets_by_compatibility_payload_preset": targets_by_compatibility_payload_preset,
-        "targets_by_observed_capability": targets_by_observed_capability,
-        "targets_by_missing_capability": targets_by_missing_capability,
-        "targets_by_observed_constraint": targets_by_observed_constraint,
+        **target_index_maps,
         "target_mailbox_records": target_mailbox_records,
         **target_mailbox_index_maps,
         "target_phone_home_records": target_phone_home_records,
