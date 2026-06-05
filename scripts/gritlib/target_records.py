@@ -1101,7 +1101,7 @@ def _target_record_activity_indexes(records):
     )
 
 
-def target_record_indexes(records):
+def _target_record_identity_indexes(records):
     by_id = {}
     by_label = {}
     by_alias = {}
@@ -1171,6 +1171,49 @@ def target_record_indexes(records):
             service = str(service or "")
             if service:
                 by_service.setdefault(service, []).append(rec)
+    return (
+        by_id,
+        by_label,
+        by_alias,
+        by_remote_addr,
+        by_service,
+        by_identity_confidence,
+        by_identity_source,
+        by_connectivity_state,
+        by_last_seen_via,
+        by_offline_age_bucket,
+        by_has_next_expected_poll,
+        by_poll_overdue,
+        by_mailbox_pending_work,
+        by_latest_phone_home_status,
+        by_has_last_failed_phone_home,
+        by_last_failed_phone_home_reason,
+        by_last_failed_phone_home_status,
+        by_has_notes,
+    )
+
+
+def target_record_indexes(records):
+    (
+        by_id,
+        by_label,
+        by_alias,
+        by_remote_addr,
+        by_service,
+        by_identity_confidence,
+        by_identity_source,
+        by_connectivity_state,
+        by_last_seen_via,
+        by_offline_age_bucket,
+        by_has_next_expected_poll,
+        by_poll_overdue,
+        by_mailbox_pending_work,
+        by_latest_phone_home_status,
+        by_has_last_failed_phone_home,
+        by_last_failed_phone_home_reason,
+        by_last_failed_phone_home_status,
+        by_has_notes,
+    ) = _target_record_identity_indexes(records)
     (
         by_latest_activity_service,
         by_latest_activity_operation,
@@ -1282,8 +1325,7 @@ def _target_record_report_summary(records):
     }
 
 
-def target_record_summary(records):
-    latest = (records or [{}])[0] if records else {}
+def _target_record_activity_summary(records):
     service_counts = {}
     identity_source_counts = {}
     latest_activity_service_counts = {}
@@ -1395,6 +1437,43 @@ def target_record_summary(records):
             bridge_status = str(rec.get("latest_bridge_status") or "")
             if bridge_status:
                 latest_bridge_status_counts[bridge_status] = latest_bridge_status_counts.get(bridge_status, 0) + 1
+    return {
+        "service_counts": service_counts,
+        "identity_source_counts": identity_source_counts,
+        "latest_activity_service_counts": latest_activity_service_counts,
+        "latest_activity_operation_counts": latest_activity_operation_counts,
+        "connectivity_state_counts": connectivity_state_counts,
+        "last_seen_via_counts": last_seen_via_counts,
+        "offline_age_bucket_counts": offline_age_bucket_counts,
+        "latest_file_transfer_operation_counts": latest_file_transfer_operation_counts,
+        "latest_file_transfer_status_counts": latest_file_transfer_status_counts,
+        "latest_file_transfer_route_kind_counts": latest_file_transfer_route_kind_counts,
+        "latest_file_transfer_bridge_profile_counts": latest_file_transfer_bridge_profile_counts,
+        "latest_survey_result_kind_counts": latest_survey_result_kind_counts,
+        "latest_survey_result_status_counts": latest_survey_result_status_counts,
+        "latest_survey_result_route_kind_counts": latest_survey_result_route_kind_counts,
+        "latest_survey_result_bridge_profile_counts": latest_survey_result_bridge_profile_counts,
+        "latest_bridge_profile_counts": latest_bridge_profile_counts,
+        "latest_bridge_status_counts": latest_bridge_status_counts,
+        "remote_count": remote_count,
+        "notes_count": notes_count,
+        "next_expected_poll_count": next_expected_poll_count,
+        "poll_overdue_count": poll_overdue_count,
+        "mailbox_pending_target_count": mailbox_pending_target_count,
+        "mailbox_pending_work_count": mailbox_pending_work_count,
+        "phone_home_target_count": phone_home_target_count,
+        "failed_phone_home_target_count": failed_phone_home_target_count,
+        "successful_phone_home_count": successful_phone_home_count,
+        "failed_phone_home_count": failed_phone_home_count,
+        "latest_file_transfer_count": latest_file_transfer_count,
+        "latest_survey_result_count": latest_survey_result_count,
+        "latest_bridge_activity_count": latest_bridge_activity_count,
+    }
+
+
+def target_record_summary(records):
+    latest = (records or [{}])[0] if records else {}
+    activity_summary = _target_record_activity_summary(records)
     report_summary = _target_record_report_summary(records)
     return {
         "target_count": len(records or []),
@@ -1402,42 +1481,42 @@ def target_record_summary(records):
         "latest_target_label": latest.get("label", ""),
         "latest_target_seen_at": latest.get("last_seen_at", ""),
         "target_identity_confidence_counts": record_count_by_key(records, "identity_confidence"),
-        "target_identity_source_counts": identity_source_counts,
-        "target_service_counts": service_counts,
-        "target_remote_address_count": remote_count,
-        "target_notes_count": notes_count,
-        "target_without_notes_count": max(len(records or []) - notes_count, 0),
-        "target_latest_activity_service_counts": latest_activity_service_counts,
-        "target_latest_activity_operation_counts": latest_activity_operation_counts,
-        "target_connectivity_state_counts": connectivity_state_counts,
-        "target_last_seen_via_counts": last_seen_via_counts,
-        "target_offline_age_bucket_counts": offline_age_bucket_counts,
-        "target_next_expected_poll_count": next_expected_poll_count,
-        "target_poll_overdue_count": poll_overdue_count,
+        "target_identity_source_counts": activity_summary["identity_source_counts"],
+        "target_service_counts": activity_summary["service_counts"],
+        "target_remote_address_count": activity_summary["remote_count"],
+        "target_notes_count": activity_summary["notes_count"],
+        "target_without_notes_count": max(len(records or []) - activity_summary["notes_count"], 0),
+        "target_latest_activity_service_counts": activity_summary["latest_activity_service_counts"],
+        "target_latest_activity_operation_counts": activity_summary["latest_activity_operation_counts"],
+        "target_connectivity_state_counts": activity_summary["connectivity_state_counts"],
+        "target_last_seen_via_counts": activity_summary["last_seen_via_counts"],
+        "target_offline_age_bucket_counts": activity_summary["offline_age_bucket_counts"],
+        "target_next_expected_poll_count": activity_summary["next_expected_poll_count"],
+        "target_poll_overdue_count": activity_summary["poll_overdue_count"],
         "target_poll_overdue_counts": record_count_by_key(records, "poll_overdue"),
-        "target_mailbox_pending_target_count": mailbox_pending_target_count,
-        "target_mailbox_pending_work_count": mailbox_pending_work_count,
-        "target_phone_home_target_count": phone_home_target_count,
-        "target_successful_phone_home_count": successful_phone_home_count,
-        "target_failed_phone_home_count": failed_phone_home_count,
-        "target_failed_phone_home_target_count": failed_phone_home_target_count,
+        "target_mailbox_pending_target_count": activity_summary["mailbox_pending_target_count"],
+        "target_mailbox_pending_work_count": activity_summary["mailbox_pending_work_count"],
+        "target_phone_home_target_count": activity_summary["phone_home_target_count"],
+        "target_successful_phone_home_count": activity_summary["successful_phone_home_count"],
+        "target_failed_phone_home_count": activity_summary["failed_phone_home_count"],
+        "target_failed_phone_home_target_count": activity_summary["failed_phone_home_target_count"],
         "target_latest_phone_home_status_counts": record_count_by_key(records, "latest_phone_home_status"),
         "target_has_last_failed_phone_home_counts": record_count_by_key(records, "has_last_failed_phone_home"),
         "target_last_failed_phone_home_status_counts": record_count_by_key(records, "last_failed_phone_home_status"),
         "target_last_failed_phone_home_reason_counts": record_count_by_key(records, "last_failed_phone_home_reason"),
-        "target_latest_file_transfer_count": latest_file_transfer_count,
-        "target_latest_file_transfer_operation_counts": latest_file_transfer_operation_counts,
-        "target_latest_file_transfer_status_counts": latest_file_transfer_status_counts,
-        "target_latest_file_transfer_route_kind_counts": latest_file_transfer_route_kind_counts,
-        "target_latest_file_transfer_bridge_profile_counts": latest_file_transfer_bridge_profile_counts,
-        "target_latest_survey_result_count": latest_survey_result_count,
-        "target_latest_survey_result_kind_counts": latest_survey_result_kind_counts,
-        "target_latest_survey_result_status_counts": latest_survey_result_status_counts,
-        "target_latest_survey_result_route_kind_counts": latest_survey_result_route_kind_counts,
-        "target_latest_survey_result_bridge_profile_counts": latest_survey_result_bridge_profile_counts,
-        "target_latest_bridge_activity_count": latest_bridge_activity_count,
-        "target_latest_bridge_profile_counts": latest_bridge_profile_counts,
-        "target_latest_bridge_status_counts": latest_bridge_status_counts,
+        "target_latest_file_transfer_count": activity_summary["latest_file_transfer_count"],
+        "target_latest_file_transfer_operation_counts": activity_summary["latest_file_transfer_operation_counts"],
+        "target_latest_file_transfer_status_counts": activity_summary["latest_file_transfer_status_counts"],
+        "target_latest_file_transfer_route_kind_counts": activity_summary["latest_file_transfer_route_kind_counts"],
+        "target_latest_file_transfer_bridge_profile_counts": activity_summary["latest_file_transfer_bridge_profile_counts"],
+        "target_latest_survey_result_count": activity_summary["latest_survey_result_count"],
+        "target_latest_survey_result_kind_counts": activity_summary["latest_survey_result_kind_counts"],
+        "target_latest_survey_result_status_counts": activity_summary["latest_survey_result_status_counts"],
+        "target_latest_survey_result_route_kind_counts": activity_summary["latest_survey_result_route_kind_counts"],
+        "target_latest_survey_result_bridge_profile_counts": activity_summary["latest_survey_result_bridge_profile_counts"],
+        "target_latest_bridge_activity_count": activity_summary["latest_bridge_activity_count"],
+        "target_latest_bridge_profile_counts": activity_summary["latest_bridge_profile_counts"],
+        "target_latest_bridge_status_counts": activity_summary["latest_bridge_status_counts"],
         "target_capability_report_count": report_summary["report_count"],
         "target_capability_report_kind_counts": report_summary["report_kind_counts"],
         "target_compatibility_report_count": sum(report_summary["compatibility_report_kind_counts"].values()),

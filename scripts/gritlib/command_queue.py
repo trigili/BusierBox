@@ -653,26 +653,7 @@ def _command_queue_record_indexes(commands):
     }
 
 
-def command_queue_summary(cfg):
-    commands, target_filter_id, unfiltered_command_count = _command_queue_visible_commands(cfg)
-    queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
-    delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
-    command_indexes = _command_queue_record_indexes(commands)
-    commands_by_queue_policy_enabled = records_by_nested_key(commands, "queue_policy_snapshot", "enabled")
-    commands_by_queue_policy_valid = records_by_nested_key(commands, "queue_policy_snapshot", "valid")
-    commands_by_queue_policy_execution_mode = records_by_nested_key(commands, "queue_policy_snapshot", "execution_mode")
-    commands_by_queue_policy_allowed_commands = records_by_nested_key(commands, "queue_policy_snapshot", "allowed_commands")
-    commands_by_delivery_policy_enabled = records_by_nested_key(commands, "delivery_policy_snapshot", "enabled")
-    commands_by_delivery_policy_valid = records_by_nested_key(commands, "delivery_policy_snapshot", "valid")
-    commands_by_delivery_policy_execution_mode = records_by_nested_key(commands, "delivery_policy_snapshot", "execution_mode")
-    commands_by_delivery_policy_delivery_supported = records_by_nested_key(commands, "delivery_policy_snapshot", "delivery_supported")
-    commands_by_delivery_policy_result_upload_supported = records_by_nested_key(commands, "delivery_policy_snapshot", "result_upload_supported")
-    commands_by_delivery_policy_active_control_channel = records_by_nested_key(commands, "delivery_policy_snapshot", "active_control_channel")
-    result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
-    result_exceeded_count = len([
-        rec for rec in commands
-        if isinstance(rec, dict) and rec.get("result_output_exceeded_limit") is True
-    ])
+def _command_queue_policy_context(cfg):
     enabled = str(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no"))
     allowed_commands = str(cfg.get("GRIT_COMMAND_QUEUE_ALLOWED_COMMANDS", "none"))
     execution_mode = str(cfg.get("GRIT_COMMAND_QUEUE_EXECUTION", "metadata-only"))
@@ -726,33 +707,104 @@ def command_queue_summary(cfg):
         "safe_disabled_default": enabled == "no" and policy_valid and allowed_commands == "none" and execution_mode == "metadata-only" and allow_arbitrary == "no",
     }
     return {
-        "path": str(command_queue_path(cfg)),
         "enabled": enabled,
-        "default_enabled": False,
-        "port": str(cfg.get("GRIT_COMMAND_QUEUE_PORT", "22205")),
-        "tls": tls,
-        "require_token": str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")),
-        "token_source": str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN_SOURCE", "manual")),
-        "token_configured": token_configured,
         "allowed_commands": allowed_commands,
         "execution_mode": execution_mode,
-        "metadata_only_default": execution_mode == "metadata-only",
         "allow_arbitrary": allow_arbitrary,
         "poll_interval_sec": poll_interval_sec,
         "poll_jitter_pct": poll_jitter_pct,
         "poll_backoff": poll_backoff,
         "poll_max_interval_sec": poll_max_interval_sec,
         "max_polls": max_polls,
-        "policy_valid": policy_valid,
+        "tls": tls,
         "policy_errors": policy_errors,
-        "policy_summary": policy_summary,
+        "policy_valid": policy_valid,
+        "token_configured": token_configured,
         "poll_transport_supported": poll_transport_supported,
-        "live_polling_supported": poll_transport_supported,
         "poll_transport_unsupported_reason": poll_transport_unsupported_reason,
+        "arbitrary_policy_requested": arbitrary_policy_requested,
+        "execution_supported": execution_supported,
+        "arbitrary_execution_allowed": arbitrary_execution_allowed,
+        "configured_for_polling": configured_for_polling,
         "mode_semantics": mode_semantics,
         "mode_records": mode_records,
-        **mode_indexes,
+        "mode_indexes": mode_indexes,
         "mode_summary": mode_summary,
+        "policy_summary": policy_summary,
+    }
+
+
+def _command_queue_policy_indexes(commands):
+    return {
+        "commands_by_queue_policy_enabled": records_by_nested_key(commands, "queue_policy_snapshot", "enabled"),
+        "commands_by_queue_policy_valid": records_by_nested_key(commands, "queue_policy_snapshot", "valid"),
+        "commands_by_queue_policy_execution_mode": records_by_nested_key(commands, "queue_policy_snapshot", "execution_mode"),
+        "commands_by_queue_policy_allowed_commands": records_by_nested_key(commands, "queue_policy_snapshot", "allowed_commands"),
+        "commands_by_delivery_policy_enabled": records_by_nested_key(commands, "delivery_policy_snapshot", "enabled"),
+        "commands_by_delivery_policy_valid": records_by_nested_key(commands, "delivery_policy_snapshot", "valid"),
+        "commands_by_delivery_policy_execution_mode": records_by_nested_key(commands, "delivery_policy_snapshot", "execution_mode"),
+        "commands_by_delivery_policy_delivery_supported": records_by_nested_key(commands, "delivery_policy_snapshot", "delivery_supported"),
+        "commands_by_delivery_policy_result_upload_supported": records_by_nested_key(commands, "delivery_policy_snapshot", "result_upload_supported"),
+        "commands_by_delivery_policy_active_control_channel": records_by_nested_key(commands, "delivery_policy_snapshot", "active_control_channel"),
+    }
+
+
+def _command_queue_policy_counts(commands):
+    return {
+        "queue_policy_enabled_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "enabled"),
+        "queue_policy_valid_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "valid"),
+        "queue_policy_execution_mode_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "execution_mode"),
+        "queue_policy_allowed_commands_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "allowed_commands"),
+        "delivery_policy_enabled_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "enabled"),
+        "delivery_policy_valid_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "valid"),
+        "delivery_policy_execution_mode_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "execution_mode"),
+        "delivery_policy_delivery_supported_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "delivery_supported"),
+        "delivery_policy_result_upload_supported_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "result_upload_supported"),
+        "delivery_policy_active_control_channel_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "active_control_channel"),
+    }
+
+
+def command_queue_summary(cfg):
+    commands, target_filter_id, unfiltered_command_count = _command_queue_visible_commands(cfg)
+    queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
+    delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
+    command_indexes = _command_queue_record_indexes(commands)
+    policy_context = _command_queue_policy_context(cfg)
+    policy_indexes = _command_queue_policy_indexes(commands)
+    policy_counts = _command_queue_policy_counts(commands)
+    result_count = len([rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "result-received"])
+    result_exceeded_count = len([
+        rec for rec in commands
+        if isinstance(rec, dict) and rec.get("result_output_exceeded_limit") is True
+    ])
+    return {
+        "path": str(command_queue_path(cfg)),
+        "enabled": policy_context["enabled"],
+        "default_enabled": False,
+        "port": str(cfg.get("GRIT_COMMAND_QUEUE_PORT", "22205")),
+        "tls": policy_context["tls"],
+        "require_token": str(cfg.get("GRIT_COMMAND_QUEUE_REQUIRE_TOKEN", "yes")),
+        "token_source": str(cfg.get("GRIT_COMMAND_QUEUE_TOKEN_SOURCE", "manual")),
+        "token_configured": policy_context["token_configured"],
+        "allowed_commands": policy_context["allowed_commands"],
+        "execution_mode": policy_context["execution_mode"],
+        "metadata_only_default": policy_context["execution_mode"] == "metadata-only",
+        "allow_arbitrary": policy_context["allow_arbitrary"],
+        "poll_interval_sec": policy_context["poll_interval_sec"],
+        "poll_jitter_pct": policy_context["poll_jitter_pct"],
+        "poll_backoff": policy_context["poll_backoff"],
+        "poll_max_interval_sec": policy_context["poll_max_interval_sec"],
+        "max_polls": policy_context["max_polls"],
+        "policy_valid": policy_context["policy_valid"],
+        "policy_errors": policy_context["policy_errors"],
+        "policy_summary": policy_context["policy_summary"],
+        "poll_transport_supported": policy_context["poll_transport_supported"],
+        "live_polling_supported": policy_context["poll_transport_supported"],
+        "poll_transport_unsupported_reason": policy_context["poll_transport_unsupported_reason"],
+        "mode_semantics": policy_context["mode_semantics"],
+        "mode_records": policy_context["mode_records"],
+        **policy_context["mode_indexes"],
+        "mode_summary": policy_context["mode_summary"],
         "commands": commands,
         "commands_by_id": command_indexes["commands_by_id"],
         "commands_by_status": command_indexes["commands_by_status"],
@@ -772,16 +824,7 @@ def command_queue_summary(cfg):
         "commands_by_result_exit_code": command_indexes["commands_by_result_exit_code"],
         "commands_by_result_output_exceeded": command_indexes["commands_by_result_output_exceeded"],
         "commands_by_result_output_size_bucket": command_indexes["commands_by_result_output_size_bucket"],
-        "commands_by_queue_policy_enabled": commands_by_queue_policy_enabled,
-        "commands_by_queue_policy_valid": commands_by_queue_policy_valid,
-        "commands_by_queue_policy_execution_mode": commands_by_queue_policy_execution_mode,
-        "commands_by_queue_policy_allowed_commands": commands_by_queue_policy_allowed_commands,
-        "commands_by_delivery_policy_enabled": commands_by_delivery_policy_enabled,
-        "commands_by_delivery_policy_valid": commands_by_delivery_policy_valid,
-        "commands_by_delivery_policy_execution_mode": commands_by_delivery_policy_execution_mode,
-        "commands_by_delivery_policy_delivery_supported": commands_by_delivery_policy_delivery_supported,
-        "commands_by_delivery_policy_result_upload_supported": commands_by_delivery_policy_result_upload_supported,
-        "commands_by_delivery_policy_active_control_channel": commands_by_delivery_policy_active_control_channel,
+        **policy_indexes,
         "status_counts": command_indexes["status_counts"],
         "timeout_sec_counts": record_count_by_key(commands, "timeout_sec"),
         "max_output_bytes_counts": record_count_by_key(commands, "max_output_bytes"),
@@ -792,16 +835,7 @@ def command_queue_summary(cfg):
         "result_status_counts": command_indexes["result_status_counts"],
         "result_exit_code_counts": command_indexes["result_exit_code_counts"],
         "result_output_size_bucket_counts": command_indexes["result_output_size_bucket_counts"],
-        "queue_policy_enabled_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "enabled"),
-        "queue_policy_valid_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "valid"),
-        "queue_policy_execution_mode_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "execution_mode"),
-        "queue_policy_allowed_commands_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "allowed_commands"),
-        "delivery_policy_enabled_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "enabled"),
-        "delivery_policy_valid_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "valid"),
-        "delivery_policy_execution_mode_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "execution_mode"),
-        "delivery_policy_delivery_supported_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "delivery_supported"),
-        "delivery_policy_result_upload_supported_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "result_upload_supported"),
-        "delivery_policy_active_control_channel_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "active_control_channel"),
+        **policy_counts,
         "latest_created_at": command_indexes["latest_created_at"],
         "latest_result_received_at": command_indexes["latest_result_received_at"],
         "queued_count": len(queued),
@@ -812,18 +846,18 @@ def command_queue_summary(cfg):
         "target_filter_active": bool(target_filter_id),
         "target_filter_id": target_filter_id,
         "unfiltered_total_count": unfiltered_command_count,
-        "execution_supported": execution_supported,
+        "execution_supported": policy_context["execution_supported"],
         "delivery_supported": False,
         "result_upload_supported": True,
-        "poll_transport_supported": poll_transport_supported,
-        "live_polling_supported": poll_transport_supported,
-        "poll_transport_unsupported_reason": poll_transport_unsupported_reason,
-        "executes_commands": execution_supported,
+        "poll_transport_supported": policy_context["poll_transport_supported"],
+        "live_polling_supported": policy_context["poll_transport_supported"],
+        "poll_transport_unsupported_reason": policy_context["poll_transport_unsupported_reason"],
+        "executes_commands": policy_context["execution_supported"],
         "operator_queue_records_only": True,
         "active_control_channel": False,
-        "configured_for_polling": configured_for_polling,
-        "arbitrary_policy_requested": arbitrary_policy_requested,
-        "arbitrary_execution_allowed": arbitrary_execution_allowed,
+        "configured_for_polling": policy_context["configured_for_polling"],
+        "arbitrary_policy_requested": policy_context["arbitrary_policy_requested"],
+        "arbitrary_execution_allowed": policy_context["arbitrary_execution_allowed"],
         "safety_boundary": "explicit operator queue records only; execution requires explicit target poll and execute policy",
     }
 
