@@ -265,25 +265,17 @@ def serve_probe(cfg, timeout, max_sessions=0):
     return 0
 
 
-def serve_probe_tftp(cfg, timeout, max_sessions=0):
-    service = "probe-tftp"
-    port = int(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
-    host = str(cfg.get("GRIT_OPERATOR_SERVER_HOST") or "").strip()
-    if not host or host in ("0.0.0.0", "::"):
-        candidates = local_ips()
-        host = candidates[0] if candidates else "OPERATOR_IP"
-    script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
-    script_text = probe_script_fn(cfg, host, int(cfg.get("GRIT_PROBE_PORT", 22207)))
-    payload = script_text.encode("utf-8")
-    target_command = render_probe_tftp_command(cfg, host=host, port=port)
-    log_dir = SESSION_MANAGER.log_dir(cfg, service)
-    session_details = {
+def _probe_tftp_session_details(port, script_name, target_command, cfg):
+    return {
         "port": port,
         "protocol": "udp",
         "script_name": script_name,
         "target_command": target_command,
         "http_result_port": int(cfg.get("GRIT_PROBE_PORT", 22207)),
     }
+
+
+def _start_probe_tftp_record(cfg, service, log_dir, script_name, script_text, host, port, target_command, session_details):
     SESSION_MANAGER.start_record(cfg, service, log_dir, details=session_details)
     (log_dir / script_name).write_text(script_text, encoding="utf-8")
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
@@ -291,52 +283,121 @@ def serve_probe_tftp(cfg, timeout, max_sessions=0):
     print(f"Probe TFTP target URL: tftp://{host}:{port}/{script_name}")
     print(f"Target command: {target_command}")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **session_details})
-    sessions = 0
+
+
+def _bind_probe_tftp_socket(cfg, service, port, timeout):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         sock.bind((str(cfg["listen_host"]), port))
         register_socket(sock)
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
-        append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
+        return sock
+    except OSError:
+        try:
+            sock.close()
+        except OSError:
+            pass
+        raise
+
+
+def _mark_probe_tftp_listening(cfg, service, log_dir, session_details):
+    update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **session_details})
+    append_event(cfg, service, "service_start", session=str(log_dir), details=session_details)
+
+
+def _record_probe_tftp_rejection(cfg, service, log_dir, sock, addr, remote, filename, mode):
+    sock.sendto(tftp_error_packet(1, "file not found"), addr)
+    append_event(cfg, service, "probe_tftp_rejected", "warning", remote=remote, session=str(log_dir), details={
+        "filename": filename,
+        "mode": mode,
+        "reason": "file-not-found",
+    })
+
+
+def _record_probe_tftp_served(cfg, service, log_dir, remote, script_name, mode, payload, blocks):
+    metadata = {
+        "operation": "probe_tftp_script",
+        "status": "served",
+        "remote_addr": remote,
+        "script_name": script_name,
+        "mode": mode,
+        "size": len(payload),
+        "blocks": blocks,
+    }
+    SESSION_MANAGER.append_list_item(log_dir, "artifacts", metadata)
+    append_event(cfg, service, "probe_tftp_served", remote=remote, session=str(log_dir), details=metadata)
+
+
+def _handle_probe_tftp_packet(cfg, service, log_dir, sock, packet, addr, script_name, payload):
+    filename, mode = parse_tftp_rrq(packet)
+    remote = f"{addr[0]}:{addr[1]}"
+    if filename != script_name:
+        _record_probe_tftp_rejection(
+            cfg, service, log_dir, sock, addr, remote, filename, mode
+        )
+        return 0
+    try:
+        blocks = send_tftp_file(sock, addr, payload)
+    except TimeoutError as exc:
+        append_event(cfg, service, "probe_tftp_error", "error", remote=remote, session=str(log_dir), details={
+            "filename": filename,
+            "mode": mode,
+            "error": str(exc),
+        })
+        return 0
+    _record_probe_tftp_served(
+        cfg, service, log_dir, remote, script_name, mode, payload, blocks
+    )
+    return 1
+
+
+def _close_probe_tftp_socket(sock):
+    try:
+        unregister_socket(sock)
+        sock.close()
+    except OSError:
+        pass
+
+
+def _stop_probe_tftp_listener(cfg, service, log_dir, port):
+    stop_reason = current_shutdown_reason() or "server-exit"
+    if stop_reason == "bind_error":
+        return
+    mark_service_stopped(cfg, service, stop_reason)
+    SESSION_MANAGER.finish_record(cfg, service, log_dir, state="ended", exit_reason=stop_reason)
+    record_shutdown_event(cfg, service, session=log_dir)
+    append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "protocol": "udp", "reason": stop_reason})
+
+
+def serve_probe_tftp(cfg, timeout, max_sessions=0):
+    service = "probe-tftp"
+    port = int(cfg.get("GRIT_PROBE_TFTP_PORT", 22208))
+    host = _probe_http_host(cfg)
+    script_name = _probe_script_name(cfg)
+    script_text = probe_script_fn(cfg, host, int(cfg.get("GRIT_PROBE_PORT", 22207)))
+    payload = script_text.encode("utf-8")
+    target_command = render_probe_tftp_command(cfg, host=host, port=port)
+    log_dir = SESSION_MANAGER.log_dir(cfg, service)
+    session_details = _probe_tftp_session_details(port, script_name, target_command, cfg)
+    _start_probe_tftp_record(
+        cfg, service, log_dir, script_name, script_text, host, port,
+        target_command, session_details,
+    )
+    sessions = 0
+    sock = None
+    try:
+        sock = _bind_probe_tftp_socket(cfg, service, port, timeout)
+        _mark_probe_tftp_listening(cfg, service, log_dir, session_details)
         while not SHUTDOWN.is_set():
             try:
                 packet, addr = sock.recvfrom(516)
             except socket.timeout:
                 print("timeout waiting for TFTP probe request", file=sys.stderr)
                 return 1 if sessions == 0 else 0
-            filename, mode = parse_tftp_rrq(packet)
-            remote = f"{addr[0]}:{addr[1]}"
-            if filename != script_name:
-                sock.sendto(tftp_error_packet(1, "file not found"), addr)
-                append_event(cfg, service, "probe_tftp_rejected", "warning", remote=remote, session=str(log_dir), details={
-                    "filename": filename,
-                    "mode": mode,
-                    "reason": "file-not-found",
-                })
-                continue
-            try:
-                blocks = send_tftp_file(sock, addr, payload)
-            except TimeoutError as exc:
-                append_event(cfg, service, "probe_tftp_error", "error", remote=remote, session=str(log_dir), details={
-                    "filename": filename,
-                    "mode": mode,
-                    "error": str(exc),
-                })
-                continue
-            sessions += 1
-            metadata = {
-                "operation": "probe_tftp_script",
-                "status": "served",
-                "remote_addr": remote,
-                "script_name": script_name,
-                "mode": mode,
-                "size": len(payload),
-                "blocks": blocks,
-            }
-            SESSION_MANAGER.append_list_item(log_dir, "artifacts", metadata)
-            append_event(cfg, service, "probe_tftp_served", remote=remote, session=str(log_dir), details=metadata)
+            sessions += _handle_probe_tftp_packet(
+                cfg, service, log_dir, sock, packet, addr, script_name, payload
+            )
             if max_sessions and sessions >= max_sessions:
                 return 0
     except OSError as exc:
@@ -344,17 +405,9 @@ def serve_probe_tftp(cfg, timeout, max_sessions=0):
         print(f"{service}: unable to bind UDP {cfg['listen_host']}:{port}: {exc}", file=sys.stderr)
         raise
     finally:
-        try:
-            unregister_socket(sock)
-            sock.close()
-        except OSError:
-            pass
-        stop_reason = current_shutdown_reason() or "server-exit"
-        if stop_reason != "bind_error":
-            mark_service_stopped(cfg, service, stop_reason)
-            SESSION_MANAGER.finish_record(cfg, service, log_dir, state="ended", exit_reason=stop_reason)
-            record_shutdown_event(cfg, service, session=log_dir)
-            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "protocol": "udp", "reason": stop_reason})
+        if sock is not None:
+            _close_probe_tftp_socket(sock)
+        _stop_probe_tftp_listener(cfg, service, log_dir, port)
     return 0
 
 
