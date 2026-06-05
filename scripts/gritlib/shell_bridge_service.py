@@ -690,40 +690,233 @@ def bridge_relay(client, upstream, log_dir, session_timeout=0):
     return reason, bytes_from_client, bytes_from_upstream
 
 
-def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
-    port = int(cfg.get("bridge_listen_port", 22206))
-    dest_host = str(cfg.get("bridge_dest_host", "127.0.0.1"))
-    dest_port = int(cfg.get("bridge_dest_port", 0))
-    profile_name = str(cfg.get("bridge_profile") or "")
-    service = bridge_profile_service_name(profile_name)
-    bridge_route_path = ""
-    if profile_name:
-        try:
-            profile = (load_bridge_profiles(cfg).get("profiles") or {}).get(profile_name) or {}
-            bridge_route_path = str(bridge_profile_record(cfg, profile_name, profile).get("route_path") or "")
-        except Exception:
-            bridge_route_path = ""
-    if dest_port <= 0:
-        print("bridge: --bridge-dest-port is required", file=sys.stderr)
-        mark_service_error(cfg, service, ValueError("missing bridge destination port"), {
-            "listen_host": str(cfg.get("listen_host", "")),
-            "port": port,
-            "bridge_dest_host": dest_host,
-            "bridge_dest_port": dest_port,
-        })
-        return 2
-    log_dir = SESSION_MANAGER.log_dir(cfg, service)
-    bridge_details = {
+def _bridge_route_path(cfg, profile_name):
+    if not profile_name:
+        return ""
+    try:
+        profile = (load_bridge_profiles(cfg).get("profiles") or {}).get(profile_name) or {}
+        return str(bridge_profile_record(cfg, profile_name, profile).get("route_path") or "")
+    except Exception:
+        return ""
+
+
+def _bridge_details(port, dest_host, dest_port, profile_name, bridge_route_path):
+    return {
         "port": port,
         "bridge_dest_host": dest_host,
         "bridge_dest_port": dest_port,
         "bridge_profile": profile_name,
         "bridge_route_path": bridge_route_path,
     }
+
+
+def _mark_missing_bridge_destination(cfg, service, port, dest_host, dest_port):
+    print("bridge: --bridge-dest-port is required", file=sys.stderr)
+    mark_service_error(cfg, service, ValueError("missing bridge destination port"), {
+        "listen_host": str(cfg.get("listen_host", "")),
+        "port": port,
+        "bridge_dest_host": dest_host,
+        "bridge_dest_port": dest_port,
+    })
+
+
+def _start_bridge_listener_record(cfg, service, log_dir, port, dest_host, dest_port, bridge_details):
     SESSION_MANAGER.start_record(cfg, service, log_dir, details=bridge_details)
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     print(f"TCP bridge listener. Relaying {cfg['listen_host']}:{port} -> {dest_host}:{dest_port}")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), **bridge_details})
+
+
+def _mark_bridge_listener_listening(cfg, service, log_dir, port, bridge_details):
+    update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **bridge_details})
+    append_event(cfg, service, "service_start", session=str(log_dir), details=bridge_details)
+    record_selected_target_activity(
+        cfg, service, "bridge_listener",
+        details={**bridge_details, "status": "listening"},
+        session_id=SESSION_MANAGER.session_id(log_dir),
+    )
+    print_candidates(cfg, port)
+
+
+def _bridge_connection_metadata(remote, dest_host, dest_port, profile_name):
+    return {
+        "operation": "bridge",
+        "status": "error",
+        "remote_addr": remote,
+        "bridge_dest_host": dest_host,
+        "bridge_dest_port": dest_port,
+        "bridge_profile": profile_name,
+    }
+
+
+def _record_bridge_profile_success(cfg, profile_name, from_client, from_upstream):
+    if not profile_name:
+        return
+    data = load_bridge_profiles(cfg)
+    profile = data.get("profiles", {}).get(profile_name)
+    if not isinstance(profile, dict):
+        return
+    profile["last_successful_relay_at"] = utc_now()
+    profile["last_bytes_from_client"] = from_client
+    profile["last_bytes_from_upstream"] = from_upstream
+    profile["updated_at"] = utc_now()
+    data["profiles"][profile_name] = profile
+    atomic_write_json(bridge_profiles_path(cfg), data)
+
+
+def _record_bridge_profile_failure(cfg, profile_name, exc, remote, dest_host, dest_port):
+    if not profile_name:
+        return
+    data = load_bridge_profiles(cfg)
+    profile = data.get("profiles", {}).get(profile_name)
+    if not isinstance(profile, dict):
+        return
+    now = utc_now()
+    profile["last_failure_at"] = now
+    profile["last_failure_reason"] = str(exc)
+    profile["last_failure_remote_addr"] = remote
+    profile["last_failure_dest_host"] = dest_host
+    profile["last_failure_dest_port"] = dest_port
+    profile["updated_at"] = now
+    data["profiles"][profile_name] = profile
+    atomic_write_json(bridge_profiles_path(cfg), data)
+
+
+def _record_bridge_connection_success(
+    cfg,
+    service,
+    log_dir,
+    remote,
+    metadata,
+    bridge_route_path,
+    reason,
+    from_client,
+    from_upstream,
+):
+    metadata.update({
+        "status": "closed",
+        "reason": reason,
+        "bytes_from_client": from_client,
+        "bytes_from_upstream": from_upstream,
+        "bridge_route_path": bridge_route_path,
+    })
+    append_event(cfg, service, "bridge_closed", session=str(log_dir), remote=remote, details=metadata)
+    record_selected_target_activity(
+        cfg, service, "bridge_relay", remote=remote, details=metadata,
+        session_id=SESSION_MANAGER.session_id(log_dir),
+    )
+
+
+def _record_bridge_connection_failure(
+    cfg,
+    service,
+    log_dir,
+    remote,
+    metadata,
+    bridge_route_path,
+    exc,
+):
+    metadata.update({"status": "error", "reason": str(exc), "bridge_route_path": bridge_route_path})
+    append_event(cfg, service, "bridge_error", "error", session=str(log_dir), remote=remote, details=metadata)
+    record_selected_target_activity(
+        cfg, service, "bridge_error", remote=remote, details=metadata,
+        session_id=SESSION_MANAGER.session_id(log_dir),
+    )
+
+
+def _close_bridge_connection_sockets(client, upstream):
+    for s in (client, upstream):
+        if s is None:
+            continue
+        unregister_socket(s)
+        try:
+            s.close()
+        except OSError:
+            pass
+
+
+def _handle_bridge_client(
+    cfg,
+    service,
+    log_dir,
+    client,
+    addr,
+    dest_host,
+    dest_port,
+    profile_name,
+    bridge_route_path,
+    session_timeout,
+):
+    remote = f"{addr[0]}:{addr[1]}"
+    upstream = None
+    metadata = _bridge_connection_metadata(remote, dest_host, dest_port, profile_name)
+    register_socket(client)
+    try:
+        upstream = socket.create_connection((dest_host, dest_port), timeout=10)
+        register_socket(upstream)
+        metadata["status"] = "connected"
+        append_event(cfg, service, "bridge_connected", session=str(log_dir), remote=remote, details=metadata)
+        SESSION_MANAGER.update_record(log_dir, state="active", remote=remote)
+        SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=remote)
+        reason, from_client, from_upstream = bridge_relay(
+            client, upstream, log_dir, session_timeout=session_timeout or 0
+        )
+        _record_bridge_connection_success(
+            cfg, service, log_dir, remote, metadata, bridge_route_path,
+            reason, from_client, from_upstream,
+        )
+        _record_bridge_profile_success(cfg, profile_name, from_client, from_upstream)
+        print(f"bridge closed: reason={reason} client_bytes={from_client} upstream_bytes={from_upstream}")
+    except OSError as exc:
+        _record_bridge_connection_failure(
+            cfg, service, log_dir, remote, metadata, bridge_route_path, exc
+        )
+        _record_bridge_profile_failure(cfg, profile_name, exc, remote, dest_host, dest_port)
+        print(f"bridge failed: {exc}", file=sys.stderr)
+    finally:
+        _close_bridge_connection_sockets(client, upstream)
+        exit_reason = metadata.get("reason", metadata.get("status", ""))
+        SESSION_MANAGER.update_record(log_dir, state="listening", exit_reason=exit_reason)
+        SESSION_MANAGER.upsert_state(
+            cfg, log_dir, service, "listening", remote=remote, exit_reason=exit_reason
+        )
+
+
+def _stop_bridge_listener(cfg, service, log_dir, port, dest_host, dest_port, profile_name):
+    stop_reason = current_stop_reason("complete")
+    update_server_state(cfg, service, "stopped", {
+        "session_log": str(log_dir),
+        "bridge_dest_host": dest_host,
+        "bridge_dest_port": dest_port,
+        "bridge_profile": profile_name,
+        "pid": "",
+        "managed_by": "",
+        "stopped_at": utc_now(),
+        "stopped_reason": stop_reason,
+    })
+    SESSION_MANAGER.update_record(log_dir, state="ended", exit_reason=stop_reason)
+    SESSION_MANAGER.upsert_state(cfg, log_dir, service, "ended", exit_reason=stop_reason)
+    record_shutdown_event(cfg, service, session=log_dir)
+    append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
+
+
+def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
+    port = int(cfg.get("bridge_listen_port", 22206))
+    dest_host = str(cfg.get("bridge_dest_host", "127.0.0.1"))
+    dest_port = int(cfg.get("bridge_dest_port", 0))
+    profile_name = str(cfg.get("bridge_profile") or "")
+    service = bridge_profile_service_name(profile_name)
+    bridge_route_path = _bridge_route_path(cfg, profile_name)
+    if dest_port <= 0:
+        _mark_missing_bridge_destination(cfg, service, port, dest_host, dest_port)
+        return 2
+    log_dir = SESSION_MANAGER.log_dir(cfg, service)
+    bridge_details = _bridge_details(
+        port, dest_host, dest_port, profile_name, bridge_route_path
+    )
+    _start_bridge_listener_record(
+        cfg, service, log_dir, port, dest_host, dest_port, bridge_details
+    )
     sessions = 0
     sock = None
     bound = False
@@ -731,14 +924,7 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
         sock = bind_listen_socket(cfg, service, port, 20)
         bound = True
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), **bridge_details})
-        append_event(cfg, service, "service_start", session=str(log_dir), details=bridge_details)
-        record_selected_target_activity(
-            cfg, service, "bridge_listener",
-            details={**bridge_details, "status": "listening"},
-            session_id=SESSION_MANAGER.session_id(log_dir),
-        )
-        print_candidates(cfg, port)
+        _mark_bridge_listener_listening(cfg, service, log_dir, port, bridge_details)
         while not SHUTDOWN.is_set():
             print("Waiting for bridge client...")
             try:
@@ -750,81 +936,19 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
                 if SHUTDOWN.is_set():
                     return 0
                 raise
-            remote = f"{addr[0]}:{addr[1]}"
-            upstream = None
-            metadata = {
-                "operation": "bridge",
-                "status": "error",
-                "remote_addr": remote,
-                "bridge_dest_host": dest_host,
-                "bridge_dest_port": dest_port,
-                "bridge_profile": profile_name,
-            }
-            register_socket(client)
-            try:
-                upstream = socket.create_connection((dest_host, dest_port), timeout=10)
-                register_socket(upstream)
-                metadata["status"] = "connected"
-                append_event(cfg, service, "bridge_connected", session=str(log_dir), remote=remote, details=metadata)
-                SESSION_MANAGER.update_record(log_dir, state="active", remote=remote)
-                SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=remote)
-                reason, from_client, from_upstream = bridge_relay(client, upstream, log_dir, session_timeout=session_timeout or 0)
-                metadata.update({
-                    "status": "closed",
-                    "reason": reason,
-                    "bytes_from_client": from_client,
-                    "bytes_from_upstream": from_upstream,
-                    "bridge_route_path": bridge_route_path,
-                })
-                append_event(cfg, service, "bridge_closed", session=str(log_dir), remote=remote, details=metadata)
-                record_selected_target_activity(
-                    cfg, service, "bridge_relay", remote=remote, details=metadata,
-                    session_id=SESSION_MANAGER.session_id(log_dir),
-                )
-                if profile_name:
-                    data = load_bridge_profiles(cfg)
-                    profile = data.get("profiles", {}).get(profile_name)
-                    if isinstance(profile, dict):
-                        profile["last_successful_relay_at"] = utc_now()
-                        profile["last_bytes_from_client"] = from_client
-                        profile["last_bytes_from_upstream"] = from_upstream
-                        profile["updated_at"] = utc_now()
-                        data["profiles"][profile_name] = profile
-                        atomic_write_json(bridge_profiles_path(cfg), data)
-                print(f"bridge closed: reason={reason} client_bytes={from_client} upstream_bytes={from_upstream}")
-            except OSError as exc:
-                metadata.update({"status": "error", "reason": str(exc), "bridge_route_path": bridge_route_path})
-                append_event(cfg, service, "bridge_error", "error", session=str(log_dir), remote=remote, details=metadata)
-                record_selected_target_activity(
-                    cfg, service, "bridge_error", remote=remote, details=metadata,
-                    session_id=SESSION_MANAGER.session_id(log_dir),
-                )
-                if profile_name:
-                    data = load_bridge_profiles(cfg)
-                    profile = data.get("profiles", {}).get(profile_name)
-                    if isinstance(profile, dict):
-                        now = utc_now()
-                        profile["last_failure_at"] = now
-                        profile["last_failure_reason"] = str(exc)
-                        profile["last_failure_remote_addr"] = remote
-                        profile["last_failure_dest_host"] = dest_host
-                        profile["last_failure_dest_port"] = dest_port
-                        profile["updated_at"] = now
-                        data["profiles"][profile_name] = profile
-                        atomic_write_json(bridge_profiles_path(cfg), data)
-                print(f"bridge failed: {exc}", file=sys.stderr)
-            finally:
-                for s in (client, upstream):
-                    if s is None:
-                        continue
-                    unregister_socket(s)
-                    try:
-                        s.close()
-                    except OSError:
-                        pass
-                SESSION_MANAGER.update_record(log_dir, state="listening", exit_reason=metadata.get("reason", metadata.get("status", "")))
-                SESSION_MANAGER.upsert_state(cfg, log_dir, service, "listening", remote=remote, exit_reason=metadata.get("reason", metadata.get("status", "")))
-                sessions += 1
+            _handle_bridge_client(
+                cfg,
+                service,
+                log_dir,
+                client,
+                addr,
+                dest_host,
+                dest_port,
+                profile_name,
+                bridge_route_path,
+                session_timeout,
+            )
+            sessions += 1
             if max_sessions > 0 and sessions >= max_sessions:
                 break
     finally:
@@ -835,19 +959,7 @@ def serve_bridge(cfg, timeout, max_sessions=0, session_timeout=0):
             except OSError:
                 pass
         if bound:
-            stop_reason = current_stop_reason("complete")
-            update_server_state(cfg, service, "stopped", {
-                "session_log": str(log_dir),
-                "bridge_dest_host": dest_host,
-                "bridge_dest_port": dest_port,
-                "bridge_profile": profile_name,
-                "pid": "",
-                "managed_by": "",
-                "stopped_at": utc_now(),
-                "stopped_reason": stop_reason,
-            })
-            SESSION_MANAGER.update_record(log_dir, state="ended", exit_reason=stop_reason)
-            SESSION_MANAGER.upsert_state(cfg, log_dir, service, "ended", exit_reason=stop_reason)
-            record_shutdown_event(cfg, service, session=log_dir)
-            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
+            _stop_bridge_listener(
+                cfg, service, log_dir, port, dest_host, dest_port, profile_name
+            )
     return 0
