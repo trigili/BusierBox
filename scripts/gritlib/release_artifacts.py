@@ -560,17 +560,7 @@ def _sum_record_key(records, key):
     return total
 
 
-def release_status_summary(release=None, release_state=None, release_state_records=None):
-    release = release or {}
-    release_state = release_state or {}
-    release_state_records = release_state_records or []
-    artifact_stats = release.get("artifact_stats") or {}
-    release_license = release.get("release_license") or {}
-    license_records = release.get("release_license_records") or []
-    devices = release.get("devices") or []
-    tuples = release.get("tuples") or []
-    artifacts = release.get("artifacts") or []
-    recommendations = release.get("recommendation_records") or []
+def _release_state_summary(release_state, release_state_records):
     return {
         "release_present": bool(release_state.get("present", False)),
         "release_valid": bool(release_state.get("valid", False)),
@@ -583,6 +573,11 @@ def release_status_summary(release=None, release_state=None, release_state_recor
         ),
         "release_marker_count": release_state.get("release_marker_count", 0),
         "release_state_record_count": len(release_state_records),
+    }
+
+
+def _release_artifact_inventory_summary(release, artifact_stats, devices, tuples, artifacts):
+    return {
         "release_artifact_count": len(artifacts),
         "release_artifact_total_size": artifact_stats.get("total_size", 0),
         "release_device_count": len(devices),
@@ -629,6 +624,11 @@ def release_status_summary(release=None, release_state=None, release_state_recor
         "release_artifact_tuple_payload_preset_combo_count": len(
             release.get("artifacts_by_tuple_payload_preset") or {}
         ),
+    }
+
+
+def _release_artifact_provider_summary(artifact_stats):
+    return {
         "release_artifact_provider_tool_counts": (
             artifact_stats.get("by_provider_tool") or {}
         ),
@@ -652,6 +652,11 @@ def release_status_summary(release=None, release_state=None, release_state_recor
             or {}
         ),
         "release_artifact_doom_wad_count": artifact_stats.get("doom_wad_count", 0),
+    }
+
+
+def _release_license_summary(release_license, license_records):
+    return {
         "release_license_count": len(license_records),
         "release_license_valid_count": sum(
             1 for rec in license_records if isinstance(rec, dict) and rec.get("valid")
@@ -681,6 +686,11 @@ def release_status_summary(release=None, release_state=None, release_state_recor
         "release_package_license_audit_counts": record_count_by_key(
             license_records, "corresponding_source_requires_package_license_audit"
         ),
+    }
+
+
+def _release_recommendation_summary(recommendations):
+    return {
         "release_recommendation_count": len(recommendations),
         "release_recommendation_scope_counts": record_count_by_key(
             recommendations, "scope"
@@ -691,6 +701,32 @@ def release_status_summary(release=None, release_state=None, release_state_recor
         "release_recommendation_compatibility_counts": record_count_by_nested_key(
             recommendations, "compatibility", "label"
         ),
+    }
+
+
+def release_status_summary(release=None, release_state=None, release_state_records=None):
+    release = release or {}
+    release_state = release_state or {}
+    release_state_records = release_state_records or []
+    artifact_stats = release.get("artifact_stats") or {}
+    release_license = release.get("release_license") or {}
+    license_records = release.get("release_license_records") or []
+    devices = release.get("devices") or []
+    tuples = release.get("tuples") or []
+    artifacts = release.get("artifacts") or []
+    recommendations = release.get("recommendation_records") or []
+    return {
+        **_release_state_summary(release_state, release_state_records),
+        **_release_artifact_inventory_summary(
+            release,
+            artifact_stats,
+            devices,
+            tuples,
+            artifacts,
+        ),
+        **_release_artifact_provider_summary(artifact_stats),
+        **_release_license_summary(release_license, license_records),
+        **_release_recommendation_summary(recommendations),
     }
 
 
