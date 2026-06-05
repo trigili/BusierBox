@@ -504,7 +504,7 @@ def record_command_result(cfg, command_id, result_path):
     return record_command_result_payload(cfg, command_id, result, str(path))
 
 
-def command_queue_summary(cfg):
+def _command_queue_visible_commands(cfg):
     data = load_command_queue(cfg)
     commands = data.get("commands", [])
     target_filter_id = configured_target_filter(cfg)
@@ -522,8 +522,10 @@ def command_queue_summary(cfg):
             rec["status"] = "expired"
         else:
             rec["effective_status"] = str(rec.get("status") or "")
-    queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
-    delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
+    return commands, target_filter_id, unfiltered_command_count
+
+
+def _command_queue_record_indexes(commands):
     commands_by_id = {}
     commands_by_status = {}
     commands_by_command_sha256 = {}
@@ -542,16 +544,6 @@ def command_queue_summary(cfg):
     commands_by_result_output_exceeded = {}
     commands_by_result_output_size_bucket = {}
     commands_by_target_id = {}
-    commands_by_queue_policy_enabled = {}
-    commands_by_queue_policy_valid = {}
-    commands_by_queue_policy_execution_mode = {}
-    commands_by_queue_policy_allowed_commands = {}
-    commands_by_delivery_policy_enabled = {}
-    commands_by_delivery_policy_valid = {}
-    commands_by_delivery_policy_execution_mode = {}
-    commands_by_delivery_policy_delivery_supported = {}
-    commands_by_delivery_policy_result_upload_supported = {}
-    commands_by_delivery_policy_active_control_channel = {}
     status_counts = {}
     execution_decision_counts = {}
     result_status_counts = {}
@@ -632,6 +624,40 @@ def command_queue_summary(cfg):
             rec["result_output_size_bucket"] = size_bucket
             commands_by_result_output_size_bucket.setdefault(size_bucket, []).append(rec)
             result_output_size_bucket_counts[size_bucket] = result_output_size_bucket_counts.get(size_bucket, 0) + 1
+    return {
+        "commands_by_id": commands_by_id,
+        "commands_by_status": commands_by_status,
+        "commands_by_command_sha256": commands_by_command_sha256,
+        "commands_by_target_id": commands_by_target_id,
+        "commands_by_created_at": commands_by_created_at,
+        "commands_by_delivered_at": commands_by_delivered_at,
+        "commands_by_result_received_at": commands_by_result_received_at,
+        "commands_by_result_source_path": commands_by_result_source_path,
+        "commands_by_timeout_sec": commands_by_timeout_sec,
+        "commands_by_max_output_bytes": commands_by_max_output_bytes,
+        "commands_by_expire_sec": commands_by_expire_sec,
+        "commands_by_expires_at": commands_by_expires_at,
+        "commands_by_expired": commands_by_expired,
+        "commands_by_execution_decision": commands_by_execution_decision,
+        "commands_by_result_status": commands_by_result_status,
+        "commands_by_result_exit_code": commands_by_result_exit_code,
+        "commands_by_result_output_exceeded": commands_by_result_output_exceeded,
+        "commands_by_result_output_size_bucket": commands_by_result_output_size_bucket,
+        "status_counts": status_counts,
+        "execution_decision_counts": execution_decision_counts,
+        "result_status_counts": result_status_counts,
+        "result_exit_code_counts": result_exit_code_counts,
+        "result_output_size_bucket_counts": result_output_size_bucket_counts,
+        "latest_created_at": latest_created_at,
+        "latest_result_received_at": latest_result_received_at,
+    }
+
+
+def command_queue_summary(cfg):
+    commands, target_filter_id, unfiltered_command_count = _command_queue_visible_commands(cfg)
+    queued = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "queued"]
+    delivered = [rec for rec in commands if isinstance(rec, dict) and rec.get("status") == "delivered"]
+    command_indexes = _command_queue_record_indexes(commands)
     commands_by_queue_policy_enabled = records_by_nested_key(commands, "queue_policy_snapshot", "enabled")
     commands_by_queue_policy_valid = records_by_nested_key(commands, "queue_policy_snapshot", "valid")
     commands_by_queue_policy_execution_mode = records_by_nested_key(commands, "queue_policy_snapshot", "execution_mode")
@@ -728,24 +754,24 @@ def command_queue_summary(cfg):
         **mode_indexes,
         "mode_summary": mode_summary,
         "commands": commands,
-        "commands_by_id": commands_by_id,
-        "commands_by_status": commands_by_status,
-        "commands_by_command_sha256": commands_by_command_sha256,
-        "commands_by_target_id": commands_by_target_id,
-        "commands_by_created_at": commands_by_created_at,
-        "commands_by_delivered_at": commands_by_delivered_at,
-        "commands_by_result_received_at": commands_by_result_received_at,
-        "commands_by_result_source_path": commands_by_result_source_path,
-        "commands_by_timeout_sec": commands_by_timeout_sec,
-        "commands_by_max_output_bytes": commands_by_max_output_bytes,
-        "commands_by_expire_sec": commands_by_expire_sec,
-        "commands_by_expires_at": commands_by_expires_at,
-        "commands_by_expired": commands_by_expired,
-        "commands_by_execution_decision": commands_by_execution_decision,
-        "commands_by_result_status": commands_by_result_status,
-        "commands_by_result_exit_code": commands_by_result_exit_code,
-        "commands_by_result_output_exceeded": commands_by_result_output_exceeded,
-        "commands_by_result_output_size_bucket": commands_by_result_output_size_bucket,
+        "commands_by_id": command_indexes["commands_by_id"],
+        "commands_by_status": command_indexes["commands_by_status"],
+        "commands_by_command_sha256": command_indexes["commands_by_command_sha256"],
+        "commands_by_target_id": command_indexes["commands_by_target_id"],
+        "commands_by_created_at": command_indexes["commands_by_created_at"],
+        "commands_by_delivered_at": command_indexes["commands_by_delivered_at"],
+        "commands_by_result_received_at": command_indexes["commands_by_result_received_at"],
+        "commands_by_result_source_path": command_indexes["commands_by_result_source_path"],
+        "commands_by_timeout_sec": command_indexes["commands_by_timeout_sec"],
+        "commands_by_max_output_bytes": command_indexes["commands_by_max_output_bytes"],
+        "commands_by_expire_sec": command_indexes["commands_by_expire_sec"],
+        "commands_by_expires_at": command_indexes["commands_by_expires_at"],
+        "commands_by_expired": command_indexes["commands_by_expired"],
+        "commands_by_execution_decision": command_indexes["commands_by_execution_decision"],
+        "commands_by_result_status": command_indexes["commands_by_result_status"],
+        "commands_by_result_exit_code": command_indexes["commands_by_result_exit_code"],
+        "commands_by_result_output_exceeded": command_indexes["commands_by_result_output_exceeded"],
+        "commands_by_result_output_size_bucket": command_indexes["commands_by_result_output_size_bucket"],
         "commands_by_queue_policy_enabled": commands_by_queue_policy_enabled,
         "commands_by_queue_policy_valid": commands_by_queue_policy_valid,
         "commands_by_queue_policy_execution_mode": commands_by_queue_policy_execution_mode,
@@ -756,16 +782,16 @@ def command_queue_summary(cfg):
         "commands_by_delivery_policy_delivery_supported": commands_by_delivery_policy_delivery_supported,
         "commands_by_delivery_policy_result_upload_supported": commands_by_delivery_policy_result_upload_supported,
         "commands_by_delivery_policy_active_control_channel": commands_by_delivery_policy_active_control_channel,
-        "status_counts": status_counts,
+        "status_counts": command_indexes["status_counts"],
         "timeout_sec_counts": record_count_by_key(commands, "timeout_sec"),
         "max_output_bytes_counts": record_count_by_key(commands, "max_output_bytes"),
         "expire_sec_counts": record_count_by_key(commands, "expire_sec"),
         "expired_counts": record_count_by_key(commands, "expired"),
         "target_counts": record_count_by_key(commands, "target_id"),
-        "execution_decision_counts": execution_decision_counts,
-        "result_status_counts": result_status_counts,
-        "result_exit_code_counts": result_exit_code_counts,
-        "result_output_size_bucket_counts": result_output_size_bucket_counts,
+        "execution_decision_counts": command_indexes["execution_decision_counts"],
+        "result_status_counts": command_indexes["result_status_counts"],
+        "result_exit_code_counts": command_indexes["result_exit_code_counts"],
+        "result_output_size_bucket_counts": command_indexes["result_output_size_bucket_counts"],
         "queue_policy_enabled_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "enabled"),
         "queue_policy_valid_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "valid"),
         "queue_policy_execution_mode_counts": record_count_by_nested_key(commands, "queue_policy_snapshot", "execution_mode"),
@@ -776,8 +802,8 @@ def command_queue_summary(cfg):
         "delivery_policy_delivery_supported_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "delivery_supported"),
         "delivery_policy_result_upload_supported_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "result_upload_supported"),
         "delivery_policy_active_control_channel_counts": record_count_by_nested_key(commands, "delivery_policy_snapshot", "active_control_channel"),
-        "latest_created_at": latest_created_at,
-        "latest_result_received_at": latest_result_received_at,
+        "latest_created_at": command_indexes["latest_created_at"],
+        "latest_result_received_at": command_indexes["latest_result_received_at"],
         "queued_count": len(queued),
         "delivered_count": len(delivered),
         "result_count": result_count,
