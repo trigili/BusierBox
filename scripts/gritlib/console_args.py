@@ -316,13 +316,7 @@ def _add_console_listener_bridge_probe_args(parser):
                         help="probe script filename, default probe.sh")
 
 
-def build_arg_parser():
-    parser = _build_console_arg_parser_base()
-    _add_console_core_args(parser)
-    _add_console_file_target_args(parser)
-    _add_console_workflow_action_args(parser)
-    _add_console_queue_config_args(parser)
-    _add_console_listener_bridge_probe_args(parser)
+def _add_console_runtime_script_args(parser):
     parser.add_argument("--file-service-tls", choices=("yes", "no"),
                         help="use TLS for file-service uploads (default yes)")
     parser.add_argument("--timeout", type=float, default=0,
@@ -341,6 +335,16 @@ def build_arg_parser():
                         help="seconds to allow a scripted shell session; 0 disables the limit")
     parser.add_argument("--managed-by", help=argparse.SUPPRESS)
     parser.add_argument("--process-log", help=argparse.SUPPRESS)
+
+
+def build_arg_parser():
+    parser = _build_console_arg_parser_base()
+    _add_console_core_args(parser)
+    _add_console_file_target_args(parser)
+    _add_console_workflow_action_args(parser)
+    _add_console_queue_config_args(parser)
+    _add_console_listener_bridge_probe_args(parser)
+    _add_console_runtime_script_args(parser)
     return parser
 
 
