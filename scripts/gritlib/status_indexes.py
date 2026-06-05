@@ -892,10 +892,8 @@ def path_warning_status_context(path_status_records, browser_paths):
     }
 
 
-def operator_network_status(ips):
-    candidates = sorted_local_ips(ips or []) or ["OPERATOR_IP"]
-    selected_local_ip = candidates[0]
-    operator_network_records = [
+def _operator_network_records(candidates, selected_local_ip):
+    return [
         {
             "id": f"local-ip-{idx}",
             "kind": "local-ip",
@@ -908,7 +906,10 @@ def operator_network_status(ips):
         }
         for idx, ip in enumerate(candidates)
     ]
-    operator_network_index_maps = {
+
+
+def _operator_network_index_maps(operator_network_records):
+    return {
         "operator_network_records_by_id": {rec["id"]: rec for rec in operator_network_records},
         "operator_network_records_by_kind": records_by_key(operator_network_records, "kind"),
         "operator_network_records_by_ip": records_by_key(operator_network_records, "ip"),
@@ -919,11 +920,20 @@ def operator_network_status(ips):
             operator_network_records, "usable_for_generated_commands"
         ),
     }
-    selected_operator_network_record = next(
+
+
+def _selected_operator_network_record(operator_network_records):
+    return next(
         (rec for rec in operator_network_records if rec.get("selected")),
         operator_network_records[0] if operator_network_records else {},
     )
-    operator_network_state_record = {
+
+
+def _operator_network_state_record(selected_local_ip, operator_network_records):
+    selected_operator_network_record = _selected_operator_network_record(
+        operator_network_records
+    )
+    state_record = {
         "id": "operator-network",
         "selected_ip": selected_local_ip,
         "selected_source": selected_operator_network_record.get("source", ""),
@@ -939,14 +949,17 @@ def operator_network_status(ips):
             if rec.get("usable_for_generated_commands")
         ]),
     }
-    operator_network_state_record.update({
-        "has_detected_ip": operator_network_state_record.get("detected_ip_count", 0) > 0,
-        "uses_placeholder": bool(operator_network_state_record.get("selected_placeholder", False)),
-        "has_generated_command_ip": bool(operator_network_state_record.get("selected_usable_for_generated_commands", False)),
-        "has_multiple_ips": operator_network_state_record.get("record_count", 0) > 1,
+    state_record.update({
+        "has_detected_ip": state_record.get("detected_ip_count", 0) > 0,
+        "uses_placeholder": bool(state_record.get("selected_placeholder", False)),
+        "has_generated_command_ip": bool(state_record.get("selected_usable_for_generated_commands", False)),
+        "has_multiple_ips": state_record.get("record_count", 0) > 1,
     })
-    operator_network_state_records = [operator_network_state_record]
-    operator_network_state_index_maps = {
+    return state_record
+
+
+def _operator_network_state_index_maps(operator_network_state_records):
+    return {
         "operator_network_state_records_by_id": {
             rec.get("id", ""): rec for rec in operator_network_state_records if rec.get("id")
         },
@@ -964,6 +977,22 @@ def operator_network_status(ips):
             operator_network_state_records, "has_multiple_ips"
         ),
     }
+
+
+def operator_network_status(ips):
+    candidates = sorted_local_ips(ips or []) or ["OPERATOR_IP"]
+    selected_local_ip = candidates[0]
+    operator_network_records = _operator_network_records(candidates, selected_local_ip)
+    operator_network_index_maps = {
+        **_operator_network_index_maps(operator_network_records)
+    }
+    operator_network_state_record = _operator_network_state_record(
+        selected_local_ip, operator_network_records
+    )
+    operator_network_state_records = [operator_network_state_record]
+    operator_network_state_index_maps = _operator_network_state_index_maps(
+        operator_network_state_records
+    )
     return {
         "selected_local_ip": selected_local_ip,
         "operator_network_records": operator_network_records,
