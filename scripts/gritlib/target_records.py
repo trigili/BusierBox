@@ -2222,17 +2222,8 @@ def target_filter_status_context(
     }
 
 
-def target_filter_status_summary(
-    record,
-    records=None,
-    target_filter_id="",
-    target_mailbox_records=None,
-):
-    record = record or {}
-    records = records or []
+def _target_filter_unfiltered_count_summary(record):
     return {
-        "target_filter_active": bool(target_filter_id),
-        "target_filter_id": target_filter_id,
         "target_filter_unfiltered_target_count": record.get(
             "unfiltered_target_count", 0
         ),
@@ -2260,6 +2251,11 @@ def target_filter_status_summary(
         "target_filter_unfiltered_target_phone_home_record_count": record.get(
             "unfiltered_target_phone_home_record_count", 0
         ),
+    }
+
+
+def _target_filter_observed_activity_summary(record):
+    return {
         "target_filter_unfiltered_observed_activity_count": record.get(
             "unfiltered_observed_activity_count", 0
         ),
@@ -2275,6 +2271,11 @@ def target_filter_status_summary(
         "target_filter_reduced_observed_activity": bool(
             record.get("filter_reduced_observed_activity", False)
         ),
+    }
+
+
+def _target_filter_filtered_count_summary(record, target_mailbox_records=None):
+    return {
         "target_filter_event_tail_count": record.get("filtered_event_tail_count", 0),
         "target_filter_command_queue_command_count": record.get(
             "filtered_command_queue_command_count", 0
@@ -2288,7 +2289,12 @@ def target_filter_status_summary(
         "target_filter_target_phone_home_record_count": record.get(
             "filtered_target_phone_home_record_count", 0
         ),
-        "target_filter_record_count": len(records),
+    }
+
+
+def _target_filter_selected_target_summary(record, records=None):
+    return {
+        "target_filter_record_count": len(records or []),
         "target_filter_selected_target_found": bool(
             record.get("selected_target_found", False)
         ),
@@ -2301,6 +2307,24 @@ def target_filter_status_summary(
         "target_filter_selected_target_notes_present": bool(
             record.get("selected_target_notes_present", False)
         ),
+    }
+
+
+def target_filter_status_summary(
+    record,
+    records=None,
+    target_filter_id="",
+    target_mailbox_records=None,
+):
+    record = record or {}
+    records = records or []
+    return {
+        "target_filter_active": bool(target_filter_id),
+        "target_filter_id": target_filter_id,
+        **_target_filter_unfiltered_count_summary(record),
+        **_target_filter_observed_activity_summary(record),
+        **_target_filter_filtered_count_summary(record, target_mailbox_records),
+        **_target_filter_selected_target_summary(record, records),
     }
 
 
