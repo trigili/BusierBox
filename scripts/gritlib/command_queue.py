@@ -525,133 +525,201 @@ def _command_queue_visible_commands(cfg):
     return commands, target_filter_id, unfiltered_command_count
 
 
+def _empty_command_queue_record_index_state():
+    return {
+        "commands_by_id": {},
+        "commands_by_status": {},
+        "commands_by_command_sha256": {},
+        "commands_by_created_at": {},
+        "commands_by_delivered_at": {},
+        "commands_by_result_received_at": {},
+        "commands_by_result_source_path": {},
+        "commands_by_timeout_sec": {},
+        "commands_by_expire_sec": {},
+        "commands_by_expires_at": {},
+        "commands_by_expired": {},
+        "commands_by_max_output_bytes": {},
+        "commands_by_execution_decision": {},
+        "commands_by_result_status": {},
+        "commands_by_result_exit_code": {},
+        "commands_by_result_output_exceeded": {},
+        "commands_by_result_output_size_bucket": {},
+        "commands_by_target_id": {},
+        "status_counts": {},
+        "execution_decision_counts": {},
+        "result_status_counts": {},
+        "result_exit_code_counts": {},
+        "result_output_size_bucket_counts": {},
+        "latest_created_at": "",
+        "latest_result_received_at": "",
+    }
+
+
+def _queue_index_append(indexes, key, rec):
+    indexes.setdefault(key, []).append(rec)
+
+
+def _queue_index_count(counts, key):
+    counts[key] = counts.get(key, 0) + 1
+
+
+def _command_queue_index_values(rec):
+    command_text = str(rec.get("command") or "")
+    command_sha256 = str(rec.get("command_sha256") or "")
+    if command_text and not command_sha256:
+        command_sha256 = hashlib.sha256(command_text.encode("utf-8")).hexdigest()
+        rec["command_sha256"] = command_sha256
+    return {
+        "command_id": str(rec.get("id") or ""),
+        "status": str(rec.get("status") or ""),
+        "command_sha256": command_sha256,
+        "target_id": str(rec.get("target_id") or ""),
+        "execution_decision": str(rec.get("execution_decision") or ""),
+        "created_at": str(rec.get("created_at") or ""),
+        "delivered_at": str(rec.get("delivered_at") or ""),
+        "result_received_at": str(rec.get("result_received_at") or ""),
+        "result_source_path": str(rec.get("result_source_path") or ""),
+        "expires_at": str(rec.get("expires_at") or ""),
+    }
+
+
+def _apply_command_queue_base_indexes(state, rec, values):
+    if values["command_id"]:
+        state["commands_by_id"][values["command_id"]] = rec
+    if values["status"]:
+        _queue_index_append(state["commands_by_status"], values["status"], rec)
+        _queue_index_count(state["status_counts"], values["status"])
+    if values["command_sha256"]:
+        _queue_index_append(
+            state["commands_by_command_sha256"],
+            values["command_sha256"],
+            rec,
+        )
+    if values["target_id"]:
+        _queue_index_append(state["commands_by_target_id"], values["target_id"], rec)
+
+
+def _apply_command_queue_timing_indexes(state, rec, values):
+    if values["created_at"]:
+        _queue_index_append(state["commands_by_created_at"], values["created_at"], rec)
+    if values["delivered_at"]:
+        _queue_index_append(state["commands_by_delivered_at"], values["delivered_at"], rec)
+    if values["result_received_at"]:
+        _queue_index_append(
+            state["commands_by_result_received_at"],
+            values["result_received_at"],
+            rec,
+        )
+    if values["result_source_path"]:
+        _queue_index_append(
+            state["commands_by_result_source_path"],
+            values["result_source_path"],
+            rec,
+        )
+    timeout_sec = rec.get("timeout_sec")
+    if timeout_sec not in (None, ""):
+        _queue_index_append(state["commands_by_timeout_sec"], str(timeout_sec), rec)
+    max_output_bytes = rec.get("max_output_bytes")
+    if max_output_bytes not in (None, ""):
+        _queue_index_append(
+            state["commands_by_max_output_bytes"],
+            str(max_output_bytes),
+            rec,
+        )
+    expire_sec = rec.get("expire_sec")
+    if expire_sec not in (None, ""):
+        _queue_index_append(state["commands_by_expire_sec"], str(expire_sec), rec)
+    if values["expires_at"]:
+        _queue_index_append(state["commands_by_expires_at"], values["expires_at"], rec)
+    _queue_index_append(
+        state["commands_by_expired"],
+        "true" if rec.get("expired") is True else "false",
+        rec,
+    )
+    if values["created_at"] > state["latest_created_at"]:
+        state["latest_created_at"] = values["created_at"]
+    if values["result_received_at"] > state["latest_result_received_at"]:
+        state["latest_result_received_at"] = values["result_received_at"]
+
+
+def _apply_command_queue_execution_indexes(state, rec, values):
+    if values["execution_decision"]:
+        _queue_index_append(
+            state["commands_by_execution_decision"],
+            values["execution_decision"],
+            rec,
+        )
+        _queue_index_count(
+            state["execution_decision_counts"],
+            values["execution_decision"],
+        )
+
+
+def _apply_command_queue_result_indexes(state, rec, status):
+    result = rec.get("result") if isinstance(rec.get("result"), dict) else {}
+    result_status = str(result.get("status") or "")
+    result_exit_code = result.get("exit_code")
+    if result_status:
+        _queue_index_append(state["commands_by_result_status"], result_status, rec)
+        _queue_index_count(state["result_status_counts"], result_status)
+    if result_exit_code not in (None, ""):
+        key = str(result_exit_code)
+        _queue_index_append(state["commands_by_result_exit_code"], key, rec)
+        _queue_index_count(state["result_exit_code_counts"], key)
+    if status == "result-received":
+        output_key = "yes" if rec.get("result_output_exceeded_limit") is True else "no"
+        _queue_index_append(state["commands_by_result_output_exceeded"], output_key, rec)
+        size_bucket = command_result_output_size_bucket(rec.get("result_output_bytes"))
+        rec["result_output_size_bucket"] = size_bucket
+        _queue_index_append(
+            state["commands_by_result_output_size_bucket"],
+            size_bucket,
+            rec,
+        )
+        _queue_index_count(state["result_output_size_bucket_counts"], size_bucket)
+
+
+def _command_queue_record_index_result(state):
+    return {
+        "commands_by_id": state["commands_by_id"],
+        "commands_by_status": state["commands_by_status"],
+        "commands_by_command_sha256": state["commands_by_command_sha256"],
+        "commands_by_target_id": state["commands_by_target_id"],
+        "commands_by_created_at": state["commands_by_created_at"],
+        "commands_by_delivered_at": state["commands_by_delivered_at"],
+        "commands_by_result_received_at": state["commands_by_result_received_at"],
+        "commands_by_result_source_path": state["commands_by_result_source_path"],
+        "commands_by_timeout_sec": state["commands_by_timeout_sec"],
+        "commands_by_max_output_bytes": state["commands_by_max_output_bytes"],
+        "commands_by_expire_sec": state["commands_by_expire_sec"],
+        "commands_by_expires_at": state["commands_by_expires_at"],
+        "commands_by_expired": state["commands_by_expired"],
+        "commands_by_execution_decision": state["commands_by_execution_decision"],
+        "commands_by_result_status": state["commands_by_result_status"],
+        "commands_by_result_exit_code": state["commands_by_result_exit_code"],
+        "commands_by_result_output_exceeded": state["commands_by_result_output_exceeded"],
+        "commands_by_result_output_size_bucket": state["commands_by_result_output_size_bucket"],
+        "status_counts": state["status_counts"],
+        "execution_decision_counts": state["execution_decision_counts"],
+        "result_status_counts": state["result_status_counts"],
+        "result_exit_code_counts": state["result_exit_code_counts"],
+        "result_output_size_bucket_counts": state["result_output_size_bucket_counts"],
+        "latest_created_at": state["latest_created_at"],
+        "latest_result_received_at": state["latest_result_received_at"],
+    }
+
+
 def _command_queue_record_indexes(commands):
-    commands_by_id = {}
-    commands_by_status = {}
-    commands_by_command_sha256 = {}
-    commands_by_created_at = {}
-    commands_by_delivered_at = {}
-    commands_by_result_received_at = {}
-    commands_by_result_source_path = {}
-    commands_by_timeout_sec = {}
-    commands_by_expire_sec = {}
-    commands_by_expires_at = {}
-    commands_by_expired = {}
-    commands_by_max_output_bytes = {}
-    commands_by_execution_decision = {}
-    commands_by_result_status = {}
-    commands_by_result_exit_code = {}
-    commands_by_result_output_exceeded = {}
-    commands_by_result_output_size_bucket = {}
-    commands_by_target_id = {}
-    status_counts = {}
-    execution_decision_counts = {}
-    result_status_counts = {}
-    result_exit_code_counts = {}
-    result_output_size_bucket_counts = {}
-    latest_created_at = ""
-    latest_result_received_at = ""
+    state = _empty_command_queue_record_index_state()
     for rec in commands:
         if not isinstance(rec, dict):
             continue
-        command_id = str(rec.get("id") or "")
-        status = str(rec.get("status") or "")
-        command_text = str(rec.get("command") or "")
-        command_sha256 = str(rec.get("command_sha256") or "")
-        if command_text and not command_sha256:
-            command_sha256 = hashlib.sha256(command_text.encode("utf-8")).hexdigest()
-            rec["command_sha256"] = command_sha256
-        execution_decision = str(rec.get("execution_decision") or "")
-        created_at = str(rec.get("created_at") or "")
-        delivered_at = str(rec.get("delivered_at") or "")
-        result_received_at = str(rec.get("result_received_at") or "")
-        result_source_path = str(rec.get("result_source_path") or "")
-        expires_at = str(rec.get("expires_at") or "")
-        if command_id:
-            commands_by_id[command_id] = rec
-        if status:
-            commands_by_status.setdefault(status, []).append(rec)
-            status_counts[status] = status_counts.get(status, 0) + 1
-        if command_sha256:
-            commands_by_command_sha256.setdefault(command_sha256, []).append(rec)
-        target_id = str(rec.get("target_id") or "")
-        if target_id:
-            commands_by_target_id.setdefault(target_id, []).append(rec)
-        if created_at:
-            commands_by_created_at.setdefault(created_at, []).append(rec)
-        if delivered_at:
-            commands_by_delivered_at.setdefault(delivered_at, []).append(rec)
-        if result_received_at:
-            commands_by_result_received_at.setdefault(result_received_at, []).append(rec)
-        if result_source_path:
-            commands_by_result_source_path.setdefault(result_source_path, []).append(rec)
-        timeout_sec = rec.get("timeout_sec")
-        if timeout_sec not in (None, ""):
-            key = str(timeout_sec)
-            commands_by_timeout_sec.setdefault(key, []).append(rec)
-        max_output_bytes = rec.get("max_output_bytes")
-        if max_output_bytes not in (None, ""):
-            key = str(max_output_bytes)
-            commands_by_max_output_bytes.setdefault(key, []).append(rec)
-        expire_sec = rec.get("expire_sec")
-        if expire_sec not in (None, ""):
-            key = str(expire_sec)
-            commands_by_expire_sec.setdefault(key, []).append(rec)
-        if expires_at:
-            commands_by_expires_at.setdefault(expires_at, []).append(rec)
-        commands_by_expired.setdefault("true" if rec.get("expired") is True else "false", []).append(rec)
-        if execution_decision:
-            commands_by_execution_decision.setdefault(execution_decision, []).append(rec)
-            execution_decision_counts[execution_decision] = execution_decision_counts.get(execution_decision, 0) + 1
-        if created_at > latest_created_at:
-            latest_created_at = created_at
-        if result_received_at > latest_result_received_at:
-            latest_result_received_at = result_received_at
-        result = rec.get("result") if isinstance(rec.get("result"), dict) else {}
-        result_status = str(result.get("status") or "")
-        result_exit_code = result.get("exit_code")
-        if result_status:
-            commands_by_result_status.setdefault(result_status, []).append(rec)
-            result_status_counts[result_status] = result_status_counts.get(result_status, 0) + 1
-        if result_exit_code not in (None, ""):
-            key = str(result_exit_code)
-            commands_by_result_exit_code.setdefault(key, []).append(rec)
-            result_exit_code_counts[key] = result_exit_code_counts.get(key, 0) + 1
-        if status == "result-received":
-            output_key = "yes" if rec.get("result_output_exceeded_limit") is True else "no"
-            commands_by_result_output_exceeded.setdefault(output_key, []).append(rec)
-            size_bucket = command_result_output_size_bucket(rec.get("result_output_bytes"))
-            rec["result_output_size_bucket"] = size_bucket
-            commands_by_result_output_size_bucket.setdefault(size_bucket, []).append(rec)
-            result_output_size_bucket_counts[size_bucket] = result_output_size_bucket_counts.get(size_bucket, 0) + 1
-    return {
-        "commands_by_id": commands_by_id,
-        "commands_by_status": commands_by_status,
-        "commands_by_command_sha256": commands_by_command_sha256,
-        "commands_by_target_id": commands_by_target_id,
-        "commands_by_created_at": commands_by_created_at,
-        "commands_by_delivered_at": commands_by_delivered_at,
-        "commands_by_result_received_at": commands_by_result_received_at,
-        "commands_by_result_source_path": commands_by_result_source_path,
-        "commands_by_timeout_sec": commands_by_timeout_sec,
-        "commands_by_max_output_bytes": commands_by_max_output_bytes,
-        "commands_by_expire_sec": commands_by_expire_sec,
-        "commands_by_expires_at": commands_by_expires_at,
-        "commands_by_expired": commands_by_expired,
-        "commands_by_execution_decision": commands_by_execution_decision,
-        "commands_by_result_status": commands_by_result_status,
-        "commands_by_result_exit_code": commands_by_result_exit_code,
-        "commands_by_result_output_exceeded": commands_by_result_output_exceeded,
-        "commands_by_result_output_size_bucket": commands_by_result_output_size_bucket,
-        "status_counts": status_counts,
-        "execution_decision_counts": execution_decision_counts,
-        "result_status_counts": result_status_counts,
-        "result_exit_code_counts": result_exit_code_counts,
-        "result_output_size_bucket_counts": result_output_size_bucket_counts,
-        "latest_created_at": latest_created_at,
-        "latest_result_received_at": latest_result_received_at,
-    }
-
+        values = _command_queue_index_values(rec)
+        _apply_command_queue_base_indexes(state, rec, values)
+        _apply_command_queue_timing_indexes(state, rec, values)
+        _apply_command_queue_execution_indexes(state, rec, values)
+        _apply_command_queue_result_indexes(state, rec, values["status"])
+    return _command_queue_record_index_result(state)
 
 def _command_queue_policy_context(cfg):
     enabled = str(cfg.get("GRIT_COMMAND_QUEUE_ENABLE", "no"))
