@@ -157,25 +157,25 @@ def handle_file_service_http(cfg, conn, files_dir, addr):
     return metadata, status_code
 
 
-def serve_file_service(cfg, timeout, max_sessions=0):
-    service = "file-service"
-    port = int(cfg["GRIT_OPERATOR_FILE_SERVICE_PORT"])
-    use_tls = yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes"))
+def _file_service_tls_context(cfg, use_tls):
     cert = Path(str(cfg["tls_cert"]))
     key = Path(str(cfg["tls_key"]))
-    context = None
-    if use_tls:
-        if not cert.is_file() or not key.is_file():
-            print(f"TLS cert/key not found, generating: {cert}", file=sys.stderr)
-            if not generate_tls_cert(cert, key):
-                print(f"TLS cert/key generation failed — see {cert.parent}/openssl-generate.log", file=sys.stderr)
-                return 2
-            print(f"Generated TLS cert/key: {cert}", file=sys.stderr)
-        context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-        if hasattr(ssl, "TLSVersion"):
-            context.minimum_version = ssl.TLSVersion.TLSv1_2
-        context.load_cert_chain(str(cert), str(key))
-    log_dir = SESSION_MANAGER.log_dir(cfg, "file-service")
+    if not use_tls:
+        return None, 0
+    if not cert.is_file() or not key.is_file():
+        print(f"TLS cert/key not found, generating: {cert}", file=sys.stderr)
+        if not generate_tls_cert(cert, key):
+            print(f"TLS cert/key generation failed — see {cert.parent}/openssl-generate.log", file=sys.stderr)
+            return None, 2
+        print(f"Generated TLS cert/key: {cert}", file=sys.stderr)
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    if hasattr(ssl, "TLSVersion"):
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+    context.load_cert_chain(str(cert), str(key))
+    return context, 0
+
+
+def _start_file_service_record(cfg, service, log_dir, port, use_tls):
     SESSION_MANAGER.start_record(cfg, service, log_dir, details={"port": port, "tls": use_tls})
     files_dir = log_dir / "files"
     files_dir.mkdir(parents=True, exist_ok=True)
@@ -184,6 +184,118 @@ def serve_file_service(cfg, timeout, max_sessions=0):
     print("Also serves operator-staged files only when the target explicitly requests them with grit fetch.")
     print("This service does not execute commands or provide callback RPC.")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "staged_file": str(staged_file_path(cfg))})
+    return files_dir
+
+
+def _mark_file_service_listening(cfg, service, log_dir, port, use_tls):
+    update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "staged_file": str(staged_file_path(cfg))})
+    append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "tls": use_tls})
+    print_candidates(cfg, port)
+
+
+def _attach_file_service_upload_route(cfg, metadata):
+    if metadata.get("operation") != "upload" or "route_kind" in metadata:
+        return metadata
+    host = operator_advertised_host(cfg)
+    route = target_route_context(
+        cfg,
+        "file-service",
+        direct_host=host,
+        direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204),
+    )
+    return attach_target_route_fields(metadata, route)
+
+
+def _record_file_service_transfer(cfg, service, log_dir, remote, metadata):
+    target_rec = record_target_activity(cfg, metadata, service, session_id=log_dir.name)
+    if metadata.get("operation") == "fetch":
+        print(f"file-service fetch {metadata.get('status')}: {metadata.get('request_name')} <- {metadata.get('source_path', metadata.get('reason', ''))}")
+        SESSION_MANAGER.append_list_item(log_dir, "fetches", metadata)
+        append_event(cfg, service, "fetch_start", session=str(log_dir), remote=remote, details={"request_name": metadata.get("request_name", ""), "method": metadata.get("method", ""), "target_id": metadata.get("target_id", ""), "target_label": metadata.get("target_label", "")})
+        append_event(cfg, service, "fetch_complete", session=str(log_dir), remote=remote, details=metadata)
+    else:
+        print(f"file-service upload {metadata.get('status')}: {metadata.get('stored_path', metadata.get('reason', ''))}")
+        SESSION_MANAGER.append_list_item(log_dir, "uploads", metadata)
+        append_event(cfg, service, "upload_start", session=str(log_dir), remote=remote, details={"filename": metadata.get("filename", ""), "expected_size": metadata.get("expected_size", ""), "target_id": metadata.get("target_id", ""), "target_label": metadata.get("target_label", "")})
+        append_event(cfg, service, "upload_complete", session=str(log_dir), remote=remote, details=metadata)
+    if target_rec:
+        SESSION_MANAGER.update_record(log_dir, target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", ""))
+        SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=remote, target_id=metadata.get("target_id", ""))
+
+
+def _record_file_service_connection_close(cfg, service, log_dir, remote, metadata, status_code):
+    append_event(
+        cfg,
+        service,
+        "connection_close",
+        session=str(log_dir),
+        remote=remote,
+        details={
+            "operation": metadata.get("operation", ""),
+            "status": metadata.get("status", ""),
+            "http_status": metadata.get("http_status", status_code),
+            "request_name": metadata.get("request_name", ""),
+            "filename": metadata.get("filename", ""),
+            "target_id": metadata.get("target_id", ""),
+        },
+    )
+
+
+def _handle_file_service_connection(
+    cfg,
+    service,
+    log_dir,
+    raw,
+    addr,
+    tls_context,
+    files_dir,
+):
+    remote = f"{addr[0]}:{addr[1]}"
+    metadata = {}
+    status_code = ""
+    try:
+        with raw:
+            conn = tls_context.wrap_socket(raw, server_side=True) if tls_context else raw
+            with conn:
+                append_event(cfg, service, "connection_open", session=str(log_dir), remote=remote)
+                SESSION_MANAGER.update_record(log_dir, state="active", remote=remote)
+                SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=remote)
+                metadata, status_code = handle_file_service_http(cfg, conn, files_dir, addr)
+                metadata = _attach_file_service_upload_route(cfg, metadata)
+                _record_file_service_transfer(cfg, service, log_dir, remote, metadata)
+    except Exception as exc:
+        metadata = {"operation": "unknown", "status": "error", "reason": str(exc)}
+        status_code = 500
+        try:
+            send_json_response(raw, 500, {"status": "error", "reason": str(exc)})
+        except Exception:
+            pass
+        print(f"file-service request failed: {exc}", file=sys.stderr)
+        append_event(cfg, service, "request_error", "error", session=str(log_dir), details={"error": str(exc)})
+    finally:
+        _record_file_service_connection_close(
+            cfg, service, log_dir, remote, metadata, status_code
+        )
+
+
+def _stop_file_service(cfg, service, log_dir, port):
+    stop_reason = current_stop_reason("complete")
+    record_shutdown_event(cfg, service, session=log_dir)
+    mark_service_stopped(cfg, service, stop_reason)
+    SESSION_MANAGER.finish_record(cfg, service, log_dir, exit_reason=stop_reason)
+    append_event(cfg, service, "service_stop", session=str(log_dir),
+                 details={"port": port, "reason": stop_reason})
+
+
+def serve_file_service(cfg, timeout, max_sessions=0):
+    service = "file-service"
+    port = int(cfg["GRIT_OPERATOR_FILE_SERVICE_PORT"])
+    use_tls = yes(cfg.get("GRIT_OPERATOR_FILE_SERVICE_TLS", "yes"))
+    tls_context, tls_status = _file_service_tls_context(cfg, use_tls)
+    if tls_status:
+        return tls_status
+    log_dir = SESSION_MANAGER.log_dir(cfg, "file-service")
+    files_dir = _start_file_service_record(cfg, service, log_dir, port, use_tls)
     sessions = 0
     sock = None
     bound = False
@@ -191,9 +303,7 @@ def serve_file_service(cfg, timeout, max_sessions=0):
         sock = bind_listen_socket(cfg, service, port, 20)
         bound = True
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "staged_file": str(staged_file_path(cfg))})
-        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "tls": use_tls})
-        print_candidates(cfg, port)
+        _mark_file_service_listening(cfg, service, log_dir, port, use_tls)
         while not SHUTDOWN.is_set():
             print("Waiting for file upload/fetch...")
             try:
@@ -205,60 +315,10 @@ def serve_file_service(cfg, timeout, max_sessions=0):
                 if SHUTDOWN.is_set():
                     return 0
                 raise
-            metadata = {}
-            status_code = ""
-            try:
-                with raw:
-                    conn = context.wrap_socket(raw, server_side=True) if context else raw
-                    with conn:
-                        append_event(cfg, service, "connection_open", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
-                        SESSION_MANAGER.update_record(log_dir, state="active", remote=f"{addr[0]}:{addr[1]}")
-                        SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}")
-                        metadata, status_code = handle_file_service_http(cfg, conn, files_dir, addr)
-                        if metadata.get("operation") == "upload" and "route_kind" not in metadata:
-                            host = operator_advertised_host(cfg)
-                            route = target_route_context(cfg, "file-service", direct_host=host, direct_port=cfg.get("GRIT_OPERATOR_FILE_SERVICE_PORT", 22204))
-                            metadata = attach_target_route_fields(metadata, route)
-                        target_rec = record_target_activity(cfg, metadata, service, session_id=log_dir.name)
-                        if metadata.get("operation") == "fetch":
-                            print(f"file-service fetch {metadata.get('status')}: {metadata.get('request_name')} <- {metadata.get('source_path', metadata.get('reason', ''))}")
-                            SESSION_MANAGER.append_list_item(log_dir, "fetches", metadata)
-                            append_event(cfg, service, "fetch_start", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details={"request_name": metadata.get("request_name", ""), "method": metadata.get("method", ""), "target_id": metadata.get("target_id", ""), "target_label": metadata.get("target_label", "")})
-                            append_event(cfg, service, "fetch_complete", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
-                        else:
-                            print(f"file-service upload {metadata.get('status')}: {metadata.get('stored_path', metadata.get('reason', ''))}")
-                            SESSION_MANAGER.append_list_item(log_dir, "uploads", metadata)
-                            append_event(cfg, service, "upload_start", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details={"filename": metadata.get("filename", ""), "expected_size": metadata.get("expected_size", ""), "target_id": metadata.get("target_id", ""), "target_label": metadata.get("target_label", "")})
-                            append_event(cfg, service, "upload_complete", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
-                        if target_rec:
-                            SESSION_MANAGER.update_record(log_dir, target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", ""))
-                            SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}", target_id=metadata.get("target_id", ""))
-            except Exception as exc:
-                metadata = {"operation": "unknown", "status": "error", "reason": str(exc)}
-                status_code = 500
-                try:
-                    send_json_response(raw, 500, {"status": "error", "reason": str(exc)})
-                except Exception:
-                    pass
-                print(f"file-service request failed: {exc}", file=sys.stderr)
-                append_event(cfg, service, "request_error", "error", session=str(log_dir), details={"error": str(exc)})
-            finally:
-                append_event(
-                    cfg,
-                    service,
-                    "connection_close",
-                    session=str(log_dir),
-                    remote=f"{addr[0]}:{addr[1]}",
-                    details={
-                        "operation": metadata.get("operation", ""),
-                        "status": metadata.get("status", ""),
-                        "http_status": metadata.get("http_status", status_code),
-                        "request_name": metadata.get("request_name", ""),
-                        "filename": metadata.get("filename", ""),
-                        "target_id": metadata.get("target_id", ""),
-                    },
-                )
-                sessions += 1
+            _handle_file_service_connection(
+                cfg, service, log_dir, raw, addr, tls_context, files_dir
+            )
+            sessions += 1
             if max_sessions > 0 and sessions >= max_sessions:
                 break
     finally:
@@ -269,10 +329,5 @@ def serve_file_service(cfg, timeout, max_sessions=0):
             except OSError:
                 pass
         if bound:
-            stop_reason = current_stop_reason("complete")
-            record_shutdown_event(cfg, service, session=log_dir)
-            mark_service_stopped(cfg, service, stop_reason)
-            SESSION_MANAGER.finish_record(cfg, service, log_dir, exit_reason=stop_reason)
-            append_event(cfg, service, "service_stop", session=str(log_dir),
-                         details={"port": port, "reason": stop_reason})
+            _stop_file_service(cfg, service, log_dir, port)
     return 0
