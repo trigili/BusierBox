@@ -1041,7 +1041,7 @@ def _workbench_configuration_tooling_action_records(config_path, build_config):
     ]
 
 
-def _workbench_build_artifact_release_action_records(config_path, release_dir, operator_host, target_ctx):
+def _workbench_build_action_records(config_path):
     return [
         {
             "id": "package-artifact",
@@ -1075,6 +1075,11 @@ def _workbench_build_artifact_release_action_records(config_path, release_dir, o
             "target_execution": False,
             "event": "workbench_job_requested",
         },
+    ]
+
+
+def _workbench_bringup_action_records(config_path, release_dir, operator_host, target_ctx):
+    return [
         {
             "id": "bringup-recommend",
             "category": "bringup",
@@ -1107,6 +1112,11 @@ def _workbench_build_artifact_release_action_records(config_path, release_dir, o
             "target_execution": False,
             "event": "workbench_job_requested",
         },
+    ]
+
+
+def _workbench_artifact_trailer_action_records(config_path):
+    return [
         {
             "id": "inspect-artifact",
             "category": "artifact",
@@ -1155,6 +1165,11 @@ def _workbench_build_artifact_release_action_records(config_path, release_dir, o
             "target_execution": False,
             "event": "workbench_action_selected",
         },
+    ]
+
+
+def _workbench_release_action_records(config_path, release_dir):
+    return [
         {
             "id": "make-release",
             "category": "release",
@@ -1220,6 +1235,20 @@ def _workbench_build_artifact_release_action_records(config_path, release_dir, o
             "event": "workbench_action_selected",
         },
     ]
+
+
+def _workbench_build_artifact_release_action_records(config_path, release_dir, operator_host, target_ctx):
+    records = []
+    records.extend(_workbench_build_action_records(config_path))
+    records.extend(_workbench_bringup_action_records(
+        config_path,
+        release_dir,
+        operator_host,
+        target_ctx,
+    ))
+    records.extend(_workbench_artifact_trailer_action_records(config_path))
+    records.extend(_workbench_release_action_records(config_path, release_dir))
+    return records
 
 
 def _workbench_offline_action_records(config_path):
