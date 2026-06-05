@@ -709,6 +709,140 @@ def _operator_console_work_workflow_records(
     ]
 
 
+def _operator_console_daemon_workflow_record(
+    base,
+    context,
+    service_workflow_actions=None,
+    operator_daemon_workflow_actions=None,
+):
+    warning_records = context["warning_records"]
+    return {
+        "id": "daemon",
+        "workflow": "daemon",
+        "group": "control-plane",
+        "label": "Operator Daemon",
+        "description": "Start, stop, inspect, and install the optional systemd user service for daemon-owned workflows.",
+        "primary_collection": "operator_daemon_workflow_actions",
+        "source_collections": ["operator_daemon_workflow_actions", "service_workflow_actions", "services"],
+        "action_collections": ["operator_daemon_workflow_actions", "service_workflow_actions"],
+        "record_count": workflow_action_count(operator_daemon_workflow_actions),
+        "action_count": workflow_action_count(operator_daemon_workflow_actions) + workflow_action_count(service_workflow_actions),
+        "enter_runnable_action_count": workflow_enter_count(operator_daemon_workflow_actions) + workflow_enter_count(service_workflow_actions),
+        "pending_work_count": 0,
+        "warning_count": len(warning_records),
+        "headless_command": operator_console_headless_command("daemon", base),
+        "tui_shortcut": "o",
+        "line_mode_action": "11",
+        "target_scoped": False,
+        "multi_target": True,
+        "offline_queue_supported": True,
+    }
+
+
+def _operator_console_release_workflow_record(
+    base,
+    context,
+    release=None,
+    release_artifact_workflow_actions=None,
+):
+    release = release or {}
+    release_artifacts = context["release_artifacts"]
+    release_recommendations = context["release_recommendations"]
+    release_devices = context["release_devices"]
+    release_tuples = context["release_tuples"]
+    return {
+        "id": "release",
+        "workflow": "release",
+        "group": "artifacts",
+        "label": "Release Artifacts",
+        "description": "Inspect release artifacts, devices, tuples, compatibility recommendations, and staging choices.",
+        "primary_collection": "release_artifacts",
+        "source_collections": ["release_artifacts", "release_recommendations", "release_devices", "release_tuples"],
+        "action_collections": ["release_artifact_workflow_actions", "workbench_actions", "target_workflow_actions"],
+        "record_count": len(release_artifacts),
+        "action_count": workflow_action_count(release_artifact_workflow_actions),
+        "enter_runnable_action_count": workflow_enter_count(release_artifact_workflow_actions),
+        "recommendation_count": len(release_recommendations),
+        "device_count": len(release_devices),
+        "tuple_count": len(release_tuples),
+        "pending_work_count": 0,
+        "warning_count": 0 if release.get("valid") or not release else 1,
+        "headless_command": operator_console_headless_command("release", base),
+        "tui_shortcut": "6",
+        "line_mode_action": "6",
+        "target_scoped": False,
+        "multi_target": True,
+        "offline_queue_supported": False,
+    }
+
+
+def _operator_console_build_config_workflow_record(
+    base,
+    workbench_actions=None,
+    workbench_config_fields=None,
+):
+    return {
+        "id": "build-config",
+        "workflow": "build-config",
+        "group": "artifacts",
+        "label": "Build Config",
+        "description": "Configure compiled binary and payload options with equivalent headless commands.",
+        "primary_collection": "workbench_config_fields",
+        "source_collections": ["workbench_config_fields", "workbench_actions"],
+        "action_collections": ["workbench_actions"],
+        "record_count": len(workbench_config_fields or []),
+        "action_count": len([
+            rec for rec in workbench_actions or []
+            if str(rec.get("category") or "") in ("configuration", "build", "trailer")
+        ]),
+        "enter_runnable_action_count": 0,
+        "pending_work_count": 0,
+        "warning_count": 0,
+        "headless_command": operator_console_headless_command("build-config", base),
+        "tui_shortcut": "3",
+        "line_mode_action": "14",
+        "target_scoped": False,
+        "multi_target": False,
+        "offline_queue_supported": False,
+    }
+
+
+def _operator_console_jobs_workflow_record(base, workbench_actions=None, workbench_jobs=None):
+    return {
+        "id": "jobs",
+        "workflow": "jobs",
+        "group": "control-plane",
+        "label": "Jobs",
+        "description": "Inspect and cancel background workbench jobs.",
+        "primary_collection": "workbench_jobs",
+        "source_collections": ["workbench_jobs", "workbench_jobs_state_records"],
+        "action_collections": ["workbench_actions"],
+        "record_count": len(workbench_jobs or []),
+        "action_count": len([
+            rec for rec in workbench_actions or []
+            if rec.get("background_supported") is True
+        ]),
+        "enter_runnable_action_count": len([
+            rec for rec in workbench_jobs or []
+            if rec.get("cancel_supported") is True
+        ]),
+        "pending_work_count": len([
+            rec for rec in workbench_jobs or []
+            if str(rec.get("effective_state") or rec.get("state") or "") in ("running", "starting")
+        ]),
+        "warning_count": len([
+            rec for rec in workbench_jobs or []
+            if str(rec.get("effective_state") or rec.get("state") or "") in ("failed", "error")
+        ]),
+        "headless_command": operator_console_headless_command("jobs", base),
+        "tui_shortcut": "9",
+        "line_mode_action": "12",
+        "target_scoped": False,
+        "multi_target": False,
+        "offline_queue_supported": False,
+    }
+
+
 def _operator_console_control_artifact_workflow_records(
     base,
     context,
@@ -720,115 +854,29 @@ def _operator_console_control_artifact_workflow_records(
     workbench_jobs=None,
     release_artifact_workflow_actions=None,
 ):
-    release = release or {}
-    warning_records = context["warning_records"]
-    release_artifacts = context["release_artifacts"]
-    release_recommendations = context["release_recommendations"]
-    release_devices = context["release_devices"]
-    release_tuples = context["release_tuples"]
     return [
-        {
-            "id": "daemon",
-            "workflow": "daemon",
-            "group": "control-plane",
-            "label": "Operator Daemon",
-            "description": "Start, stop, inspect, and install the optional systemd user service for daemon-owned workflows.",
-            "primary_collection": "operator_daemon_workflow_actions",
-            "source_collections": ["operator_daemon_workflow_actions", "service_workflow_actions", "services"],
-            "action_collections": ["operator_daemon_workflow_actions", "service_workflow_actions"],
-            "record_count": workflow_action_count(operator_daemon_workflow_actions),
-            "action_count": workflow_action_count(operator_daemon_workflow_actions) + workflow_action_count(service_workflow_actions),
-            "enter_runnable_action_count": workflow_enter_count(operator_daemon_workflow_actions) + workflow_enter_count(service_workflow_actions),
-            "pending_work_count": 0,
-            "warning_count": len(warning_records),
-            "headless_command": operator_console_headless_command("daemon", base),
-            "tui_shortcut": "o",
-            "line_mode_action": "11",
-            "target_scoped": False,
-            "multi_target": True,
-            "offline_queue_supported": True,
-        },
-        {
-            "id": "release",
-            "workflow": "release",
-            "group": "artifacts",
-            "label": "Release Artifacts",
-            "description": "Inspect release artifacts, devices, tuples, compatibility recommendations, and staging choices.",
-            "primary_collection": "release_artifacts",
-            "source_collections": ["release_artifacts", "release_recommendations", "release_devices", "release_tuples"],
-            "action_collections": ["release_artifact_workflow_actions", "workbench_actions", "target_workflow_actions"],
-            "record_count": len(release_artifacts),
-            "action_count": workflow_action_count(release_artifact_workflow_actions),
-            "enter_runnable_action_count": workflow_enter_count(release_artifact_workflow_actions),
-            "recommendation_count": len(release_recommendations),
-            "device_count": len(release_devices),
-            "tuple_count": len(release_tuples),
-            "pending_work_count": 0,
-            "warning_count": 0 if release.get("valid") or not release else 1,
-            "headless_command": operator_console_headless_command("release", base),
-            "tui_shortcut": "6",
-            "line_mode_action": "6",
-            "target_scoped": False,
-            "multi_target": True,
-            "offline_queue_supported": False,
-        },
-        {
-            "id": "build-config",
-            "workflow": "build-config",
-            "group": "artifacts",
-            "label": "Build Config",
-            "description": "Configure compiled binary and payload options with equivalent headless commands.",
-            "primary_collection": "workbench_config_fields",
-            "source_collections": ["workbench_config_fields", "workbench_actions"],
-            "action_collections": ["workbench_actions"],
-            "record_count": len(workbench_config_fields or []),
-            "action_count": len([
-                rec for rec in workbench_actions or []
-                if str(rec.get("category") or "") in ("configuration", "build", "trailer")
-            ]),
-            "enter_runnable_action_count": 0,
-            "pending_work_count": 0,
-            "warning_count": 0,
-            "headless_command": operator_console_headless_command("build-config", base),
-            "tui_shortcut": "3",
-            "line_mode_action": "14",
-            "target_scoped": False,
-            "multi_target": False,
-            "offline_queue_supported": False,
-        },
-        {
-            "id": "jobs",
-            "workflow": "jobs",
-            "group": "control-plane",
-            "label": "Jobs",
-            "description": "Inspect and cancel background workbench jobs.",
-            "primary_collection": "workbench_jobs",
-            "source_collections": ["workbench_jobs", "workbench_jobs_state_records"],
-            "action_collections": ["workbench_actions"],
-            "record_count": len(workbench_jobs or []),
-            "action_count": len([
-                rec for rec in workbench_actions or []
-                if rec.get("background_supported") is True
-            ]),
-            "enter_runnable_action_count": len([
-                rec for rec in workbench_jobs or []
-                if rec.get("cancel_supported") is True
-            ]),
-            "pending_work_count": len([
-                rec for rec in workbench_jobs or []
-                if str(rec.get("effective_state") or rec.get("state") or "") in ("running", "starting")
-            ]),
-            "warning_count": len([
-                rec for rec in workbench_jobs or []
-                if str(rec.get("effective_state") or rec.get("state") or "") in ("failed", "error")
-            ]),
-            "headless_command": operator_console_headless_command("jobs", base),
-            "tui_shortcut": "9",
-            "line_mode_action": "12",
-            "target_scoped": False,
-            "multi_target": False,
-            "offline_queue_supported": False,
-        },
+        _operator_console_daemon_workflow_record(
+            base,
+            context,
+            service_workflow_actions=service_workflow_actions,
+            operator_daemon_workflow_actions=operator_daemon_workflow_actions,
+        ),
+        _operator_console_release_workflow_record(
+            base,
+            context,
+            release=release,
+            release_artifact_workflow_actions=release_artifact_workflow_actions,
+        ),
+        _operator_console_build_config_workflow_record(
+            base,
+            workbench_actions=workbench_actions,
+            workbench_config_fields=workbench_config_fields,
+        ),
+        _operator_console_jobs_workflow_record(
+            base,
+            workbench_actions=workbench_actions,
+            workbench_jobs=workbench_jobs,
+        ),
     ]
 
 
