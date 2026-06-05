@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import ast
 import contextlib
 import hashlib
 import io
@@ -33,6 +34,69 @@ SECTION_DESCRIPTIONS = {
     "line-console-transcript": "capture the scripted line-console UX transcript artifact",
 }
 SECTIONS = tuple(SECTION_DESCRIPTIONS)
+
+
+def gritlib_import_cycles():
+    module_paths = {
+        path.stem: path for path in (ROOT / "scripts" / "gritlib").glob("*.py")
+    }
+    edges = {name: set() for name in module_paths}
+    for name, path in module_paths.items():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("gritlib."):
+                dep = node.module.split(".", 1)[1].split(".", 1)[0]
+                if dep in module_paths:
+                    edges[name].add(dep)
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name.startswith("gritlib."):
+                        dep = alias.name.split(".", 1)[1].split(".", 1)[0]
+                        if dep in module_paths:
+                            edges[name].add(dep)
+
+    indexes = {}
+    lows = {}
+    stack = []
+    on_stack = set()
+    cycles = []
+
+    def visit(module):
+        indexes[module] = len(indexes)
+        lows[module] = indexes[module]
+        stack.append(module)
+        on_stack.add(module)
+        for dep in edges[module]:
+            if dep not in indexes:
+                visit(dep)
+                lows[module] = min(lows[module], lows[dep])
+            elif dep in on_stack:
+                lows[module] = min(lows[module], indexes[dep])
+        if lows[module] == indexes[module]:
+            component = []
+            while True:
+                dep = stack.pop()
+                on_stack.remove(dep)
+                component.append(dep)
+                if dep == module:
+                    break
+            if len(component) > 1:
+                cycles.append(sorted(component))
+
+    for module in sorted(edges):
+        if module not in indexes:
+            visit(module)
+    return sorted(cycles)
+
+
+def run_gritlib_import_cycle_check():
+    cycles = gritlib_import_cycles()
+    if cycles:
+        print("gritlib import cycles detected:", file=sys.stderr)
+        for cycle in cycles:
+            print("  " + " -> ".join(cycle), file=sys.stderr)
+        return 1
+    return 0
 
 
 def line_console_artifact_dir():
@@ -9572,6 +9636,8 @@ def main(argv=None):
     if run_line_route_command_registry_check() != 0:
         return 1
     if run_service_runtime_state_check() != 0:
+        return 1
+    if run_gritlib_import_cycle_check() != 0:
         return 1
     if run_line_selection_result_check() != 0:
         return 1
