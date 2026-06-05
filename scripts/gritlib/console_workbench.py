@@ -4779,6 +4779,36 @@ def _build_status_api_payload_from_contexts(
     )
 
 
+def _build_status_operator_state_payload(cfg, foundation_context, tail_context):
+    f = foundation_context
+    tc = tail_context
+    return {
+        "operator_session_dir": str(f["operator_dir"]),
+        "state_file": str(session_state_module.state_file_path(cfg)),
+        "staged_files": str(staged_files.staged_file_path(cfg)),
+        "command_queue_file": str(command_queue_module.command_queue_path(cfg)),
+        "command_copy_file": str(command_copy_module.command_copy_path(cfg)),
+        "bridge_profiles_file": str(bridge_routes.bridge_profiles_path(cfg)),
+        "command_copy": tc["command_copy"],
+        "command_copy_records": tc["command_copy_records"],
+        **tc["command_copy_record_indexes"],
+        "command_copy_state_records": tc["command_copy_state_records"],
+        **tc["command_copy_state_index_maps"],
+        "workbench_jobs_file": str(workbench_jobs_path(cfg)),
+        "targets_file": str(target_records.targets_path(cfg)),
+        "workbench_jobs_state": tc["workbench_jobs_state"],
+        "workbench_jobs_state_records": tc["workbench_jobs_state_records"],
+        **tc["workbench_jobs_state_index_maps"],
+        "operator_state_records": tc["operator_state_records_list"],
+        **tc["operator_state_index_maps"],
+        "build_config": str(build_config_path(cfg)),
+        "event_log": str(f["event_log_path"]),
+        "session_root": f["session_root"],
+        "tls_cert": str(cfg.get("tls_cert", "")),
+        "tls_key": str(cfg.get("tls_key", "")),
+    }
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
@@ -5055,29 +5085,11 @@ def status_document(cfg):
             transfer_activity_context=transfer_activity_context,
             tail_context=tail_context,
         ),
-        "operator_session_dir": str(operator_dir),
-        "state_file": str(session_state_module.state_file_path(cfg)),
-        "staged_files": str(staged_files.staged_file_path(cfg)),
-        "command_queue_file": str(command_queue_module.command_queue_path(cfg)),
-        "command_copy_file": str(command_copy_module.command_copy_path(cfg)),
-        "bridge_profiles_file": str(bridge_routes.bridge_profiles_path(cfg)),
-        "command_copy": command_copy,
-        "command_copy_records": command_copy_records,
-        **command_copy_record_indexes,
-        "command_copy_state_records": command_copy_state_records,
-        **command_copy_state_index_maps,
-        "workbench_jobs_file": str(workbench_jobs_path(cfg)),
-        "targets_file": str(target_records.targets_path(cfg)),
-        "workbench_jobs_state": workbench_jobs_state,
-        "workbench_jobs_state_records": workbench_jobs_state_records,
-        **workbench_jobs_state_index_maps,
-        "operator_state_records": operator_state_records_list,
-        **operator_state_index_maps,
-        "build_config": str(build_config_path(cfg)),
-        "event_log": str(event_log_path),
-        "session_root": session_root,
-        "tls_cert": str(cfg.get("tls_cert", "")),
-        "tls_key": str(cfg.get("tls_key", "")),
+        **_build_status_operator_state_payload(
+            cfg,
+            foundation_context,
+            tail_context,
+        ),
         "paths": paths,
         "path_status": path_status,
         "path_status_records": path_status_records,
