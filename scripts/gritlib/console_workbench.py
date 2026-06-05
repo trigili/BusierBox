@@ -4634,36 +4634,44 @@ def _build_status_tail_warning_context(
     return _status_tail_warning_fields(warning_context)
 
 
-def _build_status_tail_workflow_context(
+def _build_status_tail_queue_workflow_context(cfg, foundation_context, activity_queue_context, operator_path_context):
+    return _build_command_queue_workflow_status_context(
+        cfg,
+        activity_queue_context["command_queue"],
+        activity_queue_context["target_mailbox_records"],
+        operator_path_context["services_by_name"].get("command-queue") or {},
+        foundation_context["targets"],
+    )
+
+
+def _build_status_tail_service_probe_contexts(cfg, foundation_context, operator_path_context):
+    service_probe_workflow_context = _build_service_probe_workflow_status_context(
+        cfg,
+        foundation_context["services"],
+        operator_path_context["services_by_name"],
+        foundation_context["targets"],
+    )
+    return {
+        "service_probe_workflow_context": service_probe_workflow_context,
+        "service_probe_fields": _status_tail_service_probe_fields(
+            service_probe_workflow_context
+        ),
+    }
+
+
+def _build_status_tail_operator_console_context(
     cfg,
     *,
     foundation_context,
     activity_queue_context,
     transfer_activity_context,
-    operator_path_context,
-    warning_fields,
+    command_queue_workflow_context,
+    service_probe_fields,
 ):
     f = foundation_context
     aq = activity_queue_context
     ta = transfer_activity_context
-    services_by_name = operator_path_context["services_by_name"]
-    command_queue_workflow_context = _build_command_queue_workflow_status_context(
-        cfg,
-        aq["command_queue"],
-        aq["target_mailbox_records"],
-        services_by_name.get("command-queue") or {},
-        f["targets"],
-    )
-    service_probe_workflow_context = _build_service_probe_workflow_status_context(
-        cfg,
-        f["services"],
-        services_by_name,
-        f["targets"],
-    )
-    service_probe_fields = _status_tail_service_probe_fields(
-        service_probe_workflow_context
-    )
-    operator_console_workflow_context = _build_operator_console_workflow_status_context(
+    return _build_operator_console_workflow_status_context(
         cfg,
         targets=f["targets"],
         target_workflow_actions=aq["target_workflow_actions"],
@@ -4687,17 +4695,55 @@ def _build_status_tail_workflow_context(
         release=aq["release"],
         warnings=f["service_context"]["warnings"],
     )
-    warning_summary_context = _build_warning_summary_status_context(
-        f["service_context"]["warnings"],
+
+
+def _build_status_tail_warning_summary_context(foundation_context, warning_fields):
+    return _build_warning_summary_status_context(
+        foundation_context["service_context"]["warnings"],
         services_by_has_warnings=warning_fields["services_by_has_warnings"],
         services_by_warning_type=warning_fields["services_by_warning_type"],
         ports_by_has_warnings=warning_fields["ports_by_has_warnings"],
         ports_by_warning_type=warning_fields["ports_by_warning_type"],
     )
+
+
+def _build_status_tail_workflow_context(
+    cfg,
+    *,
+    foundation_context,
+    activity_queue_context,
+    transfer_activity_context,
+    operator_path_context,
+    warning_fields,
+):
+    f = foundation_context
+    aq = activity_queue_context
+    ta = transfer_activity_context
+    command_queue_workflow_context = _build_status_tail_queue_workflow_context(
+        cfg, f, aq, operator_path_context
+    )
+    service_probe_contexts = _build_status_tail_service_probe_contexts(
+        cfg, f, operator_path_context
+    )
+    service_probe_fields = service_probe_contexts["service_probe_fields"]
+    operator_console_workflow_context = _build_status_tail_operator_console_context(
+        cfg,
+        foundation_context=f,
+        activity_queue_context=aq,
+        transfer_activity_context=ta,
+        command_queue_workflow_context=command_queue_workflow_context,
+        service_probe_fields=service_probe_fields,
+    )
+    warning_summary_context = _build_status_tail_warning_summary_context(
+        f, warning_fields
+    )
     return {
         **_status_tail_command_queue_workflow_fields(
             command_queue_workflow_context
         ),
+        "service_probe_workflow_context": service_probe_contexts[
+            "service_probe_workflow_context"
+        ],
         **service_probe_fields,
         **_status_tail_operator_console_fields(operator_console_workflow_context),
         **_status_tail_warning_summary_fields(warning_summary_context),
