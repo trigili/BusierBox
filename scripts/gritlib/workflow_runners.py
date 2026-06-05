@@ -1148,6 +1148,71 @@ def _run_target_queue_staged_fetch_action(
     return 0
 
 
+def _run_target_start_service_action(cfg, scoped, rec, action_id, target_id, target_label, service):
+    start_service_process(scoped, service)
+    _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
+        "result": "started-service",
+        "service": service,
+    })
+    return 0
+
+
+def _target_bridge_profile_from_action(rec, action_id, action_name):
+    profile = str(rec.get("bridge_profile") or action_id.split(":", 1)[1])
+    if not profile:
+        raise ValueError(f"{action_name} target workflow action is missing a bridge profile")
+    return profile
+
+
+def _run_target_start_bridge_action(cfg, scoped, rec, action_id, target_id, target_label):
+    profile = _target_bridge_profile_from_action(rec, action_id, "start-bridge")
+    start_service_process(
+        scoped,
+        "bridge",
+        argv_extra=["--bridge-profile", profile],
+        state_service=bridge_routes.bridge_profile_service_name(profile),
+    )
+    _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
+        "result": "started-service",
+        "service": "bridge",
+        "bridge_profile": profile,
+    })
+    return 0
+
+
+def _run_target_queue_bridge_start_action(cfg, scoped, rec, action_id, target_id, target_label):
+    profile = _target_bridge_profile_from_action(rec, action_id, "queue-bridge-start")
+    bridge_profiles = bridge_routes.load_bridge_profiles(cfg).get("profiles") or {}
+    profile_rec = bridge_profiles.get(profile) if isinstance(bridge_profiles, dict) else {}
+    if not isinstance(profile_rec, dict) or not profile_rec:
+        raise ValueError(f"bridge profile not found: {profile}")
+    profile_info = bridge_routes.bridge_profile_record(cfg, profile, profile_rec)
+    command = "grit rshell start"
+    queued = command_queue_module.queue_command(scoped, command, metadata={
+        "work_kind": "bridge-start",
+        "workflow": "bridge",
+        "bridge_profile": profile,
+        "bridge_route_path": profile_info.get("route_path", ""),
+        "bridge_requires_target_online": bool(profile_info.get("requires_target_online")),
+        "route_kind": "bridge",
+    })
+    print(f"queued: {queued['id']}")
+    print(f"command: {queued['command']}")
+    print(f"target: {queued.get('target_id', '')} ({queued.get('target_label', '') or '-'})")
+    print(f"bridge profile: {profile}")
+    print(f"route: {profile_info.get('route_path', '')}")
+    _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
+        "result": "queued-bridge-start",
+        "command_id": queued.get("id", ""),
+        "command_sha256": queued.get("command_sha256", ""),
+        "queued_command": queued.get("command", ""),
+        "bridge_profile": profile,
+        "bridge_route_path": profile_info.get("route_path", ""),
+        "bridge_requires_target_online": bool(profile_info.get("requires_target_online")),
+    })
+    return 0
+
+
 def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None, show_commands=True):
     snap = workbench_snapshot(cfg)
     rec = select_workflow_action(snap.get("target_workflow_actions") or [], selector, "target")
@@ -1229,66 +1294,11 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             input_func=input_func,
         )
     if action_id == "start-file-service":
-        start_service_process(scoped, "file-service")
-        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
-            "result": "started-service",
-            "service": "file-service",
-        })
-        return 0
+        return _run_target_start_service_action(cfg, scoped, rec, action_id, target_id, target_label, "file-service")
     if action_id == "serve-probe":
-        start_service_process(scoped, "probe")
-        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
-            "result": "started-service",
-            "service": "probe",
-        })
-        return 0
+        return _run_target_start_service_action(cfg, scoped, rec, action_id, target_id, target_label, "probe")
     if action_id.startswith("start-bridge:"):
-        profile = str(rec.get("bridge_profile") or action_id.split(":", 1)[1])
-        if not profile:
-            raise ValueError("start-bridge target workflow action is missing a bridge profile")
-        start_service_process(
-            scoped,
-            "bridge",
-            argv_extra=["--bridge-profile", profile],
-            state_service=bridge_routes.bridge_profile_service_name(profile),
-        )
-        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
-            "result": "started-service",
-            "service": "bridge",
-            "bridge_profile": profile,
-        })
-        return 0
+        return _run_target_start_bridge_action(cfg, scoped, rec, action_id, target_id, target_label)
     if action_id.startswith("queue-bridge-start:"):
-        profile = str(rec.get("bridge_profile") or action_id.split(":", 1)[1])
-        if not profile:
-            raise ValueError("queue-bridge-start target workflow action is missing a bridge profile")
-        bridge_profiles = bridge_routes.load_bridge_profiles(cfg).get("profiles") or {}
-        profile_rec = bridge_profiles.get(profile) if isinstance(bridge_profiles, dict) else {}
-        if not isinstance(profile_rec, dict) or not profile_rec:
-            raise ValueError(f"bridge profile not found: {profile}")
-        profile_info = bridge_routes.bridge_profile_record(cfg, profile, profile_rec)
-        command = "grit rshell start"
-        queued = command_queue_module.queue_command(scoped, command, metadata={
-            "work_kind": "bridge-start",
-            "workflow": "bridge",
-            "bridge_profile": profile,
-            "bridge_route_path": profile_info.get("route_path", ""),
-            "bridge_requires_target_online": bool(profile_info.get("requires_target_online")),
-            "route_kind": "bridge",
-        })
-        print(f"queued: {queued['id']}")
-        print(f"command: {queued['command']}")
-        print(f"target: {queued.get('target_id', '')} ({queued.get('target_label', '') or '-'})")
-        print(f"bridge profile: {profile}")
-        print(f"route: {profile_info.get('route_path', '')}")
-        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
-            "result": "queued-bridge-start",
-            "command_id": queued.get("id", ""),
-            "command_sha256": queued.get("command_sha256", ""),
-            "queued_command": queued.get("command", ""),
-            "bridge_profile": profile,
-            "bridge_route_path": profile_info.get("route_path", ""),
-            "bridge_requires_target_online": bool(profile_info.get("requires_target_online")),
-        })
-        return 0
+        return _run_target_queue_bridge_start_action(cfg, scoped, rec, action_id, target_id, target_label)
     raise ValueError(f"unsupported target workflow action: {action_id}")
