@@ -464,19 +464,104 @@ def handle_command_queue_poll(cfg, conn, method, target, headers, addr):
         target_identity=target_identity,
     )
 
-def serve_command_queue(cfg, timeout, max_sessions=0):
-    service = "command-queue"
-    port = int(cfg.get("GRIT_COMMAND_QUEUE_PORT", "22205"))
-    if yes(cfg.get("GRIT_COMMAND_QUEUE_TLS", "yes")):
-        print("command-queue listener currently supports plain HTTP polling only; set command_queue_tls=no", file=sys.stderr)
-        update_server_state(cfg, service, "error", {"port": port, "error": "plain HTTP polling requires command_queue_tls=no"})
-        append_event(cfg, service, "bind_error", "error", details={"port": port, "error": "plain HTTP polling requires command_queue_tls=no"})
-        return 2
-    log_dir = SESSION_MANAGER.log_dir(cfg, service)
+def _reject_command_queue_tls_listener(cfg, service, port):
+    print("command-queue listener currently supports plain HTTP polling only; set command_queue_tls=no", file=sys.stderr)
+    update_server_state(cfg, service, "error", {"port": port, "error": "plain HTTP polling requires command_queue_tls=no"})
+    append_event(cfg, service, "bind_error", "error", details={"port": port, "error": "plain HTTP polling requires command_queue_tls=no"})
+
+
+def _start_command_queue_listener_record(cfg, service, log_dir, port):
     SESSION_MANAGER.start_record(cfg, service, log_dir, details={"port": port, "tls": False})
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
     print("Command queue poll listener. Delivers queued commands; target execution depends on explicit command queue policy.")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
+
+
+def _mark_command_queue_listening(cfg, service, log_dir, port):
+    update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
+    append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "tls": False})
+    print_candidates(cfg, port)
+
+
+def _record_command_queue_target_activity(cfg, service, log_dir, remote, metadata):
+    target_rec = record_target_activity(cfg, metadata, service, session_id=log_dir.name)
+    if not metadata.get("target_id"):
+        return
+    SESSION_MANAGER.update_record(
+        log_dir,
+        target_id=metadata.get("target_id", ""),
+        target_label=target_rec.get("label", metadata.get("target_label", "")),
+    )
+    SESSION_MANAGER.upsert_state(
+        cfg,
+        log_dir,
+        service,
+        "active",
+        remote=remote,
+        target_id=metadata.get("target_id", ""),
+        target_label=target_rec.get("label", metadata.get("target_label", "")),
+    )
+
+
+def _record_command_queue_request_events(cfg, service, log_dir, remote, metadata):
+    if metadata.get("operation") == "command_queue_result":
+        append_command_queue_result_events(cfg, SESSION_MANAGER, service, log_dir, remote, metadata)
+        print(f"command-queue result {metadata.get('status')}: id={metadata.get('command_id', '')}")
+        return
+    append_command_queue_poll_events(cfg, SESSION_MANAGER, service, log_dir, remote, metadata)
+    queued_display = metadata.get("queued_count", metadata.get("queued_count_before", 0))
+    print(f"command-queue poll {metadata.get('status')}: queued={queued_display}")
+
+
+def _handle_command_queue_connection(cfg, service, log_dir, conn, addr):
+    remote = f"{addr[0]}:{addr[1]}"
+    metadata = {}
+    try:
+        with conn:
+            append_event(cfg, service, "connection_open", session=str(log_dir), remote=remote)
+            SESSION_MANAGER.update_record(log_dir, state="active", remote=remote)
+            SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=remote)
+            method, target, _version, headers, body = read_http_headers(conn)
+            metadata = handle_command_queue_http(cfg, conn, method, target, headers, body, addr)
+            _record_command_queue_target_activity(cfg, service, log_dir, remote, metadata)
+            _record_command_queue_request_events(cfg, service, log_dir, remote, metadata)
+    except Exception as exc:
+        metadata = {"operation": "command_queue_poll", "status": "error", "reason": str(exc)}
+        try:
+            send_json_response(conn, 500, {"schema": 1, "status": "error", "reason": str(exc)})
+        except Exception:
+            pass
+        print(f"command-queue poll failed: {exc}", file=sys.stderr)
+        append_command_queue_poll_events(cfg, SESSION_MANAGER, service, log_dir, remote, metadata)
+        append_event(cfg, service, "request_error", "error", session=str(log_dir), details={"error": str(exc)})
+    finally:
+        append_event(cfg, service, "connection_close", session=str(log_dir), remote=remote, details=metadata)
+
+
+def _stop_command_queue_listener(cfg, service, log_dir, port):
+    stop_reason = current_stop_reason("complete")
+    update_server_state(cfg, service, "stopped", {
+        "session_log": str(log_dir),
+        "command_queue_file": str(command_queue_path(cfg)),
+        "pid": "",
+        "managed_by": "",
+        "stopped_at": utc_now(),
+        "stopped_reason": stop_reason,
+    })
+    SESSION_MANAGER.update_record(log_dir, state="ended", exit_reason=stop_reason)
+    SESSION_MANAGER.upsert_state(cfg, log_dir, service, "ended", exit_reason=stop_reason)
+    record_shutdown_event(cfg, service, session=log_dir)
+    append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
+
+
+def serve_command_queue(cfg, timeout, max_sessions=0):
+    service = "command-queue"
+    port = int(cfg.get("GRIT_COMMAND_QUEUE_PORT", "22205"))
+    if yes(cfg.get("GRIT_COMMAND_QUEUE_TLS", "yes")):
+        _reject_command_queue_tls_listener(cfg, service, port)
+        return 2
+    log_dir = SESSION_MANAGER.log_dir(cfg, service)
+    _start_command_queue_listener_record(cfg, service, log_dir, port)
     sessions = 0
     sock = None
     bound = False
@@ -484,9 +569,7 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
         sock = bind_listen_socket(cfg, service, port, 20)
         bound = True
         sock.settimeout(timeout)
-        update_server_state(cfg, service, "listening", {"session_log": str(log_dir), "command_queue_file": str(command_queue_path(cfg))})
-        append_event(cfg, service, "service_start", session=str(log_dir), details={"port": port, "tls": False})
-        print_candidates(cfg, port)
+        _mark_command_queue_listening(cfg, service, log_dir, port)
         while not SHUTDOWN.is_set():
             print("Waiting for command queue poll...")
             try:
@@ -498,37 +581,8 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
                 if SHUTDOWN.is_set():
                     return 0
                 raise
-            metadata = {}
-            try:
-                with conn:
-                    append_event(cfg, service, "connection_open", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}")
-                    SESSION_MANAGER.update_record(log_dir, state="active", remote=f"{addr[0]}:{addr[1]}")
-                    SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}")
-                    method, target, _version, headers, body = read_http_headers(conn)
-                    metadata = handle_command_queue_http(cfg, conn, method, target, headers, body, addr)
-                    target_rec = record_target_activity(cfg, metadata, service, session_id=log_dir.name)
-                    if metadata.get("target_id"):
-                        SESSION_MANAGER.update_record(log_dir, target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", metadata.get("target_label", "")))
-                        SESSION_MANAGER.upsert_state(cfg, log_dir, service, "active", remote=f"{addr[0]}:{addr[1]}", target_id=metadata.get("target_id", ""), target_label=target_rec.get("label", metadata.get("target_label", "")))
-                    if metadata.get("operation") == "command_queue_result":
-                        append_command_queue_result_events(cfg, SESSION_MANAGER, service, log_dir, f"{addr[0]}:{addr[1]}", metadata)
-                        print(f"command-queue result {metadata.get('status')}: id={metadata.get('command_id', '')}")
-                    else:
-                        append_command_queue_poll_events(cfg, SESSION_MANAGER, service, log_dir, f"{addr[0]}:{addr[1]}", metadata)
-                        queued_display = metadata.get("queued_count", metadata.get("queued_count_before", 0))
-                        print(f"command-queue poll {metadata.get('status')}: queued={queued_display}")
-            except Exception as exc:
-                metadata = {"operation": "command_queue_poll", "status": "error", "reason": str(exc)}
-                try:
-                    send_json_response(conn, 500, {"schema": 1, "status": "error", "reason": str(exc)})
-                except Exception:
-                    pass
-                print(f"command-queue poll failed: {exc}", file=sys.stderr)
-                append_command_queue_poll_events(cfg, SESSION_MANAGER, service, log_dir, f"{addr[0]}:{addr[1]}", metadata)
-                append_event(cfg, service, "request_error", "error", session=str(log_dir), details={"error": str(exc)})
-            finally:
-                append_event(cfg, service, "connection_close", session=str(log_dir), remote=f"{addr[0]}:{addr[1]}", details=metadata)
-                sessions += 1
+            _handle_command_queue_connection(cfg, service, log_dir, conn, addr)
+            sessions += 1
             if max_sessions > 0 and sessions >= max_sessions:
                 break
     finally:
@@ -539,17 +593,5 @@ def serve_command_queue(cfg, timeout, max_sessions=0):
             except OSError:
                 pass
         if bound:
-            stop_reason = current_stop_reason("complete")
-            update_server_state(cfg, service, "stopped", {
-                "session_log": str(log_dir),
-                "command_queue_file": str(command_queue_path(cfg)),
-                "pid": "",
-                "managed_by": "",
-                "stopped_at": utc_now(),
-                "stopped_reason": stop_reason,
-            })
-            SESSION_MANAGER.update_record(log_dir, state="ended", exit_reason=stop_reason)
-            SESSION_MANAGER.upsert_state(cfg, log_dir, service, "ended", exit_reason=stop_reason)
-            record_shutdown_event(cfg, service, session=log_dir)
-            append_event(cfg, service, "service_stop", session=str(log_dir), details={"port": port, "reason": stop_reason})
+            _stop_command_queue_listener(cfg, service, log_dir, port)
     return 0
