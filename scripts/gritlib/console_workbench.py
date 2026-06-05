@@ -2359,6 +2359,23 @@ def _build_release_api_collections(
     release_state_records,
 ):
     return {
+        **_build_release_artifact_api_collections(
+            release=release,
+        ),
+        **_build_release_workflow_api_collections(
+            release_artifact_workflow_actions=release_artifact_workflow_actions,
+        ),
+        **_build_release_license_device_api_collections(
+            release=release,
+        ),
+        **_build_release_state_api_collections(
+            release_state_records=release_state_records,
+        ),
+    }
+
+
+def _build_release_artifact_api_collections(*, release):
+    return {
         "release_artifacts": status_indexes.api_collection_record(
             "release_artifacts", release.get("artifacts") or [], "path", (
                 "artifacts_by_release_path", "artifacts_by_name", "artifacts_by_sha256",
@@ -2380,6 +2397,11 @@ def _build_release_api_collections(
                 "recommendations_by_payload_preset", "recommendations_by_compatibility",
             ), "release_recommendation_count",
         ),
+    }
+
+
+def _build_release_workflow_api_collections(*, release_artifact_workflow_actions):
+    return {
         "release_artifact_workflow_actions": status_indexes.api_collection_record(
             "release_artifact_workflow_actions", release_artifact_workflow_actions, "id", (
                 "release_artifact_workflow_actions_by_id",
@@ -2406,6 +2428,11 @@ def _build_release_api_collections(
                 "release_artifact_workflow_actions_by_curses_enter_action",
             ), "release_artifact_workflow_action_count",
         ),
+    }
+
+
+def _build_release_license_device_api_collections(*, release):
+    return {
         "release_licenses": status_indexes.api_collection_record(
             "release_licenses", release.get("release_license_records") or [], "project_license", (
                 "release_license_records_by_project_license",
@@ -2430,6 +2457,11 @@ def _build_release_api_collections(
                 "tuples_by_path", "tuples_by_artifact",
             ), "release_tuple_count",
         ),
+    }
+
+
+def _build_release_state_api_collections(*, release_state_records):
+    return {
         "release_state_records": status_indexes.api_collection_record(
             "release_state_records", release_state_records, "release_dir", (
                 "release_state_records_by_release_dir",
