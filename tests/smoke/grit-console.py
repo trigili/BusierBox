@@ -8861,6 +8861,7 @@ def main(argv=None):
     command_queue_src = (ROOT / "scripts" / "gritlib" / "command_queue.py").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
     file_service_src = (ROOT / "scripts" / "gritlib" / "file_service.py").read_text()
+    shell_bridge_service_src = (ROOT / "scripts" / "gritlib" / "shell_bridge_service.py").read_text()
     line_command_queue_src = (ROOT / "scripts" / "gritlib" / "line_command_queue.py").read_text()
     line_events_src = (ROOT / "scripts" / "gritlib" / "line_events.py").read_text()
     line_module_src = "\n".join(path.read_text() for path in sorted((ROOT / "scripts" / "gritlib").glob("line_*.py")))
@@ -8884,6 +8885,7 @@ def main(argv=None):
         command_queue_src,
         file_service_src,
         file_transfer_src,
+        shell_bridge_service_src,
         line_command_queue_src,
         line_events_src,
         line_module_src,
@@ -8914,7 +8916,7 @@ def main(argv=None):
         return 1
 
     # New config field names: GRIT_RSHELL_SOCAT_PORT (not socat_listen_port or shell_listen_port)
-    if "GRIT_RSHELL_SOCAT_PORT" not in src:
+    if "GRIT_RSHELL_SOCAT_PORT" not in src + shell_bridge_service_src:
         print("grit-console: shell_listen_port not found (expected rename from socat_listen_port)", file=sys.stderr)
         return 1
     if "sys.stdin.isatty()" not in workbench_pager_src or "--no-stdin" not in workbench_pager_src or "--log-only" not in workbench_pager_src:
@@ -8984,13 +8986,13 @@ def main(argv=None):
     for word in ("tty.setraw", "tcsetattr", "SSLWantReadError", "SSLWantWriteError",
                  "bytearray", "--one-shot", "listener remains open", 'reason = "active"',
                  "TLSVersion.TLSv1_2"):
-        if word not in src + console_args_src + operator_io_src + tls_io_src:
+        if word not in src + shell_bridge_service_src + console_args_src + operator_io_src + tls_io_src:
             print(f"grit-console: robust interactive relay feature missing: {word}", file=sys.stderr)
             return 1
     for reason in ("stdin_eof", "remote_eof", "socket_error", "tls_error", "keyboard_interrupt", "timeout"):
-        if reason not in src:
-            print(f"grit-console: relay exit reason missing: {reason}", file=sys.stderr)
-            return 1
+            if reason not in src + shell_bridge_service_src:
+                print(f"grit-console: relay exit reason missing: {reason}", file=sys.stderr)
+                return 1
     for word in (
         "Receive-only file service",
         "local/sessions",
@@ -9004,17 +9006,17 @@ def main(argv=None):
             return 1
     for word in ("reverse_forward_active", "requested_port", "forward_host",
                  "reverse_forward_listener", "reverse-forward listener bind failed"):
-        if word not in src:
-            print(f"grit-console: reverse forward event missing: {word}", file=sys.stderr)
-            return 1
-    if 'name="grit-reverse-forward"' not in src or "join(timeout=2.0)" not in src:
+            if word not in src + shell_bridge_service_src:
+                print(f"grit-console: reverse forward event missing: {word}", file=sys.stderr)
+                return 1
+    if 'name="grit-reverse-forward"' not in src + shell_bridge_service_src or "join(timeout=2.0)" not in src + shell_bridge_service_src:
         print("grit-console: reverse-forward listener thread is not explicitly owned/joined", file=sys.stderr)
         return 1
-    if ("grit-reverse-forward-pipe-" not in src or
-            "register_socket(local)" not in src or
-            "register_transport(chan)" not in src or
-            "register_thread(threading.Thread(" not in src or
-            "daemon=True" in src):
+    if ("grit-reverse-forward-pipe-" not in src + shell_bridge_service_src or
+            "register_socket(local)" not in src + shell_bridge_service_src or
+            "register_transport(chan)" not in src + shell_bridge_service_src or
+            "register_thread(threading.Thread(" not in src + shell_bridge_service_src or
+            "daemon=True" in src + shell_bridge_service_src):
         print("grit-console: reverse-forward relay resources are not explicitly owned", file=sys.stderr)
         return 1
     for word in ("ServiceManager", "SERVICE_MANAGER = ServiceManager(", "register_transport",
