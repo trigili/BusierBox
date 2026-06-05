@@ -8,81 +8,125 @@ from gritlib.record_utils import (
 from gritlib.target_records import records_for_target
 
 
+def _empty_session_record_index_state():
+    return {
+        "by_id": {},
+        "by_service": {},
+        "by_state": {},
+        "by_exit_reason": {},
+        "by_remote": {},
+        "by_service_state": {},
+        "by_service_exit_reason": {},
+        "by_service_remote": {},
+        "by_target_id": {},
+        "by_has_uploads": {"yes": [], "no": []},
+        "by_has_fetches": {"yes": [], "no": []},
+        "by_has_events": {"yes": [], "no": []},
+        "by_has_artifacts": {"yes": [], "no": []},
+        "by_has_session_log": {"yes": [], "no": []},
+        "by_duration_known": {"yes": [], "no": []},
+        "by_metadata_exists": {"yes": [], "no": []},
+        "by_event_log_exists": {"yes": [], "no": []},
+        "by_session_log_exists": {"yes": [], "no": []},
+    }
+
+
+def _session_record_index_values(rec):
+    return {
+        "session_id": str(rec.get("session_id") or Path(str(rec.get("path", ""))).name),
+        "service": str(rec.get("service") or ""),
+        "state": str(rec.get("state") or ""),
+        "exit_reason": str(rec.get("exit_reason") or ""),
+        "remote": str(rec.get("remote") or ""),
+        "target_id": str(rec.get("target_id") or ""),
+    }
+
+
+def _apply_session_record_identity_indexes(state, rec, values):
+    if values["session_id"]:
+        state["by_id"][values["session_id"]] = rec
+    if values["service"]:
+        state["by_service"].setdefault(values["service"], []).append(rec)
+    if values["state"]:
+        state["by_state"].setdefault(values["state"], []).append(rec)
+    if values["exit_reason"]:
+        state["by_exit_reason"].setdefault(values["exit_reason"], []).append(rec)
+    if values["remote"]:
+        state["by_remote"].setdefault(values["remote"], []).append(rec)
+    if values["target_id"]:
+        state["by_target_id"].setdefault(values["target_id"], []).append(rec)
+
+
+def _apply_session_record_composite_indexes(state, rec, values):
+    if values["service"] and values["state"]:
+        state["by_service_state"].setdefault(
+            f"{values['service']}:{values['state']}", []
+        ).append(rec)
+    if values["service"] and values["exit_reason"]:
+        state["by_service_exit_reason"].setdefault(
+            f"{values['service']}:{values['exit_reason']}", []
+        ).append(rec)
+    if values["service"] and values["remote"]:
+        state["by_service_remote"].setdefault(
+            f"{values['service']}:{values['remote']}", []
+        ).append(rec)
+
+
+def _apply_session_record_presence_indexes(state, rec):
+    state["by_has_uploads"][
+        "yes" if rec.get("has_uploads") is True or int_value(rec.get("upload_count")) > 0 else "no"
+    ].append(rec)
+    state["by_has_fetches"][
+        "yes" if rec.get("has_fetches") is True or int_value(rec.get("fetch_count")) > 0 else "no"
+    ].append(rec)
+    state["by_has_events"][
+        "yes" if rec.get("has_events") is True or int_value(rec.get("event_count")) > 0 else "no"
+    ].append(rec)
+    state["by_has_artifacts"][
+        "yes" if rec.get("has_artifacts") is True or int_value(rec.get("artifact_count")) > 0 else "no"
+    ].append(rec)
+    state["by_has_session_log"][
+        "yes" if rec.get("has_session_log") is True or int_value(rec.get("session_log_size")) > 0 else "no"
+    ].append(rec)
+    state["by_duration_known"]["yes" if rec.get("duration_sec") not in (None, "") else "no"].append(rec)
+    state["by_metadata_exists"]["yes" if rec.get("metadata_exists") is True else "no"].append(rec)
+    state["by_event_log_exists"]["yes" if rec.get("event_log_exists") is True else "no"].append(rec)
+    state["by_session_log_exists"]["yes" if rec.get("session_log_exists") is True else "no"].append(rec)
+
+
+def _session_record_index_result(state):
+    return (
+        state["by_id"],
+        state["by_service"],
+        state["by_state"],
+        state["by_exit_reason"],
+        state["by_remote"],
+        state["by_service_state"],
+        state["by_service_exit_reason"],
+        state["by_service_remote"],
+        state["by_target_id"],
+        state["by_has_uploads"],
+        state["by_has_fetches"],
+        state["by_has_events"],
+        state["by_has_artifacts"],
+        state["by_has_session_log"],
+        state["by_duration_known"],
+        state["by_metadata_exists"],
+        state["by_event_log_exists"],
+        state["by_session_log_exists"],
+    )
+
+
 def session_record_indexes(records):
-    by_id = {}
-    by_service = {}
-    by_state = {}
-    by_exit_reason = {}
-    by_remote = {}
-    by_service_state = {}
-    by_service_exit_reason = {}
-    by_service_remote = {}
-    by_target_id = {}
-    by_has_uploads = {"yes": [], "no": []}
-    by_has_fetches = {"yes": [], "no": []}
-    by_has_events = {"yes": [], "no": []}
-    by_has_artifacts = {"yes": [], "no": []}
-    by_has_session_log = {"yes": [], "no": []}
-    by_duration_known = {"yes": [], "no": []}
-    by_metadata_exists = {"yes": [], "no": []}
-    by_event_log_exists = {"yes": [], "no": []}
-    by_session_log_exists = {"yes": [], "no": []}
+    state = _empty_session_record_index_state()
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
-        session_id_value = str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
-        service = str(rec.get("service") or "")
-        state = str(rec.get("state") or "")
-        exit_reason = str(rec.get("exit_reason") or "")
-        remote = str(rec.get("remote") or "")
-        target_id = str(rec.get("target_id") or "")
-        if session_id_value:
-            by_id[session_id_value] = rec
-        if service:
-            by_service.setdefault(service, []).append(rec)
-        if state:
-            by_state.setdefault(state, []).append(rec)
-        if exit_reason:
-            by_exit_reason.setdefault(exit_reason, []).append(rec)
-        if remote:
-            by_remote.setdefault(remote, []).append(rec)
-        if service and state:
-            by_service_state.setdefault(f"{service}:{state}", []).append(rec)
-        if service and exit_reason:
-            by_service_exit_reason.setdefault(f"{service}:{exit_reason}", []).append(rec)
-        if service and remote:
-            by_service_remote.setdefault(f"{service}:{remote}", []).append(rec)
-        if target_id:
-            by_target_id.setdefault(target_id, []).append(rec)
-        by_has_uploads["yes" if rec.get("has_uploads") is True or int_value(rec.get("upload_count")) > 0 else "no"].append(rec)
-        by_has_fetches["yes" if rec.get("has_fetches") is True or int_value(rec.get("fetch_count")) > 0 else "no"].append(rec)
-        by_has_events["yes" if rec.get("has_events") is True or int_value(rec.get("event_count")) > 0 else "no"].append(rec)
-        by_has_artifacts["yes" if rec.get("has_artifacts") is True or int_value(rec.get("artifact_count")) > 0 else "no"].append(rec)
-        by_has_session_log["yes" if rec.get("has_session_log") is True or int_value(rec.get("session_log_size")) > 0 else "no"].append(rec)
-        by_duration_known["yes" if rec.get("duration_sec") not in (None, "") else "no"].append(rec)
-        by_metadata_exists["yes" if rec.get("metadata_exists") is True else "no"].append(rec)
-        by_event_log_exists["yes" if rec.get("event_log_exists") is True else "no"].append(rec)
-        by_session_log_exists["yes" if rec.get("session_log_exists") is True else "no"].append(rec)
-    return (
-        by_id,
-        by_service,
-        by_state,
-        by_exit_reason,
-        by_remote,
-        by_service_state,
-        by_service_exit_reason,
-        by_service_remote,
-        by_target_id,
-        by_has_uploads,
-        by_has_fetches,
-        by_has_events,
-        by_has_artifacts,
-        by_has_session_log,
-        by_duration_known,
-        by_metadata_exists,
-        by_event_log_exists,
-        by_session_log_exists,
-    )
+        values = _session_record_index_values(rec)
+        _apply_session_record_identity_indexes(state, rec, values)
+        _apply_session_record_composite_indexes(state, rec, values)
+        _apply_session_record_presence_indexes(state, rec)
+    return _session_record_index_result(state)
 
 
 def print_recent_sessions(records, updated_on_header=False):
@@ -213,96 +257,134 @@ def session_record_summary(records, root_state=None, root_state_records=None, ta
     }
 
 
-def session_root_record(cfg, records):
-    path = Path(str(cfg.get("session_root", "local/sessions")))
-    session_ids = []
-    service_counts = {}
-    state_counts = {}
-    total_upload_count = 0
-    total_fetch_count = 0
-    total_event_count = 0
-    total_artifact_count = 0
-    total_duration_sec = 0
-    max_duration_sec = 0
-    duration_known_count = 0
-    sessions_with_uploads = 0
-    sessions_with_fetches = 0
-    sessions_with_events = 0
-    sessions_with_artifacts = 0
-    sessions_with_session_logs = 0
-    total_session_log_size = 0
-    total_session_log_line_count = 0
-    sessions_with_metadata = 0
-    sessions_with_event_logs = 0
-    for rec in records or []:
-        if not isinstance(rec, dict):
-            continue
-        session_id_value = str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
-        service = str(rec.get("service") or "")
-        state = str(rec.get("state") or "")
-        if session_id_value:
-            session_ids.append(session_id_value)
-        if service:
-            service_counts[service] = service_counts.get(service, 0) + 1
-        if state:
-            state_counts[state] = state_counts.get(state, 0) + 1
-        upload_count = int_value(rec.get("upload_count"))
-        fetch_count = int_value(rec.get("fetch_count"))
-        event_count = int_value(rec.get("event_count"))
-        artifact_count = int_value(rec.get("artifact_count"))
-        session_log_size = int_value(rec.get("session_log_size"))
-        session_log_line_count = int_value(rec.get("session_log_line_count"))
-        duration_sec = int_value(rec.get("duration_sec"))
-        total_upload_count += upload_count
-        total_fetch_count += fetch_count
-        total_event_count += event_count
-        total_artifact_count += artifact_count
-        total_session_log_size += session_log_size
-        total_session_log_line_count += session_log_line_count
-        if rec.get("duration_sec") not in (None, ""):
-            duration_known_count += 1
-            total_duration_sec += duration_sec
-            max_duration_sec = max(max_duration_sec, duration_sec)
-        if upload_count > 0:
-            sessions_with_uploads += 1
-        if fetch_count > 0:
-            sessions_with_fetches += 1
-        if event_count > 0:
-            sessions_with_events += 1
-        if artifact_count > 0:
-            sessions_with_artifacts += 1
-        if rec.get("session_log_exists") is True:
-            sessions_with_session_logs += 1
-        if rec.get("metadata_exists") is True:
-            sessions_with_metadata += 1
-        if rec.get("event_log_exists") is True:
-            sessions_with_event_logs += 1
+def _empty_session_root_state():
+    return {
+        "session_ids": [],
+        "service_counts": {},
+        "state_counts": {},
+        "total_upload_count": 0,
+        "total_fetch_count": 0,
+        "total_event_count": 0,
+        "total_artifact_count": 0,
+        "total_duration_sec": 0,
+        "max_duration_sec": 0,
+        "duration_known_count": 0,
+        "sessions_with_uploads": 0,
+        "sessions_with_fetches": 0,
+        "sessions_with_events": 0,
+        "sessions_with_artifacts": 0,
+        "sessions_with_session_logs": 0,
+        "total_session_log_size": 0,
+        "total_session_log_line_count": 0,
+        "sessions_with_metadata": 0,
+        "sessions_with_event_logs": 0,
+    }
+
+
+def _apply_session_root_identity_counts(state, rec):
+    session_id_value = str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
+    service = str(rec.get("service") or "")
+    session_state = str(rec.get("state") or "")
+    if session_id_value:
+        state["session_ids"].append(session_id_value)
+    if service:
+        state["service_counts"][service] = state["service_counts"].get(service, 0) + 1
+    if session_state:
+        state["state_counts"][session_state] = state["state_counts"].get(session_state, 0) + 1
+
+
+def _session_root_record_counts(rec):
+    return {
+        "upload_count": int_value(rec.get("upload_count")),
+        "fetch_count": int_value(rec.get("fetch_count")),
+        "event_count": int_value(rec.get("event_count")),
+        "artifact_count": int_value(rec.get("artifact_count")),
+        "session_log_size": int_value(rec.get("session_log_size")),
+        "session_log_line_count": int_value(rec.get("session_log_line_count")),
+        "duration_sec": int_value(rec.get("duration_sec")),
+    }
+
+
+def _apply_session_root_total_counts(state, counts):
+    state["total_upload_count"] += counts["upload_count"]
+    state["total_fetch_count"] += counts["fetch_count"]
+    state["total_event_count"] += counts["event_count"]
+    state["total_artifact_count"] += counts["artifact_count"]
+    state["total_session_log_size"] += counts["session_log_size"]
+    state["total_session_log_line_count"] += counts["session_log_line_count"]
+
+
+def _apply_session_root_duration_counts(state, rec, counts):
+    if rec.get("duration_sec") not in (None, ""):
+        state["duration_known_count"] += 1
+        state["total_duration_sec"] += counts["duration_sec"]
+        state["max_duration_sec"] = max(state["max_duration_sec"], counts["duration_sec"])
+
+
+def _apply_session_root_presence_counts(state, rec, counts):
+    if counts["upload_count"] > 0:
+        state["sessions_with_uploads"] += 1
+    if counts["fetch_count"] > 0:
+        state["sessions_with_fetches"] += 1
+    if counts["event_count"] > 0:
+        state["sessions_with_events"] += 1
+    if counts["artifact_count"] > 0:
+        state["sessions_with_artifacts"] += 1
+    if rec.get("session_log_exists") is True:
+        state["sessions_with_session_logs"] += 1
+    if rec.get("metadata_exists") is True:
+        state["sessions_with_metadata"] += 1
+    if rec.get("event_log_exists") is True:
+        state["sessions_with_event_logs"] += 1
+
+
+def _apply_session_root_record(state, rec):
+    _apply_session_root_identity_counts(state, rec)
+    counts = _session_root_record_counts(rec)
+    _apply_session_root_total_counts(state, counts)
+    _apply_session_root_duration_counts(state, rec, counts)
+    _apply_session_root_presence_counts(state, rec, counts)
+
+
+def _session_root_record_result(path, records, state):
+    duration_known_count = state["duration_known_count"]
+    total_duration_sec = state["total_duration_sec"]
     return {
         "path": str(path),
         "exists": path.is_dir(),
-        "recent_session_ids": session_ids,
-        "recent_session_count": len(session_ids),
-        "service_counts": service_counts,
-        "state_counts": state_counts,
-        "total_upload_count": total_upload_count,
-        "total_fetch_count": total_fetch_count,
-        "total_event_count": total_event_count,
-        "total_artifact_count": total_artifact_count,
-        "total_session_log_size": total_session_log_size,
-        "total_session_log_line_count": total_session_log_line_count,
+        "recent_session_ids": state["session_ids"],
+        "recent_session_count": len(state["session_ids"]),
+        "service_counts": state["service_counts"],
+        "state_counts": state["state_counts"],
+        "total_upload_count": state["total_upload_count"],
+        "total_fetch_count": state["total_fetch_count"],
+        "total_event_count": state["total_event_count"],
+        "total_artifact_count": state["total_artifact_count"],
+        "total_session_log_size": state["total_session_log_size"],
+        "total_session_log_line_count": state["total_session_log_line_count"],
         "total_duration_sec": total_duration_sec,
-        "max_duration_sec": max_duration_sec,
+        "max_duration_sec": state["max_duration_sec"],
         "duration_known_count": duration_known_count,
         "average_duration_sec": int(total_duration_sec / duration_known_count) if duration_known_count else 0,
-        "sessions_with_uploads_count": sessions_with_uploads,
-        "sessions_with_fetches_count": sessions_with_fetches,
-        "sessions_with_events_count": sessions_with_events,
-        "sessions_with_artifacts_count": sessions_with_artifacts,
-        "sessions_with_session_logs_count": sessions_with_session_logs,
-        "sessions_with_metadata_count": sessions_with_metadata,
-        "sessions_with_event_logs_count": sessions_with_event_logs,
+        "sessions_with_uploads_count": state["sessions_with_uploads"],
+        "sessions_with_fetches_count": state["sessions_with_fetches"],
+        "sessions_with_events_count": state["sessions_with_events"],
+        "sessions_with_artifacts_count": state["sessions_with_artifacts"],
+        "sessions_with_session_logs_count": state["sessions_with_session_logs"],
+        "sessions_with_metadata_count": state["sessions_with_metadata"],
+        "sessions_with_event_logs_count": state["sessions_with_event_logs"],
         "latest_session_updated_at": latest_record_value(records, ("updated_at", "ended_at", "started_at")),
     }
+
+
+def session_root_record(cfg, records):
+    path = Path(str(cfg.get("session_root", "local/sessions")))
+    state = _empty_session_root_state()
+    for rec in records or []:
+        if not isinstance(rec, dict):
+            continue
+        _apply_session_root_record(state, rec)
+    return _session_root_record_result(path, records, state)
 
 
 def session_root_state_status(cfg, records):
