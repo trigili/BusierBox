@@ -1,14 +1,10 @@
 """Workflow action index, summary, and display helpers for grit-console."""
 
 from pathlib import Path
-import shlex
-
-from gritlib.build_config import build_config_path
 from gritlib.command_queue import command_queue_path, load_command_queue
 from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.line_state import line_action_state_text
-from gritlib.operator_network import operator_advertised_host
 from gritlib.process_status import pid_alive
 from gritlib.record_utils import (
     format_counts, int_value, record_count_by_key, record_sum_by_key, records_by_key,
@@ -19,12 +15,12 @@ from gritlib.session_state import read_json_file, state_file_path
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import staged_file_path
 from gritlib.systemd_user import systemd_user_unit_name
-from gritlib.target_records import load_targets, selected_target_context, targets_path
+from gritlib.target_records import load_targets, targets_path
 from gritlib.workflow_support import (
     select_workbench_action, target_scoped_command, workflow_fleet_metrics,
 )
+import gritlib.workflow_workbench_actions as workflow_workbench_actions
 from gritlib.workbench_jobs import (
-    run_workbench_action_headless_command, start_workbench_job_headless_command,
     workbench_job_records, workbench_jobs_path,
 )
 
@@ -471,34 +467,8 @@ def workflow_command_prefix_count(records, prefix):
     ])
 
 
-def render_daemon_service_args(daemon_services):
-    services = list(daemon_services or [])
-    if not services:
-        services = ["file-service", "command-queue"]
-    return " ".join("--daemon-service " + shquote(service) for service in services)
 
 
-def bringup_recommend_command(config_path, operator_host, release_dir, target_ctx=None, stage_recommended=False):
-    target_ctx = target_ctx or {}
-    parts = [
-        "scripts/grit-console",
-        "bringup",
-        "--recommend-only",
-        "--json",
-        "--operator-config", config_path,
-        "--operator-host", operator_host,
-    ]
-    if release_dir:
-        parts.extend(["--release-dir", release_dir])
-    if target_ctx.get("target_id"):
-        parts.extend(["--target-id", target_ctx.get("target_id", "")])
-    if target_ctx.get("target_label"):
-        parts.extend(["--target-label", target_ctx.get("target_label", "")])
-    for alias in target_ctx.get("target_aliases") or []:
-        parts.extend(["--target-alias", alias])
-    if stage_recommended:
-        parts.append("--stage-recommended-artifact")
-    return " ".join(shquote(str(part)) for part in parts)
 
 
 def operator_console_headless_command(kind, base_command):
@@ -1094,676 +1064,52 @@ def operator_console_workflow_records(
     return annotate_operator_console_workflows(records, target_records, overdue_targets)
 
 
-def _workbench_configuration_action_records(config_path, build_config):
-    return [
-        {
-            "id": "configure-binary",
-            "category": "configuration",
-            "label": "Configure griTTYkit binary options",
-            "script": "scripts/menuconfig",
-            "command": "scripts/menuconfig",
-            "config_path": build_config,
-            "writes_config": True,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "resolve-target",
-            "category": "configuration",
-            "label": "Resolve target/device preset metadata",
-            "script": "scripts/lib/resolve-target",
-            "command": "scripts/lib/resolve-target --config " + shquote(config_path),
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-    ]
 
 
-def _workbench_tooling_action_records(config_path):
-    return [
-        {
-            "id": "tool-provider-check",
-            "category": "tooling",
-            "label": "Check payload tool provider compatibility",
-            "script": "scripts/lib/check-tool-providers",
-            "command": "scripts/lib/check-tool-providers --tool TOOL",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "dropin-tool-status",
-            "category": "tooling",
-            "label": "Inspect local drop-in tool status",
-            "script": "scripts/tools/dropin-tool-status",
-            "command": "scripts/tools/dropin-tool-status --tool TOOL --json",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "check-dropin-tool",
-            "category": "tooling",
-            "label": "Validate a candidate drop-in tool",
-            "script": "scripts/tools/check-dropin-tool",
-            "command": "scripts/tools/check-dropin-tool --tool TOOL --path PATH",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "install-dropin-tool",
-            "category": "tooling",
-            "label": "Install a validated drop-in payload tool",
-            "script": "scripts/tools/install-dropin-tool",
-            "command": "scripts/tools/install-dropin-tool --tool TOOL --source SOURCE",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-    ]
 
 
-def _workbench_configuration_tooling_action_records(config_path, build_config):
-    records = []
-    records.extend(_workbench_configuration_action_records(config_path, build_config))
-    records.extend(_workbench_tooling_action_records(config_path))
-    return records
 
 
-def _workbench_build_action_records(config_path):
-    return [
-        {
-            "id": "package-artifact",
-            "category": "build",
-            "label": "Build/package selected artifact",
-            "script": "make",
-            "command": "make package",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": True,
-            "long_running": True,
-            "background_supported": True,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_job_requested",
-        },
-        {
-            "id": "release-current",
-            "category": "release",
-            "label": "Build current target and stage a small release",
-            "script": "scripts/lib/release-current",
-            "command": "scripts/lib/release-current --config",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": True,
-            "long_running": True,
-            "background_supported": True,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_job_requested",
-        },
-    ]
 
 
-def _workbench_bringup_action_records(config_path, release_dir, operator_host, target_ctx):
-    return [
-        {
-            "id": "bringup-recommend",
-            "category": "bringup",
-            "label": "Generate bringup recommendation with current operator route",
-            "script": "scripts/grit-console",
-            "command": bringup_recommend_command(config_path, operator_host, release_dir, target_ctx),
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": True,
-            "background_supported": True,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_job_requested",
-        },
-        {
-            "id": "bringup-stage-recommended",
-            "category": "bringup",
-            "label": "Select and stage recommended bringup artifact",
-            "script": "scripts/grit-console",
-            "command": bringup_recommend_command(config_path, operator_host, release_dir, target_ctx, stage_recommended=True),
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": True,
-            "background_supported": True,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_job_requested",
-        },
-    ]
 
 
-def _workbench_artifact_trailer_action_records(config_path):
-    return [
-        {
-            "id": "inspect-artifact",
-            "category": "artifact",
-            "label": "Inspect artifact metadata without execution",
-            "script": "scripts/grit-console",
-            "command": "scripts/grit-console artifact inspect ARTIFACT",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "verify-artifact",
-            "category": "artifact",
-            "label": "Verify artifact integrity and execution",
-            "script": "scripts/grit-console",
-            "command": "scripts/grit-console artifact verify ARTIFACT",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "configure-trailer",
-            "category": "trailer",
-            "label": "Configure runtime trailer overrides",
-            "script": "scripts/grit-console",
-            "command": "scripts/grit-console artifact config set ARTIFACT KEY=VALUE",
-            "config_path": config_path,
-            "writes_config": True,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-    ]
 
 
-def _workbench_release_action_records(config_path, release_dir):
-    return [
-        {
-            "id": "make-release",
-            "category": "release",
-            "label": "Build release bundle",
-            "script": "scripts/make-release",
-            "command": "scripts/make-release --name NAME --targets native --payload-presets survey-core,default",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": True,
-            "long_running": True,
-            "background_supported": True,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_job_requested",
-        },
-        {
-            "id": "release-index",
-            "category": "release",
-            "label": "Inspect release index",
-            "script": "scripts/lib/release-index",
-            "command": "scripts/lib/release-index --release-dir " + shquote(release_dir),
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "release-find",
-            "category": "release",
-            "label": "Find compatible release artifacts",
-            "script": "scripts/lib/release-find",
-            "command": "scripts/lib/release-find --release-dir " + shquote(release_dir) + " FIND_ARGS",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "release-self-test",
-            "category": "release",
-            "label": "Validate release bundle",
-            "script": "scripts/lib/release-self-test",
-            "command": "scripts/lib/release-self-test --release-dir " + shquote(release_dir) + " --json",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-    ]
 
 
-def _workbench_build_artifact_release_action_records(config_path, release_dir, operator_host, target_ctx):
-    records = []
-    records.extend(_workbench_build_action_records(config_path))
-    records.extend(_workbench_bringup_action_records(
-        config_path,
-        release_dir,
-        operator_host,
-        target_ctx,
-    ))
-    records.extend(_workbench_artifact_trailer_action_records(config_path))
-    records.extend(_workbench_release_action_records(config_path, release_dir))
-    return records
 
 
-def _workbench_offline_source_action_records(config_path):
-    return [
-        {
-            "id": "verify-sources",
-            "category": "offline",
-            "label": "Verify pinned source downloads",
-            "script": "scripts/lib/verify-sources",
-            "command": "scripts/lib/verify-sources",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "fetch-sources",
-            "category": "offline",
-            "label": "Fetch pinned source downloads",
-            "script": "scripts/lib/fetch-sources",
-            "command": "scripts/lib/fetch-sources",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": True,
-            "background_supported": True,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_job_requested",
-        },
-        {
-            "id": "check-licensing",
-            "category": "offline",
-            "label": "Validate licensing and source policy",
-            "script": "scripts/lib/check-licensing",
-            "command": "scripts/lib/check-licensing",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-    ]
 
 
-def _workbench_offline_mirror_action_records(config_path):
-    return [
-        {
-            "id": "source-mirror-plan",
-            "category": "offline",
-            "label": "Plan source mirror for offline rebuilds",
-            "script": "scripts/lib/mirror-sources",
-            "command": "scripts/lib/mirror-sources --matrix tests/matrix/release-full.json --source-only --include-buildroot-packages --all-supported-tools --out MIRROR_DIR --dry-run",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "offline-readiness",
-            "category": "offline",
-            "label": "Check offline source mirror readiness",
-            "script": "scripts/lib/check-offline-readiness",
-            "command": "scripts/lib/check-offline-readiness --mirror MIRROR_DIR --matrix tests/matrix/release-full.json",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-    ]
 
 
-def _workbench_offline_pack_action_records(config_path):
-    return [
-        {
-            "id": "offline-pack",
-            "category": "offline",
-            "label": "Pack downloaded sources for transfer",
-            "script": "scripts/lib/offline-pack",
-            "command": "scripts/lib/offline-pack",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "offline-unpack",
-            "category": "offline",
-            "label": "Restore downloaded sources from offline pack",
-            "script": "scripts/lib/offline-unpack",
-            "command": "scripts/lib/offline-unpack ARCHIVE",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-    ]
 
 
-def _workbench_offline_action_records(config_path):
-    records = []
-    records.extend(_workbench_offline_source_action_records(config_path))
-    records.extend(_workbench_offline_mirror_action_records(config_path))
-    records.extend(_workbench_offline_pack_action_records(config_path))
-    return records
 
 
-def _workbench_operator_daemon_action_records(config_path, daemon_command):
-    return [
-        {
-            "id": "operator-daemon-start",
-            "category": "daemon",
-            "label": "Start operator daemon for selected services",
-            "script": "scripts/grit-console",
-            "command": daemon_command,
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": True,
-            "background_supported": True,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_job_requested",
-        },
-        {
-            "id": "operator-daemon-status",
-            "category": "daemon",
-            "label": "Inspect operator daemon and managed listener state",
-            "script": "scripts/grit-console",
-            "command": "scripts/grit-console --config " + shquote(config_path) + " --status",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": False,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-        {
-            "id": "operator-daemon-stop",
-            "category": "daemon",
-            "label": "Stop managed operator daemon services",
-            "script": "scripts/grit-console",
-            "command": "scripts/grit-console --config " + shquote(config_path) + " --stop",
-            "config_path": config_path,
-            "writes_config": False,
-            "runs_build": False,
-            "long_running": False,
-            "background_supported": False,
-            "requires_confirmation": True,
-            "execution_default": "show-command",
-            "target_execution": False,
-            "event": "workbench_action_selected",
-        },
-    ]
 
 
-def _workbench_systemd_user_action_record(
-    config_path,
-    daemon_service_args,
-    action,
-    label,
-    *,
-    writes_config=False,
-    requires_confirmation=False,
-):
-    return {
-        "id": f"systemd-user-{action}",
-        "category": "daemon",
-        "label": label,
-        "script": "scripts/grit-console",
-        "command": "scripts/grit-console --config " + shquote(config_path) + " " + daemon_service_args + " --systemd-user-action " + action,
-        "config_path": config_path,
-        "writes_config": bool(writes_config),
-        "runs_build": False,
-        "long_running": False,
-        "background_supported": False,
-        "requires_confirmation": bool(requires_confirmation),
-        "execution_default": "show-command",
-        "target_execution": False,
-        "event": "workbench_action_selected",
-    }
 
 
-def _workbench_systemd_user_action_records(config_path, daemon_service_args):
-    return [
-        _workbench_systemd_user_action_record(
-            config_path,
-            daemon_service_args,
-            "print",
-            "Print systemd user service for operator daemon",
-        ),
-        _workbench_systemd_user_action_record(
-            config_path,
-            daemon_service_args,
-            "install",
-            "Install systemd user service for operator daemon",
-            writes_config=True,
-            requires_confirmation=True,
-        ),
-        _workbench_systemd_user_action_record(
-            config_path,
-            daemon_service_args,
-            "start",
-            "Start systemd user service for operator daemon",
-            requires_confirmation=True,
-        ),
-        _workbench_systemd_user_action_record(
-            config_path,
-            daemon_service_args,
-            "stop",
-            "Stop systemd user service for operator daemon",
-            requires_confirmation=True,
-        ),
-        _workbench_systemd_user_action_record(
-            config_path,
-            daemon_service_args,
-            "restart",
-            "Restart systemd user service for operator daemon",
-            requires_confirmation=True,
-        ),
-        _workbench_systemd_user_action_record(
-            config_path,
-            daemon_service_args,
-            "status",
-            "Check systemd user service for operator daemon",
-        ),
-    ]
 
 
-def _workbench_daemon_action_records(config_path, daemon_service_args, daemon_command):
-    records = []
-    records.extend(_workbench_operator_daemon_action_records(config_path, daemon_command))
-    records.extend(_workbench_systemd_user_action_records(config_path, daemon_service_args))
-    return records
+
+
+
+
+
+
 
 
 def workbench_action_records(cfg):
-    config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
-    build_config = str(build_config_path(cfg))
-    release_dir = str(cfg.get("release_dir") or ".")
-    daemon_services = configured_daemon_services(cfg, [])
-    daemon_service_args = render_daemon_service_args(daemon_services)
-    daemon_command = "scripts/grit-console --config " + shquote(config_path) + " --daemon " + daemon_service_args
-    target_ctx = selected_target_context(cfg)
-    operator_host = operator_advertised_host(cfg)
-
-    records = []
-    records.extend(_workbench_configuration_tooling_action_records(config_path, build_config))
-    records.extend(_workbench_build_artifact_release_action_records(config_path, release_dir, operator_host, target_ctx))
-    records.extend(_workbench_offline_action_records(config_path))
-    records.extend(_workbench_daemon_action_records(config_path, daemon_service_args, daemon_command))
-    return annotate_workbench_actions(
-        records,
-        cfg,
-        run_workbench_action_headless_command,
-        start_workbench_job_headless_command,
-    )
+    return workflow_workbench_actions.workbench_action_records(cfg)
 
 
 def annotate_workbench_actions(records, cfg, run_command_builder, start_job_command_builder):
-    placeholder_tokens = {
-        "NAME", "ARTIFACT", "KEY=VALUE", "VALUE", "LOCAL_PATH",
-        "REQUEST_NAME", "RELEASE_SELECTOR", "FIND_ARGS", "TOOL",
-        "PATH", "MIRROR_DIR", "SOURCE", "ARCHIVE",
-    }
-    for rec in records or []:
-        action_id = str(rec.get("id") or "")
-        command = str(rec.get("command") or "")
-        try:
-            command_tokens = shlex.split(command)
-        except ValueError:
-            command_tokens = command.split()
-        has_placeholder = any(token in placeholder_tokens for token in command_tokens)
-        background = rec.get("background_supported") is True
-        foreground_runnable = bool(command and not background and not has_placeholder)
-        requires_confirmation = rec.get("requires_confirmation") is True
-        if has_placeholder:
-            operator_action_state = "needs-input"
-            operator_action_reason = "input-placeholder"
-            can_run_from_curses_enter = False
-            curses_enter_action = "use-action-11"
-        elif background:
-            operator_action_state = "background-ready"
-            operator_action_reason = "start-background-job"
-            can_run_from_curses_enter = True
-            curses_enter_action = "start-job"
-        elif requires_confirmation:
-            operator_action_state = "confirm-required"
-            operator_action_reason = "confirmation-required"
-            can_run_from_curses_enter = False
-            curses_enter_action = "use-action-11"
-        elif foreground_runnable:
-            operator_action_state = "ready"
-            operator_action_reason = "run-now"
-            can_run_from_curses_enter = False
-            curses_enter_action = "use-action-11"
-        else:
-            operator_action_state = "unavailable"
-            operator_action_reason = "no-runnable-command"
-            can_run_from_curses_enter = False
-            curses_enter_action = "none"
-        rec["has_placeholder"] = bool(has_placeholder)
-        rec["foreground_runnable"] = foreground_runnable
-        rec["dry_run_supported"] = foreground_runnable
-        rec["has_run_command"] = foreground_runnable
-        rec["has_dry_run_command"] = foreground_runnable
-        rec["has_start_job_command"] = background
-        rec["operator_action_state"] = operator_action_state
-        rec["operator_action_reason"] = operator_action_reason
-        rec["can_run_from_curses_enter"] = bool(can_run_from_curses_enter)
-        rec["curses_enter_action"] = curses_enter_action
-        rec["run_command"] = run_command_builder(cfg, action_id) if foreground_runnable else ""
-        rec["dry_run_command"] = run_command_builder(cfg, action_id, dry_run=True) if foreground_runnable else ""
-        rec["start_job_command"] = start_job_command_builder(cfg, action_id) if background else ""
-    return records
+    return workflow_workbench_actions.annotate_workbench_actions(
+        records, cfg, run_command_builder, start_job_command_builder
+    )
 
 
 def target_workflow_action_readiness(
