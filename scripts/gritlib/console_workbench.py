@@ -41,6 +41,7 @@ import gritlib.status_operator_contexts as status_operator_contexts
 import gritlib.status_payload_sections as status_payload_sections
 import gritlib.status_summary_updates as status_summary_updates
 import gritlib.status_target_filter as status_target_filter
+import gritlib.status_transfer_contexts as status_transfer_contexts
 import gritlib.status_warnings as status_warnings
 import gritlib.target_activity as target_activity
 from gritlib.target_commands import (
@@ -196,40 +197,7 @@ SESSION_INDEX_KEYS = (
     "sessions_by_session_log_exists",
 )
 
-UPLOAD_INDEX_KEYS = (
-    "uploads_by_filename",
-    "uploads_by_kind",
-    "uploads_by_sha256",
-    "uploads_by_target_id",
-    "uploads_by_source_path",
-    "uploads_by_stored_path",
-    "uploads_by_stored_exists",
-    "uploads_by_metadata_exists",
-    "uploads_by_event_log_exists",
-    "uploads_by_remote_addr",
-    "uploads_by_status",
-    "uploads_by_kind_status",
-    "uploads_by_filename_status",
-    "uploads_by_status_stored_exists",
-    "uploads_by_status_remote_addr",
-)
 
-FETCH_INDEX_KEYS = (
-    "fetches_by_request",
-    "fetches_by_sha256",
-    "fetches_by_target_id",
-    "fetches_by_source_path",
-    "fetches_by_source_exists",
-    "fetches_by_metadata_exists",
-    "fetches_by_event_log_exists",
-    "fetches_by_status",
-    "fetches_by_http_status",
-    "fetches_by_remote_addr",
-    "fetches_by_request_status",
-    "fetches_by_status_source_exists",
-    "fetches_by_status_remote_addr",
-    "fetches_by_http_status_remote_addr",
-)
 
 TARGET_COMMAND_INDEX_KEYS = (
     "target_commands_by_service",
@@ -640,33 +608,6 @@ def _build_target_activity_status_context(
     }
 
 
-def _build_target_activity_feed_status_context(
-    targets,
-    target_mailbox_records,
-    target_phone_home_records,
-    target_file_transfer_records,
-    bridge_profiles,
-    sessions,
-):
-    target_activity_feed_context = (
-        target_activity.target_activity_feed_status_context(
-            targets,
-            target_mailbox_records,
-            target_phone_home_records,
-            target_file_transfer_records,
-            bridge_profiles,
-            sessions,
-        )
-    )
-    target_activity_records = target_activity_feed_context["records"]
-    return {
-        "target_activity_feed_context": target_activity_feed_context,
-        "target_activity_records": target_activity_records,
-        "target_activity_index_maps": target_activity_feed_context["index_maps"],
-        "summary": target_activity.target_activity_record_summary(
-            target_activity_records
-        ),
-    }
 
 
 def _build_target_command_status_context(
@@ -712,88 +653,10 @@ def _build_target_command_status_context(
 
 
 
-def _build_target_attribution_status_context(uploads, fetches, sessions):
-    target_attribution_status_doc = target_records.target_attribution_status(
-        uploads,
-        fetches,
-        sessions,
-    )
-    target_attribution = target_attribution_status_doc["target_attribution"]
-    target_attribution_records = target_attribution_status_doc[
-        "target_attribution_records"
-    ]
-    return {
-        "target_attribution_status_doc": target_attribution_status_doc,
-        "target_attribution": target_attribution,
-        "target_attribution_records": target_attribution_records,
-        "target_attribution_index_maps": target_attribution_status_doc[
-            "target_attribution_index_maps"
-        ],
-        "summary": target_records.target_attribution_record_summary(
-            target_attribution_records,
-            target_attribution,
-        ),
-    }
 
 
-def _build_file_transfer_status_context(staged_records, uploads, fetches):
-    file_transfer_context = file_transfers.file_transfer_status_context(
-        uploads, fetches
-    )
-    target_file_transfer_context = file_transfers.target_file_transfer_status_context(
-        staged_records,
-        uploads,
-        fetches,
-    )
-    return {
-        "upload_index_maps": dict(zip(
-            UPLOAD_INDEX_KEYS,
-            file_transfer_context["upload_indexes"],
-        )),
-        "fetch_index_maps": dict(zip(
-            FETCH_INDEX_KEYS,
-            file_transfer_context["fetch_indexes"],
-        )),
-        "target_file_transfer_records": target_file_transfer_context["records"],
-        "target_file_transfer_index_maps": target_file_transfer_context["index_maps"],
-    }
 
 
-def _build_file_service_workflow_status_context(
-    cfg,
-    services,
-    staged_records,
-    uploads,
-    fetches,
-    target_file_transfer_records,
-    targets,
-):
-    file_service_row = next(
-        (row for row in services if row.get("name") == "file-service"), {}
-    )
-    file_service_workflow_context = (
-        file_transfers.file_service_workflow_status_context(
-            cfg,
-            file_service_row,
-            staged_records,
-            uploads,
-            fetches,
-            target_file_transfer_records,
-            targets,
-        )
-    )
-    file_service_workflow_actions = file_service_workflow_context["actions"]
-    return {
-        "file_service_row": file_service_row,
-        "file_service_workflow_context": file_service_workflow_context,
-        "file_service_workflow_actions": file_service_workflow_actions,
-        "file_service_workflow_action_index_maps": file_service_workflow_context[
-            "index_maps"
-        ],
-        "summary": file_transfers.file_service_workflow_status_summary(
-            file_service_workflow_actions
-        ),
-    }
 
 
 def _build_service_probe_workflow_status_context(
@@ -1712,107 +1575,14 @@ def _build_status_activity_queue_context(
         **_status_activity_target_filter_fields(target_filter_context),
     }
 
-def _status_transfer_file_fields(file_transfer_context):
-    return {
-        "file_transfer_context": file_transfer_context,
-        "upload_index_maps": file_transfer_context["upload_index_maps"],
-        "fetch_index_maps": file_transfer_context["fetch_index_maps"],
-        "target_file_transfer_records": file_transfer_context[
-            "target_file_transfer_records"
-        ],
-        "target_file_transfer_index_maps": file_transfer_context[
-            "target_file_transfer_index_maps"
-        ],
-    }
 
 
-def _status_transfer_file_service_workflow_fields(file_service_workflow_context):
-    return {
-        "file_service_workflow_context": file_service_workflow_context,
-        "file_service_row": file_service_workflow_context["file_service_row"],
-        "file_service_workflow_actions": file_service_workflow_context[
-            "file_service_workflow_actions"
-        ],
-        "file_service_workflow_action_index_maps": file_service_workflow_context[
-            "file_service_workflow_action_index_maps"
-        ],
-    }
 
 
-def _status_transfer_activity_feed_fields(target_activity_feed_context):
-    return {
-        "target_activity_feed_context": target_activity_feed_context,
-        "target_activity_records": target_activity_feed_context[
-            "target_activity_records"
-        ],
-        "target_activity_index_maps": target_activity_feed_context[
-            "target_activity_index_maps"
-        ],
-    }
 
 
-def _status_transfer_attribution_fields(target_attribution_context):
-    return {
-        "target_attribution_context": target_attribution_context,
-        "target_attribution_status_doc": target_attribution_context[
-            "target_attribution_status_doc"
-        ],
-        "target_attribution": target_attribution_context["target_attribution"],
-        "target_attribution_records": target_attribution_context[
-            "target_attribution_records"
-        ],
-        "target_attribution_index_maps": target_attribution_context[
-            "target_attribution_index_maps"
-        ],
-    }
 
 
-def _build_status_transfer_activity_context(
-    cfg,
-    *,
-    foundation_context,
-    activity_queue_context,
-):
-    f = foundation_context
-    aq = activity_queue_context
-    file_transfer_context = _build_file_transfer_status_context(
-        f["staged_records"],
-        f["uploads"],
-        f["fetches"],
-    )
-    target_file_transfer_records = file_transfer_context[
-        "target_file_transfer_records"
-    ]
-    file_service_workflow_context = _build_file_service_workflow_status_context(
-        cfg,
-        f["services"],
-        f["staged_records"],
-        f["uploads"],
-        f["fetches"],
-        target_file_transfer_records,
-        f["targets"],
-    )
-    target_activity_feed_context = _build_target_activity_feed_status_context(
-        f["targets"],
-        aq["target_mailbox_records"],
-        aq["target_phone_home_records"],
-        target_file_transfer_records,
-        aq["bridge_profiles"],
-        aq["sessions"],
-    )
-    target_attribution_context = _build_target_attribution_status_context(
-        f["uploads"],
-        f["fetches"],
-        aq["sessions"],
-    )
-    return {
-        **_status_transfer_file_fields(file_transfer_context),
-        **_status_transfer_file_service_workflow_fields(
-            file_service_workflow_context
-        ),
-        **_status_transfer_activity_feed_fields(target_activity_feed_context),
-        **_status_transfer_attribution_fields(target_attribution_context),
-    }
 
 
 
@@ -2356,7 +2126,7 @@ def _build_status_document_contexts(cfg):
         target_filter_id=target_filter_id,
         foundation_context=foundation_context,
     )
-    transfer_activity_context = _build_status_transfer_activity_context(
+    transfer_activity_context = status_transfer_contexts.build_status_transfer_activity_context(
         cfg,
         foundation_context=foundation_context,
         activity_queue_context=activity_queue_context,

@@ -9426,6 +9426,7 @@ def main(argv=None):
     command_queue_src = (ROOT / "scripts" / "gritlib" / "command_queue.py").read_text()
     console_workbench_src = (ROOT / "scripts" / "gritlib" / "console_workbench.py").read_text()
     status_api_collections_src = (ROOT / "scripts" / "gritlib" / "status_api_collections.py").read_text()
+    status_transfer_contexts_src = (ROOT / "scripts" / "gritlib" / "status_transfer_contexts.py").read_text()
     workflow_runners_src = (ROOT / "scripts" / "gritlib" / "workflow_runners.py").read_text()
     event_log_src = (ROOT / "scripts" / "gritlib" / "event_log.py").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
@@ -9456,6 +9457,7 @@ def main(argv=None):
         command_queue_src,
         console_workbench_src,
         status_api_collections_src,
+        status_transfer_contexts_src,
         workflow_runners_src,
         file_service_src,
         file_transfer_src,
