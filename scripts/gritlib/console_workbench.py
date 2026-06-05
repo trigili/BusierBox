@@ -2480,7 +2480,7 @@ def _build_command_queue_state_api_collections(*, command_queue_state_records):
     }
 
 
-def _build_target_mailbox_phone_home_api_collections(*, target_mailbox_records, target_phone_home_records):
+def _build_target_mailbox_api_collections(*, target_mailbox_records):
     return {
         "target_mailbox_records": status_indexes.api_collection_record(
             "target_mailbox_records", target_mailbox_records, "command_id", (
@@ -2519,6 +2519,11 @@ def _build_target_mailbox_phone_home_api_collections(*, target_mailbox_records, 
                 "target_mailbox_records_by_command_sha256",
             ), "target_mailbox_record_count",
         ),
+    }
+
+
+def _build_target_phone_home_api_collections(*, target_phone_home_records):
+    return {
         "target_phone_home_records": status_indexes.api_collection_record(
             "target_phone_home_records", target_phone_home_records, "id", (
                 "target_phone_home_records_by_id",
@@ -2555,6 +2560,17 @@ def _build_target_mailbox_phone_home_api_collections(*, target_mailbox_records, 
                 "target_phone_home_records_by_poll_mode",
                 "target_phone_home_records_by_poll_interval_sec",
             ), "target_phone_home_record_count",
+        ),
+    }
+
+
+def _build_target_mailbox_phone_home_api_collections(*, target_mailbox_records, target_phone_home_records):
+    return {
+        **_build_target_mailbox_api_collections(
+            target_mailbox_records=target_mailbox_records,
+        ),
+        **_build_target_phone_home_api_collections(
+            target_phone_home_records=target_phone_home_records,
         ),
     }
 
