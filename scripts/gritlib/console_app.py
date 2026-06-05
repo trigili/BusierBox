@@ -20,14 +20,14 @@ from gritlib.file_service import serve_file_service
 from gritlib.file_transfers import render_fetch_command
 from gritlib.line_repl_app import run_line_console
 from gritlib.operator_daemon import run_operator_daemon
-from gritlib.probe_service import serve_probe, serve_probe_dns, serve_probe_ftp, serve_probe_tftp
+import gritlib.probe_service as probe_service
 from gritlib.release_artifacts import stage_release_artifact
 from gritlib.service_runtime import (
     install_shutdown_handlers, record_shutdown_event, request_shutdown,
 )
 from gritlib.service_status import resolve_transport, service_stop_headless_command
 from gritlib.session_state import mark_service_stopped
-from gritlib.shell_bridge_service import serve_bridge, serve_plain_shell, serve_ssh, serve_tls_shell
+import gritlib.shell_bridge_service as shell_bridge_service
 import gritlib.staged_files as staged_files
 from gritlib.systemd_user import handle_systemd_user_action
 from gritlib.target_commands import shell_listener_max_sessions
@@ -186,16 +186,16 @@ def main(argv=None):
             script_bytes=script_bytes,
             session_timeout=session_timeout,
             shell_listener_max_sessions_func=shell_listener_max_sessions,
-            serve_ssh_func=serve_ssh,
-            serve_tls_shell_func=serve_tls_shell,
-            serve_plain_shell_func=serve_plain_shell,
+            serve_ssh_func=shell_bridge_service.serve_ssh,
+            serve_tls_shell_func=shell_bridge_service.serve_tls_shell,
+            serve_plain_shell_func=shell_bridge_service.serve_plain_shell,
             serve_file_service_func=serve_file_service,
             serve_command_queue_func=serve_command_queue,
-            serve_bridge_func=serve_bridge,
-            serve_probe_func=serve_probe,
-            serve_probe_tftp_func=serve_probe_tftp,
-            serve_probe_ftp_func=serve_probe_ftp,
-            serve_probe_dns_func=serve_probe_dns,
+            serve_bridge_func=shell_bridge_service.serve_bridge,
+            serve_probe_func=probe_service.serve_probe,
+            serve_probe_tftp_func=probe_service.serve_probe_tftp,
+            serve_probe_ftp_func=probe_service.serve_probe_ftp,
+            serve_probe_dns_func=probe_service.serve_probe_dns,
         )
         if listen_code is not None:
             return listen_code
