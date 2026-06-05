@@ -50,6 +50,8 @@ def scoped_target_cfg(cfg, target_id, target_label=""):
 
 
 def target_mailbox_counts(cfg):
+    # Local import preserves the command_queue -> target_records top-level
+    # boundary while reusing command expiry semantics for target summaries.
     from gritlib.command_queue import command_queue_expired, load_command_queue
 
     counts = {}
@@ -624,6 +626,8 @@ def dispatch_legacy_target_detail_number(
 ):
     if str(choice or "").strip() != "18":
         return False
+    # Local import preserves the target_activity -> target_records top-level
+    # boundary; this legacy prompt only needs the activity printer on demand.
     from gritlib.target_activity import print_target_activity_records
 
     unfiltered_cfg = dict(cfg)

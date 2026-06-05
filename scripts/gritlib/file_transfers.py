@@ -1097,6 +1097,8 @@ def _file_service_staged_upload_workflow_actions(cfg, context):
 
 
 def _file_service_lifecycle_workflow_actions(cfg, context):
+    # Local import preserves the service_status -> staged_files -> file_transfers
+    # top-level boundary while keeping lifecycle command text service-owned.
     from gritlib.service_status import (
         service_lifecycle_action_states, service_start_headless_command,
         service_stop_headless_command,
