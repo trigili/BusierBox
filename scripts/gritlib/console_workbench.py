@@ -861,6 +861,34 @@ def _build_file_service_workflow_status_context(
     }
 
 
+def _build_service_probe_workflow_status_context(
+    cfg,
+    services,
+    services_by_name,
+    targets,
+):
+    service_workflow_actions = service_workflow_action_records(cfg, services, targets)
+    probe_workflow_actions = probe_workflow_action_records(
+        cfg,
+        services_by_name.get("probe") or {},
+        targets,
+    )
+    return {
+        "service_workflow_actions": service_workflow_actions,
+        "service_workflow_action_index_maps": service_workflow_action_indexes(
+            service_workflow_actions
+        ),
+        "probe_workflow_actions": probe_workflow_actions,
+        "probe_workflow_action_index_maps": probe_workflow_action_indexes(
+            probe_workflow_actions
+        ),
+        "summary": {
+            **service_workflow_action_status_summary(service_workflow_actions),
+            **probe_workflow_action_status_summary(probe_workflow_actions),
+        },
+    }
+
+
 def _build_session_status_context(cfg, *, target_filter_id):
     session_context = session_status_context(
         cfg,
@@ -1515,14 +1543,22 @@ def status_document(cfg):
     services_by_warning_type = warning_context["services_by_warning_type"]
     ports_by_has_warnings = warning_context["ports_by_has_warnings"]
     ports_by_warning_type = warning_context["ports_by_warning_type"]
-    service_workflow_actions = service_workflow_action_records(cfg, services, targets)
-    service_workflow_action_index_maps = service_workflow_action_indexes(service_workflow_actions)
-    probe_workflow_actions = probe_workflow_action_records(
+    service_probe_workflow_context = _build_service_probe_workflow_status_context(
         cfg,
-        services_by_name.get("probe") or {},
+        services,
+        services_by_name,
         targets,
     )
-    probe_workflow_action_index_maps = probe_workflow_action_indexes(probe_workflow_actions)
+    service_workflow_actions = service_probe_workflow_context[
+        "service_workflow_actions"
+    ]
+    service_workflow_action_index_maps = service_probe_workflow_context[
+        "service_workflow_action_index_maps"
+    ]
+    probe_workflow_actions = service_probe_workflow_context["probe_workflow_actions"]
+    probe_workflow_action_index_maps = service_probe_workflow_context[
+        "probe_workflow_action_index_maps"
+    ]
     operator_console_workflows = operator_console_workflow_records(
         cfg,
         targets=targets,
@@ -1599,8 +1635,7 @@ def status_document(cfg):
         **operator_console_workflow_status_summary(operator_console_workflow_stats),
         **workbench_config_context["summary"],
         **command_queue_workflow_context["summary"],
-        **service_workflow_action_status_summary(service_workflow_actions),
-        **probe_workflow_action_status_summary(probe_workflow_actions),
+        **service_probe_workflow_context["summary"],
     })
     api_collections = {
         "services": api_collection_record(
