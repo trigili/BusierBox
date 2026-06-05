@@ -92,10 +92,7 @@ from gritlib.target_activity import print_target_activity_records
 from gritlib.target_commands import (
     generated_target_command_records,
 )
-from gritlib.target_records import (
-    configured_target_filter, scoped_target_cfg, selected_target_context,
-    print_target_summary,
-)
+import gritlib.target_records as target_records
 from gritlib.version import grit_version
 from gritlib.workbench_jobs import (
     run_workbench_action_record,
@@ -124,10 +121,10 @@ def run_line_repl(cfg):
     line_target_callbacks = build_line_target_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        target_filter_func=configured_target_filter,
-        target_context_func=selected_target_context,
+        target_filter_func=target_records.configured_target_filter,
+        target_context_func=target_records.selected_target_context,
         target_command_records_func=generated_target_command_records,
-        print_target_summary_func=print_target_summary,
+        print_target_summary_func=target_records.print_target_summary,
         quote=shquote,
     )
 
@@ -241,7 +238,7 @@ def run_line_repl(cfg):
         start_service_func=workflow_runners.start_service_process,
         target_callbacks=line_target_callbacks,
         route_service_callbacks=line_route_service_callbacks,
-        scoped_target_cfg_func=scoped_target_cfg,
+        scoped_target_cfg_func=target_records.scoped_target_cfg,
         queue_command_func=queue_command,
         load_staged_func=load_staged,
         fetch_command_func=render_fetch_command,
