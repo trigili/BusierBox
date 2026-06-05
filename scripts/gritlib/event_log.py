@@ -324,8 +324,6 @@ def event_log_status_context(cfg, limit=12, target_filter_id="", target_filter_s
     events = event_stats["tail"]
     unfiltered_tail_count = len(events)
     if target_filter_id:
-        from gritlib.target_records import event_for_target
-
         events = [
             event for event in events
             if event_for_target(event, target_filter_id, target_filter_session_ids)
@@ -343,6 +341,16 @@ def event_log_status_context(cfg, limit=12, target_filter_id="", target_filter_s
         "state_index_maps": event_log_status["state_index_maps"],
         "indexes": event_record_indexes(events),
     }
+
+
+def event_for_target(event, target_id, session_ids=None):
+    if not target_id or not isinstance(event, dict):
+        return True
+    details = event.get("details") if isinstance(event.get("details"), dict) else {}
+    if str(details.get("target_id") or "") == target_id:
+        return True
+    session_id = str(event.get("session") or details.get("session_id") or "")
+    return bool(session_id and session_id in (session_ids or set()))
 
 
 def event_tail_availability_text(doc):

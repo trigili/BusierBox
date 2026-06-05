@@ -4,7 +4,7 @@ import json
 import time
 from pathlib import Path
 
-from gritlib.event_log import append_event
+from gritlib.event_log import append_event, event_for_target
 from gritlib.record_utils import (
     count_records_with_key, int_value, list_merge_unique, record_count_by_key,
     records_by_key,
@@ -846,16 +846,6 @@ def records_for_target(records, target_id):
         rec for rec in records or []
         if isinstance(rec, dict) and str(rec.get("target_id") or "") == target_id
     ]
-
-
-def event_for_target(event, target_id, session_ids=None):
-    if not target_id or not isinstance(event, dict):
-        return True
-    details = event.get("details") if isinstance(event.get("details"), dict) else {}
-    if str(details.get("target_id") or "") == target_id:
-        return True
-    session_id = str(event.get("session") or details.get("session_id") or "")
-    return bool(session_id and session_id in (session_ids or set()))
 
 
 def target_context_fields(cfg, target_id):
