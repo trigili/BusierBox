@@ -292,6 +292,59 @@ FETCH_INDEX_KEYS = (
     "fetches_by_http_status_remote_addr",
 )
 
+TARGET_COMMAND_INDEX_KEYS = (
+    "target_commands_by_service",
+    "target_commands_by_target_id",
+    "target_commands_by_request",
+    "target_commands_by_stage_kind",
+    "target_commands_by_release_path",
+    "target_commands_by_side",
+    "target_commands_by_purpose",
+    "target_commands_by_service_purpose",
+    "target_commands_by_side_purpose",
+    "target_commands_by_network",
+    "target_commands_by_route_kind",
+    "target_commands_by_bridge_profile",
+    "target_commands_by_requires_bridge",
+    "target_commands_by_requires_explicit_target_action",
+    "target_commands_by_executes_operator_supplied_commands",
+    "target_commands_by_ordinal",
+    "target_commands_by_command_sha256",
+    "target_commands_by_copy_supported",
+    "target_commands_by_session_policy",
+    "target_commands_by_session_policy_valid",
+    "target_commands_by_retry_backoff",
+    "target_commands_by_retry_interval_sec",
+    "target_commands_by_retry_post_disconnect_count",
+)
+
+
+def _build_target_command_status_context(
+    cfg,
+    *,
+    staged_raw,
+    unfiltered_staged_raw,
+    target_filter_id,
+):
+    target_command_context = target_command_status_context(
+        cfg,
+        staged_raw=staged_raw,
+        unfiltered_staged_raw=unfiltered_staged_raw,
+        target_filter_id=target_filter_id,
+    )
+    return {
+        "target_command_records": target_command_context["records"],
+        "unfiltered_count": target_command_context["unfiltered_count"],
+        "target_command_index_maps": dict(zip(
+            TARGET_COMMAND_INDEX_KEYS,
+            target_command_context["indexes"],
+        )),
+        "target_command_summary": target_command_context["summary"],
+        "target_command_state_record": target_command_context["state_record"],
+        "target_command_state_records": target_command_context["state_records"],
+        "target_command_state_index_maps": target_command_context["state_index_maps"],
+    }
+
 
 def _build_file_transfer_status_context(staged_records, uploads, fetches):
     file_transfer_context = file_transfer_status_context(uploads, fetches)
@@ -732,38 +785,16 @@ def status_document(cfg):
     workbench_job_context = workbench_job_status_context(cfg, workbench_actions)
     workbench_jobs = workbench_job_context["jobs"]
     workbench_job_index_maps = workbench_job_context["index_maps"]
-    target_command_context = target_command_status_context(
+    target_command_context = _build_target_command_status_context(
         cfg,
         staged_raw=staged_raw,
         unfiltered_staged_raw=unfiltered_staged_raw,
         target_filter_id=target_filter_id,
     )
-    target_command_records = target_command_context["records"]
+    target_command_records = target_command_context["target_command_records"]
     unfiltered_counts["target_command_records"] = target_command_context["unfiltered_count"]
-    (target_commands_by_service,
-     target_commands_by_target_id,
-     target_commands_by_request,
-     target_commands_by_stage_kind,
-     target_commands_by_release_path,
-     target_commands_by_side,
-     target_commands_by_purpose,
-     target_commands_by_service_purpose,
-     target_commands_by_side_purpose,
-     target_commands_by_network,
-     target_commands_by_route_kind,
-     target_commands_by_bridge_profile,
-     target_commands_by_requires_bridge,
-     target_commands_by_requires_explicit_target_action,
-     target_commands_by_executes_operator_supplied_commands,
-     target_commands_by_ordinal,
-     target_commands_by_command_sha256,
-     target_commands_by_copy_supported,
-     target_commands_by_session_policy,
-     target_commands_by_session_policy_valid,
-     target_commands_by_retry_backoff,
-     target_commands_by_retry_interval_sec,
-    target_commands_by_retry_post_disconnect_count) = target_command_context["indexes"]
-    target_command_summary = target_command_context["summary"]
+    target_command_index_maps = target_command_context["target_command_index_maps"]
+    target_command_summary = target_command_context["target_command_summary"]
     target_filter_context = target_filter_status_context(
         target_filter_id,
         selected_target,
@@ -784,9 +815,9 @@ def status_document(cfg):
     target_filter_record = target_filter_context["record"]
     target_filter_records = target_filter_context["records"]
     target_filter_index_maps = target_filter_context["index_maps"]
-    target_command_state_record = target_command_context["state_record"]
-    target_command_state_records = target_command_context["state_records"]
-    target_command_state_index_maps = target_command_context["state_index_maps"]
+    target_command_state_record = target_command_context["target_command_state_record"]
+    target_command_state_records = target_command_context["target_command_state_records"]
+    target_command_state_index_maps = target_command_context["target_command_state_index_maps"]
     file_transfer_context = _build_file_transfer_status_context(
         staged_records,
         uploads,
@@ -2400,29 +2431,7 @@ def status_document(cfg):
         **target_command_state_index_maps,
         "target_workflow_actions": target_workflow_actions,
         **target_workflow_action_index_maps,
-        "target_commands_by_service": target_commands_by_service,
-        "target_commands_by_target_id": target_commands_by_target_id,
-        "target_commands_by_request": target_commands_by_request,
-        "target_commands_by_stage_kind": target_commands_by_stage_kind,
-        "target_commands_by_release_path": target_commands_by_release_path,
-        "target_commands_by_side": target_commands_by_side,
-        "target_commands_by_purpose": target_commands_by_purpose,
-        "target_commands_by_service_purpose": target_commands_by_service_purpose,
-        "target_commands_by_side_purpose": target_commands_by_side_purpose,
-        "target_commands_by_network": target_commands_by_network,
-        "target_commands_by_route_kind": target_commands_by_route_kind,
-        "target_commands_by_bridge_profile": target_commands_by_bridge_profile,
-        "target_commands_by_requires_bridge": target_commands_by_requires_bridge,
-        "target_commands_by_requires_explicit_target_action": target_commands_by_requires_explicit_target_action,
-        "target_commands_by_executes_operator_supplied_commands": target_commands_by_executes_operator_supplied_commands,
-        "target_commands_by_ordinal": target_commands_by_ordinal,
-        "target_commands_by_command_sha256": target_commands_by_command_sha256,
-        "target_commands_by_copy_supported": target_commands_by_copy_supported,
-        "target_commands_by_session_policy": target_commands_by_session_policy,
-        "target_commands_by_session_policy_valid": target_commands_by_session_policy_valid,
-        "target_commands_by_retry_backoff": target_commands_by_retry_backoff,
-        "target_commands_by_retry_interval_sec": target_commands_by_retry_interval_sec,
-        "target_commands_by_retry_post_disconnect_count": target_commands_by_retry_post_disconnect_count,
+        **target_command_index_maps,
         "targets": targets,
         "target_summary": target_summary,
         "target_registry_state_records": target_registry_state_records,
