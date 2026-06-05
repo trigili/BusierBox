@@ -21,14 +21,7 @@ from gritlib.build_config import (
 from gritlib.event_log import (
     EventLog, event_log_status_context, event_status_summary,
 )
-from gritlib.file_transfers import (
-    fetch_record_summary, file_service_workflow_status_context,
-    file_service_workflow_status_summary, file_transfer_status_context,
-recent_fetch_metadata, recent_upload_metadata,
-target_file_transfer_record_summary,
-    target_file_transfer_status_context,
-    upload_record_summary,
-)
+import gritlib.file_transfers as file_transfers
 from gritlib.operator_network import local_ips
 from gritlib.probe_commands import (
     probe_workflow_action_records,
@@ -895,8 +888,10 @@ def _build_target_attribution_status_context(uploads, fetches, sessions):
 
 
 def _build_file_transfer_status_context(staged_records, uploads, fetches):
-    file_transfer_context = file_transfer_status_context(uploads, fetches)
-    target_file_transfer_context = target_file_transfer_status_context(
+    file_transfer_context = file_transfers.file_transfer_status_context(
+        uploads, fetches
+    )
+    target_file_transfer_context = file_transfers.target_file_transfer_status_context(
         staged_records,
         uploads,
         fetches,
@@ -927,14 +922,16 @@ def _build_file_service_workflow_status_context(
     file_service_row = next(
         (row for row in services if row.get("name") == "file-service"), {}
     )
-    file_service_workflow_context = file_service_workflow_status_context(
-        cfg,
-        file_service_row,
-        staged_records,
-        uploads,
-        fetches,
-        target_file_transfer_records,
-        targets,
+    file_service_workflow_context = (
+        file_transfers.file_service_workflow_status_context(
+            cfg,
+            file_service_row,
+            staged_records,
+            uploads,
+            fetches,
+            target_file_transfer_records,
+            targets,
+        )
     )
     file_service_workflow_actions = file_service_workflow_context["actions"]
     return {
@@ -944,7 +941,7 @@ def _build_file_service_workflow_status_context(
         "file_service_workflow_action_index_maps": file_service_workflow_context[
             "index_maps"
         ],
-        "summary": file_service_workflow_status_summary(
+        "summary": file_transfers.file_service_workflow_status_summary(
             file_service_workflow_actions
         ),
     }
@@ -1082,8 +1079,8 @@ def _build_target_registry_context(
     all_target_phone_home_records,
     unfiltered_staged_count,
 ):
-    uploads = recent_upload_metadata(cfg)
-    fetches = recent_fetch_metadata(cfg)
+    uploads = file_transfers.recent_upload_metadata(cfg)
+    fetches = file_transfers.recent_fetch_metadata(cfg)
     targets = target_records.target_records(cfg)
     targets = apply_target_phone_home_summary(
         targets,
@@ -1818,9 +1815,11 @@ def status_document(cfg):
         **service_status_summary(services, service_manager, service_manager_status_doc),
         **port_status_summary(ports),
         **warning_summary_context["summary"],
-        **upload_record_summary(uploads, target_attribution),
-        **fetch_record_summary(fetches, target_attribution),
-        **target_file_transfer_record_summary(target_file_transfer_records),
+        **file_transfers.upload_record_summary(uploads, target_attribution),
+        **file_transfers.fetch_record_summary(fetches, target_attribution),
+        **file_transfers.target_file_transfer_record_summary(
+            target_file_transfer_records
+        ),
         **file_service_workflow_context["summary"],
         **target_activity_feed_context["summary"],
         **target_summary,
