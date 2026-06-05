@@ -90,14 +90,58 @@ except ImportError:
     _readline = None
     HAVE_READLINE = False
 
-def run_line_repl(cfg):
+
+def _setup_line_repl_runtime_io():
     repl_io = line_repl_runtime.setup_line_repl_io(
         _readline,
         HAVE_READLINE,
         shutdown_event=service_runtime.SHUTDOWN,
         request_shutdown_func=service_runtime.request_shutdown,
     )
-    line_input = line_repl_runtime.line_repl_io_input(repl_io)
+    return repl_io, line_repl_runtime.line_repl_io_input(repl_io)
+
+
+def _run_line_repl_loop(
+    cfg,
+    line_input,
+    line_target_callbacks,
+    line_utility_callbacks,
+    line_search_callbacks,
+    line_core_callbacks,
+    line_navigation_callbacks,
+    line_workflow_callbacks,
+    line_legacy_callbacks,
+):
+    return line_repl_runtime.run_configured_line_repl_loop(
+        cfg,
+        clear_console_context_func=line_context.clear_line_console_context,
+        workbench_mark_stopped_func=session_state.mark_service_stopped,
+        shutdown_event=service_runtime.SHUTDOWN,
+        shutdown_reason_func=service_runtime.current_shutdown_reason,
+        target_callbacks=line_target_callbacks,
+        utility_callbacks=line_utility_callbacks,
+        search_callbacks=line_search_callbacks,
+        core_callbacks=line_core_callbacks,
+        navigation_callbacks=line_navigation_callbacks,
+        workflow_callbacks=line_workflow_callbacks,
+        legacy_callbacks=line_legacy_callbacks,
+        workbench_snapshot_func=workbench_snapshot,
+        print_workbench_func=workflow_runners.print_workbench,
+        print_banner_func=line_workspace.print_line_console_banner,
+        version_func=grit_version,
+        prompt_func=line_workspace.line_repl_prompt_for_config,
+        input_func=line_input,
+        history_command_func=line_resources.line_history_command,
+        record_history_func=line_resources.record_line_history,
+        readline_module=_readline if HAVE_READLINE else None,
+        command_help_printer=line_help.print_line_command_help,
+        context_help_printer=line_help.print_context_line_help,
+        unknown_message_func=line_help.line_unknown_command_message,
+    )
+
+
+def run_line_repl(cfg):
+    repl_io, line_input = _setup_line_repl_runtime_io()
 
     line_target_callbacks = build_line_target_callbacks(
         cfg,
@@ -358,31 +402,16 @@ def run_line_repl(cfg):
     )
 
     try:
-        result = line_repl_runtime.run_configured_line_repl_loop(
+        result = _run_line_repl_loop(
             cfg,
-            clear_console_context_func=line_context.clear_line_console_context,
-            workbench_mark_stopped_func=session_state.mark_service_stopped,
-            shutdown_event=service_runtime.SHUTDOWN,
-            shutdown_reason_func=service_runtime.current_shutdown_reason,
-            target_callbacks=line_target_callbacks,
-            utility_callbacks=line_utility_callbacks,
-            search_callbacks=line_search_callbacks,
-            core_callbacks=line_core_callbacks,
-            navigation_callbacks=line_navigation_callbacks,
-            workflow_callbacks=line_workflow_callbacks,
-            legacy_callbacks=line_legacy_callbacks,
-            workbench_snapshot_func=workbench_snapshot,
-            print_workbench_func=workflow_runners.print_workbench,
-            print_banner_func=line_workspace.print_line_console_banner,
-            version_func=grit_version,
-            prompt_func=line_workspace.line_repl_prompt_for_config,
-            input_func=line_input,
-            history_command_func=line_resources.line_history_command,
-            record_history_func=line_resources.record_line_history,
-            readline_module=_readline if HAVE_READLINE else None,
-            command_help_printer=line_help.print_line_command_help,
-            context_help_printer=line_help.print_context_line_help,
-            unknown_message_func=line_help.line_unknown_command_message,
+            line_input=line_input,
+            line_target_callbacks=line_target_callbacks,
+            line_utility_callbacks=line_utility_callbacks,
+            line_search_callbacks=line_search_callbacks,
+            line_core_callbacks=line_core_callbacks,
+            line_navigation_callbacks=line_navigation_callbacks,
+            line_workflow_callbacks=line_workflow_callbacks,
+            line_legacy_callbacks=line_legacy_callbacks,
         )
     finally:
         line_repl_runtime.restore_line_repl_io(repl_io)
