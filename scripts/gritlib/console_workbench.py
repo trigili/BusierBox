@@ -815,6 +815,48 @@ def _build_target_command_status_context(
     }
 
 
+def _build_target_filter_status_context(
+    target_filter_id,
+    selected_target,
+    unfiltered_counts,
+    *,
+    targets,
+    uploads,
+    fetches,
+    staged_records,
+    sessions,
+    events,
+    command_queue,
+    target_command_summary,
+    target_phone_home_records,
+    target_mailbox_records,
+):
+    target_filter_context = target_filter_status_context(
+        target_filter_id,
+        selected_target,
+        unfiltered_counts,
+        {
+            "targets": len(targets),
+            "uploads": len(uploads),
+            "fetches": len(fetches),
+            "staged": len(staged_records),
+            "sessions": len(sessions),
+            "event_tail": len(events),
+            "command_queue_commands": len(command_queue.get("commands") or []),
+            "target_command_records": target_command_summary.get("total_count", 0),
+            "target_phone_home_records": len(target_phone_home_records),
+        },
+        target_mailbox_records=target_mailbox_records,
+    )
+    return {
+        "target_filter_context": target_filter_context,
+        "target_filter_record": target_filter_context["record"],
+        "target_filter_records": target_filter_context["records"],
+        "target_filter_index_maps": target_filter_context["index_maps"],
+        "summary": target_filter_context["summary"],
+    }
+
+
 def _build_file_transfer_status_context(staged_records, uploads, fetches):
     file_transfer_context = file_transfer_status_context(uploads, fetches)
     target_file_transfer_context = target_file_transfer_status_context(
@@ -1352,26 +1394,24 @@ def status_document(cfg):
     unfiltered_counts["target_command_records"] = target_command_context["unfiltered_count"]
     target_command_index_maps = target_command_context["target_command_index_maps"]
     target_command_summary = target_command_context["target_command_summary"]
-    target_filter_context = target_filter_status_context(
+    target_filter_context = _build_target_filter_status_context(
         target_filter_id,
         selected_target,
         unfiltered_counts,
-        {
-            "targets": len(targets),
-            "uploads": len(uploads),
-            "fetches": len(fetches),
-            "staged": len(staged_records),
-            "sessions": len(sessions),
-            "event_tail": len(events),
-            "command_queue_commands": len(command_queue.get("commands") or []),
-            "target_command_records": target_command_summary.get("total_count", 0),
-            "target_phone_home_records": len(target_phone_home_records),
-        },
+        targets=targets,
+        uploads=uploads,
+        fetches=fetches,
+        staged_records=staged_records,
+        sessions=sessions,
+        events=events,
+        command_queue=command_queue,
+        target_command_summary=target_command_summary,
+        target_phone_home_records=target_phone_home_records,
         target_mailbox_records=target_mailbox_records,
     )
-    target_filter_record = target_filter_context["record"]
-    target_filter_records = target_filter_context["records"]
-    target_filter_index_maps = target_filter_context["index_maps"]
+    target_filter_record = target_filter_context["target_filter_record"]
+    target_filter_records = target_filter_context["target_filter_records"]
+    target_filter_index_maps = target_filter_context["target_filter_index_maps"]
     target_command_state_record = target_command_context["target_command_state_record"]
     target_command_state_records = target_command_context["target_command_state_records"]
     target_command_state_index_maps = target_command_context["target_command_state_index_maps"]
