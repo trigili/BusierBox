@@ -1368,7 +1368,7 @@ def _workbench_offline_action_records(config_path):
     ]
 
 
-def _workbench_daemon_action_records(config_path, daemon_service_args, daemon_command):
+def _workbench_operator_daemon_action_records(config_path, daemon_command):
     return [
         {
             "id": "operator-daemon-start",
@@ -1418,6 +1418,11 @@ def _workbench_daemon_action_records(config_path, daemon_service_args, daemon_co
             "target_execution": False,
             "event": "workbench_action_selected",
         },
+    ]
+
+
+def _workbench_systemd_user_action_records(config_path, daemon_service_args):
+    return [
         {
             "id": "systemd-user-print",
             "category": "daemon",
@@ -1515,6 +1520,13 @@ def _workbench_daemon_action_records(config_path, daemon_service_args, daemon_co
             "event": "workbench_action_selected",
         },
     ]
+
+
+def _workbench_daemon_action_records(config_path, daemon_service_args, daemon_command):
+    records = []
+    records.extend(_workbench_operator_daemon_action_records(config_path, daemon_command))
+    records.extend(_workbench_systemd_user_action_records(config_path, daemon_service_args))
+    return records
 
 
 def workbench_action_records(cfg):
