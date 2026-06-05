@@ -4171,6 +4171,61 @@ def _build_status_activity_queue_context(
     }
 
 
+def _status_transfer_file_fields(file_transfer_context):
+    return {
+        "file_transfer_context": file_transfer_context,
+        "upload_index_maps": file_transfer_context["upload_index_maps"],
+        "fetch_index_maps": file_transfer_context["fetch_index_maps"],
+        "target_file_transfer_records": file_transfer_context[
+            "target_file_transfer_records"
+        ],
+        "target_file_transfer_index_maps": file_transfer_context[
+            "target_file_transfer_index_maps"
+        ],
+    }
+
+
+def _status_transfer_file_service_workflow_fields(file_service_workflow_context):
+    return {
+        "file_service_workflow_context": file_service_workflow_context,
+        "file_service_row": file_service_workflow_context["file_service_row"],
+        "file_service_workflow_actions": file_service_workflow_context[
+            "file_service_workflow_actions"
+        ],
+        "file_service_workflow_action_index_maps": file_service_workflow_context[
+            "file_service_workflow_action_index_maps"
+        ],
+    }
+
+
+def _status_transfer_activity_feed_fields(target_activity_feed_context):
+    return {
+        "target_activity_feed_context": target_activity_feed_context,
+        "target_activity_records": target_activity_feed_context[
+            "target_activity_records"
+        ],
+        "target_activity_index_maps": target_activity_feed_context[
+            "target_activity_index_maps"
+        ],
+    }
+
+
+def _status_transfer_attribution_fields(target_attribution_context):
+    return {
+        "target_attribution_context": target_attribution_context,
+        "target_attribution_status_doc": target_attribution_context[
+            "target_attribution_status_doc"
+        ],
+        "target_attribution": target_attribution_context["target_attribution"],
+        "target_attribution_records": target_attribution_context[
+            "target_attribution_records"
+        ],
+        "target_attribution_index_maps": target_attribution_context[
+            "target_attribution_index_maps"
+        ],
+    }
+
+
 def _build_status_transfer_activity_context(
     cfg,
     *,
@@ -4210,39 +4265,12 @@ def _build_status_transfer_activity_context(
         aq["sessions"],
     )
     return {
-        "file_transfer_context": file_transfer_context,
-        "upload_index_maps": file_transfer_context["upload_index_maps"],
-        "fetch_index_maps": file_transfer_context["fetch_index_maps"],
-        "target_file_transfer_records": target_file_transfer_records,
-        "target_file_transfer_index_maps": file_transfer_context[
-            "target_file_transfer_index_maps"
-        ],
-        "file_service_workflow_context": file_service_workflow_context,
-        "file_service_row": file_service_workflow_context["file_service_row"],
-        "file_service_workflow_actions": file_service_workflow_context[
-            "file_service_workflow_actions"
-        ],
-        "file_service_workflow_action_index_maps": file_service_workflow_context[
-            "file_service_workflow_action_index_maps"
-        ],
-        "target_activity_feed_context": target_activity_feed_context,
-        "target_activity_records": target_activity_feed_context[
-            "target_activity_records"
-        ],
-        "target_activity_index_maps": target_activity_feed_context[
-            "target_activity_index_maps"
-        ],
-        "target_attribution_context": target_attribution_context,
-        "target_attribution_status_doc": target_attribution_context[
-            "target_attribution_status_doc"
-        ],
-        "target_attribution": target_attribution_context["target_attribution"],
-        "target_attribution_records": target_attribution_context[
-            "target_attribution_records"
-        ],
-        "target_attribution_index_maps": target_attribution_context[
-            "target_attribution_index_maps"
-        ],
+        **_status_transfer_file_fields(file_transfer_context),
+        **_status_transfer_file_service_workflow_fields(
+            file_service_workflow_context
+        ),
+        **_status_transfer_activity_feed_fields(target_activity_feed_context),
+        **_status_transfer_attribution_fields(target_attribution_context),
     }
 
 
