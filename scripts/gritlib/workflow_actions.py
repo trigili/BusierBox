@@ -1,5 +1,6 @@
 """Workflow action index, summary, and display helpers for grit-console."""
 
+from pathlib import Path
 import shlex
 
 from gritlib.build_config import build_config_path
@@ -2434,13 +2435,7 @@ def operator_daemon_workflow_action_status_summary(records):
     }
 
 
-def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets=None):
-    from pathlib import Path
-
-    actions = [
-        rec for rec in (workbench_actions or [])
-        if isinstance(rec, dict) and str(rec.get("category") or "") == "daemon"
-    ]
+def _operator_daemon_workflow_runtime_context(cfg, targets=None):
     state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
     daemon_state = (state.get("services") or {}).get("operator-daemon") or {}
     daemon_status = str(daemon_state.get("status") or "unknown")
@@ -2457,7 +2452,22 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets
     if not desired_services:
         desired_services = ["file-service", "command-queue"]
     daemon_attached = daemon_status in ("starting", "listening") and bool(child_alive_count or child_pids)
-    unit_name = systemd_user_unit_name("grit-operator.service")
+    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    return {
+        "state": state,
+        "daemon_state": daemon_state,
+        "daemon_status": daemon_status,
+        "child_pids": child_pids,
+        "child_alive_count": child_alive_count,
+        "child_services": child_services,
+        "desired_services": desired_services,
+        "daemon_attached": daemon_attached,
+        "target_records": target_records,
+        "unit_name": systemd_user_unit_name("grit-operator.service"),
+    }
+
+
+def _operator_daemon_workflow_shared_state(cfg, runtime):
     queue_data = load_command_queue(cfg)
     queue_commands = [
         rec for rec in queue_data.get("commands") or []
@@ -2476,7 +2486,7 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets
     targets_map = targets_data.get("targets") if isinstance(targets_data, dict) else {}
     if not isinstance(targets_map, dict):
         targets_map = {}
-    target_records = [rec for rec in (targets or []) if isinstance(rec, dict)]
+    target_records = list(runtime.get("target_records") or [])
     if not target_records:
         target_records = [
             rec for rec in targets_map.values()
@@ -2491,7 +2501,7 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets
     workbench_jobs = workbench_jobs_data.get("jobs") if isinstance(workbench_jobs_data, dict) else {}
     if not isinstance(workbench_jobs, dict):
         workbench_jobs = {}
-    shared_state = {
+    return {
         "control_state_file": str(state_file_path(cfg)),
         "control_state_exists": Path(state_file_path(cfg)).exists(),
         "command_queue_file": str(command_queue_path(cfg)),
@@ -2514,49 +2524,62 @@ def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets
         "workbench_jobs_file_exists": Path(workbench_jobs_path(cfg)).exists(),
         "workbench_job_count": len(workbench_jobs),
     }
-    records = []
 
-    for action in actions:
-        action_id = str(action.get("id") or "")
-        workflow = "systemd-user-service" if action_id.startswith("systemd-user-") else "operator-daemon"
-        category = "systemd" if workflow == "systemd-user-service" else "daemon"
-        run_command = str(action.get("run_command") or "")
-        dry_run_command = str(action.get("dry_run_command") or "")
-        start_job_command = str(action.get("start_job_command") or "")
-        command = str(action.get("command") or "")
-        workflow_commands = operator_daemon_workflow_commands(
-            cfg.get("_config_path", DEFAULT_CONFIG),
-            action_id,
-        )
-        workflow_run_command = workflow_commands["run"]
-        workflow_dry_run_command = workflow_commands["dry_run"]
-        workflow_confirm_command = workflow_commands["confirm"]
-        headless = workflow_run_command or start_job_command or run_command or dry_run_command or command
-        action_state = operator_daemon_action_state(action_id, action, daemon_attached)
-        records.append(operator_daemon_workflow_action_record(
-            action,
-            action_id,
-            workflow,
-            category,
-            command,
-            headless,
-            workflow_run_command,
-            workflow_confirm_command,
-            workflow_dry_run_command,
-            shared_state,
-            desired_services,
-            child_services,
-            daemon_status,
-            daemon_attached,
-            child_pids,
-            child_alive_count,
-            daemon_state,
-            unit_name,
-            action_state,
-            run_command=run_command,
-            dry_run_command=dry_run_command,
-            start_job_command=start_job_command,
-        ))
+
+def _operator_daemon_workflow_action_from_workbench_action(cfg, action, runtime, shared_state):
+    action_id = str(action.get("id") or "")
+    workflow = "systemd-user-service" if action_id.startswith("systemd-user-") else "operator-daemon"
+    category = "systemd" if workflow == "systemd-user-service" else "daemon"
+    run_command = str(action.get("run_command") or "")
+    dry_run_command = str(action.get("dry_run_command") or "")
+    start_job_command = str(action.get("start_job_command") or "")
+    command = str(action.get("command") or "")
+    workflow_commands = operator_daemon_workflow_commands(
+        cfg.get("_config_path", DEFAULT_CONFIG),
+        action_id,
+    )
+    workflow_run_command = workflow_commands["run"]
+    workflow_dry_run_command = workflow_commands["dry_run"]
+    workflow_confirm_command = workflow_commands["confirm"]
+    headless = workflow_run_command or start_job_command or run_command or dry_run_command or command
+    action_state = operator_daemon_action_state(action_id, action, runtime["daemon_attached"])
+    return operator_daemon_workflow_action_record(
+        action,
+        action_id,
+        workflow,
+        category,
+        command,
+        headless,
+        workflow_run_command,
+        workflow_confirm_command,
+        workflow_dry_run_command,
+        shared_state,
+        runtime["desired_services"],
+        runtime["child_services"],
+        runtime["daemon_status"],
+        runtime["daemon_attached"],
+        runtime["child_pids"],
+        runtime["child_alive_count"],
+        runtime["daemon_state"],
+        runtime["unit_name"],
+        action_state,
+        run_command=run_command,
+        dry_run_command=dry_run_command,
+        start_job_command=start_job_command,
+    )
+
+
+def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets=None):
+    actions = [
+        rec for rec in (workbench_actions or [])
+        if isinstance(rec, dict) and str(rec.get("category") or "") == "daemon"
+    ]
+    runtime = _operator_daemon_workflow_runtime_context(cfg, targets=targets)
+    shared_state = _operator_daemon_workflow_shared_state(cfg, runtime)
+    records = [
+        _operator_daemon_workflow_action_from_workbench_action(cfg, action, runtime, shared_state)
+        for action in actions
+    ]
     records.sort(key=lambda rec: (rec.get("workflow", ""), rec.get("action_id", "")))
     return records
 
