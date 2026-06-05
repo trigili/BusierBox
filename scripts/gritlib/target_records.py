@@ -1936,23 +1936,8 @@ def target_filter_record_indexes(records):
     return indexes
 
 
-def target_filter_record_from_target(target_filter_id="", selected_target=None):
-    selected_target = selected_target if isinstance(selected_target, dict) else {}
-    selected_target_sources = selected_target.get("identity_sources") or []
-    selected_target_capability_summary = (
-        selected_target.get("latest_capability_summary") or {}
-    )
-    if not isinstance(selected_target_capability_summary, dict):
-        selected_target_capability_summary = {}
-    selected_target_compatibility_summary = (
-        selected_target.get("latest_compatibility_summary") or {}
-    )
-    if not isinstance(selected_target_compatibility_summary, dict):
-        selected_target_compatibility_summary = {}
+def _selected_target_base_filter_fields(selected_target):
     return {
-        "id": target_filter_id or "all-targets",
-        "active": bool(target_filter_id),
-        "target_id": target_filter_id,
         "selected_target_found": bool(selected_target),
         "selected_target_label": str(selected_target.get("label") or ""),
         "selected_target_identity_confidence": str(
@@ -1969,6 +1954,11 @@ def target_filter_record_from_target(target_filter_id="", selected_target=None):
         "selected_target_offline_age_bucket": str(
             selected_target.get("offline_age_bucket") or ""
         ),
+    }
+
+
+def _selected_target_phone_home_filter_fields(selected_target):
+    return {
         "selected_target_latest_phone_home_at": str(
             selected_target.get("latest_phone_home_at") or ""
         ),
@@ -2014,6 +2004,12 @@ def target_filter_record_from_target(target_filter_id="", selected_target=None):
         "selected_target_poll_overdue_for_sec": selected_target.get(
             "poll_overdue_for_sec", ""
         ),
+    }
+
+
+def _selected_target_mailbox_metadata_filter_fields(selected_target):
+    selected_target_sources = selected_target.get("identity_sources") or []
+    return {
         "selected_target_mailbox_command_count": int_value(
             selected_target.get("mailbox_command_count", 0)
         ),
@@ -2025,12 +2021,30 @@ def target_filter_record_from_target(target_filter_id="", selected_target=None):
         "selected_target_notes_present": bool(
             str(selected_target.get("notes") or "").strip()
         ),
+    }
+
+
+def _selected_target_identity_filter_fields(selected_target):
+    return {
+        **_selected_target_base_filter_fields(selected_target),
+        **_selected_target_phone_home_filter_fields(selected_target),
+        **_selected_target_mailbox_metadata_filter_fields(selected_target),
+    }
+
+
+def _selected_target_activity_filter_fields(selected_target):
+    return {
         "selected_target_latest_activity_service": str(
             selected_target.get("latest_activity_service") or ""
         ),
         "selected_target_latest_activity_operation": str(
             selected_target.get("latest_activity_operation") or ""
         ),
+    }
+
+
+def _selected_target_file_survey_bridge_filter_fields(selected_target):
+    return {
         "selected_target_latest_file_transfer_operation": str(
             selected_target.get("latest_file_transfer_operation") or ""
         ),
@@ -2067,6 +2081,21 @@ def target_filter_record_from_target(target_filter_id="", selected_target=None):
         "selected_target_latest_bridge_failure_reason": str(
             selected_target.get("latest_bridge_failure_reason") or ""
         ),
+    }
+
+
+def _selected_target_report_filter_fields(selected_target):
+    selected_target_capability_summary = (
+        selected_target.get("latest_capability_summary") or {}
+    )
+    if not isinstance(selected_target_capability_summary, dict):
+        selected_target_capability_summary = {}
+    selected_target_compatibility_summary = (
+        selected_target.get("latest_compatibility_summary") or {}
+    )
+    if not isinstance(selected_target_compatibility_summary, dict):
+        selected_target_compatibility_summary = {}
+    return {
         "selected_target_latest_capability_report_kind": str(
             selected_target.get("latest_capability_report_kind") or ""
         ),
@@ -2097,6 +2126,19 @@ def target_filter_record_from_target(target_filter_id="", selected_target=None):
         "selected_target_latest_compatibility_reason_count": int_value(
             selected_target_compatibility_summary.get("reason_count", 0)
         ),
+    }
+
+
+def target_filter_record_from_target(target_filter_id="", selected_target=None):
+    selected_target = selected_target if isinstance(selected_target, dict) else {}
+    return {
+        "id": target_filter_id or "all-targets",
+        "active": bool(target_filter_id),
+        "target_id": target_filter_id,
+        **_selected_target_identity_filter_fields(selected_target),
+        **_selected_target_activity_filter_fields(selected_target),
+        **_selected_target_file_survey_bridge_filter_fields(selected_target),
+        **_selected_target_report_filter_fields(selected_target),
     }
 
 
