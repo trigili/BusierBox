@@ -3338,7 +3338,7 @@ def _build_event_workflow_summary_updates(
     }
 
 
-def _build_status_api_collections(
+def _build_status_service_health_api_collections(
     *,
     services,
     service_workflow_actions,
@@ -3356,43 +3356,6 @@ def _build_status_api_collections(
     operator_network_state_records,
     browser_paths,
     warnings,
-    target_command_records,
-    target_workflow_actions,
-    target_command_state_records,
-    rshell_session_policy_records,
-    targets,
-    target_registry_state_records,
-    target_filter_records,
-    target_attribution_records,
-    staged_records,
-    staged_file_workflow_actions,
-    file_service_workflow_actions,
-    target_file_transfer_records,
-    target_activity_records,
-    staged_files_state_records,
-    command_copy_records,
-    command_copy_state_records,
-    command_queue_state_records,
-    target_mailbox_records,
-    target_phone_home_records,
-    workbench_jobs_state_records,
-    uploads,
-    fetches,
-    session_root_state_records,
-    sessions,
-    events,
-    event_log_state_records,
-    release,
-    release_artifact_workflow_actions,
-    release_state_records,
-    command_queue,
-    command_queue_workflow_actions,
-    command_queue_policy_records,
-    operator_console_workflows,
-    workbench_actions,
-    operator_daemon_workflow_actions,
-    workbench_config_fields,
-    workbench_jobs,
 ):
     return {
         **_build_service_bridge_api_collections(
@@ -3415,6 +3378,32 @@ def _build_status_api_collections(
             browser_paths=browser_paths,
             warnings=warnings,
         ),
+    }
+
+
+def _build_status_target_activity_api_collections(
+    *,
+    target_command_records,
+    target_workflow_actions,
+    target_command_state_records,
+    rshell_session_policy_records,
+    targets,
+    target_registry_state_records,
+    target_filter_records,
+    target_attribution_records,
+    staged_records,
+    staged_file_workflow_actions,
+    file_service_workflow_actions,
+    target_file_transfer_records,
+    target_activity_records,
+    staged_files_state_records,
+    command_copy_records,
+    command_copy_state_records,
+    command_queue_state_records,
+    target_mailbox_records,
+    target_phone_home_records,
+):
+    return {
         **_build_target_api_collections(
             target_command_records=target_command_records,
             target_workflow_actions=target_workflow_actions,
@@ -3440,6 +3429,31 @@ def _build_status_api_collections(
             target_mailbox_records=target_mailbox_records,
             target_phone_home_records=target_phone_home_records,
         ),
+    }
+
+
+def _build_status_history_workbench_api_collections(
+    *,
+    workbench_jobs_state_records,
+    uploads,
+    fetches,
+    session_root_state_records,
+    sessions,
+    events,
+    event_log_state_records,
+    release,
+    release_artifact_workflow_actions,
+    release_state_records,
+    command_queue,
+    command_queue_workflow_actions,
+    command_queue_policy_records,
+    operator_console_workflows,
+    workbench_actions,
+    operator_daemon_workflow_actions,
+    workbench_config_fields,
+    workbench_jobs,
+):
+    return {
         **_build_history_api_collections(
             workbench_jobs_state_records=workbench_jobs_state_records,
             uploads=uploads,
@@ -3465,6 +3479,74 @@ def _build_status_api_collections(
             operator_daemon_workflow_actions=operator_daemon_workflow_actions,
             workbench_config_fields=workbench_config_fields,
             workbench_jobs=workbench_jobs,
+        ),
+    }
+
+
+def _build_status_api_collections(**data):
+    return {
+        **_build_status_service_health_api_collections(
+            services=data["services"],
+            service_workflow_actions=data["service_workflow_actions"],
+            probe_workflow_actions=data["probe_workflow_actions"],
+            service_manager_resources=data["service_manager_resources"],
+            service_manager_state_records=data["service_manager_state_records"],
+            bridge_profiles=data["bridge_profiles"],
+            bridge_profile_workflow_actions=data["bridge_profile_workflow_actions"],
+            bridge_hop_records=data["bridge_hop_records"],
+            ports=data["ports"],
+            path_status_records=data["path_status_records"],
+            server_state_records=data["server_state_records"],
+            operator_state_records_list=data["operator_state_records_list"],
+            operator_network_records=data["operator_network_records"],
+            operator_network_state_records=data["operator_network_state_records"],
+            browser_paths=data["browser_paths"],
+            warnings=data["warnings"],
+        ),
+        **_build_status_target_activity_api_collections(
+            target_command_records=data["target_command_records"],
+            target_workflow_actions=data["target_workflow_actions"],
+            target_command_state_records=data["target_command_state_records"],
+            rshell_session_policy_records=data["rshell_session_policy_records"],
+            targets=data["targets"],
+            target_registry_state_records=data["target_registry_state_records"],
+            target_filter_records=data["target_filter_records"],
+            target_attribution_records=data["target_attribution_records"],
+            staged_records=data["staged_records"],
+            staged_file_workflow_actions=data["staged_file_workflow_actions"],
+            file_service_workflow_actions=data["file_service_workflow_actions"],
+            target_file_transfer_records=data["target_file_transfer_records"],
+            target_activity_records=data["target_activity_records"],
+            staged_files_state_records=data["staged_files_state_records"],
+            command_copy_records=data["command_copy_records"],
+            command_copy_state_records=data["command_copy_state_records"],
+            command_queue_state_records=data["command_queue_state_records"],
+            target_mailbox_records=data["target_mailbox_records"],
+            target_phone_home_records=data["target_phone_home_records"],
+        ),
+        **_build_status_history_workbench_api_collections(
+            workbench_jobs_state_records=data["workbench_jobs_state_records"],
+            uploads=data["uploads"],
+            fetches=data["fetches"],
+            session_root_state_records=data["session_root_state_records"],
+            sessions=data["sessions"],
+            events=data["events"],
+            event_log_state_records=data["event_log_state_records"],
+            release=data["release"],
+            release_artifact_workflow_actions=data[
+                "release_artifact_workflow_actions"
+            ],
+            release_state_records=data["release_state_records"],
+            command_queue=data["command_queue"],
+            command_queue_workflow_actions=data["command_queue_workflow_actions"],
+            command_queue_policy_records=data["command_queue_policy_records"],
+            operator_console_workflows=data["operator_console_workflows"],
+            workbench_actions=data["workbench_actions"],
+            operator_daemon_workflow_actions=data[
+                "operator_daemon_workflow_actions"
+            ],
+            workbench_config_fields=data["workbench_config_fields"],
+            workbench_jobs=data["workbench_jobs"],
         ),
     }
 
