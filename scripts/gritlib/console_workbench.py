@@ -3675,6 +3675,356 @@ def _build_status_foundation_context(cfg, *, target_filter_id):
     }
 
 
+def _status_activity_bridge_fields(bridge_profile_context):
+    return {
+        "bridge_profile_context": bridge_profile_context,
+        "bridge_profiles": bridge_profile_context["bridge_profiles"],
+        "bridge_profile_index_maps": bridge_profile_context[
+            "bridge_profile_index_maps"
+        ],
+        "bridge_hop_records": bridge_profile_context["bridge_hop_records"],
+        "bridge_hop_index_maps": bridge_profile_context["bridge_hop_index_maps"],
+        "bridge_profile_workflow_actions": bridge_profile_context[
+            "bridge_profile_workflow_actions"
+        ],
+        "bridge_profile_workflow_action_index_maps": bridge_profile_context[
+            "bridge_profile_workflow_action_index_maps"
+        ],
+    }
+
+
+def _status_activity_staged_workflow_fields(staged_file_workflow_context):
+    return {
+        "staged_file_workflow_context": staged_file_workflow_context,
+        "staged_file_workflow_actions": staged_file_workflow_context[
+            "staged_file_workflow_actions"
+        ],
+        "staged_file_workflow_action_index_maps": staged_file_workflow_context[
+            "staged_file_workflow_action_index_maps"
+        ],
+    }
+
+
+def _status_activity_session_fields(session_context, target_filter_session_ids):
+    return {
+        "session_context": session_context,
+        "sessions": session_context["sessions"],
+        "target_filter_session_ids": target_filter_session_ids,
+        "session_root_state": session_context["session_root_state"],
+        "session_root_state_records": session_context["session_root_state_records"],
+        "session_root_state_index_maps": session_context[
+            "session_root_state_index_maps"
+        ],
+        "session_index_maps": session_context["session_index_maps"],
+    }
+
+
+def _status_activity_event_fields(event_context):
+    return {
+        "event_context": event_context,
+        "event_stats": event_context["event_stats"],
+        "event_log_state": event_context["event_log_state"],
+        "event_log_state_records": event_context["event_log_state_records"],
+        "event_log_state_index_maps": event_context["event_log_state_index_maps"],
+        "events": event_context["events"],
+        "event_index_maps": event_context["event_index_maps"],
+        "event_summary_stats": event_context["event_summary_stats"],
+    }
+
+
+def _status_activity_command_queue_fields(command_queue_context):
+    return {
+        "command_queue_context": command_queue_context,
+        "command_queue": command_queue_context["command_queue"],
+        "command_queue_policy_records": command_queue_context[
+            "command_queue_policy_records"
+        ],
+        "command_queue_policy_index_maps": command_queue_context[
+            "command_queue_policy_index_maps"
+        ],
+        "command_queue_index_maps": command_queue_context["command_queue_index_maps"],
+        "command_queue_mode_records": command_queue_context[
+            "command_queue_mode_records"
+        ],
+        "command_queue_mode_index_maps": command_queue_context[
+            "command_queue_mode_index_maps"
+        ],
+    }
+
+
+def _status_activity_target_activity_fields(target_activity_context):
+    return {
+        "target_activity_context": target_activity_context,
+        "target_mailbox_records": target_activity_context["target_mailbox_records"],
+        "target_mailbox_index_maps": target_activity_context[
+            "target_mailbox_index_maps"
+        ],
+        "target_phone_home_records": target_activity_context[
+            "target_phone_home_records"
+        ],
+        "target_phone_home_index_maps": target_activity_context[
+            "target_phone_home_index_maps"
+        ],
+    }
+
+
+def _status_activity_release_fields(release_context_doc):
+    return {
+        "release_context_doc": release_context_doc,
+        "release": release_context_doc["release"],
+        "release_state": release_context_doc["release_state"],
+        "release_state_records": release_context_doc["release_state_records"],
+        "release_state_index_maps": release_context_doc["release_state_index_maps"],
+        "release_artifact_workflow_actions": release_context_doc[
+            "release_artifact_workflow_actions"
+        ],
+        "release_artifact_workflow_action_index_maps": release_context_doc[
+            "release_artifact_workflow_action_index_maps"
+        ],
+    }
+
+
+def _status_activity_rshell_policy_fields(rshell_session_policy_context):
+    return {
+        "rshell_session_policy_context": rshell_session_policy_context,
+        "rshell_session_policy": rshell_session_policy_context[
+            "rshell_session_policy"
+        ],
+        "rshell_session_policy_record_item": rshell_session_policy_context[
+            "rshell_session_policy_record_item"
+        ],
+        "rshell_session_policy_records": rshell_session_policy_context[
+            "rshell_session_policy_records"
+        ],
+        "rshell_session_policy_index_maps": rshell_session_policy_context[
+            "rshell_session_policy_index_maps"
+        ],
+    }
+
+
+def _status_activity_workbench_config_fields(workbench_config_context):
+    return {
+        "workbench_config_context": workbench_config_context,
+        "workbench_config_fields": workbench_config_context[
+            "workbench_config_fields"
+        ],
+        "workbench_config_field_index_maps": workbench_config_context[
+            "workbench_config_field_index_maps"
+        ],
+    }
+
+
+def _status_activity_workflow_fields(workflow_context):
+    return {
+        "workflow_context": workflow_context,
+        "workbench_action_context": workflow_context["workbench_action_context"],
+        "workbench_actions": workflow_context["workbench_actions"],
+        "workbench_action_index_maps": workflow_context[
+            "workbench_action_index_maps"
+        ],
+        "operator_daemon_workflow_actions": workflow_context[
+            "operator_daemon_workflow_actions"
+        ],
+        "operator_daemon_workflow_action_index_maps": workflow_context[
+            "operator_daemon_workflow_action_index_maps"
+        ],
+        "target_workflow_actions": workflow_context["target_workflow_actions"],
+        "target_workflow_action_index_maps": workflow_context[
+            "target_workflow_action_index_maps"
+        ],
+        "workbench_job_context": workflow_context["workbench_job_context"],
+        "workbench_jobs": workflow_context["workbench_jobs"],
+        "workbench_job_index_maps": workflow_context["workbench_job_index_maps"],
+    }
+
+
+def _status_activity_target_command_fields(target_command_context):
+    return {
+        "target_command_context": target_command_context,
+        "target_command_records": target_command_context["target_command_records"],
+        "target_command_index_maps": target_command_context[
+            "target_command_index_maps"
+        ],
+        "target_command_summary": target_command_context["target_command_summary"],
+        "target_command_state_record": target_command_context[
+            "target_command_state_record"
+        ],
+        "target_command_state_records": target_command_context[
+            "target_command_state_records"
+        ],
+        "target_command_state_index_maps": target_command_context[
+            "target_command_state_index_maps"
+        ],
+    }
+
+
+def _status_activity_target_filter_fields(target_filter_context):
+    return {
+        "target_filter_context": target_filter_context,
+        "target_filter_record": target_filter_context["target_filter_record"],
+        "target_filter_records": target_filter_context["target_filter_records"],
+        "target_filter_index_maps": target_filter_context[
+            "target_filter_index_maps"
+        ],
+    }
+
+
+def _build_status_session_event_activity_context(
+    cfg,
+    *,
+    event_limit,
+    target_filter_id,
+    foundation_context,
+    unfiltered_counts,
+    command_queue,
+):
+    session_context = _build_session_status_context(
+        cfg,
+        target_filter_id=target_filter_id,
+    )
+    unfiltered_counts["sessions"] = session_context["unfiltered_count"]
+    target_filter_session_ids = session_context["target_filter_session_ids"]
+    reconcile_workbench_job_completion_events(cfg)
+    event_context = _build_event_status_context(
+        cfg,
+        event_limit,
+        target_filter_id=target_filter_id,
+        target_filter_session_ids=target_filter_session_ids,
+    )
+    unfiltered_counts["event_tail"] = event_context["unfiltered_tail_count"]
+    target_activity_context = _build_target_activity_status_context(
+        command_queue,
+        foundation_context["targets_by_id"],
+        foundation_context["all_event_records"],
+        target_filter_id=target_filter_id,
+        target_filter_session_ids=target_filter_session_ids,
+    )
+    return {
+        "session_context": session_context,
+        "target_filter_session_ids": target_filter_session_ids,
+        "event_context": event_context,
+        "target_activity_context": target_activity_context,
+    }
+
+
+def _build_status_target_command_filter_context(
+    cfg,
+    *,
+    target_filter_id,
+    foundation_context,
+    unfiltered_counts,
+    session_context,
+    event_context,
+    command_queue,
+    target_activity_context,
+):
+    f = foundation_context
+    target_command_context = _build_target_command_status_context(
+        cfg,
+        staged_raw=f["staged_raw"],
+        unfiltered_staged_raw=f["unfiltered_staged_raw"],
+        target_filter_id=target_filter_id,
+    )
+    unfiltered_counts["target_command_records"] = target_command_context[
+        "unfiltered_count"
+    ]
+    target_filter_context = _build_target_filter_status_context(
+        target_filter_id,
+        f["selected_target"],
+        unfiltered_counts,
+        targets=f["targets"],
+        uploads=f["uploads"],
+        fetches=f["fetches"],
+        staged_records=f["staged_records"],
+        sessions=session_context["sessions"],
+        events=event_context["events"],
+        command_queue=command_queue,
+        target_command_summary=target_command_context["target_command_summary"],
+        target_phone_home_records=target_activity_context[
+            "target_phone_home_records"
+        ],
+        target_mailbox_records=target_activity_context["target_mailbox_records"],
+    )
+    return {
+        "target_command_context": target_command_context,
+        "target_filter_context": target_filter_context,
+    }
+
+
+def _build_status_activity_queue_context(
+    cfg,
+    *,
+    event_limit,
+    target_filter_id,
+    foundation_context,
+):
+    f = foundation_context
+    targets = f["targets"]
+    staged_records = f["staged_records"]
+    unfiltered_counts = f["unfiltered_counts"]
+    bridge_profile_context = _build_bridge_profile_status_context(cfg, targets)
+    bridge_profiles = bridge_profile_context["bridge_profiles"]
+    staged_file_workflow_context = _build_staged_file_workflow_status_context(
+        cfg,
+        staged_records,
+        targets,
+    )
+    command_queue_context = _build_command_queue_status_context(cfg)
+    command_queue = command_queue_context["command_queue"]
+    session_event_activity_context = _build_status_session_event_activity_context(
+        cfg,
+        event_limit=event_limit,
+        target_filter_id=target_filter_id,
+        foundation_context=foundation_context,
+        unfiltered_counts=unfiltered_counts,
+        command_queue=command_queue,
+    )
+    session_context = session_event_activity_context["session_context"]
+    target_filter_session_ids = session_event_activity_context[
+        "target_filter_session_ids"
+    ]
+    event_context = session_event_activity_context["event_context"]
+    target_activity_context = session_event_activity_context[
+        "target_activity_context"
+    ]
+    release_context_doc = _build_release_status_context(cfg)
+    rshell_session_policy_context = _build_rshell_session_policy_status_context(cfg)
+    workbench_config_context = _build_workbench_config_status_context(cfg)
+    workflow_context = _build_workbench_workflow_status_context(
+        cfg,
+        targets,
+        bridge_profiles,
+    )
+    target_command_filter_context = _build_status_target_command_filter_context(
+        cfg,
+        target_filter_id=target_filter_id,
+        foundation_context=foundation_context,
+        unfiltered_counts=unfiltered_counts,
+        session_context=session_context,
+        event_context=event_context,
+        command_queue=command_queue,
+        target_activity_context=target_activity_context,
+    )
+    target_command_context = target_command_filter_context["target_command_context"]
+    target_filter_context = target_command_filter_context["target_filter_context"]
+    return {
+        **_status_activity_bridge_fields(bridge_profile_context),
+        **_status_activity_staged_workflow_fields(staged_file_workflow_context),
+        **_status_activity_session_fields(
+            session_context, target_filter_session_ids
+        ),
+        **_status_activity_event_fields(event_context),
+        **_status_activity_command_queue_fields(command_queue_context),
+        **_status_activity_target_activity_fields(target_activity_context),
+        **_status_activity_release_fields(release_context_doc),
+        **_status_activity_rshell_policy_fields(rshell_session_policy_context),
+        **_status_activity_workbench_config_fields(workbench_config_context),
+        **_status_activity_workflow_fields(workflow_context),
+        **_status_activity_target_command_fields(target_command_context),
+        **_status_activity_target_filter_fields(target_filter_context),
+    }
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
@@ -3726,161 +4076,100 @@ def status_document(cfg):
     unfiltered_counts = f["unfiltered_counts"]
     unfiltered_staged_raw = f["unfiltered_staged_raw"]
     uploads = f["uploads"]
-    bridge_profile_context = _build_bridge_profile_status_context(cfg, targets)
-    bridge_profiles = bridge_profile_context["bridge_profiles"]
-    bridge_profile_index_maps = bridge_profile_context["bridge_profile_index_maps"]
-    bridge_hop_records = bridge_profile_context["bridge_hop_records"]
-    bridge_hop_index_maps = bridge_profile_context["bridge_hop_index_maps"]
-    staged_file_workflow_context = _build_staged_file_workflow_status_context(
+    activity_queue_context = _build_status_activity_queue_context(
         cfg,
-        staged_records,
-        targets,
+        event_limit=event_limit,
+        target_filter_id=target_filter_id,
+        foundation_context=foundation_context,
     )
-    staged_file_workflow_actions = staged_file_workflow_context[
-        "staged_file_workflow_actions"
-    ]
-    staged_file_workflow_action_index_maps = staged_file_workflow_context[
-        "staged_file_workflow_action_index_maps"
-    ]
-    bridge_profile_workflow_actions = bridge_profile_context[
-        "bridge_profile_workflow_actions"
-    ]
-    bridge_profile_workflow_action_index_maps = bridge_profile_context[
+    aq = activity_queue_context
+    bridge_profile_context = aq["bridge_profile_context"]
+    bridge_profiles = aq["bridge_profiles"]
+    bridge_profile_index_maps = aq["bridge_profile_index_maps"]
+    bridge_hop_records = aq["bridge_hop_records"]
+    bridge_hop_index_maps = aq["bridge_hop_index_maps"]
+    bridge_profile_workflow_actions = aq["bridge_profile_workflow_actions"]
+    bridge_profile_workflow_action_index_maps = aq[
         "bridge_profile_workflow_action_index_maps"
+    ]
+    staged_file_workflow_context = aq["staged_file_workflow_context"]
+    staged_file_workflow_actions = aq["staged_file_workflow_actions"]
+    staged_file_workflow_action_index_maps = aq[
+        "staged_file_workflow_action_index_maps"
     ]
     selected_target = f["selected_target"]
     target_registry_state_record = f["target_registry_state_record"]
     target_registry_state_records = f["target_registry_state_records"]
     target_registry_state_index_maps = f["target_registry_state_index_maps"]
     target_registry_summary = f["target_registry_summary"]
-    session_context = _build_session_status_context(
-        cfg,
-        target_filter_id=target_filter_id,
-    )
-    sessions = session_context["sessions"]
-    unfiltered_counts["sessions"] = session_context["unfiltered_count"]
-    target_filter_session_ids = session_context["target_filter_session_ids"]
-    session_root_state = session_context["session_root_state"]
-    session_root_state_records = session_context["session_root_state_records"]
-    session_root_state_index_maps = session_context["session_root_state_index_maps"]
-    reconcile_workbench_job_completion_events(cfg)
-    session_index_maps = session_context["session_index_maps"]
-    event_context = _build_event_status_context(
-        cfg,
-        event_limit,
-        target_filter_id=target_filter_id,
-        target_filter_session_ids=target_filter_session_ids,
-    )
-    event_stats = event_context["event_stats"]
-    event_log_state = event_context["event_log_state"]
-    event_log_state_records = event_context["event_log_state_records"]
-    event_log_state_index_maps = event_context["event_log_state_index_maps"]
-    events = event_context["events"]
-    unfiltered_counts["event_tail"] = event_context["unfiltered_tail_count"]
-    event_index_maps = event_context["event_index_maps"]
-    event_summary_stats = event_context["event_summary_stats"]
-    command_queue_context = _build_command_queue_status_context(cfg)
-    command_queue = command_queue_context["command_queue"]
-    target_activity_context = _build_target_activity_status_context(
-        command_queue,
-        targets_by_id,
-        all_event_records,
-        target_filter_id=target_filter_id,
-        target_filter_session_ids=target_filter_session_ids,
-    )
-    target_mailbox_records = target_activity_context["target_mailbox_records"]
-    target_mailbox_index_maps = target_activity_context["target_mailbox_index_maps"]
-    target_phone_home_records = target_activity_context["target_phone_home_records"]
-    target_phone_home_index_maps = target_activity_context["target_phone_home_index_maps"]
-    command_queue_policy_records = command_queue_context["command_queue_policy_records"]
-    command_queue_policy_index_maps = command_queue_context[
-        "command_queue_policy_index_maps"
-    ]
-    command_queue_index_maps = command_queue_context["command_queue_index_maps"]
-    command_queue_mode_records = command_queue_context["command_queue_mode_records"]
-    command_queue_mode_index_maps = command_queue_context[
-        "command_queue_mode_index_maps"
-    ]
-    unfiltered_counts["command_queue_commands"] = command_queue_context["unfiltered_count"]
-    release_context_doc = _build_release_status_context(cfg)
-    release = release_context_doc["release"]
-    release_state = release_context_doc["release_state"]
-    release_state_records = release_context_doc["release_state_records"]
-    release_state_index_maps = release_context_doc["release_state_index_maps"]
-    release_artifact_workflow_actions = release_context_doc[
-        "release_artifact_workflow_actions"
-    ]
-    release_artifact_workflow_action_index_maps = release_context_doc[
+    session_context = aq["session_context"]
+    sessions = aq["sessions"]
+    target_filter_session_ids = aq["target_filter_session_ids"]
+    session_root_state = aq["session_root_state"]
+    session_root_state_records = aq["session_root_state_records"]
+    session_root_state_index_maps = aq["session_root_state_index_maps"]
+    session_index_maps = aq["session_index_maps"]
+    event_context = aq["event_context"]
+    event_stats = aq["event_stats"]
+    event_log_state = aq["event_log_state"]
+    event_log_state_records = aq["event_log_state_records"]
+    event_log_state_index_maps = aq["event_log_state_index_maps"]
+    events = aq["events"]
+    event_index_maps = aq["event_index_maps"]
+    event_summary_stats = aq["event_summary_stats"]
+    command_queue_context = aq["command_queue_context"]
+    command_queue = aq["command_queue"]
+    command_queue_policy_records = aq["command_queue_policy_records"]
+    command_queue_policy_index_maps = aq["command_queue_policy_index_maps"]
+    command_queue_index_maps = aq["command_queue_index_maps"]
+    command_queue_mode_records = aq["command_queue_mode_records"]
+    command_queue_mode_index_maps = aq["command_queue_mode_index_maps"]
+    target_activity_context = aq["target_activity_context"]
+    target_mailbox_records = aq["target_mailbox_records"]
+    target_mailbox_index_maps = aq["target_mailbox_index_maps"]
+    target_phone_home_records = aq["target_phone_home_records"]
+    target_phone_home_index_maps = aq["target_phone_home_index_maps"]
+    release_context_doc = aq["release_context_doc"]
+    release = aq["release"]
+    release_state = aq["release_state"]
+    release_state_records = aq["release_state_records"]
+    release_state_index_maps = aq["release_state_index_maps"]
+    release_artifact_workflow_actions = aq["release_artifact_workflow_actions"]
+    release_artifact_workflow_action_index_maps = aq[
         "release_artifact_workflow_action_index_maps"
     ]
-    rshell_session_policy_context = _build_rshell_session_policy_status_context(cfg)
-    rshell_session_policy = rshell_session_policy_context["rshell_session_policy"]
-    rshell_session_policy_record_item = rshell_session_policy_context[
-        "rshell_session_policy_record_item"
-    ]
-    rshell_session_policy_records = rshell_session_policy_context[
-        "rshell_session_policy_records"
-    ]
-    rshell_session_policy_index_maps = rshell_session_policy_context[
-        "rshell_session_policy_index_maps"
-    ]
-    workbench_config_context = _build_workbench_config_status_context(cfg)
-    workbench_config_fields = workbench_config_context["workbench_config_fields"]
-    workbench_config_field_index_maps = workbench_config_context[
-        "workbench_config_field_index_maps"
-    ]
-    workflow_context = _build_workbench_workflow_status_context(
-        cfg,
-        targets,
-        bridge_profiles,
-    )
-    workbench_action_context = workflow_context["workbench_action_context"]
-    workbench_actions = workflow_context["workbench_actions"]
-    workbench_action_index_maps = workflow_context["workbench_action_index_maps"]
-    operator_daemon_workflow_actions = workflow_context[
-        "operator_daemon_workflow_actions"
-    ]
-    operator_daemon_workflow_action_index_maps = workflow_context[
+    rshell_session_policy_context = aq["rshell_session_policy_context"]
+    rshell_session_policy = aq["rshell_session_policy"]
+    rshell_session_policy_record_item = aq["rshell_session_policy_record_item"]
+    rshell_session_policy_records = aq["rshell_session_policy_records"]
+    rshell_session_policy_index_maps = aq["rshell_session_policy_index_maps"]
+    workbench_config_context = aq["workbench_config_context"]
+    workbench_config_fields = aq["workbench_config_fields"]
+    workbench_config_field_index_maps = aq["workbench_config_field_index_maps"]
+    workflow_context = aq["workflow_context"]
+    workbench_action_context = aq["workbench_action_context"]
+    workbench_actions = aq["workbench_actions"]
+    workbench_action_index_maps = aq["workbench_action_index_maps"]
+    operator_daemon_workflow_actions = aq["operator_daemon_workflow_actions"]
+    operator_daemon_workflow_action_index_maps = aq[
         "operator_daemon_workflow_action_index_maps"
     ]
-    target_workflow_actions = workflow_context["target_workflow_actions"]
-    target_workflow_action_index_maps = workflow_context[
-        "target_workflow_action_index_maps"
-    ]
-    workbench_job_context = workflow_context["workbench_job_context"]
-    workbench_jobs = workflow_context["workbench_jobs"]
-    workbench_job_index_maps = workflow_context["workbench_job_index_maps"]
-    target_command_context = _build_target_command_status_context(
-        cfg,
-        staged_raw=staged_raw,
-        unfiltered_staged_raw=unfiltered_staged_raw,
-        target_filter_id=target_filter_id,
-    )
-    target_command_records = target_command_context["target_command_records"]
-    unfiltered_counts["target_command_records"] = target_command_context["unfiltered_count"]
-    target_command_index_maps = target_command_context["target_command_index_maps"]
-    target_command_summary = target_command_context["target_command_summary"]
-    target_filter_context = _build_target_filter_status_context(
-        target_filter_id,
-        selected_target,
-        unfiltered_counts,
-        targets=targets,
-        uploads=uploads,
-        fetches=fetches,
-        staged_records=staged_records,
-        sessions=sessions,
-        events=events,
-        command_queue=command_queue,
-        target_command_summary=target_command_summary,
-        target_phone_home_records=target_phone_home_records,
-        target_mailbox_records=target_mailbox_records,
-    )
-    target_filter_record = target_filter_context["target_filter_record"]
-    target_filter_records = target_filter_context["target_filter_records"]
-    target_filter_index_maps = target_filter_context["target_filter_index_maps"]
-    target_command_state_record = target_command_context["target_command_state_record"]
-    target_command_state_records = target_command_context["target_command_state_records"]
-    target_command_state_index_maps = target_command_context["target_command_state_index_maps"]
+    target_workflow_actions = aq["target_workflow_actions"]
+    target_workflow_action_index_maps = aq["target_workflow_action_index_maps"]
+    workbench_job_context = aq["workbench_job_context"]
+    workbench_jobs = aq["workbench_jobs"]
+    workbench_job_index_maps = aq["workbench_job_index_maps"]
+    target_command_context = aq["target_command_context"]
+    target_command_records = aq["target_command_records"]
+    target_command_index_maps = aq["target_command_index_maps"]
+    target_command_summary = aq["target_command_summary"]
+    target_command_state_record = aq["target_command_state_record"]
+    target_command_state_records = aq["target_command_state_records"]
+    target_command_state_index_maps = aq["target_command_state_index_maps"]
+    target_filter_context = aq["target_filter_context"]
+    target_filter_record = aq["target_filter_record"]
+    target_filter_records = aq["target_filter_records"]
+    target_filter_index_maps = aq["target_filter_index_maps"]
     file_transfer_context = _build_file_transfer_status_context(
         staged_records,
         uploads,
