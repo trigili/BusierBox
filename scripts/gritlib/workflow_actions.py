@@ -1932,24 +1932,34 @@ def _append_target_workflow_action(records, target, action_id, category, label, 
         records.append(rec)
 
 
-def _target_standard_workflow_action_records(base, target, target_id, release):
+def _target_inspect_workflow_action_records(base, target, target_id):
     records = []
-    add = lambda *args, **kwargs: _append_target_workflow_action(records, target, *args, **kwargs)
-    add(
+    _append_target_workflow_action(
+        records,
+        target,
         "inspect-status",
         "inspect",
         "Inspect this target's status and activity",
         target_scoped_command(base, target_id, " --status"),
         "status",
     )
-    add(
+    _append_target_workflow_action(
+        records,
+        target,
         "open-workbench",
         "inspect",
         "Open the workbench scoped to this target",
         target_scoped_command(base, target_id, ""),
         "workbench",
     )
-    add(
+    return records
+
+
+def _target_mailbox_workflow_action_records(base, target, target_id):
+    records = []
+    _append_target_workflow_action(
+        records,
+        target,
         "queue-command",
         "mailbox",
         "Queue command for this target mailbox",
@@ -1959,7 +1969,14 @@ def _target_standard_workflow_action_records(base, target, target_id, release):
         queues_offline_work=True,
         target_phone_home_required=True,
     )
-    add(
+    return records
+
+
+def _target_probe_workflow_action_records(base, target, target_id):
+    records = []
+    _append_target_workflow_action(
+        records,
+        target,
         "serve-probe",
         "survey",
         "Serve probe for this target",
@@ -1967,7 +1984,9 @@ def _target_standard_workflow_action_records(base, target, target_id, release):
         "probe",
         target_phone_home_required=True,
     )
-    add(
+    _append_target_workflow_action(
+        records,
+        target,
         "queue-probe",
         "survey",
         "Queue probe command for this target mailbox",
@@ -1976,7 +1995,14 @@ def _target_standard_workflow_action_records(base, target, target_id, release):
         queues_offline_work=True,
         target_phone_home_required=True,
     )
-    add(
+    return records
+
+
+def _target_file_transfer_setup_workflow_action_records(base, target, target_id):
+    records = []
+    _append_target_workflow_action(
+        records,
+        target,
         "stage-file-fetch",
         "file-transfer",
         "Stage a local file for this target to fetch",
@@ -1986,7 +2012,9 @@ def _target_standard_workflow_action_records(base, target, target_id, release):
         queues_offline_work=True,
         target_phone_home_required=True,
     )
-    add(
+    _append_target_workflow_action(
+        records,
+        target,
         "show-upload-command",
         "file-transfer",
         "Show target upload command for this target",
@@ -1996,18 +2024,37 @@ def _target_standard_workflow_action_records(base, target, target_id, release):
         queues_offline_work=False,
         target_phone_home_required=True,
     )
+    return records
+
+
+def _target_release_workflow_action_records(base, target, target_id, release):
+    records = []
     if release:
-        add(
+        _append_target_workflow_action(
+            records,
+            target,
             "stage-release-artifact",
             "release",
             "Stage a release artifact for this target to fetch",
-            target_workflow_run_command(base, target_id, "stage-release-artifact", " --target-workflow-command RELEASE_SELECTOR"),
+            target_workflow_run_command(
+                base,
+                target_id,
+                "stage-release-artifact",
+                " --target-workflow-command RELEASE_SELECTOR",
+            ),
             "release-artifact",
             requires_input=True,
             queues_offline_work=True,
             target_phone_home_required=True,
         )
-    add(
+    return records
+
+
+def _target_staged_file_workflow_action_records(base, target, target_id):
+    records = []
+    _append_target_workflow_action(
+        records,
+        target,
         "queue-staged-fetch",
         "file-transfer",
         "Queue a staged file fetch command for this target mailbox",
@@ -2017,13 +2064,26 @@ def _target_standard_workflow_action_records(base, target, target_id, release):
         queues_offline_work=True,
         target_phone_home_required=True,
     )
-    add(
+    _append_target_workflow_action(
+        records,
+        target,
         "start-file-service",
         "file-transfer",
         "Start file service for target uploads/downloads",
         target_scoped_command(base, target_id, " --file-service"),
         "file-service",
     )
+    return records
+
+
+def _target_standard_workflow_action_records(base, target, target_id, release):
+    records = []
+    records.extend(_target_inspect_workflow_action_records(base, target, target_id))
+    records.extend(_target_mailbox_workflow_action_records(base, target, target_id))
+    records.extend(_target_probe_workflow_action_records(base, target, target_id))
+    records.extend(_target_file_transfer_setup_workflow_action_records(base, target, target_id))
+    records.extend(_target_release_workflow_action_records(base, target, target_id, release))
+    records.extend(_target_staged_file_workflow_action_records(base, target, target_id))
     return records
 
 
