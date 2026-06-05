@@ -1,9 +1,7 @@
 """Application entrypoint for grit-console."""
 
 import sys
-from gritlib.command_queue import handle_command_queue_args
 from gritlib.config_utils import load_config
-import gritlib.console_actions as console_actions
 from gritlib.console_artifact import handle_artifact_command
 from gritlib.console_args import (
     apply_console_arg_overrides, build_arg_parser, handle_early_console_args,
@@ -16,13 +14,10 @@ from gritlib.console_listeners import (
 )
 import gritlib.console_runtime as console_runtime
 from gritlib.console_help import print_concise_help, print_console_help_reference
+from gritlib.console_runtime_controls import handle_runtime_control_args
 from gritlib.line_repl_app import run_line_console
-from gritlib.operator_daemon import run_operator_daemon
 from gritlib.service_runtime import install_shutdown_handlers
-from gritlib.service_status import service_stop_headless_command
-from gritlib.systemd_user import handle_systemd_user_action
 from gritlib.version import grit_version
-import gritlib.workflow_runners as workflow_runners
 
 
 def _handle_console_subcommand(raw_argv):
@@ -55,34 +50,6 @@ def _load_console_invocation(raw_argv):
     return None, cfg, args
 
 
-def _handle_runtime_control_args(cfg, args, timeout):
-    command_queue_code = handle_command_queue_args(cfg, args)
-    if command_queue_code is not None:
-        return command_queue_code
-
-    control_code = console_actions.handle_console_control_args(
-        cfg,
-        args,
-        print_status_func=workflow_runners.print_status,
-        stop_recorded_service_func=workflow_runners.stop_recorded_service,
-        stop_managed_services_func=workflow_runners.stop_managed_services,
-        service_stop_headless_command_func=service_stop_headless_command,
-        systemd_user_action_func=handle_systemd_user_action,
-    )
-    if control_code is not None:
-        return control_code
-
-    daemon_code = console_runtime.handle_operator_daemon_args(
-        cfg,
-        args,
-        timeout=timeout,
-        run_operator_daemon_func=run_operator_daemon,
-    )
-    if daemon_code is not None:
-        return daemon_code
-    return None
-
-
 def main(argv=None):
     install_shutdown_handlers()
     raw_argv = list(sys.argv[1:] if argv is None else argv)
@@ -103,7 +70,7 @@ def main(argv=None):
 
     timeout = console_runtime.timeout_from_args(args)
     try:
-        runtime_code = _handle_runtime_control_args(cfg, args, timeout)
+        runtime_code = handle_runtime_control_args(cfg, args, timeout)
         if runtime_code is not None:
             return runtime_code
         staging_code, action, script_bytes, session_timeout = prepare_listener_action(
