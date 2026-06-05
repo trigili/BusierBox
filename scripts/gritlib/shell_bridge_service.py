@@ -328,26 +328,107 @@ def serve_ssh(cfg, timeout):
     return 0
 
 
+def _relay_stdio_log_file(log_dir):
+    if log_dir is not None:
+        return (Path(log_dir) / "session.log").open("ab", buffering=0)
+    return None
+
+
+def _announce_relay_stdio(scripted, stdin_interactive):
+    if stdin_interactive:
+        print("Shell connected. Ctrl-C to close.")
+    elif scripted:
+        print("Shell connected. running scripted shell input.")
+    else:
+        print("Shell connected. stdin is non-interactive; receiving remote output only.")
+
+
+def _relay_select(readers, writers, deadline):
+    timeout = 1.0
+    if deadline is not None:
+        timeout = max(0.0, min(timeout, deadline - time.monotonic()))
+    return select.select(readers, writers, [], timeout)
+
+
+def _relay_read_socket(conn, log_fp, captured, socket_read_ready):
+    reason = "active"
+    while socket_read_ready or getattr(conn, "pending", lambda: 0)() > 0:
+        socket_read_ready = False
+        data, err = recv_ssl_nonblocking(conn)
+        if err == "want":
+            break
+        if err is not None:
+            reason = "tls_error" if isinstance(err, ssl.SSLError) else "socket_error"
+            break
+        if not data:
+            reason = "remote_eof"
+            break
+        if log_fp:
+            log_fp.write(data)
+        captured.extend(data)
+        os.write(sys.stdout.fileno(), data)
+        if getattr(conn, "pending", lambda: 0)() <= 0:
+            break
+    return reason
+
+
+def _relay_read_stdin(outbound):
+    try:
+        data = os.read(sys.stdin.fileno(), 65536)
+    except OSError:
+        return "stdin_eof"
+    if not data:
+        return "stdin_eof"
+    outbound.extend(data)
+    return "active"
+
+
+def _relay_write_outbound(conn, outbound):
+    sent, err = send_ssl_nonblocking(conn, bytes(outbound))
+    if err == "want":
+        return "active"
+    if err == "remote_eof":
+        return "remote_eof"
+    if err is not None:
+        return "tls_error" if isinstance(err, ssl.SSLError) else "socket_error"
+    if sent > 0:
+        del outbound[:sent]
+    return "active"
+
+
+def _finish_relay_stdio(log_dir, log_fp, tty_state, captured, expect, reason):
+    restore_interactive_tty(tty_state)
+    if log_fp:
+        log_fp.close()
+    if log_dir is not None and expect is not None:
+        expect_path = Path(log_dir) / "expectation"
+        text = captured.decode("utf-8", errors="replace")
+        if expect in text:
+            expect_path.write_text("matched\n", encoding="utf-8")
+        else:
+            expect_path.write_text(f"missing: {expect}\n", encoding="utf-8")
+            if reason in ("remote_eof", "stdin_eof", "active"):
+                reason = "expectation_missing"
+    print(f"relay exit reason: {reason}", file=sys.stderr)
+    if log_dir is not None:
+        (Path(log_dir) / "exit-reason").write_text(reason + "\n", encoding="utf-8")
+    return reason
+
+
 def relay_stdio(conn, log_dir=None, use_stdin=True, script_bytes=None, expect=None,
                 session_timeout=None):
     """Relay from conn to stdout/log and optionally from stdin to conn."""
     scripted = script_bytes is not None
     stdin_interactive = bool(use_stdin and not scripted and sys.stdin.isatty())
     reason = "active"
-    log_fp = None
+    log_fp = _relay_stdio_log_file(log_dir)
     tty_state = None
     outbound = bytearray(script_bytes or b"")
     captured = bytearray()
     deadline = time.monotonic() + session_timeout if session_timeout else None
-    if log_dir is not None:
-        log_fp = (Path(log_dir) / "session.log").open("ab", buffering=0)
+    _announce_relay_stdio(scripted, stdin_interactive)
     if stdin_interactive:
-        print("Shell connected. Ctrl-C to close.")
         tty_state = set_interactive_tty_raw()
-    elif scripted:
-        print("Shell connected. running scripted shell input.")
-    else:
-        print("Shell connected. stdin is non-interactive; receiving remote output only.")
     conn.setblocking(False)
     try:
         while True:
@@ -359,10 +440,7 @@ def relay_stdio(conn, log_dir=None, use_stdin=True, script_bytes=None, expect=No
                 readers.append(sys.stdin)
             writers = [conn] if outbound else []
             try:
-                timeout = 1.0
-                if deadline is not None:
-                    timeout = max(0.0, min(timeout, deadline - time.monotonic()))
-                readable, writable, _ = select.select(readers, writers, [], timeout)
+                readable, writable, _ = _relay_select(readers, writers, deadline)
             except KeyboardInterrupt:
                 reason = "keyboard_interrupt"
                 break
@@ -371,65 +449,24 @@ def relay_stdio(conn, log_dir=None, use_stdin=True, script_bytes=None, expect=No
                 break
 
             socket_read_ready = conn in readable
-            while socket_read_ready or getattr(conn, "pending", lambda: 0)() > 0:
-                socket_read_ready = False
-                data, err = recv_ssl_nonblocking(conn)
-                if err == "want":
-                    break
-                if err is not None:
-                    reason = "tls_error" if isinstance(err, ssl.SSLError) else "socket_error"
-                    break
-                if not data:
-                    reason = "remote_eof"
-                    break
-                if log_fp:
-                    log_fp.write(data)
-                captured.extend(data)
-                os.write(sys.stdout.fileno(), data)
-                if getattr(conn, "pending", lambda: 0)() <= 0:
-                    break
+            if socket_read_ready or getattr(conn, "pending", lambda: 0)() > 0:
+                reason = _relay_read_socket(conn, log_fp, captured, socket_read_ready)
             if reason in ("tls_error", "socket_error", "remote_eof"):
                 break
 
             if stdin_interactive and sys.stdin in readable:
-                try:
-                    data = os.read(sys.stdin.fileno(), 65536)
-                except OSError:
-                    reason = "stdin_eof"
+                reason = _relay_read_stdin(outbound)
+                if reason == "stdin_eof":
                     break
-                if not data:
-                    reason = "stdin_eof"
-                    break
-                outbound.extend(data)
 
             if outbound and conn in writable:
-                sent, err = send_ssl_nonblocking(conn, bytes(outbound))
-                if err == "want":
+                reason = _relay_write_outbound(conn, outbound)
+                if reason == "active":
                     continue
-                if err == "remote_eof":
-                    reason = "remote_eof"
+                if reason in ("remote_eof", "tls_error", "socket_error"):
                     break
-                if err is not None:
-                    reason = "tls_error" if isinstance(err, ssl.SSLError) else "socket_error"
-                    break
-                if sent > 0:
-                    del outbound[:sent]
     finally:
-        restore_interactive_tty(tty_state)
-        if log_fp:
-            log_fp.close()
-        if log_dir is not None and expect is not None:
-            expect_path = Path(log_dir) / "expectation"
-            text = captured.decode("utf-8", errors="replace")
-            if expect in text:
-                expect_path.write_text("matched\n", encoding="utf-8")
-            else:
-                expect_path.write_text(f"missing: {expect}\n", encoding="utf-8")
-                if reason in ("remote_eof", "stdin_eof", "active"):
-                    reason = "expectation_missing"
-        print(f"relay exit reason: {reason}", file=sys.stderr)
-        if log_dir is not None:
-            (Path(log_dir) / "exit-reason").write_text(reason + "\n", encoding="utf-8")
+        reason = _finish_relay_stdio(log_dir, log_fp, tty_state, captured, expect, reason)
     return reason
 
 
