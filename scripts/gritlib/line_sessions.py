@@ -296,33 +296,28 @@ def print_line_session_interaction(rec, headless):
         print(f"  events: tail -n 40 {shquote(str(rec.get('event_log', '')))}")
 
 
-def print_line_session_records(sessions, verbose=False, view_command=None, quote=None):
-    all_sessions = list(sessions or [])
-    shown = all_sessions[:12]
-    total = len(all_sessions)
-    view_command = view_command or (lambda _path: "")
-    quote = quote or (lambda text: str(text))
+def _line_session_detail_rows(rec, verbose):
+    if not verbose:
+        return []
+    session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
+    path = str(rec.get("path") or "")
+    details = [("id", session_id), ("path", path)]
+    if rec.get("session_log"):
+        details.append(("log", Path(rec["session_log"]).name))
+    if rec.get("event_log"):
+        count = rec.get("event_count", "")
+        suffix = f"  ({count} events)" if count else ""
+        details.append(("events", Path(rec["event_log"]).name + suffix))
+    if rec.get("target_id"):
+        label = rec.get("target_label") or ""
+        details.append(("target", rec["target_id"] + (f"  ({label})" if label else "")))
+    transfers = line_session_transfer_text(rec)
+    if transfers != "-":
+        details.append(("transfers", transfers))
+    return details
 
-    def _detail(rec):
-        if not verbose:
-            return []
-        session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
-        path = str(rec.get("path") or "")
-        details = [("id", session_id), ("path", path)]
-        if rec.get("session_log"):
-            details.append(("log", Path(rec["session_log"]).name))
-        if rec.get("event_log"):
-            count = rec.get("event_count", "")
-            suffix = f"  ({count} events)" if count else ""
-            details.append(("events", Path(rec["event_log"]).name + suffix))
-        if rec.get("target_id"):
-            label = rec.get("target_label") or ""
-            details.append(("target", rec["target_id"] + (f"  ({label})" if label else "")))
-        transfers = line_session_transfer_text(rec)
-        if transfers != "-":
-            details.append(("transfers", transfers))
-        return details
 
+def _line_session_columns(shown, verbose):
     transfers_any = any(
         (rec.get("upload_count") or rec.get("fetch_count") or rec.get("artifact_count"))
         for rec in shown
@@ -334,26 +329,47 @@ def print_line_session_records(sessions, verbose=False, view_command=None, quote
     ]
     if transfers_any and not verbose:
         cols.append(("Transfers", line_session_transfer_text))
+    return cols
 
+
+def _line_session_footer(total):
     footer = "use N to select  |  sessions -v for details  |  sessions ? for help"
     if total > 12:
         footer = f"showing 12 of {total}  —  " + footer
+    return footer
+
+
+def _line_session_search_record(rec, view_command, quote):
+    session_name = str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
+    return {
+        "kind": "session",
+        "label": (
+            f"{session_name}"
+            f" service={rec.get('service') or '-'} state={line_session_state_text(rec)}"
+        ),
+        "rec": rec,
+        "command": view_command(str(rec.get("path") or "")),
+        "use_hint": f"use session {quote(session_name)}",
+    }
+
+
+def print_line_session_records(sessions, verbose=False, view_command=None, quote=None):
+    all_sessions = list(sessions or [])
+    shown = all_sessions[:12]
+    total = len(all_sessions)
+    view_command = view_command or (lambda _path: "")
+    quote = quote or (lambda text: str(text))
+
     console_table(
         f"Sessions  ({total} total)" if total else "Sessions  (none)",
-        shown, cols, detail_fn=_detail, footer=footer,
+        shown,
+        _line_session_columns(shown, verbose),
+        detail_fn=lambda rec: _line_session_detail_rows(rec, verbose),
+        footer=_line_session_footer(total),
     )
 
     return [
-        {
-            "kind": "session",
-            "label": (
-                f"{rec.get('session_id') or Path(str(rec.get('path', ''))).name}"
-                f" service={rec.get('service') or '-'} state={line_session_state_text(rec)}"
-            ),
-            "rec": rec,
-            "command": view_command(str(rec.get("path") or "")),
-            "use_hint": f"use session {quote(str(rec.get('session_id') or Path(str(rec.get('path', ''))).name))}",
-        }
+        _line_session_search_record(rec, view_command, quote)
         for rec in shown
     ]
 
