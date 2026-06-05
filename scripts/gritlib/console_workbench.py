@@ -55,14 +55,7 @@ from gritlib.staged_files import (
     staged_files_state_status, staged_status_context,
     staged_status_summary,
 )
-from gritlib.status_indexes import (
-    api_collection_record, api_resource_record_indexes,
-    api_resource_records,
-    operator_network_status, operator_state_file_summary,
-    operator_state_status_context,
-    path_status_context, path_warning_status_context,
-    warning_health_indexes,
-)
+import gritlib.status_indexes as status_indexes
 from gritlib.target_activity import (
     apply_target_phone_home_summary,
     target_activity_feed_status_context, target_activity_status_context,
@@ -369,7 +362,7 @@ def _build_path_browser_status_context(
     sessions,
     release,
 ):
-    path_context = path_status_context(
+    path_context = status_indexes.path_status_context(
         cfg,
         paths,
         staged_records,
@@ -412,7 +405,7 @@ def _build_operator_state_status_context(
     workbench_jobs_status = workbench_jobs_state_status(cfg)
     workbench_jobs_state = workbench_jobs_status["state_record"]
     workbench_jobs_state_records = workbench_jobs_status["state_records"]
-    operator_state_context = operator_state_status_context(
+    operator_state_context = status_indexes.operator_state_status_context(
         cfg,
         server_state,
         staged_files_state,
@@ -422,7 +415,7 @@ def _build_operator_state_status_context(
         event_log_state,
         session_root_state,
     )
-    operator_state_file_summary_doc = operator_state_file_summary(
+    operator_state_file_summary_doc = status_indexes.operator_state_file_summary(
         server_state,
         server_state_records,
         staged_files_state,
@@ -583,7 +576,7 @@ def _build_workbench_workflow_status_context(cfg, targets, bridge_profiles):
 
 def _build_operator_network_status_context(cfg):
     ips = local_ips()
-    operator_network = operator_network_status(ips)
+    operator_network = status_indexes.operator_network_status(ips)
     operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
     event_log_path = operator_dir / "events.jsonl"
     return {
@@ -1292,7 +1285,9 @@ def _build_warning_status_context(
      warnings_by_service_port,
      warnings_by_type_service_port) = warning_index_maps
     annotate_path_records_with_warnings(path_status, browser_paths, warnings_by_path)
-    path_warning_context = path_warning_status_context(path_status_records, browser_paths)
+    path_warning_context = status_indexes.path_warning_status_context(
+        path_status_records, browser_paths
+    )
     annotate_service_port_records_with_warnings(
         services,
         ports,
@@ -1306,8 +1301,12 @@ def _build_warning_status_context(
         if mapped is not None:
             mapped["warning_count"] = row.get("warning_count", 0)
             mapped["warning_types"] = row.get("warning_types", [])
-    services_by_has_warnings, services_by_warning_type = warning_health_indexes(services)
-    ports_by_has_warnings, ports_by_warning_type = warning_health_indexes(ports)
+    services_by_has_warnings, services_by_warning_type = (
+        status_indexes.warning_health_indexes(services)
+    )
+    ports_by_has_warnings, ports_by_warning_type = (
+        status_indexes.warning_health_indexes(ports)
+    )
     return {
         "warning_index_maps": warning_index_maps,
         "path_warning_context": path_warning_context,
@@ -1852,7 +1851,7 @@ def status_document(cfg):
         **service_probe_workflow_context["summary"],
     })
     api_collections = {
-        "services": api_collection_record(
+        "services": status_indexes.api_collection_record(
             "services", services, "name", (
                 "services_by_name", "services_by_actual", "services_by_configured",
                 "services_by_bind_address", "services_by_port", "services_by_pid",
@@ -1864,7 +1863,7 @@ def status_document(cfg):
                 "services_by_warning_type",
             ), "service_count",
         ),
-        "service_workflow_actions": api_collection_record(
+        "service_workflow_actions": status_indexes.api_collection_record(
             "service_workflow_actions", service_workflow_actions, "id", (
                 "service_workflow_actions_by_id",
                 "service_workflow_actions_by_action_id",
@@ -1894,7 +1893,7 @@ def status_document(cfg):
                 "service_workflow_actions_by_has_warnings",
             ), "service_workflow_action_count",
         ),
-        "probe_workflow_actions": api_collection_record(
+        "probe_workflow_actions": status_indexes.api_collection_record(
             "probe_workflow_actions", probe_workflow_actions, "id", (
                 "probe_workflow_actions_by_id",
                 "probe_workflow_actions_by_action_id",
@@ -1923,7 +1922,7 @@ def status_document(cfg):
                 "probe_workflow_actions_by_curses_enter_action",
             ), "probe_workflow_action_count",
         ),
-        "service_manager_resources": api_collection_record(
+        "service_manager_resources": status_indexes.api_collection_record(
             "service_manager_resources", service_manager_resources, "id", (
                 "service_manager_resources_by_id", "service_manager_resources_by_kind",
                 "service_manager_resources_by_state", "service_manager_resources_by_active",
@@ -1931,7 +1930,7 @@ def status_document(cfg):
                 "service_manager_resources_by_kind_active",
             ), "service_manager_resource_count",
         ),
-        "service_manager_state_records": api_collection_record(
+        "service_manager_state_records": status_indexes.api_collection_record(
             "service_manager_state_records", service_manager_state_records, "id", (
                 "service_manager_state_records_by_id",
                 "service_manager_state_records_by_shutdown_requested",
@@ -1942,7 +1941,7 @@ def status_document(cfg):
                 "service_manager_state_records_by_has_resources",
             ), "service_manager_state_record_count",
         ),
-        "bridge_profiles": api_collection_record(
+        "bridge_profiles": status_indexes.api_collection_record(
             "bridge_profiles", bridge_profiles, "name", (
                 "bridge_profiles_by_name", "bridge_profiles_by_target_id",
                 "bridge_profiles_by_dest_host", "bridge_profiles_by_listen_port",
@@ -1953,7 +1952,7 @@ def status_document(cfg):
                 "bridge_profiles_by_has_last_failure",
             ), "bridge_profile_count",
         ),
-        "bridge_profile_workflow_actions": api_collection_record(
+        "bridge_profile_workflow_actions": status_indexes.api_collection_record(
             "bridge_profile_workflow_actions", bridge_profile_workflow_actions, "id", (
                 "bridge_profile_workflow_actions_by_id",
                 "bridge_profile_workflow_actions_by_action_id",
@@ -1985,7 +1984,7 @@ def status_document(cfg):
                 "bridge_profile_workflow_actions_by_curses_enter_action",
             ), "bridge_profile_workflow_action_count",
         ),
-        "bridge_hop_records": api_collection_record(
+        "bridge_hop_records": status_indexes.api_collection_record(
             "bridge_hop_records", bridge_hop_records, "id", (
                 "bridge_hops_by_id", "bridge_hops_by_profile",
                 "bridge_hops_by_profile_name", "bridge_hops_by_ordinal",
@@ -2000,13 +1999,13 @@ def status_document(cfg):
                 "bridge_hops_by_profile_has_last_failure",
             ), "bridge_hop_record_count",
         ),
-        "ports": api_collection_record(
+        "ports": status_indexes.api_collection_record(
             "ports", ports, "service", (
                 "ports_by_number", "ports_by_service", "ports_by_actual",
                 "ports_by_has_warnings", "ports_by_warning_type",
             ), "port_count",
         ),
-        "path_status_records": api_collection_record(
+        "path_status_records": status_indexes.api_collection_record(
             "path_status_records", path_status_records, "name", (
                 "path_status_by_name", "path_status_by_path",
                 "path_status_by_expected_kind", "path_status_by_exists",
@@ -2015,7 +2014,7 @@ def status_document(cfg):
                 "path_status_by_has_warnings", "path_status_by_warning_type",
             ), "path_status_count",
         ),
-        "server_state_records": api_collection_record(
+        "server_state_records": status_indexes.api_collection_record(
             "server_state_records", server_state_records, "path", (
                 "server_state_records_by_path",
                 "server_state_records_by_exists",
@@ -2025,7 +2024,7 @@ def status_document(cfg):
                 "server_state_records_by_schema",
             ), "server_state_record_count",
         ),
-        "operator_state_records": api_collection_record(
+        "operator_state_records": status_indexes.api_collection_record(
             "operator_state_records", operator_state_records_list, "name", (
                 "operator_state_records_by_name", "operator_state_records_by_kind",
                 "operator_state_records_by_status", "operator_state_records_by_exists",
@@ -2037,7 +2036,7 @@ def status_document(cfg):
                 "operator_state_records_by_kind_status",
             ), "operator_state_count",
         ),
-        "operator_network_records": api_collection_record(
+        "operator_network_records": status_indexes.api_collection_record(
             "operator_network_records", operator_network_records, "id", (
                 "operator_network_records_by_id",
                 "operator_network_records_by_kind",
@@ -2048,7 +2047,7 @@ def status_document(cfg):
                 "operator_network_records_by_usable_for_generated_commands",
             ), "operator_network_record_count",
         ),
-        "operator_network_state_records": api_collection_record(
+        "operator_network_state_records": status_indexes.api_collection_record(
             "operator_network_state_records", operator_network_state_records, "id", (
                 "operator_network_state_records_by_id",
                 "operator_network_state_records_by_selected_ip",
@@ -2060,7 +2059,7 @@ def status_document(cfg):
                 "operator_network_state_records_by_has_multiple_ips",
             ), "operator_network_state_record_count",
         ),
-        "browser_paths": api_collection_record(
+        "browser_paths": status_indexes.api_collection_record(
             "browser_paths", browser_paths, "id", (
                 "browser_paths_by_kind", "browser_paths_by_path",
                 "browser_paths_by_source_id", "browser_paths_by_stage_kind",
@@ -2070,7 +2069,7 @@ def status_document(cfg):
                 "browser_paths_by_has_warnings", "browser_paths_by_warning_type",
             ), "browser_path_count",
         ),
-        "warnings": api_collection_record(
+        "warnings": status_indexes.api_collection_record(
             "warnings", warnings, "type", (
                 "warnings_by_type", "warnings_by_severity",
                 "warnings_by_remediation_class", "warnings_by_type_severity",
@@ -2080,7 +2079,7 @@ def status_document(cfg):
                 "warnings_by_service_port", "warnings_by_type_service_port",
             ), "warning_count",
         ),
-        "target_command_records": api_collection_record(
+        "target_command_records": status_indexes.api_collection_record(
             "target_command_records", target_command_records, "command", (
                 "target_commands_by_service", "target_commands_by_request",
                 "target_commands_by_target_id",
@@ -2098,7 +2097,7 @@ def status_document(cfg):
                 "target_commands_by_retry_post_disconnect_count",
             ), "target_command_count",
         ),
-        "target_workflow_actions": api_collection_record(
+        "target_workflow_actions": status_indexes.api_collection_record(
             "target_workflow_actions", target_workflow_actions, "id", (
                 "target_workflow_actions_by_id",
                 "target_workflow_actions_by_action_id",
@@ -2124,7 +2123,7 @@ def status_document(cfg):
                 "target_workflow_actions_by_can_run_from_curses_enter",
             ), "target_workflow_action_count",
         ),
-        "target_command_state_records": api_collection_record(
+        "target_command_state_records": status_indexes.api_collection_record(
             "target_command_state_records", target_command_state_records, "id", (
                 "target_command_state_records_by_id",
                 "target_command_state_records_by_has_commands",
@@ -2136,7 +2135,7 @@ def status_document(cfg):
                 "target_command_state_records_by_has_session_policy_errors",
             ), "target_command_state_record_count",
         ),
-        "rshell_session_policy_records": api_collection_record(
+        "rshell_session_policy_records": status_indexes.api_collection_record(
             "rshell_session_policy_records", rshell_session_policy_records, "id", (
                 "rshell_session_policy_records_by_id",
                 "rshell_session_policy_records_by_session_policy",
@@ -2147,7 +2146,7 @@ def status_document(cfg):
                 "rshell_session_policy_records_by_persistent_lifecycle",
             ), "rshell_session_policy_record_count",
         ),
-        "targets": api_collection_record(
+        "targets": status_indexes.api_collection_record(
             "targets", targets, "target_id", (
                 "targets_by_id", "targets_by_label", "targets_by_alias",
                 "targets_by_remote_addr", "targets_by_service",
@@ -2187,7 +2186,7 @@ def status_document(cfg):
                 "targets_by_observed_constraint",
             ), "target_count",
         ),
-        "target_registry_state_records": api_collection_record(
+        "target_registry_state_records": status_indexes.api_collection_record(
             "target_registry_state_records", target_registry_state_records, "id", (
                 "target_registry_state_records_by_id",
                 "target_registry_state_records_by_has_targets",
@@ -2225,7 +2224,7 @@ def status_document(cfg):
                 "target_registry_state_records_by_has_compatibility_reports",
             ), "target_registry_state_record_count",
         ),
-        "target_filter_records": api_collection_record(
+        "target_filter_records": status_indexes.api_collection_record(
             "target_filter_records", target_filter_records, "id", (
                 "target_filter_records_by_id",
                 "target_filter_records_by_active",
@@ -2262,7 +2261,7 @@ def status_document(cfg):
                 "target_filter_records_by_filter_reduced_observed_activity",
             ), "target_filter_record_count",
         ),
-        "target_attribution_records": api_collection_record(
+        "target_attribution_records": status_indexes.api_collection_record(
             "target_attribution_records", target_attribution_records, "scope", (
                 "target_attribution_records_by_scope",
                 "target_attribution_records_by_has_targeted_activity",
@@ -2272,7 +2271,7 @@ def status_document(cfg):
                 "target_attribution_records_by_no_activity",
             ), "target_attribution_record_count",
         ),
-        "staged_records": api_collection_record(
+        "staged_records": status_indexes.api_collection_record(
             "staged_records", staged_records, "request_name", (
                 "staged_by_request", "staged_by_kind", "staged_by_sha256",
                 "staged_by_target_id", "staged_by_source_path",
@@ -2280,7 +2279,7 @@ def status_document(cfg):
                 "staged_by_source_exists", "staged_by_kind_source_exists",
             ), "staged_count",
         ),
-        "staged_file_workflow_actions": api_collection_record(
+        "staged_file_workflow_actions": status_indexes.api_collection_record(
             "staged_file_workflow_actions", staged_file_workflow_actions, "id", (
                 "staged_file_workflow_actions_by_id",
                 "staged_file_workflow_actions_by_action_id",
@@ -2319,7 +2318,7 @@ def status_document(cfg):
                 "staged_file_workflow_actions_by_curses_enter_action",
             ), "staged_file_workflow_action_count",
         ),
-        "file_service_workflow_actions": api_collection_record(
+        "file_service_workflow_actions": status_indexes.api_collection_record(
             "file_service_workflow_actions", file_service_workflow_actions, "id", (
                 "file_service_workflow_actions_by_id",
                 "file_service_workflow_actions_by_action_id",
@@ -2352,7 +2351,7 @@ def status_document(cfg):
                 "file_service_workflow_actions_by_curses_enter_action",
             ), "file_service_workflow_action_count",
         ),
-        "target_file_transfer_records": api_collection_record(
+        "target_file_transfer_records": status_indexes.api_collection_record(
             "target_file_transfer_records", target_file_transfer_records, "id", (
                 "target_file_transfer_records_by_id",
                 "target_file_transfer_records_by_target_id",
@@ -2368,7 +2367,7 @@ def status_document(cfg):
                 "target_file_transfer_records_by_session_id",
             ), "target_file_transfer_record_count",
         ),
-        "target_activity_records": api_collection_record(
+        "target_activity_records": status_indexes.api_collection_record(
             "target_activity_records", target_activity_records, "id", (
                 "target_activity_records_by_id",
                 "target_activity_records_by_target_id",
@@ -2391,7 +2390,7 @@ def status_document(cfg):
                 "target_activity_records_by_target_mailbox_pending_work_count",
             ), "target_activity_record_count",
         ),
-        "staged_files_state_records": api_collection_record(
+        "staged_files_state_records": status_indexes.api_collection_record(
             "staged_files_state_records", staged_files_state_records, "path", (
                 "staged_files_state_records_by_path",
                 "staged_files_state_records_by_exists",
@@ -2400,14 +2399,14 @@ def status_document(cfg):
                 "staged_files_state_records_by_schema",
             ), "staged_files_state_record_count",
         ),
-        "command_copy_records": api_collection_record(
+        "command_copy_records": status_indexes.api_collection_record(
             "command_copy_records", command_copy_records, "path", (
                 "command_copy_records_by_path", "command_copy_records_by_exists",
                 "command_copy_records_by_readable", "command_copy_records_by_has_command",
                 "command_copy_records_by_command_sha256",
             ), "command_copy_exists_count",
         ),
-        "command_copy_state_records": api_collection_record(
+        "command_copy_state_records": status_indexes.api_collection_record(
             "command_copy_state_records", command_copy_state_records, "id", (
                 "command_copy_state_records_by_id",
                 "command_copy_state_records_by_path",
@@ -2419,7 +2418,7 @@ def status_document(cfg):
                 "command_copy_state_records_by_command_sha256",
             ), "command_copy_state_record_count",
         ),
-        "command_queue_state_records": api_collection_record(
+        "command_queue_state_records": status_indexes.api_collection_record(
             "command_queue_state_records", command_queue_state_records, "path", (
                 "command_queue_state_records_by_path",
                 "command_queue_state_records_by_exists",
@@ -2427,7 +2426,7 @@ def status_document(cfg):
                 "command_queue_state_records_by_has_commands",
             ), "command_queue_state_record_count",
         ),
-        "target_mailbox_records": api_collection_record(
+        "target_mailbox_records": status_indexes.api_collection_record(
             "target_mailbox_records", target_mailbox_records, "command_id", (
                 "target_mailbox_records_by_id",
                 "target_mailbox_records_by_command_id",
@@ -2464,7 +2463,7 @@ def status_document(cfg):
                 "target_mailbox_records_by_command_sha256",
             ), "target_mailbox_record_count",
         ),
-        "target_phone_home_records": api_collection_record(
+        "target_phone_home_records": status_indexes.api_collection_record(
             "target_phone_home_records", target_phone_home_records, "id", (
                 "target_phone_home_records_by_id",
                 "target_phone_home_records_by_event_id",
@@ -2501,7 +2500,7 @@ def status_document(cfg):
                 "target_phone_home_records_by_poll_interval_sec",
             ), "target_phone_home_record_count",
         ),
-        "workbench_jobs_state_records": api_collection_record(
+        "workbench_jobs_state_records": status_indexes.api_collection_record(
             "workbench_jobs_state_records", workbench_jobs_state_records, "path", (
                 "workbench_jobs_state_records_by_path",
                 "workbench_jobs_state_records_by_exists",
@@ -2509,7 +2508,7 @@ def status_document(cfg):
                 "workbench_jobs_state_records_by_has_jobs",
             ), "workbench_jobs_state_record_count",
         ),
-        "uploads": api_collection_record(
+        "uploads": status_indexes.api_collection_record(
             "uploads", uploads, "metadata_path", (
                 "uploads_by_session", "uploads_by_filename", "uploads_by_kind", "uploads_by_sha256",
                 "uploads_by_target_id", "uploads_by_source_path", "uploads_by_stored_path", "uploads_by_remote_addr",
@@ -2519,7 +2518,7 @@ def status_document(cfg):
                 "uploads_by_event_log_exists",
             ), "upload_count",
         ),
-        "fetches": api_collection_record(
+        "fetches": status_indexes.api_collection_record(
             "fetches", fetches, "metadata_path", (
                 "fetches_by_session", "fetches_by_request", "fetches_by_sha256", "fetches_by_target_id",
                 "fetches_by_source_path", "fetches_by_status", "fetches_by_http_status",
@@ -2529,7 +2528,7 @@ def status_document(cfg):
                 "fetches_by_status_remote_addr", "fetches_by_http_status_remote_addr",
             ), "fetch_count",
         ),
-        "session_root_state_records": api_collection_record(
+        "session_root_state_records": status_indexes.api_collection_record(
             "session_root_state_records", session_root_state_records, "path", (
                 "session_root_state_records_by_path",
                 "session_root_state_records_by_exists",
@@ -2539,7 +2538,7 @@ def status_document(cfg):
                 "session_root_state_records_by_has_events",
             ), "session_root_state_record_count",
         ),
-        "sessions": api_collection_record(
+        "sessions": status_indexes.api_collection_record(
             "sessions", sessions, "session_id", (
                 "sessions_by_id", "sessions_by_service", "sessions_by_state",
                 "sessions_by_exit_reason", "sessions_by_remote",
@@ -2551,7 +2550,7 @@ def status_document(cfg):
                 "sessions_by_event_log_exists", "sessions_by_session_log_exists",
             ), "session_count",
         ),
-        "events": api_collection_record(
+        "events": status_indexes.api_collection_record(
             "events", events, "id", (
                 "events_by_id", "events_by_session", "events_by_service",
                 "events_by_event", "events_by_level", "events_by_remote",
@@ -2597,7 +2596,7 @@ def status_document(cfg):
                 "events_by_service_detail_target_identity_confidence",
             ), "event_tail_count",
         ),
-        "event_log_state_records": api_collection_record(
+        "event_log_state_records": status_indexes.api_collection_record(
             "event_log_state_records", event_log_state_records, "path", (
                 "event_log_state_records_by_path",
                 "event_log_state_records_by_exists",
@@ -2609,7 +2608,7 @@ def status_document(cfg):
                 "event_log_state_records_by_tail_empty_due_to_limit",
             ), "event_log_state_record_count",
         ),
-        "release_artifacts": api_collection_record(
+        "release_artifacts": status_indexes.api_collection_record(
             "release_artifacts", release.get("artifacts") or [], "path", (
                 "artifacts_by_release_path", "artifacts_by_name", "artifacts_by_sha256",
                 "artifacts_by_payload_preset", "artifacts_by_tool", "artifacts_by_feature",
@@ -2624,13 +2623,13 @@ def status_document(cfg):
                 "artifacts_by_command_queue_operator_supplied_command_execution",
             ), "release_artifact_count",
         ),
-        "release_recommendations": api_collection_record(
+        "release_recommendations": status_indexes.api_collection_record(
             "release_recommendations", release.get("recommendation_records") or [], "id", (
                 "recommendations_by_id", "recommendations_by_scope", "recommendations_by_artifact",
                 "recommendations_by_payload_preset", "recommendations_by_compatibility",
             ), "release_recommendation_count",
         ),
-        "release_artifact_workflow_actions": api_collection_record(
+        "release_artifact_workflow_actions": status_indexes.api_collection_record(
             "release_artifact_workflow_actions", release_artifact_workflow_actions, "id", (
                 "release_artifact_workflow_actions_by_id",
                 "release_artifact_workflow_actions_by_action_id",
@@ -2656,7 +2655,7 @@ def status_document(cfg):
                 "release_artifact_workflow_actions_by_curses_enter_action",
             ), "release_artifact_workflow_action_count",
         ),
-        "release_licenses": api_collection_record(
+        "release_licenses": status_indexes.api_collection_record(
             "release_licenses", release.get("release_license_records") or [], "project_license", (
                 "release_license_records_by_project_license",
                 "release_license_records_by_combined_gplv2_compatible",
@@ -2670,17 +2669,17 @@ def status_document(cfg):
                 "release_license_records_by_evidence_source_license",
             ), "release_license_count",
         ),
-        "release_devices": api_collection_record(
+        "release_devices": status_indexes.api_collection_record(
             "release_devices", release.get("devices") or [], "name", (
                 "devices_by_name", "devices_by_tuple_path", "devices_by_artifact",
             ), "release_device_count",
         ),
-        "release_tuples": api_collection_record(
+        "release_tuples": status_indexes.api_collection_record(
             "release_tuples", release.get("tuples") or [], "path", (
                 "tuples_by_path", "tuples_by_artifact",
             ), "release_tuple_count",
         ),
-        "release_state_records": api_collection_record(
+        "release_state_records": status_indexes.api_collection_record(
             "release_state_records", release_state_records, "release_dir", (
                 "release_state_records_by_release_dir",
                 "release_state_records_by_present",
@@ -2691,7 +2690,7 @@ def status_document(cfg):
                 "release_state_records_by_marker_count",
             ), "release_state_record_count",
         ),
-        "command_queue_commands": api_collection_record(
+        "command_queue_commands": status_indexes.api_collection_record(
             "command_queue_commands", command_queue.get("commands") or [], "id", (
                 "commands_by_id", "commands_by_status", "commands_by_command_sha256",
                 "commands_by_target_id", "commands_by_created_at",
@@ -2712,7 +2711,7 @@ def status_document(cfg):
                 "commands_by_delivery_policy_active_control_channel",
             ), "command_queue_total_count",
         ),
-        "command_queue_workflow_actions": api_collection_record(
+        "command_queue_workflow_actions": status_indexes.api_collection_record(
             "command_queue_workflow_actions", command_queue_workflow_actions, "id", (
                 "command_queue_workflow_actions_by_id",
                 "command_queue_workflow_actions_by_action_id",
@@ -2751,7 +2750,7 @@ def status_document(cfg):
                 "command_queue_workflow_actions_by_curses_enter_action",
             ), "command_queue_workflow_action_count",
         ),
-        "command_queue_policy_records": api_collection_record(
+        "command_queue_policy_records": status_indexes.api_collection_record(
             "command_queue_policy_records", command_queue_policy_records, "id", (
                 "command_queue_policy_records_by_id",
                 "command_queue_policy_records_by_enabled",
@@ -2768,7 +2767,7 @@ def status_document(cfg):
                 "command_queue_policy_records_by_arbitrary_execution_allowed",
             ), "command_queue_policy_record_count",
         ),
-        "command_queue_modes": api_collection_record(
+        "command_queue_modes": status_indexes.api_collection_record(
             "command_queue_modes", command_queue.get("mode_records") or [], "mode", (
                 "command_queue_modes_by_mode", "command_queue_modes_by_lifecycle",
                 "command_queue_modes_by_requires_operator_host",
@@ -2782,7 +2781,7 @@ def status_document(cfg):
                 "command_queue_modes_by_operator_supplied_command_execution",
             ), "command_queue_mode_count",
         ),
-        "operator_console_workflows": api_collection_record(
+        "operator_console_workflows": status_indexes.api_collection_record(
             "operator_console_workflows", operator_console_workflows, "id", (
                 "operator_console_workflows_by_id",
                 "operator_console_workflows_by_workflow",
@@ -2812,7 +2811,7 @@ def status_document(cfg):
                 "operator_console_workflows_by_line_mode_action",
             ), "operator_console_workflow_count",
         ),
-        "workbench_actions": api_collection_record(
+        "workbench_actions": status_indexes.api_collection_record(
             "workbench_actions", workbench_actions, "id", (
                 "workbench_actions_by_id", "workbench_actions_by_category",
                 "workbench_actions_by_script", "workbench_actions_by_background_supported",
@@ -2833,7 +2832,7 @@ def status_document(cfg):
                 "workbench_actions_by_curses_enter_action",
             ), "workbench_action_count",
         ),
-        "operator_daemon_workflow_actions": api_collection_record(
+        "operator_daemon_workflow_actions": status_indexes.api_collection_record(
             "operator_daemon_workflow_actions", operator_daemon_workflow_actions, "id", (
                 "operator_daemon_workflow_actions_by_id",
                 "operator_daemon_workflow_actions_by_action_id",
@@ -2875,7 +2874,7 @@ def status_document(cfg):
                 "operator_daemon_workflow_actions_by_curses_enter_action",
             ), "operator_daemon_workflow_action_count",
         ),
-        "workbench_config_fields": api_collection_record(
+        "workbench_config_fields": status_indexes.api_collection_record(
             "workbench_config_fields", workbench_config_fields, "key", (
                 "workbench_config_fields_by_key", "workbench_config_fields_by_category",
                 "workbench_config_fields_by_configured", "workbench_config_fields_by_fixed_options",
@@ -2887,7 +2886,7 @@ def status_document(cfg):
                 "workbench_config_fields_by_requires_explicit_operator_choice",
             ), "workbench_config_field_count",
         ),
-        "workbench_jobs": api_collection_record(
+        "workbench_jobs": status_indexes.api_collection_record(
             "workbench_jobs", workbench_jobs, "id", (
                 "workbench_jobs_by_id", "workbench_jobs_by_action",
                 "workbench_jobs_by_state", "workbench_jobs_by_effective_state",
@@ -2903,8 +2902,8 @@ def status_document(cfg):
             ), "workbench_job_count",
         ),
     }
-    api_resources = api_resource_records(api_collections)
-    api_resource_indexes = api_resource_record_indexes(api_resources)
+    api_resources = status_indexes.api_resource_records(api_collections)
+    api_resource_indexes = status_indexes.api_resource_record_indexes(api_resources)
     return {
         "schema": 1,
         "generated_at": utc_now(),
