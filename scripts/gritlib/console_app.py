@@ -49,14 +49,7 @@ from gritlib.workbench_jobs import (
     start_workbench_job_headless_command, start_workbench_job_record,
 )
 from gritlib.workflow_actions import workbench_action_records
-from gritlib.workflow_runners import (
-    print_status, run_bridge_profile_workflow_action,
-    run_command_queue_workflow_action, run_file_service_workflow_action,
-    run_operator_daemon_workflow_action, run_probe_workflow_action,
-    run_release_artifact_workflow_action, run_service_workflow_action,
-    run_staged_file_workflow_action, run_target_workflow_action,
-    stop_managed_services, stop_recorded_service,
-)
+import gritlib.workflow_runners as workflow_runners
 
 
 def main(argv=None):
@@ -113,15 +106,15 @@ def main(argv=None):
         workflow_code = handle_workflow_action_args(
             cfg,
             args,
-            run_service_workflow_action_func=run_service_workflow_action,
-            run_operator_daemon_workflow_action_func=run_operator_daemon_workflow_action,
-            run_release_artifact_workflow_action_func=run_release_artifact_workflow_action,
-            run_command_queue_workflow_action_func=run_command_queue_workflow_action,
-            run_probe_workflow_action_func=run_probe_workflow_action,
-            run_bridge_profile_workflow_action_func=run_bridge_profile_workflow_action,
-            run_file_service_workflow_action_func=run_file_service_workflow_action,
-            run_staged_file_workflow_action_func=run_staged_file_workflow_action,
-            run_target_workflow_action_func=run_target_workflow_action,
+            run_service_workflow_action_func=workflow_runners.run_service_workflow_action,
+            run_operator_daemon_workflow_action_func=workflow_runners.run_operator_daemon_workflow_action,
+            run_release_artifact_workflow_action_func=workflow_runners.run_release_artifact_workflow_action,
+            run_command_queue_workflow_action_func=workflow_runners.run_command_queue_workflow_action,
+            run_probe_workflow_action_func=workflow_runners.run_probe_workflow_action,
+            run_bridge_profile_workflow_action_func=workflow_runners.run_bridge_profile_workflow_action,
+            run_file_service_workflow_action_func=workflow_runners.run_file_service_workflow_action,
+            run_staged_file_workflow_action_func=workflow_runners.run_staged_file_workflow_action,
+            run_target_workflow_action_func=workflow_runners.run_target_workflow_action,
         )
         if workflow_code is not None:
             return workflow_code
@@ -147,9 +140,9 @@ def main(argv=None):
         control_code = handle_console_control_args(
             cfg,
             args,
-            print_status_func=print_status,
-            stop_recorded_service_func=stop_recorded_service,
-            stop_managed_services_func=stop_managed_services,
+            print_status_func=workflow_runners.print_status,
+            stop_recorded_service_func=workflow_runners.stop_recorded_service,
+            stop_managed_services_func=workflow_runners.stop_managed_services,
             service_stop_headless_command_func=service_stop_headless_command,
             systemd_user_action_func=handle_systemd_user_action,
         )
