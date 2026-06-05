@@ -87,12 +87,7 @@ from gritlib.target_commands import (
     target_command_status_context,
     target_command_status_summary,
 )
-from gritlib.target_records import (
-    configured_target_filter, records_for_target,
-    target_attribution_record_summary, target_attribution_status,
-    target_filter_status_context, target_record_indexes, target_record_summary,
-    target_registry_state_status, target_records, targets_path,
-)
+import gritlib.target_records as target_records
 from gritlib.warnings import (
     annotate_path_records_with_warnings, annotate_service_port_records_with_warnings,
     annotate_warning_records,
@@ -842,7 +837,7 @@ def _build_target_filter_status_context(
     target_phone_home_records,
     target_mailbox_records,
 ):
-    target_filter_context = target_filter_status_context(
+    target_filter_context = target_records.target_filter_status_context(
         target_filter_id,
         selected_target,
         unfiltered_counts,
@@ -869,7 +864,7 @@ def _build_target_filter_status_context(
 
 
 def _build_target_attribution_status_context(uploads, fetches, sessions):
-    target_attribution_status_doc = target_attribution_status(
+    target_attribution_status_doc = target_records.target_attribution_status(
         uploads,
         fetches,
         sessions,
@@ -885,7 +880,7 @@ def _build_target_attribution_status_context(uploads, fetches, sessions):
         "target_attribution_index_maps": target_attribution_status_doc[
             "target_attribution_index_maps"
         ],
-        "summary": target_attribution_record_summary(
+        "summary": target_records.target_attribution_record_summary(
             target_attribution_records,
             target_attribution,
         ),
@@ -1082,7 +1077,7 @@ def _build_target_registry_context(
 ):
     uploads = recent_upload_metadata(cfg)
     fetches = recent_fetch_metadata(cfg)
-    targets = target_records(cfg)
+    targets = target_records.target_records(cfg)
     targets = apply_target_phone_home_summary(
         targets,
         all_target_phone_home_records,
@@ -1095,16 +1090,18 @@ def _build_target_registry_context(
         "target_phone_home_records": len(all_target_phone_home_records),
     }
     if target_filter_id:
-        uploads = records_for_target(uploads, target_filter_id)
-        fetches = records_for_target(fetches, target_filter_id)
-        targets = records_for_target(targets, target_filter_id)
-    target_index_maps = dict(zip(TARGET_INDEX_KEYS, target_record_indexes(targets)))
-    target_summary = target_record_summary(targets)
+        uploads = target_records.records_for_target(uploads, target_filter_id)
+        fetches = target_records.records_for_target(fetches, target_filter_id)
+        targets = target_records.records_for_target(targets, target_filter_id)
+    target_index_maps = dict(
+        zip(TARGET_INDEX_KEYS, target_records.target_record_indexes(targets))
+    )
+    target_summary = target_records.target_record_summary(targets)
     selected_target = (
         dict(target_index_maps["targets_by_id"].get(target_filter_id) or {})
         if target_filter_id else {}
     )
-    target_registry_state = target_registry_state_status(
+    target_registry_state = target_records.target_registry_state_status(
         target_summary,
         selected_target,
         target_filter_id,
@@ -1241,7 +1238,7 @@ def _build_warning_status_context(
         warnings.append({
             "type": "unknown_target_filter",
             "target_id": target_filter_id,
-            "targets_file": str(targets_path(cfg)),
+            "targets_file": str(target_records.targets_path(cfg)),
             "unfiltered_target_count": unfiltered_counts.get("targets", 0),
             "message": "target filter did not match any known target record",
             "suggested_action": "inspect targets.json, remove the filter, or set a label for the target id",
@@ -1341,7 +1338,7 @@ def _build_warning_summary_status_context(
 
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
-    target_filter_id = configured_target_filter(cfg)
+    target_filter_id = target_records.configured_target_filter(cfg)
     staged_context = _build_staged_file_status_context(cfg, target_filter_id)
     staged_raw = staged_context["staged_raw"]
     unfiltered_staged_raw = staged_context["unfiltered_staged_raw"]
@@ -1625,7 +1622,7 @@ def status_document(cfg):
         "command_queue_file": str(command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
-        "targets_file": str(targets_path(cfg)),
+        "targets_file": str(target_records.targets_path(cfg)),
         "build_config": str(build_config_path(cfg)),
         "event_log": str(event_log_path),
         "session_root": session_root,
@@ -3055,7 +3052,7 @@ def status_document(cfg):
         "command_copy_state_records": command_copy_state_records,
         **command_copy_state_index_maps,
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
-        "targets_file": str(targets_path(cfg)),
+        "targets_file": str(target_records.targets_path(cfg)),
         "workbench_jobs_state": workbench_jobs_state,
         "workbench_jobs_state_records": workbench_jobs_state_records,
         **workbench_jobs_state_index_maps,
