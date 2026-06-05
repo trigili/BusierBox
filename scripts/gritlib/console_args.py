@@ -121,9 +121,7 @@ def _add_console_core_args(parser):
                         help="print planned systemd user-service changes/commands without running systemctl")
 
 
-def build_arg_parser():
-    parser = _build_console_arg_parser_base()
-    _add_console_core_args(parser)
+def _add_console_file_target_args(parser):
     parser.add_argument("--serve-file",
                         help="stage a local file for explicit target fetch")
     parser.add_argument("--as", dest="serve_as",
@@ -164,6 +162,12 @@ def build_arg_parser():
                         help="copy/export generated target command N to clipboard when available and to the command copy file")
     parser.add_argument("--view-path",
                         help="open a local operator path in the configured pager when viewable")
+
+
+def build_arg_parser():
+    parser = _build_console_arg_parser_base()
+    _add_console_core_args(parser)
+    _add_console_file_target_args(parser)
     parser.add_argument("--start-workbench-job",
                         help="start a background-capable operator workflow action by id")
     parser.add_argument("--cancel-workbench-job",
