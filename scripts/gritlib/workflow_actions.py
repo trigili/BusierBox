@@ -3174,9 +3174,7 @@ def probe_workflow_action_status_summary(records):
     }
 
 
-def print_workbench_action_summary(doc):
-    doc = doc or {}
-    summary = doc.get("summary") or {}
+def _print_operator_console_workflow_summary(summary):
     print(
         "Operator console workflow summary: "
         f"total={summary.get('operator_console_workflow_count', 0)} "
@@ -3189,6 +3187,9 @@ def print_workbench_action_summary(doc):
     )
     print(f"  workflow groups: {format_counts(summary.get('operator_console_workflow_group_counts') or {})}")
     print(f"  workflow states: {format_counts(summary.get('operator_console_workflow_operator_action_state_counts') or {})}")
+
+
+def _print_build_config_field_summary(summary):
     print(
         "Build config field summary: "
         f"total={summary.get('workbench_config_field_count', 0)} "
@@ -3198,6 +3199,9 @@ def print_workbench_action_summary(doc):
     )
     print(f"  config categories: {format_counts(summary.get('workbench_config_field_category_counts') or {})}")
     print(f"  config safety: {format_counts(summary.get('workbench_config_field_safety_boundary_counts') or {})}")
+
+
+def _print_workbench_action_record_summary(summary):
     print(
         "Workbench action summary: "
         f"total={summary.get('workbench_action_count', 0)} "
@@ -3215,6 +3219,9 @@ def print_workbench_action_summary(doc):
     print(f"  execution defaults: {format_counts(summary.get('workbench_action_execution_default_counts') or {})}")
     print(f"  events: {format_counts(summary.get('workbench_action_event_counts') or {})}")
     print(f"  action states: {format_counts(summary.get('workbench_action_operator_action_state_counts') or {})}")
+
+
+def _print_operator_daemon_workflow_action_summary(summary):
     print(
         "Operator daemon workflow action summary: "
         f"total={summary.get('operator_daemon_workflow_action_count', 0)} "
@@ -3229,6 +3236,9 @@ def print_workbench_action_summary(doc):
     )
     print(f"  daemon workflows: {format_counts(summary.get('operator_daemon_workflow_action_workflow_counts') or {})}")
     print(f"  daemon action states: {format_counts(summary.get('operator_daemon_workflow_action_operator_action_state_counts') or {})}")
+
+
+def _print_service_workflow_action_summary(summary):
     print(
         "Service workflow action summary: "
         f"total={summary.get('service_workflow_action_count', 0)} "
@@ -3241,6 +3251,9 @@ def print_workbench_action_summary(doc):
     )
     print(f"  service workflows: {format_counts(summary.get('service_workflow_action_workflow_counts') or {})}")
     print(f"  service action states: {format_counts(summary.get('service_workflow_action_operator_action_state_counts') or {})}")
+
+
+def _print_target_workflow_action_summary(summary):
     print(
         "Target workflow action summary: "
         f"total={summary.get('target_workflow_action_count', 0)} "
@@ -3254,6 +3267,9 @@ def print_workbench_action_summary(doc):
     print(f"  target workflows: {format_counts(summary.get('target_workflow_action_workflow_counts') or {})}")
     print(f"  offline work: {format_counts(summary.get('target_workflow_action_queues_offline_work_counts') or {})}")
     print(f"  action states: {format_counts(summary.get('target_workflow_action_operator_action_state_counts') or {})}")
+
+
+def _print_probe_workflow_action_summary(summary):
     print(
         "Probe workflow action summary: "
         f"total={summary.get('probe_workflow_action_count', 0)} "
@@ -3268,6 +3284,9 @@ def print_workbench_action_summary(doc):
     print(f"  probe routes: {format_counts(summary.get('probe_workflow_action_route_kind_counts') or {})}")
     print(f"  probe bridges: {format_counts(summary.get('probe_workflow_action_bridge_profile_counts') or {})}")
     print(f"  probe action states: {format_counts(summary.get('probe_workflow_action_operator_action_state_counts') or {})}")
+
+
+def _print_command_queue_workflow_action_summary(summary):
     print(
         "Command queue workflow action summary: "
         f"total={summary.get('command_queue_workflow_action_count', 0)} "
@@ -3282,6 +3301,9 @@ def print_workbench_action_summary(doc):
     )
     print(f"  command queue categories: {format_counts(summary.get('command_queue_workflow_action_category_counts') or {})}")
     print(f"  command queue action states: {format_counts(summary.get('command_queue_workflow_action_operator_action_state_counts') or {})}")
+
+
+def _print_file_service_workflow_action_summary(summary):
     print(
         "File service workflow action summary: "
         f"total={summary.get('file_service_workflow_action_count', 0)} "
@@ -3295,3 +3317,17 @@ def print_workbench_action_summary(doc):
     )
     print(f"  file workflows: {format_counts(summary.get('file_service_workflow_action_workflow_counts') or {})}")
     print(f"  file action states: {format_counts(summary.get('file_service_workflow_action_operator_action_state_counts') or {})}")
+
+
+def print_workbench_action_summary(doc):
+    doc = doc or {}
+    summary = doc.get("summary") or {}
+    _print_operator_console_workflow_summary(summary)
+    _print_build_config_field_summary(summary)
+    _print_workbench_action_record_summary(summary)
+    _print_operator_daemon_workflow_action_summary(summary)
+    _print_service_workflow_action_summary(summary)
+    _print_target_workflow_action_summary(summary)
+    _print_probe_workflow_action_summary(summary)
+    _print_command_queue_workflow_action_summary(summary)
+    _print_file_service_workflow_action_summary(summary)
