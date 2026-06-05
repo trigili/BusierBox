@@ -425,21 +425,31 @@ def release_license_record(release_dir):
     rec.update(_release_license_policy_fields(policy))
     return rec
 
-def release_state_record(cfg=None, release=None):
+def _release_state_paths(cfg):
     cfg = cfg or {}
     explicit_release_dir = bool(cfg.get("release_dir"))
     here = Path(str(cfg.get("release_dir") or Path.cwd()))
-    release_json = here / "release.json"
-    release_index = here / "release-index.json"
-    bin_dir = here / "bin"
-    scripts_dir = here / "scripts"
-    rec = {
+    return {
+        "explicit_release_dir": explicit_release_dir,
+        "here": here,
+        "release_json": here / "release.json",
+        "release_index": here / "release-index.json",
+        "bin_dir": here / "bin",
+        "scripts_dir": here / "scripts",
+    }
+
+
+def _release_state_base_record(paths):
+    here = paths["here"]
+    release_json = paths["release_json"]
+    release_index = paths["release_index"]
+    return {
         "release_dir": str(here),
         "release_json": str(release_json),
         "release_index": str(release_index),
-        "detection_source": "explicit" if explicit_release_dir else "auto",
+        "detection_source": "explicit" if paths["explicit_release_dir"] else "auto",
         "detection_reason": "",
-        "explicit_release_dir": explicit_release_dir,
+        "explicit_release_dir": paths["explicit_release_dir"],
         "release_marker_count": 0,
         "present": False,
         "valid": False,
@@ -455,11 +465,13 @@ def release_state_record(cfg=None, release=None):
         "tuple_count": 0,
         "errors": [],
     }
-    release = release or {}
-    rec["release_json_exists"] = release_json.is_file()
-    rec["release_index_exists"] = release_index.is_file()
-    rec["bin_dir_exists"] = bin_dir.is_dir()
-    rec["scripts_dir_exists"] = scripts_dir.is_dir()
+
+
+def _apply_release_marker_state(rec, paths):
+    rec["release_json_exists"] = paths["release_json"].is_file()
+    rec["release_index_exists"] = paths["release_index"].is_file()
+    rec["bin_dir_exists"] = paths["bin_dir"].is_dir()
+    rec["scripts_dir_exists"] = paths["scripts_dir"].is_dir()
     release_markers = []
     if rec["release_json_exists"]:
         release_markers.append("release.json")
@@ -468,25 +480,23 @@ def release_state_record(cfg=None, release=None):
     if rec["bin_dir_exists"] and rec["scripts_dir_exists"]:
         release_markers.append("bin+scripts")
     rec["release_marker_count"] = len(release_markers)
-    rec["present"] = bool(
-        explicit_release_dir or
-        release_markers
-    )
-    if explicit_release_dir:
+    rec["present"] = bool(paths["explicit_release_dir"] or release_markers)
+    if paths["explicit_release_dir"]:
         rec["detection_reason"] = "explicit-release-dir"
     elif release_markers:
         rec["detection_reason"] = ",".join(release_markers)
     else:
         rec["detection_reason"] = "no-release-markers"
-    if not rec["present"]:
-        return rec
+
+
+def _read_release_state_json_docs(rec, paths):
     release_doc = {}
     index_doc = {}
     if not rec["release_json_exists"]:
         rec["errors"].append("release.json is missing")
     else:
         try:
-            release_doc = json.loads(release_json.read_text(encoding="utf-8"))
+            release_doc = json.loads(paths["release_json"].read_text(encoding="utf-8"))
             if isinstance(release_doc, dict):
                 rec["release_json_valid"] = True
                 rec["release_name"] = str(release_doc.get("release_name", ""))
@@ -496,33 +506,42 @@ def release_state_record(cfg=None, release=None):
             rec["errors"].append(f"release.json: {exc}")
     if rec["release_index_exists"]:
         try:
-            index_doc = json.loads(release_index.read_text(encoding="utf-8"))
+            index_doc = json.loads(paths["release_index"].read_text(encoding="utf-8"))
             if isinstance(index_doc, dict):
                 rec["release_index_valid"] = True
             else:
                 rec["errors"].append("release-index.json is not an object")
         except (OSError, json.JSONDecodeError) as exc:
             rec["errors"].append(f"release-index.json: {exc}")
+    return release_doc, index_doc
+
+
+def _apply_release_directory_errors(rec):
     if not rec["bin_dir_exists"]:
         rec["errors"].append("bin directory is missing")
     if not rec["scripts_dir_exists"]:
         rec["errors"].append("scripts directory is missing")
-    if release:
-        rec["release_name"] = str(release.get("release_name") or rec["release_name"])
-        rec["artifact_count"] = len(release.get("artifacts") or [])
-        rec["device_count"] = len(release.get("devices") or [])
-        rec["tuple_count"] = len(release.get("tuples") or [])
-        if release.get("release_index"):
-            rec["release_index"] = str(release.get("release_index"))
-            rec["release_index_exists"] = True
-        release_license = release.get("release_license") or {}
-        rec["release_license_exists"] = bool(release_license.get("exists", False))
-        rec["release_license_valid"] = bool(release_license.get("valid", False))
-        rec["project_license"] = release_license.get("project_license", "")
-        rec["combined_gplv2_compatible"] = bool(release_license.get("combined_gplv2_compatible", False))
-        rec["license_notice_count"] = release_license.get("notice_count", 0)
-        rec["license_missing_notice_count"] = release_license.get("missing_notice_count", 0)
-    elif rec["release_index_valid"]:
+
+
+def _apply_release_context_state(rec, release):
+    rec["release_name"] = str(release.get("release_name") or rec["release_name"])
+    rec["artifact_count"] = len(release.get("artifacts") or [])
+    rec["device_count"] = len(release.get("devices") or [])
+    rec["tuple_count"] = len(release.get("tuples") or [])
+    if release.get("release_index"):
+        rec["release_index"] = str(release.get("release_index"))
+        rec["release_index_exists"] = True
+    release_license = release.get("release_license") or {}
+    rec["release_license_exists"] = bool(release_license.get("exists", False))
+    rec["release_license_valid"] = bool(release_license.get("valid", False))
+    rec["project_license"] = release_license.get("project_license", "")
+    rec["combined_gplv2_compatible"] = bool(release_license.get("combined_gplv2_compatible", False))
+    rec["license_notice_count"] = release_license.get("notice_count", 0)
+    rec["license_missing_notice_count"] = release_license.get("missing_notice_count", 0)
+
+
+def _apply_release_doc_counts(rec, release_doc, index_doc):
+    if rec["release_index_valid"]:
         rec["artifact_count"] = len(index_doc.get("artifacts") or [])
         rec["device_count"] = len(index_doc.get("devices") or [])
         rec["tuple_count"] = len(index_doc.get("tuples") or [])
@@ -531,14 +550,32 @@ def release_state_record(cfg=None, release=None):
         if isinstance(layout, dict):
             rec["device_count"] = len(layout.get("devices") or {})
             rec["tuple_count"] = len(layout.get("tuples") or {})
+
+
+def _apply_release_state_validity(rec):
     rec["valid"] = bool(
         rec["release_json_valid"] and
         rec["bin_dir_exists"] and
         rec["scripts_dir_exists"] and
         (not rec["release_index_exists"] or rec["release_index_valid"])
     )
-    return rec
 
+
+def release_state_record(cfg=None, release=None):
+    paths = _release_state_paths(cfg)
+    rec = _release_state_base_record(paths)
+    release = release or {}
+    _apply_release_marker_state(rec, paths)
+    if not rec["present"]:
+        return rec
+    release_doc, index_doc = _read_release_state_json_docs(rec, paths)
+    _apply_release_directory_errors(rec)
+    if release:
+        _apply_release_context_state(rec, release)
+    else:
+        _apply_release_doc_counts(rec, release_doc, index_doc)
+    _apply_release_state_validity(rec)
+    return rec
 
 def release_state_status(cfg=None, release=None):
     state_record = release_state_record(cfg, release)
