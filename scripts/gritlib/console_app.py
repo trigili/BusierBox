@@ -16,10 +16,7 @@ from gritlib.console_args import (
     has_explicit_console_action,
 )
 from gritlib.console_bringup import handle_bringup_command
-from gritlib.console_runtime import (
-    handle_operator_daemon_args, listener_action_from_args, script_bytes_from_args,
-    serve_listener_action, session_timeout_from_args, timeout_from_args,
-)
+import gritlib.console_runtime as console_runtime
 from gritlib.console_help import print_concise_help, print_console_help_reference
 from gritlib.event_log import append_event
 from gritlib.file_service import serve_file_service
@@ -149,9 +146,9 @@ def main(argv=None):
         print(f"grit-console: {exc}", file=sys.stderr)
         return 2
 
-    timeout = timeout_from_args(args)
+    timeout = console_runtime.timeout_from_args(args)
     try:
-        daemon_code = handle_operator_daemon_args(
+        daemon_code = console_runtime.handle_operator_daemon_args(
             cfg,
             args,
             timeout=timeout,
@@ -162,9 +159,9 @@ def main(argv=None):
     except ValueError as exc:
         print(f"grit-console: {exc}", file=sys.stderr)
         return 2
-    action = listener_action_from_args(cfg, args, resolve_transport)
-    script_bytes = script_bytes_from_args(args)
-    session_timeout = session_timeout_from_args(args)
+    action = console_runtime.listener_action_from_args(cfg, args, resolve_transport)
+    script_bytes = console_runtime.script_bytes_from_args(args)
+    session_timeout = console_runtime.session_timeout_from_args(args)
 
     try:
         staging_code, action = console_actions.handle_file_staging_args(
@@ -188,7 +185,7 @@ def main(argv=None):
         return run_line_console(cfg)
 
     try:
-        listen_code = serve_listener_action(
+        listen_code = console_runtime.serve_listener_action(
             cfg,
             args,
             action,
