@@ -801,6 +801,41 @@ def _build_file_transfer_status_context(staged_records, uploads, fetches):
     }
 
 
+def _build_file_service_workflow_status_context(
+    cfg,
+    services,
+    staged_records,
+    uploads,
+    fetches,
+    target_file_transfer_records,
+    targets,
+):
+    file_service_row = next(
+        (row for row in services if row.get("name") == "file-service"), {}
+    )
+    file_service_workflow_context = file_service_workflow_status_context(
+        cfg,
+        file_service_row,
+        staged_records,
+        uploads,
+        fetches,
+        target_file_transfer_records,
+        targets,
+    )
+    file_service_workflow_actions = file_service_workflow_context["actions"]
+    return {
+        "file_service_row": file_service_row,
+        "file_service_workflow_context": file_service_workflow_context,
+        "file_service_workflow_actions": file_service_workflow_actions,
+        "file_service_workflow_action_index_maps": file_service_workflow_context[
+            "index_maps"
+        ],
+        "summary": file_service_workflow_status_summary(
+            file_service_workflow_actions
+        ),
+    }
+
+
 def _build_session_status_context(cfg, *, target_filter_id):
     session_context = session_status_context(
         cfg,
@@ -1284,19 +1319,21 @@ def status_document(cfg):
     fetch_index_maps = file_transfer_context["fetch_index_maps"]
     target_file_transfer_records = file_transfer_context["target_file_transfer_records"]
     target_file_transfer_index_maps = file_transfer_context["target_file_transfer_index_maps"]
-    file_service_row = next((row for row in services if row.get("name") == "file-service"), {})
-    file_service_workflow_context = file_service_workflow_status_context(
+    file_service_workflow_context = _build_file_service_workflow_status_context(
         cfg,
-        file_service_row,
+        services,
         staged_records,
         uploads,
         fetches,
         target_file_transfer_records,
         targets,
     )
-    file_service_workflow_actions = file_service_workflow_context["actions"]
+    file_service_row = file_service_workflow_context["file_service_row"]
+    file_service_workflow_actions = file_service_workflow_context[
+        "file_service_workflow_actions"
+    ]
     file_service_workflow_action_index_maps = file_service_workflow_context[
-        "index_maps"
+        "file_service_workflow_action_index_maps"
     ]
     target_activity_feed_context = _build_target_activity_feed_status_context(
         targets,
@@ -1501,7 +1538,7 @@ def status_document(cfg):
         **upload_record_summary(uploads, target_attribution),
         **fetch_record_summary(fetches, target_attribution),
         **target_file_transfer_record_summary(target_file_transfer_records),
-        **file_service_workflow_status_summary(file_service_workflow_actions),
+        **file_service_workflow_context["summary"],
         **target_activity_feed_context["summary"],
         **target_summary,
         **target_registry_summary,
