@@ -22,13 +22,7 @@ from gritlib.line_build import (
     run_line_build_command, set_line_global_build_option,
     unset_line_global_build_option,
 )
-from gritlib.line_configure import (
-    find_survey_uploads as configure_find_survey_uploads,
-    print_line_survey_status as configure_print_line_survey_status,
-    run_line_probe_config as configure_line_probe_config,
-    run_line_survey_config as configure_line_survey_config,
-    run_line_survey_preset as configure_line_survey_preset,
-)
+import gritlib.line_configure as line_configure
 from gritlib.line_context import (
     back_line_module_context,
     clear_line_console_context, clear_line_module_context,
@@ -46,12 +40,7 @@ from gritlib.line_help import (
     print_context_line_help,
     print_line_command_help,
 )
-from gritlib.line_options import (
-    alias_line_target as line_options_alias_line_target,
-    note_line_target as line_options_note_line_target,
-    rename_line_target as line_options_rename_line_target,
-    set_line_option as line_options_set_line_option,
-)
+import gritlib.line_options as line_options
 from gritlib.line_network import print_line_local_ips
 from gritlib.line_resources import (
     line_history_command, load_line_resource,
@@ -204,11 +193,11 @@ def run_line_repl(cfg):
         cfg,
         clear_module_func=clear_line_module_context,
         set_global_option_func=set_line_global_build_option,
-        set_context_option_func=line_options_set_line_option,
+        set_context_option_func=line_options.set_line_option,
         unset_global_option_func=unset_line_global_build_option,
-        rename_target_func=line_options_rename_line_target,
-        note_target_func=line_options_note_line_target,
-        alias_target_func=line_options_alias_line_target,
+        rename_target_func=line_options.rename_line_target,
+        note_target_func=line_options.note_line_target,
+        alias_target_func=line_options.alias_line_target,
         build_fields_func=workbench_config_field_records,
     )
 
@@ -238,7 +227,7 @@ def run_line_repl(cfg):
         target_callbacks=line_target_callbacks,
         option_callbacks=line_option_callbacks,
         load_staged_func=load_staged,
-        find_survey_uploads_func=configure_find_survey_uploads,
+        find_survey_uploads_func=line_configure.find_survey_uploads,
         append_event_fn=append_event,
     )
 
@@ -275,7 +264,7 @@ def run_line_repl(cfg):
         route_service_callbacks=line_route_service_callbacks,
         target_callbacks=line_target_callbacks,
         probe_results_func=probe_results_print_line_probe_results,
-        probe_config_func=configure_line_probe_config,
+        probe_config_func=line_configure.run_line_probe_config,
         probe_clear_func=probe_results_clear_line_probe_results,
         probe_paste_func=probe_commands_print_line_probe_script,
         probe_script_func=probe_commands_print_line_probe_script,
@@ -351,10 +340,10 @@ def run_line_repl(cfg):
 
     line_survey_callbacks = build_line_survey_callbacks(
         cfg,
-        survey_results_func=configure_print_line_survey_status,
-        find_survey_uploads_func=configure_find_survey_uploads,
-        survey_config_func=configure_line_survey_config,
-        survey_preset_func=configure_line_survey_preset,
+        survey_results_func=line_configure.print_line_survey_status,
+        find_survey_uploads_func=line_configure.find_survey_uploads,
+        survey_config_func=line_configure.run_line_survey_config,
+        survey_preset_func=line_configure.run_line_survey_preset,
     )
 
     line_utility_callbacks = build_line_utility_callbacks(
