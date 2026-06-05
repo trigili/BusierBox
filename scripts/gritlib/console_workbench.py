@@ -4952,6 +4952,63 @@ def _build_status_target_file_payload(
     }
 
 
+def _build_status_session_release_workbench_payload(
+    activity_queue_context,
+    tail_context,
+):
+    aq = activity_queue_context
+    tc = tail_context
+    release = aq["release"]
+    return {
+        "sessions": aq["sessions"],
+        "session_root_state": aq["session_root_state"],
+        "session_root_state_records": aq["session_root_state_records"],
+        **aq["session_root_state_index_maps"],
+        **aq["session_index_maps"],
+        "events": aq["events"],
+        **aq["event_index_maps"],
+        "event_log_state": aq["event_log_state"],
+        "event_log_state_records": aq["event_log_state_records"],
+        **aq["event_log_state_index_maps"],
+        "event_log_stats": {
+            key: value for key, value in aq["event_stats"].items() if key != "tail"
+        },
+        "release_state": aq["release_state"],
+        "release_state_records": aq["release_state_records"],
+        **aq["release_state_index_maps"],
+        "release": release,
+        "release_artifact_workflow_actions": aq["release_artifact_workflow_actions"],
+        **aq["release_artifact_workflow_action_index_maps"],
+        "release_license_records": release.get("release_license_records") or [],
+        "release_license_records_by_project_license": release.get("release_license_records_by_project_license") or {},
+        "release_license_records_by_combined_gplv2_compatible": release.get("release_license_records_by_combined_gplv2_compatible") or {},
+        "release_license_records_by_corresponding_source_required": release.get("release_license_records_by_corresponding_source_required") or {},
+        "release_license_records_by_corresponding_source_status": release.get("release_license_records_by_corresponding_source_status") or {},
+        "release_license_records_by_package_license_audit": release.get("release_license_records_by_package_license_audit") or {},
+        "release_license_records_by_component": release.get("release_license_records_by_component") or {},
+        "release_license_records_by_component_license": release.get("release_license_records_by_component_license") or {},
+        "release_license_records_by_notice_file": release.get("release_license_records_by_notice_file") or {},
+        "release_license_records_by_evidence_source": release.get("release_license_records_by_evidence_source") or {},
+        "release_license_records_by_evidence_source_license": release.get("release_license_records_by_evidence_source_license") or {},
+        "command_queue": aq["command_queue"],
+        "command_queue_workflow_actions": tc["command_queue_workflow_actions"],
+        **tc["command_queue_workflow_action_index_maps"],
+        "command_queue_policy_records": aq["command_queue_policy_records"],
+        **aq["command_queue_policy_index_maps"],
+        **aq["command_queue_index_maps"],
+        "command_queue_mode_records": aq["command_queue_mode_records"],
+        **aq["command_queue_mode_index_maps"],
+        "workbench_config_fields": aq["workbench_config_fields"],
+        **aq["workbench_config_field_index_maps"],
+        "workbench_actions": aq["workbench_actions"],
+        **aq["workbench_action_index_maps"],
+        "operator_daemon_workflow_actions": aq["operator_daemon_workflow_actions"],
+        **aq["operator_daemon_workflow_action_index_maps"],
+        "workbench_jobs": aq["workbench_jobs"],
+        **aq["workbench_job_index_maps"],
+    }
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
@@ -5248,50 +5305,8 @@ def status_document(cfg):
             activity_queue_context=activity_queue_context,
             transfer_activity_context=transfer_activity_context,
         ),
-        "sessions": sessions,
-        "session_root_state": session_root_state,
-        "session_root_state_records": session_root_state_records,
-        **session_root_state_index_maps,
-        **session_index_maps,
-        "events": events,
-        **event_index_maps,
-        "event_log_state": event_log_state,
-        "event_log_state_records": event_log_state_records,
-        **event_log_state_index_maps,
-        "event_log_stats": {
-            key: value for key, value in event_stats.items() if key != "tail"
-        },
-        "release_state": release_state,
-        "release_state_records": release_state_records,
-        **release_state_index_maps,
-        "release": release,
-        "release_artifact_workflow_actions": release_artifact_workflow_actions,
-        **release_artifact_workflow_action_index_maps,
-        "release_license_records": release.get("release_license_records") or [],
-        "release_license_records_by_project_license": release.get("release_license_records_by_project_license") or {},
-        "release_license_records_by_combined_gplv2_compatible": release.get("release_license_records_by_combined_gplv2_compatible") or {},
-        "release_license_records_by_corresponding_source_required": release.get("release_license_records_by_corresponding_source_required") or {},
-        "release_license_records_by_corresponding_source_status": release.get("release_license_records_by_corresponding_source_status") or {},
-        "release_license_records_by_package_license_audit": release.get("release_license_records_by_package_license_audit") or {},
-        "release_license_records_by_component": release.get("release_license_records_by_component") or {},
-        "release_license_records_by_component_license": release.get("release_license_records_by_component_license") or {},
-        "release_license_records_by_notice_file": release.get("release_license_records_by_notice_file") or {},
-        "release_license_records_by_evidence_source": release.get("release_license_records_by_evidence_source") or {},
-        "release_license_records_by_evidence_source_license": release.get("release_license_records_by_evidence_source_license") or {},
-        "command_queue": command_queue,
-        "command_queue_workflow_actions": command_queue_workflow_actions,
-        **command_queue_workflow_action_index_maps,
-        "command_queue_policy_records": command_queue_policy_records,
-        **command_queue_policy_index_maps,
-        **command_queue_index_maps,
-        "command_queue_mode_records": command_queue_mode_records,
-        **command_queue_mode_index_maps,
-        "workbench_config_fields": workbench_config_fields,
-        **workbench_config_field_index_maps,
-        "workbench_actions": workbench_actions,
-        **workbench_action_index_maps,
-        "operator_daemon_workflow_actions": operator_daemon_workflow_actions,
-        **operator_daemon_workflow_action_index_maps,
-        "workbench_jobs": workbench_jobs,
-        **workbench_job_index_maps,
+        **_build_status_session_release_workbench_payload(
+            activity_queue_context,
+            tail_context,
+        ),
     }
