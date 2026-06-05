@@ -130,12 +130,7 @@ class ServiceManager:
             except RuntimeError:
                 pass
 
-    def snapshot(self):
-        with self._lock:
-            sockets = list(self.sockets)
-            transports = list(self.transports)
-            threads = list(self.service_threads)
-            children = list(self.child_processes)
+    def _snapshot_socket_records(self, sockets):
         socket_records = []
         for sock in sockets:
             rec = {"fileno": -1, "closed": True, "local": "", "peer": ""}
@@ -156,6 +151,9 @@ class ServiceManager:
                 except OSError:
                     pass
             socket_records.append(rec)
+        return socket_records
+
+    def _snapshot_thread_records(self, threads):
         thread_records = []
         for thread in threads:
             thread_records.append({
@@ -164,6 +162,9 @@ class ServiceManager:
                 "alive": bool(thread.is_alive()),
                 "daemon": bool(getattr(thread, "daemon", False)),
             })
+        return thread_records
+
+    def _snapshot_child_process_records(self, children):
         child_records = []
         for proc in children:
             try:
@@ -175,6 +176,9 @@ class ServiceManager:
                 "running": poll is None,
                 "returncode": poll,
             })
+        return child_records
+
+    def _snapshot_transport_records(self, transports):
         transport_records = []
         for transport in transports:
             active = ""
@@ -186,6 +190,18 @@ class ServiceManager:
                 "type": transport.__class__.__name__,
                 "active": active,
             })
+        return transport_records
+
+    def snapshot(self):
+        with self._lock:
+            sockets = list(self.sockets)
+            transports = list(self.transports)
+            threads = list(self.service_threads)
+            children = list(self.child_processes)
+        socket_records = self._snapshot_socket_records(sockets)
+        transport_records = self._snapshot_transport_records(transports)
+        thread_records = self._snapshot_thread_records(threads)
+        child_records = self._snapshot_child_process_records(children)
         return {
             "schema": 1,
             "shutdown_requested": bool(self.shutdown_event.is_set()),
