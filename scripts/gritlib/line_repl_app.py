@@ -26,17 +26,17 @@ from gritlib.line_repl_completions import (
 )
 from gritlib.line_repl_core import build_line_core_callbacks
 from gritlib.line_repl_files import build_line_file_workflow_callbacks
-from gritlib.line_repl_jobs import build_line_job_callbacks
+from gritlib.line_repl_jobs import build_default_line_job_callbacks
 from gritlib.line_repl_legacy import build_line_legacy_callbacks
 from gritlib.line_repl_navigation import build_line_navigation_callbacks
 from gritlib.line_repl_options import build_default_line_option_callbacks
 from gritlib.line_repl_probe import build_line_probe_callbacks
-from gritlib.line_repl_queue import build_line_queue_callbacks
+from gritlib.line_repl_queue import build_default_line_queue_callbacks
 from gritlib.line_repl_routes import (
     build_default_line_route_service_callbacks,
 )
 from gritlib.line_repl_search import build_line_search_bundle
-from gritlib.line_repl_sessions import build_line_session_callbacks
+from gritlib.line_repl_sessions import build_default_line_session_callbacks
 from gritlib.line_repl_show import build_line_display_show_callbacks
 from gritlib.line_repl_survey import build_line_survey_callbacks
 from gritlib.line_repl_targets import build_default_line_target_callbacks
@@ -64,9 +64,6 @@ from gritlib.staged_files import (
 from gritlib.target_activity import print_target_activity_records
 import gritlib.target_records as target_records
 from gritlib.version import grit_version
-from gritlib.workbench_jobs import (
-    start_workbench_job_record,
-)
 from gritlib.console_workbench import workbench_snapshot
 import gritlib.workflow_runners as workflow_runners
 
@@ -167,23 +164,14 @@ def _build_line_operational_callbacks(
     line_option_callbacks,
     line_action_callbacks,
 ):
-    line_job_callbacks = build_line_job_callbacks(
+    line_job_callbacks = build_default_line_job_callbacks(
         cfg,
-        workbench_snapshot_func=workbench_snapshot,
-        action_callbacks=line_action_callbacks,
-        start_job_func=start_workbench_job_record,
-        quote=shquote,
+        line_action_callbacks=line_action_callbacks,
     )
 
-    line_queue_callbacks = build_line_queue_callbacks(
+    line_queue_callbacks = build_default_line_queue_callbacks(
         cfg,
-        workbench_snapshot_func=workbench_snapshot,
-        queue_summary_func=command_queue_module.command_queue_summary,
-        queue_func=command_queue_module.queue_command,
-        clear_queue_func=command_queue_module.clear_command_queue,
-        target_callbacks=line_target_callbacks,
-        append_event_fn=append_event,
-        quote=shquote,
+        line_target_callbacks=line_target_callbacks,
     )
 
     line_probe_callbacks = build_line_probe_callbacks(
@@ -206,13 +194,7 @@ def _build_line_operational_callbacks(
         probe_script_func=probe_commands.print_line_probe_script,
     )
 
-    line_session_callbacks = build_line_session_callbacks(
-        cfg,
-        workbench_snapshot_func=workbench_snapshot,
-        session_root_func=service_runtime.SESSION_MANAGER.root,
-        append_event_fn=append_event,
-        quote=shquote,
-    )
+    line_session_callbacks = build_default_line_session_callbacks(cfg)
 
     line_file_callbacks = build_line_file_workflow_callbacks(
         cfg,

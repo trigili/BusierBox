@@ -1,5 +1,7 @@
 """Line REPL session callback adapters."""
 
+from gritlib.console_workbench import workbench_snapshot
+from gritlib.event_log import append_event
 from gritlib.line_sessions import (
     clear_line_sessions,
     current_line_session_record,
@@ -8,6 +10,8 @@ from gritlib.line_sessions import (
     select_current_line_session,
 )
 from gritlib.operator_io import view_path_headless_command
+from gritlib import service_runtime
+from gritlib.shell_utils import shquote
 
 
 def build_line_session_callbacks(
@@ -67,3 +71,13 @@ def build_line_session_callbacks(
         "clear_line_sessions": clear_sessions,
         "interact_line_session": interact_line_session,
     }
+
+
+def build_default_line_session_callbacks(cfg):
+    return build_line_session_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        session_root_func=service_runtime.SESSION_MANAGER.root,
+        append_event_fn=append_event,
+        quote=shquote,
+    )

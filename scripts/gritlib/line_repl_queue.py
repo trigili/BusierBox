@@ -1,11 +1,15 @@
 """Line REPL command queue callback adapters."""
 
+from gritlib import command_queue as command_queue_module
+from gritlib.console_workbench import workbench_snapshot
+from gritlib.event_log import append_event
 from gritlib.line_command_queue import (
     print_line_command_queue_view,
     queue_line_command,
     run_line_queue_command,
 )
 from gritlib.line_search import clear_line_search_results, set_line_search_results
+from gritlib.shell_utils import shquote
 
 
 def build_line_queue_callbacks(
@@ -68,3 +72,16 @@ def build_line_queue_callbacks(
         "queue_line_command": queue_command,
         "run_line_queue_command": run_queue_command,
     }
+
+
+def build_default_line_queue_callbacks(cfg, *, line_target_callbacks):
+    return build_line_queue_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        queue_summary_func=command_queue_module.command_queue_summary,
+        queue_func=command_queue_module.queue_command,
+        clear_queue_func=command_queue_module.clear_command_queue,
+        target_callbacks=line_target_callbacks,
+        append_event_fn=append_event,
+        quote=shquote,
+    )

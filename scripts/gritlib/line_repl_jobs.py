@@ -1,5 +1,7 @@
 """Line REPL workbench job callback adapters."""
 
+from gritlib.console_workbench import workbench_snapshot
+from gritlib.shell_utils import shquote
 from gritlib.workbench_jobs import (
     cancel_current_line_job,
     cancel_workbench_job_headless_command,
@@ -8,6 +10,7 @@ from gritlib.workbench_jobs import (
     select_current_line_job,
     start_line_job as workbench_jobs_start_line_job,
     start_workbench_job_headless_command,
+    start_workbench_job_record,
 )
 
 
@@ -70,3 +73,13 @@ def build_line_job_callbacks(
         "cancel_line_job": cancel_line_job,
         "start_line_job": start_job,
     }
+
+
+def build_default_line_job_callbacks(cfg, *, line_action_callbacks):
+    return build_line_job_callbacks(
+        cfg,
+        workbench_snapshot_func=workbench_snapshot,
+        action_callbacks=line_action_callbacks,
+        start_job_func=start_workbench_job_record,
+        quote=shquote,
+    )
