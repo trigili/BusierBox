@@ -1753,6 +1753,35 @@ def _build_target_api_collections(
     target_attribution_records,
 ):
     return {
+        **_build_target_command_api_collections(
+            target_command_records=target_command_records,
+            target_workflow_actions=target_workflow_actions,
+            target_command_state_records=target_command_state_records,
+            rshell_session_policy_records=rshell_session_policy_records,
+        ),
+        **_build_target_identity_api_collections(
+            targets=targets,
+        ),
+        **_build_target_registry_api_collections(
+            target_registry_state_records=target_registry_state_records,
+        ),
+        **_build_target_filter_api_collections(
+            target_filter_records=target_filter_records,
+        ),
+        **_build_target_attribution_api_collections(
+            target_attribution_records=target_attribution_records,
+        ),
+    }
+
+
+def _build_target_command_api_collections(
+    *,
+    target_command_records,
+    target_workflow_actions,
+    target_command_state_records,
+    rshell_session_policy_records,
+):
+    return {
         "target_command_records": status_indexes.api_collection_record(
             "target_command_records", target_command_records, "command", (
                 "target_commands_by_service", "target_commands_by_request",
@@ -1820,6 +1849,11 @@ def _build_target_api_collections(
                 "rshell_session_policy_records_by_persistent_lifecycle",
             ), "rshell_session_policy_record_count",
         ),
+    }
+
+
+def _build_target_identity_api_collections(*, targets):
+    return {
         "targets": status_indexes.api_collection_record(
             "targets", targets, "target_id", (
                 "targets_by_id", "targets_by_label", "targets_by_alias",
@@ -1860,6 +1894,11 @@ def _build_target_api_collections(
                 "targets_by_observed_constraint",
             ), "target_count",
         ),
+    }
+
+
+def _build_target_registry_api_collections(*, target_registry_state_records):
+    return {
         "target_registry_state_records": status_indexes.api_collection_record(
             "target_registry_state_records", target_registry_state_records, "id", (
                 "target_registry_state_records_by_id",
@@ -1898,6 +1937,11 @@ def _build_target_api_collections(
                 "target_registry_state_records_by_has_compatibility_reports",
             ), "target_registry_state_record_count",
         ),
+    }
+
+
+def _build_target_filter_api_collections(*, target_filter_records):
+    return {
         "target_filter_records": status_indexes.api_collection_record(
             "target_filter_records", target_filter_records, "id", (
                 "target_filter_records_by_id",
@@ -1935,6 +1979,11 @@ def _build_target_api_collections(
                 "target_filter_records_by_filter_reduced_observed_activity",
             ), "target_filter_record_count",
         ),
+    }
+
+
+def _build_target_attribution_api_collections(*, target_attribution_records):
+    return {
         "target_attribution_records": status_indexes.api_collection_record(
             "target_attribution_records", target_attribution_records, "scope", (
                 "target_attribution_records_by_scope",
