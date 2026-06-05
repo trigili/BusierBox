@@ -2022,13 +2022,7 @@ def _build_target_api_collections(
     }
 
 
-def _build_target_command_api_collections(
-    *,
-    target_command_records,
-    target_workflow_actions,
-    target_command_state_records,
-    rshell_session_policy_records,
-):
+def _build_target_command_record_api_collections(*, target_command_records):
     return {
         "target_command_records": status_indexes.api_collection_record(
             "target_command_records", target_command_records, "command", (
@@ -2048,6 +2042,11 @@ def _build_target_command_api_collections(
                 "target_commands_by_retry_post_disconnect_count",
             ), "target_command_count",
         ),
+    }
+
+
+def _build_target_workflow_api_collections(*, target_workflow_actions):
+    return {
         "target_workflow_actions": status_indexes.api_collection_record(
             "target_workflow_actions", target_workflow_actions, "id", (
                 "target_workflow_actions_by_id",
@@ -2074,6 +2073,11 @@ def _build_target_command_api_collections(
                 "target_workflow_actions_by_can_run_from_curses_enter",
             ), "target_workflow_action_count",
         ),
+    }
+
+
+def _build_target_command_state_api_collections(*, target_command_state_records):
+    return {
         "target_command_state_records": status_indexes.api_collection_record(
             "target_command_state_records", target_command_state_records, "id", (
                 "target_command_state_records_by_id",
@@ -2086,6 +2090,11 @@ def _build_target_command_api_collections(
                 "target_command_state_records_by_has_session_policy_errors",
             ), "target_command_state_record_count",
         ),
+    }
+
+
+def _build_rshell_session_policy_api_collections(*, rshell_session_policy_records):
+    return {
         "rshell_session_policy_records": status_indexes.api_collection_record(
             "rshell_session_policy_records", rshell_session_policy_records, "id", (
                 "rshell_session_policy_records_by_id",
@@ -2096,6 +2105,29 @@ def _build_target_command_api_collections(
                 "rshell_session_policy_records_by_reconnects_after_disconnect",
                 "rshell_session_policy_records_by_persistent_lifecycle",
             ), "rshell_session_policy_record_count",
+        ),
+    }
+
+
+def _build_target_command_api_collections(
+    *,
+    target_command_records,
+    target_workflow_actions,
+    target_command_state_records,
+    rshell_session_policy_records,
+):
+    return {
+        **_build_target_command_record_api_collections(
+            target_command_records=target_command_records,
+        ),
+        **_build_target_workflow_api_collections(
+            target_workflow_actions=target_workflow_actions,
+        ),
+        **_build_target_command_state_api_collections(
+            target_command_state_records=target_command_state_records,
+        ),
+        **_build_rshell_session_policy_api_collections(
+            rshell_session_policy_records=rshell_session_policy_records,
         ),
     }
 
