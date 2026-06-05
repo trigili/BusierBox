@@ -3,15 +3,12 @@
 import sys
 import time
 from gritlib.command_copy import copy_text_for_operator
-import gritlib.config_utils as config_utils
 from gritlib.event_log import append_event
 import gritlib.line_build as line_build
-import gritlib.line_configure as line_configure
 import gritlib.line_context as line_context
 from gritlib.line_events import print_line_events_view
 import gritlib.line_files as line_files
 import gritlib.line_help as line_help
-from gritlib.line_network import print_line_local_ips
 import gritlib.line_resources as line_resources
 import gritlib.line_repl_runtime as line_repl_runtime
 from gritlib.line_repl_actions import build_default_line_action_callbacks
@@ -32,11 +29,11 @@ from gritlib.line_repl_routes import (
 from gritlib.line_repl_search import build_default_line_search_bundle
 from gritlib.line_repl_sessions import build_default_line_session_callbacks
 from gritlib.line_repl_show import build_default_line_display_show_callbacks
-from gritlib.line_repl_survey import build_line_survey_callbacks
+from gritlib.line_repl_survey import build_default_line_survey_callbacks
 from gritlib.line_repl_targets import build_default_line_target_callbacks
 from gritlib.line_repl_utility import build_line_utility_callbacks
 from gritlib.line_repl_workflow import build_line_workflow_callbacks
-from gritlib.line_repl_workspace import build_line_workspace_callbacks
+from gritlib.line_repl_workspace import build_default_line_workspace_callbacks
 import gritlib.line_release as line_release
 from gritlib.line_search import (
     clear_line_search_results,
@@ -224,26 +221,9 @@ def _build_line_dispatch_callbacks(
     line_search_callbacks,
     line_display_show_callbacks,
 ):
-    line_workspace_callbacks = build_line_workspace_callbacks(
-        cfg,
-        default_config=config_utils.DEFAULT_CONFIG,
-        load_config_func=config_utils.load_config,
-        defaults=config_utils.DEFAULTS,
-        workbench_snapshot_func=workbench_snapshot,
-        clear_module_context_func=line_context.clear_line_module_context,
-        print_workspace_snapshot_func=line_workspace.print_line_workspace_snapshot,
-        reload_config_func=line_workspace.reload_line_config_for_repl,
-        clear_console_context_func=line_context.clear_line_console_context,
-        local_ips_func=print_line_local_ips,
-    )
+    line_workspace_callbacks = build_default_line_workspace_callbacks(cfg)
 
-    line_survey_callbacks = build_line_survey_callbacks(
-        cfg,
-        survey_results_func=line_configure.print_line_survey_status,
-        find_survey_uploads_func=line_configure.find_survey_uploads,
-        survey_config_func=line_configure.run_line_survey_config,
-        survey_preset_func=line_configure.run_line_survey_preset,
-    )
+    line_survey_callbacks = build_default_line_survey_callbacks(cfg)
 
     line_utility_callbacks = build_line_utility_callbacks(
         cfg,
