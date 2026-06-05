@@ -148,118 +148,168 @@ def dispatch_legacy_line_file_number(
 ):
     text = str(choice or "").strip()
     if text == "6":
-        path_line = input_func("local file> ") if input_func else None
-        name_line = input_func("target request name> ") if input_func else None
-        path = path_line.strip() if path_line is not None else ""
-        name = name_line.strip() if name_line is not None else ""
+        return _dispatch_legacy_stage_file(cfg, input_func, append_event_fn)
+    if text == "7":
+        return _dispatch_legacy_view_staged_files(
+            cfg,
+            append_event_fn=append_event_fn,
+            print_staged_func=print_staged_func,
+            snapshot_func=snapshot_func,
+        )
+    if text in {"8", "d"}:
+        return _dispatch_legacy_unstage_file(cfg, input_func, append_event_fn)
+    if text in {"9", "v"}:
+        return _dispatch_legacy_view_path(
+            cfg,
+            input_func=input_func,
+            append_event_fn=append_event_fn,
+            view_path_func=view_path_func,
+        )
+    if text == "22":
+        return _dispatch_legacy_stage_binary(stage_binary_func)
+    return False
+
+
+def _legacy_file_headless_config(cfg):
+    return "scripts/grit-console --config " + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+
+
+def _dispatch_legacy_stage_file(cfg, input_func, append_event_fn):
+    path_line = input_func("local file> ") if input_func else None
+    name_line = input_func("target request name> ") if input_func else None
+    path = path_line.strip() if path_line is not None else ""
+    name = name_line.strip() if name_line is not None else ""
+    try:
+        headless = (
+            _legacy_file_headless_config(cfg)
+            + " --serve-file "
+            + shquote(path)
+            + " --as "
+            + shquote(name)
+            + " --list-staged"
+        )
+        rec = stage_file(cfg, path, name)
+        print(f"staged {rec['request_name']}")
+        print(render_fetch_command(rec["request_name"], cfg))
+        if append_event_fn:
+            append_event_fn(cfg, "workbench", "workbench_file_staged", details={
+                "headless_command": headless,
+                "request_name": rec.get("request_name", ""),
+                "source_path": rec.get("source_path", ""),
+                "stage_kind": rec.get("stage_kind", ""),
+                "target_id": rec.get("target_id", ""),
+                "target_label": rec.get("target_label", ""),
+            })
+    except ValueError as exc:
+        print(exc)
+    return True
+
+
+def _print_legacy_file_service_actions(file_actions):
+    if not file_actions:
+        return
+    print("File service workflow actions:")
+    for rec in file_actions:
+        print(
+            f"  {rec.get('id', '')} "
+            f"state={rec.get('operator_action_state', '') or '-'} "
+            f"reason={rec.get('operator_action_reason', '') or '-'} "
+            f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
+            f"fleet_targets={rec.get('fleet_target_count', 0)} "
+            f"pending_work={rec.get('fleet_mailbox_pending_work_count', 0)} "
+            f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
+            f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
+        )
+        if rec.get("target_command_template"):
+            print(f"    target_command_template: {rec.get('target_command_template', '')}")
+
+
+def _print_legacy_staged_file_actions(staged_actions):
+    if not staged_actions:
+        return
+    print("Staged file workflow actions:")
+    for rec in staged_actions:
+        print(
+            f"  {rec.get('id', '')} "
+            f"state={rec.get('operator_action_state', '') or '-'} "
+            f"reason={rec.get('operator_action_reason', '') or '-'} "
+            f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
+            f"target_pending={rec.get('target_mailbox_pending_work_count', 0)} "
+            f"fleet_pending={rec.get('fleet_mailbox_pending_work_count', 0)} "
+            f"poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'}"
+        )
+
+
+def _dispatch_legacy_view_staged_files(
+    cfg,
+    *,
+    append_event_fn=None,
+    print_staged_func=None,
+    snapshot_func=None,
+):
+    if print_staged_func:
+        print_staged_func(cfg)
+    snap = snapshot_func(cfg) if snapshot_func else {}
+    file_actions = snap.get("file_service_workflow_actions") or []
+    _print_legacy_file_service_actions(file_actions)
+    staged_actions = snap.get("staged_file_workflow_actions") or []
+    _print_legacy_staged_file_actions(staged_actions)
+    headless = _legacy_file_headless_config(cfg) + " --list-staged"
+    if append_event_fn:
+        append_event_fn(cfg, "workbench", "workbench_staged_files_viewed", details={
+            "headless_command": headless,
+            "staged_count": len(snap.get("staged_records") or []),
+            "file_service_workflow_action_count": len(file_actions),
+            "staged_file_workflow_action_count": len(staged_actions),
+        })
+    return True
+
+
+def _dispatch_legacy_unstage_file(cfg, input_func, append_event_fn):
+    name_line = input_func("target request name> ") if input_func else None
+    name = name_line.strip() if name_line is not None else ""
+    if name:
         try:
             headless = (
-                "scripts/grit-console --config "
-                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                + " --serve-file "
-                + shquote(path)
-                + " --as "
+                _legacy_file_headless_config(cfg)
+                + " --unstage "
                 + shquote(name)
                 + " --list-staged"
             )
-            rec = stage_file(cfg, path, name)
-            print(f"staged {rec['request_name']}")
-            print(render_fetch_command(rec["request_name"], cfg))
+            existed = unstage_file(cfg, name)
+            print("unstaged" if existed else "not staged")
             if append_event_fn:
-                append_event_fn(cfg, "workbench", "workbench_file_staged", details={
+                append_event_fn(cfg, "workbench", "workbench_file_unstaged", details={
                     "headless_command": headless,
-                    "request_name": rec.get("request_name", ""),
-                    "source_path": rec.get("source_path", ""),
-                    "stage_kind": rec.get("stage_kind", ""),
-                    "target_id": rec.get("target_id", ""),
-                    "target_label": rec.get("target_label", ""),
+                    "request_name": name,
+                    "existed": existed,
                 })
         except ValueError as exc:
             print(exc)
-        return True
-    if text == "7":
-        if print_staged_func:
-            print_staged_func(cfg)
-        snap = snapshot_func(cfg) if snapshot_func else {}
-        file_actions = snap.get("file_service_workflow_actions") or []
-        if file_actions:
-            print("File service workflow actions:")
-            for rec in file_actions:
-                print(
-                    f"  {rec.get('id', '')} "
-                    f"state={rec.get('operator_action_state', '') or '-'} "
-                    f"reason={rec.get('operator_action_reason', '') or '-'} "
-                    f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
-                    f"fleet_targets={rec.get('fleet_target_count', 0)} "
-                    f"pending_work={rec.get('fleet_mailbox_pending_work_count', 0)} "
-                    f"offline_targets={rec.get('fleet_offline_target_count', 0)} "
-                    f"poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}"
-                )
-                if rec.get("target_command_template"):
-                    print(f"    target_command_template: {rec.get('target_command_template', '')}")
-        staged_actions = snap.get("staged_file_workflow_actions") or []
-        if staged_actions:
-            print("Staged file workflow actions:")
-            for rec in staged_actions:
-                print(
-                    f"  {rec.get('id', '')} "
-                    f"state={rec.get('operator_action_state', '') or '-'} "
-                    f"reason={rec.get('operator_action_reason', '') or '-'} "
-                    f"enter={'yes' if rec.get('can_run_from_curses_enter') else 'no'} "
-                    f"target_pending={rec.get('target_mailbox_pending_work_count', 0)} "
-                    f"fleet_pending={rec.get('fleet_mailbox_pending_work_count', 0)} "
-                    f"poll_overdue={'yes' if rec.get('target_poll_overdue') else 'no'}"
-                )
-        headless = (
-            "scripts/grit-console --config "
-            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-            + " --list-staged"
-        )
-        if append_event_fn:
-            append_event_fn(cfg, "workbench", "workbench_staged_files_viewed", details={
-                "headless_command": headless,
-                "staged_count": len(snap.get("staged_records") or []),
-                "file_service_workflow_action_count": len(file_actions),
-                "staged_file_workflow_action_count": len(staged_actions),
-            })
-        return True
-    if text in {"8", "d"}:
-        name_line = input_func("target request name> ") if input_func else None
-        name = name_line.strip() if name_line is not None else ""
-        if name:
-            try:
-                headless = (
-                    "scripts/grit-console --config "
-                    + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
-                    + " --unstage "
-                    + shquote(name)
-                    + " --list-staged"
-                )
-                existed = unstage_file(cfg, name)
-                print("unstaged" if existed else "not staged")
-                if append_event_fn:
-                    append_event_fn(cfg, "workbench", "workbench_file_unstaged", details={
-                        "headless_command": headless,
-                        "request_name": name,
-                        "existed": existed,
-                    })
-            except ValueError as exc:
-                print(exc)
-        return True
-    if text in {"9", "v"}:
-        path_line = input_func("local path> ") if input_func else None
-        path = path_line.strip() if path_line is not None else ""
-        if path and view_path_func:
-            view_path_func(cfg, path, append_event_fn=append_event_fn)
-        return True
-    if text == "22":
-        try:
-            if stage_binary_func:
-                stage_binary_func()
-        except ValueError as exc:
-            print(exc)
-        return True
-    return False
+    return True
+
+
+def _dispatch_legacy_view_path(
+    cfg,
+    *,
+    input_func=None,
+    append_event_fn=None,
+    view_path_func=None,
+):
+    path_line = input_func("local path> ") if input_func else None
+    path = path_line.strip() if path_line is not None else ""
+    if path and view_path_func:
+        view_path_func(cfg, path, append_event_fn=append_event_fn)
+    return True
+
+
+def _dispatch_legacy_stage_binary(stage_binary_func):
+    try:
+        if stage_binary_func:
+            stage_binary_func()
+    except ValueError as exc:
+        print(exc)
+    return True
 
 
 def clear_line_files(cfg, confirm=False, target_filter_id="", append_event_fn=None):
