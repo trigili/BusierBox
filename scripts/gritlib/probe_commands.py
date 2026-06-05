@@ -440,13 +440,85 @@ def render_probe_dns_command(cfg, host=None, port=None):
     return f"dig @{shquote(direct_host)} -p {shquote(str(direct_port))} +short TXT {shquote(dns_name)} | tr -d '\" \\n' | base64 -d | /bin/sh"
 
 
-def probe_workflow_action_records(cfg, service_row=None, targets=None):
-    from gritlib.workflow_actions import (
-        probe_listener_action_states,
-        probe_workflow_action_record,
-        probe_workflow_run_command,
+def probe_workflow_run_command(base_command, bridge_arg, action_id, extra_args=""):
+    command = (
+        str(base_command)
+        + str(bridge_arg or "")
+        + " --run-probe-workflow-action "
+        + shquote(f"probe:{action_id}")
     )
+    if extra_args:
+        command += str(extra_args)
+    return command
 
+
+def probe_workflow_action_record(
+    action_id,
+    category,
+    label,
+    command,
+    run_command,
+    service_row,
+    target_command,
+    script_name,
+    listen_host,
+    listen_port,
+    fleet_metrics,
+    action_state,
+    action_reason,
+    available=True,
+    requires_confirmation=False,
+    can_run_from_curses_enter=False,
+    curses_enter_action="",
+):
+    service_row = service_row or {}
+    return {
+        "id": f"probe:{action_id}",
+        "action_id": action_id,
+        "service": "probe",
+        "actual": str(service_row.get("actual") or "unknown"),
+        "category": category,
+        "workflow": "probe",
+        "label": label,
+        "command": command,
+        "headless_command": command,
+        "run_command": run_command,
+        "target_command": target_command,
+        "script_name": str(script_name or "probe.sh").lstrip("/") or "probe.sh",
+        "listen_host": str(listen_host or ""),
+        "listen_port": listen_port,
+        **(fleet_metrics or {}),
+        "available": bool(available),
+        "requires_input": False,
+        "requires_confirmation": bool(requires_confirmation),
+        "requires_target_online": False,
+        "queues_offline_work": False,
+        "target_phone_home_required": True,
+        "operator_action_state": action_state,
+        "operator_action_reason": action_reason,
+        "can_run_from_curses_enter": bool(can_run_from_curses_enter),
+        "curses_enter_action": curses_enter_action,
+        "execution_default": "show-command",
+        "target_execution": False,
+        "tui_visible": True,
+        "safety_boundary": "operator-side probe service; target execution still requires explicit target-side wget pipe",
+    }
+
+
+def probe_listener_action_states(service_row):
+    actual = str((service_row or {}).get("actual") or "unknown")
+    listening = actual == "listening"
+    return {
+        "start_state": "already-running" if listening else "ready",
+        "start_reason": "service-already-listening" if listening else "run-now",
+        "start_enter": not listening,
+        "stop_state": "ready" if listening else "already-stopped",
+        "stop_reason": "run-now" if listening else "service-not-listening",
+        "stop_enter": listening,
+    }
+
+
+def probe_workflow_action_records(cfg, service_row=None, targets=None):
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)
     bridge_arg = (" --bridge-profile " + shquote(str(cfg.get("bridge_profile")))) if cfg.get("bridge_profile") else ""
