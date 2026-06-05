@@ -9425,6 +9425,7 @@ def main(argv=None):
     console_app_src = (ROOT / "scripts" / "gritlib" / "console_app.py").read_text()
     command_queue_src = (ROOT / "scripts" / "gritlib" / "command_queue.py").read_text()
     console_workbench_src = (ROOT / "scripts" / "gritlib" / "console_workbench.py").read_text()
+    status_api_collections_src = (ROOT / "scripts" / "gritlib" / "status_api_collections.py").read_text()
     workflow_runners_src = (ROOT / "scripts" / "gritlib" / "workflow_runners.py").read_text()
     event_log_src = (ROOT / "scripts" / "gritlib" / "event_log.py").read_text()
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
@@ -9454,6 +9455,7 @@ def main(argv=None):
         console_app_src,
         command_queue_src,
         console_workbench_src,
+        status_api_collections_src,
         workflow_runners_src,
         file_service_src,
         file_transfer_src,
@@ -9539,7 +9541,7 @@ def main(argv=None):
                  "Jobs", "cancel_line_job", "start_line_job",
                  "line_action_records", "start_workbench_job_record", "run_workbench_action_record",
                  "Operator Daemon", "run_line_daemon_action", "operator_daemon_workflow_actions"):
-        if word not in workbench_pager_src + console_workbench_src + workflow_runners_src + event_log_src:
+        if word not in workbench_pager_src + console_workbench_src + status_api_collections_src + workflow_runners_src + event_log_src:
             print(f"grit-console: workbench pager inspection missing: {word}", file=sys.stderr)
             return 1
     for word in (
