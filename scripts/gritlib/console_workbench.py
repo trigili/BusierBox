@@ -518,6 +518,16 @@ def _build_rshell_session_policy_status_context(cfg):
     }
 
 
+def _build_workbench_config_status_context(cfg):
+    workbench_config_context = workbench_config_status_context(cfg)
+    return {
+        "workbench_config_context": workbench_config_context,
+        "workbench_config_fields": workbench_config_context["fields"],
+        "workbench_config_field_index_maps": workbench_config_context["index_maps"],
+        "summary": workbench_config_context["summary"],
+    }
+
+
 def _build_bridge_profile_status_context(cfg, targets):
     bridge_profiles = bridge_profile_records(cfg)
     bridge_hop_records = bridge_hop_records_from_profiles(bridge_profiles)
@@ -1306,9 +1316,11 @@ def status_document(cfg):
     rshell_session_policy_index_maps = rshell_session_policy_context[
         "rshell_session_policy_index_maps"
     ]
-    workbench_config_context = workbench_config_status_context(cfg)
-    workbench_config_fields = workbench_config_context["fields"]
-    workbench_config_field_index_maps = workbench_config_context["index_maps"]
+    workbench_config_context = _build_workbench_config_status_context(cfg)
+    workbench_config_fields = workbench_config_context["workbench_config_fields"]
+    workbench_config_field_index_maps = workbench_config_context[
+        "workbench_config_field_index_maps"
+    ]
     workflow_context = _build_workbench_workflow_status_context(
         cfg,
         targets,
