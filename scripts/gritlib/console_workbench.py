@@ -4604,6 +4604,67 @@ def _build_status_tail_context(
     }
 
 
+def _apply_status_summary_updates(
+    summary,
+    *,
+    foundation_context,
+    activity_queue_context,
+    transfer_activity_context,
+    tail_context,
+):
+    f = foundation_context
+    aq = activity_queue_context
+    ta = transfer_activity_context
+    tc = tail_context
+    summary.update(_build_status_summary_updates(
+        path_context=tc["path_context"],
+        bridge_profile_context=aq["bridge_profile_context"],
+        path_warning_context=tc["path_warning_context"],
+        operator_state_file_summary_doc=tc["operator_state_file_summary_doc"],
+        operator_state_summary=tc["operator_state_summary"],
+        staged_file_workflow_context=aq["staged_file_workflow_context"],
+        services=f["services"],
+        service_manager=f["service_manager"],
+        service_manager_status_doc=f["service_manager_status_doc"],
+        ports=f["ports"],
+        warning_summary_context=tc["warning_summary_context"],
+        uploads=f["uploads"],
+        fetches=f["fetches"],
+        target_attribution=ta["target_attribution"],
+        target_file_transfer_records=ta["target_file_transfer_records"],
+        file_service_workflow_context=ta["file_service_workflow_context"],
+        target_activity_feed_context=ta["target_activity_feed_context"],
+        target_summary=f["target_summary"],
+        target_registry_summary=f["target_registry_summary"],
+        target_filter_context=aq["target_filter_context"],
+        target_attribution_context=ta["target_attribution_context"],
+        sessions=aq["sessions"],
+        session_root_state=aq["session_root_state"],
+        session_root_state_records=aq["session_root_state_records"],
+        target_command_summary=aq["target_command_summary"],
+        target_command_state_record=aq["target_command_state_record"],
+        target_command_state_records=aq["target_command_state_records"],
+        rshell_session_policy_record_item=aq["rshell_session_policy_record_item"],
+        rshell_session_policy_records=aq["rshell_session_policy_records"],
+        workflow_context=aq["workflow_context"],
+        event_stats=aq["event_stats"],
+        event_log_state=aq["event_log_state"],
+        event_log_state_records=aq["event_log_state_records"],
+        events=aq["events"],
+        event_summary_stats=aq["event_summary_stats"],
+        operator_network_context=f["operator_network_context"],
+        command_queue=aq["command_queue"],
+        command_queue_policy_records=aq["command_queue_policy_records"],
+        target_activity_context=aq["target_activity_context"],
+        release_context_doc=aq["release_context_doc"],
+        release_artifact_workflow_actions=aq["release_artifact_workflow_actions"],
+        operator_console_workflow_context=tc["operator_console_workflow_context"],
+        workbench_config_context=aq["workbench_config_context"],
+        command_queue_workflow_context=tc["command_queue_workflow_context"],
+        service_probe_workflow_context=tc["service_probe_workflow_context"],
+    ))
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
@@ -4857,53 +4918,13 @@ def status_document(cfg):
     operator_console_workflow_stats = tc["operator_console_workflow_stats"]
     warning_summary_context = tc["warning_summary_context"]
     warning_summary = tc["warning_summary"]
-    summary.update(_build_status_summary_updates(
-        path_context=path_context,
-        bridge_profile_context=bridge_profile_context,
-        path_warning_context=path_warning_context,
-        operator_state_file_summary_doc=operator_state_file_summary_doc,
-        operator_state_summary=operator_state_summary,
-        staged_file_workflow_context=staged_file_workflow_context,
-        services=services,
-        service_manager=service_manager,
-        service_manager_status_doc=service_manager_status_doc,
-        ports=ports,
-        warning_summary_context=warning_summary_context,
-        uploads=uploads,
-        fetches=fetches,
-        target_attribution=target_attribution,
-        target_file_transfer_records=target_file_transfer_records,
-        file_service_workflow_context=file_service_workflow_context,
-        target_activity_feed_context=target_activity_feed_context,
-        target_summary=target_summary,
-        target_registry_summary=target_registry_summary,
-        target_filter_context=target_filter_context,
-        target_attribution_context=target_attribution_context,
-        sessions=sessions,
-        session_root_state=session_root_state,
-        session_root_state_records=session_root_state_records,
-        target_command_summary=target_command_summary,
-        target_command_state_record=target_command_state_record,
-        target_command_state_records=target_command_state_records,
-        rshell_session_policy_record_item=rshell_session_policy_record_item,
-        rshell_session_policy_records=rshell_session_policy_records,
-        workflow_context=workflow_context,
-        event_stats=event_stats,
-        event_log_state=event_log_state,
-        event_log_state_records=event_log_state_records,
-        events=events,
-        event_summary_stats=event_summary_stats,
-        operator_network_context=operator_network_context,
-        command_queue=command_queue,
-        command_queue_policy_records=command_queue_policy_records,
-        target_activity_context=target_activity_context,
-        release_context_doc=release_context_doc,
-        release_artifact_workflow_actions=release_artifact_workflow_actions,
-        operator_console_workflow_context=operator_console_workflow_context,
-        workbench_config_context=workbench_config_context,
-        command_queue_workflow_context=command_queue_workflow_context,
-        service_probe_workflow_context=service_probe_workflow_context,
-    ))
+    _apply_status_summary_updates(
+        summary,
+        foundation_context=foundation_context,
+        activity_queue_context=activity_queue_context,
+        transfer_activity_context=transfer_activity_context,
+        tail_context=tail_context,
+    )
     api_collections = _build_status_api_collections(
         services=services,
         service_workflow_actions=service_workflow_actions,
