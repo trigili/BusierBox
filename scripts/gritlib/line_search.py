@@ -1,8 +1,60 @@
 """Line-console search helpers."""
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from gritlib.line_state import line_action_state_text
+
+
+@dataclass(frozen=True)
+class LineSelectionResult:
+    handled: bool
+    selected: bool = False
+    selector: str = ""
+    index: int = -1
+    item: dict = None
+    reason: str = ""
+    message: str = ""
+
+
+def line_number_selection_result(
+    selector,
+    results,
+    *,
+    require_active_results=False,
+    no_active_message="no numbered result is active; run a list command first, then use N",
+):
+    text = str(selector or "").strip()
+    if not text.isdigit():
+        return LineSelectionResult(False, selector=text, reason="not-number")
+    results = list(results or [])
+    if not results:
+        if require_active_results:
+            return LineSelectionResult(False, selector=text, reason="no-active-results")
+        return LineSelectionResult(
+            True,
+            selector=text,
+            reason="no-active-results",
+            message=no_active_message,
+        )
+    idx = int(text) - 1
+    if idx < 0 or idx >= len(results):
+        return LineSelectionResult(
+            True,
+            selector=text,
+            index=idx,
+            reason="out-of-range",
+            message=f"numbered result not found: {text}; run a list command first, then use N",
+        )
+    item = results[idx] if isinstance(results[idx], dict) else {}
+    return LineSelectionResult(
+        True,
+        selected=True,
+        selector=text,
+        index=idx,
+        item=item,
+        reason="selected",
+    )
 
 
 def parse_line_search_command(cmd, args):
@@ -32,22 +84,19 @@ def dispatch_line_number_selection(
     clear_results_func=None,
     require_active_results=False,
 ):
-    text = str(choice or "").strip()
-    if not text.isdigit():
+    result = line_number_selection_result(
+        choice,
+        line_search_results(cfg),
+        require_active_results=require_active_results,
+    )
+    if not result.handled:
         return False
-    search_results = line_search_results(cfg)
-    if not search_results:
-        if require_active_results:
-            return False
-        print("no numbered result is active; run a list command first, then use N")
-        return True
-    idx = int(text) - 1
-    if idx < 0 or idx >= len(search_results):
-        print(f"numbered result not found: {text}; run a list command first, then use N")
+    if result.message:
+        print(result.message)
         return True
     try:
         if use_result_func:
-            use_result_func(text)
+            use_result_func(result.selector)
         if clear_results_func:
             clear_results_func()
     except ValueError as exc:
@@ -225,16 +274,17 @@ def use_line_search_result(
     select_job,
     probe_result_config,
 ):
-    text = str(selector or "").strip()
-    if not text.isdigit():
+    selection = line_number_selection_result(
+        selector,
+        results,
+        no_active_message="no numbered results active; run search, targets, listeners, sessions, files, jobs, routes, or probe results",
+    )
+    if not selection.handled:
         raise ValueError("usage: use N")
-    results = list(results or [])
-    if not results:
-        raise ValueError("no numbered results active; run search, targets, listeners, sessions, files, jobs, routes, or probe results")
-    idx = int(text) - 1
-    if idx < 0 or idx >= len(results):
-        raise ValueError(f"numbered result not found: {text}; run a list command first, then use N")
-    item = results[idx] if isinstance(results[idx], dict) else {}
+    if not selection.selected:
+        raise ValueError(selection.message)
+    text = selection.selector
+    item = selection.item if isinstance(selection.item, dict) else {}
     kind = str(item.get("kind") or "")
     rec = item.get("rec") if isinstance(item.get("rec"), dict) else {}
     if kind == "target":

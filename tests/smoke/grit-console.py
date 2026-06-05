@@ -3462,6 +3462,79 @@ def run_service_runtime_state_check():
     return 0
 
 
+def run_line_selection_result_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.line_search import (
+        dispatch_line_number_selection,
+        line_number_selection_result,
+        use_line_search_result,
+    )
+
+    if line_number_selection_result("abc", [{"kind": "target"}]).handled:
+        print("line selection model consumed non-numeric input", file=sys.stderr)
+        return 1
+    inactive = line_number_selection_result("1", [], require_active_results=True)
+    if inactive.handled or inactive.reason != "no-active-results":
+        print("line selection model did not preserve active-result fallback", file=sys.stderr)
+        return 1
+    missing = line_number_selection_result("1", [])
+    if (
+        missing.handled is not True
+        or missing.selected is not False
+        or missing.message != "no numbered result is active; run a list command first, then use N"
+    ):
+        print(f"line selection model did not preserve no-results message: {missing}", file=sys.stderr)
+        return 1
+    out_of_range = line_number_selection_result("9", [{"kind": "target"}])
+    if (
+        out_of_range.handled is not True
+        or out_of_range.reason != "out-of-range"
+        or out_of_range.message != "numbered result not found: 9; run a list command first, then use N"
+    ):
+        print(f"line selection model did not preserve out-of-range message: {out_of_range}", file=sys.stderr)
+        return 1
+    selected = line_number_selection_result("1", [{"kind": "target", "rec": {"target_id": "t1"}}])
+    if selected.selected is not True or selected.index != 0 or selected.item.get("rec", {}).get("target_id") != "t1":
+        print(f"line selection model did not preserve selected record: {selected}", file=sys.stderr)
+        return 1
+
+    calls = []
+    cfg = {"_line_console_search_results": [{"kind": "target", "rec": {"target_id": "t1"}}]}
+    if dispatch_line_number_selection(
+        "1",
+        cfg,
+        use_result_func=lambda selector: calls.append(("use", selector)),
+        clear_results_func=lambda: calls.append("clear"),
+    ) is not True:
+        print("line selection dispatch did not handle valid numbered result", file=sys.stderr)
+        return 1
+    if calls != [("use", "1"), "clear"]:
+        print(f"line selection dispatch did not preserve use/clear order: {calls}", file=sys.stderr)
+        return 1
+    try:
+        use_line_search_result(
+            "x",
+            [],
+            select_target=lambda selector: selector,
+            select_service=lambda selector: selector,
+            select_route=lambda selector: selector,
+            select_action=lambda selector: selector,
+            select_session=lambda selector: selector,
+            select_job=lambda selector: selector,
+            probe_result_config=lambda args: args,
+        )
+    except ValueError as exc:
+        if str(exc) != "usage: use N":
+            print(f"line selection use error changed: {exc}", file=sys.stderr)
+            return 1
+    else:
+        print("line selection use accepted non-numeric selector", file=sys.stderr)
+        return 1
+    return 0
+
+
 def run_line_legacy_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -9121,6 +9194,8 @@ def main(argv=None):
     if run_line_repl_runtime_check() != 0:
         return 1
     if run_service_runtime_state_check() != 0:
+        return 1
+    if run_line_selection_result_check() != 0:
         return 1
     if run_line_legacy_dispatch_check() != 0:
         return 1
