@@ -5,9 +5,7 @@ import time
 import gritlib.bridge_routes as bridge_routes
 import gritlib.command_queue as command_queue_module
 from gritlib.command_copy import copy_text_for_operator
-from gritlib.config_utils import (
-    DEFAULTS, DEFAULT_CONFIG, load_config,
-)
+import gritlib.config_utils as config_utils
 from gritlib.build_config import (
     workbench_config_field_records,
 )
@@ -279,9 +277,9 @@ def run_line_repl(cfg):
 
     line_workspace_callbacks = build_line_workspace_callbacks(
         cfg,
-        default_config=DEFAULT_CONFIG,
-        load_config_func=load_config,
-        defaults=DEFAULTS,
+        default_config=config_utils.DEFAULT_CONFIG,
+        load_config_func=config_utils.load_config,
+        defaults=config_utils.DEFAULTS,
         workbench_snapshot_func=workbench_snapshot,
         clear_module_context_func=line_context.clear_line_module_context,
         print_workspace_snapshot_func=line_workspace.print_line_workspace_snapshot,
