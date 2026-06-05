@@ -4,9 +4,7 @@ import hashlib
 import subprocess
 from pathlib import Path
 import gritlib.bridge_routes as bridge_routes
-from gritlib.command_queue import (
-    clear_command_queue, print_command_queue, queue_command,
-)
+import gritlib.command_queue as command_queue_module
 from gritlib.console_display import print_dry_run_notice
 from gritlib.console_workbench import status_document, workbench_snapshot
 from gritlib.event_log import append_event
@@ -406,13 +404,13 @@ def run_command_queue_workflow_action(cfg, selector, command_input="", dry_run=F
     if action_id == "inspect-command-queue":
         return print_status(cfg, json_output=False)
     if action_id == "list-command-queue":
-        print_command_queue(cfg, json_output=False)
+        command_queue_module.print_command_queue(cfg, json_output=False)
         rc = 0
     elif action_id == "queue-command":
         text = str(command_input or "").strip()
         if not text:
             raise ValueError("queue-command workflow action requires --command-queue-workflow-command")
-        queued = queue_command(cfg, text)
+        queued = command_queue_module.queue_command(cfg, text)
         print(f"queued {queued['id']}: {queued['command']}")
         if queued.get("target_id"):
             print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
@@ -435,7 +433,7 @@ def run_command_queue_workflow_action(cfg, selector, command_input="", dry_run=F
     elif action_id == "clear-command-queue":
         if rec.get("requires_confirmation") is True and not confirmed:
             raise ValueError(f"command queue workflow action requires --confirm-command-queue-workflow-action: {rec_id}")
-        count = clear_command_queue(cfg)
+        count = command_queue_module.clear_command_queue(cfg)
         print(f"cleared {count} command queue entr{'y' if count == 1 else 'ies'}")
         rc = 0
     elif action_id == "start-command-queue-listener":
@@ -858,7 +856,7 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
         if staged_target and staged_target != target_id:
             raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
         fetch_command = render_fetch_command(request, scoped)
-        queued = queue_command(scoped, fetch_command, metadata={
+        queued = command_queue_module.queue_command(scoped, fetch_command, metadata={
             "work_kind": "staged-fetch",
             "workflow": "file-service",
             "request_name": request,
@@ -955,7 +953,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             command = value if value is not None else ""
         if not command.strip():
             raise ValueError("queue-command target workflow action requires a command")
-        queued = queue_command(scoped, command)
+        queued = command_queue_module.queue_command(scoped, command)
         print(f"queued {queued['id']}: {queued['command']}")
         print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
         append_event(cfg, "workbench", "target_workflow_action_completed", details={
@@ -977,7 +975,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         return 0
     if action_id == "queue-probe":
         command = render_probe_command(scoped)
-        queued = queue_command(scoped, command, metadata={
+        queued = command_queue_module.queue_command(scoped, command, metadata={
             "work_kind": "probe",
             "workflow": "probe",
             "request_name": str(scoped.get("GRIT_PROBE_NAME") or "probe.sh"),
@@ -1118,7 +1116,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         if staged_target and staged_target != target_id:
             raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
         command = render_fetch_command(request, scoped)
-        queued = queue_command(scoped, command, metadata={
+        queued = command_queue_module.queue_command(scoped, command, metadata={
             "work_kind": "staged-fetch",
             "workflow": "file-service",
             "request_name": request,
@@ -1220,7 +1218,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             raise ValueError(f"bridge profile not found: {profile}")
         profile_info = bridge_routes.bridge_profile_record(cfg, profile, profile_rec)
         command = "grit rshell start"
-        queued = queue_command(scoped, command, metadata={
+        queued = command_queue_module.queue_command(scoped, command, metadata={
             "work_kind": "bridge-start",
             "workflow": "bridge",
             "bridge_profile": profile,
