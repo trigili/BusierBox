@@ -27,8 +27,8 @@ EXPLICIT_CONSOLE_ACTION_ARGS = (
 )
 
 
-def build_arg_parser():
-    parser = argparse.ArgumentParser(
+def _build_console_arg_parser_base():
+    return argparse.ArgumentParser(
         description="Catch griTTYkit reverse-access transports from a target.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=textwrap.dedent("""\
@@ -74,6 +74,9 @@ def build_arg_parser():
     Aliases accepted: ssh-reverse=ssh, socat-tls=tls-shell, builtin-tls=tls-shell
     """),
     )
+
+
+def _add_console_core_args(parser):
     parser.add_argument("--config", default=str(DEFAULT_CONFIG),
                         help="JSON config written by menuconfig")
     parser.add_argument("--build-config", default="configs/grit.conf",
@@ -116,6 +119,11 @@ def build_arg_parser():
                         help="systemd user unit directory, default ~/.config/systemd/user")
     parser.add_argument("--systemd-user-dry-run", action="store_true",
                         help="print planned systemd user-service changes/commands without running systemctl")
+
+
+def build_arg_parser():
+    parser = _build_console_arg_parser_base()
+    _add_console_core_args(parser)
     parser.add_argument("--serve-file",
                         help="stage a local file for explicit target fetch")
     parser.add_argument("--as", dest="serve_as",
