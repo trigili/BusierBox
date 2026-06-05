@@ -916,6 +916,47 @@ def run_staged_file_workflow_action(cfg, selector, dry_run=False, confirmed=Fals
     return rc
 
 
+def _target_workflow_action_details(rec, action_id, target_id, target_label):
+    return {
+        "id": rec.get("id", ""),
+        "action_id": action_id,
+        "target_id": target_id,
+        "target_label": target_label,
+        "workflow": rec.get("workflow", ""),
+        "category": rec.get("category", ""),
+        "headless_command": rec.get("headless_command", rec.get("command", "")),
+        "offline_supported": bool(rec.get("offline_supported")),
+        "requires_target_online": bool(rec.get("requires_target_online")),
+        "queues_offline_work": bool(rec.get("queues_offline_work")),
+        "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+    }
+
+
+def _target_workflow_action_selected_details(rec, action_id, target_id, target_label):
+    details = _target_workflow_action_details(rec, action_id, target_id, target_label)
+    selected_details = {
+        "id": details["id"],
+        "action_id": details["action_id"],
+        "target_id": details["target_id"],
+        "target_label": details["target_label"],
+        "workflow": details["workflow"],
+        "category": details["category"],
+        "requires_input": bool(rec.get("requires_input")),
+        "headless_command": details["headless_command"],
+        "offline_supported": details["offline_supported"],
+        "requires_target_online": details["requires_target_online"],
+        "queues_offline_work": details["queues_offline_work"],
+        "target_phone_home_required": details["target_phone_home_required"],
+    }
+    return selected_details
+
+
+def _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, extra_details=None):
+    details = _target_workflow_action_details(rec, action_id, target_id, target_label)
+    details.update(extra_details or {})
+    append_event(cfg, "workbench", "target_workflow_action_completed", details=details)
+
+
 def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None, show_commands=True):
     snap = workbench_snapshot(cfg)
     rec = select_workflow_action(snap.get("target_workflow_actions") or [], selector, "target")
@@ -923,20 +964,12 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
     target_id = str(rec.get("target_id") or "")
     target_label = str(rec.get("target_label") or "")
     scoped = scoped_target_cfg(cfg, target_id, target_label=target_label)
-    append_event(cfg, "workbench", "target_workflow_action_selected", details={
-        "id": rec.get("id", ""),
-        "action_id": action_id,
-        "target_id": target_id,
-        "target_label": target_label,
-        "workflow": rec.get("workflow", ""),
-        "category": rec.get("category", ""),
-        "requires_input": bool(rec.get("requires_input")),
-        "headless_command": rec.get("headless_command", rec.get("command", "")),
-        "offline_supported": bool(rec.get("offline_supported")),
-        "requires_target_online": bool(rec.get("requires_target_online")),
-        "queues_offline_work": bool(rec.get("queues_offline_work")),
-        "target_phone_home_required": bool(rec.get("target_phone_home_required")),
-    })
+    append_event(
+        cfg,
+        "workbench",
+        "target_workflow_action_selected",
+        details=_target_workflow_action_selected_details(rec, action_id, target_id, target_label),
+    )
     print(f"target workflow action: {rec.get('id', '')}")
     if show_commands:
         print(f"command={rec.get('command') or rec.get('headless_command') or ''}")
@@ -956,18 +989,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         queued = command_queue_module.queue_command(scoped, command)
         print(f"queued {queued['id']}: {queued['command']}")
         print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        append_event(cfg, "workbench", "target_workflow_action_completed", details={
-            "id": rec.get("id", ""),
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": target_label,
-            "workflow": rec.get("workflow", ""),
-            "category": rec.get("category", ""),
-            "headless_command": rec.get("headless_command", rec.get("command", "")),
-            "offline_supported": bool(rec.get("offline_supported")),
-            "requires_target_online": bool(rec.get("requires_target_online")),
-            "queues_offline_work": bool(rec.get("queues_offline_work")),
-            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
             "result": "queued-command",
             "command_id": queued.get("id", ""),
             "command_sha256": queued.get("command_sha256", ""),
@@ -984,18 +1006,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         })
         print(f"queued {queued['id']}: {queued['command']}")
         print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        append_event(cfg, "workbench", "target_workflow_action_completed", details={
-            "id": rec.get("id", ""),
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": target_label,
-            "workflow": rec.get("workflow", ""),
-            "category": rec.get("category", ""),
-            "headless_command": rec.get("headless_command", rec.get("command", "")),
-            "offline_supported": bool(rec.get("offline_supported")),
-            "requires_target_online": bool(rec.get("requires_target_online")),
-            "queues_offline_work": bool(rec.get("queues_offline_work")),
-            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
             "result": "queued-probe",
             "command_id": queued.get("id", ""),
             "command_sha256": queued.get("command_sha256", ""),
@@ -1019,18 +1030,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         print(f"staged {staged['request_name']} <- {staged['source_path']}")
         print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
         print(render_fetch_command(staged["request_name"], scoped))
-        append_event(cfg, "workbench", "target_workflow_action_completed", details={
-            "id": rec.get("id", ""),
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": target_label,
-            "workflow": rec.get("workflow", ""),
-            "category": rec.get("category", ""),
-            "headless_command": rec.get("headless_command", rec.get("command", "")),
-            "offline_supported": bool(rec.get("offline_supported")),
-            "requires_target_online": bool(rec.get("requires_target_online")),
-            "queues_offline_work": bool(rec.get("queues_offline_work")),
-            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
             "result": "staged-file-fetch",
             "request_name": staged.get("request_name", ""),
             "source_path": staged.get("source_path", ""),
@@ -1046,18 +1046,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         command = render_file_service_command(["put", target_path], scoped)
         print(f"target_upload_path={target_path}")
         print(f"target_command={command}")
-        append_event(cfg, "workbench", "target_workflow_action_completed", details={
-            "id": rec.get("id", ""),
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": target_label,
-            "workflow": rec.get("workflow", ""),
-            "category": rec.get("category", ""),
-            "headless_command": rec.get("headless_command", rec.get("command", "")),
-            "offline_supported": bool(rec.get("offline_supported")),
-            "requires_target_online": bool(rec.get("requires_target_online")),
-            "queues_offline_work": bool(rec.get("queues_offline_work")),
-            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
             "result": "shown-upload-command",
             "target_upload_path": target_path,
             "target_command": command,
@@ -1077,18 +1066,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         print(f"target={staged.get('target_id', '')} label={staged.get('target_label', '')}")
         print(f"release_path={staged.get('release_path', '')} tuple_path={staged.get('tuple_path', '')} payload_preset={staged.get('payload_preset', '')}")
         print(render_fetch_command(staged["request_name"], scoped))
-        append_event(cfg, "workbench", "target_workflow_action_completed", details={
-            "id": rec.get("id", ""),
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": target_label,
-            "workflow": rec.get("workflow", ""),
-            "category": rec.get("category", ""),
-            "headless_command": rec.get("headless_command", rec.get("command", "")),
-            "offline_supported": bool(rec.get("offline_supported")),
-            "requires_target_online": bool(rec.get("requires_target_online")),
-            "queues_offline_work": bool(rec.get("queues_offline_work")),
-            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
             "result": "staged-release-artifact",
             "selector": selector,
             "request_name": staged.get("request_name", ""),
@@ -1126,18 +1104,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         })
         print(f"queued {queued['id']}: {queued['command']}")
         print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        append_event(cfg, "workbench", "target_workflow_action_completed", details={
-            "id": rec.get("id", ""),
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": target_label,
-            "workflow": rec.get("workflow", ""),
-            "category": rec.get("category", ""),
-            "headless_command": rec.get("headless_command", rec.get("command", "")),
-            "offline_supported": bool(rec.get("offline_supported")),
-            "requires_target_online": bool(rec.get("requires_target_online")),
-            "queues_offline_work": bool(rec.get("queues_offline_work")),
-            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
             "result": "queued-staged-fetch",
             "command_id": queued.get("id", ""),
             "command_sha256": queued.get("command_sha256", ""),
@@ -1147,36 +1114,14 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         return 0
     if action_id == "start-file-service":
         start_service_process(scoped, "file-service")
-        append_event(cfg, "workbench", "target_workflow_action_completed", details={
-            "id": rec.get("id", ""),
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": target_label,
-            "workflow": rec.get("workflow", ""),
-            "category": rec.get("category", ""),
-            "headless_command": rec.get("headless_command", rec.get("command", "")),
-            "offline_supported": bool(rec.get("offline_supported")),
-            "requires_target_online": bool(rec.get("requires_target_online")),
-            "queues_offline_work": bool(rec.get("queues_offline_work")),
-            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
             "result": "started-service",
             "service": "file-service",
         })
         return 0
     if action_id == "serve-probe":
         start_service_process(scoped, "probe")
-        append_event(cfg, "workbench", "target_workflow_action_completed", details={
-            "id": rec.get("id", ""),
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": target_label,
-            "workflow": rec.get("workflow", ""),
-            "category": rec.get("category", ""),
-            "headless_command": rec.get("headless_command", rec.get("command", "")),
-            "offline_supported": bool(rec.get("offline_supported")),
-            "requires_target_online": bool(rec.get("requires_target_online")),
-            "queues_offline_work": bool(rec.get("queues_offline_work")),
-            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
             "result": "started-service",
             "service": "probe",
         })
@@ -1191,18 +1136,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             argv_extra=["--bridge-profile", profile],
             state_service=bridge_routes.bridge_profile_service_name(profile),
         )
-        append_event(cfg, "workbench", "target_workflow_action_completed", details={
-            "id": rec.get("id", ""),
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": target_label,
-            "workflow": rec.get("workflow", ""),
-            "category": rec.get("category", ""),
-            "headless_command": rec.get("headless_command", rec.get("command", "")),
-            "offline_supported": bool(rec.get("offline_supported")),
-            "requires_target_online": bool(rec.get("requires_target_online")),
-            "queues_offline_work": bool(rec.get("queues_offline_work")),
-            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
             "result": "started-service",
             "service": "bridge",
             "bridge_profile": profile,
@@ -1231,18 +1165,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         print(f"target: {queued.get('target_id', '')} ({queued.get('target_label', '') or '-'})")
         print(f"bridge profile: {profile}")
         print(f"route: {profile_info.get('route_path', '')}")
-        append_event(cfg, "workbench", "target_workflow_action_completed", details={
-            "id": rec.get("id", ""),
-            "action_id": action_id,
-            "target_id": target_id,
-            "target_label": target_label,
-            "workflow": rec.get("workflow", ""),
-            "category": rec.get("category", ""),
-            "headless_command": rec.get("headless_command", rec.get("command", "")),
-            "offline_supported": bool(rec.get("offline_supported")),
-            "requires_target_online": bool(rec.get("requires_target_online")),
-            "queues_offline_work": bool(rec.get("queues_offline_work")),
-            "target_phone_home_required": bool(rec.get("target_phone_home_required")),
+        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
             "result": "queued-bridge-start",
             "command_id": queued.get("id", ""),
             "command_sha256": queued.get("command_sha256", ""),
