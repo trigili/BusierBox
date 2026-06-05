@@ -865,6 +865,34 @@ def _build_target_filter_status_doc(
         "target_id": target_filter_id,
         "selected_target_found": bool(selected_target),
         "selected_target": selected_target,
+        **_build_selected_target_identity_filter_fields(selected_target),
+        **_build_selected_target_activity_filter_fields(selected_target),
+        **_build_selected_target_report_filter_fields(
+            selected_target, target_filter_record
+        ),
+        "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
+        "applied_to": _target_filter_applied_sources(target_filter_id),
+        "unfiltered_counts": unfiltered_counts,
+        "filtered_counts": _target_filter_filtered_counts(
+            targets=targets,
+            uploads=uploads,
+            fetches=fetches,
+            sessions=sessions,
+            events=events,
+            command_queue=command_queue,
+            staged_records=staged_records,
+            staged_file_workflow_actions=staged_file_workflow_actions,
+            target_command_records=target_command_records,
+            target_phone_home_records=target_phone_home_records,
+        ),
+        "observed_activity_counts": _target_filter_observed_activity_counts(
+            target_filter_record
+        ),
+    }
+
+
+def _build_selected_target_identity_filter_fields(selected_target):
+    return {
         "selected_target_label": str(selected_target.get("label") or ""),
         "selected_target_aliases": selected_target.get("aliases") or [],
         "selected_target_identity_confidence": str(selected_target.get("identity_confidence") or ""),
@@ -891,6 +919,11 @@ def _build_target_filter_status_doc(
         "selected_target_poll_overdue_for_sec": selected_target.get("poll_overdue_for_sec", ""),
         "selected_target_mailbox_command_count": int_value(selected_target.get("mailbox_command_count", 0)),
         "selected_target_mailbox_pending_work_count": int_value(selected_target.get("mailbox_pending_work_count", 0)),
+    }
+
+
+def _build_selected_target_activity_filter_fields(selected_target):
+    return {
         "selected_target_latest_activity_service": str(selected_target.get("latest_activity_service") or ""),
         "selected_target_latest_activity_operation": str(selected_target.get("latest_activity_operation") or ""),
         "selected_target_latest_file_transfer_operation": str(selected_target.get("latest_file_transfer_operation") or ""),
@@ -906,6 +939,11 @@ def _build_target_filter_status_doc(
         "selected_target_latest_bridge_route_path": str(selected_target.get("latest_bridge_route_path") or ""),
         "selected_target_latest_bridge_failure_reason": str(selected_target.get("latest_bridge_failure_reason") or ""),
         "selected_target_latest_capability_report_kind": str(selected_target.get("latest_capability_report_kind") or ""),
+    }
+
+
+def _build_selected_target_report_filter_fields(selected_target, target_filter_record):
+    return {
         "selected_target_latest_capability_check_count": target_filter_record.get("selected_target_latest_capability_check_count", 0),
         "selected_target_latest_capability_pass_count": target_filter_record.get("selected_target_latest_capability_pass_count", 0),
         "selected_target_latest_capability_fail_count": target_filter_record.get("selected_target_latest_capability_fail_count", 0),
@@ -915,32 +953,53 @@ def _build_target_filter_status_doc(
         "selected_target_latest_compatibility_release_name": str(selected_target.get("latest_compatibility_release_name") or ""),
         "selected_target_latest_compatibility_payload_preset": str(selected_target.get("latest_compatibility_payload_preset") or ""),
         "selected_target_latest_compatibility_reason_count": target_filter_record.get("selected_target_latest_compatibility_reason_count", 0),
-        "selected_target_notes_present": bool(str(selected_target.get("notes") or "").strip()),
-        "applied_to": [
-            "targets", "uploads", "fetches", "sessions", "events",
-            "command_queue.commands", "staged_records", "staged_file_workflow_actions",
-            "target_command_records", "target_phone_home_records",
-        ] if target_filter_id else [],
-        "unfiltered_counts": unfiltered_counts,
-        "filtered_counts": {
-            "targets": len(targets),
-            "uploads": len(uploads),
-            "fetches": len(fetches),
-            "sessions": len(sessions),
-            "events": len(events),
-            "command_queue_commands": len(command_queue.get("commands") or []),
-            "staged_records": len(staged_records),
-            "staged_file_workflow_actions": len(staged_file_workflow_actions),
-            "target_command_records": len(target_command_records),
-            "target_phone_home_records": len(target_phone_home_records),
-        },
-        "observed_activity_counts": {
-            "unfiltered": target_filter_record.get("unfiltered_observed_activity_count", 0),
-            "filtered": target_filter_record.get("filtered_observed_activity_count", 0),
-            "has_unfiltered": bool(target_filter_record.get("has_unfiltered_observed_activity", False)),
-            "has_filtered": bool(target_filter_record.get("has_filtered_observed_activity", False)),
-            "filter_reduced": bool(target_filter_record.get("filter_reduced_observed_activity", False)),
-        },
+    }
+
+
+def _target_filter_applied_sources(target_filter_id):
+    if not target_filter_id:
+        return []
+    return [
+        "targets", "uploads", "fetches", "sessions", "events",
+        "command_queue.commands", "staged_records", "staged_file_workflow_actions",
+        "target_command_records", "target_phone_home_records",
+    ]
+
+
+def _target_filter_filtered_counts(
+    *,
+    targets,
+    uploads,
+    fetches,
+    sessions,
+    events,
+    command_queue,
+    staged_records,
+    staged_file_workflow_actions,
+    target_command_records,
+    target_phone_home_records,
+):
+    return {
+        "targets": len(targets),
+        "uploads": len(uploads),
+        "fetches": len(fetches),
+        "sessions": len(sessions),
+        "events": len(events),
+        "command_queue_commands": len(command_queue.get("commands") or []),
+        "staged_records": len(staged_records),
+        "staged_file_workflow_actions": len(staged_file_workflow_actions),
+        "target_command_records": len(target_command_records),
+        "target_phone_home_records": len(target_phone_home_records),
+    }
+
+
+def _target_filter_observed_activity_counts(target_filter_record):
+    return {
+        "unfiltered": target_filter_record.get("unfiltered_observed_activity_count", 0),
+        "filtered": target_filter_record.get("filtered_observed_activity_count", 0),
+        "has_unfiltered": bool(target_filter_record.get("has_unfiltered_observed_activity", False)),
+        "has_filtered": bool(target_filter_record.get("has_filtered_observed_activity", False)),
+        "filter_reduced": bool(target_filter_record.get("filter_reduced_observed_activity", False)),
     }
 
 
@@ -1287,6 +1346,71 @@ def _build_warning_status_context(
     ports,
     services_by_name,
 ):
+    _append_warning_status_records(
+        cfg,
+        warnings=warnings,
+        path_status=path_status,
+        server_state=server_state,
+        staged_files_state=staged_files_state,
+        command_queue_state=command_queue_state,
+        release_state=release_state,
+        target_filter_id=target_filter_id,
+        selected_target=selected_target,
+        unfiltered_counts=unfiltered_counts,
+        event_stats=event_stats,
+        command_queue=command_queue,
+        target_command_records=target_command_records,
+    )
+    return _build_warning_index_status_context(
+        warnings=warnings,
+        path_status=path_status,
+        path_status_records=path_status_records,
+        browser_paths=browser_paths,
+        services=services,
+        ports=ports,
+        services_by_name=services_by_name,
+    )
+
+
+def _append_warning_status_records(
+    cfg,
+    *,
+    warnings,
+    path_status,
+    server_state,
+    staged_files_state,
+    command_queue_state,
+    release_state,
+    target_filter_id,
+    selected_target,
+    unfiltered_counts,
+    event_stats,
+    command_queue,
+    target_command_records,
+):
+    _append_path_warning_status_records(warnings, path_status)
+    _append_state_warning_status_records(
+        warnings,
+        server_state=server_state,
+        staged_files_state=staged_files_state,
+        command_queue_state=command_queue_state,
+    )
+    _append_release_target_event_policy_warning_records(
+        cfg,
+        warnings=warnings,
+        release_state=release_state,
+        target_filter_id=target_filter_id,
+        selected_target=selected_target,
+        unfiltered_counts=unfiltered_counts,
+        event_stats=event_stats,
+        command_queue=command_queue,
+    )
+    _append_rshell_policy_warning_status_records(
+        cfg, warnings=warnings, target_command_records=target_command_records
+    )
+
+
+def _append_path_warning_status_records(warnings, path_status):
     for name, rec in sorted((path_status or {}).items()):
         if not rec.get("expected_kind_mismatch"):
             continue
@@ -1300,6 +1424,15 @@ def _build_warning_status_context(
             "message": "operator path exists with the wrong filesystem kind",
             "suggested_action": "fix the configured path or remove the conflicting file/directory",
         })
+
+
+def _append_state_warning_status_records(
+    warnings,
+    *,
+    server_state,
+    staged_files_state,
+    command_queue_state,
+):
     state_warning_records = (
         ("invalid_server_state", server_state, "server-state ledger is invalid"),
         ("invalid_staged_files_state", staged_files_state, "staged-files ledger is invalid"),
@@ -1315,6 +1448,19 @@ def _build_warning_status_context(
             "message": message,
             "suggested_action": "inspect, repair, archive, or remove the invalid operator state file",
         })
+
+
+def _append_release_target_event_policy_warning_records(
+    cfg,
+    *,
+    warnings,
+    release_state,
+    target_filter_id,
+    selected_target,
+    unfiltered_counts,
+    event_stats,
+    command_queue,
+):
     if release_state.get("present") and not release_state.get("valid"):
         warnings.append({
             "type": "invalid_release_state",
@@ -1352,6 +1498,14 @@ def _build_warning_status_context(
             "message": "command queue policy is invalid; target polling is not configured",
             "suggested_action": "fix command queue config or leave it fully disabled",
         })
+
+
+def _append_rshell_policy_warning_status_records(
+    cfg,
+    *,
+    warnings,
+    target_command_records,
+):
     rshell_policy_metadata = next((
         rec.get("metadata") for rec in target_command_records
         if rec.get("service") == "rshell" and isinstance(rec.get("metadata"), dict)
@@ -1365,6 +1519,18 @@ def _build_warning_status_context(
             "message": "rshell session policy is invalid; generated target command metadata is not usable for reconnect decisions",
             "suggested_action": "set rshell_session_policy to single, reconnect, or persistent",
         })
+
+
+def _build_warning_index_status_context(
+    *,
+    warnings,
+    path_status,
+    path_status_records,
+    browser_paths,
+    services,
+    ports,
+    services_by_name,
+):
     warnings_module.annotate_warning_records(warnings)
     warning_index_maps = warnings_module.warning_record_indexes(warnings)
     (warnings_by_type,
@@ -2972,7 +3138,82 @@ def _build_event_history_api_collections(*, events, event_log_state_records):
     }
 
 
-def _build_status_summary_updates(
+def _build_status_summary_updates(**sources):
+    return {
+        **_build_path_operator_summary_updates(
+            **_summary_source_kwargs(
+                sources,
+                "path_context",
+                "bridge_profile_context",
+                "path_warning_context",
+                "operator_state_file_summary_doc",
+                "operator_state_summary",
+                "staged_file_workflow_context",
+            )
+        ),
+        **_build_service_file_summary_updates(
+            **_summary_source_kwargs(
+                sources,
+                "services",
+                "service_manager",
+                "service_manager_status_doc",
+                "ports",
+                "warning_summary_context",
+                "uploads",
+                "fetches",
+                "target_attribution",
+                "target_file_transfer_records",
+                "file_service_workflow_context",
+                "target_activity_feed_context",
+            )
+        ),
+        **_build_target_session_summary_updates(
+            **_summary_source_kwargs(
+                sources,
+                "target_summary",
+                "target_registry_summary",
+                "target_filter_context",
+                "target_attribution_context",
+                "sessions",
+                "session_root_state",
+                "session_root_state_records",
+                "target_attribution",
+                "target_command_summary",
+                "target_command_state_record",
+                "target_command_state_records",
+                "rshell_session_policy_record_item",
+                "rshell_session_policy_records",
+            )
+        ),
+        **_build_event_workflow_summary_updates(
+            **_summary_source_kwargs(
+                sources,
+                "workflow_context",
+                "event_stats",
+                "event_log_state",
+                "event_log_state_records",
+                "events",
+                "event_summary_stats",
+                "operator_network_context",
+                "command_queue",
+                "command_queue_policy_records",
+                "target_activity_context",
+                "release_context_doc",
+                "release_artifact_workflow_actions",
+                "operator_console_workflow_context",
+                "workbench_config_context",
+                "command_queue_workflow_context",
+                "service_probe_workflow_context",
+            )
+        ),
+    }
+
+
+def _summary_source_kwargs(sources, *names):
+    return {name: sources[name] for name in names}
+
+
+def _build_path_operator_summary_updates(
     *,
     path_context,
     bridge_profile_context,
@@ -2980,6 +3221,20 @@ def _build_status_summary_updates(
     operator_state_file_summary_doc,
     operator_state_summary,
     staged_file_workflow_context,
+):
+    return {
+        **path_context["path_summary"],
+        **bridge_profile_context["summary"],
+        **path_context["browser_status_summary"],
+        **path_warning_context["summary"],
+        **operator_state_file_summary_doc,
+        **operator_state_summary,
+        **staged_file_workflow_context["summary"],
+    }
+
+
+def _build_service_file_summary_updates(
+    *,
     services,
     service_manager,
     service_manager_status_doc,
@@ -2991,6 +3246,25 @@ def _build_status_summary_updates(
     target_file_transfer_records,
     file_service_workflow_context,
     target_activity_feed_context,
+):
+    return {
+        **service_status.service_status_summary(
+            services, service_manager, service_manager_status_doc
+        ),
+        **service_status.port_status_summary(ports),
+        **warning_summary_context["summary"],
+        **file_transfers.upload_record_summary(uploads, target_attribution),
+        **file_transfers.fetch_record_summary(fetches, target_attribution),
+        **file_transfers.target_file_transfer_record_summary(
+            target_file_transfer_records
+        ),
+        **file_service_workflow_context["summary"],
+        **target_activity_feed_context["summary"],
+    }
+
+
+def _build_target_session_summary_updates(
+    *,
     target_summary,
     target_registry_summary,
     target_filter_context,
@@ -2998,11 +3272,33 @@ def _build_status_summary_updates(
     sessions,
     session_root_state,
     session_root_state_records,
+    target_attribution,
     target_command_summary,
     target_command_state_record,
     target_command_state_records,
     rshell_session_policy_record_item,
     rshell_session_policy_records,
+):
+    return {
+        **target_summary,
+        **target_registry_summary,
+        **target_filter_context["summary"],
+        **target_attribution_context["summary"],
+        **session_record_summary(
+            sessions, session_root_state, session_root_state_records, target_attribution
+        ),
+        **target_command_status_summary(
+            target_command_summary,
+            target_command_state_record,
+            target_command_state_records,
+            rshell_session_policy_record_item,
+            rshell_session_policy_records,
+        ),
+    }
+
+
+def _build_event_workflow_summary_updates(
+    *,
     workflow_context,
     event_stats,
     event_log_state,
@@ -3021,39 +3317,6 @@ def _build_status_summary_updates(
     service_probe_workflow_context,
 ):
     return {
-        **path_context["path_summary"],
-        **bridge_profile_context["summary"],
-        **path_context["browser_status_summary"],
-        **path_warning_context["summary"],
-        **operator_state_file_summary_doc,
-        **operator_state_summary,
-        **staged_file_workflow_context["summary"],
-        **service_status.service_status_summary(
-            services, service_manager, service_manager_status_doc
-        ),
-        **service_status.port_status_summary(ports),
-        **warning_summary_context["summary"],
-        **file_transfers.upload_record_summary(uploads, target_attribution),
-        **file_transfers.fetch_record_summary(fetches, target_attribution),
-        **file_transfers.target_file_transfer_record_summary(
-            target_file_transfer_records
-        ),
-        **file_service_workflow_context["summary"],
-        **target_activity_feed_context["summary"],
-        **target_summary,
-        **target_registry_summary,
-        **target_filter_context["summary"],
-        **target_attribution_context["summary"],
-        **session_record_summary(
-            sessions, session_root_state, session_root_state_records, target_attribution
-        ),
-        **target_command_status_summary(
-            target_command_summary,
-            target_command_state_record,
-            target_command_state_records,
-            rshell_session_policy_record_item,
-            rshell_session_policy_records,
-        ),
         **workflow_context["summary"],
         **event_status_summary(
             event_stats, event_log_state, event_log_state_records,
