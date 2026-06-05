@@ -531,6 +531,47 @@ def _build_bridge_profile_status_context(cfg, targets):
     }
 
 
+def _build_workbench_workflow_status_context(cfg, targets, bridge_profiles):
+    workbench_action_context = workbench_action_status_context(cfg)
+    workbench_actions = workbench_action_context["actions"]
+    operator_daemon_workflow_context = operator_daemon_workflow_action_status_context(
+        cfg,
+        workbench_actions,
+        targets,
+    )
+    target_workflow_context = target_workflow_action_status_context(
+        cfg,
+        targets,
+        bridge_profiles,
+    )
+    workbench_job_context = workbench_job_status_context(cfg, workbench_actions)
+    operator_daemon_workflow_actions = operator_daemon_workflow_context["actions"]
+    target_workflow_actions = target_workflow_context["actions"]
+    workbench_jobs = workbench_job_context["jobs"]
+    return {
+        "workbench_action_context": workbench_action_context,
+        "workbench_actions": workbench_actions,
+        "workbench_action_index_maps": workbench_action_context["index_maps"],
+        "operator_daemon_workflow_actions": operator_daemon_workflow_actions,
+        "operator_daemon_workflow_action_index_maps": operator_daemon_workflow_context[
+            "index_maps"
+        ],
+        "target_workflow_actions": target_workflow_actions,
+        "target_workflow_action_index_maps": target_workflow_context["index_maps"],
+        "workbench_job_context": workbench_job_context,
+        "workbench_jobs": workbench_jobs,
+        "workbench_job_index_maps": workbench_job_context["index_maps"],
+        "summary": {
+            **target_workflow_action_status_summary(target_workflow_actions),
+            **workbench_action_context["summary"],
+            **operator_daemon_workflow_action_status_summary(
+                operator_daemon_workflow_actions
+            ),
+            **workbench_job_context["summary"],
+        },
+    }
+
+
 def _build_service_status_context(cfg):
     service_context = service_status_context(cfg, SERVICE_MANAGER.snapshot())
     return {
@@ -1036,28 +1077,27 @@ def status_document(cfg):
     workbench_config_context = workbench_config_status_context(cfg)
     workbench_config_fields = workbench_config_context["fields"]
     workbench_config_field_index_maps = workbench_config_context["index_maps"]
-    workbench_action_context = workbench_action_status_context(cfg)
-    workbench_actions = workbench_action_context["actions"]
-    workbench_action_index_maps = workbench_action_context["index_maps"]
-    operator_daemon_workflow_context = operator_daemon_workflow_action_status_context(
-        cfg,
-        workbench_actions,
-        targets,
-    )
-    operator_daemon_workflow_actions = operator_daemon_workflow_context["actions"]
-    operator_daemon_workflow_action_index_maps = operator_daemon_workflow_context[
-        "index_maps"
-    ]
-    target_workflow_context = target_workflow_action_status_context(
+    workflow_context = _build_workbench_workflow_status_context(
         cfg,
         targets,
         bridge_profiles,
     )
-    target_workflow_actions = target_workflow_context["actions"]
-    target_workflow_action_index_maps = target_workflow_context["index_maps"]
-    workbench_job_context = workbench_job_status_context(cfg, workbench_actions)
-    workbench_jobs = workbench_job_context["jobs"]
-    workbench_job_index_maps = workbench_job_context["index_maps"]
+    workbench_action_context = workflow_context["workbench_action_context"]
+    workbench_actions = workflow_context["workbench_actions"]
+    workbench_action_index_maps = workflow_context["workbench_action_index_maps"]
+    operator_daemon_workflow_actions = workflow_context[
+        "operator_daemon_workflow_actions"
+    ]
+    operator_daemon_workflow_action_index_maps = workflow_context[
+        "operator_daemon_workflow_action_index_maps"
+    ]
+    target_workflow_actions = workflow_context["target_workflow_actions"]
+    target_workflow_action_index_maps = workflow_context[
+        "target_workflow_action_index_maps"
+    ]
+    workbench_job_context = workflow_context["workbench_job_context"]
+    workbench_jobs = workflow_context["workbench_jobs"]
+    workbench_job_index_maps = workflow_context["workbench_job_index_maps"]
     target_command_context = _build_target_command_status_context(
         cfg,
         staged_raw=staged_raw,
@@ -1333,7 +1373,7 @@ def status_document(cfg):
             rshell_session_policy_record_item,
             rshell_session_policy_records,
         ),
-        **target_workflow_action_status_summary(target_workflow_actions),
+        **workflow_context["summary"],
         **event_status_summary(
             event_stats, event_log_state, event_log_state_records,
             events, event_summary_stats,
@@ -1345,13 +1385,10 @@ def status_document(cfg):
         **release_context_doc["summary"],
         **release_artifact_workflow_action_status_summary(release_artifact_workflow_actions),
         **operator_console_workflow_status_summary(operator_console_workflow_stats),
-        **workbench_action_context["summary"],
         **workbench_config_context["summary"],
         **command_queue_workflow_action_status_summary(command_queue_workflow_actions),
-        **operator_daemon_workflow_action_status_summary(operator_daemon_workflow_actions),
         **service_workflow_action_status_summary(service_workflow_actions),
         **probe_workflow_action_status_summary(probe_workflow_actions),
-        **workbench_job_context["summary"],
     })
     api_collections = {
         "services": api_collection_record(
