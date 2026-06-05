@@ -236,6 +236,44 @@ TARGET_INDEX_KEYS = (
     "targets_by_observed_constraint",
 )
 
+SESSION_INDEX_KEYS = (
+    "sessions_by_id",
+    "sessions_by_service",
+    "sessions_by_state",
+    "sessions_by_exit_reason",
+    "sessions_by_remote",
+    "sessions_by_service_state",
+    "sessions_by_service_exit_reason",
+    "sessions_by_service_remote",
+    "sessions_by_target_id",
+    "sessions_by_has_uploads",
+    "sessions_by_has_fetches",
+    "sessions_by_has_events",
+    "sessions_by_has_artifacts",
+    "sessions_by_has_session_log",
+    "sessions_by_duration_known",
+    "sessions_by_metadata_exists",
+    "sessions_by_event_log_exists",
+    "sessions_by_session_log_exists",
+)
+
+
+def _build_session_status_context(cfg, *, target_filter_id):
+    session_context = session_status_context(
+        cfg,
+        SESSION_MANAGER.recent_records(cfg),
+        target_filter_id=target_filter_id,
+    )
+    return {
+        "sessions": session_context["records"],
+        "unfiltered_count": session_context["unfiltered_count"],
+        "target_filter_session_ids": session_context["target_filter_session_ids"],
+        "session_root_state": session_context["root_state"],
+        "session_root_state_records": session_context["root_state_records"],
+        "session_root_state_index_maps": session_context["root_state_index_maps"],
+        "session_index_maps": dict(zip(SESSION_INDEX_KEYS, session_context["indexes"])),
+    }
+
 
 def _build_target_registry_context(
     cfg,
@@ -552,36 +590,18 @@ def status_document(cfg):
     target_registry_state_records = target_context["target_registry_state_records"]
     target_registry_state_index_maps = target_context["target_registry_state_index_maps"]
     target_registry_summary = target_context["target_registry_summary"]
-    session_context = session_status_context(
+    session_context = _build_session_status_context(
         cfg,
-        SESSION_MANAGER.recent_records(cfg),
         target_filter_id=target_filter_id,
     )
-    sessions = session_context["records"]
+    sessions = session_context["sessions"]
     unfiltered_counts["sessions"] = session_context["unfiltered_count"]
     target_filter_session_ids = session_context["target_filter_session_ids"]
-    session_root_state = session_context["root_state"]
-    session_root_state_records = session_context["root_state_records"]
-    session_root_state_index_maps = session_context["root_state_index_maps"]
+    session_root_state = session_context["session_root_state"]
+    session_root_state_records = session_context["session_root_state_records"]
+    session_root_state_index_maps = session_context["session_root_state_index_maps"]
     reconcile_workbench_job_completion_events(cfg)
-    (sessions_by_id,
-     sessions_by_service,
-     sessions_by_state,
-     sessions_by_exit_reason,
-     sessions_by_remote,
-     sessions_by_service_state,
-     sessions_by_service_exit_reason,
-     sessions_by_service_remote,
-     sessions_by_target_id,
-     sessions_by_has_uploads,
-     sessions_by_has_fetches,
-     sessions_by_has_events,
-     sessions_by_has_artifacts,
-     sessions_by_has_session_log,
-     sessions_by_duration_known,
-     sessions_by_metadata_exists,
-     sessions_by_event_log_exists,
-     sessions_by_session_log_exists) = session_context["indexes"]
+    session_index_maps = session_context["session_index_maps"]
     event_context = _build_event_status_context(
         cfg,
         event_limit,
@@ -2440,24 +2460,7 @@ def status_document(cfg):
         "session_root_state": session_root_state,
         "session_root_state_records": session_root_state_records,
         **session_root_state_index_maps,
-        "sessions_by_id": sessions_by_id,
-        "sessions_by_service": sessions_by_service,
-        "sessions_by_state": sessions_by_state,
-        "sessions_by_exit_reason": sessions_by_exit_reason,
-        "sessions_by_remote": sessions_by_remote,
-        "sessions_by_service_state": sessions_by_service_state,
-        "sessions_by_service_exit_reason": sessions_by_service_exit_reason,
-        "sessions_by_service_remote": sessions_by_service_remote,
-        "sessions_by_target_id": sessions_by_target_id,
-        "sessions_by_has_uploads": sessions_by_has_uploads,
-        "sessions_by_has_fetches": sessions_by_has_fetches,
-        "sessions_by_has_events": sessions_by_has_events,
-        "sessions_by_has_artifacts": sessions_by_has_artifacts,
-        "sessions_by_has_session_log": sessions_by_has_session_log,
-        "sessions_by_duration_known": sessions_by_duration_known,
-        "sessions_by_metadata_exists": sessions_by_metadata_exists,
-        "sessions_by_event_log_exists": sessions_by_event_log_exists,
-        "sessions_by_session_log_exists": sessions_by_session_log_exists,
+        **session_index_maps,
         "events": events,
         **event_index_maps,
         "event_log_state": event_log_state,
