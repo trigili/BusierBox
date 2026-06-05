@@ -401,6 +401,103 @@ def print_line_workspace_snapshot(snap):
     print("  search TERM  |  targets  sessions  files  listeners  routes  |  ? help")
 
 
+def _print_line_action_info(action):
+    action_kind = action.get("kind", "")
+    action_id = action.get("id", "")
+    action_name = f"{action_kind}:{action_id}" if action_kind else action_id
+    print(f"Action: {action_name}")
+    print(f"  state: {action.get('operator_action_state', '') or '-'}")
+    print(f"  reason: {action.get('operator_action_reason', '') or '-'}")
+    print(f"  label: {action.get('label', '') or '-'}")
+    print(f"  category: {action.get('category', '') or '-'}")
+    print(f"  workflow: {action.get('workflow', '') or '-'}")
+    print(f"  confirmation: {'required' if action.get('requires_confirmation') else 'not required'}")
+    print(f"  background: {'supported' if action.get('background_supported') else 'not supported'}")
+    print("  commands: check, run, run --dry-run, run --confirm")
+    if action.get("background_supported"):
+        print("  background command: run -j")
+    print("  next: options, check, run, back")
+
+
+def _print_line_listener_info(module, service_record, probe_delivery_printer):
+    service = line_listener_module_name(module)
+    rec = service_record(service)
+    actual = rec.get("actual") or "-" if rec else "-"
+    port = rec.get("port") or "-" if rec else "-"
+    pid = rec.get("pid") or "-" if rec else "-"
+    print(f"  {service}  —  {actual}  |  :{port}  |  pid {pid}")
+    if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"}:
+        if probe_delivery_printer:
+            probe_delivery_printer()
+    else:
+        print("    options / start / stop / back")
+
+
+def _print_line_route_info(module, route_record):
+    route_name = module.split("/", 1)[1]
+    rec = route_record(route_name)
+    print(f"Route: {route_name}")
+    if rec:
+        print(f"  state: {rec.get('current_state', '') or '-'}")
+        print(f"  active: {'yes' if rec.get('active') else 'no'}")
+        print(f"  listen: {rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
+        print(f"  destination: {rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
+        print(f"  path: {rec.get('route_path', '') or '-'}")
+        print(f"  hops: {rec.get('hop_count', 0)}")
+        print(f"  multi-hop: {'yes' if rec.get('multi_hop') else 'no'}")
+        print(f"  target: {rec.get('target_id', '') or '-'}")
+    print(f"  commands: route {route_name}, route start {route_name}, route stop {route_name}")
+    print("  next: options, start, stop, routes -v, back")
+
+
+def _print_line_session_info(module, session_record):
+    session_id = module.split("/", 1)[1]
+    rec = session_record(session_id)
+    print(f"Session: {session_id}")
+    if rec:
+        path = str(rec.get("path") or "")
+        print(f"  service: {rec.get('service', '') or '-'}")
+        print(f"  state: {rec.get('state', '') or '-'}")
+        print(f"  exit reason: {rec.get('exit_reason', '') or '-'}")
+        print(f"  updated: {rec.get('updated_at', '') or '-'}")
+        print(f"  path: {path}")
+        if rec.get("session_log"):
+            print(f"  session log: {rec.get('session_log', '')}")
+        if rec.get("event_log"):
+            print(f"  event log: {rec.get('event_log', '')}")
+    print("  next: options, interact, sessions -v, view PATH, back")
+
+
+def _print_line_job_info(module, job_record):
+    job_id = module.split("/", 1)[1]
+    rec = job_record(job_id)
+    print(f"Job: {job_id}")
+    if rec:
+        print(f"  action: {rec.get('action_id', '') or '-'}")
+        print(f"  state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}")
+        print(f"  pid: {rec.get('pid', '') or '-'}")
+        print(f"  managed: {'yes' if rec.get('pid_managed') else 'no'}")
+        print(f"  cancel supported: {'yes' if rec.get('cancel_supported') else 'no'}")
+        print(f"  command: {rec.get('command', '') or '-'}")
+        if rec.get("log_path"):
+            print(f"  log: {rec.get('log_path', '')}")
+        if rec.get("last_output_tail"):
+            print("  last output:")
+            for line in rec.get("last_output_tail") or []:
+                print(f"    {line}")
+    print("  next: options, jobs, jobs -v, back")
+
+
+def _print_line_selected_agent_info(snap):
+    target_filter = (snap or {}).get("target_filter") or {}
+    if target_filter.get("active"):
+        print(target_filter_brief_text(target_filter, prefix="  selected agent:"))
+        for line in target_filter_evidence_lines(target_filter):
+            print(f"    {line}")
+    else:
+        print("  selected agent: all")
+
+
 def print_line_info(
     snap, module="root", prompt_text="", selected_action=None,
     service_record=None, route_record=None, session_record=None, job_record=None,
@@ -424,91 +521,18 @@ def print_line_info(
     print(f"  module: {module}")
     action = selected_action()
     if action:
-        action_kind = action.get("kind", "")
-        action_id = action.get("id", "")
-        action_name = f"{action_kind}:{action_id}" if action_kind else action_id
-        print(f"Action: {action_name}")
-        print(f"  state: {action.get('operator_action_state', '') or '-'}")
-        print(f"  reason: {action.get('operator_action_reason', '') or '-'}")
-        print(f"  label: {action.get('label', '') or '-'}")
-        print(f"  category: {action.get('category', '') or '-'}")
-        print(f"  workflow: {action.get('workflow', '') or '-'}")
-        print(f"  confirmation: {'required' if action.get('requires_confirmation') else 'not required'}")
-        print(f"  background: {'supported' if action.get('background_supported') else 'not supported'}")
-        print("  commands: check, run, run --dry-run, run --confirm")
-        if action.get("background_supported"):
-            print("  background command: run -j")
-        print("  next: options, check, run, back")
+        _print_line_action_info(action)
     elif line_listener_module_name(module):
-        service = line_listener_module_name(module)
-        rec = service_record(service)
-        actual = rec.get("actual") or "-" if rec else "-"
-        port = rec.get("port") or "-" if rec else "-"
-        pid = rec.get("pid") or "-" if rec else "-"
-        print(f"  {service}  —  {actual}  |  :{port}  |  pid {pid}")
-        if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"}:
-            if probe_delivery_printer:
-                probe_delivery_printer()
-        else:
-            print("    options / start / stop / back")
+        _print_line_listener_info(module, service_record, probe_delivery_printer)
     elif module.startswith("route/"):
-        route_name = module.split("/", 1)[1]
-        rec = route_record(route_name)
-        print(f"Route: {route_name}")
-        if rec:
-            print(f"  state: {rec.get('current_state', '') or '-'}")
-            print(f"  active: {'yes' if rec.get('active') else 'no'}")
-            print(f"  listen: {rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
-            print(f"  destination: {rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
-            print(f"  path: {rec.get('route_path', '') or '-'}")
-            print(f"  hops: {rec.get('hop_count', 0)}")
-            print(f"  multi-hop: {'yes' if rec.get('multi_hop') else 'no'}")
-            print(f"  target: {rec.get('target_id', '') or '-'}")
-        print(f"  commands: route {route_name}, route start {route_name}, route stop {route_name}")
-        print("  next: options, start, stop, routes -v, back")
+        _print_line_route_info(module, route_record)
     elif module.startswith("session/"):
-        session_id = module.split("/", 1)[1]
-        rec = session_record(session_id)
-        print(f"Session: {session_id}")
-        if rec:
-            path = str(rec.get("path") or "")
-            print(f"  service: {rec.get('service', '') or '-'}")
-            print(f"  state: {rec.get('state', '') or '-'}")
-            print(f"  exit reason: {rec.get('exit_reason', '') or '-'}")
-            print(f"  updated: {rec.get('updated_at', '') or '-'}")
-            print(f"  path: {path}")
-            if rec.get("session_log"):
-                print(f"  session log: {rec.get('session_log', '')}")
-            if rec.get("event_log"):
-                print(f"  event log: {rec.get('event_log', '')}")
-        print("  next: options, interact, sessions -v, view PATH, back")
+        _print_line_session_info(module, session_record)
     elif module.startswith("job/"):
-        job_id = module.split("/", 1)[1]
-        rec = job_record(job_id)
-        print(f"Job: {job_id}")
-        if rec:
-            print(f"  action: {rec.get('action_id', '') or '-'}")
-            print(f"  state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}")
-            print(f"  pid: {rec.get('pid', '') or '-'}")
-            print(f"  managed: {'yes' if rec.get('pid_managed') else 'no'}")
-            print(f"  cancel supported: {'yes' if rec.get('cancel_supported') else 'no'}")
-            print(f"  command: {rec.get('command', '') or '-'}")
-            if rec.get("log_path"):
-                print(f"  log: {rec.get('log_path', '')}")
-            if rec.get("last_output_tail"):
-                print("  last output:")
-                for line in rec.get("last_output_tail") or []:
-                    print(f"    {line}")
-        print("  next: options, jobs, jobs -v, back")
+        _print_line_job_info(module, job_record)
     else:
         print("Action: none")
-    target_filter = (snap or {}).get("target_filter") or {}
-    if target_filter.get("active"):
-        print(target_filter_brief_text(target_filter, prefix="  selected agent:"))
-        for line in target_filter_evidence_lines(target_filter):
-            print(f"    {line}")
-    else:
-        print("  selected agent: all")
+    _print_line_selected_agent_info(snap)
 
 
 def print_current_line_info(
