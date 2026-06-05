@@ -23,20 +23,65 @@ LINE_SERVICE_ALIASES = {
 }
 
 
+LINE_LISTENER_COMMANDS = (
+    {"action": "list", "commands": ("services", "listeners")},
+    {"action": "select", "commands": ("listener",)},
+)
+
+LINE_SERVICE_CONTROL_COMMANDS = (
+    {"action": "start", "commands": ("start",)},
+    {"action": "stop", "commands": ("stop",)},
+)
+
+
+def line_listener_command_records():
+    return [
+        {
+            "family": "listener",
+            "action": rec["action"],
+            "commands": list(rec["commands"]),
+            "primary": rec["commands"][0],
+            "aliases": list(rec["commands"][1:]),
+        }
+        for rec in LINE_LISTENER_COMMANDS
+    ]
+
+
+def line_service_control_command_records():
+    return [
+        {
+            "family": "service-control",
+            "action": rec["action"],
+            "commands": list(rec["commands"]),
+            "primary": rec["commands"][0],
+            "aliases": list(rec["commands"][1:]),
+        }
+        for rec in LINE_SERVICE_CONTROL_COMMANDS
+    ]
+
+
 def parse_line_listener_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
-    if cmd in {"services", "listeners"}:
+    for rec in line_listener_command_records():
+        if cmd not in rec["commands"]:
+            continue
+        if rec["action"] == "list":
+            return {
+                "action": "list",
+                "verbose": any(str(item).lower() in {"-v", "--verbose"} for item in args),
+                "command": cmd,
+            }
+        if args and str(args[0]).lower() in {"-v", "--verbose"}:
+            return {"action": "list", "verbose": True, "command": cmd}
+        selector = " ".join(args).strip()
         return {
-            "action": "list",
-            "verbose": any(str(item).lower() in {"-v", "--verbose"} for item in args),
+            "action": "select" if selector else "list",
+            "selector": selector,
+            "verbose": False,
+            "command": cmd,
         }
-    if cmd != "listener":
-        return {}
-    if args and str(args[0]).lower() in {"-v", "--verbose"}:
-        return {"action": "list", "verbose": True}
-    selector = " ".join(args).strip()
-    return {"action": "select" if selector else "list", "selector": selector, "verbose": False}
+    return {}
 
 
 def dispatch_line_listener_command(
@@ -59,12 +104,14 @@ def dispatch_line_listener_command(
 
 def parse_line_service_control_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
-    if cmd not in {"start", "stop"}:
-        return {}
-    return {
-        "action": cmd,
-        "selector": " ".join(args or []).strip(),
-    }
+    for rec in line_service_control_command_records():
+        if cmd in rec["commands"]:
+            return {
+                "action": rec["action"],
+                "selector": " ".join(args or []).strip(),
+                "command": cmd,
+            }
+    return {}
 
 
 def dispatch_line_service_control_command(

@@ -12,15 +12,37 @@ from gritlib.target_records import (
 )
 
 
+LINE_TARGET_COMMANDS = (
+    {"action": "list", "commands": ("targets", "agents", "hosts")},
+    {"action": "select", "commands": ("target", "agent", "host")},
+)
+
+
+def line_target_command_records():
+    return [
+        {
+            "family": "target",
+            "action": rec["action"],
+            "commands": list(rec["commands"]),
+            "primary": rec["commands"][0],
+            "aliases": list(rec["commands"][1:]),
+        }
+        for rec in LINE_TARGET_COMMANDS
+    ]
+
+
 def parse_line_target_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
-    if cmd in {"targets", "agents", "hosts"}:
-        return {"action": "list"}
-    if cmd not in {"target", "agent", "host"}:
-        return {}
-    selector = " ".join(args).strip()
-    return {"action": "select" if selector else "list", "selector": selector}
+    for rec in line_target_command_records():
+        if cmd not in rec["commands"]:
+            continue
+        selector = " ".join(args).strip()
+        action = rec["action"]
+        if action == "select" and not selector:
+            action = "list"
+        return {"action": action, "selector": selector, "command": cmd}
+    return {}
 
 
 def dispatch_line_target_command(

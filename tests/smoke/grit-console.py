@@ -3518,6 +3518,78 @@ def run_line_workspace_command_registry_check():
     return 0
 
 
+def run_line_target_service_command_registry_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.line_services import (
+        line_listener_command_records,
+        line_service_control_command_records,
+        parse_line_listener_command,
+        parse_line_service_control_command,
+    )
+    from gritlib.line_targets import (
+        line_target_command_records,
+        parse_line_target_command,
+    )
+
+    target_records = {rec.get("action"): rec for rec in line_target_command_records()}
+    if tuple(target_records.get("list", {}).get("commands") or ()) != ("targets", "agents", "hosts"):
+        print(f"target command registry lost list aliases: {target_records}", file=sys.stderr)
+        return 1
+    if tuple(target_records.get("select", {}).get("commands") or ()) != ("target", "agent", "host"):
+        print(f"target command registry lost select aliases: {target_records}", file=sys.stderr)
+        return 1
+    for command in ("targets", "agents", "hosts"):
+        parsed = parse_line_target_command(command, [])
+        if parsed.get("action") != "list" or parsed.get("command") != command:
+            print(f"target list parser did not use registry entry: {command} -> {parsed}", file=sys.stderr)
+            return 1
+    for command in ("target", "agent", "host"):
+        parsed = parse_line_target_command(command, ["alpha"])
+        if parsed.get("action") != "select" or parsed.get("selector") != "alpha" or parsed.get("command") != command:
+            print(f"target select parser did not use registry entry: {command} -> {parsed}", file=sys.stderr)
+            return 1
+        empty = parse_line_target_command(command, [])
+        if empty.get("action") != "list":
+            print(f"target empty select parser did not fall back to list: {command} -> {empty}", file=sys.stderr)
+            return 1
+
+    listener_records = {rec.get("action"): rec for rec in line_listener_command_records()}
+    if tuple(listener_records.get("list", {}).get("commands") or ()) != ("services", "listeners"):
+        print(f"listener command registry lost list aliases: {listener_records}", file=sys.stderr)
+        return 1
+    if tuple(listener_records.get("select", {}).get("commands") or ()) != ("listener",):
+        print(f"listener command registry lost select command: {listener_records}", file=sys.stderr)
+        return 1
+    for command in ("services", "listeners"):
+        parsed = parse_line_listener_command(command, ["-v"])
+        if parsed.get("action") != "list" or parsed.get("verbose") is not True or parsed.get("command") != command:
+            print(f"listener list parser did not preserve verbose alias: {command} -> {parsed}", file=sys.stderr)
+            return 1
+    if parse_line_listener_command("listener", ["-v"]).get("action") != "list":
+        print("listener parser did not preserve listener -v list behavior", file=sys.stderr)
+        return 1
+    selected = parse_line_listener_command("listener", ["ssh"])
+    if selected.get("action") != "select" or selected.get("selector") != "ssh":
+        print(f"listener parser did not preserve select behavior: {selected}", file=sys.stderr)
+        return 1
+
+    controls = {rec.get("action"): rec for rec in line_service_control_command_records()}
+    if tuple(controls.get("start", {}).get("commands") or ()) != ("start",):
+        print(f"service control registry lost start command: {controls}", file=sys.stderr)
+        return 1
+    if tuple(controls.get("stop", {}).get("commands") or ()) != ("stop",):
+        print(f"service control registry lost stop command: {controls}", file=sys.stderr)
+        return 1
+    for command in ("start", "stop"):
+        parsed = parse_line_service_control_command(command, ["ssh"])
+        if parsed.get("action") != command or parsed.get("selector") != "ssh" or parsed.get("command") != command:
+            print(f"service control parser did not use registry entry: {command} -> {parsed}", file=sys.stderr)
+            return 1
+    return 0
+
+
 def run_service_runtime_state_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -9308,6 +9380,8 @@ def main(argv=None):
     if run_line_context_transition_check() != 0:
         return 1
     if run_line_workspace_command_registry_check() != 0:
+        return 1
+    if run_line_target_service_command_registry_check() != 0:
         return 1
     if run_service_runtime_state_check() != 0:
         return 1
