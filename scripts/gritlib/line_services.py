@@ -337,27 +337,23 @@ def line_service_status_text(rec):
     return f"{actual} (configured {configured})"
 
 
-def print_line_service_records(rows, verbose=False, start_command=None, stop_command=None, quote=None):
-    rows = list(rows or [])
-    start_command = start_command or (lambda _name: "")
-    stop_command = stop_command or (lambda _name: "")
-    quote = quote or (lambda text: str(text))
+def _line_service_detail_rows(rec, verbose, start_command, stop_command):
+    if not verbose:
+        return []
+    name = str(rec.get("name") or "")
+    details = [
+        ("start", start_command(name)),
+        ("stop", stop_command(name)),
+    ]
+    if rec.get("error"):
+        details.append(("error", rec["error"]))
+    if rec.get("session_log"):
+        details.append(("log", rec["session_log"]))
+    return details
 
-    def _detail(rec):
-        if not verbose:
-            return []
-        name = str(rec.get("name") or "")
-        details = [
-            ("start", start_command(name)),
-            ("stop", stop_command(name)),
-        ]
-        if rec.get("error"):
-            details.append(("error", rec["error"]))
-        if rec.get("session_log"):
-            details.append(("log", rec["session_log"]))
-        return details
 
-    cols = [
+def _line_service_columns():
+    return [
         ("Service", "name"),
         ("Status", line_service_status_text),
         ("Bind", line_service_bind_text),
@@ -365,67 +361,82 @@ def print_line_service_records(rows, verbose=False, start_command=None, stop_com
         ("PID", lambda r: str(r.get("pid") or "-")),
     ]
 
+
+def _line_service_cells(rec):
+    return [
+        line_service_display_name(str(rec.get("name") or "")),
+        line_service_status_text(rec),
+        line_service_bind_text(rec),
+        "yes" if rec.get("tls") else "no",
+        str(rec.get("pid") or "-"),
+    ]
+
+
+def _line_service_widths(rows, cols):
+    return [
+        max(
+            len(header),
+            max((len(_line_service_cells(row)[idx]) for row in rows), default=0),
+        )
+        for idx, (header, _key) in enumerate(cols)
+    ]
+
+
+def _line_service_row_line(num, rec, num_w, widths):
+    cells = _line_service_cells(rec)
+    return (f"  {num:{num_w}}  " + "  ".join(f"{cell:{widths[idx]}}" for idx, cell in enumerate(cells))).rstrip()
+
+
+def _print_line_service_category_rows(rows, verbose, detail_fn, row_line_fn, num, num_w):
+    for rec in rows:
+        print(row_line_fn(num, rec))
+        if verbose:
+            indent = " " * (2 + num_w + 2)
+            for label, value in (detail_fn(rec) or []):
+                if value:
+                    print(f"{indent}{label}: {value}")
+        num += 1
+    return num
+
+
+def _print_line_service_table(rows, verbose, detail_fn):
+    cols = _line_service_columns()
     by_name = {str(row.get("name") or ""): row for row in rows}
     num_w = len(str(len(rows)))
-    widths = [max(len(header), max((len(cell) for row in rows for cell in [
-        [
-            line_service_display_name(str(row.get("name") or "")),
-            line_service_status_text(row),
-            line_service_bind_text(row),
-            "yes" if row.get("tls") else "no",
-            str(row.get("pid") or "-"),
-        ][idx]
-    ]), default=0)) for idx, (header, _key) in enumerate(cols)]
-
-    def _row_line(num, rec):
-        cells = [
-            line_service_display_name(str(rec.get("name") or "")),
-            line_service_status_text(rec),
-            line_service_bind_text(rec),
-            "yes" if rec.get("tls") else "no",
-            str(rec.get("pid") or "-"),
-        ]
-        return (f"  {num:{num_w}}  " + "  ".join(f"{cell:{widths[idx]}}" for idx, cell in enumerate(cells))).rstrip()
-
+    widths = _line_service_widths(rows, cols)
+    row_line_fn = lambda num, rec: _line_service_row_line(num, rec, num_w, widths)
     header = "  " + " " * num_w + "  " + "  ".join(f"{head:{widths[idx]}}" for idx, (head, _key) in enumerate(cols))
     sep = "  " + "─" * num_w + "  " + "  ".join("─" * width for width in widths)
 
     if not rows:
         print("Listeners  (none)")
-    else:
-        print(f"Listeners  ({len(rows)} total)")
-        print("")
-        print(header)
-        print(sep)
-        num = 1
-        cat_all = {name for _title, names in LINE_SERVICE_CATEGORIES for name in names}
-        printed_any = False
-        for cat_title, cat_names in LINE_SERVICE_CATEGORIES:
-            cat_rows = [by_name[name] for name in cat_names if name in by_name]
-            if not cat_rows:
-                continue
-            if printed_any:
-                print("")
-            print(f"  {cat_title}")
-            for rec in cat_rows:
-                print(_row_line(num, rec))
-                if verbose:
-                    indent = " " * (2 + num_w + 2)
-                    for label, value in (_detail(rec) or []):
-                        if value:
-                            print(f"{indent}{label}: {value}")
-                num += 1
-            printed_any = True
-        extras = [row for row in rows if str(row.get("name") or "") not in cat_all]
-        if extras:
-            if printed_any:
-                print("")
-            print("  Other")
-            for rec in extras:
-                print(_row_line(num, rec))
-                num += 1
+        return
+
+    print(f"Listeners  ({len(rows)} total)")
     print("")
-    print("  use N or listener NAME to select  |  start/stop N or NAME  |  listeners ? for help")
+    print(header)
+    print(sep)
+    num = 1
+    cat_all = {name for _title, names in LINE_SERVICE_CATEGORIES for name in names}
+    printed_any = False
+    for cat_title, cat_names in LINE_SERVICE_CATEGORIES:
+        cat_rows = [by_name[name] for name in cat_names if name in by_name]
+        if not cat_rows:
+            continue
+        if printed_any:
+            print("")
+        print(f"  {cat_title}")
+        num = _print_line_service_category_rows(cat_rows, verbose, detail_fn, row_line_fn, num, num_w)
+        printed_any = True
+    extras = [row for row in rows if str(row.get("name") or "") not in cat_all]
+    if extras:
+        if printed_any:
+            print("")
+        print("  Other")
+        _print_line_service_category_rows(extras, False, detail_fn, row_line_fn, num, num_w)
+
+
+def _line_service_search_records(rows, start_command, quote):
     return [
         {
             "kind": "service",
@@ -439,6 +450,18 @@ def print_line_service_records(rows, verbose=False, start_command=None, stop_com
         }
         for rec in rows
     ]
+
+
+def print_line_service_records(rows, verbose=False, start_command=None, stop_command=None, quote=None):
+    rows = list(rows or [])
+    start_command = start_command or (lambda _name: "")
+    stop_command = stop_command or (lambda _name: "")
+    quote = quote or (lambda text: str(text))
+    detail_fn = lambda rec: _line_service_detail_rows(rec, verbose, start_command, stop_command)
+    _print_line_service_table(rows, verbose, detail_fn)
+    print("")
+    print("  use N or listener NAME to select  |  start/stop N or NAME  |  listeners ? for help")
+    return _line_service_search_records(rows, start_command, quote)
 
 
 def select_line_service(cfg, selector, rows, start_command=None, stop_command=None):
