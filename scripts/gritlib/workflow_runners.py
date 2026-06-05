@@ -3,10 +3,7 @@
 import hashlib
 import subprocess
 from pathlib import Path
-from gritlib.bridge_routes import (
-    bridge_profile_record, bridge_profile_service_name, bridge_profiles_path,
-    delete_bridge_profile, load_bridge_profiles, print_bridge_profile,
-)
+import gritlib.bridge_routes as bridge_routes
 from gritlib.command_queue import (
     clear_command_queue, print_command_queue, queue_command,
 )
@@ -714,14 +711,14 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
     if not profile:
         raise ValueError(f"bridge profile workflow action is missing profile name: {rec_id}")
     if action_id == "inspect-profile":
-        return print_bridge_profile(cfg, profile, json_output=False)
+        return bridge_routes.print_bridge_profile(cfg, profile, json_output=False)
     if action_id == "start-profile":
         proc = start_service_process(
             cfg,
             "bridge",
             argv_extra=["--bridge-profile", profile],
             headless_command=run_command or command,
-            state_service=bridge_profile_service_name(profile),
+            state_service=bridge_routes.bridge_profile_service_name(profile),
         )
         if proc is not None:
             print(f"bridge started: {profile}")
@@ -731,20 +728,23 @@ def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=F
             raise ValueError(f"bridge profile workflow action requires --confirm-bridge-profile-workflow-action: {rec_id}")
         stop_recorded_service(
             cfg,
-            bridge_profile_service_name(profile),
+            bridge_routes.bridge_profile_service_name(profile),
             via="bridge-profile-workflow-action",
             headless_command=run_command or command,
         )
-        current = {row["name"]: row for row in service_status_rows(cfg)}.get(bridge_profile_service_name(profile), {})
+        current = {row["name"]: row for row in service_status_rows(cfg)}.get(
+            bridge_routes.bridge_profile_service_name(profile),
+            {},
+        )
         if current.get("actual") == "stopped":
             print(f"bridge stopped; port released: {profile}")
         rc = 0
     elif action_id == "delete-profile":
         if rec.get("requires_confirmation") is True and not confirmed:
             raise ValueError(f"bridge profile workflow action requires --confirm-bridge-profile-workflow-action: {rec_id}")
-        deleted = delete_bridge_profile(cfg, profile)
+        deleted = bridge_routes.delete_bridge_profile(cfg, profile)
         print(f"deleted bridge profile {deleted.get('name', '')}: {deleted.get('route_path', '')}")
-        print(f"bridge_profiles_file={bridge_profiles_path(cfg)}")
+        print(f"bridge_profiles_file={bridge_routes.bridge_profiles_path(cfg)}")
         rc = 0
     else:
         raise ValueError(f"unsupported bridge profile workflow action: {action_id}")
@@ -1193,7 +1193,7 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             scoped,
             "bridge",
             argv_extra=["--bridge-profile", profile],
-            state_service=bridge_profile_service_name(profile),
+            state_service=bridge_routes.bridge_profile_service_name(profile),
         )
         append_event(cfg, "workbench", "target_workflow_action_completed", details={
             "id": rec.get("id", ""),
@@ -1216,11 +1216,11 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         profile = str(rec.get("bridge_profile") or action_id.split(":", 1)[1])
         if not profile:
             raise ValueError("queue-bridge-start target workflow action is missing a bridge profile")
-        bridge_profiles = load_bridge_profiles(cfg).get("profiles") or {}
+        bridge_profiles = bridge_routes.load_bridge_profiles(cfg).get("profiles") or {}
         profile_rec = bridge_profiles.get(profile) if isinstance(bridge_profiles, dict) else {}
         if not isinstance(profile_rec, dict) or not profile_rec:
             raise ValueError(f"bridge profile not found: {profile}")
-        profile_info = bridge_profile_record(cfg, profile, profile_rec)
+        profile_info = bridge_routes.bridge_profile_record(cfg, profile, profile_rec)
         command = "grit rshell start"
         queued = queue_command(scoped, command, metadata={
             "work_kind": "bridge-start",
