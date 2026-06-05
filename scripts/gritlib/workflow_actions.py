@@ -2845,8 +2845,7 @@ def operator_console_workflow_summary(records):
     }
 
 
-def operator_console_workflow_status_summary(stats=None):
-    stats = stats or {}
+def _operator_console_workflow_status_count_summary(stats):
     return {
         "operator_console_workflow_count": stats.get("total_count", 0),
         "operator_console_workflow_target_scoped_count": stats.get(
@@ -2885,6 +2884,11 @@ def operator_console_workflow_status_summary(stats=None):
         "operator_console_workflow_warning_total_count": stats.get(
             "warning_total_count", 0
         ),
+    }
+
+
+def _operator_console_workflow_status_collection_summary(stats):
+    return {
         "operator_console_workflow_group_counts": stats.get("group_counts") or {},
         "operator_console_workflow_workflow_counts": stats.get("workflow_counts") or {},
         "operator_console_workflow_primary_collection_counts": stats.get(
@@ -2914,6 +2918,11 @@ def operator_console_workflow_status_summary(stats=None):
         "operator_console_workflow_has_warnings_counts": stats.get(
             "has_warnings_counts"
         ) or {},
+    }
+
+
+def _operator_console_workflow_status_fleet_summary(stats):
+    return {
         "operator_console_workflow_fleet_target_count_counts": stats.get(
             "fleet_target_count_counts"
         ) or {},
@@ -2944,6 +2953,11 @@ def operator_console_workflow_status_summary(stats=None):
         "operator_console_workflow_fleet_has_poll_overdue_targets_counts": stats.get(
             "fleet_has_poll_overdue_targets_counts"
         ) or {},
+    }
+
+
+def _operator_console_workflow_status_action_summary(stats):
+    return {
         "operator_console_workflow_operator_action_state_counts": stats.get(
             "operator_action_state_counts"
         ) or {},
@@ -2957,6 +2971,16 @@ def operator_console_workflow_status_summary(stats=None):
             "line_mode_action_counts"
         ) or {},
     }
+
+
+def operator_console_workflow_status_summary(stats=None):
+    stats = stats or {}
+    summary = {}
+    summary.update(_operator_console_workflow_status_count_summary(stats))
+    summary.update(_operator_console_workflow_status_collection_summary(stats))
+    summary.update(_operator_console_workflow_status_fleet_summary(stats))
+    summary.update(_operator_console_workflow_status_action_summary(stats))
+    return summary
 
 
 def target_workflow_action_indexes(records):
