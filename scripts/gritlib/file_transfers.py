@@ -16,7 +16,8 @@ from gritlib.record_utils import (
 from gritlib.session_state import read_json_file
 from gritlib.shell_utils import shquote
 from gritlib.target_records import (
-    attach_target_identity, selected_target_context, target_identity_from_headers,
+    attach_target_identity, configured_target_filter, selected_target_context,
+    target_identity_from_headers,
 )
 from gritlib.workflow_support import (
     optional_target_id_arg, optional_target_scoped_command,
@@ -954,7 +955,6 @@ def file_service_workflow_action_records(
         service_lifecycle_action_states, service_start_headless_command,
         service_stop_headless_command,
     )
-    from gritlib.target_records import configured_target_filter
 
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)

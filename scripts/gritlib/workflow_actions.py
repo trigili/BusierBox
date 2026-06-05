@@ -20,7 +20,11 @@ from gritlib.staged_files import staged_file_path
 from gritlib.systemd_user import systemd_user_unit_name
 from gritlib.target_records import load_targets, selected_target_context, targets_path
 from gritlib.workflow_support import (
-    target_scoped_command, workflow_fleet_metrics,
+    select_workbench_action, target_scoped_command, workflow_fleet_metrics,
+)
+from gritlib.workbench_jobs import (
+    run_workbench_action_headless_command, start_workbench_job_headless_command,
+    workbench_job_records, workbench_jobs_path,
 )
 
 
@@ -39,22 +43,6 @@ def select_workflow_action(records, selector, label, extra_keys=()):
         if text in tuple(str(rec.get(key) or "") for key in keys):
             return rec
     raise ValueError(f"{label} workflow action not found: {text}")
-
-
-def select_workbench_action(records, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("workbench action is required")
-    records = records or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(records):
-            raise ValueError(f"workbench action number out of range: {text}")
-        return records[idx]
-    for rec in records:
-        if text == str(rec.get("id") or ""):
-            return rec
-    raise ValueError(f"unknown workbench action: {text}")
 
 
 def dispatch_legacy_workbench_action_number(
@@ -885,11 +873,6 @@ def operator_console_workflow_records(
 
 
 def workbench_action_records(cfg):
-    from gritlib.workbench_jobs import (
-        run_workbench_action_headless_command,
-        start_workbench_job_headless_command,
-    )
-
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     build_config = str(build_config_path(cfg))
     release_dir = str(cfg.get("release_dir") or ".")
@@ -2157,8 +2140,6 @@ def workbench_job_status_summary(stats=None):
 
 
 def workbench_job_status_context(cfg, workbench_actions=None):
-    from gritlib.workbench_jobs import workbench_job_records
-
     jobs = workbench_job_records(cfg, workbench_actions)
     stats = workbench_job_summary(jobs)
     return {
@@ -2313,8 +2294,6 @@ def operator_daemon_workflow_action_status_summary(records):
 
 def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets=None):
     from pathlib import Path
-
-    from gritlib.workbench_jobs import workbench_jobs_path
 
     actions = [
         rec for rec in (workbench_actions or [])

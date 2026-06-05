@@ -16,6 +16,11 @@ from gritlib.record_utils import (
 from gritlib.session_state import parse_utc_timestamp, utc_now
 from gritlib.shell_utils import shquote
 from gritlib.target_mailbox import mailbox_elapsed_seconds, mailbox_wait_bucket
+from gritlib.target_records import (
+    configured_target_filter, details_with_target, event_for_target,
+    print_workbench_target_selector, record_target_activity,
+    select_workbench_target_record, selected_target_context,
+)
 
 
 def dispatch_legacy_target_activity_number(
@@ -29,11 +34,6 @@ def dispatch_legacy_target_activity_number(
 ):
     if str(choice or "").strip() != "21":
         return False
-    from gritlib.target_records import (
-        configured_target_filter,
-        print_workbench_target_selector,
-        select_workbench_target_record,
-    )
 
     unfiltered_cfg = dict(cfg)
     unfiltered_cfg.pop("_target_id_filter", None)
@@ -239,10 +239,6 @@ def target_mailbox_records_from_commands(commands, targets_by_id=None, now_epoch
 
 
 def record_selected_target_activity(cfg, service, operation, remote="", details=None, session_id=""):
-    from gritlib.target_records import (
-        details_with_target, record_target_activity, selected_target_context,
-    )
-
     ctx = selected_target_context(cfg)
     if not ctx:
         return {}
@@ -398,8 +394,6 @@ def target_activity_status_context(
     )
     source_events = event_records or []
     if target_filter_id:
-        from gritlib.target_records import event_for_target
-
         source_events = [
             event for event in source_events
             if event_for_target(event, target_filter_id, target_filter_session_ids)

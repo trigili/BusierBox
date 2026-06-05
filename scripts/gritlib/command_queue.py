@@ -17,6 +17,9 @@ from gritlib.session_state import (
     utc_now,
 )
 from gritlib.shell_utils import shquote
+from gritlib.target_records import (
+    configured_target_filter, records_for_target, target_context_fields,
+)
 from gritlib.workflow_support import (
     optional_target_id_arg, optional_target_scoped_command,
     scoped_service_workflow_run_command, workflow_fleet_metrics,
@@ -338,8 +341,6 @@ def mark_command_delivered(cfg, command_id, remote_addr="", target_identity=None
 
 
 def queue_command(cfg, command, timeout_sec=None, max_output_bytes=None, expire_sec=None, metadata=None):
-    from gritlib.target_records import configured_target_filter, target_context_fields
-
     text = str(command or "").strip()
     if not text:
         raise ValueError("command queue entry must not be empty")
@@ -504,8 +505,6 @@ def record_command_result(cfg, command_id, result_path):
 
 
 def command_queue_summary(cfg):
-    from gritlib.target_records import configured_target_filter, records_for_target
-
     data = load_command_queue(cfg)
     commands = data.get("commands", [])
     target_filter_id = configured_target_filter(cfg)
@@ -1526,8 +1525,6 @@ def command_queue_workflow_action_records(
     service_row=None,
     targets=None,
 ):
-    from gritlib.target_records import configured_target_filter
-
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)
     service_row = service_row if isinstance(service_row, dict) else {}

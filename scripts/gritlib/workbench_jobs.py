@@ -18,7 +18,7 @@ from gritlib.session_state import (
     atomic_write_json, elapsed_seconds, read_json_file, state_file_path, utc_now,
 )
 from gritlib.shell_utils import shquote
-from gritlib.workflow_actions import select_workbench_action
+from gritlib.workflow_support import select_workbench_action
 
 
 DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
