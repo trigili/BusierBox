@@ -794,6 +794,240 @@ def _release_context_devices_tuples(here, release, index):
     return devices, tuples
 
 
+def _release_artifact_index_state(artifacts, devices):
+    artifacts_by_release_path = {}
+    artifacts_by_name = {}
+    artifacts_by_sha256 = {}
+    artifacts_by_payload_preset = {}
+    artifacts_by_compatibility = {}
+    artifacts_by_source = {}
+    artifacts_by_tuple_path = {}
+    artifacts_by_tool = {}
+    artifacts_by_device_alias = {}
+    artifacts_by_feature = {}
+    artifacts_by_tool_payload_preset = {}
+    artifacts_by_device_payload_preset = {}
+    artifacts_by_feature_payload_preset = {}
+    artifacts_by_tuple_payload_preset = {}
+    artifacts_by_provider_tool = {}
+    artifacts_by_provider_status = {}
+    artifacts_by_doom_wad_filename = {}
+    artifacts_by_doom_wad_sha256 = {}
+    artifacts_by_command_queue_enabled = {}
+    artifacts_by_command_queue_execution_supported = {}
+    artifacts_by_command_queue_operator_supplied_command_execution = {}
+    artifact_compatibility_counts = {}
+    artifact_payload_preset_counts = {}
+    artifact_source_counts = {}
+    artifact_tool_counts = {}
+    artifact_device_alias_counts = {}
+    artifact_feature_counts = {}
+    artifact_provider_tool_counts = {}
+    artifact_provider_status_counts = {}
+    artifact_doom_wad_filename_counts = {}
+    artifact_doom_wad_sha256_counts = {}
+    artifact_command_queue_enabled_counts = {}
+    artifact_command_queue_execution_supported_counts = {}
+    artifact_command_queue_operator_supplied_command_execution_counts = {}
+    artifact_doom_wad_count = 0
+    artifact_total_size = 0
+    for rec in artifacts:
+        try:
+            artifact_total_size += int(rec.get("size", 0) or 0)
+        except (TypeError, ValueError):
+            pass
+        key = rec.get("release_path") or rec.get("path") or rec.get("name")
+        if key:
+            artifacts_by_release_path[str(key)] = rec
+        name = str(rec.get("name") or "")
+        sha256 = str(rec.get("sha256") or "")
+        payload_preset = str(rec.get("payload_preset") or "")
+        source = str(rec.get("source") or "")
+        tuple_path = str(rec.get("tuple_path") or "")
+        compatibility_label = str((rec.get("compatibility") or {}).get("label") or "")
+        command_queue = rec.get("command_queue") if isinstance(rec.get("command_queue"), dict) else {}
+        mode_summary = command_queue.get("mode_summary") if isinstance(command_queue.get("mode_summary"), dict) else {}
+        command_queue_enabled = "true" if command_queue.get("enabled") == "yes" or command_queue.get("enabled") is True else "false"
+        command_queue_execution_supported = "true" if command_queue.get("execution_supported") is True or command_queue.get("executes_commands") is True else "false"
+        command_queue_operator_supplied = (
+            "true" if int_value(mode_summary.get("operator_supplied_command_execution_mode_count")) > 0 else "false"
+        )
+        if name:
+            artifacts_by_name.setdefault(name, []).append(rec)
+        if sha256:
+            artifacts_by_sha256.setdefault(sha256, []).append(rec)
+        if payload_preset:
+            artifacts_by_payload_preset.setdefault(payload_preset, []).append(rec)
+            artifact_payload_preset_counts[payload_preset] = artifact_payload_preset_counts.get(payload_preset, 0) + 1
+        if tuple_path:
+            artifacts_by_tuple_path.setdefault(tuple_path, []).append(rec)
+        if tuple_path and payload_preset:
+            artifacts_by_tuple_payload_preset.setdefault(f"{tuple_path}:{payload_preset}", []).append(rec)
+        for device in devices or []:
+            if not isinstance(device, dict):
+                continue
+            alias = str(device.get("name") or "")
+            if not alias:
+                continue
+            refs = {str(item) for item in (device.get("artifacts") or []) if str(item)}
+            ref_names = {Path(item).name for item in refs}
+            device_tuple_path = str(device.get("tuple_path") or "")
+            release_path = str(rec.get("release_path") or "")
+            if not (
+                release_path in refs or
+                name in ref_names or
+                (device_tuple_path and tuple_path == device_tuple_path)
+            ):
+                continue
+            rec.setdefault("device_aliases", [])
+            if alias not in rec["device_aliases"]:
+                rec["device_aliases"].append(alias)
+                artifact_device_alias_counts[alias] = artifact_device_alias_counts.get(alias, 0) + 1
+            artifacts_by_device_alias.setdefault(alias, []).append(rec)
+            if payload_preset:
+                artifacts_by_device_payload_preset.setdefault(f"{alias}:{payload_preset}", []).append(rec)
+        if source:
+            artifacts_by_source.setdefault(source, []).append(rec)
+            artifact_source_counts[source] = artifact_source_counts.get(source, 0) + 1
+        if compatibility_label:
+            artifacts_by_compatibility.setdefault(compatibility_label, []).append(rec)
+            artifact_compatibility_counts[compatibility_label] = artifact_compatibility_counts.get(compatibility_label, 0) + 1
+        artifacts_by_command_queue_enabled.setdefault(command_queue_enabled, []).append(rec)
+        artifact_command_queue_enabled_counts[command_queue_enabled] = artifact_command_queue_enabled_counts.get(command_queue_enabled, 0) + 1
+        artifacts_by_command_queue_execution_supported.setdefault(command_queue_execution_supported, []).append(rec)
+        artifact_command_queue_execution_supported_counts[command_queue_execution_supported] = artifact_command_queue_execution_supported_counts.get(command_queue_execution_supported, 0) + 1
+        artifacts_by_command_queue_operator_supplied_command_execution.setdefault(command_queue_operator_supplied, []).append(rec)
+        artifact_command_queue_operator_supplied_command_execution_counts[command_queue_operator_supplied] = artifact_command_queue_operator_supplied_command_execution_counts.get(command_queue_operator_supplied, 0) + 1
+        for tool in rec.get("tools") or []:
+            tool_name = str(tool)
+            if tool_name:
+                artifacts_by_tool.setdefault(tool_name, []).append(rec)
+                artifact_tool_counts[tool_name] = artifact_tool_counts.get(tool_name, 0) + 1
+                if payload_preset:
+                    artifacts_by_tool_payload_preset.setdefault(f"{tool_name}:{payload_preset}", []).append(rec)
+        seen_features = set()
+        for feature in rec.get("features") or []:
+            feature_name = str(feature)
+            if feature_name and feature_name not in seen_features:
+                seen_features.add(feature_name)
+                artifacts_by_feature.setdefault(feature_name, []).append(rec)
+                artifact_feature_counts[feature_name] = artifact_feature_counts.get(feature_name, 0) + 1
+                if payload_preset:
+                    artifacts_by_feature_payload_preset.setdefault(f"{feature_name}:{payload_preset}", []).append(rec)
+        for provider_tool, provider_status in (rec.get("tool_provider_status") or {}).items():
+            if not isinstance(provider_status, dict):
+                continue
+            provider_tool = str(provider_tool)
+            overall = str(provider_status.get("overall") or provider_status.get("status") or "unknown")
+            if provider_tool:
+                artifacts_by_provider_tool.setdefault(provider_tool, []).append(rec)
+                artifact_provider_tool_counts[provider_tool] = artifact_provider_tool_counts.get(provider_tool, 0) + 1
+                status_key = f"{provider_tool}:{overall}"
+                artifacts_by_provider_status.setdefault(status_key, []).append(rec)
+                artifact_provider_status_counts[status_key] = artifact_provider_status_counts.get(status_key, 0) + 1
+        for wad in rec.get("doom_wads") or []:
+            if not isinstance(wad, dict):
+                continue
+            filename = str(wad.get("filename") or "")
+            wad_sha256 = str(wad.get("sha256") or "")
+            if filename:
+                artifact_doom_wad_count += 1
+                artifacts_by_doom_wad_filename.setdefault(filename, []).append(rec)
+                artifact_doom_wad_filename_counts[filename] = artifact_doom_wad_filename_counts.get(filename, 0) + 1
+            if wad_sha256:
+                artifacts_by_doom_wad_sha256.setdefault(wad_sha256, []).append(rec)
+                artifact_doom_wad_sha256_counts[wad_sha256] = artifact_doom_wad_sha256_counts.get(wad_sha256, 0) + 1
+    return {
+        "artifacts_by_release_path": artifacts_by_release_path,
+        "artifacts_by_name": artifacts_by_name,
+        "artifacts_by_sha256": artifacts_by_sha256,
+        "artifacts_by_payload_preset": artifacts_by_payload_preset,
+        "artifacts_by_compatibility": artifacts_by_compatibility,
+        "artifacts_by_source": artifacts_by_source,
+        "artifacts_by_tuple_path": artifacts_by_tuple_path,
+        "artifacts_by_tool": artifacts_by_tool,
+        "artifacts_by_device_alias": artifacts_by_device_alias,
+        "artifacts_by_feature": artifacts_by_feature,
+        "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
+        "artifacts_by_device_payload_preset": artifacts_by_device_payload_preset,
+        "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
+        "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
+        "artifacts_by_provider_tool": artifacts_by_provider_tool,
+        "artifacts_by_provider_status": artifacts_by_provider_status,
+        "artifacts_by_doom_wad_filename": artifacts_by_doom_wad_filename,
+        "artifacts_by_doom_wad_sha256": artifacts_by_doom_wad_sha256,
+        "artifacts_by_command_queue_enabled": artifacts_by_command_queue_enabled,
+        "artifacts_by_command_queue_execution_supported": artifacts_by_command_queue_execution_supported,
+        "artifacts_by_command_queue_operator_supplied_command_execution": artifacts_by_command_queue_operator_supplied_command_execution,
+        "artifact_stats": {
+            "total_size": artifact_total_size,
+            "by_compatibility": artifact_compatibility_counts,
+            "by_payload_preset": artifact_payload_preset_counts,
+            "by_source": artifact_source_counts,
+            "by_tool": artifact_tool_counts,
+            "by_device_alias": artifact_device_alias_counts,
+            "by_feature": artifact_feature_counts,
+            "by_provider_tool": artifact_provider_tool_counts,
+            "by_provider_status": artifact_provider_status_counts,
+            "by_doom_wad_filename": artifact_doom_wad_filename_counts,
+            "by_doom_wad_sha256": artifact_doom_wad_sha256_counts,
+            "by_command_queue_enabled": artifact_command_queue_enabled_counts,
+            "by_command_queue_execution_supported": artifact_command_queue_execution_supported_counts,
+            "by_command_queue_operator_supplied_command_execution": artifact_command_queue_operator_supplied_command_execution_counts,
+            "doom_wad_count": artifact_doom_wad_count,
+        },
+    }
+
+
+def _release_recommendation_artifact_indexes(artifacts, artifact_state):
+    return {
+        "artifacts": artifacts,
+        "artifacts_by_tuple_path": artifact_state["artifacts_by_tuple_path"],
+        "artifacts_by_payload_preset": artifact_state["artifacts_by_payload_preset"],
+        "artifacts_by_tool": artifact_state["artifacts_by_tool"],
+        "artifacts_by_device_alias": artifact_state["artifacts_by_device_alias"],
+        "artifacts_by_feature": artifact_state["artifacts_by_feature"],
+        "artifacts_by_tool_payload_preset": artifact_state["artifacts_by_tool_payload_preset"],
+        "artifacts_by_device_payload_preset": artifact_state["artifacts_by_device_payload_preset"],
+        "artifacts_by_feature_payload_preset": artifact_state["artifacts_by_feature_payload_preset"],
+        "artifacts_by_tuple_payload_preset": artifact_state["artifacts_by_tuple_payload_preset"],
+    }
+
+
+def _release_license_index_state(license_record):
+    license_records = [license_record] if license_record.get("exists") or license_record.get("valid") else []
+    license_records_by_component = {}
+    license_records_by_component_license = {}
+    license_records_by_notice_file = {}
+    license_records_by_evidence_source = {}
+    license_records_by_evidence_source_license = {}
+    for component in license_record.get("component_names") or []:
+        license_records_by_component.setdefault(component, []).append(license_record)
+    for component, license_id in (license_record.get("component_licenses") or {}).items():
+        if component and license_id:
+            license_records_by_component_license.setdefault(f"{component}:{license_id}", []).append(license_record)
+    for notice_file in license_record.get("notice_files") or []:
+        license_records_by_notice_file.setdefault(str(notice_file), []).append(license_record)
+    for source_name in license_record.get("license_evidence_source_names") or []:
+        license_records_by_evidence_source.setdefault(str(source_name), []).append(license_record)
+    for source_name, license_id in (license_record.get("license_evidence_source_licenses") or {}).items():
+        if source_name and license_id:
+            license_records_by_evidence_source_license.setdefault(f"{source_name}:{license_id}", []).append(license_record)
+    return {
+        "release_license_records": license_records,
+        "release_license_records_by_project_license": records_by_key(license_records, "project_license"),
+        "release_license_records_by_combined_gplv2_compatible": records_by_key(license_records, "combined_gplv2_compatible"),
+        "release_license_records_by_corresponding_source_required": records_by_key(license_records, "corresponding_source_required"),
+        "release_license_records_by_corresponding_source_status": records_by_key(license_records, "corresponding_source_status"),
+        "release_license_records_by_package_license_audit": records_by_key(license_records, "corresponding_source_requires_package_license_audit"),
+        "release_license_records_by_component": license_records_by_component,
+        "release_license_records_by_component_license": license_records_by_component_license,
+        "release_license_records_by_notice_file": license_records_by_notice_file,
+        "release_license_records_by_evidence_source": license_records_by_evidence_source,
+        "release_license_records_by_evidence_source_license": license_records_by_evidence_source_license,
+    }
+
+
 def release_context(cfg=None):
     here = Path(str((cfg or {}).get("release_dir") or Path.cwd()))
     release_json = here / "release.json"
@@ -803,239 +1037,51 @@ def release_context(cfg=None):
         index = read_json_file(here / "release-index.json", {})
         artifacts = _release_context_artifacts(here, index, license_record)
         devices, tuples = _release_context_devices_tuples(here, release, index)
-        artifacts_by_release_path = {}
-        artifacts_by_name = {}
-        artifacts_by_sha256 = {}
-        artifacts_by_payload_preset = {}
-        artifacts_by_compatibility = {}
-        artifacts_by_source = {}
-        artifacts_by_tuple_path = {}
-        artifacts_by_tool = {}
-        artifacts_by_device_alias = {}
-        artifacts_by_feature = {}
-        artifacts_by_tool_payload_preset = {}
-        artifacts_by_device_payload_preset = {}
-        artifacts_by_feature_payload_preset = {}
-        artifacts_by_tuple_payload_preset = {}
-        artifacts_by_provider_tool = {}
-        artifacts_by_provider_status = {}
-        artifacts_by_doom_wad_filename = {}
-        artifacts_by_doom_wad_sha256 = {}
-        artifacts_by_command_queue_enabled = {}
-        artifacts_by_command_queue_execution_supported = {}
-        artifacts_by_command_queue_operator_supplied_command_execution = {}
-        artifact_compatibility_counts = {}
-        artifact_payload_preset_counts = {}
-        artifact_source_counts = {}
-        artifact_tool_counts = {}
-        artifact_device_alias_counts = {}
-        artifact_feature_counts = {}
-        artifact_provider_tool_counts = {}
-        artifact_provider_status_counts = {}
-        artifact_doom_wad_filename_counts = {}
-        artifact_doom_wad_sha256_counts = {}
-        artifact_command_queue_enabled_counts = {}
-        artifact_command_queue_execution_supported_counts = {}
-        artifact_command_queue_operator_supplied_command_execution_counts = {}
-        artifact_doom_wad_count = 0
-        artifact_total_size = 0
-        for rec in artifacts:
-            try:
-                artifact_total_size += int(rec.get("size", 0) or 0)
-            except (TypeError, ValueError):
-                pass
-            key = rec.get("release_path") or rec.get("path") or rec.get("name")
-            if key:
-                artifacts_by_release_path[str(key)] = rec
-            name = str(rec.get("name") or "")
-            sha256 = str(rec.get("sha256") or "")
-            payload_preset = str(rec.get("payload_preset") or "")
-            source = str(rec.get("source") or "")
-            tuple_path = str(rec.get("tuple_path") or "")
-            compatibility_label = str((rec.get("compatibility") or {}).get("label") or "")
-            command_queue = rec.get("command_queue") if isinstance(rec.get("command_queue"), dict) else {}
-            mode_summary = command_queue.get("mode_summary") if isinstance(command_queue.get("mode_summary"), dict) else {}
-            command_queue_enabled = "true" if command_queue.get("enabled") == "yes" or command_queue.get("enabled") is True else "false"
-            command_queue_execution_supported = "true" if command_queue.get("execution_supported") is True or command_queue.get("executes_commands") is True else "false"
-            command_queue_operator_supplied = (
-                "true" if int_value(mode_summary.get("operator_supplied_command_execution_mode_count")) > 0 else "false"
-            )
-            if name:
-                artifacts_by_name.setdefault(name, []).append(rec)
-            if sha256:
-                artifacts_by_sha256.setdefault(sha256, []).append(rec)
-            if payload_preset:
-                artifacts_by_payload_preset.setdefault(payload_preset, []).append(rec)
-                artifact_payload_preset_counts[payload_preset] = artifact_payload_preset_counts.get(payload_preset, 0) + 1
-            if tuple_path:
-                artifacts_by_tuple_path.setdefault(tuple_path, []).append(rec)
-            if tuple_path and payload_preset:
-                artifacts_by_tuple_payload_preset.setdefault(f"{tuple_path}:{payload_preset}", []).append(rec)
-            for device in devices or []:
-                if not isinstance(device, dict):
-                    continue
-                alias = str(device.get("name") or "")
-                if not alias:
-                    continue
-                refs = {str(item) for item in (device.get("artifacts") or []) if str(item)}
-                ref_names = {Path(item).name for item in refs}
-                device_tuple_path = str(device.get("tuple_path") or "")
-                release_path = str(rec.get("release_path") or "")
-                if not (
-                    release_path in refs or
-                    name in ref_names or
-                    (device_tuple_path and tuple_path == device_tuple_path)
-                ):
-                    continue
-                rec.setdefault("device_aliases", [])
-                if alias not in rec["device_aliases"]:
-                    rec["device_aliases"].append(alias)
-                    artifact_device_alias_counts[alias] = artifact_device_alias_counts.get(alias, 0) + 1
-                artifacts_by_device_alias.setdefault(alias, []).append(rec)
-                if payload_preset:
-                    artifacts_by_device_payload_preset.setdefault(f"{alias}:{payload_preset}", []).append(rec)
-            if source:
-                artifacts_by_source.setdefault(source, []).append(rec)
-                artifact_source_counts[source] = artifact_source_counts.get(source, 0) + 1
-            if compatibility_label:
-                artifacts_by_compatibility.setdefault(compatibility_label, []).append(rec)
-                artifact_compatibility_counts[compatibility_label] = artifact_compatibility_counts.get(compatibility_label, 0) + 1
-            artifacts_by_command_queue_enabled.setdefault(command_queue_enabled, []).append(rec)
-            artifact_command_queue_enabled_counts[command_queue_enabled] = artifact_command_queue_enabled_counts.get(command_queue_enabled, 0) + 1
-            artifacts_by_command_queue_execution_supported.setdefault(command_queue_execution_supported, []).append(rec)
-            artifact_command_queue_execution_supported_counts[command_queue_execution_supported] = artifact_command_queue_execution_supported_counts.get(command_queue_execution_supported, 0) + 1
-            artifacts_by_command_queue_operator_supplied_command_execution.setdefault(command_queue_operator_supplied, []).append(rec)
-            artifact_command_queue_operator_supplied_command_execution_counts[command_queue_operator_supplied] = artifact_command_queue_operator_supplied_command_execution_counts.get(command_queue_operator_supplied, 0) + 1
-            for tool in rec.get("tools") or []:
-                tool_name = str(tool)
-                if tool_name:
-                    artifacts_by_tool.setdefault(tool_name, []).append(rec)
-                    artifact_tool_counts[tool_name] = artifact_tool_counts.get(tool_name, 0) + 1
-                    if payload_preset:
-                        artifacts_by_tool_payload_preset.setdefault(f"{tool_name}:{payload_preset}", []).append(rec)
-            seen_features = set()
-            for feature in rec.get("features") or []:
-                feature_name = str(feature)
-                if feature_name and feature_name not in seen_features:
-                    seen_features.add(feature_name)
-                    artifacts_by_feature.setdefault(feature_name, []).append(rec)
-                    artifact_feature_counts[feature_name] = artifact_feature_counts.get(feature_name, 0) + 1
-                    if payload_preset:
-                        artifacts_by_feature_payload_preset.setdefault(f"{feature_name}:{payload_preset}", []).append(rec)
-            for provider_tool, provider_status in (rec.get("tool_provider_status") or {}).items():
-                if not isinstance(provider_status, dict):
-                    continue
-                provider_tool = str(provider_tool)
-                overall = str(provider_status.get("overall") or provider_status.get("status") or "unknown")
-                if provider_tool:
-                    artifacts_by_provider_tool.setdefault(provider_tool, []).append(rec)
-                    artifact_provider_tool_counts[provider_tool] = artifact_provider_tool_counts.get(provider_tool, 0) + 1
-                    status_key = f"{provider_tool}:{overall}"
-                    artifacts_by_provider_status.setdefault(status_key, []).append(rec)
-                    artifact_provider_status_counts[status_key] = artifact_provider_status_counts.get(status_key, 0) + 1
-            for wad in rec.get("doom_wads") or []:
-                if not isinstance(wad, dict):
-                    continue
-                filename = str(wad.get("filename") or "")
-                wad_sha256 = str(wad.get("sha256") or "")
-                if filename:
-                    artifact_doom_wad_count += 1
-                    artifacts_by_doom_wad_filename.setdefault(filename, []).append(rec)
-                    artifact_doom_wad_filename_counts[filename] = artifact_doom_wad_filename_counts.get(filename, 0) + 1
-                if wad_sha256:
-                    artifacts_by_doom_wad_sha256.setdefault(wad_sha256, []).append(rec)
-                    artifact_doom_wad_sha256_counts[wad_sha256] = artifact_doom_wad_sha256_counts.get(wad_sha256, 0) + 1
-        artifact_indexes = {
-            "artifacts": artifacts,
-            "artifacts_by_tuple_path": artifacts_by_tuple_path,
-            "artifacts_by_payload_preset": artifacts_by_payload_preset,
-            "artifacts_by_tool": artifacts_by_tool,
-            "artifacts_by_device_alias": artifacts_by_device_alias,
-            "artifacts_by_feature": artifacts_by_feature,
-            "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
-            "artifacts_by_device_payload_preset": artifacts_by_device_payload_preset,
-            "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
-            "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
-        }
+        artifact_state = _release_artifact_index_state(artifacts, devices)
+        artifact_indexes = _release_recommendation_artifact_indexes(artifacts, artifact_state)
         recommendations = release_recommendations(devices, artifact_indexes)
         recommendation_records = release_recommendation_records(recommendations)
-        license_records = [license_record] if license_record.get("exists") or license_record.get("valid") else []
-        license_records_by_component = {}
-        license_records_by_component_license = {}
-        license_records_by_notice_file = {}
-        license_records_by_evidence_source = {}
-        license_records_by_evidence_source_license = {}
-        license_records_by_corresponding_source_required = records_by_key(license_records, "corresponding_source_required")
-        license_records_by_corresponding_source_status = records_by_key(license_records, "corresponding_source_status")
-        license_records_by_package_license_audit = records_by_key(license_records, "corresponding_source_requires_package_license_audit")
-        for component in license_record.get("component_names") or []:
-            license_records_by_component.setdefault(component, []).append(license_record)
-        for component, license_id in (license_record.get("component_licenses") or {}).items():
-            if component and license_id:
-                license_records_by_component_license.setdefault(f"{component}:{license_id}", []).append(license_record)
-        for notice_file in license_record.get("notice_files") or []:
-            license_records_by_notice_file.setdefault(str(notice_file), []).append(license_record)
-        for source_name in license_record.get("license_evidence_source_names") or []:
-            license_records_by_evidence_source.setdefault(str(source_name), []).append(license_record)
-        for source_name, license_id in (license_record.get("license_evidence_source_licenses") or {}).items():
-            if source_name and license_id:
-                license_records_by_evidence_source_license.setdefault(f"{source_name}:{license_id}", []).append(license_record)
+        license_state = _release_license_index_state(license_record)
         return {
             "release_dir": str(here),
             "release_json": str(release_json),
             "release_index": str(here / "release-index.json") if (here / "release-index.json").is_file() else "",
             "release_name": release.get("release_name", "") if isinstance(release, dict) else "",
             "release_license": license_record,
-            "release_license_records": license_records,
-            "release_license_records_by_project_license": records_by_key(license_records, "project_license"),
-            "release_license_records_by_combined_gplv2_compatible": records_by_key(license_records, "combined_gplv2_compatible"),
-            "release_license_records_by_corresponding_source_required": license_records_by_corresponding_source_required,
-            "release_license_records_by_corresponding_source_status": license_records_by_corresponding_source_status,
-            "release_license_records_by_package_license_audit": license_records_by_package_license_audit,
-            "release_license_records_by_component": license_records_by_component,
-            "release_license_records_by_component_license": license_records_by_component_license,
-            "release_license_records_by_notice_file": license_records_by_notice_file,
-            "release_license_records_by_evidence_source": license_records_by_evidence_source,
-            "release_license_records_by_evidence_source_license": license_records_by_evidence_source_license,
+            "release_license_records": license_state["release_license_records"],
+            "release_license_records_by_project_license": license_state["release_license_records_by_project_license"],
+            "release_license_records_by_combined_gplv2_compatible": license_state["release_license_records_by_combined_gplv2_compatible"],
+            "release_license_records_by_corresponding_source_required": license_state["release_license_records_by_corresponding_source_required"],
+            "release_license_records_by_corresponding_source_status": license_state["release_license_records_by_corresponding_source_status"],
+            "release_license_records_by_package_license_audit": license_state["release_license_records_by_package_license_audit"],
+            "release_license_records_by_component": license_state["release_license_records_by_component"],
+            "release_license_records_by_component_license": license_state["release_license_records_by_component_license"],
+            "release_license_records_by_notice_file": license_state["release_license_records_by_notice_file"],
+            "release_license_records_by_evidence_source": license_state["release_license_records_by_evidence_source"],
+            "release_license_records_by_evidence_source_license": license_state["release_license_records_by_evidence_source_license"],
             "artifacts": artifacts,
-            "artifacts_by_release_path": artifacts_by_release_path,
-            "artifacts_by_name": artifacts_by_name,
-            "artifacts_by_sha256": artifacts_by_sha256,
-            "artifacts_by_payload_preset": artifacts_by_payload_preset,
-            "artifacts_by_compatibility": artifacts_by_compatibility,
-            "artifacts_by_source": artifacts_by_source,
-            "artifacts_by_tuple_path": artifacts_by_tuple_path,
-            "artifacts_by_tool": artifacts_by_tool,
-            "artifacts_by_device_alias": artifacts_by_device_alias,
-            "artifacts_by_feature": artifacts_by_feature,
-            "artifacts_by_tool_payload_preset": artifacts_by_tool_payload_preset,
-            "artifacts_by_device_payload_preset": artifacts_by_device_payload_preset,
-            "artifacts_by_feature_payload_preset": artifacts_by_feature_payload_preset,
-            "artifacts_by_tuple_payload_preset": artifacts_by_tuple_payload_preset,
-            "artifacts_by_provider_tool": artifacts_by_provider_tool,
-            "artifacts_by_provider_status": artifacts_by_provider_status,
-            "artifacts_by_doom_wad_filename": artifacts_by_doom_wad_filename,
-            "artifacts_by_doom_wad_sha256": artifacts_by_doom_wad_sha256,
-            "artifacts_by_command_queue_enabled": artifacts_by_command_queue_enabled,
-            "artifacts_by_command_queue_execution_supported": artifacts_by_command_queue_execution_supported,
-            "artifacts_by_command_queue_operator_supplied_command_execution": artifacts_by_command_queue_operator_supplied_command_execution,
-            "artifact_stats": {
-                "total_size": artifact_total_size,
-                "by_compatibility": artifact_compatibility_counts,
-                "by_payload_preset": artifact_payload_preset_counts,
-                "by_source": artifact_source_counts,
-                "by_tool": artifact_tool_counts,
-                "by_device_alias": artifact_device_alias_counts,
-                "by_feature": artifact_feature_counts,
-                "by_provider_tool": artifact_provider_tool_counts,
-                "by_provider_status": artifact_provider_status_counts,
-                "by_doom_wad_filename": artifact_doom_wad_filename_counts,
-                "by_doom_wad_sha256": artifact_doom_wad_sha256_counts,
-                "by_command_queue_enabled": artifact_command_queue_enabled_counts,
-                "by_command_queue_execution_supported": artifact_command_queue_execution_supported_counts,
-                "by_command_queue_operator_supplied_command_execution": artifact_command_queue_operator_supplied_command_execution_counts,
-                "doom_wad_count": artifact_doom_wad_count,
-            },
+            "artifacts_by_release_path": artifact_state["artifacts_by_release_path"],
+            "artifacts_by_name": artifact_state["artifacts_by_name"],
+            "artifacts_by_sha256": artifact_state["artifacts_by_sha256"],
+            "artifacts_by_payload_preset": artifact_state["artifacts_by_payload_preset"],
+            "artifacts_by_compatibility": artifact_state["artifacts_by_compatibility"],
+            "artifacts_by_source": artifact_state["artifacts_by_source"],
+            "artifacts_by_tuple_path": artifact_state["artifacts_by_tuple_path"],
+            "artifacts_by_tool": artifact_state["artifacts_by_tool"],
+            "artifacts_by_device_alias": artifact_state["artifacts_by_device_alias"],
+            "artifacts_by_feature": artifact_state["artifacts_by_feature"],
+            "artifacts_by_tool_payload_preset": artifact_state["artifacts_by_tool_payload_preset"],
+            "artifacts_by_device_payload_preset": artifact_state["artifacts_by_device_payload_preset"],
+            "artifacts_by_feature_payload_preset": artifact_state["artifacts_by_feature_payload_preset"],
+            "artifacts_by_tuple_payload_preset": artifact_state["artifacts_by_tuple_payload_preset"],
+            "artifacts_by_provider_tool": artifact_state["artifacts_by_provider_tool"],
+            "artifacts_by_provider_status": artifact_state["artifacts_by_provider_status"],
+            "artifacts_by_doom_wad_filename": artifact_state["artifacts_by_doom_wad_filename"],
+            "artifacts_by_doom_wad_sha256": artifact_state["artifacts_by_doom_wad_sha256"],
+            "artifacts_by_command_queue_enabled": artifact_state["artifacts_by_command_queue_enabled"],
+            "artifacts_by_command_queue_execution_supported": artifact_state["artifacts_by_command_queue_execution_supported"],
+            "artifacts_by_command_queue_operator_supplied_command_execution": artifact_state["artifacts_by_command_queue_operator_supplied_command_execution"],
+            "artifact_stats": artifact_state["artifact_stats"],
             "devices": devices,
             "devices_by_name": {rec.get("name", ""): rec for rec in devices if rec.get("name")},
             "devices_by_tuple_path": records_by_key(devices, "tuple_path"),
