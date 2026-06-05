@@ -690,6 +690,31 @@ def _build_command_queue_status_context(cfg):
     }
 
 
+def _build_command_queue_workflow_status_context(
+    cfg,
+    command_queue,
+    target_mailbox_records,
+    command_queue_service,
+    targets,
+):
+    command_queue_workflow_actions = command_queue_workflow_action_records(
+        cfg,
+        command_queue,
+        target_mailbox_records,
+        command_queue_service,
+        targets,
+    )
+    return {
+        "command_queue_workflow_actions": command_queue_workflow_actions,
+        "command_queue_workflow_action_index_maps": (
+            command_queue_workflow_action_indexes(command_queue_workflow_actions)
+        ),
+        "summary": command_queue_workflow_action_status_summary(
+            command_queue_workflow_actions
+        ),
+    }
+
+
 def _build_target_activity_status_context(
     command_queue,
     targets_by_id,
@@ -1428,14 +1453,19 @@ def status_document(cfg):
     browser_path_index_maps = path_browser_context["browser_path_index_maps"]
     browser_summary = path_browser_context["browser_summary"]
     services_by_name = service_context["services_by_name"]
-    command_queue_workflow_actions = command_queue_workflow_action_records(
+    command_queue_workflow_context = _build_command_queue_workflow_status_context(
         cfg,
         command_queue,
         target_mailbox_records,
         services_by_name.get("command-queue") or {},
         targets,
     )
-    command_queue_workflow_action_index_maps = command_queue_workflow_action_indexes(command_queue_workflow_actions)
+    command_queue_workflow_actions = command_queue_workflow_context[
+        "command_queue_workflow_actions"
+    ]
+    command_queue_workflow_action_index_maps = command_queue_workflow_context[
+        "command_queue_workflow_action_index_maps"
+    ]
     warning_context = _build_warning_status_context(
         cfg,
         warnings=warnings,
@@ -1568,7 +1598,7 @@ def status_document(cfg):
         **release_artifact_workflow_action_status_summary(release_artifact_workflow_actions),
         **operator_console_workflow_status_summary(operator_console_workflow_stats),
         **workbench_config_context["summary"],
-        **command_queue_workflow_action_status_summary(command_queue_workflow_actions),
+        **command_queue_workflow_context["summary"],
         **service_workflow_action_status_summary(service_workflow_actions),
         **probe_workflow_action_status_summary(probe_workflow_actions),
     })
