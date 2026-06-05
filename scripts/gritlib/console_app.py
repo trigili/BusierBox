@@ -28,7 +28,7 @@ from gritlib.service_runtime import (
 from gritlib.service_status import resolve_transport, service_stop_headless_command
 from gritlib.session_state import mark_service_stopped
 from gritlib.shell_bridge_service import serve_bridge, serve_plain_shell, serve_ssh, serve_tls_shell
-from gritlib.staged_files import print_staged, stage_dir, stage_file, unstage_file
+import gritlib.staged_files as staged_files
 from gritlib.systemd_user import handle_systemd_user_action
 from gritlib.target_commands import shell_listener_max_sessions
 from gritlib.version import grit_version
@@ -161,11 +161,11 @@ def main(argv=None):
             cfg,
             args,
             action,
-            stage_file_func=stage_file,
-            stage_dir_func=stage_dir,
+            stage_file_func=staged_files.stage_file,
+            stage_dir_func=staged_files.stage_dir,
             stage_release_artifact_func=stage_release_artifact,
-            unstage_file_func=unstage_file,
-            print_staged_func=print_staged,
+            unstage_file_func=staged_files.unstage_file,
+            print_staged_func=staged_files.print_staged,
             render_fetch_command_func=render_fetch_command,
         )
         if staging_code is not None:
