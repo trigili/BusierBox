@@ -507,6 +507,17 @@ def _build_release_status_context(cfg):
     }
 
 
+def _build_rshell_session_policy_status_context(cfg):
+    policy_status_doc = rshell_session_policy_status(cfg)
+    return {
+        "rshell_session_policy_status_doc": policy_status_doc,
+        "rshell_session_policy": policy_status_doc["policy"],
+        "rshell_session_policy_record_item": policy_status_doc["policy_record"],
+        "rshell_session_policy_records": policy_status_doc["policy_records"],
+        "rshell_session_policy_index_maps": policy_status_doc["policy_index_maps"],
+    }
+
+
 def _build_bridge_profile_status_context(cfg, targets):
     bridge_profiles = bridge_profile_records(cfg)
     bridge_hop_records = bridge_hop_records_from_profiles(bridge_profiles)
@@ -1101,12 +1112,16 @@ def status_document(cfg):
     release_artifact_workflow_action_index_maps = release_context_doc[
         "release_artifact_workflow_action_index_maps"
     ]
-    rshell_session_policy_status_doc = rshell_session_policy_status(cfg)
-    rshell_session_policy = rshell_session_policy_status_doc["policy"]
-    rshell_session_policy_record_item = rshell_session_policy_status_doc["policy_record"]
-    rshell_session_policy_records = rshell_session_policy_status_doc["policy_records"]
-    rshell_session_policy_index_maps = rshell_session_policy_status_doc[
-        "policy_index_maps"
+    rshell_session_policy_context = _build_rshell_session_policy_status_context(cfg)
+    rshell_session_policy = rshell_session_policy_context["rshell_session_policy"]
+    rshell_session_policy_record_item = rshell_session_policy_context[
+        "rshell_session_policy_record_item"
+    ]
+    rshell_session_policy_records = rshell_session_policy_context[
+        "rshell_session_policy_records"
+    ]
+    rshell_session_policy_index_maps = rshell_session_policy_context[
+        "rshell_session_policy_index_maps"
     ]
     workbench_config_context = workbench_config_status_context(cfg)
     workbench_config_fields = workbench_config_context["fields"]
