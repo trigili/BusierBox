@@ -2202,6 +2202,98 @@ def _build_command_mailbox_api_collections(
     }
 
 
+def _build_release_api_collections(
+    *,
+    release,
+    release_artifact_workflow_actions,
+    release_state_records,
+):
+    return {
+        "release_artifacts": status_indexes.api_collection_record(
+            "release_artifacts", release.get("artifacts") or [], "path", (
+                "artifacts_by_release_path", "artifacts_by_name", "artifacts_by_sha256",
+                "artifacts_by_payload_preset", "artifacts_by_tool", "artifacts_by_feature",
+                "artifacts_by_compatibility", "artifacts_by_source", "artifacts_by_tuple_path",
+                "artifacts_by_tuple_payload_preset",
+                "artifacts_by_device_alias",
+                "artifacts_by_tool_payload_preset", "artifacts_by_device_payload_preset",
+                "artifacts_by_feature_payload_preset",
+                "artifacts_by_provider_tool", "artifacts_by_provider_status",
+                "artifacts_by_doom_wad_filename", "artifacts_by_doom_wad_sha256",
+                "artifacts_by_command_queue_enabled", "artifacts_by_command_queue_execution_supported",
+                "artifacts_by_command_queue_operator_supplied_command_execution",
+            ), "release_artifact_count",
+        ),
+        "release_recommendations": status_indexes.api_collection_record(
+            "release_recommendations", release.get("recommendation_records") or [], "id", (
+                "recommendations_by_id", "recommendations_by_scope", "recommendations_by_artifact",
+                "recommendations_by_payload_preset", "recommendations_by_compatibility",
+            ), "release_recommendation_count",
+        ),
+        "release_artifact_workflow_actions": status_indexes.api_collection_record(
+            "release_artifact_workflow_actions", release_artifact_workflow_actions, "id", (
+                "release_artifact_workflow_actions_by_id",
+                "release_artifact_workflow_actions_by_action_id",
+                "release_artifact_workflow_actions_by_category",
+                "release_artifact_workflow_actions_by_workflow",
+                "release_artifact_workflow_actions_by_selector_kind",
+                "release_artifact_workflow_actions_by_release_dir",
+                "release_artifact_workflow_actions_by_release_name",
+                "release_artifact_workflow_actions_by_release_present",
+                "release_artifact_workflow_actions_by_release_valid",
+                "release_artifact_workflow_actions_by_artifact_name",
+                "release_artifact_workflow_actions_by_release_path",
+                "release_artifact_workflow_actions_by_payload_preset",
+                "release_artifact_workflow_actions_by_compatibility_label",
+                "release_artifact_workflow_actions_by_recommendation_scope",
+                "release_artifact_workflow_actions_by_writes_staged_files",
+                "release_artifact_workflow_actions_by_available",
+                "release_artifact_workflow_actions_by_requires_input",
+                "release_artifact_workflow_actions_by_requires_confirmation",
+                "release_artifact_workflow_actions_by_operator_action_state",
+                "release_artifact_workflow_actions_by_operator_action_reason",
+                "release_artifact_workflow_actions_by_can_run_from_curses_enter",
+                "release_artifact_workflow_actions_by_curses_enter_action",
+            ), "release_artifact_workflow_action_count",
+        ),
+        "release_licenses": status_indexes.api_collection_record(
+            "release_licenses", release.get("release_license_records") or [], "project_license", (
+                "release_license_records_by_project_license",
+                "release_license_records_by_combined_gplv2_compatible",
+                "release_license_records_by_corresponding_source_required",
+                "release_license_records_by_corresponding_source_status",
+                "release_license_records_by_package_license_audit",
+                "release_license_records_by_component",
+                "release_license_records_by_component_license",
+                "release_license_records_by_notice_file",
+                "release_license_records_by_evidence_source",
+                "release_license_records_by_evidence_source_license",
+            ), "release_license_count",
+        ),
+        "release_devices": status_indexes.api_collection_record(
+            "release_devices", release.get("devices") or [], "name", (
+                "devices_by_name", "devices_by_tuple_path", "devices_by_artifact",
+            ), "release_device_count",
+        ),
+        "release_tuples": status_indexes.api_collection_record(
+            "release_tuples", release.get("tuples") or [], "path", (
+                "tuples_by_path", "tuples_by_artifact",
+            ), "release_tuple_count",
+        ),
+        "release_state_records": status_indexes.api_collection_record(
+            "release_state_records", release_state_records, "release_dir", (
+                "release_state_records_by_release_dir",
+                "release_state_records_by_present",
+                "release_state_records_by_valid",
+                "release_state_records_by_detection_source",
+                "release_state_records_by_detection_reason",
+                "release_state_records_by_explicit_release_dir",
+                "release_state_records_by_marker_count",
+            ), "release_state_record_count",
+        ),
+    }
+
+
 def status_document(cfg):
     event_limit = int(cfg.get("_event_limit", 12))
     target_filter_id = target_records.configured_target_filter(cfg)
@@ -2871,87 +2963,10 @@ def status_document(cfg):
                 "event_log_state_records_by_tail_empty_due_to_limit",
             ), "event_log_state_record_count",
         ),
-        "release_artifacts": status_indexes.api_collection_record(
-            "release_artifacts", release.get("artifacts") or [], "path", (
-                "artifacts_by_release_path", "artifacts_by_name", "artifacts_by_sha256",
-                "artifacts_by_payload_preset", "artifacts_by_tool", "artifacts_by_feature",
-                "artifacts_by_compatibility", "artifacts_by_source", "artifacts_by_tuple_path",
-                "artifacts_by_tuple_payload_preset",
-                "artifacts_by_device_alias",
-                "artifacts_by_tool_payload_preset", "artifacts_by_device_payload_preset",
-                "artifacts_by_feature_payload_preset",
-                "artifacts_by_provider_tool", "artifacts_by_provider_status",
-                "artifacts_by_doom_wad_filename", "artifacts_by_doom_wad_sha256",
-                "artifacts_by_command_queue_enabled", "artifacts_by_command_queue_execution_supported",
-                "artifacts_by_command_queue_operator_supplied_command_execution",
-            ), "release_artifact_count",
-        ),
-        "release_recommendations": status_indexes.api_collection_record(
-            "release_recommendations", release.get("recommendation_records") or [], "id", (
-                "recommendations_by_id", "recommendations_by_scope", "recommendations_by_artifact",
-                "recommendations_by_payload_preset", "recommendations_by_compatibility",
-            ), "release_recommendation_count",
-        ),
-        "release_artifact_workflow_actions": status_indexes.api_collection_record(
-            "release_artifact_workflow_actions", release_artifact_workflow_actions, "id", (
-                "release_artifact_workflow_actions_by_id",
-                "release_artifact_workflow_actions_by_action_id",
-                "release_artifact_workflow_actions_by_category",
-                "release_artifact_workflow_actions_by_workflow",
-                "release_artifact_workflow_actions_by_selector_kind",
-                "release_artifact_workflow_actions_by_release_dir",
-                "release_artifact_workflow_actions_by_release_name",
-                "release_artifact_workflow_actions_by_release_present",
-                "release_artifact_workflow_actions_by_release_valid",
-                "release_artifact_workflow_actions_by_artifact_name",
-                "release_artifact_workflow_actions_by_release_path",
-                "release_artifact_workflow_actions_by_payload_preset",
-                "release_artifact_workflow_actions_by_compatibility_label",
-                "release_artifact_workflow_actions_by_recommendation_scope",
-                "release_artifact_workflow_actions_by_writes_staged_files",
-                "release_artifact_workflow_actions_by_available",
-                "release_artifact_workflow_actions_by_requires_input",
-                "release_artifact_workflow_actions_by_requires_confirmation",
-                "release_artifact_workflow_actions_by_operator_action_state",
-                "release_artifact_workflow_actions_by_operator_action_reason",
-                "release_artifact_workflow_actions_by_can_run_from_curses_enter",
-                "release_artifact_workflow_actions_by_curses_enter_action",
-            ), "release_artifact_workflow_action_count",
-        ),
-        "release_licenses": status_indexes.api_collection_record(
-            "release_licenses", release.get("release_license_records") or [], "project_license", (
-                "release_license_records_by_project_license",
-                "release_license_records_by_combined_gplv2_compatible",
-                "release_license_records_by_corresponding_source_required",
-                "release_license_records_by_corresponding_source_status",
-                "release_license_records_by_package_license_audit",
-                "release_license_records_by_component",
-                "release_license_records_by_component_license",
-                "release_license_records_by_notice_file",
-                "release_license_records_by_evidence_source",
-                "release_license_records_by_evidence_source_license",
-            ), "release_license_count",
-        ),
-        "release_devices": status_indexes.api_collection_record(
-            "release_devices", release.get("devices") or [], "name", (
-                "devices_by_name", "devices_by_tuple_path", "devices_by_artifact",
-            ), "release_device_count",
-        ),
-        "release_tuples": status_indexes.api_collection_record(
-            "release_tuples", release.get("tuples") or [], "path", (
-                "tuples_by_path", "tuples_by_artifact",
-            ), "release_tuple_count",
-        ),
-        "release_state_records": status_indexes.api_collection_record(
-            "release_state_records", release_state_records, "release_dir", (
-                "release_state_records_by_release_dir",
-                "release_state_records_by_present",
-                "release_state_records_by_valid",
-                "release_state_records_by_detection_source",
-                "release_state_records_by_detection_reason",
-                "release_state_records_by_explicit_release_dir",
-                "release_state_records_by_marker_count",
-            ), "release_state_record_count",
+        **_build_release_api_collections(
+            release=release,
+            release_artifact_workflow_actions=release_artifact_workflow_actions,
+            release_state_records=release_state_records,
         ),
         "command_queue_commands": status_indexes.api_collection_record(
             "command_queue_commands", command_queue.get("commands") or [], "id", (
