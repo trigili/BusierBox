@@ -240,11 +240,7 @@ def _add_console_workflow_action_args(parser):
                         help="target request name for the stage-file-fetch target workflow action")
 
 
-def build_arg_parser():
-    parser = _build_console_arg_parser_base()
-    _add_console_core_args(parser)
-    _add_console_file_target_args(parser)
-    _add_console_workflow_action_args(parser)
+def _add_console_queue_config_args(parser):
     parser.add_argument("--list-build-config", action="store_true",
                         help="list guided griTTYkit build configuration fields")
     parser.add_argument("--set-build-config", action="append", default=[],
@@ -267,6 +263,14 @@ def build_arg_parser():
                         help="JSON object to attach with --record-command-result")
     parser.add_argument("--clear-command-queue", action="store_true",
                         help="clear explicit operator command queue entries")
+
+
+def build_arg_parser():
+    parser = _build_console_arg_parser_base()
+    _add_console_core_args(parser)
+    _add_console_file_target_args(parser)
+    _add_console_workflow_action_args(parser)
+    _add_console_queue_config_args(parser)
     parser.add_argument("--listen-host", help="listener bind address")
     parser.add_argument("--ssh-port", type=int, help="SSH reverse-forward listener port")
     parser.add_argument("--shell-port", type=int,
