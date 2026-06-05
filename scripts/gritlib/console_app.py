@@ -1,10 +1,7 @@
 """Application entrypoint for grit-console."""
 
 import sys
-from gritlib.bridge_routes import (
-    bridge_profiles_path, delete_bridge_profile, print_bridge_profile,
-    print_bridge_profiles, save_bridge_profile,
-)
+import gritlib.bridge_routes as bridge_routes
 from gritlib.build_config import handle_build_config_args
 from gritlib.command_queue import handle_command_queue_args
 from gritlib.command_queue_service import serve_command_queue
@@ -35,11 +32,7 @@ from gritlib.staged_files import print_staged, stage_dir, stage_file, unstage_fi
 from gritlib.systemd_user import handle_systemd_user_action
 from gritlib.target_commands import shell_listener_max_sessions
 from gritlib.version import grit_version
-from gritlib.workbench_jobs import (
-    cancel_workbench_job_headless_command, cancel_workbench_job_record,
-    run_workbench_action_record,
-    start_workbench_job_headless_command, start_workbench_job_record,
-)
+import gritlib.workbench_jobs as workbench_jobs
 from gritlib.workflow_actions import workbench_action_records
 import gritlib.workflow_runners as workflow_runners
 
@@ -75,11 +68,11 @@ def main(argv=None):
         bridge_profile_code = console_actions.handle_bridge_profile_args(
             cfg,
             args,
-            save_bridge_profile_func=save_bridge_profile,
-            delete_bridge_profile_func=delete_bridge_profile,
-            print_bridge_profile_func=print_bridge_profile,
-            print_bridge_profiles_func=print_bridge_profiles,
-            bridge_profiles_path_func=bridge_profiles_path,
+            save_bridge_profile_func=bridge_routes.save_bridge_profile,
+            delete_bridge_profile_func=bridge_routes.delete_bridge_profile,
+            print_bridge_profile_func=bridge_routes.print_bridge_profile,
+            print_bridge_profiles_func=bridge_routes.print_bridge_profiles,
+            bridge_profiles_path_func=bridge_routes.bridge_profiles_path,
         )
         if bridge_profile_code is not None:
             return bridge_profile_code
@@ -87,11 +80,11 @@ def main(argv=None):
             cfg,
             args,
             workbench_action_records_func=workbench_action_records,
-            start_workbench_job_headless_command_func=start_workbench_job_headless_command,
-            start_workbench_job_record_func=start_workbench_job_record,
-            cancel_workbench_job_headless_command_func=cancel_workbench_job_headless_command,
-            cancel_workbench_job_record_func=cancel_workbench_job_record,
-            run_workbench_action_record_func=run_workbench_action_record,
+            start_workbench_job_headless_command_func=workbench_jobs.start_workbench_job_headless_command,
+            start_workbench_job_record_func=workbench_jobs.start_workbench_job_record,
+            cancel_workbench_job_headless_command_func=workbench_jobs.cancel_workbench_job_headless_command,
+            cancel_workbench_job_record_func=workbench_jobs.cancel_workbench_job_record,
+            run_workbench_action_record_func=workbench_jobs.run_workbench_action_record,
         )
         if workbench_job_code is not None:
             return workbench_job_code
