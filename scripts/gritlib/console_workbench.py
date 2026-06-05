@@ -507,6 +507,30 @@ def _build_release_status_context(cfg):
     }
 
 
+def _build_bridge_profile_status_context(cfg, targets):
+    bridge_profiles = bridge_profile_records(cfg)
+    bridge_hop_records = bridge_hop_records_from_profiles(bridge_profiles)
+    bridge_profile_workflow_actions = bridge_profile_workflow_action_records(
+        cfg, bridge_profiles, targets
+    )
+    return {
+        "bridge_profiles": bridge_profiles,
+        "bridge_profile_index_maps": bridge_profile_indexes(bridge_profiles),
+        "bridge_hop_records": bridge_hop_records,
+        "bridge_hop_index_maps": bridge_hop_indexes(bridge_hop_records),
+        "bridge_profile_workflow_actions": bridge_profile_workflow_actions,
+        "bridge_profile_workflow_action_index_maps": (
+            bridge_profile_workflow_action_indexes(bridge_profile_workflow_actions)
+        ),
+        "summary": {
+            **bridge_profile_record_summary(bridge_profiles, bridge_hop_records),
+            **bridge_profile_workflow_action_status_summary(
+                bridge_profile_workflow_actions
+            ),
+        },
+    }
+
+
 def _build_service_status_context(cfg):
     service_context = service_status_context(cfg, SERVICE_MANAGER.snapshot())
     return {
@@ -896,10 +920,6 @@ def status_document(cfg):
     session_root = str(cfg.get("session_root", "local/sessions"))
     service_context = _build_service_status_context(cfg)
     services = service_context["services"]
-    bridge_profiles = bridge_profile_records(cfg)
-    bridge_profile_index_maps = bridge_profile_indexes(bridge_profiles)
-    bridge_hop_records = bridge_hop_records_from_profiles(bridge_profiles)
-    bridge_hop_index_maps = bridge_hop_indexes(bridge_hop_records)
     service_manager = service_context["service_manager"]
     service_manager_status_doc = service_context["service_manager_status_doc"]
     service_manager_resources = service_context["service_manager_resources"]
@@ -928,10 +948,19 @@ def status_document(cfg):
     target_index_maps = target_context["target_index_maps"]
     targets_by_id = target_index_maps["targets_by_id"]
     target_summary = target_context["target_summary"]
+    bridge_profile_context = _build_bridge_profile_status_context(cfg, targets)
+    bridge_profiles = bridge_profile_context["bridge_profiles"]
+    bridge_profile_index_maps = bridge_profile_context["bridge_profile_index_maps"]
+    bridge_hop_records = bridge_profile_context["bridge_hop_records"]
+    bridge_hop_index_maps = bridge_profile_context["bridge_hop_index_maps"]
     staged_file_workflow_actions = staged_file_workflow_action_records(cfg, staged_records, targets)
     staged_file_workflow_action_index_maps = staged_file_workflow_action_indexes(staged_file_workflow_actions)
-    bridge_profile_workflow_actions = bridge_profile_workflow_action_records(cfg, bridge_profiles, targets)
-    bridge_profile_workflow_action_index_maps = bridge_profile_workflow_action_indexes(bridge_profile_workflow_actions)
+    bridge_profile_workflow_actions = bridge_profile_context[
+        "bridge_profile_workflow_actions"
+    ]
+    bridge_profile_workflow_action_index_maps = bridge_profile_context[
+        "bridge_profile_workflow_action_index_maps"
+    ]
     selected_target = target_context["selected_target"]
     target_registry_state_record = target_context["target_registry_state_record"]
     target_registry_state_records = target_context["target_registry_state_records"]
@@ -1268,8 +1297,7 @@ def status_document(cfg):
     warning_summary = warning_stats(warnings)
     summary.update({
         **path_context["path_summary"],
-        **bridge_profile_record_summary(bridge_profiles, bridge_hop_records),
-        **bridge_profile_workflow_action_status_summary(bridge_profile_workflow_actions),
+        **bridge_profile_context["summary"],
         **path_context["browser_status_summary"],
         **path_warning_context["summary"],
         **operator_state_file_summary_doc,
