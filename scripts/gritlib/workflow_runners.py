@@ -957,6 +957,53 @@ def _append_target_workflow_completed(cfg, rec, action_id, target_id, target_lab
     append_event(cfg, "workbench", "target_workflow_action_completed", details=details)
 
 
+def _run_target_queue_command_action(
+    cfg,
+    scoped,
+    rec,
+    action_id,
+    target_id,
+    target_label,
+    command_input="",
+    input_func=None,
+):
+    command = str(command_input or "")
+    if not command and input_func:
+        value = input_func("command to queue> ")
+        command = value if value is not None else ""
+    if not command.strip():
+        raise ValueError("queue-command target workflow action requires a command")
+    queued = command_queue_module.queue_command(scoped, command)
+    print(f"queued {queued['id']}: {queued['command']}")
+    print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+    _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
+        "result": "queued-command",
+        "command_id": queued.get("id", ""),
+        "command_sha256": queued.get("command_sha256", ""),
+    })
+    return 0
+
+
+def _run_target_queue_probe_action(cfg, scoped, rec, action_id, target_id, target_label):
+    command = render_probe_command(scoped)
+    queued = command_queue_module.queue_command(scoped, command, metadata={
+        "work_kind": "probe",
+        "workflow": "probe",
+        "request_name": str(scoped.get("GRIT_PROBE_NAME") or "probe.sh"),
+        "route_kind": "bridge" if scoped.get("bridge_profile") else "direct",
+        "bridge_profile": str(scoped.get("bridge_profile") or ""),
+    })
+    print(f"queued {queued['id']}: {queued['command']}")
+    print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
+    _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
+        "result": "queued-probe",
+        "command_id": queued.get("id", ""),
+        "command_sha256": queued.get("command_sha256", ""),
+        "queued_command": queued.get("command", ""),
+    })
+    return 0
+
+
 def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None, show_commands=True):
     snap = workbench_snapshot(cfg)
     rec = select_workflow_action(snap.get("target_workflow_actions") or [], selector, "target")
@@ -980,39 +1027,18 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         print_workbench(scoped)
         return 0
     if action_id == "queue-command":
-        command = str(command_input or "")
-        if not command and input_func:
-            value = input_func("command to queue> ")
-            command = value if value is not None else ""
-        if not command.strip():
-            raise ValueError("queue-command target workflow action requires a command")
-        queued = command_queue_module.queue_command(scoped, command)
-        print(f"queued {queued['id']}: {queued['command']}")
-        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
-            "result": "queued-command",
-            "command_id": queued.get("id", ""),
-            "command_sha256": queued.get("command_sha256", ""),
-        })
-        return 0
+        return _run_target_queue_command_action(
+            cfg,
+            scoped,
+            rec,
+            action_id,
+            target_id,
+            target_label,
+            command_input=command_input,
+            input_func=input_func,
+        )
     if action_id == "queue-probe":
-        command = render_probe_command(scoped)
-        queued = command_queue_module.queue_command(scoped, command, metadata={
-            "work_kind": "probe",
-            "workflow": "probe",
-            "request_name": str(scoped.get("GRIT_PROBE_NAME") or "probe.sh"),
-            "route_kind": "bridge" if scoped.get("bridge_profile") else "direct",
-            "bridge_profile": str(scoped.get("bridge_profile") or ""),
-        })
-        print(f"queued {queued['id']}: {queued['command']}")
-        print(f"target={queued.get('target_id', '')} label={queued.get('target_label', '')}")
-        _append_target_workflow_completed(cfg, rec, action_id, target_id, target_label, {
-            "result": "queued-probe",
-            "command_id": queued.get("id", ""),
-            "command_sha256": queued.get("command_sha256", ""),
-            "queued_command": queued.get("command", ""),
-        })
-        return 0
+        return _run_target_queue_probe_action(cfg, scoped, rec, action_id, target_id, target_label)
     if action_id == "stage-file-fetch":
         path = str(local_file or "")
         if not path and input_func:
