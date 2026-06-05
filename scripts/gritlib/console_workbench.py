@@ -2,12 +2,7 @@
 
 from pathlib import Path
 import gritlib.bridge_routes as bridge_routes
-from gritlib.command_queue import (
-    command_queue_path, command_queue_policy_status, command_queue_state_status,
-    command_queue_status_summary, command_queue_summary,
-    command_queue_workflow_action_indexes, command_queue_workflow_action_records,
-    command_queue_workflow_action_status_summary,
-)
+import gritlib.command_queue as command_queue_module
 from gritlib.command_copy import (
     command_copy_indexes, command_copy_path, command_copy_record,
     command_copy_state_status,
@@ -397,7 +392,7 @@ def _build_operator_state_status_context(
     staged_files_status = staged_files_state_status(cfg)
     staged_files_state = staged_files_status["state_record"]
     staged_files_state_records = staged_files_status["state_records"]
-    command_queue_status = command_queue_state_status(cfg)
+    command_queue_status = command_queue_module.command_queue_state_status(cfg)
     command_queue_state = command_queue_status["state_record"]
     command_queue_state_records = command_queue_status["state_records"]
     command_copy = command_copy_record(cfg)
@@ -678,22 +673,24 @@ def _build_staged_file_workflow_status_context(cfg, staged_records, targets):
 
 
 def _build_command_queue_status_context(cfg):
-    command_queue = command_queue_summary(cfg)
-    command_queue_policy = command_queue_policy_status(command_queue)
+    queue_summary = command_queue_module.command_queue_summary(cfg)
+    command_queue_policy = command_queue_module.command_queue_policy_status(
+        queue_summary
+    )
     return {
-        "command_queue": command_queue,
+        "command_queue": queue_summary,
         "command_queue_policy_records": command_queue_policy["policy_records"],
         "command_queue_policy_index_maps": command_queue_policy["policy_index_maps"],
-        "unfiltered_count": command_queue.get(
+        "unfiltered_count": queue_summary.get(
             "unfiltered_total_count",
-            len(command_queue.get("commands") or []),
+            len(queue_summary.get("commands") or []),
         ),
         "command_queue_index_maps": {
-            key: command_queue.get(key) or {} for key in COMMAND_QUEUE_INDEX_KEYS
+            key: queue_summary.get(key) or {} for key in COMMAND_QUEUE_INDEX_KEYS
         },
-        "command_queue_mode_records": command_queue.get("mode_records") or [],
+        "command_queue_mode_records": queue_summary.get("mode_records") or [],
         "command_queue_mode_index_maps": {
-            key: command_queue.get(key) or {}
+            key: queue_summary.get(key) or {}
             for key in COMMAND_QUEUE_MODE_INDEX_KEYS
         },
     }
@@ -706,19 +703,23 @@ def _build_command_queue_workflow_status_context(
     command_queue_service,
     targets,
 ):
-    command_queue_workflow_actions = command_queue_workflow_action_records(
-        cfg,
-        command_queue,
-        target_mailbox_records,
-        command_queue_service,
-        targets,
+    command_queue_workflow_actions = (
+        command_queue_module.command_queue_workflow_action_records(
+            cfg,
+            command_queue,
+            target_mailbox_records,
+            command_queue_service,
+            targets,
+        )
     )
     return {
         "command_queue_workflow_actions": command_queue_workflow_actions,
         "command_queue_workflow_action_index_maps": (
-            command_queue_workflow_action_indexes(command_queue_workflow_actions)
+            command_queue_module.command_queue_workflow_action_indexes(
+                command_queue_workflow_actions
+            )
         ),
-        "summary": command_queue_workflow_action_status_summary(
+        "summary": command_queue_module.command_queue_workflow_action_status_summary(
             command_queue_workflow_actions
         ),
     }
@@ -1251,7 +1252,9 @@ def _build_warning_status_context(
     if not command_queue.get("policy_valid", True):
         warnings.append({
             "type": "invalid_command_queue_policy",
-            "path": command_queue.get("path", str(command_queue_path(cfg))),
+            "path": command_queue.get(
+                "path", str(command_queue_module.command_queue_path(cfg))
+            ),
             "policy_errors": command_queue.get("policy_errors") or [],
             "message": "command queue policy is invalid; target polling is not configured",
             "suggested_action": "fix command queue config or leave it fully disabled",
@@ -1622,7 +1625,7 @@ def status_document(cfg):
         "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),
         "staged_files": str(staged_file_path(cfg)),
-        "command_queue_file": str(command_queue_path(cfg)),
+        "command_queue_file": str(command_queue_module.command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
         "workbench_jobs_file": str(workbench_jobs_path(cfg)),
         "targets_file": str(target_records.targets_path(cfg)),
@@ -1841,7 +1844,9 @@ def status_document(cfg):
             events, event_summary_stats,
         ),
         **operator_network_context["summary"],
-        **command_queue_status_summary(command_queue, command_queue_policy_records),
+        **command_queue_module.command_queue_status_summary(
+            command_queue, command_queue_policy_records
+        ),
         **target_activity_context["summary"],
         **release_context_doc["summary"],
         **release_artifact_workflow_action_status_summary(release_artifact_workflow_actions),
@@ -3048,7 +3053,7 @@ def status_document(cfg):
         "operator_session_dir": str(operator_dir),
         "state_file": str(state_file_path(cfg)),
         "staged_files": str(staged_file_path(cfg)),
-        "command_queue_file": str(command_queue_path(cfg)),
+        "command_queue_file": str(command_queue_module.command_queue_path(cfg)),
         "command_copy_file": str(command_copy_path(cfg)),
         "bridge_profiles_file": str(bridge_routes.bridge_profiles_path(cfg)),
         "command_copy": command_copy,
