@@ -1,5 +1,15 @@
 """Line REPL probe callback adapters."""
 
+import sys
+from gritlib import command_queue as command_queue_module
+from gritlib.console_workbench import workbench_snapshot
+from gritlib.event_log import append_event
+from gritlib import line_configure
+from gritlib.operator_network import choose_operator_host_for_target
+from gritlib import probe_commands
+from gritlib import probe_results
+from gritlib import workflow_runners
+
 
 def build_line_probe_callbacks(
     cfg,
@@ -157,3 +167,31 @@ def build_line_probe_start_callback(
         return command
 
     return probe_line_start
+
+
+def build_default_line_probe_callbacks(
+    cfg,
+    *,
+    line_input,
+    line_route_service_callbacks,
+    line_target_callbacks,
+):
+    return build_line_probe_callbacks(
+        cfg,
+        choose_operator_host_func=choose_operator_host_for_target,
+        input_func=line_input,
+        interactive_func=sys.stdin.isatty,
+        render_probe_command_func=probe_commands.render_probe_command,
+        workbench_snapshot_func=workbench_snapshot,
+        service_start_func=workflow_runners.start_service_process,
+        queue_command_func=command_queue_module.queue_command,
+        probe_delivery_func=probe_commands.print_probe_delivery,
+        append_event_fn=append_event,
+        route_service_callbacks=line_route_service_callbacks,
+        target_callbacks=line_target_callbacks,
+        probe_results_func=probe_results.print_line_probe_results,
+        probe_config_func=line_configure.run_line_probe_config,
+        probe_clear_func=probe_results.clear_line_probe_results,
+        probe_paste_func=probe_commands.print_line_probe_script,
+        probe_script_func=probe_commands.print_line_probe_script,
+    )
