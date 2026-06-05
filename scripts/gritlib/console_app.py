@@ -37,13 +37,15 @@ from gritlib.workflow_actions import workbench_action_records
 import gritlib.workflow_runners as workflow_runners
 
 
-def main(argv=None):
-    install_shutdown_handlers()
-    raw_argv = list(sys.argv[1:] if argv is None else argv)
+def _handle_console_subcommand(raw_argv):
     if raw_argv and raw_argv[0] == "artifact":
         return handle_artifact_command(raw_argv[1:], program="grit-console artifact")
     if raw_argv and raw_argv[0] == "bringup":
         return handle_bringup_command(raw_argv[1:])
+    return None
+
+
+def _load_console_invocation(raw_argv):
     parser = build_arg_parser()
     early_args = handle_early_console_args(
         raw_argv,
@@ -53,16 +55,27 @@ def main(argv=None):
         print_console_help_reference_func=print_console_help_reference,
     )
     if early_args.handled:
-        return early_args.code
-    raw_argv = early_args.argv
-    args = parser.parse_args(raw_argv)
+        return early_args.code, None, None
+    args = parser.parse_args(early_args.argv)
 
     cfg = load_config(args.config)
     try:
         apply_console_arg_overrides(cfg, args)
     except ValueError as exc:
         print(f"grit-console: {exc}", file=sys.stderr)
-        return 2
+        return 2, None, None
+    return None, cfg, args
+
+
+def main(argv=None):
+    install_shutdown_handlers()
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    subcommand_code = _handle_console_subcommand(raw_argv)
+    if subcommand_code is not None:
+        return subcommand_code
+    invocation_code, cfg, args = _load_console_invocation(raw_argv)
+    if invocation_code is not None:
+        return invocation_code
 
     try:
         bridge_profile_code = console_actions.handle_bridge_profile_args(
