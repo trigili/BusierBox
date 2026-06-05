@@ -422,6 +422,75 @@ def _build_path_browser_status_context(
     }
 
 
+def _build_operator_state_status_context(
+    cfg,
+    *,
+    event_log_state,
+    session_root_state,
+):
+    server_status = server_state_status(cfg)
+    server_state = server_status["state_record"]
+    server_state_records = server_status["state_records"]
+    staged_files_status = staged_files_state_status(cfg)
+    staged_files_state = staged_files_status["state_record"]
+    staged_files_state_records = staged_files_status["state_records"]
+    command_queue_status = command_queue_state_status(cfg)
+    command_queue_state = command_queue_status["state_record"]
+    command_queue_state_records = command_queue_status["state_records"]
+    command_copy = command_copy_record(cfg)
+    command_copy_state = command_copy_state_status(command_copy)
+    workbench_jobs_status = workbench_jobs_state_status(cfg)
+    workbench_jobs_state = workbench_jobs_status["state_record"]
+    workbench_jobs_state_records = workbench_jobs_status["state_records"]
+    operator_state_context = operator_state_status_context(
+        cfg,
+        server_state,
+        staged_files_state,
+        command_queue_state,
+        command_copy,
+        workbench_jobs_state,
+        event_log_state,
+        session_root_state,
+    )
+    operator_state_file_summary_doc = operator_state_file_summary(
+        server_state,
+        server_state_records,
+        staged_files_state,
+        staged_files_state_records,
+        command_queue_state,
+        command_queue_state_records,
+        command_copy,
+        command_copy_state["state_record"],
+        command_copy_state["state_records"],
+        workbench_jobs_state,
+        workbench_jobs_state_records,
+    )
+    return {
+        "server_state": server_state,
+        "server_state_records": server_state_records,
+        "server_state_index_maps": server_status["state_index_maps"],
+        "staged_files_state": staged_files_state,
+        "staged_files_state_records": staged_files_state_records,
+        "staged_files_state_index_maps": staged_files_status["state_index_maps"],
+        "command_queue_state": command_queue_state,
+        "command_queue_state_records": command_queue_state_records,
+        "command_queue_state_index_maps": command_queue_status["state_index_maps"],
+        "command_copy": command_copy,
+        "command_copy_records": [command_copy],
+        "command_copy_record_indexes": command_copy_indexes([command_copy]),
+        "command_copy_state_record": command_copy_state["state_record"],
+        "command_copy_state_records": command_copy_state["state_records"],
+        "command_copy_state_index_maps": command_copy_state["state_index_maps"],
+        "workbench_jobs_state": workbench_jobs_state,
+        "workbench_jobs_state_records": workbench_jobs_state_records,
+        "workbench_jobs_state_index_maps": workbench_jobs_status["state_index_maps"],
+        "operator_state_records_list": operator_state_context["records"],
+        "operator_state_index_maps": operator_state_context["index_maps"],
+        "operator_state_summary": operator_state_context["summary"],
+        "operator_state_file_summary_doc": operator_state_file_summary_doc,
+    }
+
+
 def _build_service_status_context(cfg):
     service_context = service_status_context(cfg, SERVICE_MANAGER.snapshot())
     return {
@@ -1035,55 +1104,43 @@ def status_document(cfg):
         "tls_cert": str(cfg.get("tls_cert", "")),
         "tls_key": str(cfg.get("tls_key", "")),
     }
-    server_status = server_state_status(cfg)
-    server_state = server_status["state_record"]
-    server_state_records = server_status["state_records"]
-    server_state_index_maps = server_status["state_index_maps"]
-    staged_files_status = staged_files_state_status(cfg)
-    staged_files_state = staged_files_status["state_record"]
-    staged_files_state_records = staged_files_status["state_records"]
-    staged_files_state_index_maps = staged_files_status["state_index_maps"]
-    command_queue_status = command_queue_state_status(cfg)
-    command_queue_state = command_queue_status["state_record"]
-    command_queue_state_records = command_queue_status["state_records"]
-    command_queue_state_index_maps = command_queue_status["state_index_maps"]
-    command_copy = command_copy_record(cfg)
-    command_copy_records = [command_copy]
-    command_copy_record_indexes = command_copy_indexes(command_copy_records)
-    command_copy_state = command_copy_state_status(command_copy)
-    command_copy_state_record = command_copy_state["state_record"]
-    command_copy_state_records = command_copy_state["state_records"]
-    command_copy_state_index_maps = command_copy_state["state_index_maps"]
-    workbench_jobs_status = workbench_jobs_state_status(cfg)
-    workbench_jobs_state = workbench_jobs_status["state_record"]
-    workbench_jobs_state_records = workbench_jobs_status["state_records"]
-    workbench_jobs_state_index_maps = workbench_jobs_status["state_index_maps"]
-    operator_state_context = operator_state_status_context(
+    operator_state_context = _build_operator_state_status_context(
         cfg,
-        server_state,
-        staged_files_state,
-        command_queue_state,
-        command_copy,
-        workbench_jobs_state,
-        event_log_state,
-        session_root_state,
+        event_log_state=event_log_state,
+        session_root_state=session_root_state,
     )
-    operator_state_records_list = operator_state_context["records"]
-    operator_state_index_maps = operator_state_context["index_maps"]
-    operator_state_summary = operator_state_context["summary"]
-    operator_state_file_summary_doc = operator_state_file_summary(
-        server_state,
-        server_state_records,
-        staged_files_state,
-        staged_files_state_records,
-        command_queue_state,
-        command_queue_state_records,
-        command_copy,
-        command_copy_state_record,
-        command_copy_state_records,
-        workbench_jobs_state,
-        workbench_jobs_state_records,
-    )
+    server_state = operator_state_context["server_state"]
+    server_state_records = operator_state_context["server_state_records"]
+    server_state_index_maps = operator_state_context["server_state_index_maps"]
+    staged_files_state = operator_state_context["staged_files_state"]
+    staged_files_state_records = operator_state_context["staged_files_state_records"]
+    staged_files_state_index_maps = operator_state_context[
+        "staged_files_state_index_maps"
+    ]
+    command_queue_state = operator_state_context["command_queue_state"]
+    command_queue_state_records = operator_state_context["command_queue_state_records"]
+    command_queue_state_index_maps = operator_state_context[
+        "command_queue_state_index_maps"
+    ]
+    command_copy = operator_state_context["command_copy"]
+    command_copy_records = operator_state_context["command_copy_records"]
+    command_copy_record_indexes = operator_state_context["command_copy_record_indexes"]
+    command_copy_state_record = operator_state_context["command_copy_state_record"]
+    command_copy_state_records = operator_state_context["command_copy_state_records"]
+    command_copy_state_index_maps = operator_state_context[
+        "command_copy_state_index_maps"
+    ]
+    workbench_jobs_state = operator_state_context["workbench_jobs_state"]
+    workbench_jobs_state_records = operator_state_context["workbench_jobs_state_records"]
+    workbench_jobs_state_index_maps = operator_state_context[
+        "workbench_jobs_state_index_maps"
+    ]
+    operator_state_records_list = operator_state_context["operator_state_records_list"]
+    operator_state_index_maps = operator_state_context["operator_state_index_maps"]
+    operator_state_summary = operator_state_context["operator_state_summary"]
+    operator_state_file_summary_doc = operator_state_context[
+        "operator_state_file_summary_doc"
+    ]
     path_browser_context = _build_path_browser_status_context(
         cfg,
         paths,
