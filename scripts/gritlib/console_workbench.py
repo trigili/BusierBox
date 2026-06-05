@@ -3541,75 +3541,191 @@ def _build_status_api_payload(
     }
 
 
-def status_document(cfg):
-    event_limit = int(cfg.get("_event_limit", 12))
-    target_filter_id = target_records.configured_target_filter(cfg)
+def _status_foundation_staged_fields(staged_context):
+    return {
+        "staged_context": staged_context,
+        "staged_raw": staged_context["staged_raw"],
+        "unfiltered_staged_raw": staged_context["unfiltered_staged_raw"],
+        "staged": staged_context["staged"],
+        "staged_records": staged_context["staged_records"],
+        "unfiltered_staged_count": staged_context["unfiltered_staged_count"],
+        "staged_by_request": staged_context["staged_by_request"],
+        "staged_by_kind": staged_context["staged_by_kind"],
+        "staged_by_sha256": staged_context["staged_by_sha256"],
+        "staged_by_target_id": staged_context["staged_by_target_id"],
+        "staged_by_source_path": staged_context["staged_by_source_path"],
+        "staged_by_fetch_command": staged_context["staged_by_fetch_command"],
+        "staged_by_fetch_command_force": staged_context[
+            "staged_by_fetch_command_force"
+        ],
+        "staged_by_source_exists": staged_context["staged_by_source_exists"],
+        "staged_by_kind_source_exists": staged_context[
+            "staged_by_kind_source_exists"
+        ],
+    }
+
+
+def _status_foundation_operator_network_fields(operator_network_context):
+    return {
+        "operator_network_context": operator_network_context,
+        "ips": operator_network_context["ips"],
+        "operator_network": operator_network_context["operator_network"],
+        "selected_local_ip": operator_network_context["selected_local_ip"],
+        "operator_network_records": operator_network_context[
+            "operator_network_records"
+        ],
+        "operator_network_index_maps": operator_network_context[
+            "operator_network_index_maps"
+        ],
+        "operator_network_state_record": operator_network_context[
+            "operator_network_state_record"
+        ],
+        "operator_network_state_records": operator_network_context[
+            "operator_network_state_records"
+        ],
+        "operator_network_state_index_maps": operator_network_context[
+            "operator_network_state_index_maps"
+        ],
+        "operator_dir": operator_network_context["operator_dir"],
+        "event_log_path": operator_network_context["event_log_path"],
+        "session_root": operator_network_context["session_root"],
+    }
+
+
+def _status_foundation_service_fields(service_context):
+    return {
+        "service_context": service_context,
+        "services": service_context["services"],
+        "service_manager": service_context["service_manager"],
+        "service_manager_status_doc": service_context[
+            "service_manager_status_doc"
+        ],
+        "service_manager_resources": service_context["service_manager_resources"],
+        "service_manager_resource_index_maps": service_context[
+            "service_manager_resource_index_maps"
+        ],
+        "service_manager_state_record": service_context[
+            "service_manager_state_record"
+        ],
+        "service_manager_state_records": service_context[
+            "service_manager_state_records"
+        ],
+        "service_manager_state_index_maps": service_context[
+            "service_manager_state_index_maps"
+        ],
+        "ports": service_context["ports"],
+        "port_index_maps": service_context["port_index_maps"],
+    }
+
+
+def _status_foundation_event_source_fields(event_source_context):
+    return {
+        "event_source_context": event_source_context,
+        "all_event_records": event_source_context["all_event_records"],
+        "all_target_phone_home_records": event_source_context[
+            "all_target_phone_home_records"
+        ],
+    }
+
+
+def _status_foundation_target_fields(target_context):
+    target_index_maps = target_context["target_index_maps"]
+    return {
+        "target_context": target_context,
+        "uploads": target_context["uploads"],
+        "fetches": target_context["fetches"],
+        "targets": target_context["targets"],
+        "unfiltered_counts": target_context["unfiltered_counts"],
+        "target_index_maps": target_index_maps,
+        "targets_by_id": target_index_maps["targets_by_id"],
+        "target_summary": target_context["target_summary"],
+        "selected_target": target_context["selected_target"],
+        "target_registry_state_record": target_context[
+            "target_registry_state_record"
+        ],
+        "target_registry_state_records": target_context[
+            "target_registry_state_records"
+        ],
+        "target_registry_state_index_maps": target_context[
+            "target_registry_state_index_maps"
+        ],
+        "target_registry_summary": target_context["target_registry_summary"],
+    }
+
+
+def _build_status_foundation_context(cfg, *, target_filter_id):
     staged_context = _build_staged_file_status_context(cfg, target_filter_id)
-    staged_raw = staged_context["staged_raw"]
-    unfiltered_staged_raw = staged_context["unfiltered_staged_raw"]
-    staged = staged_context["staged"]
-    staged_records = staged_context["staged_records"]
-    unfiltered_staged_count = staged_context["unfiltered_staged_count"]
-    staged_by_request = staged_context["staged_by_request"]
-    staged_by_kind = staged_context["staged_by_kind"]
-    staged_by_sha256 = staged_context["staged_by_sha256"]
-    staged_by_target_id = staged_context["staged_by_target_id"]
-    staged_by_source_path = staged_context["staged_by_source_path"]
-    staged_by_fetch_command = staged_context["staged_by_fetch_command"]
-    staged_by_fetch_command_force = staged_context["staged_by_fetch_command_force"]
-    staged_by_source_exists = staged_context["staged_by_source_exists"]
-    staged_by_kind_source_exists = staged_context["staged_by_kind_source_exists"]
     operator_network_context = _build_operator_network_status_context(cfg)
-    ips = operator_network_context["ips"]
-    operator_network = operator_network_context["operator_network"]
-    selected_local_ip = operator_network_context["selected_local_ip"]
-    operator_network_records = operator_network_context["operator_network_records"]
-    operator_network_index_maps = operator_network_context["operator_network_index_maps"]
-    operator_network_state_record = operator_network_context[
-        "operator_network_state_record"
-    ]
-    operator_network_state_records = operator_network_context[
-        "operator_network_state_records"
-    ]
-    operator_network_state_index_maps = operator_network_context[
-        "operator_network_state_index_maps"
-    ]
-    operator_dir = operator_network_context["operator_dir"]
-    event_log_path = operator_network_context["event_log_path"]
-    session_root = operator_network_context["session_root"]
     service_context = _build_service_status_context(cfg)
-    services = service_context["services"]
-    service_manager = service_context["service_manager"]
-    service_manager_status_doc = service_context["service_manager_status_doc"]
-    service_manager_resources = service_context["service_manager_resources"]
-    service_manager_resource_index_maps = service_context[
-        "service_manager_resource_index_maps"
-    ]
-    service_manager_state_record = service_context["service_manager_state_record"]
-    service_manager_state_records = service_context["service_manager_state_records"]
-    service_manager_state_index_maps = service_context[
-        "service_manager_state_index_maps"
-    ]
-    ports = service_context["ports"]
-    port_index_maps = service_context["port_index_maps"]
     event_source_context = _build_event_source_status_context(cfg)
-    all_event_records = event_source_context["all_event_records"]
-    all_target_phone_home_records = event_source_context[
-        "all_target_phone_home_records"
-    ]
     target_context = _build_target_registry_context(
         cfg,
         target_filter_id=target_filter_id,
-        all_target_phone_home_records=all_target_phone_home_records,
-        unfiltered_staged_count=unfiltered_staged_count,
+        all_target_phone_home_records=event_source_context[
+            "all_target_phone_home_records"
+        ],
+        unfiltered_staged_count=staged_context["unfiltered_staged_count"],
     )
-    uploads = target_context["uploads"]
-    fetches = target_context["fetches"]
-    targets = target_context["targets"]
-    unfiltered_counts = target_context["unfiltered_counts"]
-    target_index_maps = target_context["target_index_maps"]
-    targets_by_id = target_index_maps["targets_by_id"]
-    target_summary = target_context["target_summary"]
+    return {
+        **_status_foundation_staged_fields(staged_context),
+        **_status_foundation_operator_network_fields(operator_network_context),
+        **_status_foundation_service_fields(service_context),
+        **_status_foundation_event_source_fields(event_source_context),
+        **_status_foundation_target_fields(target_context),
+    }
+
+
+def status_document(cfg):
+    event_limit = int(cfg.get("_event_limit", 12))
+    target_filter_id = target_records.configured_target_filter(cfg)
+    foundation_context = _build_status_foundation_context(
+        cfg, target_filter_id=target_filter_id
+    )
+    f = foundation_context
+    all_event_records = f["all_event_records"]
+    event_log_path = f["event_log_path"]
+    fetches = f["fetches"]
+    ips = f["ips"]
+    operator_dir = f["operator_dir"]
+    operator_network_context = f["operator_network_context"]
+    operator_network_index_maps = f["operator_network_index_maps"]
+    operator_network_records = f["operator_network_records"]
+    operator_network_state_index_maps = f["operator_network_state_index_maps"]
+    operator_network_state_records = f["operator_network_state_records"]
+    port_index_maps = f["port_index_maps"]
+    ports = f["ports"]
+    selected_local_ip = f["selected_local_ip"]
+    service_context = f["service_context"]
+    service_manager = f["service_manager"]
+    service_manager_resource_index_maps = f["service_manager_resource_index_maps"]
+    service_manager_resources = f["service_manager_resources"]
+    service_manager_state_index_maps = f["service_manager_state_index_maps"]
+    service_manager_state_records = f["service_manager_state_records"]
+    service_manager_status_doc = f["service_manager_status_doc"]
+    services = f["services"]
+    session_root = f["session_root"]
+    staged = f["staged"]
+    staged_by_fetch_command = f["staged_by_fetch_command"]
+    staged_by_fetch_command_force = f["staged_by_fetch_command_force"]
+    staged_by_kind = f["staged_by_kind"]
+    staged_by_kind_source_exists = f["staged_by_kind_source_exists"]
+    staged_by_request = f["staged_by_request"]
+    staged_by_sha256 = f["staged_by_sha256"]
+    staged_by_source_exists = f["staged_by_source_exists"]
+    staged_by_source_path = f["staged_by_source_path"]
+    staged_by_target_id = f["staged_by_target_id"]
+    staged_raw = f["staged_raw"]
+    staged_records = f["staged_records"]
+    target_index_maps = f["target_index_maps"]
+    target_registry_state_index_maps = f["target_registry_state_index_maps"]
+    target_registry_state_records = f["target_registry_state_records"]
+    target_registry_summary = f["target_registry_summary"]
+    target_summary = f["target_summary"]
+    targets = f["targets"]
+    targets_by_id = f["targets_by_id"]
+    unfiltered_counts = f["unfiltered_counts"]
+    unfiltered_staged_raw = f["unfiltered_staged_raw"]
+    uploads = f["uploads"]
     bridge_profile_context = _build_bridge_profile_status_context(cfg, targets)
     bridge_profiles = bridge_profile_context["bridge_profiles"]
     bridge_profile_index_maps = bridge_profile_context["bridge_profile_index_maps"]
@@ -3632,11 +3748,11 @@ def status_document(cfg):
     bridge_profile_workflow_action_index_maps = bridge_profile_context[
         "bridge_profile_workflow_action_index_maps"
     ]
-    selected_target = target_context["selected_target"]
-    target_registry_state_record = target_context["target_registry_state_record"]
-    target_registry_state_records = target_context["target_registry_state_records"]
-    target_registry_state_index_maps = target_context["target_registry_state_index_maps"]
-    target_registry_summary = target_context["target_registry_summary"]
+    selected_target = f["selected_target"]
+    target_registry_state_record = f["target_registry_state_record"]
+    target_registry_state_records = f["target_registry_state_records"]
+    target_registry_state_index_maps = f["target_registry_state_index_maps"]
+    target_registry_summary = f["target_registry_summary"]
     session_context = _build_session_status_context(
         cfg,
         target_filter_id=target_filter_id,
