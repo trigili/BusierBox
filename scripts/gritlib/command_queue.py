@@ -881,6 +881,17 @@ def command_queue_status_summary(command_queue, policy_records=None):
     policy_summary = command_queue.get("policy_summary") or {}
     mode_summary = command_queue.get("mode_summary") or {}
     return {
+        **_command_queue_status_count_summary(command_queue, policy_records),
+        **_command_queue_policy_count_summary(command_queue),
+        **_command_queue_latest_status_summary(command_queue),
+        **_command_queue_policy_status_summary(command_queue, policy_summary),
+        **_command_queue_poll_status_summary(policy_summary),
+        **_command_queue_mode_status_summary(mode_summary),
+    }
+
+
+def _command_queue_status_count_summary(command_queue, policy_records=None):
+    return {
         "command_queue_policy_record_count": len(policy_records),
         "command_queue_total_count": command_queue.get("total_count", 0),
         "command_queue_queued_count": command_queue.get("queued_count", 0),
@@ -912,6 +923,11 @@ def command_queue_status_summary(command_queue, policy_records=None):
         "command_queue_result_output_size_bucket_counts": (
             command_queue.get("result_output_size_bucket_counts") or {}
         ),
+    }
+
+
+def _command_queue_policy_count_summary(command_queue):
+    return {
         "command_queue_queue_policy_enabled_counts": (
             command_queue.get("queue_policy_enabled_counts") or {}
         ),
@@ -942,10 +958,20 @@ def command_queue_status_summary(command_queue, policy_records=None):
         "command_queue_delivery_policy_active_control_channel_counts": (
             command_queue.get("delivery_policy_active_control_channel_counts") or {}
         ),
+    }
+
+
+def _command_queue_latest_status_summary(command_queue):
+    return {
         "command_queue_latest_created_at": command_queue.get("latest_created_at", ""),
         "command_queue_latest_result_received_at": command_queue.get(
             "latest_result_received_at", ""
         ),
+    }
+
+
+def _command_queue_policy_status_summary(command_queue, policy_summary):
+    return {
         "command_queue_policy_valid": bool(command_queue.get("policy_valid", True)),
         "command_queue_policy_error_count": len(
             command_queue.get("policy_errors") or []
@@ -984,6 +1010,11 @@ def command_queue_status_summary(command_queue, policy_records=None):
         "command_queue_live_polling_supported": bool(
             policy_summary.get("live_polling_supported", False)
         ),
+    }
+
+
+def _command_queue_poll_status_summary(policy_summary):
+    return {
         "GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC": policy_summary.get(
             "poll_interval_sec", "5"
         ),
@@ -1006,6 +1037,11 @@ def command_queue_status_summary(command_queue, policy_records=None):
         "command_queue_safe_disabled_default": bool(
             policy_summary.get("safe_disabled_default", False)
         ),
+    }
+
+
+def _command_queue_mode_status_summary(mode_summary):
+    return {
         "command_queue_mode_count": mode_summary.get("mode_count", 0),
         "command_queue_polling_mode_count": mode_summary.get(
             "polling_mode_count", 0
