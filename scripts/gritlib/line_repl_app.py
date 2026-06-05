@@ -3,9 +3,7 @@
 import sys
 import time
 import gritlib.bridge_routes as bridge_routes
-from gritlib.command_queue import (
-    clear_command_queue, command_queue_summary, queue_command,
-)
+import gritlib.command_queue as command_queue_module
 from gritlib.command_copy import copy_text_for_operator
 from gritlib.config_utils import (
     DEFAULTS, DEFAULT_CONFIG, load_config,
@@ -176,7 +174,7 @@ def run_line_repl(cfg):
         workbench_snapshot_func=workbench_snapshot,
         action_callbacks=line_action_callbacks,
         release_context_func=release_context,
-        command_queue_summary_func=command_queue_summary,
+        command_queue_summary_func=command_queue_module.command_queue_summary,
         route_service_callbacks=line_route_service_callbacks,
         target_callbacks=line_target_callbacks,
         option_callbacks=line_option_callbacks,
@@ -196,9 +194,9 @@ def run_line_repl(cfg):
     line_queue_callbacks = build_line_queue_callbacks(
         cfg,
         workbench_snapshot_func=workbench_snapshot,
-        queue_summary_func=command_queue_summary,
-        queue_func=queue_command,
-        clear_queue_func=clear_command_queue,
+        queue_summary_func=command_queue_module.command_queue_summary,
+        queue_func=command_queue_module.queue_command,
+        clear_queue_func=command_queue_module.clear_command_queue,
         target_callbacks=line_target_callbacks,
         append_event_fn=append_event,
         quote=shquote,
@@ -212,7 +210,7 @@ def run_line_repl(cfg):
         render_probe_command_func=probe_commands.render_probe_command,
         workbench_snapshot_func=workbench_snapshot,
         service_start_func=workflow_runners.start_service_process,
-        queue_command_func=queue_command,
+        queue_command_func=command_queue_module.queue_command,
         probe_delivery_func=probe_commands.print_probe_delivery,
         append_event_fn=append_event,
         route_service_callbacks=line_route_service_callbacks,
@@ -239,7 +237,7 @@ def run_line_repl(cfg):
         target_callbacks=line_target_callbacks,
         route_service_callbacks=line_route_service_callbacks,
         scoped_target_cfg_func=target_records.scoped_target_cfg,
-        queue_command_func=queue_command,
+        queue_command_func=command_queue_module.queue_command,
         load_staged_func=load_staged,
         fetch_command_func=render_fetch_command,
         append_event_fn=append_event,
