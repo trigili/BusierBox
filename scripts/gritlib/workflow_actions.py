@@ -1357,7 +1357,7 @@ def _workbench_build_artifact_release_action_records(config_path, release_dir, o
     return records
 
 
-def _workbench_offline_action_records(config_path):
+def _workbench_offline_source_action_records(config_path):
     return [
         {
             "id": "verify-sources",
@@ -1407,6 +1407,11 @@ def _workbench_offline_action_records(config_path):
             "target_execution": False,
             "event": "workbench_action_selected",
         },
+    ]
+
+
+def _workbench_offline_mirror_action_records(config_path):
+    return [
         {
             "id": "source-mirror-plan",
             "category": "offline",
@@ -1439,6 +1444,11 @@ def _workbench_offline_action_records(config_path):
             "target_execution": False,
             "event": "workbench_action_selected",
         },
+    ]
+
+
+def _workbench_offline_pack_action_records(config_path):
+    return [
         {
             "id": "offline-pack",
             "category": "offline",
@@ -1472,6 +1482,14 @@ def _workbench_offline_action_records(config_path):
             "event": "workbench_action_selected",
         },
     ]
+
+
+def _workbench_offline_action_records(config_path):
+    records = []
+    records.extend(_workbench_offline_source_action_records(config_path))
+    records.extend(_workbench_offline_mirror_action_records(config_path))
+    records.extend(_workbench_offline_pack_action_records(config_path))
+    return records
 
 
 def _workbench_operator_daemon_action_records(config_path, daemon_command):
