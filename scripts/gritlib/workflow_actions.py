@@ -2,13 +2,23 @@
 
 import shlex
 
+from gritlib.build_config import build_config_path
+from gritlib.command_queue import command_queue_path, load_command_queue
 from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.line_state import line_action_state_text
+from gritlib.operator_network import operator_advertised_host
+from gritlib.process_status import pid_alive
 from gritlib.record_utils import (
     format_counts, int_value, record_count_by_key, record_sum_by_key, records_by_key,
 )
+from gritlib.release_artifacts import release_context
+from gritlib.service_status import configured_daemon_services
+from gritlib.session_state import read_json_file, state_file_path
 from gritlib.shell_utils import shquote
+from gritlib.staged_files import staged_file_path
+from gritlib.systemd_user import systemd_user_unit_name
+from gritlib.target_records import load_targets, selected_target_context, targets_path
 from gritlib.workflow_support import (
     target_scoped_command, workflow_fleet_metrics,
 )
@@ -875,10 +885,6 @@ def operator_console_workflow_records(
 
 
 def workbench_action_records(cfg):
-    from gritlib.build_config import build_config_path
-    from gritlib.operator_network import operator_advertised_host
-    from gritlib.service_status import configured_daemon_services
-    from gritlib.target_records import selected_target_context
     from gritlib.workbench_jobs import (
         run_workbench_action_headless_command,
         start_workbench_job_headless_command,
@@ -1633,8 +1639,6 @@ def target_workflow_action_record(
 
 
 def target_workflow_action_records(cfg, targets, bridge_profiles=None):
-    from gritlib.release_artifacts import release_context
-
     config_path = str(cfg.get("_config_path", DEFAULT_CONFIG))
     base = "scripts/grit-console --config " + shquote(config_path)
     release = release_context(cfg)
@@ -2310,13 +2314,6 @@ def operator_daemon_workflow_action_status_summary(records):
 def operator_daemon_workflow_action_records(cfg, workbench_actions=None, targets=None):
     from pathlib import Path
 
-    from gritlib.command_queue import command_queue_path, load_command_queue
-    from gritlib.process_status import pid_alive
-    from gritlib.service_status import configured_daemon_services
-    from gritlib.session_state import read_json_file, state_file_path
-    from gritlib.staged_files import staged_file_path
-    from gritlib.systemd_user import systemd_user_unit_name
-    from gritlib.target_records import load_targets, targets_path
     from gritlib.workbench_jobs import workbench_jobs_path
 
     actions = [

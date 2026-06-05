@@ -624,8 +624,6 @@ def dispatch_legacy_target_detail_number(
 ):
     if str(choice or "").strip() != "18":
         return False
-    from gritlib.config_utils import DEFAULT_CONFIG
-    from gritlib.shell_utils import shquote
     from gritlib.target_activity import print_target_activity_records
 
     unfiltered_cfg = dict(cfg)
@@ -645,7 +643,7 @@ def dispatch_legacy_target_detail_number(
         if selection.get("scope") == "all":
             headless = (
                 "scripts/grit-console --config "
-                + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+                + shquote(str(cfg.get("_config_path", DEFAULT_SERVER_CONFIG)))
                 + " --status"
             )
             if print_summary_func:
@@ -668,7 +666,7 @@ def dispatch_legacy_target_detail_number(
         scoped_snap = snapshot_func(scoped) if snapshot_func else {}
         headless = (
             "scripts/grit-console --config "
-            + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
+            + shquote(str(cfg.get("_config_path", DEFAULT_SERVER_CONFIG)))
             + " --target-id "
             + shquote(target_id)
             + " --status"

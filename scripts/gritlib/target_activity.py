@@ -7,12 +7,14 @@ from pathlib import Path
 from gritlib.command_queue import (
     command_queue_expired, command_result_output_size_bucket, load_command_queue,
 )
+from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.console_display import console_table
 from gritlib.record_utils import (
     format_counts, int_value, latest_record_value, record_count_by_key,
     records_by_key,
 )
 from gritlib.session_state import parse_utc_timestamp, utc_now
+from gritlib.shell_utils import shquote
 from gritlib.target_mailbox import mailbox_elapsed_seconds, mailbox_wait_bucket
 
 
@@ -27,8 +29,6 @@ def dispatch_legacy_target_activity_number(
 ):
     if str(choice or "").strip() != "21":
         return False
-    from gritlib.config_utils import DEFAULT_CONFIG
-    from gritlib.shell_utils import shquote
     from gritlib.target_records import (
         configured_target_filter,
         print_workbench_target_selector,

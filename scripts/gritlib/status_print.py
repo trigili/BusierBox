@@ -14,6 +14,7 @@ from gritlib.release_artifacts import (
     artifact_provider_status_lines, print_release_summary, release_context,
     release_recommendation_lines,
 )
+from gritlib.session_state import utc_now
 from gritlib.session_records import print_recent_sessions
 from gritlib.shell_utils import shquote
 from gritlib.status_indexes import (
@@ -269,8 +270,6 @@ def print_status_document(doc, json_output=False):
 
 
 def print_workbench_snapshot(cfg, snap, include_api_summary=True):
-    from gritlib.session_state import utc_now
-
     summary = snap.get("summary") or {}
     print("griTTYkit Operator Workbench")
     print(f"Current time: {utc_now()}")
