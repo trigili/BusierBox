@@ -728,6 +728,31 @@ def _build_target_activity_status_context(
     }
 
 
+def _build_target_activity_feed_status_context(
+    targets,
+    target_mailbox_records,
+    target_phone_home_records,
+    target_file_transfer_records,
+    bridge_profiles,
+    sessions,
+):
+    target_activity_feed_context = target_activity_feed_status_context(
+        targets,
+        target_mailbox_records,
+        target_phone_home_records,
+        target_file_transfer_records,
+        bridge_profiles,
+        sessions,
+    )
+    target_activity_records = target_activity_feed_context["records"]
+    return {
+        "target_activity_feed_context": target_activity_feed_context,
+        "target_activity_records": target_activity_records,
+        "target_activity_index_maps": target_activity_feed_context["index_maps"],
+        "summary": target_activity_record_summary(target_activity_records),
+    }
+
+
 def _build_target_command_status_context(
     cfg,
     *,
@@ -1273,7 +1298,7 @@ def status_document(cfg):
     file_service_workflow_action_index_maps = file_service_workflow_context[
         "index_maps"
     ]
-    target_activity_feed_context = target_activity_feed_status_context(
+    target_activity_feed_context = _build_target_activity_feed_status_context(
         targets,
         target_mailbox_records,
         target_phone_home_records,
@@ -1281,8 +1306,10 @@ def status_document(cfg):
         bridge_profiles,
         sessions,
     )
-    target_activity_records = target_activity_feed_context["records"]
-    target_activity_index_maps = target_activity_feed_context["index_maps"]
+    target_activity_records = target_activity_feed_context["target_activity_records"]
+    target_activity_index_maps = target_activity_feed_context[
+        "target_activity_index_maps"
+    ]
     summary = service_context["summary"]
     warnings = service_context["warnings"]
     service_index_maps = service_context["service_index_maps"]
@@ -1475,7 +1502,7 @@ def status_document(cfg):
         **fetch_record_summary(fetches, target_attribution),
         **target_file_transfer_record_summary(target_file_transfer_records),
         **file_service_workflow_status_summary(file_service_workflow_actions),
-        **target_activity_record_summary(target_activity_records),
+        **target_activity_feed_context["summary"],
         **target_summary,
         **target_registry_summary,
         **target_filter_context["summary"],
