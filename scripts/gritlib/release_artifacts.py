@@ -694,97 +694,115 @@ def release_status_summary(release=None, release_state=None, release_state_recor
     }
 
 
+def _load_release_context_document(here):
+    release_json = here / "release.json"
+    if not (release_json.is_file() and (here / "bin").is_dir() and (here / "scripts").is_dir()):
+        return None
+    try:
+        release = json.loads(release_json.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return release if isinstance(release, dict) else None
+
+
+def _release_context_artifacts(here, index, license_record):
+    artifacts = []
+    for root_name in ("bin", "dist"):
+        root = here / root_name
+        if root.is_dir():
+            for path in sorted(root.iterdir()):
+                if path.is_file() and not path.name.endswith(".sha256"):
+                    artifacts.append({
+                        "name": path.name,
+                        "path": str(path),
+                        "request_name": path.name,
+                        "size": path.stat().st_size,
+                        "source": root_name,
+                    })
+    if isinstance(index, dict):
+        for row in index.get("artifacts") or []:
+            artifact = row.get("artifact") or row.get("tuple_artifact")
+            if not artifact:
+                continue
+            tuple_artifact = row.get("tuple_artifact") or ""
+            path = here / artifact
+            rec = {
+                "name": Path(artifact).name,
+                "path": str(path),
+                "request_name": Path(artifact).name,
+                "size": path.stat().st_size if path.is_file() else row.get("size", 0),
+                "source": "release-index",
+                "release_path": artifact,
+                "tuple_artifact": tuple_artifact,
+                "tuple_artifact_path": str(here / tuple_artifact) if tuple_artifact else "",
+                "tuple_path": row.get("tuple_path", ""),
+                "payload_preset": row.get("payload_preset", ""),
+                "sha256": row.get("sha256", ""),
+                "tools": row.get("tools") or [],
+                "features": row.get("features") or [],
+                "compatibility": row.get("compatibility") or {},
+                "tool_provider_status": row.get("tool_provider_status") or {},
+                "doom_wads": row.get("doom_wads") or [],
+                "release_license": license_record,
+                "project_license": license_record.get("project_license", ""),
+                "combined_gplv2_compatible": bool(license_record.get("combined_gplv2_compatible")),
+            }
+            existing_paths = [item.get("path") for item in artifacts]
+            if rec["path"] in existing_paths:
+                artifacts[existing_paths.index(rec["path"])].update(rec)
+            else:
+                artifacts.append(rec)
+    return artifacts
+
+
+def _release_artifact_refs(here, names):
+    refs = [str(item) for item in (names or []) if str(item)]
+    return {
+        "artifacts": refs,
+        "artifact_count": len(refs),
+        "artifact_names": [Path(item).name for item in refs],
+        "artifact_paths": [str(here / item) for item in refs],
+    }
+
+
+def _release_context_devices_tuples(here, release, index):
+    devices = []
+    tuples = []
+    layout = release.get("layout") if isinstance(release, dict) else {}
+    if isinstance(index, dict):
+        devices_source = index.get("devices") or (layout or {}).get("devices") or {}
+        tuples_source = index.get("tuples") or (layout or {}).get("tuples") or {}
+    else:
+        devices_source = (layout or {}).get("devices") or {}
+        tuples_source = (layout or {}).get("tuples") or {}
+    for name, rec in sorted((devices_source or {}).items()):
+        if isinstance(rec, dict):
+            row = {"name": name, "tuple_path": rec.get("tuple_path", "")}
+            row.update(_release_artifact_refs(here, rec.get("artifacts") or []))
+            device_dir = here / "devices" / name
+            if device_dir.exists():
+                row["path"] = str(device_dir)
+            devices.append(row)
+    for name, rec in sorted((tuples_source or {}).items()):
+        if isinstance(rec, dict):
+            row = {"path": name, "tuple": rec.get("tuple") or {}}
+            row.update(_release_artifact_refs(here, rec.get("artifacts") or []))
+            tuple_dir = here / name
+            if tuple_dir.exists():
+                row["filesystem_path"] = str(tuple_dir)
+            tuples.append(row)
+    return devices, tuples
+
+
 def release_context(cfg=None):
     here = Path(str((cfg or {}).get("release_dir") or Path.cwd()))
     release_json = here / "release.json"
-    if release_json.is_file() and (here / "bin").is_dir() and (here / "scripts").is_dir():
-        try:
-            release = json.loads(release_json.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return {}
-        if not isinstance(release, dict):
-            return {}
+    release = _load_release_context_document(here)
+    if release is not None:
         license_record = release_license_record(here)
-        artifacts = []
-        for root_name in ("bin", "dist"):
-            root = here / root_name
-            if root.is_dir():
-                for path in sorted(root.iterdir()):
-                    if path.is_file() and not path.name.endswith(".sha256"):
-                        artifacts.append({
-                            "name": path.name,
-                            "path": str(path),
-                            "request_name": path.name,
-                            "size": path.stat().st_size,
-                            "source": root_name,
-                        })
         index = read_json_file(here / "release-index.json", {})
-        if isinstance(index, dict):
-            for row in index.get("artifacts") or []:
-                artifact = row.get("artifact") or row.get("tuple_artifact")
-                if not artifact:
-                    continue
-                tuple_artifact = row.get("tuple_artifact") or ""
-                path = here / artifact
-                rec = {
-                    "name": Path(artifact).name,
-                    "path": str(path),
-                    "request_name": Path(artifact).name,
-                    "size": path.stat().st_size if path.is_file() else row.get("size", 0),
-                    "source": "release-index",
-                    "release_path": artifact,
-                    "tuple_artifact": tuple_artifact,
-                    "tuple_artifact_path": str(here / tuple_artifact) if tuple_artifact else "",
-                    "tuple_path": row.get("tuple_path", ""),
-                    "payload_preset": row.get("payload_preset", ""),
-                    "sha256": row.get("sha256", ""),
-                    "tools": row.get("tools") or [],
-                    "features": row.get("features") or [],
-                    "compatibility": row.get("compatibility") or {},
-                    "tool_provider_status": row.get("tool_provider_status") or {},
-                    "doom_wads": row.get("doom_wads") or [],
-                    "release_license": license_record,
-                    "project_license": license_record.get("project_license", ""),
-                    "combined_gplv2_compatible": bool(license_record.get("combined_gplv2_compatible")),
-                }
-                existing_paths = [item.get("path") for item in artifacts]
-                if rec["path"] in existing_paths:
-                    artifacts[existing_paths.index(rec["path"])].update(rec)
-                else:
-                    artifacts.append(rec)
-        devices = []
-        tuples = []
-        layout = release.get("layout") if isinstance(release, dict) else {}
-        if isinstance(index, dict):
-            devices_source = index.get("devices") or (layout or {}).get("devices") or {}
-            tuples_source = index.get("tuples") or (layout or {}).get("tuples") or {}
-        else:
-            devices_source = (layout or {}).get("devices") or {}
-            tuples_source = (layout or {}).get("tuples") or {}
-        def enrich_release_artifact_refs(names):
-            refs = [str(item) for item in (names or []) if str(item)]
-            return {
-                "artifacts": refs,
-                "artifact_count": len(refs),
-                "artifact_names": [Path(item).name for item in refs],
-                "artifact_paths": [str(here / item) for item in refs],
-            }
-        for name, rec in sorted((devices_source or {}).items()):
-            if isinstance(rec, dict):
-                row = {"name": name, "tuple_path": rec.get("tuple_path", "")}
-                row.update(enrich_release_artifact_refs(rec.get("artifacts") or []))
-                device_dir = here / "devices" / name
-                if device_dir.exists():
-                    row["path"] = str(device_dir)
-                devices.append(row)
-        for name, rec in sorted((tuples_source or {}).items()):
-            if isinstance(rec, dict):
-                row = {"path": name, "tuple": rec.get("tuple") or {}}
-                row.update(enrich_release_artifact_refs(rec.get("artifacts") or []))
-                tuple_dir = here / name
-                if tuple_dir.exists():
-                    row["filesystem_path"] = str(tuple_dir)
-                tuples.append(row)
+        artifacts = _release_context_artifacts(here, index, license_record)
+        devices, tuples = _release_context_devices_tuples(here, release, index)
         artifacts_by_release_path = {}
         artifacts_by_name = {}
         artifacts_by_sha256 = {}
