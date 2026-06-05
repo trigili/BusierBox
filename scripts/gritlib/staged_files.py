@@ -416,10 +416,7 @@ def staged_record_summary(records):
     }
 
 
-def staged_status_summary(records, workflow_action_records=None):
-    records = records or []
-    staged_summary = staged_record_summary(records)
-    action_summary = staged_file_workflow_action_summary(workflow_action_records)
+def _staged_status_record_summary(records, staged_summary):
     return {
         "staged_count": len(records),
         "staged_total_size": staged_summary.get("total_size", 0),
@@ -438,6 +435,11 @@ def staged_status_summary(records, workflow_action_records=None):
             "source_missing_by_kind"
         ) or {},
         "latest_staged_at": latest_record_value(records, ("staged_at",)),
+    }
+
+
+def _staged_status_workflow_total_summary(action_summary):
+    return {
         "staged_file_workflow_action_count": action_summary.get("total_count", 0),
         "staged_file_workflow_action_available_count": action_summary.get(
             "available_count", 0
@@ -466,6 +468,11 @@ def staged_status_summary(records, workflow_action_records=None):
         "staged_file_workflow_action_workflow_counts": action_summary.get(
             "workflow_counts"
         ) or {},
+    }
+
+
+def _staged_status_workflow_target_summary(action_summary):
+    return {
         "staged_file_workflow_action_target_counts": action_summary.get(
             "target_counts"
         ) or {},
@@ -496,9 +503,19 @@ def staged_status_summary(records, workflow_action_records=None):
         "staged_file_workflow_action_bridge_profile_counts": action_summary.get(
             "bridge_profile_counts"
         ) or {},
+    }
+
+
+def _staged_status_workflow_action_summary(action_summary):
+    return {
         "staged_file_workflow_action_action_counts": action_summary.get(
             "action_counts"
         ) or {},
+    }
+
+
+def _staged_status_workflow_fleet_summary(action_summary):
+    return {
         "staged_file_workflow_action_fleet_target_count_counts": action_summary.get(
             "fleet_target_count_counts"
         ) or {},
@@ -529,6 +546,11 @@ def staged_status_summary(records, workflow_action_records=None):
         "staged_file_workflow_action_fleet_has_poll_overdue_targets_counts": action_summary.get(
             "fleet_has_poll_overdue_targets_counts"
         ) or {},
+    }
+
+
+def _staged_status_workflow_source_summary(action_summary):
+    return {
         "staged_file_workflow_action_source_exists_counts": action_summary.get(
             "source_exists_counts"
         ) or {},
@@ -548,6 +570,20 @@ def staged_status_summary(records, workflow_action_records=None):
             "curses_enter_action_counts"
         ) or {},
     }
+
+
+def staged_status_summary(records, workflow_action_records=None):
+    records = records or []
+    staged_summary = staged_record_summary(records)
+    action_summary = staged_file_workflow_action_summary(workflow_action_records)
+    summary = {}
+    summary.update(_staged_status_record_summary(records, staged_summary))
+    summary.update(_staged_status_workflow_total_summary(action_summary))
+    summary.update(_staged_status_workflow_target_summary(action_summary))
+    summary.update(_staged_status_workflow_action_summary(action_summary))
+    summary.update(_staged_status_workflow_fleet_summary(action_summary))
+    summary.update(_staged_status_workflow_source_summary(action_summary))
+    return summary
 
 
 def _staged_file_workflow_fleet_context(target_records):
