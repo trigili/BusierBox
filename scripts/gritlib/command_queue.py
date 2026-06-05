@@ -101,7 +101,7 @@ def print_command_queue(cfg, json_output=False):
         )
         if rec.get("target_id"):
             target_label = rec.get("target_label", "") or "-"
-            print(f"  target: {rec.get('target_id', '')} ({target_label})")
+            print(f"  target: {rec.get('target_id', '')} label={target_label}")
         delivery_policy = rec.get("delivery_policy_snapshot") if isinstance(rec.get("delivery_policy_snapshot"), dict) else {}
         if delivery_policy:
             print(
