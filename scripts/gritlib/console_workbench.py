@@ -1699,6 +1699,27 @@ def _build_operator_health_api_collections(
     warnings,
 ):
     return {
+        **_build_operator_path_port_api_collections(
+            ports=ports,
+            path_status_records=path_status_records,
+        ),
+        **_build_operator_state_api_collections(
+            server_state_records=server_state_records,
+            operator_state_records_list=operator_state_records_list,
+        ),
+        **_build_operator_network_path_api_collections(
+            operator_network_records=operator_network_records,
+            operator_network_state_records=operator_network_state_records,
+            browser_paths=browser_paths,
+        ),
+        **_build_warning_api_collections(
+            warnings=warnings,
+        ),
+    }
+
+
+def _build_operator_path_port_api_collections(*, ports, path_status_records):
+    return {
         "ports": status_indexes.api_collection_record(
             "ports", ports, "service", (
                 "ports_by_number", "ports_by_service", "ports_by_actual",
@@ -1714,6 +1735,11 @@ def _build_operator_health_api_collections(
                 "path_status_by_has_warnings", "path_status_by_warning_type",
             ), "path_status_count",
         ),
+    }
+
+
+def _build_operator_state_api_collections(*, server_state_records, operator_state_records_list):
+    return {
         "server_state_records": status_indexes.api_collection_record(
             "server_state_records", server_state_records, "path", (
                 "server_state_records_by_path",
@@ -1736,6 +1762,16 @@ def _build_operator_health_api_collections(
                 "operator_state_records_by_kind_status",
             ), "operator_state_count",
         ),
+    }
+
+
+def _build_operator_network_path_api_collections(
+    *,
+    operator_network_records,
+    operator_network_state_records,
+    browser_paths,
+):
+    return {
         "operator_network_records": status_indexes.api_collection_record(
             "operator_network_records", operator_network_records, "id", (
                 "operator_network_records_by_id",
@@ -1769,6 +1805,11 @@ def _build_operator_health_api_collections(
                 "browser_paths_by_has_warnings", "browser_paths_by_warning_type",
             ), "browser_path_count",
         ),
+    }
+
+
+def _build_warning_api_collections(*, warnings):
+    return {
         "warnings": status_indexes.api_collection_record(
             "warnings", warnings, "type", (
                 "warnings_by_type", "warnings_by_severity",
