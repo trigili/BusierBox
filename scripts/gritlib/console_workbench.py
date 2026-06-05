@@ -690,6 +690,44 @@ def _build_command_queue_status_context(cfg):
     }
 
 
+def _build_target_activity_status_context(
+    command_queue,
+    targets_by_id,
+    all_event_records,
+    *,
+    target_filter_id,
+    target_filter_session_ids,
+):
+    target_activity_context = target_activity_status_context(
+        command_queue,
+        targets_by_id,
+        all_event_records,
+        target_filter_id=target_filter_id,
+        target_filter_session_ids=target_filter_session_ids,
+    )
+    return {
+        "target_activity_context": target_activity_context,
+        "target_mailbox_records": target_activity_context["target_mailbox_records"],
+        "target_mailbox_index_maps": target_activity_context[
+            "target_mailbox_index_maps"
+        ],
+        "target_phone_home_records": target_activity_context[
+            "target_phone_home_records"
+        ],
+        "target_phone_home_index_maps": target_activity_context[
+            "target_phone_home_index_maps"
+        ],
+        "summary": {
+            **target_mailbox_record_summary(
+                target_activity_context["target_mailbox_records"]
+            ),
+            **target_phone_home_record_summary(
+                target_activity_context["target_phone_home_records"]
+            ),
+        },
+    }
+
+
 def _build_target_command_status_context(
     cfg,
     *,
@@ -1112,7 +1150,7 @@ def status_document(cfg):
     event_summary_stats = event_context["event_summary_stats"]
     command_queue_context = _build_command_queue_status_context(cfg)
     command_queue = command_queue_context["command_queue"]
-    target_activity_context = target_activity_status_context(
+    target_activity_context = _build_target_activity_status_context(
         command_queue,
         targets_by_id,
         all_event_records,
@@ -1461,8 +1499,7 @@ def status_document(cfg):
         ),
         **operator_network_context["summary"],
         **command_queue_status_summary(command_queue, command_queue_policy_records),
-        **target_mailbox_record_summary(target_mailbox_records),
-        **target_phone_home_record_summary(target_phone_home_records),
+        **target_activity_context["summary"],
         **release_context_doc["summary"],
         **release_artifact_workflow_action_status_summary(release_artifact_workflow_actions),
         **operator_console_workflow_status_summary(operator_console_workflow_stats),
