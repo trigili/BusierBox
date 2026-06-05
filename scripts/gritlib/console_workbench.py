@@ -351,6 +351,56 @@ COMMAND_QUEUE_MODE_INDEX_KEYS = (
     "command_queue_modes_by_operator_supplied_command_execution",
 )
 
+SERVICE_INDEX_KEYS = (
+    "services_by_actual",
+    "services_by_configured",
+    "services_by_bind_address",
+    "services_by_port",
+    "services_by_pid",
+    "services_by_listener_pid",
+    "services_by_tls",
+    "services_by_stale",
+    "services_by_pid_alive",
+    "services_by_pid_managed",
+    "services_by_listener_bind_mismatch",
+    "services_by_session_log_exists",
+    "services_by_process_log_exists",
+    "services_by_has_error",
+    "services_by_stopped_reason",
+)
+
+PORT_INDEX_KEYS = (
+    "ports_by_number",
+    "ports_by_service",
+    "ports_by_actual",
+)
+
+
+def _build_service_status_context(cfg):
+    service_context = service_status_context(cfg, SERVICE_MANAGER.snapshot())
+    return {
+        "service_context": service_context,
+        "services": service_context["services"],
+        "service_manager": service_context["manager"],
+        "service_manager_status_doc": service_context["manager_status"],
+        "service_manager_resources": service_context["manager_resources"],
+        "service_manager_resource_index_maps": service_context[
+            "manager_resource_index_maps"
+        ],
+        "service_manager_state_record": service_context["manager_state_record"],
+        "service_manager_state_records": service_context["manager_state_records"],
+        "service_manager_state_index_maps": service_context["manager_state_index_maps"],
+        "ports": service_context["ports"],
+        "port_index_maps": dict(zip(PORT_INDEX_KEYS, service_context["port_indexes"])),
+        "summary": service_context["summary"],
+        "warnings": service_context["warnings"],
+        "service_index_maps": dict(zip(
+            SERVICE_INDEX_KEYS,
+            service_context["service_indexes"],
+        )),
+        "services_by_name": service_context["services_by_name"],
+    }
+
 
 def _build_command_queue_status_context(cfg):
     command_queue = command_queue_summary(cfg)
@@ -713,23 +763,25 @@ def status_document(cfg):
     operator_dir = Path(str(cfg.get("operator_session_dir", DEFAULT_OPERATOR_SESSION_DIR)))
     event_log_path = operator_dir / "events.jsonl"
     session_root = str(cfg.get("session_root", "local/sessions"))
-    service_context = service_status_context(cfg, SERVICE_MANAGER.snapshot())
+    service_context = _build_service_status_context(cfg)
     services = service_context["services"]
     bridge_profiles = bridge_profile_records(cfg)
     bridge_profile_index_maps = bridge_profile_indexes(bridge_profiles)
     bridge_hop_records = bridge_hop_records_from_profiles(bridge_profiles)
     bridge_hop_index_maps = bridge_hop_indexes(bridge_hop_records)
-    service_manager = service_context["manager"]
-    service_manager_status_doc = service_context["manager_status"]
-    service_manager_resources = service_context["manager_resources"]
-    service_manager_resource_index_maps = service_context["manager_resource_index_maps"]
-    service_manager_state_record = service_context["manager_state_record"]
-    service_manager_state_records = service_context["manager_state_records"]
-    service_manager_state_index_maps = service_context["manager_state_index_maps"]
+    service_manager = service_context["service_manager"]
+    service_manager_status_doc = service_context["service_manager_status_doc"]
+    service_manager_resources = service_context["service_manager_resources"]
+    service_manager_resource_index_maps = service_context[
+        "service_manager_resource_index_maps"
+    ]
+    service_manager_state_record = service_context["service_manager_state_record"]
+    service_manager_state_records = service_context["service_manager_state_records"]
+    service_manager_state_index_maps = service_context[
+        "service_manager_state_index_maps"
+    ]
     ports = service_context["ports"]
-    (ports_by_number,
-     ports_by_service,
-     ports_by_actual) = service_context["port_indexes"]
+    port_index_maps = service_context["port_index_maps"]
     all_event_records, _all_event_invalid = EventLog(cfg).records()
     all_target_phone_home_records = target_phone_home_records_from_events(all_event_records)
     target_context = _build_target_registry_context(
@@ -912,21 +964,7 @@ def status_document(cfg):
     target_activity_index_maps = target_activity_feed_context["index_maps"]
     summary = service_context["summary"]
     warnings = service_context["warnings"]
-    (services_by_actual,
-     services_by_configured,
-     services_by_bind_address,
-     services_by_port,
-     services_by_pid,
-     services_by_listener_pid,
-     services_by_tls,
-     services_by_stale,
-     services_by_pid_alive,
-     services_by_pid_managed,
-     services_by_listener_bind_mismatch,
-     services_by_session_log_exists,
-     services_by_process_log_exists,
-     services_by_has_error,
-     services_by_stopped_reason) = service_context["service_indexes"]
+    service_index_maps = service_context["service_index_maps"]
     target_attribution_status_doc = target_attribution_status(
         uploads, fetches, sessions
     )
@@ -2434,21 +2472,7 @@ def status_document(cfg):
         **bridge_hop_index_maps,
         "services": services,
         "services_by_name": services_by_name,
-        "services_by_actual": services_by_actual,
-        "services_by_configured": services_by_configured,
-        "services_by_bind_address": services_by_bind_address,
-        "services_by_port": services_by_port,
-        "services_by_pid": services_by_pid,
-        "services_by_listener_pid": services_by_listener_pid,
-        "services_by_tls": services_by_tls,
-        "services_by_stale": services_by_stale,
-        "services_by_pid_alive": services_by_pid_alive,
-        "services_by_pid_managed": services_by_pid_managed,
-        "services_by_listener_bind_mismatch": services_by_listener_bind_mismatch,
-        "services_by_session_log_exists": services_by_session_log_exists,
-        "services_by_process_log_exists": services_by_process_log_exists,
-        "services_by_has_error": services_by_has_error,
-        "services_by_stopped_reason": services_by_stopped_reason,
+        **service_index_maps,
         "services_by_has_warnings": services_by_has_warnings,
         "services_by_warning_type": services_by_warning_type,
         "service_workflow_actions": service_workflow_actions,
@@ -2456,9 +2480,7 @@ def status_document(cfg):
         "probe_workflow_actions": probe_workflow_actions,
         **probe_workflow_action_index_maps,
         "ports": ports,
-        "ports_by_number": ports_by_number,
-        "ports_by_service": ports_by_service,
-        "ports_by_actual": ports_by_actual,
+        **port_index_maps,
         "ports_by_has_warnings": ports_by_has_warnings,
         "ports_by_warning_type": ports_by_warning_type,
         "summary": summary,
