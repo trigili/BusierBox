@@ -28,10 +28,7 @@ from gritlib.record_utils import (
 from gritlib.release_artifacts import (
     release_artifact_workflow_action_status_summary, release_status_context,
 )
-from gritlib.session_state import (
-    read_json_file, server_state_status, state_file_path,
-    utc_now,
-)
+import gritlib.session_state as session_state_module
 from gritlib.session_records import (
     session_record_summary, session_status_context,
 )
@@ -363,7 +360,7 @@ def _build_operator_state_status_context(
     event_log_state,
     session_root_state,
 ):
-    server_status = server_state_status(cfg)
+    server_status = session_state_module.server_state_status(cfg)
     server_state = server_status["state_record"]
     server_state_records = server_status["state_records"]
     staged_files_status = staged_files.staged_files_state_status(cfg)
@@ -1141,7 +1138,9 @@ def _build_event_status_context(
 def workbench_snapshot(cfg):
     doc = status_document(cfg)
     services = {}
-    state = read_json_file(state_file_path(cfg), {"schema": 1, "services": {}})
+    state = session_state_module.read_json_file(
+        session_state_module.state_file_path(cfg), {"schema": 1, "services": {}}
+    )
     workbench_state = (state.get("services") or {}).get("workbench", {})
     for row in doc["services"]:
         services[row["name"]] = {
@@ -1618,7 +1617,7 @@ def status_document(cfg):
     ]
     paths = {
         "operator_session_dir": str(operator_dir),
-        "state_file": str(state_file_path(cfg)),
+        "state_file": str(session_state_module.state_file_path(cfg)),
         "staged_files": str(staged_files.staged_file_path(cfg)),
         "command_queue_file": str(command_queue_module.command_queue_path(cfg)),
         "command_copy_file": str(command_copy_module.command_copy_path(cfg)),
@@ -2908,7 +2907,7 @@ def status_document(cfg):
     api_resource_indexes = status_indexes.api_resource_record_indexes(api_resources)
     return {
         "schema": 1,
-        "generated_at": utc_now(),
+        "generated_at": session_state_module.utc_now(),
         "api": {
             "schema": 1,
             "status_command": "scripts/grit-console --api-status",
@@ -3048,7 +3047,7 @@ def status_document(cfg):
         "operator_console_workflows": operator_console_workflows,
         **operator_console_workflow_index_maps,
         "operator_session_dir": str(operator_dir),
-        "state_file": str(state_file_path(cfg)),
+        "state_file": str(session_state_module.state_file_path(cfg)),
         "staged_files": str(staged_files.staged_file_path(cfg)),
         "command_queue_file": str(command_queue_module.command_queue_path(cfg)),
         "command_copy_file": str(command_copy_module.command_copy_path(cfg)),
