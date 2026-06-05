@@ -1395,150 +1395,128 @@ def _target_record_report_summary(records):
     }
 
 
+def _count_text_value(counts, value):
+    value = str(value or "")
+    if value:
+        counts[value] = counts.get(value, 0) + 1
+
+
+def _empty_target_record_activity_summary():
+    return {
+        "service_counts": {},
+        "identity_source_counts": {},
+        "latest_activity_service_counts": {},
+        "latest_activity_operation_counts": {},
+        "connectivity_state_counts": {},
+        "last_seen_via_counts": {},
+        "offline_age_bucket_counts": {},
+        "latest_file_transfer_operation_counts": {},
+        "latest_file_transfer_status_counts": {},
+        "latest_file_transfer_route_kind_counts": {},
+        "latest_file_transfer_bridge_profile_counts": {},
+        "latest_survey_result_kind_counts": {},
+        "latest_survey_result_status_counts": {},
+        "latest_survey_result_route_kind_counts": {},
+        "latest_survey_result_bridge_profile_counts": {},
+        "latest_bridge_profile_counts": {},
+        "latest_bridge_status_counts": {},
+        "remote_count": 0,
+        "notes_count": 0,
+        "next_expected_poll_count": 0,
+        "poll_overdue_count": 0,
+        "mailbox_pending_target_count": 0,
+        "mailbox_pending_work_count": 0,
+        "phone_home_target_count": 0,
+        "failed_phone_home_target_count": 0,
+        "successful_phone_home_count": 0,
+        "failed_phone_home_count": 0,
+        "latest_file_transfer_count": 0,
+        "latest_survey_result_count": 0,
+        "latest_bridge_activity_count": 0,
+    }
+
+
+def _update_target_identity_activity_summary(summary, rec):
+    if str(rec.get("notes") or "").strip():
+        summary["notes_count"] += 1
+    summary["remote_count"] += len(rec.get("remote_addresses") or [])
+    for service in rec.get("services_seen") or []:
+        _count_text_value(summary["service_counts"], service)
+    for source in rec.get("identity_sources") or []:
+        _count_text_value(summary["identity_source_counts"], source)
+    _count_text_value(summary["latest_activity_service_counts"], rec.get("latest_activity_service"))
+    _count_text_value(summary["latest_activity_operation_counts"], rec.get("latest_activity_operation"))
+    _count_text_value(summary["connectivity_state_counts"], rec.get("connectivity_state"))
+    _count_text_value(summary["last_seen_via_counts"], rec.get("last_seen_via"))
+    _count_text_value(summary["offline_age_bucket_counts"], rec.get("offline_age_bucket"))
+    if str(rec.get("next_expected_poll") or ""):
+        summary["next_expected_poll_count"] += 1
+    if rec.get("poll_overdue") is True:
+        summary["poll_overdue_count"] += 1
+
+
+def _update_target_mailbox_phone_home_summary(summary, rec):
+    pending_work = int(rec.get("mailbox_pending_work_count") or 0)
+    summary["mailbox_pending_work_count"] += pending_work
+    if pending_work > 0:
+        summary["mailbox_pending_target_count"] += 1
+    if int(rec.get("phone_home_record_count") or 0) > 0:
+        summary["phone_home_target_count"] += 1
+    failed_count = int(rec.get("failed_phone_home_count") or 0)
+    summary["successful_phone_home_count"] += int(rec.get("successful_phone_home_count") or 0)
+    summary["failed_phone_home_count"] += failed_count
+    if failed_count > 0:
+        summary["failed_phone_home_target_count"] += 1
+
+
+def _update_target_file_transfer_summary(summary, rec):
+    if not str(rec.get("latest_file_transfer_at") or ""):
+        return
+    summary["latest_file_transfer_count"] += 1
+    _count_text_value(
+        summary["latest_file_transfer_operation_counts"],
+        rec.get("latest_file_transfer_operation"),
+    )
+    _count_text_value(summary["latest_file_transfer_status_counts"], rec.get("latest_file_transfer_status"))
+    _count_text_value(summary["latest_file_transfer_route_kind_counts"], rec.get("latest_file_transfer_route_kind"))
+    _count_text_value(
+        summary["latest_file_transfer_bridge_profile_counts"],
+        rec.get("latest_file_transfer_bridge_profile"),
+    )
+
+
+def _update_target_survey_summary(summary, rec):
+    if not str(rec.get("latest_survey_result_at") or ""):
+        return
+    summary["latest_survey_result_count"] += 1
+    _count_text_value(summary["latest_survey_result_kind_counts"], rec.get("latest_survey_result_kind"))
+    _count_text_value(summary["latest_survey_result_status_counts"], rec.get("latest_survey_result_status"))
+    _count_text_value(summary["latest_survey_result_route_kind_counts"], rec.get("latest_survey_result_route_kind"))
+    _count_text_value(
+        summary["latest_survey_result_bridge_profile_counts"],
+        rec.get("latest_survey_result_bridge_profile"),
+    )
+
+
+def _update_target_bridge_summary(summary, rec):
+    if not str(rec.get("latest_bridge_activity_at") or ""):
+        return
+    summary["latest_bridge_activity_count"] += 1
+    _count_text_value(summary["latest_bridge_profile_counts"], rec.get("latest_bridge_profile"))
+    _count_text_value(summary["latest_bridge_status_counts"], rec.get("latest_bridge_status"))
+
+
 def _target_record_activity_summary(records):
-    service_counts = {}
-    identity_source_counts = {}
-    latest_activity_service_counts = {}
-    latest_activity_operation_counts = {}
-    connectivity_state_counts = {}
-    last_seen_via_counts = {}
-    offline_age_bucket_counts = {}
-    latest_file_transfer_operation_counts = {}
-    latest_file_transfer_status_counts = {}
-    latest_file_transfer_route_kind_counts = {}
-    latest_file_transfer_bridge_profile_counts = {}
-    latest_survey_result_kind_counts = {}
-    latest_survey_result_status_counts = {}
-    latest_survey_result_route_kind_counts = {}
-    latest_survey_result_bridge_profile_counts = {}
-    latest_bridge_profile_counts = {}
-    latest_bridge_status_counts = {}
-    remote_count = 0
-    notes_count = 0
-    next_expected_poll_count = 0
-    poll_overdue_count = 0
-    mailbox_pending_target_count = 0
-    mailbox_pending_work_count = 0
-    phone_home_target_count = 0
-    failed_phone_home_target_count = 0
-    successful_phone_home_count = 0
-    failed_phone_home_count = 0
-    latest_file_transfer_count = 0
-    latest_survey_result_count = 0
-    latest_bridge_activity_count = 0
+    summary = _empty_target_record_activity_summary()
     for rec in records or []:
         if not isinstance(rec, dict):
             continue
-        if str(rec.get("notes") or "").strip():
-            notes_count += 1
-        remote_count += len(rec.get("remote_addresses") or [])
-        for service in rec.get("services_seen") or []:
-            service = str(service or "")
-            if service:
-                service_counts[service] = service_counts.get(service, 0) + 1
-        for source in rec.get("identity_sources") or []:
-            source = str(source or "")
-            if source:
-                identity_source_counts[source] = identity_source_counts.get(source, 0) + 1
-        activity_service = str(rec.get("latest_activity_service") or "")
-        if activity_service:
-            latest_activity_service_counts[activity_service] = latest_activity_service_counts.get(activity_service, 0) + 1
-        activity_operation = str(rec.get("latest_activity_operation") or "")
-        if activity_operation:
-            latest_activity_operation_counts[activity_operation] = latest_activity_operation_counts.get(activity_operation, 0) + 1
-        connectivity_state = str(rec.get("connectivity_state") or "")
-        if connectivity_state:
-            connectivity_state_counts[connectivity_state] = connectivity_state_counts.get(connectivity_state, 0) + 1
-        last_seen_via = str(rec.get("last_seen_via") or "")
-        if last_seen_via:
-            last_seen_via_counts[last_seen_via] = last_seen_via_counts.get(last_seen_via, 0) + 1
-        offline_age_bucket = str(rec.get("offline_age_bucket") or "")
-        if offline_age_bucket:
-            offline_age_bucket_counts[offline_age_bucket] = offline_age_bucket_counts.get(offline_age_bucket, 0) + 1
-        if str(rec.get("next_expected_poll") or ""):
-            next_expected_poll_count += 1
-        if rec.get("poll_overdue") is True:
-            poll_overdue_count += 1
-        pending_work = int(rec.get("mailbox_pending_work_count") or 0)
-        mailbox_pending_work_count += pending_work
-        if pending_work > 0:
-            mailbox_pending_target_count += 1
-        phone_home_count = int(rec.get("phone_home_record_count") or 0)
-        if phone_home_count > 0:
-            phone_home_target_count += 1
-        failed_count = int(rec.get("failed_phone_home_count") or 0)
-        successful_phone_home_count += int(rec.get("successful_phone_home_count") or 0)
-        failed_phone_home_count += failed_count
-        if failed_count > 0:
-            failed_phone_home_target_count += 1
-        if str(rec.get("latest_file_transfer_at") or ""):
-            latest_file_transfer_count += 1
-            file_operation = str(rec.get("latest_file_transfer_operation") or "")
-            if file_operation:
-                latest_file_transfer_operation_counts[file_operation] = latest_file_transfer_operation_counts.get(file_operation, 0) + 1
-            file_status = str(rec.get("latest_file_transfer_status") or "")
-            if file_status:
-                latest_file_transfer_status_counts[file_status] = latest_file_transfer_status_counts.get(file_status, 0) + 1
-            file_route_kind = str(rec.get("latest_file_transfer_route_kind") or "")
-            if file_route_kind:
-                latest_file_transfer_route_kind_counts[file_route_kind] = latest_file_transfer_route_kind_counts.get(file_route_kind, 0) + 1
-            file_bridge_profile = str(rec.get("latest_file_transfer_bridge_profile") or "")
-            if file_bridge_profile:
-                latest_file_transfer_bridge_profile_counts[file_bridge_profile] = latest_file_transfer_bridge_profile_counts.get(file_bridge_profile, 0) + 1
-        if str(rec.get("latest_survey_result_at") or ""):
-            latest_survey_result_count += 1
-            survey_kind = str(rec.get("latest_survey_result_kind") or "")
-            if survey_kind:
-                latest_survey_result_kind_counts[survey_kind] = latest_survey_result_kind_counts.get(survey_kind, 0) + 1
-            survey_status = str(rec.get("latest_survey_result_status") or "")
-            if survey_status:
-                latest_survey_result_status_counts[survey_status] = latest_survey_result_status_counts.get(survey_status, 0) + 1
-            survey_route_kind = str(rec.get("latest_survey_result_route_kind") or "")
-            if survey_route_kind:
-                latest_survey_result_route_kind_counts[survey_route_kind] = latest_survey_result_route_kind_counts.get(survey_route_kind, 0) + 1
-            survey_bridge_profile = str(rec.get("latest_survey_result_bridge_profile") or "")
-            if survey_bridge_profile:
-                latest_survey_result_bridge_profile_counts[survey_bridge_profile] = latest_survey_result_bridge_profile_counts.get(survey_bridge_profile, 0) + 1
-        if str(rec.get("latest_bridge_activity_at") or ""):
-            latest_bridge_activity_count += 1
-            bridge_profile = str(rec.get("latest_bridge_profile") or "")
-            if bridge_profile:
-                latest_bridge_profile_counts[bridge_profile] = latest_bridge_profile_counts.get(bridge_profile, 0) + 1
-            bridge_status = str(rec.get("latest_bridge_status") or "")
-            if bridge_status:
-                latest_bridge_status_counts[bridge_status] = latest_bridge_status_counts.get(bridge_status, 0) + 1
-    return {
-        "service_counts": service_counts,
-        "identity_source_counts": identity_source_counts,
-        "latest_activity_service_counts": latest_activity_service_counts,
-        "latest_activity_operation_counts": latest_activity_operation_counts,
-        "connectivity_state_counts": connectivity_state_counts,
-        "last_seen_via_counts": last_seen_via_counts,
-        "offline_age_bucket_counts": offline_age_bucket_counts,
-        "latest_file_transfer_operation_counts": latest_file_transfer_operation_counts,
-        "latest_file_transfer_status_counts": latest_file_transfer_status_counts,
-        "latest_file_transfer_route_kind_counts": latest_file_transfer_route_kind_counts,
-        "latest_file_transfer_bridge_profile_counts": latest_file_transfer_bridge_profile_counts,
-        "latest_survey_result_kind_counts": latest_survey_result_kind_counts,
-        "latest_survey_result_status_counts": latest_survey_result_status_counts,
-        "latest_survey_result_route_kind_counts": latest_survey_result_route_kind_counts,
-        "latest_survey_result_bridge_profile_counts": latest_survey_result_bridge_profile_counts,
-        "latest_bridge_profile_counts": latest_bridge_profile_counts,
-        "latest_bridge_status_counts": latest_bridge_status_counts,
-        "remote_count": remote_count,
-        "notes_count": notes_count,
-        "next_expected_poll_count": next_expected_poll_count,
-        "poll_overdue_count": poll_overdue_count,
-        "mailbox_pending_target_count": mailbox_pending_target_count,
-        "mailbox_pending_work_count": mailbox_pending_work_count,
-        "phone_home_target_count": phone_home_target_count,
-        "failed_phone_home_target_count": failed_phone_home_target_count,
-        "successful_phone_home_count": successful_phone_home_count,
-        "failed_phone_home_count": failed_phone_home_count,
-        "latest_file_transfer_count": latest_file_transfer_count,
-        "latest_survey_result_count": latest_survey_result_count,
-        "latest_bridge_activity_count": latest_bridge_activity_count,
-    }
+        _update_target_identity_activity_summary(summary, rec)
+        _update_target_mailbox_phone_home_summary(summary, rec)
+        _update_target_file_transfer_summary(summary, rec)
+        _update_target_survey_summary(summary, rec)
+        _update_target_bridge_summary(summary, rec)
+    return summary
 
 
 def target_record_summary(records):
