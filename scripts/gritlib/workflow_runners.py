@@ -1465,28 +1465,105 @@ def _run_target_queue_bridge_start_action(cfg, scoped, rec, action_id, target_id
     return 0
 
 
-def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None, show_commands=True):
-    snap = workbench_snapshot(cfg)
-    rec = select_workflow_action(snap.get("target_workflow_actions") or [], selector, "target")
+def _target_workflow_context(cfg, rec):
     action_id = str(rec.get("action_id") or "")
     target_id = str(rec.get("target_id") or "")
     target_label = str(rec.get("target_label") or "")
-    scoped = scoped_target_cfg(cfg, target_id, target_label=target_label)
+    return {
+        "action_id": action_id,
+        "target_id": target_id,
+        "target_label": target_label,
+        "scoped": scoped_target_cfg(cfg, target_id, target_label=target_label),
+    }
+
+
+def _append_target_workflow_selected_event(cfg, rec, context):
     append_event(
         cfg,
         "workbench",
         "target_workflow_action_selected",
-        details=_target_workflow_action_selected_details(rec, action_id, target_id, target_label),
+        details=_target_workflow_action_selected_details(
+            rec,
+            context["action_id"],
+            context["target_id"],
+            context["target_label"],
+        ),
     )
+
+
+def _print_target_workflow_header(rec, show_commands=True):
     print(f"target workflow action: {rec.get('id', '')}")
     if show_commands:
         print(f"command={rec.get('command') or rec.get('headless_command') or ''}")
 
+
+def _run_target_workflow_side_effect(
+    cfg,
+    rec,
+    context,
+    command_input="",
+    local_file="",
+    request_name="",
+    input_func=None,
+):
+    action_id = context["action_id"]
+    target_id = context["target_id"]
+    target_label = context["target_label"]
+    scoped = context["scoped"]
     if action_id == "inspect-status":
         return print_status(scoped, json_output=False)
     if action_id == "open-workbench":
         print_workbench(scoped)
         return 0
+    rc = _run_target_queue_workflow_side_effect(
+        cfg,
+        scoped,
+        rec,
+        action_id,
+        target_id,
+        target_label,
+        command_input=command_input,
+        input_func=input_func,
+    )
+    if rc is not None:
+        return rc
+    rc = _run_target_file_release_workflow_side_effect(
+        cfg,
+        scoped,
+        rec,
+        action_id,
+        target_id,
+        target_label,
+        command_input=command_input,
+        local_file=local_file,
+        request_name=request_name,
+        input_func=input_func,
+    )
+    if rc is not None:
+        return rc
+    rc = _run_target_service_bridge_workflow_side_effect(
+        cfg,
+        scoped,
+        rec,
+        action_id,
+        target_id,
+        target_label,
+    )
+    if rc is not None:
+        return rc
+    raise ValueError(f"unsupported target workflow action: {action_id}")
+
+
+def _run_target_queue_workflow_side_effect(
+    cfg,
+    scoped,
+    rec,
+    action_id,
+    target_id,
+    target_label,
+    command_input="",
+    input_func=None,
+):
     if action_id == "queue-command":
         return _run_target_queue_command_action(
             cfg,
@@ -1500,6 +1577,21 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         )
     if action_id == "queue-probe":
         return _run_target_queue_probe_action(cfg, scoped, rec, action_id, target_id, target_label)
+    return None
+
+
+def _run_target_file_release_workflow_side_effect(
+    cfg,
+    scoped,
+    rec,
+    action_id,
+    target_id,
+    target_label,
+    command_input="",
+    local_file="",
+    request_name="",
+    input_func=None,
+):
     if action_id == "stage-file-fetch":
         return _run_target_stage_file_fetch_action(
             cfg,
@@ -1545,6 +1637,10 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
             request_name=request_name,
             input_func=input_func,
         )
+    return None
+
+
+def _run_target_service_bridge_workflow_side_effect(cfg, scoped, rec, action_id, target_id, target_label):
     if action_id == "start-file-service":
         return _run_target_start_service_action(cfg, scoped, rec, action_id, target_id, target_label, "file-service")
     if action_id == "serve-probe":
@@ -1553,4 +1649,21 @@ def run_target_workflow_action(cfg, selector, command_input="", local_file="", r
         return _run_target_start_bridge_action(cfg, scoped, rec, action_id, target_id, target_label)
     if action_id.startswith("queue-bridge-start:"):
         return _run_target_queue_bridge_start_action(cfg, scoped, rec, action_id, target_id, target_label)
-    raise ValueError(f"unsupported target workflow action: {action_id}")
+    return None
+
+
+def run_target_workflow_action(cfg, selector, command_input="", local_file="", request_name="", input_func=None, show_commands=True):
+    snap = workbench_snapshot(cfg)
+    rec = select_workflow_action(snap.get("target_workflow_actions") or [], selector, "target")
+    context = _target_workflow_context(cfg, rec)
+    _append_target_workflow_selected_event(cfg, rec, context)
+    _print_target_workflow_header(rec, show_commands=show_commands)
+    return _run_target_workflow_side_effect(
+        cfg,
+        rec,
+        context,
+        command_input=command_input,
+        local_file=local_file,
+        request_name=request_name,
+        input_func=input_func,
+    )
