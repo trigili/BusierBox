@@ -3406,6 +3406,62 @@ def run_line_repl_runtime_check():
     return 0
 
 
+def run_service_runtime_state_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib import service_runtime
+
+    original_event = service_runtime.SHUTDOWN
+    original_append_event = service_runtime.append_event
+    calls = []
+    service_runtime.append_event = lambda *args, **kwargs: calls.append((args, kwargs))
+    left, right = socket.socketpair()
+    try:
+        service_runtime.register_socket(left)
+        service_runtime.request_shutdown("test-reason")
+        service_runtime.record_shutdown_event({}, "svc", session="one")
+        service_runtime.record_shutdown_event({}, "svc", session="one")
+        if service_runtime.SHUTDOWN is not original_event:
+            print("service runtime reset replaced the shutdown event object", file=sys.stderr)
+            return 1
+        if not service_runtime.SHUTDOWN.is_set():
+            print("service runtime shutdown request did not set event", file=sys.stderr)
+            return 1
+        if service_runtime.current_shutdown_reason() != "test-reason":
+            print("service runtime shutdown reason was not recorded", file=sys.stderr)
+            return 1
+        if len(calls) != 1:
+            print("service runtime shutdown event de-duplication failed", file=sys.stderr)
+            return 1
+        service_runtime.reset_service_runtime_state()
+        if service_runtime.SHUTDOWN is not original_event:
+            print("service runtime reset replaced direct shutdown event imports", file=sys.stderr)
+            return 1
+        if service_runtime.SHUTDOWN.is_set():
+            print("service runtime reset did not clear shutdown event", file=sys.stderr)
+            return 1
+        if service_runtime.current_shutdown_reason():
+            print("service runtime reset did not clear shutdown reason", file=sys.stderr)
+            return 1
+        if service_runtime.OWNED_SOCKETS or service_runtime.OWNED_TRANSPORTS or service_runtime.RECORDED_SHUTDOWNS:
+            print("service runtime reset did not clear resources and recorded shutdowns", file=sys.stderr)
+            return 1
+        service_runtime.request_shutdown("second-reason")
+        service_runtime.record_shutdown_event({}, "svc", session="one")
+        if len(calls) != 2:
+            print("service runtime reset did not clear recorded shutdown keys", file=sys.stderr)
+            return 1
+    finally:
+        service_runtime.append_event = original_append_event
+        try:
+            right.close()
+        except OSError:
+            pass
+        service_runtime.reset_service_runtime_state()
+    return 0
+
+
 def run_line_legacy_dispatch_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
@@ -9063,6 +9119,8 @@ def main(argv=None):
     if run_line_local_ips_check() != 0:
         return 1
     if run_line_repl_runtime_check() != 0:
+        return 1
+    if run_service_runtime_state_check() != 0:
         return 1
     if run_line_legacy_dispatch_check() != 0:
         return 1

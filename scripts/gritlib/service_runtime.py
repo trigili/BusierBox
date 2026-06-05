@@ -1,7 +1,6 @@
 """Shared service runtime state and shutdown helpers for grit-console."""
 
 import atexit
-import itertools
 import signal
 import socket
 import sys
@@ -13,19 +12,56 @@ from gritlib.runtime import ServiceManager, relay_pipe
 from gritlib.session_state import SessionManager, mark_service_error
 
 
-SHUTDOWN = threading.Event()
-SHUTDOWN_REASON = ""
-OWNED_SOCKETS = []
-OWNED_TRANSPORTS = []
-RECORDED_SHUTDOWNS = set()
-EVENT_COUNTER = itertools.count(1)
+class ServiceRuntimeState:
+    """Resettable owner for process-wide service runtime state."""
+
+    def __init__(self):
+        self.shutdown_event = threading.Event()
+        self.shutdown_reason = ""
+        self.owned_sockets = []
+        self.owned_transports = []
+        self.recorded_shutdowns = set()
+
+    def current_stop_reason(self, default="complete"):
+        return self.shutdown_reason or default
+
+    def current_shutdown_reason(self):
+        return self.shutdown_reason
+
+    def request_shutdown(self, reason="shutdown"):
+        if reason and not self.shutdown_reason:
+            self.shutdown_reason = reason
+
+    def shutdown_recorded(self, service, session=None):
+        key = (service, str(session or ""), self.shutdown_reason)
+        if key in self.recorded_shutdowns:
+            return True
+        self.recorded_shutdowns.add(key)
+        return False
+
+    def reset(self, *, shutdown_reason="", shutdown_requested=False):
+        self.shutdown_reason = str(shutdown_reason or "")
+        self.recorded_shutdowns.clear()
+        self.owned_sockets.clear()
+        self.owned_transports.clear()
+        if shutdown_requested:
+            self.shutdown_event.set()
+        else:
+            self.shutdown_event.clear()
+
+
+RUNTIME_STATE = ServiceRuntimeState()
+SHUTDOWN = RUNTIME_STATE.shutdown_event
+OWNED_SOCKETS = RUNTIME_STATE.owned_sockets
+OWNED_TRANSPORTS = RUNTIME_STATE.owned_transports
+RECORDED_SHUTDOWNS = RUNTIME_STATE.recorded_shutdowns
 
 
 SERVICE_MANAGER = ServiceManager(
     SHUTDOWN,
     OWNED_SOCKETS,
     OWNED_TRANSPORTS,
-    shutdown_reason=lambda: SHUTDOWN_REASON,
+    shutdown_reason=RUNTIME_STATE.current_shutdown_reason,
 )
 SESSION_MANAGER = SessionManager()
 
@@ -35,11 +71,11 @@ def pipe(src, dst):
 
 
 def current_stop_reason(default="complete"):
-    return SHUTDOWN_REASON or default
+    return RUNTIME_STATE.current_stop_reason(default)
 
 
 def current_shutdown_reason():
-    return SHUTDOWN_REASON
+    return RUNTIME_STATE.current_shutdown_reason()
 
 
 def register_socket(sock):
@@ -71,10 +107,21 @@ def close_registered_resources():
 
 
 def request_shutdown(reason="shutdown"):
-    global SHUTDOWN_REASON
-    if reason and not SHUTDOWN_REASON:
-        SHUTDOWN_REASON = reason
+    RUNTIME_STATE.request_shutdown(reason)
     close_registered_resources()
+
+
+def reset_service_runtime_state(*, shutdown_reason="", shutdown_requested=False, close_resources=False):
+    """Reset process-wide runtime state for focused tests."""
+    if close_resources:
+        close_registered_resources()
+    RUNTIME_STATE.reset(
+        shutdown_reason=shutdown_reason,
+        shutdown_requested=shutdown_requested,
+    )
+    with SERVICE_MANAGER._lock:
+        SERVICE_MANAGER.service_threads.clear()
+        SERVICE_MANAGER.child_processes.clear()
 
 
 def _signal_shutdown(signum, _frame):
@@ -136,8 +183,6 @@ def record_shutdown_event(cfg, service, session=None):
     reason = current_shutdown_reason()
     if not reason:
         return
-    key = (service, str(session or ""), reason)
-    if key in RECORDED_SHUTDOWNS:
+    if RUNTIME_STATE.shutdown_recorded(service, session=session):
         return
-    RECORDED_SHUTDOWNS.add(key)
     append_event(cfg, service, "shutdown", session=str(session) if session else None, details={"reason": reason})
