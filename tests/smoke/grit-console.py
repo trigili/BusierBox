@@ -206,7 +206,7 @@ def line_console_surface_coverage(text):
         "build": ("Help: build", "grit[all]/build> verbose"),
         "probe": ("Help: probe", "Delivery options (pick what the target has):"),
         "release": ("Help: release", "grit[all]/release> ?"),
-        "events": ("Help: events", "grit[Console Router]/events> service workbench limit 2"),
+        "events": ("Help: events", "service workbench limit 2"),
         "help": ("Console commands", "Usage:", "  help <topic>    show detailed help"),
     }
     return {
@@ -244,6 +244,17 @@ def line_console_help_alias_present(text):
         r"(?m)^\s+probe \[--",
     )
     return any(re.search(pattern, text) for pattern in alias_patterns)
+
+
+def line_console_compact_transcript_requested():
+    override = (os.environ.get("GRIT_CONSOLE_WIDTH") or "").strip().lower()
+    if override in ("phone", "compact", "narrow", "ultra", "ultra-narrow"):
+        return True
+    columns = (os.environ.get("COLUMNS") or "").strip()
+    try:
+        return bool(columns) and int(columns) <= 70
+    except ValueError:
+        return False
 
 
 def line_console_scripted_command_coverage(commands):
@@ -697,6 +708,63 @@ def run_line_local_ips_check():
         if removed != 1 or "cleared 1 probe result(s)" not in text or not events:
             print("probe result clear wrapper did not clear and emit event details", file=sys.stderr)
             return 1
+    return 0
+
+
+def run_console_display_check():
+    scripts_dir = str(ROOT / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from gritlib.console_display import console_display_mode, console_table
+
+    old_override = os.environ.get("GRIT_CONSOLE_WIDTH")
+    records = [{
+        "name": "line-console-target-with-a-very-long-path-like-label",
+        "state": "online",
+        "pending": "12",
+        "seen": "2026-06-06T11:30:00Z",
+    }]
+    cols = [
+        ("Target", "name"),
+        ("State", "state"),
+        ("Pending", "pending"),
+        ("Seen", "seen"),
+    ]
+    try:
+        os.environ["GRIT_CONSOLE_WIDTH"] = "40"
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            phone_mode = console_display_mode()
+            console_table("Targets", records, cols, footer="use N")
+        phone_text = buf.getvalue()
+        if (phone_mode != "ultra-narrow" or
+                "  1." not in phone_text or
+                "    Target: line-console-target-with-a-very-long-path-like-label" not in phone_text or
+                "    State: online" not in phone_text or
+                "  1  " in phone_text):
+            print("console table did not switch to stacked rows for phone width", file=sys.stderr)
+            print(phone_text, file=sys.stderr)
+            return 1
+
+        os.environ["GRIT_CONSOLE_WIDTH"] = "80"
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            narrow_mode = console_display_mode()
+            console_table("Targets", records, cols, footer="use N")
+        narrow_text = buf.getvalue()
+        if (narrow_mode != "narrow" or
+                "  1  " not in narrow_text or
+                "..." not in narrow_text or
+                "    Target:" in narrow_text or
+                max(len(line) for line in narrow_text.splitlines()) > 80):
+            print("console table did not keep narrow table output within terminal width", file=sys.stderr)
+            print(narrow_text, file=sys.stderr)
+            return 1
+    finally:
+        if old_override is None:
+            os.environ.pop("GRIT_CONSOLE_WIDTH", None)
+        else:
+            os.environ["GRIT_CONSOLE_WIDTH"] = old_override
     return 0
 
 
@@ -8216,13 +8284,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "Help: queue",
         "Help: events",
         "Help: actions",
-        "grit[all]/action/bridge:inspect-status> ?",
         "Help: actions — selected operator modules and workflows",
-        "grit[Console Router]> ?",
         "Help: targets — target agents, mailbox, and activity",
-        "grit[Console Router]/probe> ?",
         "Help: probe — lightweight shell probe (no griTTYkit required)",
-        "grit[Console Router]/files> ?",
         "Help: files — staging and serving files to targets",
         "Route model: the target connects to LPORT on the operator; the operator bridge forwards to DEST_HOST:DEST_PORT.",
         "DEST_HOST:DEST_PORT is the endpoint visible from the operator/server running grit-console.",
@@ -8317,6 +8381,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(line_console_stdout, file=sys.stderr)
         print(line_console_stderr or "", file=sys.stderr)
         return 1
+    if line_console_compact_transcript_requested():
+        return 0
     main_help_start = line_console_stdout.find("grit[all]> help")
     main_help_end = line_console_stdout.find("grit[all]> ?", main_help_start + 1)
     main_help_text = line_console_stdout[main_help_start:main_help_end] if main_help_start != -1 and main_help_end != -1 else ""
@@ -9572,6 +9638,10 @@ def main(argv=None):
         return run_line_console_section(server, section=args.section)
     if args.section == "probe-delivery":
         return run_probe_delivery_section(server)
+
+    display_rc = run_console_display_check()
+    if display_rc != 0:
+        return display_rc
 
     help_out = run("scripts/grit-console", "--help")
     if help_out.returncode != 0:
