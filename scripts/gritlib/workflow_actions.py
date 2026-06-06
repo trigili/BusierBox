@@ -2,6 +2,7 @@
 
 from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
+from gritlib.line_search import line_record_selection_result
 from gritlib.line_state import line_action_state_text
 import gritlib.probe_commands as probe_commands
 from gritlib.record_utils import (
@@ -21,19 +22,19 @@ from gritlib.workbench_jobs import workbench_job_records
 
 def select_workflow_action(records, selector, label, extra_keys=()):
     text = str(selector or "").strip()
-    if not text:
-        raise ValueError(f"{label} workflow action is required")
-    records = records or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(records):
-            raise ValueError(f"{label} workflow action number out of range: {text}")
-        return records[idx]
     keys = ("id", "action_id", *tuple(extra_keys or ()))
-    for rec in records:
-        if text in tuple(str(rec.get(key) or "") for key in keys):
-            return rec
-    raise ValueError(f"{label} workflow action not found: {text}")
+    selection = line_record_selection_result(
+        text,
+        records,
+        label=f"{label} workflow action",
+        usage_message=f"{label} workflow action is required",
+        match_func=lambda rec, value: value in tuple(
+            str(rec.get(key) or "") for key in keys
+        ),
+    )
+    if not selection.selected:
+        raise ValueError(selection.message)
+    return selection.item
 
 
 def _legacy_workbench_headless_status_command(cfg):

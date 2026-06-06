@@ -7,7 +7,7 @@ from gritlib.line_command_registry import (
     line_command_records,
 )
 from gritlib.line_context import set_line_collection_context
-from gritlib.line_search import set_line_search_results
+from gritlib.line_search import line_record_selection_result, set_line_search_results
 
 
 LINE_SERVICE_CATEGORIES = [
@@ -168,21 +168,20 @@ def resolve_line_service_selector(selector, rows):
         return ""
     text = LINE_SERVICE_ALIASES.get(text, text)
     records = ordered_line_service_records(rows)
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(records):
-            raise ValueError(f"service number out of range: {text}")
-        return str(records[idx].get("name") or "")
-    names = [str(rec.get("name") or "") for rec in records]
-    if text in names:
-        return text
-    display_names = {
-        line_service_display_name(str(rec.get("name") or "")): str(rec.get("name") or "")
-        for rec in records
-    }
-    if text in display_names:
-        return display_names[text]
-    return ""
+    selection = line_record_selection_result(
+        text,
+        records,
+        label="service",
+        match_func=lambda rec, value: value in (
+            str(rec.get("name") or ""),
+            line_service_display_name(str(rec.get("name") or "")),
+        ),
+    )
+    if selection.reason == "out-of-range":
+        raise ValueError(selection.message)
+    if not selection.selected:
+        return ""
+    return str(selection.item.get("name") or "")
 
 
 def line_service_names(rows):

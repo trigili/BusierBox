@@ -1,5 +1,6 @@
 """Shared workflow action command and fleet metric helpers."""
 
+from gritlib.line_search import line_record_selection_result
 from gritlib.record_utils import int_value, record_count_by_key
 from gritlib.shell_utils import shquote
 
@@ -73,15 +74,15 @@ def workflow_fleet_metrics(target_records):
 
 def select_workbench_action(records, selector):
     text = str(selector or "").strip()
-    if not text:
-        raise ValueError("workbench action is required")
-    records = records or []
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(records):
-            raise ValueError(f"workbench action number out of range: {text}")
-        return records[idx]
-    for rec in records:
-        if text == str(rec.get("id") or ""):
-            return rec
-    raise ValueError(f"unknown workbench action: {text}")
+    selection = line_record_selection_result(
+        text,
+        records,
+        label="workbench action",
+        usage_message="workbench action is required",
+        match_func=lambda rec, value: value == str(rec.get("id") or ""),
+    )
+    if not selection.selected:
+        if selection.reason == "not-found":
+            raise ValueError(f"unknown workbench action: {text}")
+        raise ValueError(selection.message)
+    return selection.item
