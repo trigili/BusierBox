@@ -460,7 +460,7 @@ def _line_service_search_records(rows, start_command, quote):
             "kind": "service",
             "label": (
                 f"{line_service_display_name(str(rec.get('name') or ''))} "
-                f"status={line_service_status_text(rec)} bind={line_service_bind_text(rec)}"
+                f"status {line_service_status_text(rec)}  bind {line_service_bind_text(rec)}"
             ),
             "rec": rec,
             "command": start_command(str(rec.get("name") or "")),

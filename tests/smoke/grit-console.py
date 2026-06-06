@@ -896,7 +896,7 @@ def run_console_display_check():
         }]
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            print_line_service_records(service_rows)
+            service_search_records = print_line_service_records(service_rows)
         services_text = buf.getvalue()
         cfg = {}
         buf = io.StringIO()
@@ -909,6 +909,10 @@ def run_console_display_check():
                 or "    Bind: 127.0.0.1:22231" not in services_text
                 or "PID" in services_text
                 or "pid 12345" in selected_service_text
+                or not service_search_records
+                or "status listening  bind 127.0.0.1:22231" not in service_search_records[0].get("label", "")
+                or "status=" in service_search_records[0].get("label", "")
+                or "bind=" in service_search_records[0].get("label", "")
                 or "next: options | start | stop | back" not in selected_service_text):
             print("listener compact output did not stay concise", file=sys.stderr)
             print(services_text, file=sys.stderr)
