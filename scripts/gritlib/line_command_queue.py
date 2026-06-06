@@ -1,6 +1,6 @@
 """Line-console command queue rendering helpers."""
 
-from gritlib.console_display import console_table
+from gritlib.console_display import console_display_mode, console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.event_log import append_event
 from gritlib.line_context import set_line_collection_context
@@ -74,7 +74,11 @@ def line_command_queue_action_summary(records):
         parts.append(f"input needed {needs_input}")
     if confirm:
         parts.append(f"confirm {confirm}")
-    return "  queue actions: " + "  ".join(parts) if parts else ""
+    if not parts:
+        return ""
+    if console_display_mode() != "normal":
+        return "  actions: " + " | ".join(parts[:4])
+    return "  queue actions: " + "  ".join(parts)
 
 
 def line_command_queue_action_search_records(records, quote=shquote):
@@ -121,7 +125,10 @@ def select_line_command_queue_action(cfg, records, selector, append_event_fn=app
     label = line_command_queue_action_text(selected)
     suffix = f"  |  {', '.join(flags)}" if flags else ""
     print(f"  queue: {label}  -  {state}{suffix}")
-    print("  queue COMMAND  |  queue list  |  clear  |  back")
+    if console_display_mode() != "normal":
+        print("  next: queue COMMAND | list | clear | back")
+    else:
+        print("  queue COMMAND  |  queue list  |  clear  |  back")
     append_event_fn(cfg, "workbench", "workbench_command_queue_action_selected", details={
         "id": rec_id,
         "action_id": action_id,
@@ -182,12 +189,20 @@ def print_line_mailbox_records(mailbox_records, title=None):
 
 def _print_line_command_queue_summary(queue_summary, mailbox_records, command_records, detailed=False):
     pending_count = len([rec for rec in mailbox_records if rec.get("pending_work")])
-    status_bits = [
-        f"enabled {queue_summary.get('enabled', 'no')}",
-        f"queued {len(command_records)}",
-        f"results {queue_summary.get('result_count', 0)}",
-        f"mailbox pending {pending_count}",
-    ]
+    if console_display_mode() != "normal":
+        status_bits = [
+            f"enabled {queue_summary.get('enabled', 'no')}",
+            f"queued {len(command_records)}",
+            f"results {queue_summary.get('result_count', 0)}",
+            f"pending {pending_count}",
+        ]
+    else:
+        status_bits = [
+            f"enabled {queue_summary.get('enabled', 'no')}",
+            f"queued {len(command_records)}",
+            f"results {queue_summary.get('result_count', 0)}",
+            f"mailbox pending {pending_count}",
+        ]
     print(f"Command queue  ({'  '.join(status_bits)})")
     policy_errors = queue_summary.get("policy_errors") or []
     if policy_errors:

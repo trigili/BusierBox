@@ -722,6 +722,10 @@ def run_console_display_check():
         download_line_target,
         print_line_file_records,
     )
+    from gritlib.line_command_queue import (
+        print_line_command_queue_records,
+        select_line_command_queue_action,
+    )
     from gritlib.line_options import print_line_context_options
     from gritlib.line_services import (
         print_line_service_records,
@@ -946,6 +950,51 @@ def run_console_display_check():
             print(files_text, file=sys.stderr)
             print(download_text, file=sys.stderr)
             print(staged_fetch_text, file=sys.stderr)
+            return 1
+        queue_actions = [{
+            "id": "queue-action-clear",
+            "action_id": "command-queue:clear-command-queue",
+            "operator_action_state": "confirm-required",
+            "requires_confirmation": True,
+            "target_mailbox_pending_work_count": 4,
+            "fleet_offline_target_count": 1,
+        }]
+        queue_summary = {
+            "enabled": "no",
+            "result_count": 0,
+            "policy_valid": True,
+            "commands": [{
+                "id": "cq-1234567890abcdef",
+                "status": "queued",
+                "target_id": "line-console-target",
+                "created_at": "2026-06-06T12:00:00Z",
+            }],
+        }
+        mailbox_records = [{
+            "command_id": "cq-1234567890abcdef",
+            "target_id": "line-console-target",
+            "status": "queued",
+            "waiting_for": "target-poll",
+            "pending_work": True,
+            "pending_reason": "waiting-for-next-poll",
+        }]
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_command_queue_records(queue_summary, mailbox_records, queue_actions)
+        queue_text = buf.getvalue()
+        cfg = {}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            select_line_command_queue_action(cfg, queue_actions, "1")
+        queue_select_text = buf.getvalue()
+        if (
+                "Command queue  (enabled no  queued 1  results 0  pending 1)" not in queue_text
+                or "mailbox pending" in queue_text
+                or "  actions: confirm required 1 | confirm 1" not in queue_text
+                or "next: queue COMMAND | list | clear | back" not in queue_select_text):
+            print("queue compact output did not stay concise", file=sys.stderr)
+            print(queue_text, file=sys.stderr)
+            print(queue_select_text, file=sys.stderr)
             return 1
 
         os.environ["GRIT_CONSOLE_WIDTH"] = "80"
