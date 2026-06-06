@@ -2,8 +2,8 @@
 
 from gritlib.console_display import console_table
 from gritlib.probe_results import probe_effective_arch, probe_latest_result
+from gritlib.release_contexts import discover_release_context
 from gritlib.release_artifacts import (
-    discover_release_context,
     kernel_floor_from_release,
     normalized_probe_arch,
     release_artifact_matches_probe,

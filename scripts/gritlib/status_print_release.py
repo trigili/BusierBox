@@ -5,9 +5,9 @@ from gritlib.release_artifacts import (
     artifact_doom_wad_lines,
     artifact_provider_status_lines,
     print_release_summary,
-    release_context,
     release_recommendation_lines,
 )
+from gritlib.release_contexts import release_context
 from gritlib.shell_utils import shquote
 
 

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from gritlib.release_contexts import release_context
 from gritlib.staged_files import stage_file
 
 
@@ -23,11 +24,7 @@ def release_nav_records(release, release_devices, release_tuples, limit=5):
 
 
 def _default_release_context(cfg):
-    release_artifacts = __import__(
-        "gritlib.release_artifacts",
-        fromlist=["release_context"],
-    )
-    return release_artifacts.release_context(cfg)
+    return release_context(cfg)
 
 
 def _release_artifact_matches(rec, artifact_name, requested_resolved):

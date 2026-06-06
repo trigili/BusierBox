@@ -5,7 +5,7 @@ from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
 from gritlib.line_files import parse_line_release_stage_args
 from gritlib.line_search import set_line_search_results
-from gritlib.release_artifacts import discover_release_context, release_context
+from gritlib.release_contexts import discover_release_context, release_context
 from gritlib.release_staging import release_nav_records, stage_release_selection
 from gritlib.shell_utils import shquote
 

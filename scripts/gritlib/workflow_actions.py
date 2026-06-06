@@ -7,7 +7,7 @@ import gritlib.probe_commands as probe_commands
 from gritlib.record_utils import (
     format_counts, int_value, record_count_by_key, record_sum_by_key, records_by_key,
 )
-from gritlib.release_artifacts import release_context
+from gritlib.release_contexts import release_context
 from gritlib.shell_utils import shquote
 from gritlib.target_records import load_targets
 from gritlib.workflow_support import select_workbench_action

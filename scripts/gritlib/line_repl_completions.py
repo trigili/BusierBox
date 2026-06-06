@@ -6,7 +6,7 @@ from gritlib.event_log import append_event
 from gritlib import line_configure
 from gritlib.line_completions import build_line_completion_callbacks
 from gritlib.line_repl_runtime import install_readline_completer
-from gritlib.release_artifacts import release_context
+from gritlib.release_contexts import release_context
 from gritlib.staged_files import load_staged
 
 

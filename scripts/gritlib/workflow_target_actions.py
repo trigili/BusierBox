@@ -2,7 +2,7 @@
 
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key
-from gritlib.release_artifacts import release_context
+from gritlib.release_contexts import release_context
 from gritlib.shell_utils import shquote
 from gritlib.workflow_support import target_scoped_command
 
