@@ -2585,6 +2585,7 @@ def run_line_repl_runtime_check():
         print(f"line REPL display callbacks did not use action bundle: {display_bundle_calls}", file=sys.stderr)
         return 1
 
+    from gritlib.line_command_queue import parse_line_queue_command
     from gritlib.line_files import parse_line_files_command
     from gritlib.workflow_actions import parse_line_daemon_action_args, parse_line_daemon_command
 
@@ -2615,6 +2616,10 @@ def run_line_repl_runtime_check():
             or local_files_clear.get("prompt") is not True
             or local_files_clear.get("confirm") is not False):
         print(f"files parser did not parse context-local clear: {local_files_clear}", file=sys.stderr)
+        return 1
+    local_queue_clear = parse_line_queue_command("clear", [], module="queue")
+    if local_queue_clear.get("action") != "run" or local_queue_clear.get("args") != ["clear"]:
+        print(f"queue parser did not parse context-local clear: {local_queue_clear}", file=sys.stderr)
         return 1
 
     workflow_calls = []
@@ -7776,7 +7781,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "?\n"
                 "back\n"
                 "show mailbox\n"
-                "queue clear --confirm\n"
+                "queue\n"
+                "clear\n"
+                "y\n"
                 "queue list\n"
                 "clear target\n"
                 "use agent Console Router\n"
@@ -8034,7 +8041,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "upload --start",
         "serve-binary --start",
         "configure grit-console",
-        "queue clear --confirm",
+        "clear",
     )
     missing_scripted_commands = [
         expected for expected in required_scripted_commands
@@ -8778,8 +8785,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     queue_result_start = line_console_stdout.find("Command result:", queue_start + 1)
     queue_result_end = line_console_stdout.find("grit[Console Router]/events> queue list", queue_result_start + 1)
     queue_result_text = line_console_stdout[queue_result_start:queue_result_end] if queue_result_start != -1 and queue_result_end != -1 else ""
-    clear_command_start = line_console_stdout.rfind("queue clear --confirm")
-    clear_start = line_console_stdout.find("cleared ", clear_command_start + 1)
+    clear_command_start = line_console_stdout.find("grit[Console Router]/queue> clear")
+    clear_start = line_console_stdout.find("Remove ", clear_command_start + 1)
     clear_end = line_console_stdout.find("no queued commands", clear_start + 1)
     clear_text = line_console_stdout[clear_start:clear_end] if clear_start != -1 and clear_end != -1 else ""
     if (not queue_text or "queued: cq-" not in queue_text or
@@ -8795,7 +8802,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "waiting for: delivery" not in queue_result_text or
             "result_status=" in queue_result_text or "waiting_for=" in queue_result_text or
             "created=" in queue_result_text or "target=" in queue_result_text or
-            not clear_text or "cleared " not in clear_text or "headless_command:" in clear_text):
+            not clear_text or "Remove " not in clear_text or
+            " queued command record" not in clear_text or " [y/N]" not in clear_text or
+            "cleared " not in clear_text or "headless_command:" in clear_text):
         print("line-oriented queue commands exposed noisy headless commands", file=sys.stderr)
         print("queue section:", file=sys.stderr)
         print(queue_text or line_console_stdout, file=sys.stderr)
@@ -9638,7 +9647,7 @@ def main(argv=None):
                  "operator_state_unhealthy_count", "target_legacy_single_target_activity_present",
                  "target_id:", "target_label:", "target_filter_summary_text",
                  "observed_seen=", "Events  (", "target_filter_evidence_lines",
-                 "Workspace:", "queue clear --confirm", "line_banner_hint(snap)",
+                 "Workspace:", "queue clear", "line_banner_hint(snap)",
                  "Console commands",
                  "refreshed workbench at",
                  "Operator console workflow summary:", "operator_console_workflows_by_group",

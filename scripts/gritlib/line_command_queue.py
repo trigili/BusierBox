@@ -121,7 +121,7 @@ def select_line_command_queue_action(cfg, records, selector, append_event_fn=app
     label = line_command_queue_action_text(selected)
     suffix = f"  |  {', '.join(flags)}" if flags else ""
     print(f"  queue: {label}  -  {state}{suffix}")
-    print("  queue COMMAND  |  queue list  |  queue clear --confirm  |  back")
+    print("  queue COMMAND  |  queue list  |  clear  |  back")
     append_event_fn(cfg, "workbench", "workbench_command_queue_action_selected", details={
         "id": rec_id,
         "action_id": action_id,
@@ -228,7 +228,7 @@ def _print_line_queued_command_records(command_records):
     console_table(
         f"Queued commands  ({len(command_records)} total)",
         command_records[:8], command_cols,
-        footer="queue result N  |  queue clear --confirm  |  queue ? for help",
+        footer="queue result N  |  queue clear  |  queue ? for help",
     )
 
 
@@ -439,9 +439,13 @@ def print_line_command_result(cfg, queue_summary, selector):
     return rec
 
 
-def parse_line_queue_command(cmd, args):
+def parse_line_queue_command(cmd, args, module=None):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
+    module = str(module or "").strip().lower()
+    if module == "queue" and cmd in {"clear", "purge"}:
+        args = [cmd, *args]
+        cmd = "queue"
     if cmd not in {"mailbox", "queue"}:
         return {}
     if args:
@@ -482,6 +486,7 @@ def run_line_queue_command(
     view_func,
     target_filter_func=None,
     clear_selectable_results_func=None,
+    input_func=input,
     quote=shquote,
 ):
     if clear_selectable_results_func:
@@ -506,8 +511,24 @@ def run_line_queue_command(
             return None
         return print_line_command_result(cfg, queue_summary_func(cfg), " ".join(args[1:]).strip())
     if subcmd == "clear":
+        queue_summary = queue_summary_func(cfg)
+        queued_commands = queue_summary.get("commands") or []
+        count_to_clear = len(queued_commands)
+        if count_to_clear == 0:
+            print("No queued commands to clear.")
+            return 0
         if "--confirm" not in args[1:]:
-            raise ValueError("usage: queue clear --confirm")
+            for rec in queued_commands[:8]:
+                print(f"  {rec.get('id') or '-'}  {rec.get('status') or '-'}  {rec.get('command') or ''}")
+            if len(queued_commands) > 8:
+                print(f"  ... {len(queued_commands) - 8} more")
+            answer = str(
+                input_func(f"\nRemove {count_to_clear} queued command record{'s' if count_to_clear != 1 else ''}? [y/N] ")
+                or ""
+            ).strip().lower()
+            if answer not in {"y", "yes"}:
+                print("Cancelled.")
+                return 0
         count = clear_queue_func(cfg)
         headless = (
             "scripts/grit-console --config "

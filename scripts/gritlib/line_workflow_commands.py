@@ -106,7 +106,11 @@ def _dispatch_line_files_family(cmd, args, callbacks):
 
 
 def _dispatch_line_queue_family(cmd, args, callbacks):
-    queue_cmd = parse_line_queue_command(cmd, args)
+    queue_cmd = parse_line_queue_command(
+        cmd,
+        args,
+        module=callbacks.get("module"),
+    )
     if not queue_cmd:
         return False
     set_context_func = callbacks.get("set_context_func")

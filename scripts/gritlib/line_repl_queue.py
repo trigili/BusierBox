@@ -23,6 +23,7 @@ def build_line_queue_callbacks(
     target_callbacks=None,
     append_event_fn,
     quote,
+    input_func=input,
 ):
     if target_filter_func is None and target_callbacks is not None:
         target_filter = target_callbacks["target_filter"]
@@ -63,6 +64,7 @@ def build_line_queue_callbacks(
             view_func=print_queue_view,
             target_filter_func=target_filter_func,
             clear_selectable_results_func=clear_selectable_results,
+            input_func=input_func,
             quote=quote,
         )
 

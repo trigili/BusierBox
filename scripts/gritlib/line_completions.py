@@ -452,8 +452,11 @@ def _line_completion_queue_release_candidates(cmd, ctx):
         if subcmd in {"result", "results"} and ctx.at_arg(2):
             return [f"queue {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("command_queue_ids"))]
         if subcmd == "clear" and ctx.at_arg(2):
-            return [f"queue clear {item}" for item in prefixed(ctx.arg_pfx(2), ["--confirm"])]
+            return []
         return None
+
+    if ctx.module == "queue" and cmd in {"clear", "purge"}:
+        return []
 
     if cmd == "build":
         if ctx.at_arg(1):
