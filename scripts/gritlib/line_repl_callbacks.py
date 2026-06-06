@@ -95,6 +95,7 @@ def build_line_operational_callbacks(
     line_job_callbacks = build_default_line_job_callbacks(
         cfg,
         line_action_callbacks=foundation_callbacks.action,
+        line_input=line_input,
     )
 
     line_queue_callbacks = build_default_line_queue_callbacks(

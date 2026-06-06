@@ -125,7 +125,11 @@ def _dispatch_line_queue_family(cmd, args, callbacks):
 
 
 def _dispatch_line_jobs_family(cmd, args, callbacks):
-    jobs_cmd = parse_line_jobs_command(cmd, args)
+    jobs_cmd = parse_line_jobs_command(
+        cmd,
+        args,
+        module=callbacks.get("module"),
+    )
     if not jobs_cmd:
         return False
     set_context_func = callbacks.get("set_context_func")

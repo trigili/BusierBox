@@ -386,10 +386,19 @@ def _line_completion_context_candidates(cmd, ctx):
         return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ["agent"] + ctx.values("session_names"))]
 
     if cmd == "jobs":
-        return [f"jobs {item}" for item in prefixed(ctx.arg_pfx(1), ["-i", "-k", "-v"] + ctx.values("job_names"))]
+        job_names = ctx.values("job_names")
+        if ctx.at_arg(1):
+            return [f"jobs {item}" for item in prefixed(ctx.arg_pfx(1), ["-i", "-v", "cancel"] + job_names)]
+        subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
+        if subcmd in {"cancel", "kill", "-k", "--kill", "--cancel", "-i", "--info", "info"} and ctx.at_arg(2):
+            return [f"jobs {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), job_names)]
+        return []
 
     if cmd == "job":
         return [f"job {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("job_names"))]
+
+    if ctx.module == "jobs" and cmd in {"cancel", "kill"}:
+        return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("job_names"))]
 
     if cmd == "daemon":
         return [f"daemon {item}" for item in prefixed(ctx.arg_pfx(1),

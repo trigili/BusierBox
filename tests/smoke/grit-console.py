@@ -7671,6 +7671,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "jobs -k missing-job\n"
                 "jobs\n"
                 "jobs -v\n"
+                "cancel 1\n"
+                "n\n"
                 "jobs -i 99\n"
                 "jobs -i 1\n"
                 "info\n"
@@ -9228,6 +9230,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "cancel supported:" not in job_info_text or
             not job_help_text or
             "Help: jobs" not in job_help_text or
+            "cancel ID|NUMBER" not in job_help_text or
             "jobs -k ID" not in job_help_text or
             "Console help topics:" in job_help_text or
             "job=" in job_info_text or
@@ -9249,7 +9252,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "  state: running" not in job_next_text or
             "context=" in job_next_text or
             "selected job=" in job_next_text or
-            "action=" in job_next_text):
+            "action=" in job_next_text or
+            "grit[all]/jobs> cancel 1" not in line_console_stdout or
+            "Cancel workbench job line-console-job? [y/N]" not in line_console_stdout or
+            "Cancelled." not in line_console_stdout):
         print("line-oriented selected job context exposed generated cancel command by default", file=sys.stderr)
         print("jobs -v:", file=sys.stderr)
         print(jobs_verbose_text or line_console_stdout, file=sys.stderr)

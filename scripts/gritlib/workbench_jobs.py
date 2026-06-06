@@ -26,16 +26,54 @@ DEFAULT_CONFIG = "local/operator-session/config.json"
 DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 
 
-def parse_line_jobs_command(cmd, args):
+def _line_jobs_args_without_confirm(args):
+    clean = []
+    confirmed = False
+    for arg in args or []:
+        if str(arg or "").strip().lower() in {"--confirm", "--yes"}:
+            confirmed = True
+        else:
+            clean.append(arg)
+    return clean, confirmed
+
+
+def parse_line_jobs_command(cmd, args, module=None):
     cmd = str(cmd or "").strip().lower()
-    args = list(args or [])
+    args, confirmed = _line_jobs_args_without_confirm(list(args or []))
+    module = str(module or "").strip()
+    if module in {"jobs"} and cmd in {"cancel", "kill"}:
+        return {
+            "action": "cancel",
+            "selector": " ".join(args).strip(),
+            "prompt": not confirmed,
+            "confirmed": confirmed,
+        }
+    if module.startswith("job/") and cmd in {"cancel", "kill"}:
+        return {
+            "action": "cancel",
+            "selector": " ".join(args).strip(),
+            "prompt": not confirmed,
+            "confirmed": confirmed,
+        }
     if cmd not in {"jobs", "job"}:
         return {}
     first = str(args[0]).lower() if args else ""
     if cmd == "job":
         return {"action": "select", "selector": " ".join(args).strip()}
+    if len(args) >= 2 and first in {"cancel", "kill"}:
+        return {
+            "action": "cancel",
+            "selector": " ".join(args[1:]).strip(),
+            "prompt": not confirmed,
+            "confirmed": confirmed,
+        }
     if len(args) >= 2 and first in {"-k", "--kill", "--cancel"}:
-        return {"action": "cancel", "selector": " ".join(args[1:]).strip()}
+        return {
+            "action": "cancel",
+            "selector": " ".join(args[1:]).strip(),
+            "prompt": not confirmed,
+            "confirmed": confirmed,
+        }
     if len(args) >= 2 and first in {"-i", "--info", "info"}:
         return {"action": "select", "selector": " ".join(args[1:]).strip()}
     if first in {"-v", "--verbose"}:
@@ -53,7 +91,11 @@ def dispatch_line_jobs_command(
     action = (jobs_cmd or {}).get("action")
     try:
         if action == "cancel" and cancel_func:
-            return cancel_func(jobs_cmd.get("selector", ""))
+            return cancel_func(
+                jobs_cmd.get("selector", ""),
+                prompt=bool(jobs_cmd.get("prompt", False)),
+                confirmed=bool(jobs_cmd.get("confirmed", False)),
+            )
         if action == "select" and select_func:
             return select_func(jobs_cmd.get("selector", ""))
         if action == "list" and list_func:
@@ -192,7 +234,7 @@ def print_line_workbench_job_records(records, verbose=False, command_builder=Non
     console_table(
         f"Jobs  ({len(records)} total)" if records else "Jobs  (none)",
         records, cols, detail_fn=_detail,
-        footer="use N or job ID to select  |  jobs -k ID to cancel  |  jobs ? for help",
+        footer="use N or job ID to select  |  cancel ID to stop  |  jobs ? for help",
     )
     return [
         {
