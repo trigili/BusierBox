@@ -36,6 +36,7 @@ def _setup_line_repl_runtime_io():
 def _run_line_repl_loop(
     cfg,
     line_input,
+    history_module,
     foundation_callbacks,
     operational_callbacks,
     dispatch_callbacks,
@@ -61,7 +62,7 @@ def _run_line_repl_loop(
         input_func=line_input,
         history_command_func=line_resources.line_history_command,
         record_history_func=line_resources.record_line_history,
-        readline_module=_readline if HAVE_READLINE else None,
+        readline_module=history_module,
         command_help_printer=line_help.print_line_command_help,
         context_help_printer=line_help.print_context_line_help,
         unknown_message_func=line_help.line_unknown_command_message,
@@ -70,18 +71,22 @@ def _run_line_repl_loop(
 
 def run_line_repl(cfg):
     repl_io, line_input = _setup_line_repl_runtime_io()
+    completion_target = line_repl_runtime.line_repl_io_completion_target(repl_io)
+    have_readline = line_repl_runtime.line_repl_io_have_readline(repl_io)
+    history_module = repl_io.get("readline_module")
 
     callback_bundles = line_repl_callbacks.build_line_callback_bundles(
         cfg,
         line_input,
-        readline_module=_readline,
-        have_readline=HAVE_READLINE,
+        readline_module=completion_target,
+        have_readline=have_readline,
     )
 
     try:
         result = _run_line_repl_loop(
             cfg,
             line_input=line_input,
+            history_module=history_module,
             foundation_callbacks=callback_bundles.foundation,
             operational_callbacks=callback_bundles.operational,
             dispatch_callbacks=callback_bundles.dispatch,
@@ -92,7 +97,7 @@ def run_line_repl(cfg):
 
 
 def run_line_console(cfg):
-    """Default interactive mode: readline line console."""
+    """Default interactive mode: prompt-toolkit line console with fallback input."""
     return line_repl_runtime.run_line_console_lifecycle(
         cfg,
         stdin_isatty_func=sys.stdin.isatty,

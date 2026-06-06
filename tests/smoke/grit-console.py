@@ -1312,12 +1312,15 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_workspace as repl_workspace
     from gritlib.line_help import line_context_help_topic
     from gritlib.line_repl_runtime import (
+        build_prompt_toolkit_completer,
         build_line_repl_input_callback,
         dispatch_line_help_command,
         dispatch_line_parsed_command,
         dispatch_line_quit_choice,
         install_line_repl_signal_handlers,
         line_repl_has_context_scope,
+        line_repl_io_completion_target,
+        line_repl_io_have_readline,
         line_repl_io_input,
         prepare_repl_choice,
         read_line,
@@ -1440,6 +1443,100 @@ def run_line_repl_runtime_check():
     ):
         print(f"line REPL IO setup did not configure callbacks cleanly: {setup_calls}", file=sys.stderr)
         return 1
+
+    prompt_calls = []
+
+    class FakePromptCompleter:
+        pass
+
+    class FakePromptCompletion:
+        def __init__(self, text, start_position=0):
+            self.text = text
+            self.start_position = start_position
+
+    class FakePromptHistory:
+        pass
+
+    class FakePromptSession:
+        def __init__(self, history=None):
+            prompt_calls.append(("session", isinstance(history, FakePromptHistory)))
+
+        def prompt(self, prompt, completer=None, complete_while_typing=None):
+            prompt_calls.append((
+                "prompt",
+                prompt,
+                completer is prompt_adapter.completer,
+                complete_while_typing,
+            ))
+            return "typed-prompt"
+
+    fake_prompt_runtime = {
+        "PromptSession": FakePromptSession,
+        "Completer": FakePromptCompleter,
+        "Completion": FakePromptCompletion,
+        "InMemoryHistory": FakePromptHistory,
+    }
+    prompt_input = build_line_repl_input_callback(
+        shutdown_event=threading.Event(),
+        request_shutdown_func=lambda reason: prompt_calls.append(("shutdown", reason)),
+        have_readline=True,
+        readline_module="readline",
+        prompt_toolkit_runtime=fake_prompt_runtime,
+    )
+    prompt_adapter = prompt_input.repl_input_adapter
+    prompt_adapter.set_completion_candidates(lambda text: ["status", "start"] if text == "st" else [])
+    fake_doc = type("FakeDocument", (), {"text_before_cursor": "st"})()
+    prompt_completions = list(prompt_adapter.completer.get_completions(fake_doc, None))
+    if (
+        prompt_input("grit> ") != "typed-prompt"
+        or [(item.text, item.start_position) for item in prompt_completions]
+        != [("status", -2), ("start", -2)]
+        or prompt_calls != [
+            ("session", True),
+            ("prompt", "grit> ", True, False),
+        ]
+    ):
+        print(
+            f"line REPL prompt-toolkit adapter did not prompt or complete cleanly: {prompt_calls}",
+            file=sys.stderr,
+        )
+        return 1
+
+    prompt_setup_calls = []
+    prompt_repl_io = setup_line_repl_io(
+        "readline-module",
+        True,
+        shutdown_event=threading.Event(),
+        request_shutdown_func=lambda reason: prompt_setup_calls.append(("shutdown", reason)),
+        prompt_toolkit_runtime=fake_prompt_runtime,
+        history_configurer=lambda readline_module, have_readline: prompt_setup_calls.append(
+            ("history", readline_module, have_readline)
+        ),
+        signal_installer=lambda request_shutdown_func: [],
+    )
+    prompt_target = line_repl_io_completion_target(prompt_repl_io)
+    if (
+        prompt_setup_calls != [("history", "readline-module", False)]
+        or prompt_target is not prompt_repl_io.get("input_adapter")
+        or line_repl_io_have_readline(prompt_repl_io)
+        or prompt_repl_io.get("readline_module") is not None
+    ):
+        print(
+            f"line REPL prompt-toolkit setup did not isolate readline fallback: {prompt_setup_calls}",
+            file=sys.stderr,
+        )
+        return 1
+
+    direct_completer = build_prompt_toolkit_completer(
+        fake_prompt_runtime,
+        lambda text: ["workspace"] if text == "work" else [],
+    )
+    direct_doc = type("FakeDocument", (), {"text_before_cursor": "work"})()
+    direct_items = list(direct_completer.get_completions(direct_doc, None))
+    if [(item.text, item.start_position) for item in direct_items] != [("workspace", -4)]:
+        print("line REPL prompt-toolkit completer did not replace the current line", file=sys.stderr)
+        return 1
+
     original_restore_signal_handlers = restore_line_repl_io.__globals__["restore_signal_handlers"]
     restore_line_repl_io.__globals__["restore_signal_handlers"] = lambda handlers: restored_handlers.append(handlers)
     try:

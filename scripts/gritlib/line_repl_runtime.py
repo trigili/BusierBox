@@ -1,5 +1,6 @@
 """Runtime helpers for the line-oriented console REPL."""
 
+import inspect
 import os
 import select
 import signal
@@ -11,12 +12,115 @@ import time
 LINE_REPL_LEGACY_SINGLE_KEY_CHOICES = frozenset({"c", "d", "r", "v", "q"})
 
 
+def load_prompt_toolkit_runtime():
+    """Return prompt-toolkit primitives when the optional dependency exists."""
+    try:
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.completion import Completer, Completion
+        from prompt_toolkit.history import InMemoryHistory
+    except ImportError:
+        return None
+    return {
+        "PromptSession": PromptSession,
+        "Completer": Completer,
+        "Completion": Completion,
+        "InMemoryHistory": InMemoryHistory,
+    }
+
+
+def build_prompt_toolkit_completer(prompt_toolkit_runtime, candidate_func):
+    completer_base = prompt_toolkit_runtime["Completer"]
+    completion_cls = prompt_toolkit_runtime["Completion"]
+
+    class LineConsoleCompleter(completer_base):
+        def get_completions(self, document, complete_event):
+            del complete_event
+            text = document.text_before_cursor
+            for candidate in list(candidate_func(text) or []):
+                yield completion_cls(
+                    str(candidate),
+                    start_position=-len(text),
+                )
+
+    return LineConsoleCompleter()
+
+
+class LineReplInputAdapter:
+    """Input adapter shared by prompt-toolkit, readline, and plain stdio."""
+
+    def __init__(
+        self,
+        *,
+        shutdown_event,
+        request_shutdown_func,
+        prompt_toolkit_runtime=None,
+        readline_module=None,
+        have_readline=False,
+        read_line_func=None,
+    ):
+        self.shutdown_event = shutdown_event
+        self.request_shutdown_func = request_shutdown_func
+        self.prompt_toolkit_runtime = prompt_toolkit_runtime
+        self.readline_module = readline_module
+        self.have_readline = bool(have_readline)
+        self.read_line_func = read_line_func or read_line
+        self.prompt_session = None
+        self.completer = None
+        if prompt_toolkit_runtime is not None:
+            history_cls = prompt_toolkit_runtime["InMemoryHistory"]
+            session_cls = prompt_toolkit_runtime["PromptSession"]
+            self.prompt_session = session_cls(history=history_cls())
+
+    @property
+    def uses_prompt_toolkit(self):
+        return self.prompt_session is not None
+
+    def set_completion_candidates(self, candidate_func):
+        if self.prompt_toolkit_runtime is not None:
+            self.completer = build_prompt_toolkit_completer(
+                self.prompt_toolkit_runtime,
+                candidate_func,
+            )
+            return
+        install_readline_completer(
+            self.readline_module,
+            self.have_readline,
+            candidate_func,
+        )
+
+    def read_input(self, prompt):
+        if self.shutdown_event.is_set():
+            return None
+        if self.prompt_session is None:
+            return self.read_line_func(
+                prompt,
+                shutdown_event=self.shutdown_event,
+                request_shutdown_func=self.request_shutdown_func,
+                have_readline=self.have_readline,
+            )
+        try:
+            line = self.prompt_session.prompt(
+                prompt,
+                completer=self.completer,
+                complete_while_typing=False,
+            )
+        except EOFError:
+            self.request_shutdown_func("input_eof")
+            return None
+        if self.shutdown_event.is_set():
+            return None
+        return line
+
+
 def configure_readline_history(readline_module, have_readline, limit=500):
     if have_readline and readline_module is not None:
         readline_module.set_history_length(limit)
 
 
 def install_readline_completer(readline_module, have_readline, candidate_func):
+    if hasattr(readline_module, "set_completion_candidates"):
+        readline_module.set_completion_candidates(candidate_func)
+        return
     if not have_readline or readline_module is None:
         return
     completion_cache = {"line": None, "candidates": []}
@@ -745,16 +849,23 @@ def build_line_repl_input_callback(
     shutdown_event,
     request_shutdown_func,
     have_readline,
+    prompt_toolkit_runtime=None,
+    readline_module=None,
     read_line_func=read_line,
 ):
-    def line_input(prompt):
-        return read_line_func(
-            prompt,
-            shutdown_event=shutdown_event,
-            request_shutdown_func=request_shutdown_func,
-            have_readline=have_readline,
-        )
+    adapter = LineReplInputAdapter(
+        shutdown_event=shutdown_event,
+        request_shutdown_func=request_shutdown_func,
+        prompt_toolkit_runtime=prompt_toolkit_runtime,
+        readline_module=readline_module,
+        have_readline=have_readline,
+        read_line_func=read_line_func,
+    )
 
+    def line_input(prompt):
+        return adapter.read_input(prompt)
+
+    line_input.repl_input_adapter = adapter
     return line_input
 
 
@@ -764,26 +875,59 @@ def setup_line_repl_io(
     *,
     shutdown_event,
     request_shutdown_func,
+    prompt_toolkit_runtime=None,
     history_configurer=configure_readline_history,
     signal_installer=install_line_repl_signal_handlers,
     input_builder=build_line_repl_input_callback,
 ):
     """Configure REPL-local input state and return callbacks/cleanup state."""
-    history_configurer(readline_module, have_readline)
-    signal_handlers = signal_installer(request_shutdown_func)
-    line_input = input_builder(
-        shutdown_event=shutdown_event,
-        request_shutdown_func=request_shutdown_func,
-        have_readline=have_readline,
+    prompt_toolkit_runtime = (
+        prompt_toolkit_runtime
+        if prompt_toolkit_runtime is not None
+        else load_prompt_toolkit_runtime()
     )
+    use_readline = prompt_toolkit_runtime is None and have_readline
+    history_configurer(readline_module, use_readline)
+    signal_handlers = signal_installer(request_shutdown_func)
+    input_kwargs = {
+        "shutdown_event": shutdown_event,
+        "request_shutdown_func": request_shutdown_func,
+        "have_readline": use_readline,
+        "readline_module": readline_module,
+        "prompt_toolkit_runtime": prompt_toolkit_runtime,
+    }
+    try:
+        input_params = inspect.signature(input_builder).parameters
+    except (TypeError, ValueError):
+        input_params = {}
+    if input_params and not any(
+            param.kind == inspect.Parameter.VAR_KEYWORD
+            for param in input_params.values()):
+        input_kwargs = {
+            key: value for key, value in input_kwargs.items()
+            if key in input_params
+        }
+    line_input = input_builder(**input_kwargs)
+    adapter = getattr(line_input, "repl_input_adapter", None)
     return {
         "line_input": line_input,
+        "input_adapter": adapter,
+        "readline_module": None if adapter and adapter.uses_prompt_toolkit else readline_module,
+        "have_readline": False if adapter and adapter.uses_prompt_toolkit else use_readline,
         "signal_handlers": signal_handlers,
     }
 
 
 def line_repl_io_input(repl_io):
     return repl_io["line_input"]
+
+
+def line_repl_io_completion_target(repl_io):
+    return (repl_io or {}).get("input_adapter") or (repl_io or {}).get("readline_module")
+
+
+def line_repl_io_have_readline(repl_io):
+    return bool((repl_io or {}).get("have_readline"))
 
 
 def restore_line_repl_io(repl_io):

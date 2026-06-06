@@ -212,9 +212,10 @@ queueing for targets that phone home.
 scripts/grit-console
 ```
 
-The console opens with a compact status banner and a `grit[all]>` prompt. It
-supports readline editing — arrow-key history, `Ctrl+L` to clear, `Ctrl+R` to
-search, and `Tab` for context-aware completions.
+The console opens with a compact status banner and a `grit[all]>` prompt. When
+`prompt_toolkit` is installed, it provides prompt history and context-aware
+completion menus; otherwise the console falls back to readline or plain stdio
+input.
 
 ```
 griTTYkit Workbench  0 listening  |  2 targets  |  6 staged  |  50608 events
