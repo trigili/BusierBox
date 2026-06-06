@@ -1,5 +1,6 @@
 """Transfer and target-activity status contexts for grit-console status documents."""
 
+import gritlib.file_service_workflow_actions as file_service_workflow_actions_module
 import gritlib.file_transfers as file_transfers
 import gritlib.target_activity_feed as target_activity_feed
 import gritlib.target_records as target_records
@@ -126,7 +127,7 @@ def _build_file_service_workflow_status_context(
         (row for row in services if row.get("name") == "file-service"), {}
     )
     file_service_workflow_context = (
-        file_transfers.file_service_workflow_status_context(
+        file_service_workflow_actions_module.file_service_workflow_status_context(
             cfg,
             file_service_row,
             staged_records,
@@ -134,6 +135,7 @@ def _build_file_service_workflow_status_context(
             fetches,
             target_file_transfer_records,
             targets,
+            render_file_service_command_func=file_transfers.render_file_service_command,
         )
     )
     file_service_workflow_actions = file_service_workflow_context["actions"]
@@ -144,7 +146,7 @@ def _build_file_service_workflow_status_context(
         "file_service_workflow_action_index_maps": file_service_workflow_context[
             "index_maps"
         ],
-        "summary": file_transfers.file_service_workflow_status_summary(
+        "summary": file_service_workflow_actions_module.file_service_workflow_status_summary(
             file_service_workflow_actions
         ),
     }
