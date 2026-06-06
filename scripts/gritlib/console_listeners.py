@@ -8,7 +8,7 @@ import gritlib.console_runtime as console_runtime
 from gritlib.file_service import serve_file_service
 from gritlib.file_transfers import render_fetch_command
 import gritlib.probe_service as probe_service
-from gritlib.release_artifacts import stage_release_artifact
+from gritlib.release_staging import stage_release_artifact
 from gritlib.service_runtime import record_shutdown_event, request_shutdown
 from gritlib.service_status import resolve_transport
 from gritlib.session_state import mark_service_stopped

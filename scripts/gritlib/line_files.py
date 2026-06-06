@@ -12,7 +12,8 @@ from gritlib.file_transfers import (
     staged_fetch_target_commands,
 )
 from gritlib.line_search import set_line_search_results
-from gritlib.release_artifacts import release_context, release_nav_records, stage_release_selection
+from gritlib.release_artifacts import release_context
+from gritlib.release_staging import release_nav_records, stage_release_selection
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged, stage_file, unstage_file
 

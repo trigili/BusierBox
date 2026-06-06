@@ -9,7 +9,7 @@ from gritlib.console_workbench import workbench_snapshot
 from gritlib.event_log import append_event
 from gritlib.file_transfers import render_fetch_command, render_file_service_command
 from gritlib.probe_commands import render_probe_command
-from gritlib.release_artifacts import stage_release_selection
+from gritlib.release_staging import stage_release_selection
 import gritlib.staged_files as staged_files
 from gritlib.target_records import scoped_target_cfg
 from gritlib.workflow_actions import select_workflow_action

@@ -5,7 +5,7 @@ import subprocess
 from gritlib.console_workbench import workbench_snapshot
 from gritlib.event_log import append_event
 from gritlib.file_transfers import render_fetch_command
-from gritlib.release_artifacts import stage_release_selection
+from gritlib.release_staging import stage_release_selection
 from gritlib.workflow_actions import select_workflow_action
 
 
