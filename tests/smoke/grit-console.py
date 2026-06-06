@@ -604,10 +604,11 @@ def run_line_local_ips_check():
             "selected_target_connectivity_state": "online",
         },
     })
-    if ("Workspace:" not in status_text or
+    if ("Workspace: 1 listening  |  2 targets  |  states 1 offline, 1 online  |  3 sessions  |  4 staged  |  5 routes" not in status_text or
             "Selected: Lab Router (router-1)  state online" not in status_text or
             "Attention: 1 warnings  |  7 mailbox work" not in status_text or
             "Events: 6" not in status_text or
+            "online=1" in status_text or
             "Status:" in status_text):
         print("line status summary did not use concise workspace format", file=sys.stderr)
         print(status_text, file=sys.stderr)

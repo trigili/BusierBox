@@ -2,7 +2,6 @@
 
 from gritlib.console_display import console_display_mode, console_table
 from gritlib.event_log import append_event
-from gritlib.record_utils import format_counts
 from gritlib.target_filter_display import (
     target_filter_brief_text, target_filter_evidence_lines,
     target_filter_summary_text,
@@ -168,7 +167,7 @@ def line_repl_status_bar(snap):
     summary = snap.get("summary") or {}
     target_filter = snap.get("target_filter") or {}
     counts = summary.get("connectivity_state_counts") or summary.get("target_connectivity_state_counts") or {}
-    state_text = format_counts(counts) if counts else "none"
+    state_text = _line_workspace_state_counts_text(counts)
     pending_targets = (
         summary.get("mailbox_pending_target_count", "")
         if summary.get("mailbox_pending_target_count", "") != ""
@@ -196,11 +195,11 @@ def line_repl_status_bar(snap):
     else:
         workspace_parts = [
             f"{summary.get('listening_count', 0)} listening",
-            f"{summary.get('target_count', 0)} targets",
+            _line_workspace_count_text(summary.get("target_count", 0), "target"),
             f"states {state_text}",
-            f"{summary.get('session_count', 0)} sessions",
+            _line_workspace_count_text(summary.get("session_count", 0), "session"),
             f"{summary.get('staged_count', 0)} staged",
-            f"{summary.get('bridge_profile_count', 0)} routes",
+            _line_workspace_count_text(summary.get("bridge_profile_count", 0), "route"),
         ]
     lines = ["Workspace: " + "  |  ".join(workspace_parts)]
 
@@ -245,6 +244,22 @@ def _count_value(value):
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _line_workspace_count_text(value, singular, plural=None):
+    count = _count_value(value)
+    label = singular if count == 1 else (plural or f"{singular}s")
+    return f"{count} {label}"
+
+
+def _line_workspace_state_counts_text(counts):
+    if not counts:
+        return "none"
+    parts = []
+    for key, value in sorted(counts.items(), key=lambda item: (-_count_value(item[1]), str(item[0])))[:6]:
+        count = _count_value(value)
+        parts.append(f"{count} {key}")
+    return ", ".join(parts) if parts else "none"
 
 
 def line_banner_hint(snap):
