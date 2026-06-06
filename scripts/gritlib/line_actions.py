@@ -2,6 +2,10 @@
 
 from gritlib.console_display import console_table, print_dry_run_notice
 from gritlib.event_log import append_event
+from gritlib.line_command_registry import (
+    matching_line_command_records,
+    line_command_records,
+)
 from gritlib.line_context import set_line_action_context
 from gritlib.line_search import clear_line_search_results, set_line_search_results
 from gritlib.line_state import line_action_state_text
@@ -162,26 +166,13 @@ LINE_ACTION_COMMANDS = (
 
 
 def line_action_command_records():
-    return [
-        {
-            "family": "action",
-            "action": rec["action"],
-            "commands": list(rec["commands"]),
-            "primary": rec["commands"][0],
-            "aliases": list(rec["commands"][1:]),
-            "canonical": rec["canonical"],
-            "dry_run": bool(rec.get("dry_run")),
-        }
-        for rec in LINE_ACTION_COMMANDS
-    ]
+    return line_command_records("action", LINE_ACTION_COMMANDS)
 
 
 def parse_line_action_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
-    for rec in line_action_command_records():
-        if cmd not in rec["commands"]:
-            continue
+    for rec in matching_line_command_records(cmd, line_action_command_records()):
         canonical = rec["canonical"]
         alias = cmd if cmd != canonical else ""
         if rec["action"] == "run":

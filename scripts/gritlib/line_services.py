@@ -2,6 +2,10 @@
 
 from gritlib.console_display import console_display_mode, console_table
 from gritlib.event_log import append_event
+from gritlib.line_command_registry import (
+    first_matching_line_command_record,
+    line_command_records,
+)
 from gritlib.line_context import set_line_collection_context
 from gritlib.line_search import set_line_search_results
 
@@ -36,53 +40,34 @@ LINE_SERVICE_CONTROL_COMMANDS = (
 
 
 def line_listener_command_records():
-    return [
-        {
-            "family": "listener",
-            "action": rec["action"],
-            "commands": list(rec["commands"]),
-            "primary": rec["commands"][0],
-            "aliases": list(rec["commands"][1:]),
-        }
-        for rec in LINE_LISTENER_COMMANDS
-    ]
+    return line_command_records("listener", LINE_LISTENER_COMMANDS)
 
 
 def line_service_control_command_records():
-    return [
-        {
-            "family": "service-control",
-            "action": rec["action"],
-            "commands": list(rec["commands"]),
-            "primary": rec["commands"][0],
-            "aliases": list(rec["commands"][1:]),
-        }
-        for rec in LINE_SERVICE_CONTROL_COMMANDS
-    ]
+    return line_command_records("service-control", LINE_SERVICE_CONTROL_COMMANDS)
 
 
 def parse_line_listener_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
-    for rec in line_listener_command_records():
-        if cmd not in rec["commands"]:
-            continue
-        if rec["action"] == "list":
-            return {
-                "action": "list",
-                "verbose": any(str(item).lower() in {"-v", "--verbose"} for item in args),
-                "command": cmd,
-            }
-        if args and str(args[0]).lower() in {"-v", "--verbose"}:
-            return {"action": "list", "verbose": True, "command": cmd}
-        selector = " ".join(args).strip()
+    rec = first_matching_line_command_record(cmd, line_listener_command_records())
+    if not rec:
+        return {}
+    if rec["action"] == "list":
         return {
-            "action": "select" if selector else "list",
-            "selector": selector,
-            "verbose": False,
+            "action": "list",
+            "verbose": any(str(item).lower() in {"-v", "--verbose"} for item in args),
             "command": cmd,
         }
-    return {}
+    if args and str(args[0]).lower() in {"-v", "--verbose"}:
+        return {"action": "list", "verbose": True, "command": cmd}
+    selector = " ".join(args).strip()
+    return {
+        "action": "select" if selector else "list",
+        "selector": selector,
+        "verbose": False,
+        "command": cmd,
+    }
 
 
 def dispatch_line_listener_command(
@@ -105,14 +90,14 @@ def dispatch_line_listener_command(
 
 def parse_line_service_control_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
-    for rec in line_service_control_command_records():
-        if cmd in rec["commands"]:
-            return {
-                "action": rec["action"],
-                "selector": " ".join(args or []).strip(),
-                "command": cmd,
-            }
-    return {}
+    rec = first_matching_line_command_record(cmd, line_service_control_command_records())
+    if not rec:
+        return {}
+    return {
+        "action": rec["action"],
+        "selector": " ".join(args or []).strip(),
+        "command": cmd,
+    }
 
 
 def dispatch_line_service_control_command(

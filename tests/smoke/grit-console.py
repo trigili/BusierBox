@@ -4419,6 +4419,11 @@ def run_line_target_service_command_registry_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
+    from gritlib.line_command_registry import (
+        first_matching_line_command_record,
+        line_command_records,
+        matching_line_command_records,
+    )
     from gritlib.line_services import (
         line_listener_command_records,
         line_service_control_command_records,
@@ -4429,6 +4434,27 @@ def run_line_target_service_command_registry_check():
         line_target_command_records,
         parse_line_target_command,
     )
+
+    helper_records = line_command_records("demo", (
+        {"action": "show", "commands": ("show", "display"), "scope": "test"},
+        {"action": "skip-empty", "commands": ()},
+    ))
+    if helper_records != [{
+        "family": "demo",
+        "action": "show",
+        "commands": ["show", "display"],
+        "primary": "show",
+        "aliases": ["display"],
+        "scope": "test",
+    }]:
+        print(f"shared line command registry did not build normalized records: {helper_records}", file=sys.stderr)
+        return 1
+    if (
+            matching_line_command_records("display", helper_records) != helper_records
+            or first_matching_line_command_record("show", helper_records) != helper_records[0]
+            or first_matching_line_command_record("missing", helper_records)):
+        print(f"shared line command registry did not match aliases cleanly: {helper_records}", file=sys.stderr)
+        return 1
 
     target_records = {rec.get("action"): rec for rec in line_target_command_records()}
     if tuple(target_records.get("list", {}).get("commands") or ()) != ("targets", "agents", "hosts"):

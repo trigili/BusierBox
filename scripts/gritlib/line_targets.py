@@ -4,6 +4,10 @@ from pathlib import Path
 
 from gritlib.console_display import console_display_mode, console_table
 from gritlib.event_log import append_event
+from gritlib.line_command_registry import (
+    first_matching_line_command_record,
+    line_command_records,
+)
 from gritlib.line_search import set_line_search_results
 from gritlib.target_context import configured_target_filter
 from gritlib.target_records import (
@@ -19,30 +23,20 @@ LINE_TARGET_COMMANDS = (
 
 
 def line_target_command_records():
-    return [
-        {
-            "family": "target",
-            "action": rec["action"],
-            "commands": list(rec["commands"]),
-            "primary": rec["commands"][0],
-            "aliases": list(rec["commands"][1:]),
-        }
-        for rec in LINE_TARGET_COMMANDS
-    ]
+    return line_command_records("target", LINE_TARGET_COMMANDS)
 
 
 def parse_line_target_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
-    for rec in line_target_command_records():
-        if cmd not in rec["commands"]:
-            continue
-        selector = " ".join(args).strip()
-        action = rec["action"]
-        if action == "select" and not selector:
-            action = "list"
-        return {"action": action, "selector": selector, "command": cmd}
-    return {}
+    rec = first_matching_line_command_record(cmd, line_target_command_records())
+    if not rec:
+        return {}
+    selector = " ".join(args).strip()
+    action = rec["action"]
+    if action == "select" and not selector:
+        action = "list"
+    return {"action": action, "selector": selector, "command": cmd}
 
 
 def dispatch_line_target_command(
