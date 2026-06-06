@@ -8287,7 +8287,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(line_console_stdout, file=sys.stderr)
         return 1
     upload_start = line_console_stdout.find("File staged for target fetch:")
-    upload_end = line_console_stdout.find("file-service started", upload_start + 1)
+    upload_end = line_console_stdout.find("grit[Console Router]/files> fetch --queue console-upload", upload_start + 1)
     upload_text = line_console_stdout[upload_start:upload_end] if upload_start != -1 and upload_end != -1 else ""
     if (not upload_text or
             "File staged for target fetch:" not in upload_text or
@@ -9439,6 +9439,7 @@ def main(argv=None):
     file_transfer_src = (ROOT / "scripts" / "gritlib" / "file_transfers.py").read_text()
     file_service_src = (ROOT / "scripts" / "gritlib" / "file_service.py").read_text()
     shell_bridge_service_src = (ROOT / "scripts" / "gritlib" / "shell_bridge_service.py").read_text()
+    shell_reverse_forward_src = (ROOT / "scripts" / "gritlib" / "shell_reverse_forward.py").read_text()
     line_command_queue_src = (ROOT / "scripts" / "gritlib" / "line_command_queue.py").read_text()
     line_events_src = (ROOT / "scripts" / "gritlib" / "line_events.py").read_text()
     line_module_src = "\n".join(path.read_text() for path in sorted((ROOT / "scripts" / "gritlib").glob("line_*.py")))
@@ -9595,17 +9596,18 @@ def main(argv=None):
             return 1
     for word in ("reverse_forward_active", "requested_port", "forward_host",
                  "reverse_forward_listener", "reverse-forward listener bind failed"):
-            if word not in src + shell_bridge_service_src:
+            if word not in src + shell_bridge_service_src + shell_reverse_forward_src:
                 print(f"grit-console: reverse forward event missing: {word}", file=sys.stderr)
                 return 1
-    if 'name="grit-reverse-forward"' not in src + shell_bridge_service_src or "join(timeout=2.0)" not in src + shell_bridge_service_src:
+    reverse_forward_src = src + shell_bridge_service_src + shell_reverse_forward_src
+    if 'name="grit-reverse-forward"' not in reverse_forward_src or "join(timeout=2.0)" not in reverse_forward_src:
         print("grit-console: reverse-forward listener thread is not explicitly owned/joined", file=sys.stderr)
         return 1
-    if ("grit-reverse-forward-pipe-" not in src + shell_bridge_service_src or
-            "register_socket(local)" not in src + shell_bridge_service_src or
-            "register_transport(chan)" not in src + shell_bridge_service_src or
-            "register_thread(threading.Thread(" not in src + shell_bridge_service_src or
-            "daemon=True" in src + shell_bridge_service_src):
+    if ("grit-reverse-forward-pipe-" not in reverse_forward_src or
+            "register_socket(local)" not in reverse_forward_src or
+            "register_transport(chan)" not in reverse_forward_src or
+            "register_thread(threading.Thread(" not in reverse_forward_src or
+            "daemon=True" in reverse_forward_src):
         print("grit-console: reverse-forward relay resources are not explicitly owned", file=sys.stderr)
         return 1
     for word in ("ServiceManager", "SERVICE_MANAGER = ServiceManager(", "register_transport",

@@ -6,7 +6,6 @@ import select
 import socket
 import ssl
 import sys
-import threading
 import time
 from pathlib import Path
 from subprocess import run
@@ -31,10 +30,10 @@ from gritlib.service_runtime import (
     record_shutdown_event,
     register_socket,
     register_thread,
-    register_transport,
     unregister_socket,
     unregister_transport,
 )
+from gritlib.shell_reverse_forward import ReverseForwardListener
 from gritlib.session_state import (
     atomic_write_json,
     mark_service_error,
@@ -63,28 +62,35 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
         self.forward_port = forward_port
         self.forward_requests = []
         self.transport = None
-        self.listener = None
-        self._listener_sock = None
-        self._listener_thread = None
+        self.forward_listener = ReverseForwardListener(
+            cfg,
+            session_dir,
+            forward_host,
+            forward_port,
+            lambda: self.transport,
+        )
+
+    @property
+    def listener(self):
+        return self.forward_listener.listener
+
+    @property
+    def _listener_sock(self):
+        return self.forward_listener.listener_sock
+
+    @property
+    def _listener_thread(self):
+        return self.forward_listener.listener_thread
 
     def set_transport(self, transport):
         self.transport = transport
 
     def close(self):
-        try:
-            if self._listener_sock:
-                self._listener_sock.close()
-        except OSError:
-            pass
+        self.forward_listener.close()
         try:
             if self.transport:
                 self.transport.close()
         except Exception:
-            pass
-        try:
-            if self._listener_thread and self._listener_thread.is_alive():
-                self._listener_thread.join(timeout=2.0)
-        except RuntimeError:
             pass
 
     def check_auth_publickey(self, username, key):
@@ -111,118 +117,15 @@ class ReverseSSHServer(paramiko.ServerInterface if HAVE_PARAMIKO else object):
             "ssh",
             "reverse_forward_active",
             session=str(self.session_dir),
-            details=details_with_target(self.cfg, {
-                "requested_address": address,
-                "requested_port": requested,
-                "forward_host": str(self.forward_host),
-                "GRIT_OPERATOR_REMOTE_FORWARD_PORT": int(self.forward_port),
-            }),
+            details=self.forward_listener.active_details(address, requested),
         )
         return requested
 
     def check_channel_direct_tcpip_request(self, chanid, origin, destination):
         return paramiko.OPEN_SUCCEEDED
 
-    def _record_forward_listener_bind_error(self, sock, exc):
-        print(f"reverse-forward listener bind failed on {self.forward_host}:{self.forward_port}: {exc}", file=sys.stderr)
-        append_event(
-            self.cfg,
-            "ssh",
-            "bind_error",
-            "error",
-            session=str(self.session_dir),
-            details={
-                "component": "reverse_forward_listener",
-                "listen_host": str(self.forward_host),
-                "port": int(self.forward_port),
-                "error": str(exc),
-            },
-        )
-        if sock is not None:
-            try:
-                sock.close()
-            except OSError:
-                pass
-
-    def _open_forward_listener_socket(self):
-        sock = None
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            sock.bind((str(self.forward_host), int(self.forward_port)))
-            sock.listen(20)
-        except OSError as exc:
-            self._record_forward_listener_bind_error(sock, exc)
-            return None
-        register_socket(sock)
-        self._listener_sock = sock
-        self.listener = sock
-        return sock
-
-    def _accept_forward_connection(self, sock):
-        try:
-            sock.settimeout(2.0)
-            try:
-                return sock.accept()
-            except socket.timeout:
-                return None, None
-        except OSError:
-            return None, "closed"
-
-    def _open_forward_channel(self, local, origin):
-        try:
-            return self.transport.open_forwarded_tcpip_channel(
-                (origin[0], origin[1]),
-                (str(self.forward_host), int(self.forward_port)),
-            )
-        except Exception as exc:
-            print(f"forward channel failed: {exc}", file=sys.stderr)
-            local.close()
-            return None
-
-    def _start_forward_pipe_threads(self, local, chan):
-        register_socket(local)
-        register_transport(chan)
-        for src, dst, suffix in (
-            (local, chan, "local-to-channel"),
-            (chan, local, "channel-to-local"),
-        ):
-            thread = register_thread(threading.Thread(
-                target=pipe,
-                args=(src, dst),
-                name=f"grit-reverse-forward-pipe-{suffix}",
-            ))
-            thread.start()
-
-    def _run_forward_listener(self):
-        sock = self._open_forward_listener_socket()
-        if sock is None:
-            return
-        try:
-            while not SHUTDOWN.is_set() and self.transport and self.transport.is_active():
-                local, origin = self._accept_forward_connection(sock)
-                if origin is None:
-                    continue
-                if origin == "closed":
-                    break
-                chan = self._open_forward_channel(local, origin)
-                if chan is None:
-                    continue
-                self._start_forward_pipe_threads(local, chan)
-        finally:
-            unregister_socket(sock)
-            try:
-                sock.close()
-            except OSError:
-                pass
-            self._listener_sock = None
-            self.listener = None
-
     def start_forward_listener(self):
-        if self.listener is not None:
-            return
-        self._listener_thread = register_thread(threading.Thread(target=self._run_forward_listener, name="grit-reverse-forward"))
-        self._listener_thread.start()
+        self.forward_listener.start()
 
 
 class _KexGuess2CompatTransport(paramiko.Transport if HAVE_PARAMIKO else object):
