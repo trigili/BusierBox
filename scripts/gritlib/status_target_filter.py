@@ -1,7 +1,7 @@
 """Target-filter status schema helpers for grit-console status documents."""
 
 from gritlib.record_utils import int_value
-import gritlib.target_records as target_records
+import gritlib.target_filter_records as target_filter_records
 
 
 def _build_target_filter_status_context(
@@ -20,7 +20,7 @@ def _build_target_filter_status_context(
     target_phone_home_records,
     target_mailbox_records,
 ):
-    target_filter_context = target_records.target_filter_status_context(
+    target_filter_context = target_filter_records.target_filter_status_context(
         target_filter_id,
         selected_target,
         unfiltered_counts,
