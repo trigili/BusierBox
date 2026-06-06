@@ -716,6 +716,10 @@ def run_console_display_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.console_display import console_display_mode, console_table
+    from gritlib.line_targets import (
+        line_target_filter_brief_text,
+        print_selected_line_target,
+    )
     from gritlib.line_workspace import (
         line_repl_prompt,
         line_repl_status_bar,
@@ -787,6 +791,36 @@ def run_console_display_check():
             print(prompt, file=sys.stderr)
             print(status_text, file=sys.stderr)
             print(banner_text, file=sys.stderr)
+            return 1
+        target_filter = {
+            "active": True,
+            "target_id": "line-console-target",
+            "selected_target_label": "Console Router With A Long Phone Label",
+            "selected_target_connectivity_state": "online",
+            "selected_target_mailbox_pending_work_count": 4,
+            "filtered_counts": {"sessions": 2, "uploads": 1},
+            "selected_target_poll_overdue": False,
+            "selected_target_offline_age_bucket": "under-minute",
+        }
+        target_summary = line_target_filter_brief_text(target_filter, prefix="  selected agent:")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_selected_line_target({
+                "selected": True,
+                "target_id": "line-console-target",
+                "target_label": "Console Router With A Long Phone Label",
+            })
+        selected_text = buf.getvalue()
+        if (
+                target_summary != (
+                    "  selected agent: Console Router With A Long Phone Label (online)  "
+                    "mailbox 4  sessions 2  uploads 1"
+                )
+                or "line-console-target" in selected_text
+                or "next: options | queue | mailbox | back" not in selected_text):
+            print("target compact selected-agent output did not stay concise", file=sys.stderr)
+            print(target_summary, file=sys.stderr)
+            print(selected_text, file=sys.stderr)
             return 1
 
         os.environ["GRIT_CONSOLE_WIDTH"] = "80"

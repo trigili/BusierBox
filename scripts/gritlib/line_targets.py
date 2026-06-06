@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from gritlib.console_display import console_table
+from gritlib.console_display import console_display_mode, console_table
 from gritlib.event_log import append_event
 from gritlib.line_search import set_line_search_results
 from gritlib.target_context import configured_target_filter
@@ -107,14 +107,36 @@ def print_line_target_records(targets, current_target_id="", quote=None):
     ]
 
 
+def line_target_filter_brief_text(target_filter, prefix="selected agent:"):
+    if console_display_mode() == "normal":
+        return target_filter_brief_text(target_filter, prefix=prefix)
+    if not isinstance(target_filter, dict) or not target_filter.get("active"):
+        return ""
+    counts = target_filter.get("filtered_counts") or {}
+    label = target_filter.get("selected_target_label") or "-"
+    state = target_filter.get("selected_target_connectivity_state") or "-"
+    pending = target_filter.get("selected_target_mailbox_pending_work_count", 0)
+    sessions = counts.get("sessions", 0)
+    uploads = counts.get("uploads", 0)
+    return (
+        f"{prefix} {label} ({state})  "
+        f"mailbox {pending}  sessions {sessions}  uploads {uploads}"
+    )
+
+
 def print_selected_line_target(rec):
     rec = rec or {}
     if rec.get("selected"):
         tid = rec.get("target_id", "")
         label = rec.get("target_label") or ""
         display = f"{label}  ({tid})" if label and label != tid else tid
+        if console_display_mode() != "normal":
+            display = label or tid
         print(f"  {display}")
-        print("  options / next / sessions / queue / mailbox / back")
+        if console_display_mode() != "normal":
+            print("  next: options | queue | mailbox | back")
+        else:
+            print("  options / next / sessions / queue / mailbox / back")
     else:
         print("  target filter cleared  —  showing all targets")
 
@@ -180,8 +202,11 @@ def print_line_target_interaction(
     display = f"{label} ({target_id})" if label and label != "-" and label != target_id else target_id
     print(f"Agent interaction: {display}")
     print(f"  state: {state}")
-    print(target_filter_brief_text(target_filter, prefix="  selected agent:"))
-    print("  commands: queue COMMAND, probe queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target")
+    print(line_target_filter_brief_text(target_filter, prefix="  selected agent:"))
+    if console_display_mode() != "normal":
+        print("  commands: queue COMMAND | probe queue | mailbox | files | sessions | back")
+    else:
+        print("  commands: queue COMMAND, probe queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target")
     pending = [rec for rec in mailbox_records or [] if rec.get("pending_work")]
     if pending:
         print("  pending work:")
