@@ -4815,6 +4815,7 @@ def run_line_selection_result_check():
     from gritlib.line_search import (
         dispatch_line_number_selection,
         line_number_selection_result,
+        line_record_selection_result,
         use_line_search_result,
     )
 
@@ -4844,6 +4845,54 @@ def run_line_selection_result_check():
     selected = line_number_selection_result("1", [{"kind": "target", "rec": {"target_id": "t1"}}])
     if selected.selected is not True or selected.index != 0 or selected.item.get("rec", {}).get("target_id") != "t1":
         print(f"line selection model did not preserve selected record: {selected}", file=sys.stderr)
+        return 1
+    record_selected = line_record_selection_result(
+        "action-1",
+        [{"id": "action-1", "label": "Action One"}],
+        label="action",
+        usage_message="usage: use action ACTION",
+        match_func=lambda rec, text: text == rec.get("id"),
+    )
+    if (
+        record_selected.selected is not True
+        or record_selected.index != 0
+        or record_selected.item.get("id") != "action-1"
+    ):
+        print(f"line record selection model did not preserve named selection: {record_selected}", file=sys.stderr)
+        return 1
+    record_missing_selector = line_record_selection_result(
+        "",
+        [{"id": "action-1"}],
+        label="action",
+        usage_message="usage: use action ACTION",
+    )
+    if (
+        record_missing_selector.selected
+        or record_missing_selector.reason != "missing-selector"
+        or record_missing_selector.message != "usage: use action ACTION"
+    ):
+        print(f"line record selection model did not preserve usage message: {record_missing_selector}", file=sys.stderr)
+        return 1
+    record_out_of_range = line_record_selection_result("2", [{"id": "action-1"}], label="action")
+    if (
+        record_out_of_range.selected
+        or record_out_of_range.reason != "out-of-range"
+        or record_out_of_range.message != "action number out of range: 2"
+    ):
+        print(f"line record selection model did not preserve domain range error: {record_out_of_range}", file=sys.stderr)
+        return 1
+    record_not_found = line_record_selection_result(
+        "missing",
+        [{"id": "action-1"}],
+        label="action",
+        match_func=lambda rec, text: text == rec.get("id"),
+    )
+    if (
+        record_not_found.selected
+        or record_not_found.reason != "not-found"
+        or record_not_found.message != "action not found: missing"
+    ):
+        print(f"line record selection model did not preserve domain not-found error: {record_not_found}", file=sys.stderr)
         return 1
 
     calls = []

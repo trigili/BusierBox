@@ -7,7 +7,11 @@ from gritlib.line_command_registry import (
     line_command_records,
 )
 from gritlib.line_context import set_line_action_context
-from gritlib.line_search import clear_line_search_results, set_line_search_results
+from gritlib.line_search import (
+    clear_line_search_results,
+    line_record_selection_result,
+    set_line_search_results,
+)
 from gritlib.line_state import line_action_state_text
 
 
@@ -74,24 +78,20 @@ def filtered_line_action_records(actions, filter_text="", kind_filter=""):
 
 
 def select_line_action_record(actions, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("usage: use action ACTION")
-    actions = list(actions or [])
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(actions):
-            raise ValueError(f"action number out of range: {text}")
-        return actions[idx]
-    lower = text.lower()
-    for rec in actions:
-        rec_id = str(rec.get("id") or "")
-        action_id = str(rec.get("action_id") or "")
-        label = str(rec.get("label") or "")
-        qualified = f"{rec.get('kind', '')}:{rec_id}"
-        if text in (rec_id, action_id, qualified) or lower == label.lower():
-            return rec
-    raise ValueError(f"action not found: {text}")
+    selection = line_record_selection_result(
+        selector,
+        actions,
+        label="action",
+        usage_message="usage: use action ACTION",
+        match_func=lambda rec, text: text in (
+            str(rec.get("id") or ""),
+            str(rec.get("action_id") or ""),
+            f"{rec.get('kind', '')}:{rec.get('id', '')}",
+        ) or text.lower() == str(rec.get("label") or "").lower(),
+    )
+    if not selection.selected:
+        raise ValueError(selection.message)
+    return selection.item
 
 
 def select_line_action(cfg, actions, selector):

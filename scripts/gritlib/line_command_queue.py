@@ -4,6 +4,7 @@ from gritlib.console_display import console_display_mode, console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.event_log import append_event
 from gritlib.line_context import set_line_collection_context
+from gritlib.line_search import line_record_selection_result
 from gritlib.line_state import line_action_state_text
 from gritlib.shell_utils import shquote
 
@@ -102,19 +103,19 @@ def line_command_queue_action_search_records(records, quote=shquote):
 
 
 def select_line_command_queue_action_record(records, selector):
-    text = str(selector or "").strip()
-    if not text:
-        raise ValueError("usage: use N")
-    records = list(records or [])
-    if text.isdigit():
-        idx = int(text) - 1
-        if 0 <= idx < len(records):
-            return records[idx]
-        raise ValueError(f"command queue action number out of range: {text}")
-    for rec in records:
-        if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
-            return rec
-    raise ValueError(f"command queue action not found: {text}")
+    selection = line_record_selection_result(
+        selector,
+        records,
+        label="command queue action",
+        usage_message="usage: use N",
+        match_func=lambda rec, text: text in (
+            str(rec.get("id") or ""),
+            str(rec.get("action_id") or ""),
+        ),
+    )
+    if not selection.selected:
+        raise ValueError(selection.message)
+    return selection.item
 
 
 def select_line_command_queue_action(cfg, records, selector, append_event_fn=append_event):

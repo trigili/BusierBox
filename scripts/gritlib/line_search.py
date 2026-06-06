@@ -57,6 +57,59 @@ def line_number_selection_result(
     )
 
 
+def line_record_selection_result(
+    selector,
+    records,
+    *,
+    label,
+    match_func=None,
+    usage_message="usage: use N",
+):
+    text = str(selector or "").strip()
+    if not text:
+        return LineSelectionResult(
+            True,
+            selector=text,
+            reason="missing-selector",
+            message=usage_message,
+        )
+    records = list(records or [])
+    if text.isdigit():
+        selected = line_number_selection_result(
+            text,
+            records,
+            require_active_results=True,
+        )
+        if not selected.handled:
+            return LineSelectionResult(False, selector=text, reason=selected.reason)
+        if not selected.selected:
+            return LineSelectionResult(
+                True,
+                selector=text,
+                index=selected.index,
+                reason="out-of-range",
+                message=f"{label} number out of range: {text}",
+            )
+        return selected
+    if match_func:
+        for idx, rec in enumerate(records):
+            if match_func(rec, text):
+                return LineSelectionResult(
+                    True,
+                    selected=True,
+                    selector=text,
+                    index=idx,
+                    item=rec if isinstance(rec, dict) else {},
+                    reason="selected",
+                )
+    return LineSelectionResult(
+        True,
+        selector=text,
+        reason="not-found",
+        message=f"{label} not found: {text}",
+    )
+
+
 def parse_line_search_command(cmd, args):
     if str(cmd or "").strip().lower() != "search":
         return None
