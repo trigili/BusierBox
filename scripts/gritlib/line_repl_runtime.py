@@ -8,6 +8,8 @@ import shlex
 import sys
 import time
 
+from gritlib.line_context import line_context_scope_active
+
 
 LINE_REPL_LEGACY_SINGLE_KEY_CHOICES = frozenset({"c", "d", "r", "v", "q"})
 
@@ -286,7 +288,7 @@ def dispatch_line_quit_choice(
 
 
 def line_repl_has_context_scope(*, module=None, target_selected=False):
-    return bool(str(module or "") or target_selected)
+    return line_context_scope_active(module=module, target_selected=target_selected)
 
 
 def dispatch_line_parsed_command(

@@ -47,6 +47,20 @@ def line_context_state(cfg):
     )
 
 
+def line_context_scope_state(*, module="", target_selected=False):
+    return LineContextState(
+        module=str(module or "").strip(),
+        target_id="selected" if target_selected else "",
+    )
+
+
+def line_context_scope_active(*, module="", target_selected=False):
+    return line_context_scope_state(
+        module=module,
+        target_selected=target_selected,
+    ).active
+
+
 def line_context_back_transition(state):
     state = state if isinstance(state, LineContextState) else LineContextState()
     parent = line_module_parent(state.module)
