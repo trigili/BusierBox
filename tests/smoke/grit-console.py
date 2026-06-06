@@ -731,6 +731,10 @@ def run_console_display_check():
         print_line_service_records,
         select_line_service,
     )
+    from gritlib.line_sessions import (
+        print_line_session_interaction,
+        print_selected_line_session,
+    )
     from gritlib.line_targets import (
         line_target_filter_brief_text,
         print_selected_line_target,
@@ -995,6 +999,44 @@ def run_console_display_check():
             print("queue compact output did not stay concise", file=sys.stderr)
             print(queue_text, file=sys.stderr)
             print(queue_select_text, file=sys.stderr)
+            return 1
+        session_rec = {
+            "session_id": "20260101T000000-file-service",
+            "path": "/tmp/session-root/20260101T000000-file-service",
+            "service": "file-service",
+            "state": "closed",
+            "exit_reason": "smoke",
+            "updated_at": "2026-06-06T12:00:00Z",
+            "session_log": "/tmp/session-root/20260101T000000-file-service/session.log",
+            "event_log": "/tmp/session-root/20260101T000000-file-service/events.jsonl",
+            "upload_count": 1,
+            "fetch_count": 2,
+            "event_count": 3,
+        }
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_selected_line_session(session_rec)
+        session_selected_text = buf.getvalue()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_session_interaction(session_rec, "")
+        session_interaction_text = buf.getvalue()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_context_options({}, "session/20260101T000000-file-service", session_record=session_rec)
+        session_options_text = buf.getvalue()
+        if (
+                "next: info | interact | view | back" not in session_selected_text
+                or "/tmp/session-root" in session_interaction_text
+                or "log: session.log" not in session_interaction_text
+                or "next: view session.log | sessions -v | back" not in session_interaction_text
+                or "/tmp/session-root" in session_options_text
+                or "session log: session.log" not in session_options_text
+                or "next: info | interact | sessions -v | back" not in session_options_text):
+            print("session compact output did not stay concise", file=sys.stderr)
+            print(session_selected_text, file=sys.stderr)
+            print(session_interaction_text, file=sys.stderr)
+            print(session_options_text, file=sys.stderr)
             return 1
 
         os.environ["GRIT_CONSOLE_WIDTH"] = "80"

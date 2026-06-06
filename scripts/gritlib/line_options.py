@@ -201,7 +201,10 @@ def _print_line_session_context_options(module, session_record):
         print(f"  state: {rec.get('state', '') or '-'}")
         print(f"  exit reason: {rec.get('exit_reason', '') or '-'}")
         print(f"  updated: {rec.get('updated_at', '') or '-'}")
-        print(f"  path: {path}")
+        if console_display_mode() != "normal":
+            print(f"  path: {Path(path).name if path else '-'}")
+        else:
+            print(f"  path: {path}")
         print(
             "  activity: "
             f"{rec.get('upload_count', 0)} uploads, "
@@ -209,10 +212,19 @@ def _print_line_session_context_options(module, session_record):
             f"{rec.get('event_count', 0)} events"
         )
         if rec.get("session_log"):
-            print(f"  session log: {rec.get('session_log', '')}")
+            if console_display_mode() != "normal":
+                print(f"  session log: {Path(str(rec.get('session_log', ''))).name}")
+            else:
+                print(f"  session log: {rec.get('session_log', '')}")
         if rec.get("event_log"):
-            print(f"  event log: {rec.get('event_log', '')}")
-    print("  next: info, interact, sessions -v, view PATH, back")
+            if console_display_mode() != "normal":
+                print(f"  event log: {Path(str(rec.get('event_log', ''))).name}")
+            else:
+                print(f"  event log: {rec.get('event_log', '')}")
+    if console_display_mode() != "normal":
+        print("  next: info | interact | sessions -v | back")
+    else:
+        print("  next: info, interact, sessions -v, view PATH, back")
 
 
 def _print_line_job_context_options(module, job_record):

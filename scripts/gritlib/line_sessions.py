@@ -3,7 +3,7 @@
 from pathlib import Path
 import shutil
 
-from gritlib.console_display import console_table
+from gritlib.console_display import console_display_mode, console_table
 from gritlib.line_context import set_line_collection_context
 from gritlib.line_search import set_line_search_results
 from gritlib.shell_utils import shquote
@@ -317,7 +317,10 @@ def print_selected_line_session(rec):
     if state_str == "-":
         state_str = "?"
     print(f"  {session_id}  —  {service}  |  {state_str}")
-    print("  info / interact / view / sessions -v / back")
+    if console_display_mode() != "normal":
+        print("  next: info | interact | view | back")
+    else:
+        print("  info / interact / view / sessions -v / back")
 
 
 def print_line_session_interaction(rec, headless):
@@ -325,15 +328,23 @@ def print_line_session_interaction(rec, headless):
     print(f"Session interaction: {rec.get('session_id') or Path(path).name}")
     print(f"  service: {rec.get('service', '') or '-'}")
     print(f"  state: {rec.get('state', '') or '-'}")
-    print(f"  path: {path}")
-    print(f"  view: view {shquote(path)}")
-    print(f"  next: view {path}, sessions -l, sessions -v")
-    if rec.get("session_log"):
-        print(f"  session log: {rec.get('session_log', '')}")
-        print(f"  tail: tail -n 40 {shquote(str(rec.get('session_log', '')))}")
-    if rec.get("event_log"):
-        print(f"  event log: {rec.get('event_log', '')}")
-        print(f"  events: tail -n 40 {shquote(str(rec.get('event_log', '')))}")
+    if console_display_mode() != "normal":
+        print(f"  path: {Path(path).name if path else '-'}")
+        if rec.get("session_log"):
+            print(f"  log: {Path(str(rec.get('session_log', ''))).name}")
+        if rec.get("event_log"):
+            print(f"  events: {Path(str(rec.get('event_log', ''))).name}")
+        print("  next: view session.log | sessions -v | back")
+    else:
+        print(f"  path: {path}")
+        print(f"  view: view {shquote(path)}")
+        print(f"  next: view {path}, sessions -l, sessions -v")
+        if rec.get("session_log"):
+            print(f"  session log: {rec.get('session_log', '')}")
+            print(f"  tail: tail -n 40 {shquote(str(rec.get('session_log', '')))}")
+        if rec.get("event_log"):
+            print(f"  event log: {rec.get('event_log', '')}")
+            print(f"  events: tail -n 40 {shquote(str(rec.get('event_log', '')))}")
 
 
 def _line_session_detail_rows(rec, verbose):
