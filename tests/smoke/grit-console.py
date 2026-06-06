@@ -716,6 +716,11 @@ def run_console_display_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.console_display import console_display_mode, console_table
+    from gritlib.line_workspace import (
+        line_repl_prompt,
+        line_repl_status_bar,
+        print_line_console_banner,
+    )
 
     old_override = os.environ.get("GRIT_CONSOLE_WIDTH")
     records = [{
@@ -744,6 +749,44 @@ def run_console_display_check():
                 "  1  " in phone_text):
             print("console table did not switch to stacked rows for phone width", file=sys.stderr)
             print(phone_text, file=sys.stderr)
+            return 1
+        snap = {
+            "summary": {
+                "listening_count": 0,
+                "target_count": 1,
+                "session_count": 2,
+                "staged_count": 0,
+                "bridge_profile_count": 1,
+                "event_count": 3,
+                "target_connectivity_state_counts": {"online": 1},
+            },
+            "warnings": [],
+            "target_filter": {
+                "active": True,
+                "target_id": "line-console-target",
+                "selected_target_label": "Console Router With A Long Phone Label",
+                "selected_target_connectivity_state": "online",
+            },
+        }
+        prompt = line_repl_prompt(
+            target_id="line-console-target",
+            module="queue",
+            target_context={"target_label": "Console Router With A Long Phone Label"},
+        )
+        status_text = line_repl_status_bar(snap)
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_console_banner(snap, "0.0")
+        banner_text = buf.getvalue()
+        if (prompt != "grit[Console Router ...]/queue> " or
+                "Workspace: svc 0  |  tgt 1  |  sess 2  |  files 0  |  routes 1" not in status_text or
+                "Selected: Console Router With A Long Phone Label (online)" not in status_text or
+                "griTTYkit v0.0  svc 0  |  tgt 1  |  sess 2  |  ev 3" not in banner_text or
+                max(line.count("|") for line in banner_text.splitlines()) > 4):
+            print("workspace compact banner/prompt output did not stay concise", file=sys.stderr)
+            print(prompt, file=sys.stderr)
+            print(status_text, file=sys.stderr)
+            print(banner_text, file=sys.stderr)
             return 1
 
         os.environ["GRIT_CONSOLE_WIDTH"] = "80"
@@ -7386,19 +7429,27 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented workspace empty state did not expose getting-started guidance", file=sys.stderr)
         print(workspace_empty_text, file=sys.stderr)
         return 1
-    banner_hint_text = line_banner_hint({
-        "summary": {
-            "target_count": 2,
-            "mailbox_pending_work_count": 3,
-            "poll_overdue_count": 1,
-            "staged_count": 2,
-            "session_count": 1,
-            "bridge_profile_count": 1,
-            "listening_count": 0,
-        },
-        "target_filter": {},
-        "warnings": [{"message": "listener down"}],
-    })
+    old_width_override = os.environ.get("GRIT_CONSOLE_WIDTH")
+    os.environ["GRIT_CONSOLE_WIDTH"] = "120"
+    try:
+        banner_hint_text = line_banner_hint({
+            "summary": {
+                "target_count": 2,
+                "mailbox_pending_work_count": 3,
+                "poll_overdue_count": 1,
+                "staged_count": 2,
+                "session_count": 1,
+                "bridge_profile_count": 1,
+                "listening_count": 0,
+            },
+            "target_filter": {},
+            "warnings": [{"message": "listener down"}],
+        })
+    finally:
+        if old_width_override is None:
+            os.environ.pop("GRIT_CONSOLE_WIDTH", None)
+        else:
+            os.environ["GRIT_CONSOLE_WIDTH"] = old_width_override
     if (
         "status (1 warning)" not in banner_hint_text or
         "targets (2)" not in banner_hint_text or
@@ -7414,14 +7465,22 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented banner hint did not expose useful counts", file=sys.stderr)
         print(banner_hint_text, file=sys.stderr)
         return 1
-    selected_banner_hint_text = line_banner_hint({
-        "summary": {
-            "mailbox_pending_work_count": 2,
-            "listening_count": 1,
-        },
-        "target_filter": {"active": True},
-        "warnings": [],
-    })
+    old_width_override = os.environ.get("GRIT_CONSOLE_WIDTH")
+    os.environ["GRIT_CONSOLE_WIDTH"] = "120"
+    try:
+        selected_banner_hint_text = line_banner_hint({
+            "summary": {
+                "mailbox_pending_work_count": 2,
+                "listening_count": 1,
+            },
+            "target_filter": {"active": True},
+            "warnings": [],
+        })
+    finally:
+        if old_width_override is None:
+            os.environ.pop("GRIT_CONSOLE_WIDTH", None)
+        else:
+            os.environ["GRIT_CONSOLE_WIDTH"] = old_width_override
     if (
         "mailbox (2 pending)" not in selected_banner_hint_text or
         "queue COMMAND" not in selected_banner_hint_text or

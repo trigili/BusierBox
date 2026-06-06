@@ -1,6 +1,6 @@
 """Line-console workspace rendering for grit-console."""
 
-from gritlib.console_display import console_table
+from gritlib.console_display import console_display_mode, console_table
 from gritlib.event_log import append_event
 from gritlib.record_utils import format_counts
 from gritlib.target_filter_display import (
@@ -151,8 +151,9 @@ def line_repl_prompt(target_id="", module="", target_context=None):
     ctx = target_context or {}
     label = str(ctx.get("target_label") or "").strip()
     display = label or target_id
-    if len(display) > 36:
-        display = display[:33] + "..."
+    max_display = 18 if console_display_mode() == "ultra-narrow" else 36
+    if len(display) > max_display:
+        display = display[:max_display - 3] + "..."
     return f"grit[{display}]{module_suffix}> "
 
 
@@ -183,14 +184,24 @@ def line_repl_status_bar(snap):
         if summary.get("poll_overdue_count", "") != ""
         else summary.get("target_poll_overdue_count", 0)
     )
-    workspace_parts = [
-        f"{summary.get('listening_count', 0)} listening",
-        f"{summary.get('target_count', 0)} targets",
-        f"states {state_text}",
-        f"{summary.get('session_count', 0)} sessions",
-        f"{summary.get('staged_count', 0)} staged",
-        f"{summary.get('bridge_profile_count', 0)} routes",
-    ]
+    compact = console_display_mode() != "normal"
+    if compact:
+        workspace_parts = [
+            f"svc {summary.get('listening_count', 0)}",
+            f"tgt {summary.get('target_count', 0)}",
+            f"sess {summary.get('session_count', 0)}",
+            f"files {summary.get('staged_count', 0)}",
+            f"routes {summary.get('bridge_profile_count', 0)}",
+        ]
+    else:
+        workspace_parts = [
+            f"{summary.get('listening_count', 0)} listening",
+            f"{summary.get('target_count', 0)} targets",
+            f"states {state_text}",
+            f"{summary.get('session_count', 0)} sessions",
+            f"{summary.get('staged_count', 0)} staged",
+            f"{summary.get('bridge_profile_count', 0)} routes",
+        ]
     lines = ["Workspace: " + "  |  ".join(workspace_parts)]
 
     if target_filter.get("active"):
@@ -204,7 +215,10 @@ def line_repl_status_bar(snap):
         state = target_filter.get("selected_target_connectivity_state") or "-"
         selected_id = target_filter.get("target_id") or target_filter.get("selected_target_id") or ""
         if selected_id and label != selected_id:
-            lines.append(f"Selected: {label} ({selected_id})  state {state}")
+            if compact:
+                lines.append(f"Selected: {label} ({state})")
+            else:
+                lines.append(f"Selected: {label} ({selected_id})  state {state}")
         else:
             lines.append(f"Selected: {label}  state {state}")
 
@@ -288,6 +302,9 @@ def line_banner_hint(snap):
     for hint in hints:
         if hint not in deduped:
             deduped.append(hint)
+    compact = console_display_mode() != "normal"
+    if compact:
+        return "  next: " + " | ".join(deduped[:5])
     return "  next: " + "  |  ".join(deduped[:12])
 
 
@@ -295,21 +312,22 @@ def print_line_console_banner(snap, version):
     summary = snap.get("summary") or {}
     warnings = snap.get("warnings") or []
     target_filter = snap.get("target_filter") or {}
-    parts = [f"{summary.get('listening_count', 0)} listening"]
+    compact = console_display_mode() != "normal"
+    parts = [f"svc {summary.get('listening_count', 0)}" if compact else f"{summary.get('listening_count', 0)} listening"]
     targets = summary.get("target_count", 0)
     if targets:
-        parts.append(f"{targets} target{'s' if targets != 1 else ''}")
+        parts.append(f"tgt {targets}" if compact else f"{targets} target{'s' if targets != 1 else ''}")
     sessions = summary.get("session_count", 0)
     if sessions:
-        parts.append(f"{sessions} session{'s' if sessions != 1 else ''}")
+        parts.append(f"sess {sessions}" if compact else f"{sessions} session{'s' if sessions != 1 else ''}")
     staged = summary.get("staged_count", 0)
     if staged:
-        parts.append(f"{staged} staged")
+        parts.append(f"files {staged}" if compact else f"{staged} staged")
     if warnings:
-        parts.append(f"{len(warnings)} warning{'s' if len(warnings) != 1 else ''}")
+        parts.append(f"warn {len(warnings)}" if compact else f"{len(warnings)} warning{'s' if len(warnings) != 1 else ''}")
     events = summary.get("event_count", 0)
     if events:
-        parts.append(f"{events} events")
+        parts.append(f"ev {events}" if compact else f"{events} events")
     print(f"griTTYkit v{version}  " + "  |  ".join(parts))
     if target_filter.get("active"):
         label = target_filter.get("selected_target_label") or target_filter.get("target_id", "")
