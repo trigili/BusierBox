@@ -192,6 +192,48 @@ def line_console_transcript_coverage(text):
     return coverage
 
 
+def line_console_surface_coverage(text):
+    text = text or ""
+    surface_markers = {
+        "workspace": ("grit[all]> workspace", "Workspace"),
+        "targets": ("Help: targets", "selected agent: line-console-target"),
+        "sessions": ("Help: sessions", "grit[all]/sessions> clear"),
+        "files": ("Help: files", "File staged for target fetch:"),
+        "queue": ("Help: queue", "Command queue  ("),
+        "routes": ("Help: routes", "started route zz-console-added"),
+        "daemon": ("Help: daemon", "grit[all]/daemon> status"),
+        "jobs": ("Help: jobs", "grit[all]/jobs> cancel 1"),
+        "build": ("Help: build", "grit[all]/build> verbose"),
+        "probe": ("Help: probe", "Delivery options (pick what the target has):"),
+        "release": ("Help: release", "grit[all]/release> ?"),
+        "events": ("Help: events", "grit[Console Router]/events> service workbench limit 2"),
+        "help": ("Console commands", "Usage:", "  help <topic>    show detailed help"),
+    }
+    return {
+        surface: all(marker in text for marker in markers)
+        for surface, markers in surface_markers.items()
+    }
+
+
+def normalize_line_console_transcript(text):
+    text = text or ""
+    replacements = [
+        (r"/tmp/tmp[a-zA-Z0-9_./-]+", "<TMP>"),
+        (r"/home/[^ \r\n']+/griTTYkit", "<REPO>"),
+        (r"\bpid[ =]\d+\b", "pid <PID>"),
+        (r"\bport \d{2,5}\b", "port <PORT>"),
+        (r":\d{2,5}\b", ":<PORT>"),
+        (r"\bcq-[0-9a-f]{16}\b", "cq-<ID>"),
+        (r"\b[0-9a-f]{64}\b", "<SHA256>"),
+        (r"\b\d{2}-\d{2} \d{2}:\d{2}\b", "<TIME>"),
+        (r"\b20\d{2}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\b", "<ISO8601>"),
+    ]
+    normalized = text
+    for pattern, replacement in replacements:
+        normalized = re.sub(pattern, replacement, normalized)
+    return normalized
+
+
 def line_console_scripted_command_coverage(commands):
     commands = [str(command) for command in (commands or [])]
     by_primary = {}
@@ -313,6 +355,9 @@ def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=N
     artifact_dir = line_console_artifact_dir()
     artifact_dir.mkdir(parents=True, exist_ok=True)
     (artifact_dir / "transcript.txt").write_text(stdout_text or "", encoding="utf-8")
+    normalized_text = normalize_line_console_transcript(stdout_text or "")
+    normalized_path = artifact_dir / "transcript.normalized.txt"
+    normalized_path.write_text(normalized_text, encoding="utf-8")
     (artifact_dir / "stderr.txt").write_text(stderr_text or "", encoding="utf-8")
     transcript_text = stdout_text or ""
     first_prompt = transcript_text.find("grit[all]>")
@@ -326,6 +371,7 @@ def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=N
         "returncode": returncode,
         "artifact_dir": str(artifact_dir),
         "transcript": str(artifact_dir / "transcript.txt"),
+        "normalized_transcript": str(normalized_path),
         "stderr": str(artifact_dir / "stderr.txt"),
         "prompt_count": transcript_text.count("grit["),
         "traceback_present": "Traceback" in (transcript_text + (stderr_text or "")),
@@ -348,6 +394,12 @@ def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=N
     summary_doc["coverage"] = coverage
     summary_doc["coverage_missing"] = [
         key for key, covered in sorted(coverage.items())
+        if not covered
+    ]
+    surface_coverage = line_console_surface_coverage(transcript_text)
+    summary_doc["surface_coverage"] = surface_coverage
+    summary_doc["surface_coverage_missing"] = [
+        key for key, covered in sorted(surface_coverage.items())
         if not covered
     ]
     if summary:
@@ -7596,6 +7648,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "help fetch\n"
                 "help queue\n"
                 "help build\n"
+                "help daemon\n"
+                "help release\n"
                 "route add\n"
                 "complete\n"
                 "complete use ag\n"
@@ -7758,6 +7812,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "agent Console Router\n"
                 "interact\n"
                 "clear target\n"
+                "release\n"
+                "?\n"
+                "back\n"
                 "use agent Console Router\n"
                 "next\n"
                 "b\n"
@@ -7910,6 +7967,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         },
     )
     if (not (line_console_artifact_dir_path / "transcript.txt").is_file() or
+            not (line_console_artifact_dir_path / "transcript.normalized.txt").is_file() or
             not (line_console_artifact_dir_path / "stderr.txt").is_file() or
             not (line_console_artifact_dir_path / "summary.json").is_file()):
         print("line-console transcript artifacts were not written", file=sys.stderr)
@@ -7933,7 +7991,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         if line_console_artifact_summary.get(key)
     ]
     coverage_missing = line_console_artifact_summary.get("coverage_missing") or []
-    if line_console_artifact_summary.get("returncode") != 0 or bad_artifact_flags or coverage_missing:
+    surface_coverage_missing = line_console_artifact_summary.get("surface_coverage_missing") or []
+    if (
+            line_console_artifact_summary.get("returncode") != 0
+            or bad_artifact_flags
+            or coverage_missing
+            or surface_coverage_missing):
         print("line-console transcript artifact recorded UX regression flags", file=sys.stderr)
         print(json.dumps(line_console_artifact_summary, indent=2, sort_keys=True), file=sys.stderr)
         return 1
@@ -8021,6 +8084,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "options",
         "probe",
         "queue",
+        "release",
         "rename",
         "resource",
         "route",
@@ -8076,6 +8140,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "clear all",
         "sessions -i 1",
         "queue grit survey --json",
+        "release",
         "queue",
         "upload --start",
         "serve-binary --start",
@@ -8380,12 +8445,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented main command did not use concise reset labels", file=sys.stderr)
         print(main_text or line_console_stdout, file=sys.stderr)
         return 1
-    target_back_start = line_console_stdout.find("grit[Console Router]/targets> b")
+    target_back_start = line_console_stdout.find("grit[Console Router]> b")
     target_back_end = line_console_stdout.find("grit[all]> use agent Console Router", target_back_start + 1)
     target_back_text = line_console_stdout[target_back_start:target_back_end] if target_back_start != -1 and target_back_end != -1 else ""
     if (not target_back_text or
             "grit[Console Router]> b" not in target_back_text):
-        print("line-oriented b command did not step through module and target breadcrumbs", file=sys.stderr)
+        print("line-oriented b command did not leave the selected target breadcrumb", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
     context_quit_start = line_console_stdout.find("grit[Console Router]/queue> q")
