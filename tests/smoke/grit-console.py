@@ -234,6 +234,18 @@ def normalize_line_console_transcript(text):
     return normalized
 
 
+def line_console_help_alias_present(text):
+    text = text or ""
+    alias_patterns = (
+        r"(?m)^\s+jobs -k\b",
+        r"(?m)^\s+stage-release\b",
+        r"Compatibility aliases:",
+        r"legacy alias",
+        r"(?m)^\s+probe \[--",
+    )
+    return any(re.search(pattern, text) for pattern in alias_patterns)
+
+
 def line_console_scripted_command_coverage(commands):
     commands = [str(command) for command in (commands or [])]
     by_primary = {}
@@ -389,6 +401,7 @@ def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=N
             marker in transcript_text
             for marker in ("allowed_commands=", "delivery_policy_counts:", "mode status:")
         ),
+        "compatibility_alias_help_present": line_console_help_alias_present(transcript_text),
     }
     coverage = line_console_transcript_coverage(transcript_text)
     summary_doc["coverage"] = coverage
@@ -7987,6 +8000,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "stale_numbered_result_error_present",
             "blank_enter_dashboard_rerender_present",
             "verbose_policy_dump_present",
+            "compatibility_alias_help_present",
         )
         if line_console_artifact_summary.get(key)
     ]
@@ -8353,7 +8367,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "start" not in probe_context_help_text or
             "queue" not in probe_context_help_text or
             "probe start|queue|results" not in probe_context_help_text or
-            "Compatibility aliases: probe --start and probe --queue still work." not in probe_context_help_text or
+            "Compatibility aliases:" in probe_context_help_text or
             "Console help topics:" in probe_context_help_text):
         print("line-oriented bare ? did not use probe breadcrumb context", file=sys.stderr)
         print(probe_context_help_text or line_console_stdout, file=sys.stderr)
@@ -9321,7 +9335,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             not job_help_text or
             "Help: jobs" not in job_help_text or
             "cancel ID|NUMBER" not in job_help_text or
-            "jobs -k ID" not in job_help_text or
+            "jobs -k ID" in job_help_text or
             "Console help topics:" in job_help_text or
             "job=" in job_info_text or
             "action=" in job_info_text or
@@ -20743,7 +20757,7 @@ def main(argv=None):
                 "Traceback" in (line_stderr or "") or
                 "Help: release" not in _line_stdout or
                 "stage SELECTOR" not in _line_stdout or
-                "stage-release SELECTOR" not in _line_stdout or
+                "stage-release SELECTOR" in _line_stdout or
                 "stage SELECTOR  |  release stage SELECTOR  |  release ? for help" not in _line_stdout or
                 "grit[all]/release> stage by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout or
                 "Preset selectors:" not in _line_stdout or

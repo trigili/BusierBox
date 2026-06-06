@@ -245,7 +245,7 @@ LINE_COMMAND_HELP_TOPICS = {
             ("files clear", "preview and confirm staged-file cleanup"),
             ("view PATH, cat PATH", "view a local path in the configured pager"),
             ("download [--queue] TARGET_PATH", "generate an upload-back command for the target"),
-            ("probe [--start] [--queue]", "show or queue the probe command"),
+            ("probe", "enter probe context and show or queue the probe command"),
         ],
         "examples": [
             "upload ./grit grit  →  fetch grit",
@@ -260,7 +260,6 @@ LINE_COMMAND_HELP_TOPICS = {
             ("release", "list detected release artifact recommendations"),
             ("stage SELECTOR", "inside release: stage an artifact for target fetch"),
             ("release stage SELECTOR", "stage a release artifact from any context"),
-            ("stage-release SELECTOR", "legacy alias for release stage"),
             ("show release", "show release recommendations and artifact metadata"),
             ("files", "show staged release artifacts after staging"),
             ("fetch [--queue] NAME", "show or queue the target fetch command"),
@@ -268,7 +267,6 @@ LINE_COMMAND_HELP_TOPICS = {
         "examples": [
             "stage by_device:gl-mt3000",
             "release stage by_tuple_path:by-tuple/native/host/host/host",
-            "stage-release grit-target-full",
         ],
     },
     "queue": {
@@ -283,7 +281,7 @@ LINE_COMMAND_HELP_TOPICS = {
             ("mailbox", "show selected-target mailbox records"),
             ("download [--queue] PATH", "queue a target-to-operator upload command"),
             ("fetch [--queue] NAME", "queue a target fetch command"),
-            ("probe [--queue]", "queue the probe command"),
+            ("probe queue", "queue the probe command"),
         ],
         "notes": [
             "Delivery depends on the command-queue policy and target polling interval.",
@@ -329,7 +327,6 @@ LINE_COMMAND_HELP_TOPICS = {
             "paste bypasses the script download step for serial consoles and limited admin shells.",
             "paste base64 avoids most shell quoting issues but requires a base64 decoder.",
             "config uses estimated defaults for libc/filesystem; use survey config for full data.",
-            "Compatibility aliases: probe --start and probe --queue still work.",
         ],
         "examples": [
             "start",
@@ -401,7 +398,6 @@ LINE_COMMAND_HELP_TOPICS = {
             ("job ID|NUMBER", "inspect a background job"),
             ("jobs -i ID|NUMBER", "verbose job inspection"),
             ("cancel ID|NUMBER", "inside jobs: prompt before cancelling a background job"),
-            ("jobs -k ID|NUMBER", "cancel a background job from any context"),
             ("use job ID|NUMBER", "select a job context"),
             ("run -j, run --job", "start selected action module as a background job"),
             ("info, next", "show selected job context and suggested commands"),
