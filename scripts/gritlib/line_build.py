@@ -65,6 +65,7 @@ def _build_field_purpose(rec):
 def print_line_build_config(cfg, verbose=False):
     fields = workbench_config_field_records(cfg)
     configured_count = len([rec for rec in fields if rec.get("configured")])
+    in_build_context = str((cfg or {}).get("_line_console_module") or "") == "build"
 
     print(f"Build config  ({build_config_path(cfg)})")
     print(f"  configured: {configured_count}/{len(fields)}")
@@ -83,7 +84,8 @@ def print_line_build_config(cfg, verbose=False):
             safety = str(rec.get("safety_note") or "")
             if safety:
                 details.append(("note", safety))
-            details.append(("set", f"build set {rec.get('key', '')} VALUE"))
+            prefix = "set" if in_build_context else "build set"
+            details.append(("set", f"{prefix} {rec.get('key', '')} VALUE"))
         return details
 
     for category, records in _group_build_fields(fields):
@@ -102,8 +104,12 @@ def print_line_build_config(cfg, verbose=False):
         )
         print("")
     hint = "build set KEY|NUMBER VALUE  |  build unset KEY|NUMBER  |  build -v for options  |  build ? for help"
+    if in_build_context:
+        hint = "set KEY|NUMBER VALUE  |  unset KEY|NUMBER  |  verbose for options  |  build ? for help"
     if verbose:
         hint = "build set KEY|NUMBER VALUE  |  build unset KEY|NUMBER  |  build ? for help"
+        if in_build_context:
+            hint = "set KEY|NUMBER VALUE  |  unset KEY|NUMBER  |  build ? for help"
     print(f"  {hint}")
     search_records = [
         {
@@ -111,7 +117,7 @@ def print_line_build_config(cfg, verbose=False):
             "label": str(rec.get("key") or ""),
             "rec": rec,
             "command": str(rec.get("set_command") or ""),
-            "use_hint": f"build set {rec.get('key', '')} VALUE",
+            "use_hint": f"{'set' if in_build_context else 'build set'} {rec.get('key', '')} VALUE",
         }
         for rec in fields
     ]
@@ -246,11 +252,31 @@ def unset_line_global_build_option(cfg, name):
     return rec
 
 
-def parse_line_build_command(cmd, args=None):
+def parse_line_build_command(cmd, args=None, module=None):
     if args is None:
         args = cmd
     else:
-        if str(cmd or "").strip().lower() != "build":
+        cmd_text = str(cmd or "").strip().lower()
+        module = str(module or "").strip()
+        if module == "build" and cmd_text in {"list", "show", "options"}:
+            return {
+                "action": "build",
+                "args": [cmd_text],
+                "set_context": False,
+            }
+        if module == "build" and cmd_text in {"verbose", "-v"}:
+            return {
+                "action": "build",
+                "args": ["-v"],
+                "set_context": False,
+            }
+        if module == "build" and cmd_text in {"set", "unset", "clear"}:
+            return {
+                "action": "build",
+                "args": [cmd_text, *list(args or [])],
+                "set_context": False,
+            }
+        if cmd_text != "build":
             return None
     args = list(args or [])
     return {

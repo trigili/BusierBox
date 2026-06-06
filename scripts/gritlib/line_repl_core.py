@@ -204,7 +204,10 @@ def _core_help_survey_dispatch_kwargs(ctx):
 
 
 def _core_dispatch_kwargs(ctx):
-    kwargs = {}
+    cfg = ctx["cfg"]
+    kwargs = {
+        "module": str((cfg or {}).get("_line_console_module") or ""),
+    }
     kwargs.update(_core_workspace_dispatch_kwargs(ctx))
     kwargs.update(_core_option_dispatch_kwargs(ctx))
     kwargs.update(_core_probe_dispatch_kwargs(ctx))

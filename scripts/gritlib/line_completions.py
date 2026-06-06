@@ -480,6 +480,12 @@ def _line_completion_queue_release_candidates(cmd, ctx):
             return [f"build {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("build_config_keys"))]
         return None
 
+    if ctx.module == "build":
+        if cmd in {"set", "unset", "clear"} and ctx.at_arg(1):
+            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("build_config_keys"))]
+        if cmd in {"list", "show", "options", "verbose"}:
+            return []
+
     if cmd in {"release", "releases"}:
         if ctx.at_arg(1):
             return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1),

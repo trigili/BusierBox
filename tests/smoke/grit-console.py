@@ -7646,10 +7646,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "commands\n"
                 "copy 1\n"
                 "build\n"
-                "build -v\n"
-                "build set 99 /tmp/nope\n"
-                "build set 9 /tmp/grit-build\n"
-                "build unset 9\n"
+                "verbose\n"
+                "set 99 /tmp/nope\n"
+                "set 9 /tmp/grit-build\n"
+                "unset 9\n"
                 "setg GRIT_RUNTIME_ROOT /tmp/grit-global\n"
                 "show options\n"
                 "unsetg GRIT_RUNTIME_ROOT\n"
@@ -8047,7 +8047,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "help",
         "complete use ag",
         "start 1",
-        "build set 9 /tmp/grit-build",
+        "set 9 /tmp/grit-build",
         "status",
         "daemon status --dry-run",
         "clear all",
@@ -8757,7 +8757,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(generated_copy_text or line_console_stdout, file=sys.stderr)
         return 1
     build_view_start = line_console_stdout.find("grit[all]> build")
-    build_view_end = line_console_stdout.find("grit[all]/build> build -v", build_view_start + 1)
+    build_view_end = line_console_stdout.find("grit[all]/build> verbose", build_view_start + 1)
     build_view_text = line_console_stdout[build_view_start:build_view_end] if build_view_start != -1 and build_view_end != -1 else ""
     if (not build_view_text or
             "configured: " not in build_view_text or
@@ -8770,27 +8770,28 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "GRIT_RUNTIME_ROOT" not in build_view_text or
             "runtime root" not in build_view_text or
             "options:" in build_view_text or
-            "set: build set" in build_view_text or
+            "set: set" in build_view_text or
+            "set KEY|NUMBER VALUE" not in build_view_text or
             "--set-build-config" in build_view_text or
             "headless_command:" in build_view_text):
         print("line-oriented build config view was noisy or missing grouped summary", file=sys.stderr)
         print(build_view_text or line_console_stdout, file=sys.stderr)
         return 1
-    build_verbose_start = line_console_stdout.find("grit[all]/build> build -v")
-    build_verbose_end = line_console_stdout.find("grit[all]/build> build set 9 /tmp/grit-build", build_verbose_start + 1)
+    build_verbose_start = line_console_stdout.find("grit[all]/build> verbose")
+    build_verbose_end = line_console_stdout.find("grit[all]/build> set 9 /tmp/grit-build", build_verbose_start + 1)
     build_verbose_text = line_console_stdout[build_verbose_start:build_verbose_end] if build_verbose_start != -1 and build_verbose_end != -1 else ""
     if (not build_verbose_text or
             "options: static-preferred" not in build_verbose_text or
             "examples: ./.grit" not in build_verbose_text or
             "note: affects generated artifacts or payload contents" not in build_verbose_text or
-            "set: build set GRIT_RUNTIME_ROOT VALUE" not in build_verbose_text or
-            "build set KEY|NUMBER VALUE" not in build_verbose_text or
+            "set: set GRIT_RUNTIME_ROOT VALUE" not in build_verbose_text or
+            "set KEY|NUMBER VALUE" not in build_verbose_text or
             "--set-build-config" in build_verbose_text or
             "headless_command:" in build_verbose_text):
         print("line-oriented verbose build config view missed options or exposed headless command", file=sys.stderr)
         print(build_verbose_text or line_console_stdout, file=sys.stderr)
         return 1
-    build_set_start = line_console_stdout.find("grit[all]/build> build set 99 /tmp/nope")
+    build_set_start = line_console_stdout.find("grit[all]/build> set 99 /tmp/nope")
     build_set_end = line_console_stdout.find("grit[all]/build> listeners", build_set_start + 1)
     build_set_text = line_console_stdout[build_set_start:build_set_end] if build_set_start != -1 and build_set_end != -1 else ""
     if (not build_set_text or
@@ -9267,7 +9268,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(job_next_text, file=sys.stderr)
         return 1
     collection_prompt_expectations = [
-        "grit[all]/build> build -v",
+        "grit[all]/build> verbose",
         "grit[all]/build> listeners",
         "grit[all]/listener> listeners -v",
         "grit[all]/routes> route start 2",

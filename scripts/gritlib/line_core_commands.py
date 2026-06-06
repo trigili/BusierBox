@@ -43,7 +43,11 @@ def _dispatch_line_build_family(
     args,
     callbacks,
 ):
-    build_cmd = parse_line_build_command(cmd, args)
+    build_cmd = parse_line_build_command(
+        cmd,
+        args,
+        module=callbacks.get("module"),
+    )
     if not build_cmd:
         return ""
     dispatch_line_build_command(
@@ -165,6 +169,7 @@ def dispatch_line_core_command(
     survey_results_func=None,
     survey_config_func=None,
     survey_preset_func=None,
+    module="",
 ):
     args = list(args or [])
     callbacks = locals()
