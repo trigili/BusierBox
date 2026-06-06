@@ -4,11 +4,11 @@ from gritlib import command_queue as command_queue_module
 from gritlib.event_log import append_event
 from gritlib.file_transfers import render_fetch_command
 from gritlib.line_configure import configure_line_artifact
+from gritlib.line_binary import stage_line_binary
 from gritlib.line_files import (
     download_line_target,
     fetch_line_staged,
     print_current_line_files,
-    stage_line_binary,
     stage_line_file,
     unstage_line_file,
 )
