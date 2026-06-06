@@ -36,9 +36,9 @@ from gritlib.service_runtime import (
 from gritlib.session_state import update_server_state, utc_now
 from gritlib.target_records import (
     details_with_target,
-    record_target_activity,
     target_identity_from_headers,
 )
+from gritlib.target_record_updates import record_target_activity
 
 
 def handle_command_queue_result(cfg, conn, method, target, headers, body, addr):

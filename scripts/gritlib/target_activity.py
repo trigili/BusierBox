@@ -14,9 +14,7 @@ import gritlib.target_phone_home as target_phone_home
 from gritlib.target_context import (
     configured_target_filter, details_with_target, selected_target_context,
 )
-from gritlib.target_records import (
-    record_target_activity,
-)
+from gritlib.target_record_updates import record_target_activity
 from gritlib.target_selection import (
     print_workbench_target_selector, select_workbench_target_record,
 )

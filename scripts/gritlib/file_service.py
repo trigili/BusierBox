@@ -31,9 +31,9 @@ from gritlib.session_state import mark_service_stopped, update_server_state, utc
 from gritlib.staged_files import load_staged, reject_traversal_request_name, staged_file_path
 from gritlib.target_records import (
     attach_target_identity,
-    record_target_activity,
     target_identity_from_headers,
 )
+from gritlib.target_record_updates import record_target_activity
 
 
 def handle_staged_fetch(cfg, conn, method, target, headers, addr):

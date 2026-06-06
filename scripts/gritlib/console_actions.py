@@ -4,7 +4,8 @@ from pathlib import Path
 
 from gritlib.operator_io import view_line_path
 from gritlib.target_commands import copy_generated_command
-from gritlib.target_records import set_target_label, targets_path
+from gritlib.target_records import targets_path
+from gritlib.target_record_updates import set_target_label
 
 
 def handle_console_utility_args(cfg, args, append_event_fn=None):

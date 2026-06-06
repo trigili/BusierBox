@@ -44,8 +44,8 @@ from gritlib.session_state import (
 )
 from gritlib.target_records import (
     attach_target_identity,
-    record_target_activity,
 )
+from gritlib.target_record_updates import record_target_activity
 from gritlib.tftp import parse_tftp_rrq, send_tftp_file, tftp_error_packet
 
 def handle_probe_http(cfg, conn, method, target, headers, body, addr, script_text, route=None):

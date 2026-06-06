@@ -13,9 +13,10 @@ from gritlib.event_log import append_event
 from gritlib.line_services import line_service_status_text
 from gritlib.session_state import atomic_write_json
 from gritlib.shell_utils import shquote
-from gritlib.target_records import (
-    load_targets, selected_target_record_for_update, set_target_label,
+from gritlib.target_record_updates import (
+    selected_target_record_for_update, set_target_label,
 )
+from gritlib.target_records import load_targets
 
 
 SERVICE_OPTIONS = {
