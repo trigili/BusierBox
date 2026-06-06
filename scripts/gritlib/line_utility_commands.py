@@ -27,6 +27,7 @@ def dispatch_line_utility_command(
     generated_run_func=None,
     service_copy_func=None,
     generated_copy_func=None,
+    module="",
 ):
     """Dispatch command groups that do not mutate console context directly."""
     args = list(args or [])
@@ -42,7 +43,7 @@ def dispatch_line_utility_command(
             save_func=resource_save_func,
         )
         return True
-    if events_cmd := parse_line_events_command(cmd, args):
+    if events_cmd := parse_line_events_command(cmd, args, module=module):
         dispatch_line_events_command(events_cmd, print_func=events_func)
         return True
     if search_cmd := parse_line_search_command(cmd, args):

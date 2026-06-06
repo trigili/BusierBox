@@ -304,8 +304,12 @@ def _line_completion_command_candidates(cmd, ctx):
 
     if cmd == "events":
         return [f"events {item}" for item in prefixed(ctx.arg_pfx(1), [
-            "-n", "--since", "service=", "event=", "level=", "target=",
+            "limit", "since", "service=", "event=", "level=", "target=",
         ])]
+
+    if ctx.module == "events":
+        if cmd in {"limit", "since", "service", "event", "level", "target", "remote", "session", "status", "operation"}:
+            return []
 
     if cmd in {"commands", "target-commands"}:
         if ctx.at_arg(1):

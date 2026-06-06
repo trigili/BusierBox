@@ -144,6 +144,7 @@ def build_line_utility_dispatch_callback(
                 cfg,
                 selector,
             ),
+            module=str((cfg or {}).get("_line_console_module") or ""),
         )
 
     return dispatch_utility

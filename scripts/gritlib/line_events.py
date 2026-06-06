@@ -94,7 +94,7 @@ def parse_line_events_args(args):
         arg = str(args[idx] or "")
         if arg in {"-h", "--help", "help"}:
             raise ValueError("usage: events [-n N] [service=NAME] [event=NAME] [level=LEVEL] [target=ID|LABEL] [--since 2h]")
-        if arg in {"-n", "--limit"}:
+        if arg in {"-n", "--limit", "limit"}:
             idx += 1
             if idx >= len(args) or not str(args[idx]).isdigit() or int(args[idx]) <= 0:
                 raise ValueError("usage: events -n N")
@@ -106,27 +106,59 @@ def parse_line_events_args(args):
             if not value.isdigit() or int(value) <= 0:
                 raise ValueError("usage: events --limit=N")
             limit = int(value)
-        elif arg == "--since":
+        elif arg in {"--since", "since"}:
             idx += 1
             if idx >= len(args):
                 raise ValueError("usage: events --since 2h")
             since_epoch = parse_line_event_since(args[idx])
         elif arg.startswith("--since="):
             since_epoch = parse_line_event_since(arg.split("=", 1)[1])
-        elif "=" in arg:
-            key, value = arg.split("=", 1)
+        elif "=" in arg or arg in {
+            "service", "event", "level", "target", "remote", "session", "status",
+            "operation", "request_name", "filename", "command_id", "job_id", "action_id",
+        }:
+            if "=" in arg:
+                key, value = arg.split("=", 1)
+                value = value.strip()
+            else:
+                key = arg
+                idx += 1
+                if idx >= len(args):
+                    raise ValueError(f"usage: events {key}=VALUE")
+                value = str(args[idx]).strip()
             key = key.strip().lower()
             if key not in {"service", "event", "level", "target", "remote", "session", "status", "operation", "request_name", "filename", "command_id", "job_id", "action_id"}:
                 raise ValueError(f"unsupported event filter: {key}")
-            filters.append((key, value.strip()))
+            filters.append((key, value))
         else:
             raise ValueError("usage: events [-n N] [service=NAME] [event=NAME] [level=LEVEL] [target=ID|LABEL] [--since 2h]")
         idx += 1
     return limit, since_epoch, filters
 
 
-def parse_line_events_command(cmd, args):
-    if str(cmd or "").strip().lower() != "events":
+def parse_line_events_command(cmd, args, module=None):
+    cmd_text = str(cmd or "").strip().lower()
+    module = str(module or "").strip()
+    if module == "events" and cmd_text != "events":
+        local_event_commands = {
+            "list", "show", "-n", "--limit", "limit", "--since", "since",
+            "service", "event", "level", "target", "remote", "session",
+            "status", "operation", "request_name", "filename", "command_id",
+            "job_id", "action_id",
+        }
+        if cmd_text not in local_event_commands and "=" not in cmd_text and not (
+                cmd_text.startswith("-n") and cmd_text[2:].isdigit()):
+            return None
+        if cmd_text in {"list", "show"}:
+            return {
+                "action": "list",
+                "args": [str(arg) for arg in (args or [])],
+            }
+        return {
+            "action": "list",
+            "args": [str(cmd or ""), *[str(arg) for arg in (args or [])]],
+        }
+    if cmd_text != "events":
         return None
     return {
         "action": "list",

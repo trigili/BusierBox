@@ -7766,7 +7766,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "queue result 1\n"
                 "queue list\n"
                 "events -n 3\n"
-                "events service=workbench -n 2\n"
+                "service workbench limit 2\n"
                 "probe\n"
                 "wat\n"
                 "?\n"
@@ -8455,7 +8455,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "stopped bridge: pid=" in line_console_stdout or
             "started file-service: pid=" in line_console_stdout or
             "stopped file-service: pid=" in line_console_stdout or
-            "details: events service=" in line_console_stdout or
+            "details: service " in line_console_stdout or
             "service: file-service started" in line_console_stdout or
             "service: file-service not started" in line_console_stdout or
             "want unknown" in line_console_stdout):
