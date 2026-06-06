@@ -348,7 +348,12 @@ def _line_completion_context_candidates(cmd, ctx):
     if cmd in {"start", "stop"}:
         if len(ctx.parts) >= 2 and ctx.parts[1].lower() == "route":
             return [f"{cmd} route {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("route_names"))]
+        if ctx.module == "routes":
+            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("route_names"))]
         return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("service_names") + ctx.values("route_names"))]
+
+    if ctx.module == "routes" and cmd in {"delete", "rm", "remove"}:
+        return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("route_names"))]
 
     if cmd in {"route", "useroute"}:
         route_names = ctx.values("route_names")

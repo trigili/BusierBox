@@ -69,7 +69,11 @@ def _dispatch_session_navigation(nav):
 
 
 def _dispatch_route_navigation(nav):
-    if route_cmd := parse_line_route_command(nav["cmd"], nav["args"]):
+    if route_cmd := parse_line_route_command(
+        nav["cmd"],
+        nav["args"],
+        module=nav["module"],
+    ):
         dispatch_line_route_command(
             route_cmd,
             add_func=nav["add_route_func"],

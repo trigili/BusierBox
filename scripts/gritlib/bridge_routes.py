@@ -116,9 +116,26 @@ def line_route_command_records():
     ]
 
 
-def parse_line_route_command(cmd, args):
+def parse_line_route_command(cmd, args, module=None):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
+    module = str(module or "").strip().lower()
+    if module == "routes" and cmd in {"start", "stop", "delete", "rm", "remove"}:
+        action = "delete" if cmd in {"delete", "rm", "remove"} else cmd
+        return {
+            "action": action,
+            "selector": " ".join(args).strip(),
+            "command": cmd,
+            "context_local": True,
+        }
+    if module.startswith("route/") and cmd in {"start", "stop", "delete", "rm", "remove"}:
+        action = "delete" if cmd in {"delete", "rm", "remove"} else cmd
+        return {
+            "action": action,
+            "selector": " ".join(args).strip() or module.split("/", 1)[1],
+            "command": cmd,
+            "context_local": True,
+        }
     records = [rec for rec in line_route_command_records() if cmd in rec["commands"]]
     if not records:
         return {}
@@ -882,6 +899,10 @@ def start_line_route(
     cfg, route_name, records, headless_command_builder=None, start_service=None
 ):
     name = str(route_name or "").strip()
+    if not name:
+        module = str(cfg.get("_line_console_module") or "")
+        if module.startswith("route/"):
+            name = module.split("/", 1)[1]
     if not name:
         raise ValueError("usage: start ROUTE")
     rec = require_line_route_record(records, name)

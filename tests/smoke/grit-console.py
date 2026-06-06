@@ -3865,6 +3865,20 @@ def run_line_route_command_registry_check():
         if parsed.get("action") != expected_action or parsed.get("selector") != "ssh-home":
             print(f"route parser did not preserve {subcmd} behavior: {parsed}", file=sys.stderr)
             return 1
+    local_start = parse_line_route_command("start", ["1"], module="routes")
+    if (
+            local_start.get("action") != "start"
+            or local_start.get("selector") != "1"
+            or local_start.get("context_local") is not True):
+        print(f"route parser did not parse routes-local start: {local_start}", file=sys.stderr)
+        return 1
+    selected_stop = parse_line_route_command("stop", [], module="route/ssh-home")
+    if (
+            selected_stop.get("action") != "stop"
+            or selected_stop.get("selector") != "ssh-home"
+            or selected_stop.get("context_local") is not True):
+        print(f"route parser did not parse selected-route stop: {selected_stop}", file=sys.stderr)
+        return 1
     if parse_line_route_command("routes", ["--help"]).get("action") != "help":
         print("route parser did not preserve routes --help alias", file=sys.stderr)
         return 1
@@ -7594,12 +7608,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "show routes\n"
                 "show routes -v\n"
                 "route start 9\n"
-                "route start 1\n"
+                "start 1\n"
                 "route start 2\n"
-                "route stop 1\n"
+                "stop 1\n"
                 "route stop 2\n"
                 "routes -v\n"
-                "route delete 2\n"
+                "delete 2\n"
                 "use 1\n"
                 "back\n"
                 "route print\n"
@@ -8030,7 +8044,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "",
         "help",
         "complete use ag",
-        "route start 1",
+        "start 1",
         "build set 9 /tmp/grit-build",
         "status",
         "daemon status --dry-run",
@@ -8610,10 +8624,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(route_text or line_console_stdout, file=sys.stderr)
         return 1
     routes_verbose_start = line_console_stdout.find("grit[all]/routes> routes -v")
-    routes_verbose_end = line_console_stdout.find("grit[all]/routes> route delete 2", routes_verbose_start + 1)
+    routes_verbose_end = line_console_stdout.find("grit[all]/routes> delete 2", routes_verbose_start + 1)
     routes_verbose_text = line_console_stdout[routes_verbose_start:routes_verbose_end] if routes_verbose_start != -1 and routes_verbose_end != -1 else ""
     show_routes_verbose_start = line_console_stdout.find("grit[all]/routes> show routes -v")
-    show_routes_verbose_end = line_console_stdout.find("grit[all]/routes> route start 1", show_routes_verbose_start + 1)
+    show_routes_verbose_end = line_console_stdout.find("grit[all]/routes> start 1", show_routes_verbose_start + 1)
     show_routes_verbose_text = (
         line_console_stdout[show_routes_verbose_start:show_routes_verbose_end]
         if show_routes_verbose_start != -1 and show_routes_verbose_end != -1 else ""
