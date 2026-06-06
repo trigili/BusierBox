@@ -777,6 +777,7 @@ def run_console_display_check():
         print_line_command_queue_records,
         select_line_command_queue_action,
     )
+    from gritlib.line_events import print_line_events_view
     from gritlib.line_help import print_line_command_help
     from gritlib.line_options import print_line_context_options
     from gritlib.line_services import (
@@ -865,6 +866,30 @@ def run_console_display_check():
             print(prompt, file=sys.stderr)
             print(status_text, file=sys.stderr)
             print(banner_text, file=sys.stderr)
+            return 1
+        with tempfile.TemporaryDirectory() as tmpdir:
+            event_cfg = {"operator_session_dir": tmpdir}
+            event_path = Path(tmpdir) / "events.jsonl"
+            event_path.write_text(
+                json.dumps({
+                    "schema": 1,
+                    "ts": "2026-06-06T12:00:00Z",
+                    "service": "workbench",
+                    "event": "workbench_opened",
+                    "level": "info",
+                    "details": {"shown_count": 1},
+                }) + "\nnot-json\n",
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                print_line_events_view(event_cfg, ["limit", "1"])
+            events_text = buf.getvalue()
+        if (
+                "Events  (1 shown of 1 matching, 1 total)  1 invalid" not in events_text
+                or "invalid=1" in events_text):
+            print("events output exposed raw invalid-count field", file=sys.stderr)
+            print(events_text, file=sys.stderr)
             return 1
         target_filter = {
             "active": True,

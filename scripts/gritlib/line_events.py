@@ -199,7 +199,7 @@ def print_line_events_view(cfg, args):
 
     title = f"Events  ({len(shown)} shown of {len(filtered)} matching, {len(records)} total)"
     if invalid_count:
-        title += f"  invalid={invalid_count}"
+        title += f"  {invalid_count} invalid"
     footer = f"Event log: view {event_log.path}"
     if filters or since_epoch is not None or limit != 20:
         active = []
