@@ -1,7 +1,7 @@
 """Transfer and target-activity status contexts for grit-console status documents."""
 
 import gritlib.file_transfers as file_transfers
-import gritlib.target_activity as target_activity
+import gritlib.target_activity_feed as target_activity_feed
 import gritlib.target_records as target_records
 
 
@@ -49,7 +49,7 @@ def _build_target_activity_feed_status_context(
     sessions,
 ):
     target_activity_feed_context = (
-        target_activity.target_activity_feed_status_context(
+        target_activity_feed.target_activity_feed_status_context(
             targets,
             target_mailbox_records,
             target_phone_home_records,
@@ -63,7 +63,7 @@ def _build_target_activity_feed_status_context(
         "target_activity_feed_context": target_activity_feed_context,
         "target_activity_records": target_activity_records,
         "target_activity_index_maps": target_activity_feed_context["index_maps"],
-        "summary": target_activity.target_activity_record_summary(
+        "summary": target_activity_feed.target_activity_record_summary(
             target_activity_records
         ),
     }
