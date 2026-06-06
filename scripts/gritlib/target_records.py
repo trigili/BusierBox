@@ -34,9 +34,9 @@ def scoped_target_cfg(cfg, target_id, target_label=""):
 
 
 def target_mailbox_counts(cfg):
-    # Local import preserves the command_queue -> target_records top-level
-    # boundary while reusing command expiry semantics for target summaries.
-    from gritlib.command_queue import command_queue_expired, load_command_queue
+    # Local import preserves the command queue record ownership boundary while
+    # reusing command expiry semantics for target summaries.
+    from gritlib.command_queue_records import command_queue_expired, load_command_queue
 
     counts = {}
     latest_result = {}

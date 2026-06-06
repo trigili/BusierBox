@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from gritlib.command_queue import command_queue_path, load_command_queue
+from gritlib.command_queue_records import command_queue_path, load_command_queue
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.process_status import pid_alive
 from gritlib.record_utils import record_count_by_key, records_by_key

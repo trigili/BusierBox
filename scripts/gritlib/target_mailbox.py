@@ -2,7 +2,7 @@
 
 import hashlib
 
-from gritlib.command_queue import (
+from gritlib.command_queue_records import (
     command_queue_expired, command_result_output_size_bucket,
 )
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key

@@ -2,7 +2,7 @@
 
 import time
 
-from gritlib.command_queue import load_command_queue
+from gritlib.command_queue_records import load_command_queue
 from gritlib.event_log import event_for_target
 from gritlib.session_state import parse_utc_timestamp, utc_now
 import gritlib.target_activity_dispatch as target_activity_dispatch
