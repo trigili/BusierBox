@@ -3,6 +3,7 @@
 import gritlib.command_queue_workflow_actions as command_queue_workflow_actions_module
 from gritlib.probe_commands import probe_workflow_action_records
 import gritlib.service_status as service_status
+import gritlib.staged_file_workflow_actions as staged_file_workflow_actions_module
 import gritlib.staged_files as staged_files
 import gritlib.workflow_actions as workflow_actions
 
@@ -55,7 +56,7 @@ def build_workbench_workflow_status_context(cfg, targets, bridge_profiles):
 
 
 def build_staged_file_workflow_status_context(cfg, staged_records, targets):
-    staged_file_workflow_actions = staged_files.staged_file_workflow_action_records(
+    staged_file_workflow_actions = staged_file_workflow_actions_module.staged_file_workflow_action_records(
         cfg,
         staged_records,
         targets,
@@ -63,7 +64,7 @@ def build_staged_file_workflow_status_context(cfg, staged_records, targets):
     return {
         "staged_file_workflow_actions": staged_file_workflow_actions,
         "staged_file_workflow_action_index_maps": (
-            staged_files.staged_file_workflow_action_indexes(
+            staged_file_workflow_actions_module.staged_file_workflow_action_indexes(
                 staged_file_workflow_actions
             )
         ),
