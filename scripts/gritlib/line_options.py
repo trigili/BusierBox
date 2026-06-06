@@ -7,7 +7,7 @@ from gritlib.build_config import (
     set_workbench_build_config, shell_double_quote,
     workbench_config_field_records,
 )
-from gritlib.console_display import console_table
+from gritlib.console_display import console_display_mode, console_table
 from gritlib.config_utils import DEFAULTS, DEFAULT_CONFIG
 from gritlib.event_log import append_event
 from gritlib.line_services import line_service_status_text
@@ -183,8 +183,12 @@ def _print_line_route_context_options(module, route_record):
         print(f"  target: {rec.get('target_id', '') or '-'}")
         print(f"  last success: {rec.get('last_successful_relay_at', '') or '-'}")
         print(f"  last failure: {rec.get('last_failure_reason', '') or '-'}")
-    print(f"  commands: route {route_name}, route start {route_name}, route stop {route_name}, route delete {route_name}")
-    print("  next: options, start, stop, routes -v, back")
+    if console_display_mode() != "normal":
+        print("  commands: start | stop | delete")
+        print("  next: options | start | stop | routes -v | back")
+    else:
+        print(f"  commands: route {route_name}, route start {route_name}, route stop {route_name}, route delete {route_name}")
+        print("  next: options, start, stop, routes -v, back")
 
 
 def _print_line_session_context_options(module, session_record):

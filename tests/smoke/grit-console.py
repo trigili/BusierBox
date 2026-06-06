@@ -716,6 +716,8 @@ def run_console_display_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.console_display import console_display_mode, console_table
+    from gritlib.bridge_routes import select_line_route
+    from gritlib.line_options import print_line_context_options
     from gritlib.line_services import (
         print_line_service_records,
         select_line_service,
@@ -855,6 +857,39 @@ def run_console_display_check():
             print("listener compact output did not stay concise", file=sys.stderr)
             print(services_text, file=sys.stderr)
             print(selected_service_text, file=sys.stderr)
+            return 1
+        route_records = [{
+            "name": "console-route",
+            "listen_host": "127.0.0.1",
+            "listen_port": 2222,
+            "dest_host": "192.0.2.50",
+            "dest_port": 22,
+            "route_path": "operator:2222 -> target:22",
+            "current_state": "configured",
+            "active": False,
+            "hop_count": 1,
+            "multi_hop": False,
+        }]
+        cfg = {}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            select_line_route(cfg, "1", route_records)
+        route_text = buf.getvalue()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_context_options(cfg, "route/console-route", route_record=route_records[0])
+        route_options_text = buf.getvalue()
+        if (
+                "selected route console-route" not in route_text
+                or "  configured (inactive)" not in route_text
+                or "  listen: 127.0.0.1:2222" not in route_text
+                or "  dest: 192.0.2.50:22" not in route_text
+                or "next: options | start | stop | back" not in route_text
+                or "route start console-route" in route_options_text
+                or "commands: start | stop | delete" not in route_options_text):
+            print("route compact output did not stay concise", file=sys.stderr)
+            print(route_text, file=sys.stderr)
+            print(route_options_text, file=sys.stderr)
             return 1
 
         os.environ["GRIT_CONSOLE_WIDTH"] = "80"

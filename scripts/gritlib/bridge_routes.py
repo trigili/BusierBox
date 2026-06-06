@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from gritlib.event_log import append_event
-from gritlib.console_display import console_table
+from gritlib.console_display import console_display_mode, console_table
 from gritlib.line_context import clear_line_module_context, set_line_collection_context
 from gritlib.line_search import set_line_search_results
 from gritlib.operator_network import target_visible_host
@@ -753,8 +753,14 @@ def select_line_route(cfg, selector, records):
     listen = f"{selected.get('listen_host','') or '0.0.0.0'}:{selected.get('listen_port','?')}"
     dest = f"{selected.get('dest_host','?')}:{selected.get('dest_port','?')}"
     active = "active" if selected.get("active") else "inactive"
-    print(f"  {name}  —  {state} ({active})  |  {listen} → {dest}")
-    print("  options / info / start / stop / back")
+    if console_display_mode() != "normal":
+        print(f"  {state} ({active})")
+        print(f"  listen: {listen}")
+        print(f"  dest: {dest}")
+        print("  next: options | start | stop | back")
+    else:
+        print(f"  {name}  —  {state} ({active})  |  {listen} → {dest}")
+        print("  options / info / start / stop / back")
     append_event(cfg, "workbench", "workbench_route_selected", details={
         "name": name,
         "route_path": selected.get("route_path", ""),
