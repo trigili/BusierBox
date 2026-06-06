@@ -151,6 +151,7 @@ def _workflow_dispatch_kwargs(ctx):
         "set_context_func": lambda module: ctx["set_context_func"](cfg, module),
         "download_func": ctx["download_func"],
         "daemon_run_func": lambda daemon_args: _run_line_workflow_daemon_action(ctx, daemon_args),
+        "module": str((cfg or {}).get("_line_console_module") or ""),
     }
     kwargs.update(_workflow_release_dispatch_kwargs(ctx))
     kwargs.update(_workflow_file_dispatch_kwargs(ctx))

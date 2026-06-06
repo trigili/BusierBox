@@ -328,6 +328,7 @@ def parse_line_daemon_action_args(args):
         "stop": "operator-daemon-stop",
         "print": "systemd-user-print",
         "install": "systemd-user-install",
+        "restart": "systemd-user-restart",
         "systemd-start": "systemd-user-start",
         "systemd-stop": "systemd-user-stop",
         "systemd-restart": "systemd-user-restart",
@@ -343,11 +344,20 @@ def parse_line_daemon_action_args(args):
     }
 
 
-def parse_line_daemon_command(cmd, args=None):
+def parse_line_daemon_command(cmd, args=None, module=None):
+    module = str(module or "").strip().lower()
     if args is None:
         args = cmd
     else:
-        if str(cmd or "").strip().lower() != "daemon":
+        command = str(cmd or "").strip().lower()
+        if module == "daemon" and command in {
+                "start", "stop", "restart", "status", "install",
+                "print", "systemd-start", "systemd-stop", "systemd-restart",
+                "systemd-status"}:
+            args = [command, *list(args or [])]
+            if command == "status" and "--dry-run" not in args:
+                args.append("--dry-run")
+        elif command != "daemon":
             return {}
     args = list(args or [])
     action = parse_line_daemon_action_args(args)

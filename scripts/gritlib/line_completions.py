@@ -388,9 +388,9 @@ def _line_completion_context_candidates(cmd, ctx):
 
     if cmd == "daemon":
         return [f"daemon {item}" for item in prefixed(ctx.arg_pfx(1),
-            ["start", "stop", "status", "install", "print",
+            ["start", "stop", "restart", "status", "install", "print",
              "systemd-start", "systemd-stop", "systemd-restart", "systemd-status",
-             "--dry-run", "-v", "--verbose"] + ctx.values("daemon_action_ids"))]
+             "-v", "verbose"] + ctx.values("daemon_action_ids"))]
 
     if cmd in {"modules", "module"}:
         if ctx.at_arg(1):

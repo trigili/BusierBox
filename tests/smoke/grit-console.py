@@ -2585,6 +2585,30 @@ def run_line_repl_runtime_check():
         print(f"line REPL display callbacks did not use action bundle: {display_bundle_calls}", file=sys.stderr)
         return 1
 
+    from gritlib.workflow_actions import parse_line_daemon_action_args, parse_line_daemon_command
+
+    local_daemon_status = parse_line_daemon_command("status", [], module="daemon")
+    if (
+            local_daemon_status.get("action") != "run"
+            or local_daemon_status.get("args") != ["status", "--dry-run"]
+            or local_daemon_status.get("set_context") is not False):
+        print(f"daemon parser did not parse context-local status: {local_daemon_status}", file=sys.stderr)
+        return 1
+    local_daemon_restart = parse_line_daemon_command("restart", [], module="daemon")
+    if (
+            local_daemon_restart.get("action") != "run"
+            or local_daemon_restart.get("args") != ["restart"]):
+        print(f"daemon parser did not parse context-local restart: {local_daemon_restart}", file=sys.stderr)
+        return 1
+    restart_action = parse_line_daemon_action_args(local_daemon_restart["args"])
+    if restart_action.get("selector") != "systemd-user-restart":
+        print(f"daemon action parser did not map restart alias: {restart_action}", file=sys.stderr)
+        return 1
+    outside_daemon_status = parse_line_daemon_command("status", [], module="")
+    if outside_daemon_status:
+        print(f"daemon parser consumed root status command: {outside_daemon_status}", file=sys.stderr)
+        return 1
+
     workflow_calls = []
     original_workflow_dispatch = repl_workflow.dispatch_line_workflow_command
     original_daemon_action = repl_workflow.run_line_daemon_action
@@ -7614,6 +7638,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "routes\n"
                 "daemon\n"
                 "daemon -v\n"
+                "status\n"
+                "stop\n"
+                "n\n"
                 "jobs -k missing-job\n"
                 "jobs\n"
                 "jobs -v\n"
@@ -7988,6 +8015,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "complete use ag",
         "route start 1",
         "build set 9 /tmp/grit-build",
+        "status",
         "daemon status --dry-run",
         "clear all",
         "sessions -i 1",
@@ -9007,6 +9035,22 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "headless_command=" in daemon_action_text):
         print("line-oriented daemon action commands exposed noisy headless commands", file=sys.stderr)
         print(daemon_action_text or line_console_stdout, file=sys.stderr)
+        return 1
+    daemon_context_start = line_console_stdout.find("grit[all]/daemon> status")
+    daemon_context_end = line_console_stdout.find("grit[all]/daemon> jobs", daemon_context_start + 1)
+    daemon_context_text = (
+        line_console_stdout[daemon_context_start:daemon_context_end]
+        if daemon_context_start != -1 and daemon_context_end != -1 else ""
+    )
+    if (
+            not daemon_context_text
+            or "operator daemon workflow action: operator-daemon-status" not in daemon_context_text
+            or "daemon action complete: ok" not in daemon_context_text
+            or "grit[all]/daemon> stop" not in daemon_context_text
+            or "Run this action? [y/N]" not in daemon_context_text
+            or "Cancelled." not in daemon_context_text):
+        print("line-oriented daemon context-local actions did not prompt cleanly", file=sys.stderr)
+        print(daemon_context_text or line_console_stdout, file=sys.stderr)
         return 1
     module_action_start = line_console_stdout.find("grit[all]/action/operator-daemon-status> check")
     module_action_end = line_console_stdout.find("grit[all]> run -j", module_action_start + 1)

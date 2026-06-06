@@ -118,6 +118,8 @@ def _dispatch_context_navigation(nav):
 
 
 def _dispatch_service_navigation(nav):
+    if nav["module"] == "daemon":
+        return False
     if service_cmd := parse_line_service_control_command(nav["cmd"], nav["args"]):
         dispatch_line_service_control_command(
             service_cmd,

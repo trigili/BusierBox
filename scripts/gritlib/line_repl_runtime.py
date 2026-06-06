@@ -219,6 +219,16 @@ def dispatch_line_parsed_command(
         return {"handled": True}
     if utility_dispatch_func(cmd, command_args):
         return {"handled": True}
+    prefer_workflow = (
+        str(module or "") == "daemon"
+        and cmd in {
+            "start", "stop", "restart", "status", "install",
+            "print", "systemd-start", "systemd-stop", "systemd-restart",
+            "systemd-status",
+        }
+    )
+    if prefer_workflow and workflow_dispatch_func(cmd, command_args):
+        return {"handled": True}
     core_result = core_dispatch_func(cmd, command_args)
     if core_result:
         result = {"handled": True}
@@ -230,7 +240,7 @@ def dispatch_line_parsed_command(
         return result
     if navigation_dispatch_func(cmd, command_args):
         return {"handled": True}
-    if workflow_dispatch_func(cmd, command_args):
+    if not prefer_workflow and workflow_dispatch_func(cmd, command_args):
         return {"handled": True}
     print_func(unknown_message_func(cmd, module, target_selected=target_selected))
     return {"handled": True}

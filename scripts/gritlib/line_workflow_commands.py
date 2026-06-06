@@ -35,7 +35,11 @@ def _dispatch_line_download_family(cmd, args, callbacks):
 
 
 def _dispatch_line_daemon_family(cmd, args, callbacks):
-    daemon_cmd = parse_line_daemon_command(cmd, args)
+    daemon_cmd = parse_line_daemon_command(
+        cmd,
+        args,
+        module=callbacks.get("module"),
+    )
     if not daemon_cmd:
         return False
     dispatch_line_daemon_command(
@@ -177,6 +181,7 @@ def dispatch_line_workflow_command(
     list_jobs_func=None,
     stage_binary_func=None,
     configure_func=None,
+    module="",
 ):
     args = list(args or [])
     callbacks = locals()
