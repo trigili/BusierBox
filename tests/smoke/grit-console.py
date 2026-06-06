@@ -716,6 +716,10 @@ def run_console_display_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.console_display import console_display_mode, console_table
+    from gritlib.line_services import (
+        print_line_service_records,
+        select_line_service,
+    )
     from gritlib.line_targets import (
         line_target_filter_brief_text,
         print_selected_line_target,
@@ -821,6 +825,36 @@ def run_console_display_check():
             print("target compact selected-agent output did not stay concise", file=sys.stderr)
             print(target_summary, file=sys.stderr)
             print(selected_text, file=sys.stderr)
+            return 1
+        service_rows = [{
+            "name": "file-service",
+            "actual": "listening",
+            "configured": "listening",
+            "bind_address": "127.0.0.1",
+            "port": 22231,
+            "protocol": "tcp",
+            "tls": False,
+            "pid": 12345,
+        }]
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_service_records(service_rows)
+        services_text = buf.getvalue()
+        cfg = {}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            select_line_service(cfg, "1", service_rows)
+        selected_service_text = buf.getvalue()
+        if (
+                "  1." not in services_text
+                or "    Service: file-service" not in services_text
+                or "    Bind: 127.0.0.1:22231" not in services_text
+                or "PID" in services_text
+                or "pid 12345" in selected_service_text
+                or "next: options | start | stop | back" not in selected_service_text):
+            print("listener compact output did not stay concise", file=sys.stderr)
+            print(services_text, file=sys.stderr)
+            print(selected_service_text, file=sys.stderr)
             return 1
 
         os.environ["GRIT_CONSOLE_WIDTH"] = "80"

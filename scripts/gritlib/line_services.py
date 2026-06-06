@@ -1,5 +1,6 @@
 """Line-console service display and selector helpers."""
 
+from gritlib.console_display import console_display_mode, console_table
 from gritlib.event_log import append_event
 from gritlib.line_context import set_line_collection_context
 from gritlib.line_search import set_line_search_results
@@ -362,6 +363,15 @@ def _line_service_columns():
     ]
 
 
+def _line_service_compact_columns():
+    return [
+        ("Service", lambda r: line_service_display_name(str(r.get("name") or ""))),
+        ("Status", line_service_status_text),
+        ("Bind", line_service_bind_text),
+        ("TLS", lambda r: "yes" if r.get("tls") else "no"),
+    ]
+
+
 def _line_service_cells(rec):
     return [
         line_service_display_name(str(rec.get("name") or "")),
@@ -400,6 +410,14 @@ def _print_line_service_category_rows(rows, verbose, detail_fn, row_line_fn, num
 
 
 def _print_line_service_table(rows, verbose, detail_fn):
+    if console_display_mode() != "normal":
+        console_table(
+            f"Listeners  ({len(rows)} total)" if rows else "Listeners  (none)",
+            rows,
+            _line_service_compact_columns(),
+            detail_fn=detail_fn if verbose else None,
+        )
+        return
     cols = _line_service_columns()
     by_name = {str(row.get("name") or ""): row for row in rows}
     num_w = len(str(len(rows)))
@@ -481,12 +499,18 @@ def select_line_service(cfg, selector, rows, start_command=None, stop_command=No
         tls = "TLS: yes" if rec.get("tls") else "TLS: no"
         pid = rec.get("pid")
         pid_str = f"  |  pid {pid}" if pid else ""
-        print(f"  {line_service_display_name(service)}  —  {actual}  |  :{port}  |  {tls}{pid_str}")
+        if console_display_mode() != "normal":
+            print(f"  {line_service_display_name(service)}  —  {actual}  |  :{port}  |  {tls}")
+        else:
+            print(f"  {line_service_display_name(service)}  —  {actual}  |  :{port}  |  {tls}{pid_str}")
         if line_service_display_name(service) != service:
             print(f"  transport: {service}")
     else:
         print(f"  {line_service_display_name(service)}  —  (no status)")
-    print("  options / info / start / stop / copy start / back")
+    if console_display_mode() != "normal":
+        print("  next: options | start | stop | back")
+    else:
+        print("  options / info / start / stop / copy start / back")
     return service
 
 
