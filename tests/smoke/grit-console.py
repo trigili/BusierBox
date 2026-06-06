@@ -11963,14 +11963,14 @@ def main(argv=None):
                 sys.executable,
                 "-c",
                 (
-                    "import importlib.machinery, importlib.util, json, pathlib, sys; "
+                    "import json, pathlib, sys; "
                     "p=pathlib.Path(sys.argv[1]); "
-                    "loader=importlib.machinery.SourceFileLoader('srv', str(p)); "
-                    "spec=importlib.util.spec_from_loader('srv', loader); "
-                    "m=importlib.util.module_from_spec(spec); spec.loader.exec_module(m); "
-                    "cfg=m.load_config(sys.argv[2]); cfg['command_queue_file']=sys.argv[3]; "
-                    "a=m.queue_command(cfg, 'grit survey'); "
-                    "b=m.queue_command(cfg, 'grit survey'); "
+                    "sys.path.insert(0, str(p.parent)); "
+                    "from gritlib.config_utils import load_config; "
+                    "from gritlib.command_queue import queue_command; "
+                    "cfg=load_config(sys.argv[2]); cfg['command_queue_file']=sys.argv[3]; "
+                    "a=queue_command(cfg, 'grit survey'); "
+                    "b=queue_command(cfg, 'grit survey'); "
                     "print(json.dumps([a['id'], b['id']]))"
                 ),
                 str(server),
