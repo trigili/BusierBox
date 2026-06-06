@@ -56,12 +56,16 @@ def survey_filter_hints(path):
     data = load_json(pathlib.Path(path))
     recs = data.get("recommendations") if isinstance(data.get("recommendations"), dict) else {}
     uname = data.get("uname") if isinstance(data.get("uname"), dict) else {}
+    cpuinfo = data.get("cpuinfo") if isinstance(data.get("cpuinfo"), dict) else {}
     return {
         "arch": useful(recs.get("target_arch_guess")) or useful(data.get("arch")) or useful(uname.get("machine")),
         "libc": useful(recs.get("libc_guess")) or useful(data.get("libc")),
         "kernel": useful(recs.get("kernel_floor_guess")) or kernel_floor(data.get("kernel") or uname.get("release")),
         "cpu": useful(recs.get("target_cpu_guess")) or useful(data.get("cpu")),
         "abi": useful(recs.get("target_abi_guess")) or useful(data.get("abi")),
+        "endian": useful(recs.get("endian_guess")) or useful(data.get("endian")) or useful(data.get("endianness")),
+        "features": cpuinfo.get("features") if isinstance(cpuinfo.get("features"), list) else [],
+        "float_abi": useful(data.get("float_abi")) or useful(cpuinfo.get("float_abi")),
         "target_preset": useful(recs.get("target_preset_guess")),
     }
 
@@ -71,7 +75,7 @@ def apply_survey_filters(args):
         return {}
     hints = survey_filter_hints(args.survey_json)
     applied = {}
-    for key in ("arch", "libc", "kernel", "cpu", "abi"):
+    for key in ("arch", "kernel", "cpu", "abi"):
         value = hints.get(key)
         if value and not getattr(args, key):
             setattr(args, key, value)
@@ -176,6 +180,83 @@ def tuple_info(row, index):
         if item.get("release_dir") == row.get("release_dir"):
             return item.get("tuple") or row.get("tuple") or {}
     return row.get("tuple") or {}
+
+
+def normalized_endian(value):
+    text = str(value or "").strip().lower()
+    return {
+        "le": "little",
+        "little-endian": "little",
+        "lsb": "little",
+        "el": "little",
+        "be": "big",
+        "big-endian": "big",
+        "msb": "big",
+        "eb": "big",
+    }.get(text, text)
+
+
+def string_list(value):
+    if isinstance(value, (list, tuple, set)):
+        return [str(item).strip().lower() for item in value if str(item).strip()]
+    return [item.strip().lower() for item in str(value or "").replace(",", " ").split() if item.strip()]
+
+
+def requirement_value(row, key):
+    requirements = row.get("artifact_requirements")
+    if not isinstance(requirements, dict):
+        requirements = row.get("artifact_build_requirements")
+    if not isinstance(requirements, dict):
+        requirements = row.get("requirements") if isinstance(row.get("requirements"), dict) else {}
+    return row.get(key) or requirements.get(key)
+
+
+def artifact_survey_compatibility(row, index, survey_context):
+    hints = (survey_context or {}).get("hints") if isinstance((survey_context or {}).get("hints"), dict) else {}
+    info = tuple_info(row, index)
+    reasons = []
+    target_runtime_libc = str(hints.get("libc") or "").strip().lower()
+    linkage = str(requirement_value(row, "linkage") or "").strip().lower()
+    toolchain_libc = str(requirement_value(row, "toolchain_libc") or info.get("libc") or "").strip().lower()
+    if linkage in {"dynamic", "mixed"} and target_runtime_libc and toolchain_libc and target_runtime_libc != toolchain_libc:
+        reasons.append(f"libc mismatch for dynamic artifact: target={target_runtime_libc} artifact={toolchain_libc}")
+
+    artifact_endian = normalized_endian(requirement_value(row, "elf_endian") or requirement_value(row, "endian"))
+    target_endian = normalized_endian(hints.get("endian"))
+    if artifact_endian and target_endian and artifact_endian != target_endian:
+        reasons.append(f"endian mismatch: target={target_endian} artifact={artifact_endian}")
+
+    required_features = set(string_list(requirement_value(row, "required_features")))
+    target_features = set(string_list(hints.get("features")))
+    missing_features = sorted(required_features - target_features)
+    if missing_features:
+        reasons.append("missing required CPU features: " + ", ".join(missing_features))
+
+    arch = str(info.get("arch") or "").lower()
+    float_abi = str(requirement_value(row, "float_abi") or "").strip().lower()
+    target_float_abi = str(hints.get("float_abi") or "").strip().lower()
+    if arch.startswith("arm") and float_abi:
+        if target_float_abi and target_float_abi != float_abi:
+            reasons.append(f"ARM float ABI mismatch: target={target_float_abi} artifact={float_abi}")
+        elif not target_float_abi and float_abi in {"hard", "hard-float", "hf", "softfp", "soft-float-vfp"} and not (
+            {"vfp", "vfpv3", "vfpv4", "neon"} & target_features
+        ):
+            reasons.append(f"ARM float ABI not proven compatible: artifact={float_abi}")
+    return {
+        "schema": 1,
+        "compatible": not reasons,
+        "label": "compatible" if not reasons else "incompatible",
+        "reasons": reasons,
+        "target_runtime_libc": target_runtime_libc,
+        "toolchain_libc": toolchain_libc,
+        "linkage": linkage or "unknown",
+        "target_endian": target_endian,
+        "artifact_endian": artifact_endian,
+        "target_features": sorted(target_features),
+        "required_features": sorted(required_features),
+        "target_float_abi": target_float_abi,
+        "artifact_float_abi": float_abi,
+    }
 
 
 def matches(row, index, args):
@@ -854,6 +935,18 @@ def main(argv=None):
         index = build_index(roots)
 
     rows = [row for row in index.get("artifacts") or [] if matches(row, index, args)]
+    if survey_context:
+        rows = [
+            {
+                **row,
+                "survey_compatibility": artifact_survey_compatibility(row, index, survey_context),
+            }
+            for row in rows
+        ]
+        rows = [
+            row for row in rows
+            if (row.get("survey_compatibility") or {}).get("compatible") is True
+        ]
     if reality:
         rows = [
             {

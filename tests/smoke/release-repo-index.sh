@@ -657,21 +657,58 @@ doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
 survey_path = sys.argv[2]
 assert doc["filters"]["survey_json"] == survey_path
 assert doc["filters"]["arch"] == "mipsel"
-assert doc["filters"]["libc"] == "musl"
 assert doc["filters"]["kernel"] == "4.x"
 assert doc["survey"]["path"] == survey_path
 assert doc["survey"]["hints"]["arch"] == "mipsel"
+assert doc["survey"]["hints"]["libc"] == "musl"
 assert doc["survey"]["hints"]["kernel"] == "4.x"
-assert doc["survey"]["applied_filters"] == {"arch": "mipsel", "kernel": "4.x", "libc": "musl"}
-assert doc["filter_count"] == 5
+assert doc["survey"]["applied_filters"] == {"arch": "mipsel", "kernel": "4.x"}
+assert doc["filter_count"] == 4
 assert doc["filters_by_name"]["survey_json"]["source"] == "explicit"
 assert doc["filters_by_name"]["payload_preset"]["source"] == "explicit"
 assert doc["filters_by_name"]["arch"]["source"] == "survey"
-assert doc["filters_by_name"]["libc"]["reason"].startswith("derived from survey")
-assert [item["name"] for item in doc["filters_by_source"]["survey"]] == ["arch", "kernel", "libc"]
+assert [item["name"] for item in doc["filters_by_source"]["survey"]] == ["arch", "kernel"]
 assert doc["filters_by_name_source"]["arch:survey"]["value"] == "mipsel"
+assert doc["selected"]["survey_compatibility"]["target_runtime_libc"] == "musl"
 assert doc["selected"]["release_name"] == "one"
 PY
+cat >"$tmp/glibc-survey.json" <<'JSON'
+{
+  "schema": 2,
+  "arch": "mipsel",
+  "kernel": "4.14.241",
+  "recommendations": {
+    "libc_guess": "glibc"
+  }
+}
+JSON
+scripts/lib/find-artifact --index "$tmp/repo-index.json" --survey-json "$tmp/glibc-survey.json" --payload-preset survey-core --recommendation-json >"$tmp/recommend-static-glibc-json.out"
+python3 - "$tmp/recommend-static-glibc-json.out" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert doc["selected"]["release_name"] == "one"
+assert doc["selected"]["survey_compatibility"]["target_runtime_libc"] == "glibc"
+assert doc["selected"]["survey_compatibility"]["compatible"] is True
+PY
+python3 - "$tmp/repo-index.json" "$tmp/dynamic-index.json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+for row in doc["artifacts"]:
+    row["artifact_requirements"] = {
+        "linkage": "dynamic",
+        "toolchain_libc": "musl",
+    }
+json.dump(doc, open(sys.argv[2], "w", encoding="utf-8"))
+PY
+scripts/lib/find-artifact --index "$tmp/dynamic-index.json" --survey-json "$tmp/glibc-survey.json" --payload-preset survey-core >/dev/null 2>"$tmp/find-dynamic-glibc.err" && {
+    printf '%s\n' "release-repo-index smoke: dynamic musl artifact matched glibc survey" >&2
+    exit 1
+}
+grep -q 'find-artifact: no matching artifact' "$tmp/find-dynamic-glibc.err"
 cat >"$tmp/reality-bad-runtime.json" <<'EOF'
 {
   "schema": 1,
