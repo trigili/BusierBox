@@ -11,6 +11,7 @@ import gritlib.service_status as service_status
 import gritlib.staged_files as staged_files
 import gritlib.status_indexes as status_indexes
 import gritlib.target_activity as target_activity
+import gritlib.target_phone_home as target_phone_home
 import gritlib.target_records as target_records
 
 TARGET_INDEX_KEYS = (
@@ -173,7 +174,7 @@ def _build_staged_file_status_context(cfg, target_filter_id):
 def _build_event_source_status_context(cfg):
     all_event_records, all_event_invalid = EventLog(cfg).records()
     all_target_phone_home_records = (
-        target_activity.target_phone_home_records_from_events(all_event_records)
+        target_phone_home.target_phone_home_records_from_events(all_event_records)
     )
     return {
         "all_event_records": all_event_records,
@@ -192,7 +193,7 @@ def _build_target_registry_context(
     uploads = file_transfers.recent_upload_metadata(cfg)
     fetches = file_transfers.recent_fetch_metadata(cfg)
     targets = target_records.target_records(cfg)
-    targets = target_activity.apply_target_phone_home_summary(
+    targets = target_phone_home.apply_target_phone_home_summary(
         targets,
         all_target_phone_home_records,
     )

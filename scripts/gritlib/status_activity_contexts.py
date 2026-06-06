@@ -13,6 +13,7 @@ import gritlib.status_target_filter as status_target_filter
 import gritlib.status_workflow_contexts as status_workflow_contexts
 import gritlib.target_activity as target_activity
 import gritlib.target_mailbox as target_mailbox
+import gritlib.target_phone_home as target_phone_home
 from gritlib.target_commands import (
     rshell_session_policy_status,
     target_command_status_context,
@@ -310,7 +311,7 @@ def _build_target_activity_status_context(
             **target_mailbox.target_mailbox_record_summary(
                 target_activity_context["target_mailbox_records"]
             ),
-            **target_activity.target_phone_home_record_summary(
+            **target_phone_home.target_phone_home_record_summary(
                 target_activity_context["target_phone_home_records"]
             ),
         },
