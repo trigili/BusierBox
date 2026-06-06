@@ -23,7 +23,7 @@ import gritlib.status_print_workflows as status_print_workflows
 from gritlib.target_filter_display import (
     target_filter_evidence_lines, target_filter_summary_text,
 )
-from gritlib.target_records import print_target_summary
+from gritlib.target_record_display import print_target_summary
 from gritlib.warnings import print_warning_summary, warning_badge_suffix
 
 
