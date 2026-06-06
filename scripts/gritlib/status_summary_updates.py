@@ -3,7 +3,9 @@
 import gritlib.command_queue as command_queue_module
 from gritlib.event_log import event_status_summary
 import gritlib.file_transfers as file_transfers
-from gritlib.release_artifacts import release_artifact_workflow_action_status_summary
+from gritlib.release_artifact_workflow_actions import (
+    release_artifact_workflow_action_status_summary,
+)
 from gritlib.session_records import session_record_summary
 import gritlib.service_status as service_status
 from gritlib.target_commands import target_command_status_summary

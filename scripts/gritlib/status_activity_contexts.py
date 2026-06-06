@@ -5,9 +5,10 @@ import gritlib.command_queue as command_queue_module
 import gritlib.command_queue_policy as command_queue_policy_module
 from gritlib.build_config import workbench_config_status_context
 from gritlib.event_log import event_log_status_context, event_status_summary
-from gritlib.release_artifacts import (
-    release_artifact_workflow_action_status_summary, release_status_context,
+from gritlib.release_artifact_workflow_actions import (
+    release_artifact_workflow_action_status_summary,
 )
+from gritlib.release_artifacts import release_status_context
 from gritlib.service_runtime import SESSION_MANAGER
 from gritlib.session_records import session_record_summary, session_status_context
 import gritlib.status_target_filter as status_target_filter
