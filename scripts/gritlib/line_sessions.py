@@ -179,12 +179,12 @@ def line_session_state_text(rec):
 def line_session_transfer_text(rec):
     parts = []
     if rec.get("upload_count"):
-        parts.append(f"up={rec['upload_count']}")
+        parts.append(f"{rec['upload_count']} uploads")
     if rec.get("fetch_count"):
-        parts.append(f"fetch={rec['fetch_count']}")
+        parts.append(f"{rec['fetch_count']} fetches")
     if rec.get("artifact_count"):
-        parts.append(f"art={rec['artifact_count']}")
-    return "  ".join(parts) or "-"
+        parts.append(f"{rec['artifact_count']} artifacts")
+    return ", ".join(parts) or "-"
 
 
 def line_session_time_text(iso):
@@ -396,7 +396,7 @@ def _line_session_search_record(rec, view_command, quote):
         "kind": "session",
         "label": (
             f"{session_name}"
-            f" service={rec.get('service') or '-'} state={line_session_state_text(rec)}"
+            f" service {rec.get('service') or '-'}  state {line_session_state_text(rec)}"
         ),
         "rec": rec,
         "command": view_command(str(rec.get("path") or "")),

@@ -735,6 +735,7 @@ def run_console_display_check():
     )
     from gritlib.line_sessions import (
         print_line_session_interaction,
+        print_line_session_records,
         print_selected_line_session,
     )
     from gritlib.line_targets import (
@@ -1109,6 +1110,14 @@ def run_console_display_check():
         session_interaction_text = buf.getvalue()
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
+            session_search_records = print_line_session_records(
+                [session_rec],
+                verbose=True,
+                view_command=lambda path: f"view {path}",
+            )
+        session_records_text = buf.getvalue()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
             print_line_context_options({}, "session/20260101T000000-file-service", session_record=session_rec)
         session_options_text = buf.getvalue()
         if (
@@ -1116,12 +1125,21 @@ def run_console_display_check():
                 or "/tmp/session-root" in session_interaction_text
                 or "log: session.log" not in session_interaction_text
                 or "next: view session.log | sessions -v | back" not in session_interaction_text
+                or "transfers: 1 uploads, 2 fetches" not in session_records_text
+                or not session_search_records
+                or "service file-service  state closed/smoke" not in session_search_records[0].get("label", "")
+                or "service=" in session_search_records[0].get("label", "")
+                or "state=" in session_search_records[0].get("label", "")
+                or "up=" in session_records_text
+                or "fetch=" in session_records_text
+                or "art=" in session_records_text
                 or "/tmp/session-root" in session_options_text
                 or "session log: session.log" not in session_options_text
                 or "next: info | interact | sessions -v | back" not in session_options_text):
             print("session compact output did not stay concise", file=sys.stderr)
             print(session_selected_text, file=sys.stderr)
             print(session_interaction_text, file=sys.stderr)
+            print(session_records_text, file=sys.stderr)
             print(session_options_text, file=sys.stderr)
             return 1
         buf = io.StringIO()
