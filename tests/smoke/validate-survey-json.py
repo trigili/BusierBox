@@ -9,7 +9,7 @@ if len(sys.argv) != 2:
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-required = ["arch", "kernel", "cpuinfo", "writable_dirs", "recommendations"]
+required = ["arch", "kernel", "cpuinfo", "native_binaries", "writable_dirs", "recommendations"]
 missing = [key for key in required if key not in data]
 if missing:
     print("missing keys: " + ", ".join(missing), file=sys.stderr)
@@ -31,6 +31,20 @@ for key in ("available", "source", "confidence"):
     if key not in data["cpuinfo"]:
         print(f"cpuinfo missing {key}", file=sys.stderr)
         raise SystemExit(1)
+
+if not isinstance(data["native_binaries"], list):
+    print("native_binaries must be a list", file=sys.stderr)
+    raise SystemExit(1)
+
+if data["native_binaries"]:
+    first_binary = data["native_binaries"][0]
+    if not isinstance(first_binary, dict):
+        print("native_binaries entries must be objects", file=sys.stderr)
+        raise SystemExit(1)
+    for key in ("role", "path", "exists", "source", "confidence"):
+        if key not in first_binary:
+            print(f"native_binaries entry missing {key}", file=sys.stderr)
+            raise SystemExit(1)
 
 recommendation_keys = [
     "target_arch_guess",

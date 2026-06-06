@@ -524,6 +524,78 @@ static void json_cpuinfo(void)
     printf("}");
 }
 
+static void json_command_output(const char *tool, const char *flag, const char *path)
+{
+    char cmd[PATH_MAX + 64];
+    char buf[2048];
+    size_t n;
+    FILE *fp;
+    if (!command_in_path(tool)) {
+        printf("null");
+        return;
+    }
+    snprintf(cmd, sizeof(cmd), "%s %s %s 2>/dev/null", tool, flag, path);
+    fp = popen(cmd, "r");
+    if (!fp) {
+        printf("null");
+        return;
+    }
+    n = fread(buf, 1, sizeof(buf) - 1, fp);
+    pclose(fp);
+    buf[n] = '\0';
+    json_string(buf);
+}
+
+static void json_native_binary_record(const char *role, const char *path)
+{
+    struct stat st;
+    int exists = stat(path, &st) == 0;
+    printf("{\"role\":"); json_string(role);
+    printf(",\"path\":"); json_string(path);
+    printf(",\"exists\":%s", exists ? "true" : "false");
+    printf(",\"source\":\"target-filesystem\"");
+    printf(",\"confidence\":"); json_string(exists ? "observed" : "missing");
+    if (exists) {
+        printf(",\"size\":%llu", (unsigned long long)st.st_size);
+        printf(",\"executable\":%s", access(path, X_OK) == 0 ? "true" : "false");
+        printf(",\"file_output\":"); json_command_output("file", "-L", path);
+        printf(",\"readelf_header\":"); json_command_output("readelf", "-h", path);
+        printf(",\"readelf_attributes\":"); json_command_output("readelf", "-A", path);
+    }
+    printf("}");
+}
+
+static void json_native_binaries(void)
+{
+    static const char *loaders[] = {
+        "/lib/ld-musl-mipsel.so.1",
+        "/lib/ld-musl-mips.so.1",
+        "/lib/ld-musl-armhf.so.1",
+        "/lib/ld-musl-aarch64.so.1",
+        "/lib/ld-musl-x86_64.so.1",
+        "/lib/ld-uClibc.so.0",
+        "/lib64/ld-linux-x86-64.so.2",
+        "/lib/ld-linux.so.2",
+        "/lib/ld-linux-aarch64.so.1",
+        "/lib/ld-linux-armhf.so.3",
+        NULL,
+    };
+    int i;
+    putchar('[');
+    json_native_binary_record("busybox", "/bin/busybox");
+    putchar(',');
+    json_native_binary_record("shell", "/bin/sh");
+    putchar(',');
+    json_native_binary_record("init", "/sbin/init");
+    for (i = 0; loaders[i]; i++) {
+        if (access(loaders[i], F_OK) != 0)
+            continue;
+        putchar(',');
+        json_native_binary_record("dynamic-loader", loaders[i]);
+    }
+    putchar(']');
+}
+
 static void json_os_markers(void)
 {
     printf("{\"os_release\":");
@@ -722,6 +794,7 @@ int applet_survey_main(int argc, char **argv)
         printf(",\"endianness\":"); json_string(endianness());
         printf(",\"pointer_width\":%lu", (unsigned long)(sizeof(void *) * 8));
         printf(",\"cpuinfo\":"); json_cpuinfo();
+        printf(",\"native_binaries\":"); json_native_binaries();
         printf(",\"ids\":{\"uid\":%ld,\"euid\":%ld,\"gid\":%ld,\"egid\":%ld}",
                (long)getuid(), (long)geteuid(), (long)getgid(), (long)getegid());
         printf(",\"cwd\":"); json_string(cwd);
