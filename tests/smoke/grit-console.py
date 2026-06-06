@@ -959,6 +959,14 @@ def run_console_display_check():
         with contextlib.redirect_stdout(buf):
             print_line_file_records(file_records, fetch_command=lambda name: f"grit fetch {name}")
         files_text = buf.getvalue()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_file_records(
+                file_records,
+                verbose=True,
+                fetch_command=lambda name: f"grit fetch {name}",
+            )
+        files_verbose_text = buf.getvalue()
         cfg = {
             "GRIT_OPERATOR_SERVER_HOST": "192.0.2.44",
             "GRIT_OPERATOR_FILE_SERVICE_PORT": 22231,
@@ -989,12 +997,15 @@ def run_console_display_check():
                 "  1." not in files_text
                 or "    Name: console-upload" not in files_text
                 or "    Target: Console Router" not in files_text
+                or "fetch command: grit fetch console-upload" not in files_verbose_text
+                or "target command:" in files_verbose_text
                 or "  command: ./grit put /etc/config/network" not in download_text
                 or "target command:" in download_text
                 or "  command: grit fetch console-upload" not in staged_fetch_text
                 or "target fetch:" in staged_fetch_text):
             print("files compact output did not stay concise", file=sys.stderr)
             print(files_text, file=sys.stderr)
+            print(files_verbose_text, file=sys.stderr)
             print(download_text, file=sys.stderr)
             print(staged_fetch_text, file=sys.stderr)
             return 1

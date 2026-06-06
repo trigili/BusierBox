@@ -605,7 +605,7 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
         if verbose:
             command = fetch_command(name)
             if command:
-                details.append(("target command", command))
+                details.append(("fetch command", command))
             if rec.get("source_path"):
                 details.append(("source", rec["source_path"]))
             sha = str(rec.get("sha256") or "")
