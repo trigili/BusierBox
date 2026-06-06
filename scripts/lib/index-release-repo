@@ -56,6 +56,102 @@ def unique(items):
     return out
 
 
+def requirement_value(value):
+    text = str(value or "").strip()
+    if text.lower() in {"", "unknown", "auto", "host", "default"}:
+        return ""
+    return text
+
+
+def elf_machine_for_arch(arch):
+    return {
+        "mips": "MIPS",
+        "mipsel": "MIPS",
+        "armv7": "ARM",
+        "aarch64": "AArch64",
+        "x86_64": "Advanced Micro Devices X86-64",
+        "i386": "Intel 80386",
+    }.get(str(arch or "").lower(), "")
+
+
+def elf_class_for_arch(arch):
+    arch = str(arch or "").lower()
+    if arch in {"aarch64", "x86_64", "mips64", "mips64el"}:
+        return "ELF64"
+    if arch in {"mips", "mipsel", "armv7", "i386"}:
+        return "ELF32"
+    return ""
+
+
+def linkage_for_static_policy(static_policy):
+    return "dynamic" if str(static_policy or "").strip().lower() == "dynamic" else "static"
+
+
+def arm_float_abi_for_tuple(tuple_info):
+    arch = str(tuple_info.get("arch") or "").lower()
+    abi = str(tuple_info.get("abi") or "").lower()
+    if not arch.startswith("arm"):
+        return ""
+    if abi in {"hardfloat", "eabihf"}:
+        return "hard"
+    return ""
+
+
+def required_features_for_tuple(tuple_info):
+    features = []
+    arch = str(tuple_info.get("arch") or "").lower()
+    if arch.startswith("arm") and arm_float_abi_for_tuple(tuple_info) == "hard":
+        features.append("vfp")
+    return features
+
+
+def cpu_baseline_for_tuple(tuple_info):
+    arch = str(tuple_info.get("arch") or "").lower()
+    cpu = requirement_value(tuple_info.get("cpu"))
+    if cpu:
+        return cpu
+    if arch == "armv7":
+        return "armv7-a"
+    if arch == "aarch64":
+        return "armv8-a"
+    return ""
+
+
+def artifact_requirements_from_tuple(tuple_info):
+    requirements = {
+        "schema": 1,
+        "source": "target-preset",
+        "confidence": {
+            "elf_machine": "inferred",
+            "elf_class": "inferred",
+            "elf_endian": "configured" if requirement_value(tuple_info.get("endian")) else "unknown",
+            "linkage": "configured",
+            "toolchain_libc": "configured" if requirement_value(tuple_info.get("libc")) else "unknown",
+            "arm_eabi": "inferred" if str(tuple_info.get("arch") or "").lower().startswith("arm") else "not-applicable",
+            "float_abi": "configured" if arm_float_abi_for_tuple(tuple_info) else "unknown",
+            "cpu_baseline": "configured" if requirement_value(tuple_info.get("cpu")) else "inferred",
+            "required_features": "inferred",
+            "minimum_kernel": "configured" if requirement_value(tuple_info.get("kernel_floor")) else "unknown",
+        },
+        "elf_machine": elf_machine_for_arch(tuple_info.get("arch")),
+        "elf_class": elf_class_for_arch(tuple_info.get("arch")),
+        "elf_endian": requirement_value(tuple_info.get("endian")),
+        "linkage": linkage_for_static_policy(tuple_info.get("static_policy")),
+        "toolchain_libc": requirement_value(tuple_info.get("libc")),
+        "arm_eabi": "EABI5" if str(tuple_info.get("arch") or "").lower().startswith("arm") else "",
+        "float_abi": arm_float_abi_for_tuple(tuple_info),
+        "cpu_baseline": cpu_baseline_for_tuple(tuple_info),
+        "required_features": required_features_for_tuple(tuple_info),
+        "minimum_kernel": requirement_value(tuple_info.get("kernel_floor")),
+        "minimum_syscall_floor": requirement_value(tuple_info.get("kernel_floor")),
+    }
+    return {
+        key: value
+        for key, value in requirements.items()
+        if value not in ("", None, []) or key in {"schema", "source", "confidence", "required_features"}
+    }
+
+
 def candidate_release_dirs(paths):
     roots = [pathlib.Path(p) for p in paths] if paths else [ROOT / "dist" / "releases"]
     out = []
@@ -78,10 +174,11 @@ def load_release_index(release_dir):
         if rec.get("build_status") == "failed":
             continue
         summary = rec.get("tuple_summary") or {}
+        tuple_info = rec.get("tuple") or {}
         rows.append({
             "artifact": rec.get("artifact"),
             "tuple_path": rec.get("tuple_path"),
-            "tuple": rec.get("tuple") or {},
+            "tuple": tuple_info,
             "tuple_artifact": rec.get("tuple_artifact"),
             "payload_preset": rec.get("payload_preset"),
             "runtime_mode": summary.get("runtime_mode") or rec.get("runtime_mode"),
@@ -96,6 +193,7 @@ def load_release_index(release_dir):
             "size": rec.get("size"),
             "tools": unique((summary.get("busybox_applets") or []) + (summary.get("heavy_tools") or [])),
             "trailer_support": rec.get("trailer_support"),
+            "artifact_requirements": rec.get("artifact_requirements") or artifact_requirements_from_tuple(tuple_info),
             "compatibility": summary.get("compatibility") or {"schema": 1, "label": "exact", "reasons": []},
         })
     return {

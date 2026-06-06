@@ -87,10 +87,29 @@ resolved = {
     "TARGET_KERNEL_FLOOR": "4.x",
     "TARGET_CPU": "mips32r2-24kc",
     "TARGET_ABI": "default",
+    "TARGET_ENDIAN": "little",
+    "TARGET_STATIC_POLICY": "static-preferred",
 }
 tuple_info = mod.tuple_metadata(resolved)
 if tuple_info["path"] != "by-tuple/mipsel/musl/4.x/mips32r2-24kc":
     raise SystemExit(f"tuple path mismatch: {tuple_info['path']}")
+requirements = mod.artifact_requirements_from_tuple(tuple_info)
+expected = {
+    "elf_machine": "MIPS",
+    "elf_class": "ELF32",
+    "elf_endian": "little",
+    "linkage": "static",
+    "toolchain_libc": "musl",
+    "cpu_baseline": "mips32r2-24kc",
+    "minimum_kernel": "4.x",
+}
+for key, value in expected.items():
+    if requirements.get(key) != value:
+        raise SystemExit(f"artifact requirement {key} mismatch: {requirements!r}")
+if requirements.get("required_features") != []:
+    raise SystemExit(f"MIPS requirements should not invent CPU features: {requirements!r}")
+if requirements.get("source") != "target-preset" or requirements.get("confidence", {}).get("linkage") != "configured":
+    raise SystemExit(f"artifact requirements lack source/confidence: {requirements!r}")
 aliases = mod.target_aliases({"target": "glinet-mt7621-openwrt-musl"}, resolved)
 for alias in ("glinet-mt7621-openwrt-musl", "mipsel-linux-4.x-musl", "glinet-mt7621", "glinet-mt1300"):
     if alias not in aliases:
@@ -112,6 +131,22 @@ device_tuple = mod.tuple_metadata({
     "TARGET_CPU": "cortex-a7",
     "TARGET_ABI": "eabi",
 })
+arm_requirements = mod.artifact_requirements_from_tuple(mod.tuple_metadata({
+    "TARGET_ARCH": "armv7",
+    "TARGET_LIBC": "musl",
+    "TARGET_KERNEL_FLOOR": "3.x",
+    "TARGET_CPU": "cortex-a9",
+    "TARGET_ABI": "eabihf",
+    "TARGET_ENDIAN": "little",
+    "TARGET_STATIC_POLICY": "static-preferred",
+}))
+if (
+    arm_requirements.get("elf_machine") != "ARM"
+    or arm_requirements.get("arm_eabi") != "EABI5"
+    or arm_requirements.get("float_abi") != "hard"
+    or arm_requirements.get("required_features") != ["vfp"]
+):
+    raise SystemExit(f"ARM requirements missing ABI facts: {arm_requirements!r}")
 if mod.preferred_tuple_path_for_alias(device_tuple, built) != "by-tuple/armv7/musl/4.x/generic":
     raise SystemExit("device tuple did not fall back to generic tuple")
 PY
@@ -482,6 +517,11 @@ if artifact.get("tuple", {}).get("path") != artifact.get("tuple_path"):
     raise SystemExit("artifact tuple path drift")
 if artifact.get("tuple_artifact") != "by-tuple/native/host/host/host/bin/grit-native-default-full":
     raise SystemExit("artifact tuple artifact missing")
+requirements = artifact.get("artifact_requirements") or {}
+if requirements.get("source") != "target-preset" or requirements.get("linkage") != "static":
+    raise SystemExit(f"release artifact requirements missing: {requirements!r}")
+if not isinstance(requirements.get("confidence"), dict):
+    raise SystemExit(f"release artifact requirement confidence missing: {requirements!r}")
 summary = artifact.get("tuple_summary") or {}
 for key in ("payload_manifest", "native_applets", "busybox_applets", "core_extraction_behavior", "trailer_overridable_fields", "command_queue", "noresidue_policy", "recovery_workflows", "doom_wads"):
     if key not in summary:
@@ -744,6 +784,11 @@ if row.get("tuple", {}).get("path_components", {}).get("discriminator") != "host
     raise SystemExit("release-index tuple components missing")
 if (row.get("compatibility") or {}).get("label") != "exact":
     raise SystemExit("release-index compatibility baseline missing")
+requirements = row.get("artifact_requirements") or {}
+if requirements.get("source") != "target-preset" or requirements.get("linkage") != "static":
+    raise SystemExit(f"release-index artifact requirements missing: {requirements!r}")
+if not isinstance(requirements.get("confidence"), dict):
+    raise SystemExit(f"release-index artifact requirement confidence missing: {requirements!r}")
 if sorted(index.get("tuples", {})) != ["by-tuple/native/host/host/host"]:
     raise SystemExit("release-index tuple keys mismatch")
 row["doom_wads"] = [
