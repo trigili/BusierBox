@@ -656,6 +656,7 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_utility as repl_utility
     import gritlib.line_repl_workflow as repl_workflow
     import gritlib.line_repl_workspace as repl_workspace
+    from gritlib.line_help import line_context_help_topic
     from gritlib.line_repl_runtime import (
         build_line_repl_input_callback,
         dispatch_line_help_command,
@@ -1149,6 +1150,28 @@ def run_line_repl_runtime_check():
         return 1
     if help_calls != [("command", "routes")]:
         print(f"line REPL runtime routed help topic incorrectly: {help_calls}", file=sys.stderr)
+        return 1
+
+    expected_context_help_topics = {
+        "sessions": "sessions",
+        "daemon": "daemon",
+        "files": "files",
+        "queue": "queue",
+        "routes": "routes",
+        "targets": "targets",
+        "jobs": "jobs",
+        "release": "release",
+        "build": "build",
+        "probe": "probe",
+        "events": "events",
+    }
+    actual_context_help_topics = {
+        module: line_context_help_topic(module)
+        for module in expected_context_help_topics
+    }
+    if actual_context_help_topics != expected_context_help_topics:
+        print("line REPL context help topics drifted from Phase 1 contexts", file=sys.stderr)
+        print(json.dumps(actual_context_help_topics, indent=2, sort_keys=True), file=sys.stderr)
         return 1
 
     if dispatch_line_help_command(

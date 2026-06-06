@@ -28,7 +28,7 @@ def line_help_topic_for_module(module):
         "loot": "files",
         "download": "files",
         "downloads": "files",
-        "release": "files",
+        "release": "release",
         "route": "routes",
         "routes": "routes",
         "bridge": "routes",
