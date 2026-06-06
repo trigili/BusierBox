@@ -20619,7 +20619,7 @@ def main(argv=None):
                 (
                     "help release\n"
                     "release\n"
-                    "release stage by_tuple_path:by-tuple/native/host/host/host\n"
+                    "stage by_tuple_path:by-tuple/native/host/host/host\n"
                     "q\n"
                     "q\n"
                 ).encode("utf-8"),
@@ -20652,8 +20652,10 @@ def main(argv=None):
         if (line_proc.returncode != 0 or
                 "Traceback" in (line_stderr or "") or
                 "Help: release" not in _line_stdout or
-                "stage-release [--start] SELECTOR" not in _line_stdout or
-                "release stage SELECTOR  |  release ? for help" not in _line_stdout or
+                "stage SELECTOR" not in _line_stdout or
+                "stage-release SELECTOR" not in _line_stdout or
+                "stage SELECTOR  |  release stage SELECTOR  |  release ? for help" not in _line_stdout or
+                "grit[all]/release> stage by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout or
                 "Preset selectors:" not in _line_stdout or
                 "by_tuple_payload_preset:by-tuple/native/host/host/host:default" not in _line_stdout or
                 "selector=by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout or

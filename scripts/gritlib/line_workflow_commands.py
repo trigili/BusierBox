@@ -51,7 +51,11 @@ def _dispatch_line_daemon_family(cmd, args, callbacks):
 
 
 def _dispatch_line_release_family(cmd, args, callbacks):
-    release_cmd = parse_line_release_alias_command(cmd, args)
+    release_cmd = parse_line_release_alias_command(
+        cmd,
+        args,
+        module=callbacks.get("module"),
+    )
     if not release_cmd:
         return False
     dispatch_line_release_command(

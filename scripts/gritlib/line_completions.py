@@ -492,6 +492,12 @@ def _line_completion_queue_release_candidates(cmd, ctx):
     if cmd == "stage-release":
         return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("release_selectors"))]
 
+    if ctx.module == "release":
+        if cmd in {"stage", "use", "select"}:
+            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("release_selectors"))]
+        if cmd in {"list", "show", "recommendations", "artifacts"}:
+            return []
+
     return None
 
 

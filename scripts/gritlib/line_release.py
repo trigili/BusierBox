@@ -27,9 +27,21 @@ def parse_line_release_command(args):
     raise ValueError("usage: release [list|stage SELECTOR]")
 
 
-def parse_line_release_alias_command(cmd, args):
+def parse_line_release_alias_command(cmd, args, module=None):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
+    module = str(module or "").strip()
+    if module == "release" and cmd in {"list", "show", "recommendations", "artifacts"}:
+        return {"action": "list"}
+    if module == "release" and cmd in {"stage", "use", "select"}:
+        selector, start_service = parse_line_release_stage_args(args)
+        return {
+            "action": "stage",
+            "selector": selector,
+            "start_service": start_service,
+        }
+    if module == "release" and cmd in {"help", "?"}:
+        return {"action": "help"}
     if cmd in {"release", "releases"}:
         return parse_line_release_command(args)
     if cmd == "stage-release":
@@ -262,7 +274,7 @@ def print_line_release(cfg, append_event_fn=None):
     search_records += _print_release_artifacts(view["artifacts"])
     _print_release_selectors(view["devices"], view["tuples"], view["recommendations"])
     print("")
-    print("  release stage SELECTOR  |  release ? for help")
+    print("  stage SELECTOR  |  release stage SELECTOR  |  release ? for help")
     set_line_search_results(cfg, search_records)
     _append_release_view_event(cfg, append_event_fn, rel, view)
     return rel
@@ -277,7 +289,7 @@ def stage_line_release(
 ):
     selector = str(selector or "").strip()
     if not selector:
-        raise ValueError("usage: release stage [--start] SELECTOR")
+        raise ValueError("usage: stage SELECTOR")
     headless = (
         "scripts/grit-console --config "
         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
