@@ -28,7 +28,7 @@ def parse_line_probe_serve_args(args):
         if arg in {"--start", "start"}:
             start_file_service = True
         else:
-            raise ValueError(f"unknown option: {arg}\nusage: probe serve [--start]")
+            raise ValueError(f"unknown option: {arg}\nusage: serve [start]")
     return start_file_service
 
 
@@ -87,7 +87,7 @@ def _print_no_release_guidance(probe_arch, uname_m, probe_kernel_floor, endian, 
     print("  From a source checkout, build one with: make release-full")
     print("  From this console, point at an extracted release with:")
     print("    set release_dir /path/to/extracted-release")
-    print("    probe serve --start")
+    print("    serve start")
 
 
 def _choose_probe_match(matches, probe_arch, uname_m, line_input_fn):

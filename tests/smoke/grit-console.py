@@ -615,7 +615,7 @@ def run_line_local_ips_check():
             return 1
     records = [{"uname_m": "armv7l", "uname_r": "4.1.8", "remote_addr": "192.0.2.1"}]
     search_records = line_probe_result_search_records(records)
-    if not search_records or search_records[0].get("use_hint") != "probe config 1":
+    if not search_records or search_records[0].get("use_hint") != "config 1":
         print("probe result search records did not preserve numbered config hints", file=sys.stderr)
         return 1
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -7771,11 +7771,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "wat\n"
                 "?\n"
                 "help\n"
+                "delivery\n"
+                "paste\n"
+                "paste base64\n"
+                "queue\n"
                 "back\n"
-                "probe delivery\n"
-                "probe paste\n"
-                "probe paste --base64\n"
-                "probe --queue\n"
                 "download --queue /etc/config/network\n"
                 "show mailbox\n"
                 "show mailbox -v\n"
@@ -8053,7 +8053,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "clear all",
         "sessions -i 1",
         "queue grit survey --json",
-        "probe --queue",
+        "queue",
         "upload --start",
         "serve-binary --start",
         "configure grit-console",
@@ -8144,7 +8144,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "dns:   dig @",
         "Current listeners: probe-http, probe-tftp, probe-ftp, probe-dns",
         "DNS note: nslookup usually needs DNS exposed on port 53; dig can use custom ports.",
-        "paste: probe paste",
+        "paste: paste",
         "Serial/manual paste:",
         "sh <<'GRIT_PROBE_SCRIPT'",
         "bb_payload=\"schema=1&script=probe.sh",
@@ -8153,7 +8153,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "Serial/manual base64 paste:",
         "bb_probe_b64=$(cat <<'GRIT_PROBE_B64'",
         "base64 decoder not found",
-        "After it runs, use: probe results",
+        "After it runs, use: results",
         "daemon -v for commands",
         "dry-run: scripts/grit-console --config",
         "saved route: zz-console-added",
@@ -8262,8 +8262,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     )
     if (not probe_context_help_text or
             "Help: probe" not in probe_context_help_text or
-            "probe start" not in probe_context_help_text or
-            "probe queue" not in probe_context_help_text or
+            "start" not in probe_context_help_text or
+            "queue" not in probe_context_help_text or
+            "probe start|queue|results" not in probe_context_help_text or
             "Compatibility aliases: probe --start and probe --queue still work." not in probe_context_help_text or
             "Console help topics:" in probe_context_help_text):
         print("line-oriented bare ? did not use probe breadcrumb context", file=sys.stderr)
@@ -8332,8 +8333,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented bare ? did not use files breadcrumb context", file=sys.stderr)
         print(files_context_help_text or line_console_stdout, file=sys.stderr)
         return 1
-    probe_queue_start = line_console_stdout.find("grit[Console Router]/probe> probe --queue")
-    probe_queue_end = line_console_stdout.find("grit[Console Router]/probe> download --queue", probe_queue_start + 1)
+    probe_queue_start = line_console_stdout.find("grit[Console Router]/probe> queue")
+    probe_queue_end = line_console_stdout.find("grit[Console Router]> download --queue", probe_queue_start + 1)
     probe_queue_text = line_console_stdout[probe_queue_start:probe_queue_end] if probe_queue_start != -1 and probe_queue_end != -1 else ""
     if (not probe_queue_text or
             "  queued: cq-" not in probe_queue_text or
@@ -20892,7 +20893,7 @@ def main(argv=None):
                 "Expected artifact stem: grit-mipsel-linux-current-LIBC-PRESET" not in no_release_text or
                 "Common payload presets: builtin-core-shell, survey-core, default, payload-bash, socat-rescue, ssh-operator, full-debug" not in no_release_text or
                 "set release_dir /path/to/extracted-release" not in no_release_text or
-                "probe serve --start" not in no_release_text):
+                "serve start" not in no_release_text):
             print("probe serve without a release did not provide actionable guidance", file=sys.stderr)
             print(no_release_text, file=sys.stderr)
             print(no_release_stderr or "", file=sys.stderr)
@@ -21012,7 +21013,7 @@ def main(argv=None):
             os.close(probe_slave)
             probe_slave = -1
             time.sleep(0.3)
-            os.write(probe_master, b"probe results\n2\nprobe config 1\nprobe clear 2\nprobe results\nprobe serve\n1\nq\nq\n")
+            os.write(probe_master, b"probe\nresults\n2\nconfig 1\nclear 2\nresults\nserve\n1\nq\nq\n")
             probe_output = b""
             deadline = time.time() + 8
             while probe_proc.poll() is None and time.time() < deadline:

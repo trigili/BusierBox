@@ -511,7 +511,7 @@ def _line_completion_probe_survey_candidates(cmd, ctx):
     if cmd == "probe":
         if ctx.at_arg(1):
             return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1),
-                ["start", "queue", "results", "config", "clear", "serve", "delivery", "paste", "script", "--start", "--queue"])]
+                ["start", "queue", "results", "config", "clear", "serve", "delivery", "paste", "script"])]
         subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
         if subcmd == "config" and ctx.at_arg(2):
             return [f"probe config {item}" for item in prefixed(ctx.arg_pfx(2),
@@ -521,6 +521,21 @@ def _line_completion_probe_survey_candidates(cmd, ctx):
             return [f"probe clear {item}" for item in prefixed(ctx.arg_pfx(2), ["--all", "1", "2", "3"])]
         if subcmd == "serve" and ctx.at_arg(2):
             return [f"probe serve {item}" for item in prefixed(ctx.arg_pfx(2), ["--start"])]
+        return None
+
+    if ctx.module == "probe":
+        if cmd in {"start", "queue", "show", "command", "results", "result", "delivery", "script"}:
+            return []
+        if cmd == "config" and ctx.at_arg(1):
+            return [f"config {item}" for item in prefixed(ctx.arg_pfx(1),
+                ["1", "2", "3", "--write-config", "--prefer-rshell", "--prefer-runtime",
+                 "--target-preset", "--payload-preset"])]
+        if cmd == "clear" and ctx.at_arg(1):
+            return [f"clear {item}" for item in prefixed(ctx.arg_pfx(1), ["all", "1", "2", "3"])]
+        if cmd == "serve" and ctx.at_arg(1):
+            return [f"serve {item}" for item in prefixed(ctx.arg_pfx(1), ["start"])]
+        if cmd == "paste" and ctx.at_arg(1):
+            return [f"paste {item}" for item in prefixed(ctx.arg_pfx(1), ["base64"])]
         return None
 
     if cmd == "survey":

@@ -98,7 +98,11 @@ def _dispatch_line_probe_family(
     args,
     callbacks,
 ):
-    probe_cmd = parse_line_probe_command(cmd, args)
+    probe_cmd = parse_line_probe_command(
+        cmd,
+        args,
+        module=callbacks.get("module"),
+    )
     if not probe_cmd:
         return ""
     dispatch_line_probe_command(

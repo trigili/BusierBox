@@ -96,7 +96,7 @@ def render_probe_paste(script_text):
         script_text,
         delimiter,
         "",
-        "After it runs, use: probe results",
+        "After it runs, use: results",
     ])
 
 
@@ -123,7 +123,7 @@ def render_probe_base64_paste(script_text):
         "  echo 'base64 decoder not found' >&2; exit 1",
         "fi",
         "",
-        "After it runs, use: probe results",
+        "After it runs, use: results",
     ])
     return "\n".join(lines)
 
@@ -176,14 +176,14 @@ def render_probe_delivery(cfg):
         f"    nc:    {nc_cmd}",
         f"    ssh:   ssh root@target '{wget_cmd}'",
         f"    copy:  scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'",
-        "    paste: probe paste",
+        "    paste: paste",
         "",
         "  Current listeners: probe-http, probe-tftp, probe-ftp, probe-dns",
         "  DNS note: nslookup usually needs DNS exposed on port 53; dig can use custom ports.",
         "  If HTTP is blocked but nc works, use the nc command above against the same listener.",
-        "  If the target only has a serial/admin shell, use: probe paste",
+        "  If the target only has a serial/admin shell, use: paste",
         "",
-        "  probe results  — after running any of the above",
+        "  results  — after running any of the above",
     ])
 
 
@@ -208,11 +208,52 @@ def parse_line_probe_args(args):
     return queue, start_service
 
 
-def parse_line_probe_command(cmd, args=None):
+def parse_line_probe_command(cmd, args=None, module=None):
     if args is None:
         args = cmd
     else:
-        if str(cmd or "").strip().lower() != "probe":
+        cmd_text = str(cmd or "").strip().lower()
+        module = str(module or "").strip()
+        if module == "probe" and cmd_text in {
+            "start", "queue", "show", "command", "results", "result", "config",
+            "clear", "serve", "delivery", "deliver", "commands", "paste",
+            "serial", "heredoc", "script", "raw", "help", "?",
+        }:
+            if cmd_text in {"results", "result"}:
+                return {"action": "results"}
+            if cmd_text == "config":
+                return {"action": "config", "args": list(args or [])}
+            if cmd_text == "clear":
+                return {"action": "clear", "args": list(args or [])}
+            if cmd_text == "serve":
+                return {"action": "serve", "args": list(args or [])}
+            if cmd_text in {"delivery", "deliver", "commands"}:
+                if args:
+                    raise ValueError("usage: delivery")
+                return {"action": "delivery"}
+            if cmd_text in {"paste", "serial", "heredoc"}:
+                base64_mode = False
+                for item in args or []:
+                    lower = str(item).lower()
+                    if lower in {"--base64", "base64", "-b"}:
+                        base64_mode = True
+                    else:
+                        raise ValueError("usage: paste [base64]")
+                return {"action": "paste", "base64": base64_mode}
+            if cmd_text in {"script", "raw"}:
+                if args:
+                    raise ValueError("usage: script")
+                return {"action": "script"}
+            if cmd_text in {"help", "?"}:
+                return {"action": "help"}
+            queue_probe, start_probe = parse_line_probe_args([cmd_text, *list(args or [])])
+            return {
+                "action": "start",
+                "set_context": False,
+                "queue": queue_probe,
+                "start_service": start_probe,
+            }
+        if cmd_text != "probe":
             return {}
     args = list(args or [])
     subcmd = str(args[0]).lower() if args else ""

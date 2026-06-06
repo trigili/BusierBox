@@ -155,13 +155,13 @@ def print_probe_result_records(records):
     print("")
     if records:
         print("  Next steps:")
-        print("    probe config                           — generate config from most recent result")
-        print("    probe config N                         — generate config from a numbered result")
-        print("    probe config --write-config FILE       — generate and save config")
-        print("    probe clear [N|--all]                  — remove stale probe results")
-        print("    probe serve [--start]                  — stage the matching binary for this arch")
+        print("    config                                 — generate config from most recent result")
+        print("    config N                               — generate config from a numbered result")
+        print("    config --write-config FILE             — generate and save config")
+        print("    clear [N|all]                          — remove stale probe results")
+        print("    serve start                            — stage the matching binary for this arch")
     else:
-        print("  No results yet — run: probe start")
+        print("  No results yet — run: start")
 
 
 def line_probe_result_search_records(records):
@@ -175,7 +175,7 @@ def line_probe_result_search_records(records):
             ),
             "rec": rec,
             "ordinal": idx,
-            "use_hint": f"probe config {idx}",
+            "use_hint": f"config {idx}",
         }
         for idx, rec in enumerate(records or [], 1)
     ]
