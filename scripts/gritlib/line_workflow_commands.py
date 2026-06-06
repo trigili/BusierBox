@@ -1,5 +1,6 @@
 """Grouped line-console workflow, file, queue, and job dispatch."""
 
+from gritlib.line_command_registry import dispatch_line_command_families
 from gritlib.line_command_queue import dispatch_line_queue_command, parse_line_queue_command
 from gritlib.line_configure import dispatch_line_configure_command, parse_line_configure_command
 from gritlib.line_files import (
@@ -201,18 +202,21 @@ def dispatch_line_workflow_command(
 ):
     args = list(args or [])
     callbacks = locals()
-    for dispatch_func in (
-        _dispatch_line_download_family,
-        _dispatch_line_daemon_family,
-        _dispatch_line_release_family,
-        _dispatch_line_file_transfer_family,
-        _dispatch_line_view_family,
-        _dispatch_line_files_family,
-        _dispatch_line_queue_family,
-        _dispatch_line_jobs_family,
-        _dispatch_line_binary_family,
-        _dispatch_line_configure_family,
-    ):
-        if dispatch_func(cmd, args, callbacks):
-            return True
-    return False
+    return bool(dispatch_line_command_families(
+        (
+            _dispatch_line_download_family,
+            _dispatch_line_daemon_family,
+            _dispatch_line_release_family,
+            _dispatch_line_file_transfer_family,
+            _dispatch_line_view_family,
+            _dispatch_line_files_family,
+            _dispatch_line_queue_family,
+            _dispatch_line_jobs_family,
+            _dispatch_line_binary_family,
+            _dispatch_line_configure_family,
+        ),
+        cmd,
+        args,
+        callbacks,
+        default=False,
+    ))

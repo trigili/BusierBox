@@ -2,6 +2,7 @@
 
 from gritlib.bridge_routes import dispatch_line_route_command, parse_line_route_command
 from gritlib.line_actions import dispatch_line_action_command, parse_line_action_command
+from gritlib.line_command_registry import dispatch_line_command_families
 from gritlib.line_context import (
     dispatch_line_context_command,
     dispatch_line_interact_command,
@@ -206,17 +207,20 @@ def dispatch_line_navigation_command(
 ):
     args = list(args or [])
     nav = locals()
-    for dispatch_func in (
-        _dispatch_listener_navigation,
-        _dispatch_target_navigation,
-        _dispatch_session_navigation,
-        _dispatch_route_navigation,
-        _dispatch_use_navigation,
-        _dispatch_context_navigation,
-        _dispatch_service_navigation,
-        _dispatch_action_navigation,
-        _dispatch_interact_navigation,
-    ):
-        if dispatch_func(nav):
-            return True
-    return False
+    return bool(dispatch_line_command_families(
+        (
+            lambda _cmd, _args, nav: _dispatch_listener_navigation(nav),
+            lambda _cmd, _args, nav: _dispatch_target_navigation(nav),
+            lambda _cmd, _args, nav: _dispatch_session_navigation(nav),
+            lambda _cmd, _args, nav: _dispatch_route_navigation(nav),
+            lambda _cmd, _args, nav: _dispatch_use_navigation(nav),
+            lambda _cmd, _args, nav: _dispatch_context_navigation(nav),
+            lambda _cmd, _args, nav: _dispatch_service_navigation(nav),
+            lambda _cmd, _args, nav: _dispatch_action_navigation(nav),
+            lambda _cmd, _args, nav: _dispatch_interact_navigation(nav),
+        ),
+        cmd,
+        args,
+        nav,
+        default=False,
+    ))
