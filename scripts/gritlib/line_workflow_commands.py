@@ -86,7 +86,11 @@ def _dispatch_line_view_family(cmd, args, callbacks):
 
 
 def _dispatch_line_files_family(cmd, args, callbacks):
-    files_cmd = parse_line_files_command(cmd, args)
+    files_cmd = parse_line_files_command(
+        cmd,
+        args,
+        module=callbacks.get("module"),
+    )
     if not files_cmd:
         return False
     dispatch_line_file_command(

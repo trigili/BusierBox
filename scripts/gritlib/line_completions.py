@@ -410,8 +410,11 @@ def _line_completion_file_work_candidates(cmd, ctx):
         if subcmd in {"unstage", "rm"}:
             return [f"{cmd} {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("staged_names_load"))]
         if subcmd == "clear" and ctx.at_arg(2):
-            return [f"{cmd} clear --confirm"]
+            return []
         return None
+
+    if ctx.module == "files" and cmd in {"clear", "purge"}:
+        return []
 
     if cmd in {"usemodule", "useaction", "run", "execute", "exploit", "check"}:
         return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("action_names"))]

@@ -2585,6 +2585,7 @@ def run_line_repl_runtime_check():
         print(f"line REPL display callbacks did not use action bundle: {display_bundle_calls}", file=sys.stderr)
         return 1
 
+    from gritlib.line_files import parse_line_files_command
     from gritlib.workflow_actions import parse_line_daemon_action_args, parse_line_daemon_command
 
     local_daemon_status = parse_line_daemon_command("status", [], module="daemon")
@@ -2607,6 +2608,13 @@ def run_line_repl_runtime_check():
     outside_daemon_status = parse_line_daemon_command("status", [], module="")
     if outside_daemon_status:
         print(f"daemon parser consumed root status command: {outside_daemon_status}", file=sys.stderr)
+        return 1
+    local_files_clear = parse_line_files_command("clear", [], module="files")
+    if (
+            local_files_clear.get("action") != "clear"
+            or local_files_clear.get("prompt") is not True
+            or local_files_clear.get("confirm") is not False):
+        print(f"files parser did not parse context-local clear: {local_files_clear}", file=sys.stderr)
         return 1
 
     workflow_calls = []
@@ -2663,8 +2671,8 @@ def run_line_repl_runtime_check():
             fetch_file_func=lambda path: workflow_calls.append(("fetch", path)),
             unstage_file_func=lambda path: workflow_calls.append(("unstage", path)),
             view_path_func=lambda path: workflow_calls.append(("view", path)),
-            clear_files_func=lambda cfg, confirm=False, target_filter_id="", append_event_fn=None: workflow_calls.append(
-                ("clear-files", cfg.get("name"), confirm, target_filter_id, append_event_fn is not None)
+            clear_files_func=lambda cfg, confirm=False, prompt=False, target_filter_id="", append_event_fn=None: workflow_calls.append(
+                ("clear-files", cfg.get("name"), confirm, prompt, target_filter_id, append_event_fn is not None)
             ),
             target_filter_func=lambda cfg: cfg.get("target"),
             list_files_func=lambda verbose=False: workflow_calls.append(("files", verbose)),
@@ -2699,7 +2707,7 @@ def run_line_repl_runtime_check():
         ("fetch", "remote.bin"),
         ("unstage", "staged.bin"),
         ("view", "loot.txt"),
-        ("clear-files", "workflow-cfg", True, "target1", True),
+        ("clear-files", "workflow-cfg", True, False, "target1", True),
         ("files", True),
         ("queue-run", ("list",)),
         "queue-view",
@@ -7760,6 +7768,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "show stagers\n"
                 "stagers\n"
                 "files\n"
+                "clear\n"
+                "n\n"
                 "unstage console-upload\n"
                 "rmfile missing-upload\n"
                 "stagers\n"
@@ -9023,6 +9033,21 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "headless_command:" in stagers_text):
         print("line-oriented files view exposed noisy fetch commands", file=sys.stderr)
         print(stagers_text or line_console_stdout, file=sys.stderr)
+        return 1
+    files_clear_start = line_console_stdout.find("grit[Console Router]/files> clear")
+    files_clear_end = line_console_stdout.find("grit[Console Router]/files> unstage console-upload", files_clear_start + 1)
+    files_clear_text = (
+        line_console_stdout[files_clear_start:files_clear_end]
+        if files_clear_start != -1 and files_clear_end != -1 else ""
+    )
+    if (
+            not files_clear_text
+            or "Remove " not in files_clear_text
+            or " staged file" not in files_clear_text
+            or " [y/N]" not in files_clear_text
+            or "Cancelled." not in files_clear_text):
+        print("line-oriented files context clear did not prompt cleanly", file=sys.stderr)
+        print(files_clear_text or line_console_stdout, file=sys.stderr)
         return 1
     daemon_action_start = line_console_stdout.find("grit[all]/jobs> daemon status --dry-run")
     daemon_action_end = line_console_stdout.find("grit[all]> uselistener", daemon_action_start + 1)

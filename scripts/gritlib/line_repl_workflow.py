@@ -125,9 +125,10 @@ def _workflow_file_dispatch_kwargs(ctx):
         "fetch_file_func": ctx["fetch_file_func"],
         "unstage_file_func": ctx["unstage_file_func"],
         "view_path_func": ctx["view_path_func"],
-        "clear_files_func": lambda confirm=False: ctx["clear_files_func"](
+        "clear_files_func": lambda confirm=False, prompt=False: ctx["clear_files_func"](
             cfg,
             confirm=confirm,
+            prompt=prompt,
             target_filter_id=ctx["target_filter_func"](cfg),
             append_event_fn=ctx["append_event_fn"],
         ),

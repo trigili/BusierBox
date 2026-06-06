@@ -31,11 +31,15 @@ def print_file_queue_note(queued):
         print(f"  target: {queued_target}")
 
 
-def parse_line_files_command(cmd, args=None):
+def parse_line_files_command(cmd, args=None, module=None):
+    module = str(module or "").strip().lower()
     if args is None:
         args = cmd
     else:
-        if str(cmd or "").strip().lower() not in {"files", "staged", "stagers", "loot", "downloads"}:
+        command = str(cmd or "").strip().lower()
+        if module == "files" and command in {"clear", "purge"}:
+            args = [command, *list(args or [])]
+        elif command not in {"files", "staged", "stagers", "loot", "downloads"}:
             return {}
     args = list(args or [])
     subcmd = str(args[0]).lower() if args else ""
@@ -59,9 +63,11 @@ def parse_line_files_command(cmd, args=None):
     if subcmd in {"unstage", "rm", "remove"}:
         return {"action": "unstage", "selector": " ".join(rest).strip()}
     if subcmd in {"clear", "purge"}:
+        flags = {str(item).lower() for item in rest}
         return {
             "action": "clear",
-            "confirm": any(str(item).lower() == "--confirm" for item in rest),
+            "confirm": "--confirm" in flags,
+            "prompt": "--confirm" not in flags,
         }
     if subcmd in {"-v", "--verbose"}:
         return {"action": "list", "verbose": True}
@@ -122,7 +128,10 @@ def dispatch_line_file_command(
         elif action == "unstage" and unstage_func:
             result = unstage_func(file_cmd["selector"])
         elif action == "clear" and clear_func:
-            result = clear_func(confirm=file_cmd["confirm"])
+            result = clear_func(
+                confirm=file_cmd["confirm"],
+                prompt=bool(file_cmd.get("prompt")),
+            )
         elif action == "list" and list_func:
             result = list_func(verbose=file_cmd["verbose"])
         else:
@@ -312,7 +321,23 @@ def _dispatch_legacy_stage_binary(stage_binary_func):
     return True
 
 
-def clear_line_files(cfg, confirm=False, target_filter_id="", append_event_fn=None):
+def _confirm_line_files_clear(staged, input_func):
+    count = len(staged or {})
+    answer = str(
+        input_func(f"\nRemove {count} staged file{'s' if count != 1 else ''}? [y/N] ")
+        or ""
+    ).strip().lower()
+    return answer in {"y", "yes"}
+
+
+def clear_line_files(
+    cfg,
+    confirm=False,
+    prompt=False,
+    target_filter_id="",
+    input_func=input,
+    append_event_fn=None,
+):
     staged = load_staged(cfg).get("staged", {})
     target_filter_id = str(target_filter_id or "")
     if target_filter_id:
@@ -325,8 +350,12 @@ def clear_line_files(cfg, confirm=False, target_filter_id="", append_event_fn=No
         return 0
     for name in sorted(staged):
         print(f"  {name}")
-    if not confirm:
-        print(f"\n  {len(staged)} file(s) would be unstaged.  Run: files clear --confirm")
+    if not confirm and prompt:
+        if not _confirm_line_files_clear(staged, input_func):
+            print("Cancelled.")
+            return 0
+    elif not confirm:
+        print(f"\n  {len(staged)} file(s) would be unstaged.  Run: files clear")
         return 0
     removed = 0
     for name in list(staged):
