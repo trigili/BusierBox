@@ -38,3 +38,11 @@ def matching_line_command_records(cmd, records):
 def first_matching_line_command_record(cmd, records):
     matches = matching_line_command_records(cmd, records)
     return matches[0] if matches else {}
+
+
+def dispatch_line_command_families(families, cmd, args, callbacks, default=None):
+    for family in families or ():
+        result = family(cmd, args, callbacks)
+        if result:
+            return result
+    return default

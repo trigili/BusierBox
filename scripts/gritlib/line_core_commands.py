@@ -1,6 +1,7 @@
 """Grouped line-console workspace, options, probe, and survey dispatch."""
 
 from gritlib.line_build import dispatch_line_build_command, parse_line_build_command
+from gritlib.line_command_registry import dispatch_line_command_families
 from gritlib.line_options import (
     dispatch_line_option_command,
     dispatch_line_target_metadata_command,
@@ -177,16 +178,17 @@ def dispatch_line_core_command(
 ):
     args = list(args or [])
     callbacks = locals()
-    if workspace_result := _dispatch_line_workspace_family(cmd, args, callbacks):
-        return workspace_result
-    if _dispatch_line_build_family(cmd, args, callbacks):
-        return "handled"
-    if _dispatch_line_option_family(cmd, args, callbacks):
-        return "handled"
-    if _dispatch_line_target_metadata_family(cmd, args, callbacks):
-        return "handled"
-    if _dispatch_line_probe_family(cmd, args, callbacks):
-        return "handled"
-    if _dispatch_line_survey_family(cmd, args, callbacks):
-        return "handled"
-    return ""
+    return dispatch_line_command_families(
+        (
+            _dispatch_line_workspace_family,
+            _dispatch_line_build_family,
+            _dispatch_line_option_family,
+            _dispatch_line_target_metadata_family,
+            _dispatch_line_probe_family,
+            _dispatch_line_survey_family,
+        ),
+        cmd,
+        args,
+        callbacks,
+        default="",
+    )

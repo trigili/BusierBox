@@ -4420,6 +4420,7 @@ def run_line_target_service_command_registry_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.line_command_registry import (
+        dispatch_line_command_families,
         first_matching_line_command_record,
         line_command_records,
         matching_line_command_records,
@@ -4454,6 +4455,27 @@ def run_line_target_service_command_registry_check():
             or first_matching_line_command_record("show", helper_records) != helper_records[0]
             or first_matching_line_command_record("missing", helper_records)):
         print(f"shared line command registry did not match aliases cleanly: {helper_records}", file=sys.stderr)
+        return 1
+    dispatch_calls = []
+    dispatch_result = dispatch_line_command_families(
+        (
+            lambda cmd, args, callbacks: dispatch_calls.append(("first", cmd, args, callbacks.get("tag"))) or "",
+            lambda cmd, args, callbacks: dispatch_calls.append(("second", cmd)) or "handled",
+            lambda cmd, args, callbacks: dispatch_calls.append(("third", cmd)) or "late",
+        ),
+        "show",
+        ["all"],
+        {"tag": "registry"},
+        default="missing",
+    )
+    if dispatch_result != "handled" or dispatch_calls != [
+        ("first", "show", ["all"], "registry"),
+        ("second", "show"),
+    ]:
+        print(f"shared line command registry did not dispatch in order: {dispatch_result} {dispatch_calls}", file=sys.stderr)
+        return 1
+    if dispatch_line_command_families((), "show", [], {}, default="missing") != "missing":
+        print("shared line command registry did not return default for empty dispatch list", file=sys.stderr)
         return 1
 
     target_records = {rec.get("action"): rec for rec in line_target_command_records()}
