@@ -370,16 +370,30 @@ def dispatch_legacy_probe_number(
     )
     print("Probe:")
     if rec:
-        print(f"  target_command: {rec.get('target_command', '')}")
-        print(f"  route={rec.get('route_kind', '')} bridge_profile={rec.get('bridge_profile', '') or '-'}")
+        print(f"  target command: {rec.get('target_command', '')}")
+        print(f"  route: {rec.get('route_kind', '') or '-'}")
+        print(f"  bridge profile: {rec.get('bridge_profile', '') or '-'}")
         if rec.get("bridge_route_path"):
-            print(f"  path={rec.get('bridge_route_path', '')}")
-        print(f"  probe_workflow_actions: {len(snap.get('probe_workflow_actions') or [])}")
-        print(f"  fleet_pending_work={rec.get('fleet_mailbox_pending_work_count', 0)} offline_targets={rec.get('fleet_offline_target_count', 0)} poll_overdue={rec.get('fleet_poll_overdue_target_count', 0)}")
-        print(f"  show_action_state={show_action.get('operator_action_state', '') or '-'} reason={show_action.get('operator_action_reason', '') or '-'}")
-        print(f"  start_action_state={start_action.get('operator_action_state', '') or '-'} reason={start_action.get('operator_action_reason', '') or '-'}")
+            print(f"  path: {rec.get('bridge_route_path', '')}")
+        print(f"  workflow actions: {len(snap.get('probe_workflow_actions') or [])}")
+        print(
+            "  fleet: "
+            f"{rec.get('fleet_mailbox_pending_work_count', 0)} pending work; "
+            f"{rec.get('fleet_offline_target_count', 0)} offline targets; "
+            f"{rec.get('fleet_poll_overdue_target_count', 0)} poll overdue"
+        )
+        print(
+            "  show action: "
+            f"{show_action.get('operator_action_state', '') or '-'}; "
+            f"reason {show_action.get('operator_action_reason', '') or '-'}"
+        )
+        print(
+            "  start action: "
+            f"{start_action.get('operator_action_state', '') or '-'}; "
+            f"reason {start_action.get('operator_action_reason', '') or '-'}"
+        )
     else:
-        print("  target_command: unavailable")
+        print("  target command: unavailable")
     start_line = input_func("start probe listener now? [y/N]> ")
     if start_line is not None and start_line.strip().lower() in ("y", "yes"):
         append_event_fn(cfg, "workbench", "workbench_probe_started", details={

