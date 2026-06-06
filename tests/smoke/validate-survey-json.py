@@ -9,7 +9,7 @@ if len(sys.argv) != 2:
 with open(sys.argv[1], "r", encoding="utf-8") as fh:
     data = json.load(fh)
 
-required = ["arch", "kernel", "writable_dirs", "recommendations"]
+required = ["arch", "kernel", "cpuinfo", "writable_dirs", "recommendations"]
 missing = [key for key in required if key not in data]
 if missing:
     print("missing keys: " + ", ".join(missing), file=sys.stderr)
@@ -22,6 +22,15 @@ if not isinstance(data["writable_dirs"], list):
 if not isinstance(data["recommendations"], dict):
     print("recommendations must be an object", file=sys.stderr)
     raise SystemExit(1)
+
+if not isinstance(data["cpuinfo"], dict):
+    print("cpuinfo must be an object", file=sys.stderr)
+    raise SystemExit(1)
+
+for key in ("available", "source", "confidence"):
+    if key not in data["cpuinfo"]:
+        print(f"cpuinfo missing {key}", file=sys.stderr)
+        raise SystemExit(1)
 
 recommendation_keys = [
     "target_arch_guess",

@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/ptrace.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
@@ -426,6 +427,103 @@ static void json_file_excerpt(const char *path)
     json_string(buf);
 }
 
+static char *trim_field(char *s)
+{
+    char *end;
+    while (*s && isspace((unsigned char)*s))
+        s++;
+    end = s + strlen(s);
+    while (end > s && isspace((unsigned char)end[-1]))
+        *--end = '\0';
+    return s;
+}
+
+static void copy_field(char *dst, size_t dstsz, const char *src)
+{
+    if (!dstsz)
+        return;
+    snprintf(dst, dstsz, "%s", src ? src : "");
+}
+
+static void json_cpu_features(const char *features)
+{
+    char buf[1024];
+    char *save = NULL, *tok;
+    int first = 1;
+    copy_field(buf, sizeof(buf), features);
+    putchar('[');
+    for (tok = strtok_r(buf, " \t\r\n", &save); tok; tok = strtok_r(NULL, " \t\r\n", &save)) {
+        if (!first)
+            putchar(',');
+        json_string(tok);
+        first = 0;
+    }
+    putchar(']');
+}
+
+static void json_cpuinfo(void)
+{
+    FILE *fp = fopen("/proc/cpuinfo", "r");
+    char line[512], raw[1536] = "";
+    char architecture[64] = "", implementer[64] = "", part[64] = "";
+    char variant[64] = "", revision[64] = "", model[160] = "";
+    char processor[160] = "", hardware[160] = "", features[1024] = "";
+    size_t raw_len = 0;
+    if (!fp) {
+        printf("{\"available\":false,\"source\":\"/proc/cpuinfo\",\"confidence\":\"missing\"}");
+        return;
+    }
+    while (fgets(line, sizeof(line), fp)) {
+        char *colon, *key, *value;
+        size_t n;
+        if (raw_len < sizeof(raw) - 1) {
+            n = strlen(line);
+            if (n > sizeof(raw) - 1 - raw_len)
+                n = sizeof(raw) - 1 - raw_len;
+            memcpy(raw + raw_len, line, n);
+            raw_len += n;
+            raw[raw_len] = '\0';
+        }
+        colon = strchr(line, ':');
+        if (!colon)
+            continue;
+        *colon = '\0';
+        key = trim_field(line);
+        value = trim_field(colon + 1);
+        if (!strcasecmp(key, "CPU architecture"))
+            copy_field(architecture, sizeof(architecture), value);
+        else if (!strcasecmp(key, "CPU implementer"))
+            copy_field(implementer, sizeof(implementer), value);
+        else if (!strcasecmp(key, "CPU part"))
+            copy_field(part, sizeof(part), value);
+        else if (!strcasecmp(key, "CPU variant"))
+            copy_field(variant, sizeof(variant), value);
+        else if (!strcasecmp(key, "CPU revision"))
+            copy_field(revision, sizeof(revision), value);
+        else if (!strcasecmp(key, "model name") || !strcasecmp(key, "cpu model"))
+            copy_field(model, sizeof(model), value);
+        else if (!strcasecmp(key, "processor") && !processor[0])
+            copy_field(processor, sizeof(processor), value);
+        else if (!strcasecmp(key, "Hardware"))
+            copy_field(hardware, sizeof(hardware), value);
+        else if (!strcasecmp(key, "Features") || !strcasecmp(key, "flags"))
+            copy_field(features, sizeof(features), value);
+    }
+    fclose(fp);
+    printf("{\"available\":true,\"source\":\"/proc/cpuinfo\",\"confidence\":\"observed\"");
+    printf(",\"architecture\":"); json_string(architecture);
+    printf(",\"implementer\":"); json_string(implementer);
+    printf(",\"part\":"); json_string(part);
+    printf(",\"variant\":"); json_string(variant);
+    printf(",\"revision\":"); json_string(revision);
+    printf(",\"model\":"); json_string(model);
+    printf(",\"processor\":"); json_string(processor);
+    printf(",\"hardware\":"); json_string(hardware);
+    printf(",\"features\":"); json_cpu_features(features);
+    printf(",\"raw_excerpt\":"); json_string(raw);
+    printf("}");
+}
+
 static void json_os_markers(void)
 {
     printf("{\"os_release\":");
@@ -452,12 +550,12 @@ static const char *shell_survey_script =
 "have(){ command -v \"$1\" >/dev/null 2>&1 && printf true || printf false; }\n"
 "readable(){ [ -r \"$1\" ] && printf true || printf false; }\n"
 "exists(){ [ -e \"$1\" ] && printf true || printf false; }\n"
-"dirprobe(){ d=$1; wr=false; ex=false; cr=false; free=unknown; [ -d \"$d\" ] || { printf '{\"path\":\"'; safe \"$d\"; printf '\",\"exists\":false,\"writable\":false,\"shell_exec\":false,\"can_create_dirs\":false,\"df_available\":'; have df; printf '}'; return; }; if : >\"$d/grit.write.$$\" 2>/dev/null; then wr=true; rm -f \"$d/grit.write.$$\" 2>/dev/null || true; fi; if mkdir \"$d/grit.dir.$$\" 2>/dev/null; then cr=true; rmdir \"$d/grit.dir.$$\" 2>/dev/null || true; fi; if [ \"$wr\" = true ]; then printf '#!/bin/sh\\nexit 0\\n' >\"$d/grit.exec.$$\" 2>/dev/null && chmod +x \"$d/grit.exec.$$\" 2>/dev/null && \"$d/grit.exec.$$\" >/dev/null 2>&1 && ex=true; rm -f \"$d/grit.exec.$$\" 2>/dev/null || true; fi; if command -v df >/dev/null 2>&1; then set -- `df -k \"$d\" 2>/dev/null`; shift 6 2>/dev/null || true; free=${4:-unknown}; fi; printf '{\"path\":\"'; safe \"$d\"; printf '\",\"exists\":true,\"writable\":%s,\"shell_exec\":%s,\"can_create_dirs\":%s,\"df_available\":' \"$wr\" \"$ex\" \"$cr\"; have df; printf '}'; }\n"
+"dirprobe(){ d=$1; wr=false; ex=false; cr=false; free=unknown; [ -d \"$d\" ] || { printf '{\"path\":\"'; safe \"$d\"; printf '\",\"exists\":false,\"writable\":false,\"shell_exec\":false,\"can_create_dirs\":false,\"df_available\":'; have df; printf '}'; return; }; if ( : >\"$d/grit.write.$$\" ) 2>/dev/null; then wr=true; rm -f \"$d/grit.write.$$\" 2>/dev/null || true; fi; if mkdir \"$d/grit.dir.$$\" 2>/dev/null; then cr=true; rmdir \"$d/grit.dir.$$\" 2>/dev/null || true; fi; if [ \"$wr\" = true ]; then ( printf '#!/bin/sh\\nexit 0\\n' >\"$d/grit.exec.$$\" ) 2>/dev/null && chmod +x \"$d/grit.exec.$$\" 2>/dev/null && \"$d/grit.exec.$$\" >/dev/null 2>&1 && ex=true; rm -f \"$d/grit.exec.$$\" 2>/dev/null || true; fi; if command -v df >/dev/null 2>&1; then set -- `df -k \"$d\" 2>/dev/null`; shift 6 2>/dev/null || true; free=${4:-unknown}; fi; printf '{\"path\":\"'; safe \"$d\"; printf '\",\"exists\":true,\"writable\":%s,\"shell_exec\":%s,\"can_create_dirs\":%s,\"df_available\":' \"$wr\" \"$ex\" \"$cr\"; have df; printf '}'; }\n"
 "wr=false; ex=false; cr=false\n"
 "if [ \"$probe_ready\" = true ]; then\n"
-"if : >\"$p/write.probe\" 2>/dev/null; then wr=true; rm -f \"$p/write.probe\" 2>/dev/null || true; fi\n"
+"if ( : >\"$p/write.probe\" ) 2>/dev/null; then wr=true; rm -f \"$p/write.probe\" 2>/dev/null || true; fi\n"
 "if mkdir \"$p/dir.probe\" 2>/dev/null; then cr=true; rmdir \"$p/dir.probe\" 2>/dev/null || true; fi\n"
-"printf '%s\\n' '#!/bin/sh' 'exit 0' >\"$p/exec.probe\" 2>/dev/null\n"
+"( printf '%s\\n' '#!/bin/sh' 'exit 0' >\"$p/exec.probe\" ) 2>/dev/null || true\n"
 "chmod +x \"$p/exec.probe\" 2>/dev/null || true\n"
 "if \"$p/exec.probe\" >/dev/null 2>&1; then ex=true; fi\n"
 "rm -f \"$p/exec.probe\" 2>/dev/null || true\n"
@@ -623,6 +721,7 @@ int applet_survey_main(int argc, char **argv)
         printf(",\"kernel\":"); json_string(uts.release);
         printf(",\"endianness\":"); json_string(endianness());
         printf(",\"pointer_width\":%lu", (unsigned long)(sizeof(void *) * 8));
+        printf(",\"cpuinfo\":"); json_cpuinfo();
         printf(",\"ids\":{\"uid\":%ld,\"euid\":%ld,\"gid\":%ld,\"egid\":%ld}",
                (long)getuid(), (long)geteuid(), (long)getgid(), (long)getegid());
         printf(",\"cwd\":"); json_string(cwd);

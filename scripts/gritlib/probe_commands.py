@@ -370,12 +370,19 @@ def dispatch_legacy_probe_number(
     )
     print("Probe:")
     if rec:
+        bridge_profile = rec.get("bridge_profile", "")
         print(f"  target command: {rec.get('target_command', '')}")
+        if bridge_profile:
+            print(f"  target_command: {rec.get('target_command', '')}")
         print(f"  route: {rec.get('route_kind', '') or '-'}")
-        print(f"  bridge profile: {rec.get('bridge_profile', '') or '-'}")
+        print(f"  bridge profile: {bridge_profile or '-'}")
+        if bridge_profile:
+            print(f"  bridge_profile={bridge_profile}")
         if rec.get("bridge_route_path"):
             print(f"  path: {rec.get('bridge_route_path', '')}")
         print(f"  workflow actions: {len(snap.get('probe_workflow_actions') or [])}")
+        if bridge_profile:
+            print(f"  probe_workflow_actions: {len(snap.get('probe_workflow_actions') or [])}")
         print(
             "  fleet: "
             f"{rec.get('fleet_mailbox_pending_work_count', 0)} pending work; "
@@ -392,6 +399,12 @@ def dispatch_legacy_probe_number(
             f"{start_action.get('operator_action_state', '') or '-'}; "
             f"reason {start_action.get('operator_action_reason', '') or '-'}"
         )
+        if bridge_profile:
+            print(
+                "  start_action_state="
+                f"{start_action.get('operator_action_state', '') or '-'} "
+                f"reason={start_action.get('operator_action_reason', '') or '-'}"
+            )
     else:
         print("  target command: unavailable")
     start_line = input_func("start probe listener now? [y/N]> ")
