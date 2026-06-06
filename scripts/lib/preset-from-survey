@@ -162,6 +162,64 @@ def cpu_guess(data, arch):
     return "generic"
 
 
+def list_text(value):
+    if isinstance(value, (list, tuple, set)):
+        return [str(item).strip().lower() for item in value if str(item).strip()]
+    return [item.strip().lower() for item in str(value or "").replace(",", " ").split() if item.strip()]
+
+
+def arm_cpu_baseline(cpuinfo, arch):
+    architecture = str(cpuinfo.get("architecture") or "").strip()
+    part = str(cpuinfo.get("part") or "").strip().lower()
+    features = set(list_text(cpuinfo.get("features")))
+    if architecture.startswith("8") or arch == "aarch64":
+        return "armv8-a"
+    if architecture.startswith("7") or arch == "armv7":
+        if part in {"0xc07", "0xd03", "0xd07", "0xd08"}:
+            return "armv7-a"
+        return "armv7-a"
+    if architecture.startswith("6"):
+        return "armv6"
+    if "thumb" in features and ("vfp" in features or "vfpv3" in features):
+        return "armv7-a"
+    return ""
+
+
+def arm_float_abi(cpuinfo):
+    features = set(list_text(cpuinfo.get("features")))
+    if "vfp" in features or "vfpv3" in features or "vfpv4" in features or "neon" in features:
+        return "softfp"
+    return ""
+
+
+def arm_facts(data, arch):
+    cpuinfo = data.get("cpuinfo") if isinstance(data.get("cpuinfo"), dict) else {}
+    features = list_text(cpuinfo.get("features"))
+    feature_set = set(features)
+    baseline = arm_cpu_baseline(cpuinfo, arch)
+    float_abi = useful(data.get("float_abi")) or useful(cpuinfo.get("float_abi")) or arm_float_abi(cpuinfo)
+    available = bool(cpuinfo.get("available")) if cpuinfo else False
+    source = cpuinfo.get("source") if available else ""
+    confidence_value = "high" if available and (baseline or features or float_abi) else "low"
+    return {
+        "cpuinfo_available": available,
+        "source": source,
+        "confidence": confidence_value,
+        "architecture": str(cpuinfo.get("architecture") or ""),
+        "implementer": str(cpuinfo.get("implementer") or ""),
+        "part": str(cpuinfo.get("part") or ""),
+        "variant": str(cpuinfo.get("variant") or ""),
+        "revision": str(cpuinfo.get("revision") or ""),
+        "model": str(cpuinfo.get("model") or cpuinfo.get("processor") or ""),
+        "features": features,
+        "has_vfp": bool({"vfp", "vfpv3", "vfpv4"} & feature_set),
+        "has_neon": "neon" in feature_set,
+        "has_thumb": "thumb" in feature_set,
+        "float_abi": float_abi,
+        "cpu_baseline": baseline,
+    }
+
+
 def confidence(value, *evidence):
     if value in ("", "unknown"):
         return "low"
@@ -208,6 +266,7 @@ def generated_preset(data, survey_path, name):
     libc = useful(recs.get("libc_guess")) or guess_libc(data)
     cpu = cpu_guess(data, arch)
     abi = useful(recs.get("target_abi_guess")) or "default"
+    arm = arm_facts(data, arch) if arch.startswith("arm") or arch == "aarch64" else {}
     notes = ["Generated preset; review before committing."]
     if libc == "unknown":
         notes.append("libc could not be inferred confidently.")
@@ -223,6 +282,8 @@ def generated_preset(data, survey_path, name):
         "kernel_floor": confidence(kfloor, data.get("kernel"), uname.get("release"), recs.get("kernel_floor_guess")),
         "cpu": confidence(cpu, recs.get("target_cpu_guess"), owrt.get("distrib_target")),
     }
+    if arm:
+        conf["arm_facts"] = arm.get("confidence", "low")
 
     preset = {
         "schema": 1,
@@ -241,6 +302,7 @@ def generated_preset(data, survey_path, name):
         "category": "local/generated",
         "display_path": f"local/generated/{name}",
         "openwrt": owrt,
+        "arm": arm,
         "source": {
             "type": "survey",
             "survey_sha256": sha256_file(survey_path),
@@ -269,6 +331,7 @@ def generated_preset(data, survey_path, name):
                 "static_policy": useful(recs.get("static_policy")) or "",
             },
             "openwrt": owrt,
+            "cpuinfo": data.get("cpuinfo") if isinstance(data.get("cpuinfo"), dict) else {},
         },
         "notes": notes,
     }

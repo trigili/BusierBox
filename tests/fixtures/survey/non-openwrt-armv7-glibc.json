@@ -10,6 +10,20 @@
   "arch": "armv7l",
   "kernel": "4.19.0",
   "endianness": "little",
+  "cpuinfo": {
+    "available": true,
+    "source": "/proc/cpuinfo",
+    "confidence": "observed",
+    "architecture": "7",
+    "implementer": "0x41",
+    "part": "0xc09",
+    "variant": "0x3",
+    "revision": "10",
+    "model": "ARMv7 Processor rev 10 (v7l)",
+    "processor": "0",
+    "hardware": "Generic ARMv7",
+    "features": ["swp", "half", "thumb", "fastmult", "vfp", "edsp", "neon", "vfpv3", "tls"]
+  },
   "os": "Debian GNU/Linux 10 (buster)",
   "libc": "glibc 2.28",
   "dirs": [

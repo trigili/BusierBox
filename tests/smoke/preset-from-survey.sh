@@ -127,6 +127,23 @@ assert data["libc"] == "glibc"
 assert data["kernel_floor"] == "4.x"
 assert data["cpu"] == "cortex-a9"
 assert data["openwrt"] == {}
+arm = data["arm"]
+assert arm["cpuinfo_available"] is True
+assert arm["source"] == "/proc/cpuinfo"
+assert arm["confidence"] == "high"
+assert arm["architecture"] == "7"
+assert arm["implementer"] == "0x41"
+assert arm["part"] == "0xc09"
+assert arm["variant"] == "0x3"
+assert arm["revision"] == "10"
+assert arm["cpu_baseline"] == "armv7-a"
+assert arm["float_abi"] == "softfp"
+assert arm["has_vfp"] is True
+assert arm["has_neon"] is True
+assert arm["has_thumb"] is True
+assert "vfp" in arm["features"]
+assert "neon" in arm["features"]
+assert data["confidence"]["arm_facts"] == "high"
 compat = data["compatibility"]
 assert compat["label"] == "exact"
 assert "arch inferred from survey evidence" in compat["reasons"]
@@ -136,6 +153,7 @@ assert "OpenWrt release hints present" not in compat["reasons"]
 assert "payload/runtime compatibility is scored separately" in compat["note"]
 evidence = data["evidence"]
 assert evidence["machine"] == "armv7l"
+assert evidence["cpuinfo"]["part"] == "0xc09"
 assert evidence["recommendations"]["target_arch_guess"] == "armv7"
 PY
 
