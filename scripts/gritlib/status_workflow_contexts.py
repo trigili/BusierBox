@@ -1,6 +1,6 @@
 """Workflow-scoped status context builders for grit-console."""
 
-import gritlib.command_queue as command_queue_module
+import gritlib.command_queue_workflow_actions as command_queue_workflow_actions_module
 from gritlib.probe_commands import probe_workflow_action_records
 import gritlib.service_status as service_status
 import gritlib.staged_files as staged_files
@@ -82,7 +82,7 @@ def build_command_queue_workflow_status_context(
     targets,
 ):
     command_queue_workflow_actions = (
-        command_queue_module.command_queue_workflow_action_records(
+        command_queue_workflow_actions_module.command_queue_workflow_action_records(
             cfg,
             command_queue,
             target_mailbox_records,
@@ -93,11 +93,11 @@ def build_command_queue_workflow_status_context(
     return {
         "command_queue_workflow_actions": command_queue_workflow_actions,
         "command_queue_workflow_action_index_maps": (
-            command_queue_module.command_queue_workflow_action_indexes(
+            command_queue_workflow_actions_module.command_queue_workflow_action_indexes(
                 command_queue_workflow_actions
             )
         ),
-        "summary": command_queue_module.command_queue_workflow_action_status_summary(
+        "summary": command_queue_workflow_actions_module.command_queue_workflow_action_status_summary(
             command_queue_workflow_actions
         ),
     }
