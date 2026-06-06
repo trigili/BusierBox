@@ -297,6 +297,46 @@ def _artifact_requirement_value(artifact, key):
     return artifact.get(key) or requirements.get(key)
 
 
+def _normalized_endian(value):
+    text = str(value or "").strip().lower()
+    return {
+        "le": "little",
+        "little-endian": "little",
+        "lsb": "little",
+        "el": "little",
+        "be": "big",
+        "big-endian": "big",
+        "msb": "big",
+        "eb": "big",
+    }.get(text, text)
+
+
+def _string_list(value):
+    if isinstance(value, (list, tuple, set)):
+        return [str(item).strip().lower() for item in value if str(item).strip()]
+    return [item.strip().lower() for item in str(value or "").replace(",", " ").split() if item.strip()]
+
+
+def _probe_feature_set(probe_facts):
+    probe_facts = probe_facts if isinstance(probe_facts, dict) else {}
+    cpuinfo = probe_facts.get("cpuinfo") if isinstance(probe_facts.get("cpuinfo"), dict) else {}
+    features = set()
+    for key in ("features", "cpu_features", "required_features"):
+        features.update(_string_list(probe_facts.get(key)))
+    features.update(_string_list(cpuinfo.get("features")))
+    return features
+
+
+def _probe_float_abi(probe_facts):
+    probe_facts = probe_facts if isinstance(probe_facts, dict) else {}
+    cpuinfo = probe_facts.get("cpuinfo") if isinstance(probe_facts.get("cpuinfo"), dict) else {}
+    return str(probe_facts.get("float_abi") or cpuinfo.get("float_abi") or "").strip().lower()
+
+
+def _arm_float_abi_requires_cpu_feature(float_abi):
+    return str(float_abi or "").strip().lower() in {"hard", "hard-float", "hf", "softfp", "soft-float-vfp"}
+
+
 def release_artifact_probe_compatibility(
     release,
     artifact,
@@ -331,6 +371,36 @@ def release_artifact_probe_compatibility(
                 "libc mismatch for dynamic artifact: "
                 f"target={target_runtime_libc} artifact={toolchain_libc}"
             )
+    artifact_endian = _normalized_endian(
+        _artifact_requirement_value(artifact, "elf_endian")
+        or _artifact_requirement_value(artifact, "endian")
+    )
+    target_endian = _normalized_endian(
+        probe_facts.get("endian")
+        or probe_facts.get("endianness")
+        or probe_facts.get("elf_endian")
+    )
+    if artifact_endian and target_endian and artifact_endian != target_endian:
+        reasons.append(f"endian mismatch: target={target_endian} artifact={artifact_endian}")
+
+    required_features = set(_string_list(_artifact_requirement_value(artifact, "required_features")))
+    target_features = _probe_feature_set(probe_facts)
+    if required_features:
+        missing_features = sorted(required_features - target_features)
+        if missing_features:
+            reasons.append("missing required CPU features: " + ", ".join(missing_features))
+
+    float_abi = str(_artifact_requirement_value(artifact, "float_abi") or "").strip().lower()
+    execution_probe = bool(probe_facts.get("execution_probe_compatible") or probe_facts.get("artifact_execution_probe_passed"))
+    artifact_arch = tuple_verdict.get("artifact_arch", "")
+    target_float_abi = _probe_float_abi(probe_facts)
+    if artifact_arch.startswith("arm") and float_abi and not execution_probe:
+        if target_float_abi and target_float_abi != float_abi:
+            reasons.append(f"ARM float ABI mismatch: target={target_float_abi} artifact={float_abi}")
+        elif not target_float_abi and _arm_float_abi_requires_cpu_feature(float_abi) and not (
+            {"vfp", "vfpv3", "vfpv4", "neon"} & target_features
+        ):
+            reasons.append(f"ARM float ABI not proven compatible: artifact={float_abi}")
     return {
         "compatible": not reasons,
         "label": "compatible" if not reasons else "incompatible",
@@ -338,6 +408,12 @@ def release_artifact_probe_compatibility(
         "linkage": linkage or "unknown",
         "target_runtime_libc": target_runtime_libc,
         "toolchain_libc": toolchain_libc,
+        "target_endian": target_endian,
+        "artifact_endian": artifact_endian,
+        "target_features": sorted(target_features),
+        "required_features": sorted(required_features),
+        "target_float_abi": target_float_abi,
+        "artifact_float_abi": float_abi,
         "tuple_path": tuple_path,
         "target_arch": tuple_verdict.get("target_arch", ""),
         "artifact_arch": tuple_verdict.get("artifact_arch", ""),

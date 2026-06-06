@@ -49,11 +49,17 @@ def _dedupe_probe_matches(records):
     return deduped
 
 
-def probe_release_matches(rel, probe_arch, probe_kernel_floor):
+def probe_release_matches(rel, probe_arch, probe_kernel_floor, probe_facts=None):
     recs = rel.get("artifacts") or []
     matches = [
         rec for rec in recs
-        if release_artifact_matches_probe(rel, rec, probe_arch, probe_kernel_floor)
+        if release_artifact_matches_probe(
+            rel,
+            rec,
+            probe_arch,
+            probe_kernel_floor,
+            probe_facts=probe_facts,
+        )
     ]
     if not matches:
         matches = [
@@ -202,7 +208,7 @@ def run_line_probe_serve(cfg, args, line_input_fn, stage_line_release_fn, append
         cfg["release_dir"] = rel.get("release_dir", "")
         print(f"Using release: {rel.get('release_dir', '')}")
         print("")
-    matches = probe_release_matches(rel, probe_arch, probe_kernel_floor)
+    matches = probe_release_matches(rel, probe_arch, probe_kernel_floor, probe_facts=rec)
     if matches:
         chosen = _choose_probe_match(matches, probe_arch, uname_m, line_input_fn)
         if not chosen:

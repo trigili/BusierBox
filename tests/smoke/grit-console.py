@@ -6462,7 +6462,11 @@ def run_release_status_context_check():
             static_artifact,
             "armv7",
             "4.x",
-            probe_facts={"target_runtime_libc": "glibc"},
+            probe_facts={
+                "target_runtime_libc": "glibc",
+                "endian": "little",
+                "cpuinfo": {"features": ["vfp"]},
+            },
         )
         if static_verdict.get("compatible") is not True:
             print(f"static artifact compatibility was blocked by target libc: {static_verdict}", file=sys.stderr)
@@ -6474,7 +6478,11 @@ def run_release_status_context_check():
             dynamic_artifact,
             "armv7",
             "4.x",
-            probe_facts={"target_runtime_libc": "glibc"},
+            probe_facts={
+                "target_runtime_libc": "glibc",
+                "endian": "little",
+                "cpuinfo": {"features": ["vfp"]},
+            },
         )
         if dynamic_verdict.get("compatible") is not False:
             print(f"dynamic artifact compatibility did not block libc mismatch: {dynamic_verdict}", file=sys.stderr)
@@ -6535,10 +6543,60 @@ def run_release_status_context_check():
             indexed_artifact,
             "armv7",
             "4.x",
-            probe_facts={"target_runtime_libc": "glibc"},
+            probe_facts={
+                "target_runtime_libc": "glibc",
+                "endian": "little",
+                "cpuinfo": {"features": ["vfp", "thumb"]},
+            },
         )
         if indexed_verdict.get("compatible") is not True or indexed_verdict.get("linkage") != "static":
             print(f"indexed static artifact compatibility verdict changed: {indexed_verdict}", file=sys.stderr)
+            return 1
+        missing_feature_verdict = release_artifact_probe_compatibility(
+            indexed_release,
+            indexed_artifact,
+            "armv7",
+            "4.x",
+            probe_facts={"endian": "little", "cpuinfo": {"features": ["thumb"]}},
+        )
+        if missing_feature_verdict.get("compatible") is not False:
+            print(f"release compatibility accepted missing required feature: {missing_feature_verdict}", file=sys.stderr)
+            return 1
+        endian_verdict = release_artifact_probe_compatibility(
+            indexed_release,
+            indexed_artifact,
+            "armv7",
+            "4.x",
+            probe_facts={"endian": "big", "cpuinfo": {"features": ["vfp"]}},
+        )
+        if endian_verdict.get("compatible") is not False:
+            print(f"release compatibility accepted endian mismatch: {endian_verdict}", file=sys.stderr)
+            return 1
+        hard_float_artifact = dict(indexed_artifact)
+        hard_float_artifact["float_abi"] = "hard"
+        hard_float_verdict = release_artifact_probe_compatibility(
+            indexed_release,
+            hard_float_artifact,
+            "armv7",
+            "4.x",
+            probe_facts={"endian": "little", "cpuinfo": {"features": ["thumb"]}},
+        )
+        if hard_float_verdict.get("compatible") is not False:
+            print(f"release compatibility accepted unproven ARM hard-float artifact: {hard_float_verdict}", file=sys.stderr)
+            return 1
+        proven_hard_float = release_artifact_probe_compatibility(
+            indexed_release,
+            hard_float_artifact,
+            "armv7",
+            "4.x",
+            probe_facts={
+                "endian": "little",
+                "cpuinfo": {"features": ["vfp"]},
+                "execution_probe_compatible": True,
+            },
+        )
+        if proven_hard_float.get("compatible") is not True:
+            print(f"release compatibility rejected proven ARM hard-float artifact: {proven_hard_float}", file=sys.stderr)
             return 1
     return 0
 
