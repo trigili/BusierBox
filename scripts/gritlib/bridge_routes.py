@@ -6,6 +6,10 @@ from pathlib import Path
 from gritlib.event_log import append_event
 from gritlib.console_display import console_display_mode, console_table
 from gritlib.line_context import clear_line_module_context, set_line_collection_context
+from gritlib.line_command_registry import (
+    matching_line_command_records,
+    line_command_records,
+)
 from gritlib.line_search import set_line_search_results
 from gritlib.operator_network import target_visible_host
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key
@@ -101,19 +105,7 @@ LINE_ROUTE_COMMANDS = (
 
 
 def line_route_command_records():
-    return [
-        {
-            "family": "route",
-            "action": rec["action"],
-            "commands": list(rec["commands"]),
-            "primary": rec["commands"][0],
-            "aliases": list(rec["commands"][1:]),
-            "subcommands": list(rec["subcommands"]),
-            "verbose": bool(rec.get("verbose")),
-            "positional": bool(rec.get("positional")),
-        }
-        for rec in LINE_ROUTE_COMMANDS
-    ]
+    return line_command_records("route", LINE_ROUTE_COMMANDS)
 
 
 def parse_line_route_command(cmd, args, module=None):
@@ -136,7 +128,7 @@ def parse_line_route_command(cmd, args, module=None):
             "command": cmd,
             "context_local": True,
         }
-    records = [rec for rec in line_route_command_records() if cmd in rec["commands"]]
+    records = matching_line_command_records(cmd, line_route_command_records())
     if not records:
         return {}
     subcmd = str(args[0]).lower() if args else ""
