@@ -18,6 +18,8 @@ def line_command_records(family, specs):
         for key, value in spec.items():
             if key in {"action", "commands"}:
                 continue
+            if isinstance(value, tuple):
+                value = list(value)
             rec[key] = value
         records.append(rec)
     return records

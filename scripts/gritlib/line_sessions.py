@@ -5,6 +5,10 @@ import shutil
 
 from gritlib.console_display import console_display_mode, console_table
 from gritlib.line_context import set_line_collection_context
+from gritlib.line_command_registry import (
+    matching_line_command_records,
+    line_command_records,
+)
 from gritlib.line_search import set_line_search_results
 from gritlib.shell_utils import shquote
 from gritlib.session_state import read_json_file
@@ -61,19 +65,7 @@ LINE_SESSION_COMMANDS = (
 
 
 def line_session_command_records():
-    return [
-        {
-            "family": "session",
-            "action": rec["action"],
-            "commands": list(rec["commands"]),
-            "primary": rec["commands"][0],
-            "aliases": list(rec["commands"][1:]),
-            "subcommands": list(rec["subcommands"]),
-            "verbose": bool(rec.get("verbose")),
-            "positional": bool(rec.get("positional")),
-        }
-        for rec in LINE_SESSION_COMMANDS
-    ]
+    return line_command_records("session", LINE_SESSION_COMMANDS)
 
 
 def parse_line_sessions_command(cmd, args, module=None):
@@ -90,7 +82,7 @@ def parse_line_sessions_command(cmd, args, module=None):
             "command": cmd,
             "context_local": True,
         }
-    records = [rec for rec in line_session_command_records() if cmd in rec["commands"]]
+    records = matching_line_command_records(cmd, line_session_command_records())
     if not records:
         return {}
     first = str(args[0]).lower() if args else ""
