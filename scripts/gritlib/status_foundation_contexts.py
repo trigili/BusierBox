@@ -12,6 +12,7 @@ import gritlib.staged_files as staged_files
 import gritlib.status_indexes as status_indexes
 import gritlib.target_activity as target_activity
 import gritlib.target_phone_home as target_phone_home
+import gritlib.target_record_status as target_record_status
 import gritlib.target_records as target_records
 import gritlib.target_registry_state as target_registry_state
 
@@ -210,9 +211,9 @@ def _build_target_registry_context(
         fetches = target_records.records_for_target(fetches, target_filter_id)
         targets = target_records.records_for_target(targets, target_filter_id)
     target_index_maps = dict(
-        zip(TARGET_INDEX_KEYS, target_records.target_record_indexes(targets))
+        zip(TARGET_INDEX_KEYS, target_record_status.target_record_indexes(targets))
     )
-    target_summary = target_records.target_record_summary(targets)
+    target_summary = target_record_status.target_record_summary(targets)
     selected_target = (
         dict(target_index_maps["targets_by_id"].get(target_filter_id) or {})
         if target_filter_id else {}
