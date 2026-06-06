@@ -291,6 +291,8 @@ def release_tuple_probe_compatibility(tuple_info, probe_arch, probe_kernel_floor
 def _artifact_requirement_value(artifact, key):
     requirements = artifact.get("artifact_requirements")
     if not isinstance(requirements, dict):
+        requirements = artifact.get("artifact_build_requirements")
+    if not isinstance(requirements, dict):
         requirements = artifact.get("requirements") if isinstance(artifact.get("requirements"), dict) else {}
     return artifact.get(key) or requirements.get(key)
 

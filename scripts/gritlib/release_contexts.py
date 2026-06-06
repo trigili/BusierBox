@@ -87,6 +87,31 @@ def _release_context_artifacts(here, index, license_record):
                 "project_license": license_record.get("project_license", ""),
                 "combined_gplv2_compatible": bool(license_record.get("combined_gplv2_compatible")),
             }
+            requirements = row.get("artifact_requirements")
+            if not isinstance(requirements, dict):
+                requirements = row.get("artifact_build_requirements")
+            if not isinstance(requirements, dict):
+                requirements = row.get("requirements") if isinstance(row.get("requirements"), dict) else {}
+            if requirements:
+                rec["artifact_requirements"] = requirements
+                rec["artifact_build_requirements"] = requirements
+            for key in (
+                "elf_machine",
+                "elf_class",
+                "elf_endian",
+                "linkage",
+                "interpreter",
+                "toolchain_libc",
+                "arm_eabi",
+                "float_abi",
+                "cpu_baseline",
+                "required_features",
+                "minimum_kernel",
+                "minimum_syscall_floor",
+            ):
+                value = row.get(key) if row.get(key) not in (None, "") else requirements.get(key)
+                if value not in (None, ""):
+                    rec[key] = value
             existing_paths = [item.get("path") for item in artifacts]
             if rec["path"] in existing_paths:
                 artifacts[existing_paths.index(rec["path"])].update(rec)

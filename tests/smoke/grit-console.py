@@ -6338,6 +6338,7 @@ def run_release_status_context_check():
     from gritlib.release_artifacts import (
         release_artifact_matches_probe,
         release_artifact_probe_compatibility,
+        release_context,
         release_status_context,
     )
 
@@ -6483,6 +6484,61 @@ def run_release_status_context_check():
             return 1
         if release_artifact_matches_probe(compat_release, static_artifact, "armv7", "3.x"):
             print("release artifact compatibility accepted mismatched kernel floor", file=sys.stderr)
+            return 1
+
+        artifact_rel = "bin/grit-smoke"
+        (release_dir / "bin" / "grit-smoke").write_text("artifact", encoding="utf-8")
+        (release_dir / "release-index.json").write_text(json.dumps({
+            "artifacts": [
+                {
+                    "artifact": artifact_rel,
+                    "tuple_path": "armv7-linux-4.x-musl",
+                    "payload_preset": "survey-core",
+                    "sha256": "0" * 64,
+                    "artifact_requirements": {
+                        "elf_machine": "ARM",
+                        "elf_class": "ELF32",
+                        "elf_endian": "little",
+                        "linkage": "static",
+                        "toolchain_libc": "musl",
+                        "arm_eabi": "EABI5",
+                        "float_abi": "softfp",
+                        "cpu_baseline": "armv7-a",
+                        "required_features": ["vfp"],
+                        "minimum_kernel": "4.x",
+                    },
+                },
+            ],
+            "tuples": {
+                "armv7-linux-4.x-musl": {
+                    "tuple": {
+                        "arch": "armv7",
+                        "kernel_floor": "4.x",
+                        "libc": "musl",
+                    },
+                    "artifacts": [artifact_rel],
+                },
+            },
+        }), encoding="utf-8")
+        indexed_release = release_context({"release_dir": str(release_dir)})
+        indexed_artifact = (indexed_release.get("artifacts_by_release_path") or {}).get(artifact_rel) or {}
+        if (
+            indexed_artifact.get("linkage") != "static"
+            or indexed_artifact.get("toolchain_libc") != "musl"
+            or indexed_artifact.get("cpu_baseline") != "armv7-a"
+            or indexed_artifact.get("required_features") != ["vfp"]
+        ):
+            print(f"release context did not preserve artifact requirement metadata: {indexed_artifact}", file=sys.stderr)
+            return 1
+        indexed_verdict = release_artifact_probe_compatibility(
+            indexed_release,
+            indexed_artifact,
+            "armv7",
+            "4.x",
+            probe_facts={"target_runtime_libc": "glibc"},
+        )
+        if indexed_verdict.get("compatible") is not True or indexed_verdict.get("linkage") != "static":
+            print(f"indexed static artifact compatibility verdict changed: {indexed_verdict}", file=sys.stderr)
             return 1
     return 0
 
