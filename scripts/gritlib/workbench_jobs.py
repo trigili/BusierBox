@@ -124,7 +124,15 @@ def dispatch_legacy_line_job_number(
         selected = selected_line.strip() if selected_line is not None else ""
         if selected:
             try:
-                action = runnable[int(selected) - 1]["id"] if selected.isdigit() else selected
+                selected_action = line_record_selection_result(
+                    selected,
+                    runnable,
+                    label="workbench action",
+                    match_func=lambda rec, value: value == str(rec.get("id") or ""),
+                )
+                if not selected_action.selected:
+                    raise ValueError(selected_action.message)
+                action = str(selected_action.item.get("id") or "")
                 headless = (
                     "scripts/grit-console --config "
                     + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))

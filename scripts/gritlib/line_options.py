@@ -10,6 +10,7 @@ from gritlib.build_config import (
 from gritlib.console_display import console_display_mode, console_table
 from gritlib.config_utils import DEFAULTS, DEFAULT_CONFIG
 from gritlib.event_log import append_event
+from gritlib.line_search import line_record_selection_result
 from gritlib.line_services import line_service_status_text
 from gritlib.session_state import atomic_write_json
 from gritlib.shell_utils import shquote
@@ -499,10 +500,10 @@ def set_line_option(cfg, name, value):
         raise ValueError("usage: set KEY VALUE  or  set N VALUE  (N = row number from options)")
 
     if key.isdigit():
-        keys = cfg.get("_options_keys") or []
-        idx = int(key) - 1
-        if 0 <= idx < len(keys):
-            key = keys[idx]
+        records = [{"key": item} for item in (cfg.get("_options_keys") or [])]
+        selected = line_record_selection_result(key, records, label="option")
+        if selected.selected:
+            key = selected.item.get("key")
         else:
             raise ValueError(f"no option at row {key} — run: options")
 

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from gritlib.line_search import line_record_selection_result
 from gritlib.release_contexts import release_context
 from gritlib.staged_files import stage_file
 
@@ -183,10 +184,10 @@ def stage_release_selection(
         raise ValueError("not running inside a release bundle")
     if selector.isdigit():
         nav = release_nav_records_func(rel, rel.get("devices") or [], rel.get("tuples") or [], limit=12)
-        idx = int(selector) - 1
-        if idx < 0 or idx >= len(nav):
-            raise ValueError(f"release selection number out of range: {selector}")
-        return stage_release_nav_item(cfg, nav[idx], stage_release_artifact_func=stage_release_artifact_func)
+        selected = line_record_selection_result(selector, nav, label="release selection")
+        if not selected.selected:
+            raise ValueError(selected.message)
+        return stage_release_nav_item(cfg, selected.item, stage_release_artifact_func=stage_release_artifact_func)
     if selector.startswith(("by_device:", "by_tuple_path:")):
         return stage_release_artifact_func(cfg, selector)
     recommendations = rel.get("recommendations_by_id") or {}

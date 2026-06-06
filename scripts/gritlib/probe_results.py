@@ -42,10 +42,10 @@ def clear_probe_results(cfg, selector=""):
         removed = {}
         data["results"] = []
     elif text.isdigit() and int(text) > 0:
-        ordinal = int(text)
-        if ordinal > len(results):
+        selected = line_record_selection_result(text, list(reversed(results)), label="probe result")
+        if not selected.selected:
             raise ValueError(f"probe result number out of range: {text}")
-        original_idx = len(results) - ordinal
+        original_idx = len(results) - selected.index - 1
         removed = results.pop(original_idx)
         count = 1
         data["results"] = results

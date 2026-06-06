@@ -1,6 +1,7 @@
 """Line-console probe release staging helpers."""
 
 from gritlib.console_display import console_table
+from gritlib.line_search import line_record_selection_result
 from gritlib.probe_results import probe_effective_arch, probe_latest_result
 from gritlib.release_contexts import discover_release_context
 from gritlib.release_artifacts import (
@@ -116,14 +117,14 @@ def _choose_probe_match(matches, probe_arch, uname_m, line_input_fn):
     if not choice:
         print("  Cancelled.")
         return None
-    if choice.isdigit():
-        idx = int(choice) - 1
-        if 0 <= idx < len(matches):
-            return matches[idx]
-    else:
-        for rec in matches:
-            if (rec.get("payload_preset") or "").lower() == choice.lower():
-                return rec
+    selected = line_record_selection_result(
+        choice,
+        matches,
+        label="probe payload preset",
+        match_func=lambda rec, value: (rec.get("payload_preset") or "").lower() == value.lower(),
+    )
+    if selected.selected:
+        return selected.item
     raise ValueError(f"no match for '{choice}' - enter a number or preset name")
 
 

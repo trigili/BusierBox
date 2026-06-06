@@ -287,15 +287,15 @@ def _print_legacy_bridge_profile_choices(records):
 
 
 def _select_legacy_bridge_profile(records, selected):
-    if selected.isdigit():
-        idx = int(selected) - 1
-        if idx < 0 or idx >= len(records):
-            raise ValueError(f"bridge profile number out of range: {selected}")
-        return records[idx]
-    matches = [item for item in records if str(item.get("name") or "") == selected]
-    if not matches:
-        raise ValueError(f"bridge profile not found: {selected}")
-    return matches[0]
+    result = line_record_selection_result(
+        selected,
+        records,
+        label="bridge profile",
+        match_func=lambda rec, value: value == str(rec.get("name") or ""),
+    )
+    if result.selected:
+        return result.item
+    raise ValueError(result.message)
 
 
 def _print_legacy_bridge_profile_selection(

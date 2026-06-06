@@ -155,7 +155,8 @@ def dispatch_legacy_line_build_number(choice, cfg, *, input_func=None):
     selected = selected_line.strip() if selected_line is not None else ""
     if selected:
         try:
-            rec = fields[int(selected) - 1] if selected.isdigit() else {item.get("key"): item for item in fields}.get(selected, {})
+            key = build_field_key_by_selector(cfg, selected)
+            rec = {item.get("key"): item for item in fields}.get(key, {})
             key = rec.get("key")
             if not key:
                 raise ValueError(f"unknown build config field: {selected}")

@@ -12,7 +12,7 @@ from gritlib.file_transfers import (
     staged_fetch_target_commands,
 )
 import gritlib.line_binary as line_binary_module
-from gritlib.line_search import set_line_search_results
+from gritlib.line_search import line_record_selection_result, set_line_search_results
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged, stage_file, unstage_file
 
@@ -733,13 +733,18 @@ def staged_line_record(cfg, request_name):
     staged = load_staged(cfg).get("staged") or {}
     if name in staged and isinstance(staged.get(name), dict):
         return name, staged[name]
-    if name.isdigit():
-        names = sorted(str(item or "") for item in staged.keys() if str(item or ""))
-        idx = int(name) - 1
-        if 0 <= idx < len(names):
-            selected = names[idx]
-            rec = staged.get(selected) or {}
-            return selected, rec if isinstance(rec, dict) else {}
+    records = [
+        {
+            "name": staged_name,
+            "rec": staged.get(staged_name) if isinstance(staged.get(staged_name), dict) else {},
+        }
+        for staged_name in sorted(str(item or "") for item in staged.keys() if str(item or ""))
+    ]
+    selected = line_record_selection_result(name, records, label="staged file")
+    if selected.selected:
+        selected_name = str(selected.item.get("name") or "")
+        rec = selected.item.get("rec") if isinstance(selected.item.get("rec"), dict) else {}
+        return selected_name, rec
     return name, {}
 
 
