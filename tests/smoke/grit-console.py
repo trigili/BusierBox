@@ -8479,6 +8479,20 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             print(f"line-oriented console context exposed noisy equivalent CLI command: {noisy}", file=sys.stderr)
             print(line_console_stdout, file=sys.stderr)
             return 1
+    target_number_start = line_console_stdout.find("grit[all]/targets> use 1")
+    target_number_end = line_console_stdout.find("grit[Console Router]/targets> clear target", target_number_start + 1)
+    target_number_text = (
+        line_console_stdout[target_number_start:target_number_end]
+        if target_number_start != -1 and target_number_end != -1 else ""
+    )
+    if (
+            not target_number_text
+            or "Targets  (1 total)" not in target_number_text
+            or "Console Router  (line-console-target)" not in target_number_text
+            or "options / next / sessions / queue / mailbox / back" not in target_number_text):
+        print("line-oriented targets context did not support numbered local selection", file=sys.stderr)
+        print(target_number_text or line_console_stdout, file=sys.stderr)
+        return 1
     target_interactions = []
     target_search_pos = 0
     while True:
