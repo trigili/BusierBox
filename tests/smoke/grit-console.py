@@ -717,7 +717,7 @@ def run_console_display_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.console_display import console_display_mode, console_table
-    from gritlib.bridge_routes import select_line_route
+    from gritlib.bridge_routes import print_bridge_route_records, select_line_route
     from gritlib.line_files import (
         _print_line_staged_fetch,
         download_line_target,
@@ -932,6 +932,20 @@ def run_console_display_check():
             "multi_hop": False,
         }]
         cfg = {}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            route_search_records = print_bridge_route_records(route_records)
+        routes_text = buf.getvalue()
+        if (
+                "Routes  (1 total)" not in routes_text
+                or not route_search_records
+                or "state configured  path operator:2222 -> target:22" not in route_search_records[0].get("label", "")
+                or "state=" in route_search_records[0].get("label", "")
+                or "path=" in route_search_records[0].get("label", "")):
+            print("route list output exposed raw search fields", file=sys.stderr)
+            print(routes_text, file=sys.stderr)
+            print(route_search_records, file=sys.stderr)
+            return 1
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             select_line_route(cfg, "1", route_records)

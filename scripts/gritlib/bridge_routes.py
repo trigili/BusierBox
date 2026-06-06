@@ -683,7 +683,10 @@ def bridge_route_search_records(records, command_builder=None, quote=shquote):
     return [
         {
             "kind": "route",
-            "label": f"{rec.get('name','')} state={rec.get('current_state','') or '-'} path={rec.get('route_path','')}",
+            "label": (
+                f"{rec.get('name','')} state {rec.get('current_state','') or '-'}  "
+                f"path {rec.get('route_path','')}"
+            ),
             "rec": rec,
             "command": command_builder("inspect", str(rec.get("name") or "")),
             "use_hint": f"use route {quote(str(rec.get('name', '')))}",
