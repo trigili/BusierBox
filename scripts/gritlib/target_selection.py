@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from gritlib.event_log import append_event
+from gritlib.line_search import line_record_selection_result
 from gritlib.session_state import update_server_state, utc_now
 from gritlib.shell_utils import shquote
 from gritlib.target_context import configured_target_filter
@@ -10,6 +11,18 @@ from gritlib.target_store import load_targets
 
 
 DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
+
+
+def _target_record_matches_selector(rec, text):
+    lower = str(text or "").lower()
+    target_id = str(rec.get("target_id") or "")
+    label = str(rec.get("label") or rec.get("target_label") or "")
+    aliases = [str(item) for item in rec.get("aliases") or []]
+    return (
+        text == target_id
+        or lower == label.lower()
+        or lower in [alias.lower() for alias in aliases]
+    )
 
 
 def scoped_target_cfg(cfg, target_id, target_label=""):
@@ -48,23 +61,15 @@ def set_workbench_target_filter(cfg, selector, targets=None, default_config=DEFA
                 item = dict(rec)
                 item.setdefault("target_id", target_id)
                 records.append(item)
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(records):
-            raise ValueError(f"target number out of range: {text}")
-        selected = records[idx]
-    else:
-        lower = text.lower()
-        selected = {}
-        for rec in records:
-            target_id = str(rec.get("target_id") or "")
-            label = str(rec.get("label") or rec.get("target_label") or "")
-            aliases = [str(item) for item in rec.get("aliases") or []]
-            if text == target_id or lower == label.lower() or lower in [alias.lower() for alias in aliases]:
-                selected = rec
-                break
-        if not selected:
-            raise ValueError(f"target not found: {text}")
+    selection = line_record_selection_result(
+        text,
+        records,
+        label="target",
+        match_func=_target_record_matches_selector,
+    )
+    if not selection.selected:
+        raise ValueError(selection.message)
+    selected = selection.item
     target_id = str(selected.get("target_id") or "").strip()
     if not target_id:
         raise ValueError(f"target not found: {text}")
@@ -115,19 +120,15 @@ def select_workbench_target_record(selector, targets, *, current_target_id=""):
         raise ValueError(f"target not found: {current}")
     if text.lower() in ("all", "*"):
         return {"scope": "all", "target": {}}
-    if text.isdigit():
-        idx = int(text) - 1
-        if idx < 0 or idx >= len(records):
-            raise ValueError(f"target number out of range: {text}")
-        return {"scope": "target", "target": records[idx]}
-    lower = text.lower()
-    for rec in records:
-        target_id = str(rec.get("target_id") or "")
-        label = str(rec.get("label") or rec.get("target_label") or "")
-        aliases = [str(item) for item in rec.get("aliases") or []]
-        if text == target_id or lower == label.lower() or lower in [alias.lower() for alias in aliases]:
-            return {"scope": "target", "target": rec}
-    raise ValueError(f"target not found: {text}")
+    selection = line_record_selection_result(
+        text,
+        records,
+        label="target",
+        match_func=_target_record_matches_selector,
+    )
+    if not selection.selected:
+        raise ValueError(selection.message)
+    return {"scope": "target", "target": selection.item}
 
 
 def print_workbench_target_selector(targets, *, current_target_id="", empty_message="no known targets"):
