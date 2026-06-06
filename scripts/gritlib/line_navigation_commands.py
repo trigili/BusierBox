@@ -49,7 +49,11 @@ def _dispatch_target_navigation(nav):
 
 
 def _dispatch_session_navigation(nav):
-    if session_cmd := parse_line_sessions_command(nav["cmd"], nav["args"]):
+    if session_cmd := parse_line_sessions_command(
+        nav["cmd"],
+        nav["args"],
+        module=nav["module"],
+    ):
         dispatch_line_sessions_command(
             session_cmd,
             clear_func=nav["clear_sessions_func"],

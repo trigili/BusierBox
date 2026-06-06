@@ -76,9 +76,20 @@ def line_session_command_records():
     ]
 
 
-def parse_line_sessions_command(cmd, args):
+def parse_line_sessions_command(cmd, args, module=None):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
+    module = str(module or "").strip().lower()
+    if module == "sessions" and cmd in {"clear", "prune", "clean"}:
+        normalized = {str(item).lower() for item in args}
+        return {
+            "action": "clear",
+            "all_sessions": "all" in normalized or "--all" in normalized,
+            "confirm": "--confirm" in normalized,
+            "prompt": "--confirm" not in normalized,
+            "command": cmd,
+            "context_local": True,
+        }
     records = [rec for rec in line_session_command_records() if cmd in rec["commands"]]
     if not records:
         return {}
@@ -90,8 +101,9 @@ def parse_line_sessions_command(cmd, args):
             flags = {str(item).lower() for item in args[1:]}
             return {
                 "action": "clear",
-                "all_sessions": "--all" in flags,
+                "all_sessions": "--all" in flags or "all" in flags,
                 "confirm": "--confirm" in flags,
+                "prompt": "--confirm" not in flags,
                 "command": cmd,
                 "subcommand": first,
             }
@@ -142,6 +154,7 @@ def dispatch_line_sessions_command(
             return clear_func(
                 all_sessions=bool(session_cmd.get("all_sessions")),
                 confirm=bool(session_cmd.get("confirm")),
+                prompt=bool(session_cmd.get("prompt")),
             )
         if action == "help" and help_func:
             return help_func("sessions")
@@ -233,7 +246,30 @@ def line_session_clear_candidates(root, all_sessions=False):
     return candidates
 
 
-def clear_line_sessions(cfg, root, all_sessions=False, confirm=False, append_event_fn=None):
+def _confirm_line_session_clear(candidates, all_sessions, input_func):
+    count = len(candidates)
+    if all_sessions:
+        prompt = (
+            f"\nRemove ALL {count} session{'s' if count != 1 else ''}, "
+            "including sessions with uploads/fetches/artifacts? [y/N] "
+        )
+    else:
+        prompt = (
+            f"\nRemove {count} finished empty session{'s' if count != 1 else ''}? [y/N] "
+        )
+    answer = str(input_func(prompt) or "").strip().lower()
+    return answer in {"y", "yes"}
+
+
+def clear_line_sessions(
+    cfg,
+    root,
+    all_sessions=False,
+    confirm=False,
+    prompt=False,
+    input_func=input,
+    append_event_fn=None,
+):
     root = Path(root)
     if not root.is_dir():
         print("No session directory found.")
@@ -247,10 +283,14 @@ def clear_line_sessions(cfg, root, all_sessions=False, confirm=False, append_eve
     for path, state, has_data in candidates:
         flag = "  [has data]" if has_data else ""
         print(f"  {path.name}  ({state}){flag}")
-    if not confirm:
-        print(f"\n  {len(candidates)} session(s) would be removed. Run: sessions clear --confirm")
+    if not confirm and prompt:
+        if not _confirm_line_session_clear(candidates, all_sessions, input_func):
+            print("Cancelled.")
+            return
+    elif not confirm:
+        print(f"\n  {len(candidates)} session(s) would be removed. Run: sessions clear")
         if not all_sessions:
-            print("  To also remove sessions with data: sessions clear --all --confirm")
+            print("  To also remove sessions with data: sessions clear all")
         return
     removed = 0
     errors = 0

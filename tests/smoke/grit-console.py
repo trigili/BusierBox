@@ -2182,7 +2182,7 @@ def run_line_repl_runtime_check():
                 ("select-target", selector, targets)
             ),
             print_sessions_func=lambda verbose=False: navigation_calls.append(("sessions", verbose)),
-            clear_sessions_func=lambda: navigation_calls.append("clear-sessions"),
+            clear_sessions_func=lambda **_kwargs: navigation_calls.append("clear-sessions"),
             session_help_func=lambda topic: navigation_calls.append(("session-help", topic)),
             select_session_func=lambda selector: navigation_calls.append(("select-session", selector)),
             interact_session_func=lambda selector: navigation_calls.append(("interact-session", selector)),
@@ -3686,6 +3686,27 @@ def run_line_session_command_registry_check():
     clear = parse_line_sessions_command("sessions", ["prune", "--all", "--confirm"])
     if clear.get("action") != "clear" or clear.get("all_sessions") is not True or clear.get("confirm") is not True:
         print(f"session parser did not preserve clear flags: {clear}", file=sys.stderr)
+        return 1
+    clear_all = parse_line_sessions_command("sessions", ["clear", "all"])
+    if (
+            clear_all.get("action") != "clear"
+            or clear_all.get("all_sessions") is not True
+            or clear_all.get("prompt") is not True):
+        print(f"session parser did not parse REPL clear all grammar: {clear_all}", file=sys.stderr)
+        return 1
+    local_clear = parse_line_sessions_command("clear", [], module="sessions")
+    if (
+            local_clear.get("action") != "clear"
+            or local_clear.get("prompt") is not True
+            or local_clear.get("context_local") is not True):
+        print(f"session parser did not parse context-local clear grammar: {local_clear}", file=sys.stderr)
+        return 1
+    local_clear_all = parse_line_sessions_command("clear", ["all"], module="sessions")
+    if (
+            local_clear_all.get("action") != "clear"
+            or local_clear_all.get("all_sessions") is not True
+            or local_clear_all.get("prompt") is not True):
+        print(f"session parser did not parse context-local clear all grammar: {local_clear_all}", file=sys.stderr)
         return 1
     if parse_line_sessions_command("sessions", ["--help"]).get("action") != "help":
         print("session parser did not preserve help alias", file=sys.stderr)
@@ -7264,6 +7285,26 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "fetches": [],
         "artifacts": [],
     }), encoding="utf-8")
+    line_console_clear_session = session_root / "20260101T000010-command-queue"
+    line_console_clear_session.mkdir(parents=True, exist_ok=True)
+    (line_console_clear_session / "session.log").write_text("clear candidate log\n", encoding="utf-8")
+    (line_console_clear_session / "events.jsonl").write_text("", encoding="utf-8")
+    (line_console_clear_session / "session.json").write_text(json.dumps({
+        "schema": 1,
+        "session_id": line_console_clear_session.name,
+        "service": "command-queue",
+        "path": str(line_console_clear_session),
+        "state": "ended",
+        "exit_reason": "done",
+        "started_at": "2026-01-01T00:00:10Z",
+        "ended_at": "2026-01-01T00:00:12Z",
+        "updated_at": "2026-01-01T00:00:12Z",
+        "uploads": [],
+        "fetches": [],
+        "artifacts": [],
+    }), encoding="utf-8")
+    os.utime(line_console_clear_session, (1704067200, 1704067200))
+    os.utime(line_console_session, (1704067300, 1704067300))
     line_console_target = run(
         "scripts/grit-console",
         "--config", str(upload_cfg),
@@ -7612,6 +7653,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "back\n"
                 "services\n"
                 "sessions\n"
+                "clear\n"
+                "n\n"
+                "clear all\n"
+                "n\n"
                 "sessions -l\n"
                 "sessions -v\n"
                 "sessions -i 99\n"
@@ -7944,6 +7989,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "route start 1",
         "build set 9 /tmp/grit-build",
         "daemon status --dry-run",
+        "clear all",
         "sessions -i 1",
         "queue grit survey --json",
         "probe --queue",
@@ -7978,6 +8024,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "Session: 20260101T000000-file-service",
         "service: file-service",
         "commands: info, options, interact, sessions -v, background",
+        "grit[all]/sessions> clear",
+        "Remove 1 finished empty session? [y/N]",
+        "grit[all]/sessions> clear all",
+        "Remove ALL 2 sessions, including sessions with uploads/fetches/artifacts? [y/N]",
+        "Cancelled.",
     ]
     line_console_missing_markers = [
         marker for marker in line_console_session_markers

@@ -211,6 +211,7 @@ def build_line_completion_providers(
         "staged_names_snapshot": lambda: _completion_staged_names_snapshot(cfg, workbench_snapshot_func),
         "session_paths": lambda: _completion_session_paths(cfg, workbench_snapshot_func),
         "survey_upload_paths": lambda: _completion_survey_upload_paths(find_survey_uploads_func),
+        "line_console_module": lambda: [str((cfg or {}).get("_line_console_module") or "")],
     }
 
 
@@ -268,6 +269,8 @@ class LineCompletionContext:
         self.trailing_space = trailing_space
         self.providers = providers or {}
         self.current = "" if trailing_space else (parts[-1] if parts else "")
+        modules = self.values("line_console_module")
+        self.module = str(modules[0] if modules else "")
 
     def values(self, name):
         return completion_provider(self.providers, name)
@@ -366,7 +369,12 @@ def _line_completion_context_candidates(cmd, ctx):
                 ["-v", "-l", "clear", "prune"] + ctx.values("session_names"))]
         subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
         if subcmd in {"clear", "prune", "clean"}:
-            return [f"sessions {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ["--confirm", "--all"])]
+            return [f"sessions {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ["all"])]
+        return []
+
+    if ctx.module == "sessions" and cmd in {"clear", "prune", "clean"}:
+        if ctx.at_arg(1):
+            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ["all"])]
         return []
 
     if cmd in {"session", "usesession", "interact"}:

@@ -21,6 +21,7 @@ def build_line_session_callbacks(
     session_root_func,
     append_event_fn,
     quote,
+    input_func=input,
 ):
     def snapshot():
         return workbench_snapshot_func(cfg)
@@ -46,12 +47,14 @@ def build_line_session_callbacks(
             append_event_fn=append_event_fn,
         )
 
-    def clear_sessions(all_sessions=False, confirm=False):
+    def clear_sessions(all_sessions=False, confirm=False, prompt=False):
         return clear_line_sessions(
             cfg,
             session_root_func(cfg),
             all_sessions=all_sessions,
             confirm=confirm,
+            prompt=prompt,
+            input_func=input_func,
             append_event_fn=append_event_fn,
         )
 
