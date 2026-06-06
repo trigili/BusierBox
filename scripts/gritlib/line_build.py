@@ -69,7 +69,7 @@ def print_line_build_config(cfg, verbose=False):
 
     print(f"Build config  ({build_config_path(cfg)})")
     print(f"  configured: {configured_count}/{len(fields)}")
-    print("  state: set=configured  default=using generated default  choose=operator choice recommended")
+    print("  state: set means configured; default means generated default; choose means operator choice recommended")
     print("")
 
     def _detail(rec):

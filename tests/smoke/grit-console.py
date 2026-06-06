@@ -9414,7 +9414,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     build_view_text = line_console_stdout[build_view_start:build_view_end] if build_view_start != -1 and build_view_end != -1 else ""
     if (not build_view_text or
             "configured: " not in build_view_text or
-            "state: set=configured" not in build_view_text or
+            "state: set means configured; default means generated default; choose means operator choice recommended" not in build_view_text or
+            "set=configured" in build_view_text or
             "runtime  (" not in build_view_text or
             "command-queue  (" not in build_view_text or
             "State" not in build_view_text or
