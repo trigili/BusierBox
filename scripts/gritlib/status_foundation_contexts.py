@@ -13,6 +13,7 @@ import gritlib.status_indexes as status_indexes
 import gritlib.target_activity as target_activity
 import gritlib.target_phone_home as target_phone_home
 import gritlib.target_records as target_records
+import gritlib.target_registry_state as target_registry_state
 
 TARGET_INDEX_KEYS = (
     "targets_by_id",
@@ -216,7 +217,7 @@ def _build_target_registry_context(
         dict(target_index_maps["targets_by_id"].get(target_filter_id) or {})
         if target_filter_id else {}
     )
-    target_registry_state = target_records.target_registry_state_status(
+    target_registry_state_doc = target_registry_state.target_registry_state_status(
         target_summary,
         selected_target,
         target_filter_id,
@@ -230,10 +231,10 @@ def _build_target_registry_context(
         "target_index_maps": target_index_maps,
         "target_summary": target_summary,
         "selected_target": selected_target,
-        "target_registry_state_record": target_registry_state["state_record"],
-        "target_registry_state_records": target_registry_state["state_records"],
-        "target_registry_state_index_maps": target_registry_state["state_index_maps"],
-        "target_registry_summary": target_registry_state["summary"],
+        "target_registry_state_record": target_registry_state_doc["state_record"],
+        "target_registry_state_records": target_registry_state_doc["state_records"],
+        "target_registry_state_index_maps": target_registry_state_doc["state_index_maps"],
+        "target_registry_summary": target_registry_state_doc["summary"],
     }
 
 
