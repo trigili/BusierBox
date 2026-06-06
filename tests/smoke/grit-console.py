@@ -3166,7 +3166,11 @@ def run_line_repl_runtime_check():
 
     from gritlib.line_command_queue import parse_line_queue_command
     from gritlib.line_files import parse_line_files_command
-    from gritlib.workflow_actions import parse_line_daemon_action_args, parse_line_daemon_command
+    from gritlib.workflow_actions import (
+        parse_line_daemon_action_args,
+        parse_line_daemon_command,
+        run_line_daemon_action,
+    )
 
     local_daemon_status = parse_line_daemon_command("status", [], module="daemon")
     if (
@@ -3188,6 +3192,24 @@ def run_line_repl_runtime_check():
     outside_daemon_status = parse_line_daemon_command("status", [], module="")
     if outside_daemon_status:
         print(f"daemon parser consumed root status command: {outside_daemon_status}", file=sys.stderr)
+        return 1
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        run_line_daemon_action(
+            ["status"],
+            run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: 0,
+        )
+        run_line_daemon_action(
+            ["stop"],
+            run_action_func=lambda selector, dry_run=False, confirmed=False, show_commands=False: 7,
+        )
+    daemon_action_result_text = buf.getvalue()
+    if (
+            "daemon action complete: ok" not in daemon_action_result_text
+            or "daemon action failed: return code 7" not in daemon_action_result_text
+            or "rc=7" in daemon_action_result_text):
+        print("daemon action result output exposed raw return-code field", file=sys.stderr)
+        print(daemon_action_result_text, file=sys.stderr)
         return 1
     local_files_clear = parse_line_files_command("clear", [], module="files")
     if (

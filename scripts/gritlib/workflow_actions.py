@@ -414,7 +414,7 @@ def run_line_daemon_action(
     if rc_code == 0:
         print("daemon action complete: ok")
     else:
-        print(f"daemon action failed: rc={rc_code}")
+        print(f"daemon action failed: return code {rc_code}")
     return rc
 
 
