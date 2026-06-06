@@ -739,6 +739,7 @@ def run_console_display_check():
     )
     from gritlib.line_targets import (
         line_target_filter_brief_text,
+        print_line_target_interaction,
         print_selected_line_target,
     )
     from gritlib.line_workspace import (
@@ -842,6 +843,46 @@ def run_console_display_check():
             print("target compact selected-agent output did not stay concise", file=sys.stderr)
             print(target_summary, file=sys.stderr)
             print(selected_text, file=sys.stderr)
+            return 1
+        cfg = {}
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_target_interaction(
+                cfg,
+                "line-console-target",
+                {
+                    "target_id": "line-console-target",
+                    "label": "Console Router",
+                    "connectivity_state": "online",
+                },
+                target_filter,
+                [{
+                    "command_id": "cq-1234567890abcdef",
+                    "status": "queued",
+                    "waiting_for": "target-poll",
+                    "pending_work": True,
+                    "command": "uname -a",
+                }],
+                [{
+                    "session_id": "20260606T120000-shell",
+                    "target_id": "line-console-target",
+                    "service": "shell",
+                    "state": "connected",
+                    "updated_at": "2026-06-06T12:00:00Z",
+                }],
+            )
+        target_interaction_text = buf.getvalue()
+        if (
+                "cq-1234567890abcdef  queued; waiting for target poll; uname -a" not in target_interaction_text
+                or "20260606T120000-shell  shell; connected; updated 06-06 12:00" not in target_interaction_text
+                or "status=" in target_interaction_text
+                or "waiting_for=" in target_interaction_text
+                or "command=" in target_interaction_text
+                or "service=" in target_interaction_text
+                or "state=" in target_interaction_text
+                or "updated=" in target_interaction_text):
+            print("target interaction output exposed raw mailbox or session fields", file=sys.stderr)
+            print(target_interaction_text, file=sys.stderr)
             return 1
         service_rows = [{
             "name": "file-service",

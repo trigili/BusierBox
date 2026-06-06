@@ -71,6 +71,37 @@ def line_target_seen_text(rec):
     return iso or "-"
 
 
+def line_target_value_text(value):
+    text = str(value or "").replace("_", " ").replace("-", " ").strip()
+    return text or "-"
+
+
+def line_target_work_text(rec):
+    return (
+        rec.get("command")
+        or rec.get("work_kind")
+        or rec.get("request_name")
+        or rec.get("bridge_profile")
+        or "-"
+    )
+
+
+def line_target_mailbox_summary_text(rec):
+    command_id = rec.get("command_id") or "-"
+    status = line_target_value_text(rec.get("status"))
+    waiting = line_target_value_text(rec.get("waiting_for"))
+    work = line_target_work_text(rec)
+    return f"{command_id}  {status}; waiting for {waiting}; {work}"
+
+
+def line_target_session_summary_text(rec):
+    session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name or "-"
+    service = rec.get("service") or "-"
+    state = line_target_value_text(rec.get("state"))
+    updated = line_target_seen_text({"last_seen": rec.get("updated_at")})
+    return f"{session_id}  {service}; {state}; updated {updated}"
+
+
 def print_line_target_records(targets, current_target_id="", quote=None):
     rows = list(targets or [])
     current = str(current_target_id or "")
@@ -211,11 +242,7 @@ def print_line_target_interaction(
     if pending:
         print("  pending work:")
         for rec in pending[:3]:
-            print(
-                f"    {rec.get('command_id', '')} status={rec.get('status', '') or '-'} "
-                f"waiting_for={rec.get('waiting_for', '') or '-'} "
-                f"command={rec.get('command', '') or rec.get('work_kind', '') or '-'}"
-            )
+            print(f"    {line_target_mailbox_summary_text(rec)}")
     else:
         print("  pending work: none")
     target_sessions = [
@@ -225,11 +252,7 @@ def print_line_target_interaction(
     if target_sessions:
         print("  recent sessions:")
         for rec in target_sessions[:3]:
-            session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
-            print(
-                f"    {session_id} service={rec.get('service', '') or '-'} "
-                f"state={rec.get('state', '') or '-'} updated={rec.get('updated_at', '') or '-'}"
-            )
+            print(f"    {line_target_session_summary_text(rec)}")
     else:
         print("  recent sessions: none")
     append_event(cfg, "workbench", "workbench_target_interaction_viewed", details={
