@@ -18,7 +18,7 @@ from gritlib.status_indexes import (
 from gritlib.status_print_release import (
     print_release_browser, print_snapshot_release_browser,
 )
-from gritlib.target_activity import print_workbench_phone_home_attempts
+from gritlib.target_activity_display import print_workbench_phone_home_attempts
 import gritlib.status_print_workflows as status_print_workflows
 from gritlib.target_filter_display import (
     target_filter_evidence_lines, target_filter_summary_text,

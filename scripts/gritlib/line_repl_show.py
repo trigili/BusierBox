@@ -9,7 +9,7 @@ import gritlib.line_release as line_release
 from gritlib.line_show import build_line_show_resource_callback
 from gritlib.line_repl_display import build_line_display_callbacks
 from gritlib.line_services import line_service_display_name
-from gritlib.target_activity import print_target_activity_records
+from gritlib.target_activity_display import print_target_activity_records
 
 
 def build_default_line_display_show_callbacks(
