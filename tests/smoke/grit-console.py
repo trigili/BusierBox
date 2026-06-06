@@ -717,6 +717,11 @@ def run_console_display_check():
         sys.path.insert(0, scripts_dir)
     from gritlib.console_display import console_display_mode, console_table
     from gritlib.bridge_routes import select_line_route
+    from gritlib.line_files import (
+        _print_line_staged_fetch,
+        download_line_target,
+        print_line_file_records,
+    )
     from gritlib.line_options import print_line_context_options
     from gritlib.line_services import (
         print_line_service_records,
@@ -890,6 +895,57 @@ def run_console_display_check():
             print("route compact output did not stay concise", file=sys.stderr)
             print(route_text, file=sys.stderr)
             print(route_options_text, file=sys.stderr)
+            return 1
+        file_records = [{
+            "_name": "console-upload",
+            "stage_kind": "operator-upload",
+            "size": 4096,
+            "target_id": "line-console-target",
+            "target_label": "Console Router",
+            "source_path": "/tmp/console-upload",
+        }]
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_file_records(file_records, fetch_command=lambda name: f"grit fetch {name}")
+        files_text = buf.getvalue()
+        cfg = {
+            "GRIT_OPERATOR_SERVER_HOST": "192.0.2.44",
+            "GRIT_OPERATOR_FILE_SERVICE_PORT": 22231,
+            "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
+        }
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            download_line_target(
+                cfg,
+                "/etc/config/network",
+                target_id_fn=lambda: "line-console-target",
+                target_context_fn=lambda: {"target_label": "Console Router"},
+            )
+        download_text = buf.getvalue()
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            _print_line_staged_fetch(
+                "console-upload",
+                {"source_path": "/tmp/console-upload"},
+                "line-console-target",
+                "Console Router",
+                "grit fetch console-upload --host 192.0.2.44 --port 22231 --no-tls",
+                cfg,
+                False,
+            )
+        staged_fetch_text = buf.getvalue()
+        if (
+                "  1." not in files_text
+                or "    Name: console-upload" not in files_text
+                or "    Target: Console Router" not in files_text
+                or "  command: ./grit put /etc/config/network" not in download_text
+                or "target command:" in download_text
+                or "  command: grit fetch console-upload" not in staged_fetch_text
+                or "target fetch:" in staged_fetch_text):
+            print("files compact output did not stay concise", file=sys.stderr)
+            print(files_text, file=sys.stderr)
+            print(download_text, file=sys.stderr)
+            print(staged_fetch_text, file=sys.stderr)
             return 1
 
         os.environ["GRIT_CONSOLE_WIDTH"] = "80"
@@ -8519,7 +8575,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "target path: /etc/config/network",
         "File staged for target fetch:",
         "next: fetch console-upload",
-        "fetch shows target-side commands; fetch --queue queues it for the selected agent",
+        "next: fetch console-upload",
         "Staged fetch command:",
         "griTTYkit binary staged for target fetch:",
         "Artifact trailer configured:",

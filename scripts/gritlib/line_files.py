@@ -3,7 +3,7 @@
 import hashlib
 from pathlib import Path
 
-from gritlib.console_display import console_table
+from gritlib.console_display import console_display_mode, console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.file_transfers import (
     print_staged_fetch_target_options,
@@ -532,7 +532,10 @@ def download_line_target(
     if label:
         print(f"  label: {label}")
     print(f"  target path: {path}")
-    print(f"  target command: {command}")
+    if console_display_mode() != "normal":
+        print(f"  command: {command}")
+    else:
+        print(f"  target command: {command}")
     print_file_service_note(started)
     queued = {}
     if queue:
@@ -696,7 +699,10 @@ def stage_line_file(
     print(f"  source: {rec.get('source_path', '')}")
     print(f"  sha256: {str(rec.get('sha256', ''))[:16]}...")
     print(f"  next: fetch {rec.get('request_name', '')}")
-    print("  fetch shows target-side commands; fetch --queue queues it for the selected agent")
+    if console_display_mode() != "normal":
+        print(f"  queue: fetch --queue {rec.get('request_name', '')}")
+    else:
+        print("  fetch shows target-side commands; fetch --queue queues it for the selected agent")
     fetch_options = staged_fetch_target_commands(rec.get("request_name", ""), cfg)
     started = False
     if start_file_service:
@@ -818,7 +824,10 @@ def _print_line_staged_fetch(name, rec, target_id, target_label, fetch_command, 
         if target_label:
             target_text += f" ({target_label})"
         print(f"  target: {target_text}")
-    print(f"  target fetch: {fetch_command}")
+    if console_display_mode() != "normal":
+        print(f"  command: {fetch_command}")
+    else:
+        print(f"  target fetch: {fetch_command}")
     print_staged_fetch_target_options(name, scoped)
     print_file_service_note(started)
 
