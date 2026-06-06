@@ -1,6 +1,9 @@
 """Line-console help rendering for grit-console."""
 
+import textwrap
+
 from gritlib.bridge_routes import ROUTE_HELP_LINES
+from gritlib.console_display import console_display_mode
 
 
 def line_help_topic_for_module(module):
@@ -483,6 +486,21 @@ def print_line_command_help(topic):
         return
     print(f"Help: {entry['title']}")
     print("")
+    if console_display_mode() != "normal":
+        for cmd, desc in entry["entries"]:
+            print(f"  {cmd}")
+            for line in textwrap.wrap(desc, width=64) or [""]:
+                print(f"    {line}")
+        for note in entry.get("notes") or []:
+            for line in textwrap.wrap(note, width=66) or [""]:
+                print(f"  {line}")
+        for i, ex in enumerate(entry.get("examples") or []):
+            prefix = "  Example: " if i == 0 else "           "
+            wrapped = textwrap.wrap(ex, width=max(20, 68 - len(prefix))) or [""]
+            print(f"{prefix}{wrapped[0]}")
+            for line in wrapped[1:]:
+                print(f"{' ' * len(prefix)}{line}")
+        return
     col = max(len(cmd) for cmd, _ in entry["entries"]) + 2
     for cmd, desc in entry["entries"]:
         print(f"  {cmd:<{col}}{desc}")

@@ -726,6 +726,7 @@ def run_console_display_check():
         print_line_command_queue_records,
         select_line_command_queue_action,
     )
+    from gritlib.line_help import print_line_command_help
     from gritlib.line_options import print_line_context_options
     from gritlib.line_services import (
         print_line_service_records,
@@ -1037,6 +1038,18 @@ def run_console_display_check():
             print(session_selected_text, file=sys.stderr)
             print(session_interaction_text, file=sys.stderr)
             print(session_options_text, file=sys.stderr)
+            return 1
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_command_help("files")
+        help_text = buf.getvalue()
+        if (
+                "  configure NAME --operator-host HOST --transport builtin\n" not in help_text
+                or "    guided trailer override flags" not in help_text
+                or "  configure NAME --operator-host HOST --transport builtin  guided" in help_text
+                or max(len(line) for line in help_text.splitlines()) > 72):
+            print("compact topic help did not avoid padded wide rows", file=sys.stderr)
+            print(help_text, file=sys.stderr)
             return 1
 
         os.environ["GRIT_CONSOLE_WIDTH"] = "80"
