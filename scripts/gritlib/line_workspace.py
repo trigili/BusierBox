@@ -2,6 +2,10 @@
 
 from gritlib.console_display import console_display_mode, console_table
 from gritlib.event_log import append_event
+from gritlib.line_command_registry import (
+    first_matching_line_command_record,
+    line_command_records,
+)
 from gritlib.target_filter_display import (
     target_filter_brief_text, target_filter_evidence_lines,
     target_filter_summary_text,
@@ -26,24 +30,15 @@ LINE_WORKSPACE_COMMANDS = (
 
 
 def line_workspace_command_records():
-    return [
-        {
-            "family": "workspace",
-            "action": rec["action"],
-            "commands": list(rec["commands"]),
-            "primary": rec["commands"][0],
-            "aliases": list(rec["commands"][1:]),
-        }
-        for rec in LINE_WORKSPACE_COMMANDS
-    ]
+    return line_command_records("workspace", LINE_WORKSPACE_COMMANDS)
 
 
 def parse_line_workspace_command(cmd, args=None):
     cmd = str(cmd or "").strip().lower()
-    for rec in line_workspace_command_records():
-        if cmd in rec["commands"]:
-            return {"action": rec["action"], "command": cmd}
-    return {}
+    rec = first_matching_line_command_record(cmd, line_workspace_command_records())
+    if not rec:
+        return {}
+    return {"action": rec["action"], "command": cmd}
 
 
 def dispatch_line_workspace_command(
