@@ -349,15 +349,13 @@ def line_command_queue_record_by_selector(commands, selector):
     if not text:
         return {}
     rows = list(commands or [])
-    if text.isdigit():
-        idx = int(text) - 1
-        if 0 <= idx < len(rows):
-            return rows[idx]
-        return {}
-    for rec in rows:
-        if text == str(rec.get("id") or ""):
-            return rec
-    return {}
+    selected = line_record_selection_result(
+        text,
+        rows,
+        label="command queue",
+        match_func=lambda rec, value: value == str(rec.get("id") or ""),
+    )
+    return selected.item if selected.selected else {}
 
 
 def print_line_command_result_record(rec):

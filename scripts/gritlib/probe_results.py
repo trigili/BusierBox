@@ -3,7 +3,7 @@
 from pathlib import Path
 
 from gritlib.console_display import console_table
-from gritlib.line_search import set_line_search_results
+from gritlib.line_search import line_record_selection_result, set_line_search_results
 from gritlib.session_state import atomic_write_json, read_json_file
 
 
@@ -81,10 +81,8 @@ def probe_result_by_ordinal(cfg, selector):
     if not text.isdigit() or int(text) <= 0:
         return {}
     results = probe_all_results(cfg)
-    idx = int(text) - 1
-    if idx < 0 or idx >= len(results):
-        return {}
-    return results[idx]
+    selected = line_record_selection_result(text, results, label="probe result")
+    return selected.item if selected.selected else {}
 
 
 def probe_effective_arch(rec):

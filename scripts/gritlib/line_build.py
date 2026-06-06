@@ -9,7 +9,7 @@ from gritlib.build_config import (
 )
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
-from gritlib.line_search import set_line_search_results
+from gritlib.line_search import line_record_selection_result, set_line_search_results
 from gritlib.shell_utils import shquote
 
 
@@ -186,15 +186,17 @@ def build_field_key_by_selector(cfg, selector):
     if not text:
         return ""
     fields = workbench_config_field_records(cfg)
-    if text.isdigit():
-        idx = int(text) - 1
-        if 0 <= idx < len(fields):
-            return str(fields[idx].get("key") or "")
-        raise ValueError(f"build config number out of range: {text}")
-    keys = {str(rec.get("key") or "") for rec in fields}
-    if text in keys:
-        return text
-    raise ValueError(f"unknown build config field: {text}")
+    selected = line_record_selection_result(
+        text,
+        fields,
+        label="build config",
+        match_func=lambda rec, value: value == str(rec.get("key") or ""),
+    )
+    if selected.selected:
+        return str(selected.item.get("key") or "")
+    if selected.reason == "not-found":
+        raise ValueError(f"unknown build config field: {text}")
+    raise ValueError(selected.message)
 
 
 def set_line_build_config(cfg, args):

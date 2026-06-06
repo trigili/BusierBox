@@ -4818,6 +4818,10 @@ def run_line_selection_result_check():
         line_record_selection_result,
         use_line_search_result,
     )
+    from gritlib.line_build import build_field_key_by_selector
+    from gritlib.line_command_queue import line_command_queue_record_by_selector
+    from gritlib.probe_results import probe_result_by_ordinal
+    from gritlib.staged_files import staged_record_for_configure
 
     if line_number_selection_result("abc", [{"kind": "target"}]).handled:
         print("line selection model consumed non-numeric input", file=sys.stderr)
@@ -4894,6 +4898,70 @@ def run_line_selection_result_check():
     ):
         print(f"line record selection model did not preserve domain not-found error: {record_not_found}", file=sys.stderr)
         return 1
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        cfg = {
+            "_build_config_path": str(tmp_path / "grit.conf"),
+            "operator_session_dir": str(tmp_path),
+        }
+        if build_field_key_by_selector(cfg, "1") != "GRIT_TARGET_PRESET":
+            print("build field selector did not use numbered record selection", file=sys.stderr)
+            return 1
+        if build_field_key_by_selector(cfg, "GRIT_COMMAND_QUEUE_ENABLE") != "GRIT_COMMAND_QUEUE_ENABLE":
+            print("build field selector did not preserve key selection", file=sys.stderr)
+            return 1
+        try:
+            build_field_key_by_selector(cfg, "missing")
+        except ValueError as exc:
+            if str(exc) != "unknown build config field: missing":
+                print(f"build field selector changed not-found message: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("build field selector accepted unknown key", file=sys.stderr)
+            return 1
+        (tmp_path / "staged-files.json").write_text(json.dumps({
+            "schema": 1,
+            "staged": {
+                "alpha": {"source_path": "/tmp/a"},
+                "beta": {"source_path": "/tmp/b"},
+            },
+        }), encoding="utf-8")
+        staged_name, staged_rec = staged_record_for_configure(cfg, "2")
+        if staged_name != "beta" or staged_rec.get("source_path") != "/tmp/b":
+            print("staged selector did not use numbered record selection", file=sys.stderr)
+            return 1
+        staged_name, staged_rec = staged_record_for_configure(cfg, "alpha")
+        if staged_name != "alpha" or staged_rec.get("source_path") != "/tmp/a":
+            print("staged selector did not preserve named selection", file=sys.stderr)
+            return 1
+        (tmp_path / "probe-results.json").write_text(json.dumps({
+            "schema": 1,
+            "results": [
+                {"remote_addr": "old"},
+                {"remote_addr": "new"},
+            ],
+        }), encoding="utf-8")
+        if probe_result_by_ordinal(cfg, "1").get("remote_addr") != "new":
+            print("probe selector did not use newest-first numbered selection", file=sys.stderr)
+            return 1
+        if probe_result_by_ordinal(cfg, "3"):
+            print("probe selector accepted out-of-range ordinal", file=sys.stderr)
+            return 1
+        queue_rec = line_command_queue_record_by_selector(
+            [{"id": "cmd-1"}, {"id": "cmd-2"}],
+            "2",
+        )
+        if queue_rec.get("id") != "cmd-2":
+            print("command queue selector did not use numbered record selection", file=sys.stderr)
+            return 1
+        queue_rec = line_command_queue_record_by_selector(
+            [{"id": "cmd-1"}, {"id": "cmd-2"}],
+            "cmd-1",
+        )
+        if queue_rec.get("id") != "cmd-1":
+            print("command queue selector did not preserve id selection", file=sys.stderr)
+            return 1
 
     calls = []
     cfg = {"_line_console_search_results": [{"kind": "target", "rec": {"target_id": "t1"}}]}

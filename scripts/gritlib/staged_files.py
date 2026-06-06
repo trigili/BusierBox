@@ -11,6 +11,7 @@ from gritlib.event_log import append_event
 from gritlib.file_fetch_commands import (
     print_staged_fetch_target_options, render_fetch_command,
 )
+from gritlib.line_search import line_record_selection_result
 from gritlib.operator_network import operator_advertised_host
 from gritlib.record_utils import (
     records_by_key,
@@ -121,15 +122,23 @@ def staged_record_for_configure(cfg, selector):
     if not text:
         return "", {}
     staged = load_staged(cfg).get("staged") or {}
-    if text in staged and isinstance(staged.get(text), dict):
-        return text, staged[text]
-    if text.isdigit():
-        names = sorted(str(item or "") for item in staged.keys() if str(item or ""))
-        idx = int(text) - 1
-        if 0 <= idx < len(names):
-            name = names[idx]
-            rec = staged.get(name) or {}
-            return name, rec if isinstance(rec, dict) else {}
+    records = [
+        {
+            "name": name,
+            "rec": staged.get(name) if isinstance(staged.get(name), dict) else {},
+        }
+        for name in sorted(str(item or "") for item in staged.keys() if str(item or ""))
+    ]
+    selected = line_record_selection_result(
+        text,
+        records,
+        label="staged file",
+        match_func=lambda rec, value: value == str(rec.get("name") or ""),
+    )
+    if selected.selected:
+        name = str(selected.item.get("name") or "")
+        rec = selected.item.get("rec") if isinstance(selected.item.get("rec"), dict) else {}
+        return name, rec
     return "", {}
 
 
