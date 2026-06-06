@@ -52,6 +52,19 @@ def kernel_floor(release):
     return ""
 
 
+def kernel_floor_matches(target_floor, artifact_floor):
+    target = str(target_floor or "").strip().lower()
+    artifact = str(artifact_floor or "").strip().lower()
+    if not target or not artifact or artifact == "host":
+        return True
+    if target == artifact:
+        return True
+    ranks = {"2.4": 24, "2.6": 26, "3.x": 30, "4.x": 40, "current": 90}
+    target_rank = ranks.get(target)
+    artifact_rank = ranks.get(artifact)
+    return target_rank is not None and artifact_rank is not None and target_rank >= artifact_rank
+
+
 def survey_filter_hints(path):
     data = load_json(pathlib.Path(path))
     recs = data.get("recommendations") if isinstance(data.get("recommendations"), dict) else {}
@@ -303,7 +316,7 @@ def matches(row, index, args):
         return False
     if args.libc and info.get("libc") != args.libc:
         return False
-    if args.kernel and info.get("kernel_floor") != args.kernel:
+    if args.kernel and not kernel_floor_matches(args.kernel, info.get("kernel_floor")):
         return False
     if args.cpu and info.get("cpu") != args.cpu:
         return False

@@ -672,6 +672,59 @@ assert doc["filters_by_name_source"]["arch:survey"]["value"] == "mipsel"
 assert doc["selected"]["survey_compatibility"]["target_runtime_libc"] == "musl"
 assert doc["selected"]["release_name"] == "one"
 PY
+python3 - "$tmp/repo-index.json" "$tmp/kernel-floor-index.json" <<'PY'
+import copy
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+rows = [
+    copy.deepcopy(row)
+    for row in doc["artifacts"]
+    if row.get("payload_preset") == "survey-core"
+]
+if not rows:
+    raise SystemExit("missing survey-core artifact row")
+row = rows[0]
+old_tuple = row["tuple_path"]
+new_tuple = old_tuple.replace("/4.x/", "/3.x/")
+row["tuple_path"] = new_tuple
+row["tuple_artifact"] = row["tuple_artifact"].replace("/4.x/", "/3.x/")
+row["tuple"]["kernel_floor"] = "3.x"
+row["tuple"]["path"] = new_tuple
+components = row["tuple"].setdefault("path_components", {})
+components.update({
+    "arch": "mipsel",
+    "libc": "musl",
+    "kernel_floor": "3.x",
+    "discriminator": "mips32r2-24kc",
+})
+row["artifact_requirements"] = {
+    "linkage": "static",
+    "toolchain_libc": "musl",
+    "minimum_kernel": "3.x",
+}
+doc["artifacts"] = [row]
+doc["tuples"] = {
+    new_tuple: [{
+        "release_dir": row.get("release_dir"),
+        "tuple": row["tuple"],
+        "artifacts": [row["tuple_artifact"]],
+    }]
+}
+doc["devices"] = {}
+json.dump(doc, open(sys.argv[2], "w", encoding="utf-8"))
+PY
+scripts/lib/find-artifact --index "$tmp/kernel-floor-index.json" --survey-json "$tmp/glinet-survey.json" --payload-preset survey-core --recommendation-json >"$tmp/recommend-kernel-floor-json.out"
+python3 - "$tmp/recommend-kernel-floor-json.out" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+assert doc["filters"]["kernel"] == "4.x"
+assert doc["selected"]["tuple"]["kernel_floor"] == "3.x"
+assert doc["selected"]["survey_compatibility"]["compatible"] is True
+PY
 cat >"$tmp/glibc-survey.json" <<'JSON'
 {
   "schema": 2,

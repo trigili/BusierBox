@@ -243,18 +243,10 @@ def release_kernel_floor_matches(probe_kernel_floor, tuple_kernel):
         return True
     if probe_floor == tuple_kernel:
         return True
-    if probe_floor == "current":
-        return tuple_kernel in {"current", "4.x"}
-    if probe_floor.endswith(".x"):
-        try:
-            probe_major = int(probe_floor.split(".", 1)[0])
-            tuple_major = int(tuple_kernel.split(".", 1)[0])
-        except (TypeError, ValueError):
-            return False
-        if probe_major >= 4:
-            return tuple_kernel in {"current", "4.x"}
-        return probe_major == tuple_major
-    return False
+    ranks = {"2.4": 24, "2.6": 26, "3.x": 30, "4.x": 40, "current": 90}
+    probe_rank = ranks.get(probe_floor)
+    tuple_rank = ranks.get(tuple_kernel)
+    return probe_rank is not None and tuple_rank is not None and probe_rank >= tuple_rank
 
 
 def release_tuple_for_record(release, record):

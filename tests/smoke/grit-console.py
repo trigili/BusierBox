@@ -6493,6 +6493,22 @@ def run_release_status_context_check():
         if release_artifact_matches_probe(compat_release, static_artifact, "armv7", "3.x"):
             print("release artifact compatibility accepted mismatched kernel floor", file=sys.stderr)
             return 1
+        floor_3_artifact = dict(static_artifact)
+        floor_3_artifact["tuple_path"] = "armv7-linux-3.x-musl"
+        floor_3_release = {
+            "tuples_by_path": {
+                "armv7-linux-3.x-musl": {
+                    "tuple": {
+                        "arch": "armv7",
+                        "kernel_floor": "3.x",
+                        "libc": "musl",
+                    },
+                },
+            },
+        }
+        if not release_artifact_matches_probe(floor_3_release, floor_3_artifact, "armv7", "4.x"):
+            print("release artifact compatibility rejected older minimum kernel floor", file=sys.stderr)
+            return 1
 
         artifact_rel = "bin/grit-smoke"
         (release_dir / "bin" / "grit-smoke").write_text("artifact", encoding="utf-8")
