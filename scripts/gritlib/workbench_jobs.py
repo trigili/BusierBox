@@ -11,7 +11,7 @@ from pathlib import Path
 from gritlib.console_display import console_table, print_dry_run_notice
 from gritlib.event_log import append_event
 from gritlib.line_context import set_line_collection_context
-from gritlib.line_search import set_line_search_results
+from gritlib.line_search import line_record_selection_result, set_line_search_results
 from gritlib.process_status import pid_alive, pid_environ_contains
 from gritlib.record_utils import format_counts, record_count_by_key, record_sum_by_key, records_by_key
 from gritlib.session_state import (
@@ -252,28 +252,28 @@ def print_line_workbench_job_records(records, verbose=False, command_builder=Non
 
 
 def workbench_job_record_by_selector(records, selector):
-    text = str(selector or "").strip()
-    if not text:
-        return {}
-    records = list(records or [])
-    if text.isdigit():
-        idx = int(text) - 1
-        if 0 <= idx < len(records):
-            return records[idx]
-    for rec in records:
-        if str(rec.get("id") or "") == text:
-            return rec
-    return {}
+    selection = line_record_selection_result(
+        selector,
+        records,
+        label="job",
+        match_func=lambda rec, text: str(rec.get("id") or "") == text,
+    )
+    return selection.item if selection.selected else {}
 
 
 def require_workbench_job_record(records, selector):
     text = str(selector or "").strip()
-    rec = workbench_job_record_by_selector(records, text)
-    if not rec and text.isdigit():
-        raise ValueError(f"job number out of range: {text}")
-    if not rec:
-        raise ValueError(f"unknown workbench job: {text}")
-    return rec
+    selection = line_record_selection_result(
+        text,
+        records,
+        label="job",
+        match_func=lambda rec, value: str(rec.get("id") or "") == value,
+    )
+    if not selection.selected:
+        if selection.reason == "not-found":
+            raise ValueError(f"unknown workbench job: {text}")
+        raise ValueError(selection.message)
+    return selection.item
 
 
 def line_job_record(snapshot, selector):

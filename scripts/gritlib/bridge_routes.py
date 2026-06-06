@@ -10,7 +10,7 @@ from gritlib.line_command_registry import (
     matching_line_command_records,
     line_command_records,
 )
-from gritlib.line_search import set_line_search_results
+from gritlib.line_search import line_record_selection_result, set_line_search_results
 from gritlib.operator_network import target_visible_host
 from gritlib.record_utils import int_value, record_count_by_key, records_by_key
 from gritlib.session_state import atomic_write_json, read_json_file, state_file_path, utc_now
@@ -688,19 +688,13 @@ def bridge_route_search_records(records, command_builder=None, quote=shquote):
 
 
 def bridge_profile_record_by_selector(records, selector):
-    text = str(selector or "").strip()
-    if not text:
-        return {}
-    rows = list(records or [])
-    if text.isdigit():
-        idx = int(text) - 1
-        if 0 <= idx < len(rows):
-            return rows[idx]
-        return {}
-    for rec in rows:
-        if str(rec.get("name") or "") == text:
-            return rec
-    return {}
+    selection = line_record_selection_result(
+        selector,
+        records,
+        label="route",
+        match_func=lambda rec, text: str(rec.get("name") or "") == text,
+    )
+    return selection.item if selection.selected else {}
 
 
 def line_route_record(records, selector):
@@ -709,12 +703,15 @@ def line_route_record(records, selector):
 
 def require_line_route_record(records, selector):
     text = str(selector or "").strip()
-    rec = line_route_record(records, text)
-    if not rec and text.isdigit():
-        raise ValueError(f"route number out of range: {text}")
-    if not rec:
-        raise ValueError(f"route not found: {text}")
-    return rec
+    selection = line_record_selection_result(
+        text,
+        records,
+        label="route",
+        match_func=lambda rec, value: str(rec.get("name") or "") == value,
+    )
+    if not selection.selected:
+        raise ValueError(selection.message)
+    return selection.item
 
 
 def print_line_routes(

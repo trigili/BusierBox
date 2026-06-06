@@ -9,7 +9,7 @@ from gritlib.line_command_registry import (
     matching_line_command_records,
     line_command_records,
 )
-from gritlib.line_search import set_line_search_results
+from gritlib.line_search import line_record_selection_result, set_line_search_results
 from gritlib.shell_utils import shquote
 from gritlib.session_state import read_json_file
 
@@ -187,29 +187,32 @@ def line_session_time_text(iso):
 
 
 def line_session_record_by_selector(sessions, selector):
-    text = str(selector or "").strip()
-    if not text:
-        return {}
-    sessions = list(sessions or [])
-    if text.isdigit():
-        idx = int(text) - 1
-        if 0 <= idx < len(sessions):
-            return sessions[idx]
-    for item in sessions:
-        session_id = str(item.get("session_id") or Path(str(item.get("path", ""))).name)
-        if text == session_id or text == str(item.get("path", "")):
-            return item
-    return {}
+    selection = line_record_selection_result(
+        selector,
+        sessions,
+        label="session",
+        match_func=lambda rec, text: text in (
+            str(rec.get("session_id") or Path(str(rec.get("path", ""))).name),
+            str(rec.get("path", "")),
+        ),
+    )
+    return selection.item if selection.selected else {}
 
 
 def require_line_session_record(sessions, selector):
     text = str(selector or "").strip()
-    selected = line_session_record_by_selector(sessions, text)
-    if not selected and text.isdigit():
-        raise ValueError(f"session number out of range: {text}")
-    if not selected:
-        raise ValueError(f"session not found: {text}")
-    return selected
+    selection = line_record_selection_result(
+        text,
+        sessions,
+        label="session",
+        match_func=lambda rec, value: value in (
+            str(rec.get("session_id") or Path(str(rec.get("path", ""))).name),
+            str(rec.get("path", "")),
+        ),
+    )
+    if not selection.selected:
+        raise ValueError(selection.message)
+    return selection.item
 
 
 def current_line_session_record(snapshot_func, selector):
