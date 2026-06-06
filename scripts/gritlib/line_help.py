@@ -399,7 +399,7 @@ LINE_COMMAND_HELP_TOPICS = {
         "entries": [
             ("jobs", "list managed background jobs"),
             ("job ID|NUMBER", "inspect a background job"),
-            ("jobs -i ID|NUMBER", "verbose job inspection"),
+            ("info", "inside a selected job: show job details"),
             ("cancel ID|NUMBER", "inside jobs: prompt before cancelling a background job"),
             ("use job ID|NUMBER", "select a job context"),
             ("run -j, run --job", "start selected action module as a background job"),

@@ -9961,7 +9961,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "cancel supported:" not in job_info_text or
             not job_help_text or
             "Help: jobs" not in job_help_text or
+            "info" not in job_help_text or
             "cancel ID|NUMBER" not in job_help_text or
+            "jobs -i ID" in job_help_text or
             "jobs -k ID" in job_help_text or
             "Console help topics:" in job_help_text or
             "job=" in job_info_text or
