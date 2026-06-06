@@ -2,6 +2,7 @@
 
 import gritlib.file_service_workflow_actions as file_service_workflow_actions_module
 import gritlib.file_transfers as file_transfers
+import gritlib.target_file_transfer_records as target_file_transfer_records_module
 import gritlib.target_activity_feed as target_activity_feed
 import gritlib.target_records as target_records
 
@@ -96,7 +97,7 @@ def _build_file_transfer_status_context(staged_records, uploads, fetches):
     file_transfer_context = file_transfers.file_transfer_status_context(
         uploads, fetches
     )
-    target_file_transfer_context = file_transfers.target_file_transfer_status_context(
+    target_file_transfer_context = target_file_transfer_records_module.target_file_transfer_status_context(
         staged_records,
         uploads,
         fetches,

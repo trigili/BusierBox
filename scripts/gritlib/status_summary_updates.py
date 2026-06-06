@@ -8,6 +8,7 @@ from gritlib.release_artifact_workflow_actions import (
 )
 from gritlib.session_records import session_record_summary
 import gritlib.service_status as service_status
+import gritlib.target_file_transfer_records as target_file_transfer_records_module
 from gritlib.target_commands import target_command_status_summary
 
 
@@ -125,7 +126,7 @@ def _build_service_file_summary_updates(
         **warning_summary_context["summary"],
         **file_transfers.upload_record_summary(uploads, target_attribution),
         **file_transfers.fetch_record_summary(fetches, target_attribution),
-        **file_transfers.target_file_transfer_record_summary(
+        **target_file_transfer_records_module.target_file_transfer_record_summary(
             target_file_transfer_records
         ),
         **file_service_workflow_context["summary"],
