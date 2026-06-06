@@ -239,7 +239,10 @@ def print_line_workbench_job_records(records, verbose=False, command_builder=Non
     return [
         {
             "kind": "job",
-            "label": f"{rec.get('id','')} action={rec.get('action_id','')} state={rec.get('effective_state','')}",
+            "label": (
+                f"{rec.get('id','')} action {rec.get('action_id','') or '-'}  "
+                f"state {rec.get('effective_state','') or rec.get('state', '') or '-'}"
+            ),
             "rec": rec,
             "command": command_builder(str(rec.get("id") or "")),
             "use_hint": f"use job {quote(str(rec.get('id', '')))}",

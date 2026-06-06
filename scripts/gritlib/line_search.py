@@ -173,7 +173,7 @@ def _line_search_matches(
     for rec in snap.get("workbench_jobs") or []:
         add(
             "job",
-            f"{rec.get('id', '')} action: {rec.get('action_id', '') or '-'} state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}",
+            f"{rec.get('id', '')}  action {rec.get('action_id', '') or '-'}  state {rec.get('effective_state', '') or rec.get('state', '') or '-'}",
             rec,
             job_cancel_command_builder(str(rec.get("id") or "")),
         )

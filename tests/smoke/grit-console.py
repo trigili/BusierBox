@@ -748,6 +748,7 @@ def run_console_display_check():
         line_repl_status_bar,
         print_line_console_banner,
     )
+    from gritlib.workbench_jobs import print_line_workbench_job_records
 
     old_override = os.environ.get("GRIT_CONSOLE_WIDTH")
     records = [{
@@ -1155,6 +1156,28 @@ def run_console_display_check():
             print(session_interaction_text, file=sys.stderr)
             print(session_records_text, file=sys.stderr)
             print(session_options_text, file=sys.stderr)
+            return 1
+        job_records = [{
+            "id": "line-console-job",
+            "action_id": "package-artifact",
+            "effective_state": "running",
+            "state": "running",
+            "pid_managed": True,
+            "cancel_supported": True,
+        }]
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            job_search_records = print_line_workbench_job_records(job_records)
+        jobs_text = buf.getvalue()
+        if (
+                "Jobs  (1 total)" not in jobs_text
+                or not job_search_records
+                or "action package-artifact  state running" not in job_search_records[0].get("label", "")
+                or "action=" in job_search_records[0].get("label", "")
+                or "state=" in job_search_records[0].get("label", "")):
+            print("job list output exposed raw search fields", file=sys.stderr)
+            print(jobs_text, file=sys.stderr)
+            print(job_search_records, file=sys.stderr)
             return 1
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -9512,9 +9535,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     service_search_end = line_console_stdout.find("grit[all]/listener> workspace", service_search_start + 1)
     service_search_text = line_console_stdout[service_search_start:service_search_end] if service_search_start != -1 and service_search_end != -1 else ""
     if (not job_search_text or
-            "job line-console-job action: package-artifact state: running" not in job_search_text or
+            "job line-console-job  action package-artifact  state running" not in job_search_text or
             "command: use job line-console-job" not in job_search_text or
             "action=package-artifact" in job_search_text or
+            "action: package-artifact" in job_search_text or
             "command: scripts/grit-console" in job_search_text or
             not target_search_text or
             "target line-console-target (Console Router)  state online" not in target_search_text or
