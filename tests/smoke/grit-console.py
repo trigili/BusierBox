@@ -6335,7 +6335,11 @@ def run_release_status_context_check():
     scripts_dir = str(ROOT / "scripts")
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
-    from gritlib.release_artifacts import release_status_context
+    from gritlib.release_artifacts import (
+        release_artifact_matches_probe,
+        release_artifact_probe_compatibility,
+        release_status_context,
+    )
 
     with tempfile.TemporaryDirectory() as tmpdir:
         release_dir = Path(tmpdir)
@@ -6433,6 +6437,52 @@ def run_release_status_context_check():
             or summary.get("release_recommendation_compatibility_counts", {}).get("native") != 1
         ):
             print("release status context did not preserve summary", file=sys.stderr)
+            return 1
+
+        compat_release = {
+            "tuples_by_path": {
+                "armv7-linux-4.x-musl": {
+                    "tuple": {
+                        "arch": "armv7",
+                        "kernel_floor": "4.x",
+                        "libc": "musl",
+                    },
+                },
+            },
+        }
+        static_artifact = {
+            "tuple_path": "armv7-linux-4.x-musl",
+            "payload_preset": "survey-core",
+            "linkage": "static",
+            "toolchain_libc": "musl",
+        }
+        static_verdict = release_artifact_probe_compatibility(
+            compat_release,
+            static_artifact,
+            "armv7",
+            "4.x",
+            probe_facts={"target_runtime_libc": "glibc"},
+        )
+        if static_verdict.get("compatible") is not True:
+            print(f"static artifact compatibility was blocked by target libc: {static_verdict}", file=sys.stderr)
+            return 1
+        dynamic_artifact = dict(static_artifact)
+        dynamic_artifact["linkage"] = "dynamic"
+        dynamic_verdict = release_artifact_probe_compatibility(
+            compat_release,
+            dynamic_artifact,
+            "armv7",
+            "4.x",
+            probe_facts={"target_runtime_libc": "glibc"},
+        )
+        if dynamic_verdict.get("compatible") is not False:
+            print(f"dynamic artifact compatibility did not block libc mismatch: {dynamic_verdict}", file=sys.stderr)
+            return 1
+        if release_artifact_matches_probe(compat_release, static_artifact, "mipsel", "4.x"):
+            print("release artifact compatibility accepted mismatched arch", file=sys.stderr)
+            return 1
+        if release_artifact_matches_probe(compat_release, static_artifact, "armv7", "3.x"):
+            print("release artifact compatibility accepted mismatched kernel floor", file=sys.stderr)
             return 1
     return 0
 

@@ -236,43 +236,11 @@ def normalized_probe_arch(arch, endian=""):
     return arch
 
 
-def release_tuple_for_record(release, record):
-    tuple_path = str(record.get("tuple_path") or "")
-    if not tuple_path and str(record.get("scope") or "") in {"by_tuple_path", "by_tuple_payload_preset"}:
-        tuple_path = str(record.get("key") or "").split(":", 1)[0]
-    if not tuple_path:
-        artifact = str(record.get("artifact") or "")
-        artifact_rec = (release.get("artifacts_by_release_path") or {}).get(artifact) or {}
-        tuple_path = str(artifact_rec.get("tuple_path") or "")
-    return (release.get("tuples_by_path") or {}).get(tuple_path) or {}
-
-
-def release_record_matches_probe(release, record, probe_arch, probe_kernel_floor):
-    tuple_rec = release_tuple_for_record(release, record)
-    tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
-    tuple_arch = normalized_probe_arch(tuple_info.get("arch") or "")
-    tuple_kernel = str(tuple_info.get("kernel_floor") or "").strip().lower()
-    if probe_arch and tuple_arch and probe_arch != tuple_arch:
-        return False
-    if probe_kernel_floor and tuple_kernel and tuple_kernel not in {"host", "current"}:
-        if tuple_kernel != probe_kernel_floor:
-            return False
-    return True
-
-
-def release_artifact_matches_probe(release, artifact, probe_arch, probe_kernel_floor):
-    tuple_path = str(artifact.get("tuple_path") or "")
-    tuple_rec = (release.get("tuples_by_path") or {}).get(tuple_path) or {}
-    tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
-    tuple_arch = normalized_probe_arch(tuple_info.get("arch") or "")
-    tuple_kernel = str(tuple_info.get("kernel_floor") or "").strip().lower()
-    if not tuple_path or not artifact.get("payload_preset"):
-        return False
-    if probe_arch and tuple_arch and probe_arch != tuple_arch:
-        return False
-    if not probe_kernel_floor or not tuple_kernel or tuple_kernel in {"host"}:
-        return True
+def release_kernel_floor_matches(probe_kernel_floor, tuple_kernel):
     probe_floor = str(probe_kernel_floor or "").strip().lower()
+    tuple_kernel = str(tuple_kernel or "").strip().lower()
+    if not probe_floor or not tuple_kernel or tuple_kernel in {"host"}:
+        return True
     if probe_floor == tuple_kernel:
         return True
     if probe_floor == "current":
@@ -287,6 +255,113 @@ def release_artifact_matches_probe(release, artifact, probe_arch, probe_kernel_f
             return tuple_kernel in {"current", "4.x"}
         return probe_major == tuple_major
     return False
+
+
+def release_tuple_for_record(release, record):
+    tuple_path = str(record.get("tuple_path") or "")
+    if not tuple_path and str(record.get("scope") or "") in {"by_tuple_path", "by_tuple_payload_preset"}:
+        tuple_path = str(record.get("key") or "").split(":", 1)[0]
+    if not tuple_path:
+        artifact = str(record.get("artifact") or "")
+        artifact_rec = (release.get("artifacts_by_release_path") or {}).get(artifact) or {}
+        tuple_path = str(artifact_rec.get("tuple_path") or "")
+    return (release.get("tuples_by_path") or {}).get(tuple_path) or {}
+
+
+def release_tuple_probe_compatibility(tuple_info, probe_arch, probe_kernel_floor):
+    tuple_info = tuple_info if isinstance(tuple_info, dict) else {}
+    tuple_arch = normalized_probe_arch(tuple_info.get("arch") or "")
+    tuple_kernel = str(tuple_info.get("kernel_floor") or "").strip().lower()
+    reasons = []
+    if probe_arch and tuple_arch and probe_arch != tuple_arch:
+        reasons.append(f"arch mismatch: target={probe_arch} artifact={tuple_arch}")
+    if not release_kernel_floor_matches(probe_kernel_floor, tuple_kernel):
+        reasons.append(f"kernel floor mismatch: target={probe_kernel_floor} artifact={tuple_kernel}")
+    return {
+        "compatible": not reasons,
+        "label": "compatible" if not reasons else "incompatible",
+        "reasons": reasons,
+        "target_arch": probe_arch or "",
+        "artifact_arch": tuple_arch,
+        "target_kernel_floor": probe_kernel_floor or "",
+        "artifact_kernel_floor": tuple_kernel,
+    }
+
+
+def _artifact_requirement_value(artifact, key):
+    requirements = artifact.get("artifact_requirements")
+    if not isinstance(requirements, dict):
+        requirements = artifact.get("requirements") if isinstance(artifact.get("requirements"), dict) else {}
+    return artifact.get(key) or requirements.get(key)
+
+
+def release_artifact_probe_compatibility(
+    release,
+    artifact,
+    probe_arch,
+    probe_kernel_floor,
+    probe_facts=None,
+):
+    release = release or {}
+    artifact = artifact if isinstance(artifact, dict) else {}
+    probe_facts = probe_facts if isinstance(probe_facts, dict) else {}
+    tuple_path = str(artifact.get("tuple_path") or "")
+    tuple_rec = (release.get("tuples_by_path") or {}).get(tuple_path) or {}
+    tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
+    reasons = []
+    if not tuple_path:
+        reasons.append("missing tuple path")
+    if not artifact.get("payload_preset"):
+        reasons.append("missing payload preset")
+    tuple_verdict = release_tuple_probe_compatibility(tuple_info, probe_arch, probe_kernel_floor)
+    reasons.extend(tuple_verdict.get("reasons") or [])
+
+    linkage = str(_artifact_requirement_value(artifact, "linkage") or "").strip().lower()
+    toolchain_libc = str(
+        _artifact_requirement_value(artifact, "toolchain_libc") or tuple_info.get("libc") or ""
+    ).strip().lower()
+    target_runtime_libc = str(
+        probe_facts.get("target_runtime_libc") or probe_facts.get("libc") or ""
+    ).strip().lower()
+    if linkage in {"dynamic", "mixed"} and toolchain_libc and target_runtime_libc:
+        if toolchain_libc != target_runtime_libc:
+            reasons.append(
+                "libc mismatch for dynamic artifact: "
+                f"target={target_runtime_libc} artifact={toolchain_libc}"
+            )
+    return {
+        "compatible": not reasons,
+        "label": "compatible" if not reasons else "incompatible",
+        "reasons": reasons,
+        "linkage": linkage or "unknown",
+        "target_runtime_libc": target_runtime_libc,
+        "toolchain_libc": toolchain_libc,
+        "tuple_path": tuple_path,
+        "target_arch": tuple_verdict.get("target_arch", ""),
+        "artifact_arch": tuple_verdict.get("artifact_arch", ""),
+        "target_kernel_floor": tuple_verdict.get("target_kernel_floor", ""),
+        "artifact_kernel_floor": tuple_verdict.get("artifact_kernel_floor", ""),
+    }
+
+
+def release_record_matches_probe(release, record, probe_arch, probe_kernel_floor):
+    tuple_rec = release_tuple_for_record(release, record)
+    tuple_info = tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
+    return release_tuple_probe_compatibility(
+        tuple_info,
+        probe_arch,
+        probe_kernel_floor,
+    ).get("compatible") is True
+
+
+def release_artifact_matches_probe(release, artifact, probe_arch, probe_kernel_floor, probe_facts=None):
+    return release_artifact_probe_compatibility(
+        release,
+        artifact,
+        probe_arch,
+        probe_kernel_floor,
+        probe_facts=probe_facts,
+    ).get("compatible") is True
 
 
 def _release_license_notice_state(release_dir):
