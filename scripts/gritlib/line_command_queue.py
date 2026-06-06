@@ -27,6 +27,12 @@ def line_command_queue_humanize(text):
     return str(text or "").replace("_", "-").replace("-", " ").strip().capitalize()
 
 
+def line_command_queue_limit_text(label, value, unit=""):
+    text = str(value if value not in (None, "") else "-")
+    suffix = f" {unit}" if unit and text != "-" else ""
+    return f"{label} {text}{suffix}"
+
+
 def dispatch_legacy_line_queue_number(choice, *, view_func=None):
     if str(choice or "").strip() != "20":
         return False
@@ -206,7 +212,7 @@ def _print_line_command_queue_summary(queue_summary, mailbox_records, command_re
     print(f"Command queue  ({'  '.join(status_bits)})")
     policy_errors = queue_summary.get("policy_errors") or []
     if policy_errors:
-        print(f"  policy: invalid  errors={len(policy_errors)}")
+        print(f"  policy: invalid  ({len(policy_errors)} errors)")
     elif queue_summary.get("policy_valid"):
         print("  policy: valid")
     else:
@@ -223,9 +229,9 @@ def _print_line_command_queue_summary(queue_summary, mailbox_records, command_re
     if limits:
         print(
             "  limits: "
-            f"timeout={limits.get('timeout_sec', '-') or '-'} "
-            f"max_output={limits.get('max_output_bytes', '-') or '-'} "
-            f"expire={limits.get('expire_sec', '-') or '-'}"
+            f"{line_command_queue_limit_text('timeout', limits.get('timeout_sec'), 'sec')}  "
+            f"{line_command_queue_limit_text('max output', limits.get('max_output_bytes'), 'bytes')}  "
+            f"{line_command_queue_limit_text('expire', limits.get('expire_sec'), 'sec')}"
         )
 
 

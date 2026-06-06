@@ -1029,6 +1029,27 @@ def run_console_display_check():
         with contextlib.redirect_stdout(buf):
             print_line_command_queue_records(queue_summary, mailbox_records, queue_actions)
         queue_text = buf.getvalue()
+        detailed_queue_summary = dict(queue_summary)
+        detailed_queue_summary.update({
+            "policy_errors": ["missing token"],
+            "execution_mode": "metadata-only",
+            "delivery_supported": True,
+            "result_upload_supported": True,
+            "command_limits": {
+                "timeout_sec": 30,
+                "max_output_bytes": 4096,
+                "expire_sec": 120,
+            },
+        })
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            print_line_command_queue_records(
+                detailed_queue_summary,
+                mailbox_records,
+                queue_actions,
+                detailed=True,
+            )
+        queue_detail_text = buf.getvalue()
         cfg = {}
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
@@ -1038,9 +1059,16 @@ def run_console_display_check():
                 "Command queue  (enabled no  queued 1  results 0  pending 1)" not in queue_text
                 or "mailbox pending" in queue_text
                 or "  actions: confirm required 1 | confirm 1" not in queue_text
-                or "next: queue COMMAND | list | clear | back" not in queue_select_text):
+                or "next: queue COMMAND | list | clear | back" not in queue_select_text
+                or "policy: invalid  (1 errors)" not in queue_detail_text
+                or "limits: timeout 30 sec  max output 4096 bytes  expire 120 sec" not in queue_detail_text
+                or "errors=" in queue_detail_text
+                or "timeout=" in queue_detail_text
+                or "max_output=" in queue_detail_text
+                or "expire=" in queue_detail_text):
             print("queue compact output did not stay concise", file=sys.stderr)
             print(queue_text, file=sys.stderr)
+            print(queue_detail_text, file=sys.stderr)
             print(queue_select_text, file=sys.stderr)
             return 1
         session_rec = {
