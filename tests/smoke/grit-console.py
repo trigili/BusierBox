@@ -9452,6 +9452,7 @@ def main(argv=None):
     service_status_src = (ROOT / "scripts" / "gritlib" / "service_status.py").read_text()
     status_indexes_src = (ROOT / "scripts" / "gritlib" / "status_indexes.py").read_text()
     ssh_keys_src = (ROOT / "scripts" / "gritlib" / "ssh_keys.py").read_text()
+    target_filter_display_src = (ROOT / "scripts" / "gritlib" / "target_filter_display.py").read_text()
     target_records_src = (ROOT / "scripts" / "gritlib" / "target_records.py").read_text()
     tls_io_src = (ROOT / "scripts" / "gritlib" / "tls_io.py").read_text()
     workbench_jobs_src = (ROOT / "scripts" / "gritlib" / "workbench_jobs.py").read_text()
@@ -9481,6 +9482,7 @@ def main(argv=None):
         service_runtime_src,
         service_status_src,
         status_indexes_src,
+        target_filter_display_src,
         target_records_src,
         workbench_jobs_src,
         workflow_actions_src,

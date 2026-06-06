@@ -3,9 +3,12 @@
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
 from gritlib.record_utils import format_counts
+from gritlib.target_filter_display import (
+    target_filter_brief_text, target_filter_evidence_lines,
+    target_filter_summary_text,
+)
 from gritlib.target_records import (
     configured_target_filter,
-    target_filter_brief_text, target_filter_evidence_lines, target_filter_summary_text,
     target_context_fields,
 )
 
