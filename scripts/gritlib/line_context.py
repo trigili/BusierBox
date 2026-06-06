@@ -3,7 +3,8 @@
 from dataclasses import dataclass
 
 from gritlib.event_log import append_event
-from gritlib.target_records import configured_target_filter, set_workbench_target_filter
+from gritlib.target_context import configured_target_filter
+from gritlib.target_selection import set_workbench_target_filter
 
 
 @dataclass(frozen=True)

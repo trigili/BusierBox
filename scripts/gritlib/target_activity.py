@@ -4,16 +4,21 @@ import time
 
 from gritlib.command_queue import load_command_queue
 from gritlib.config_utils import DEFAULT_CONFIG
+from gritlib.event_log import event_for_target
 from gritlib.session_state import parse_utc_timestamp, utc_now
 from gritlib.shell_utils import shquote
 import gritlib.target_activity_display as target_activity_display
 import gritlib.target_activity_feed as target_activity_feed
 import gritlib.target_mailbox as target_mailbox
 import gritlib.target_phone_home as target_phone_home
+from gritlib.target_context import (
+    configured_target_filter, details_with_target, selected_target_context,
+)
 from gritlib.target_records import (
-    configured_target_filter, details_with_target, event_for_target,
-    print_workbench_target_selector, record_target_activity,
-    select_workbench_target_record, selected_target_context,
+    record_target_activity,
+)
+from gritlib.target_selection import (
+    print_workbench_target_selector, select_workbench_target_record,
 )
 
 

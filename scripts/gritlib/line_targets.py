@@ -5,11 +5,11 @@ from pathlib import Path
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
 from gritlib.line_search import set_line_search_results
+from gritlib.target_context import configured_target_filter
 from gritlib.target_records import (
-    configured_target_filter,
-    set_workbench_target_filter,
     target_filter_brief_text,
 )
+from gritlib.target_selection import set_workbench_target_filter
 
 
 LINE_TARGET_COMMANDS = (

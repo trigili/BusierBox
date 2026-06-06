@@ -12,9 +12,7 @@ from gritlib.line_search import dispatch_line_number_selection
 from gritlib.line_services import dispatch_legacy_line_service_number
 from gritlib.line_target_commands import dispatch_legacy_copy_choice
 from gritlib.probe_commands import dispatch_legacy_probe_number
-from gritlib.target_records import (
-    dispatch_legacy_target_filter_number,
-)
+from gritlib.target_selection import dispatch_legacy_target_filter_number
 from gritlib.target_activity import (
     dispatch_legacy_target_activity_number,
     dispatch_legacy_target_detail_number,
