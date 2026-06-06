@@ -2,6 +2,7 @@
 
 import gritlib.bridge_routes as bridge_routes
 import gritlib.command_queue as command_queue_module
+import gritlib.command_queue_policy as command_queue_policy_module
 from gritlib.build_config import workbench_config_status_context
 from gritlib.event_log import event_log_status_context, event_status_summary
 from gritlib.release_artifacts import (
@@ -258,7 +259,7 @@ def _build_bridge_profile_status_context(cfg, targets):
 
 def _build_command_queue_status_context(cfg):
     queue_summary = command_queue_module.command_queue_summary(cfg)
-    command_queue_policy = command_queue_module.command_queue_policy_status(
+    command_queue_policy = command_queue_policy_module.command_queue_policy_status(
         queue_summary
     )
     return {
