@@ -1,0 +1,329 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+ARTIFACT_ROOT=${ARTIFACT_ROOT:-"$ROOT/tests/artifacts/release-qemu-penguin"}
+RELEASE_MATRIX=${RELEASE_MATRIX:-"$ROOT/tests/matrix/release-full.json"}
+PENGUIN_PROJECT_ROOT=${PENGUIN_PROJECT_ROOT:-"$ROOT/local/testing/rehost/projects"}
+PENGUIN_RUNNER=${PENGUIN_RUNNER:-"$ROOT/local/testing/penguin/penguin"}
+PENGUIN_LIMIT=${PENGUIN_LIMIT:-6}
+PENGUIN_TIMEOUT=${PENGUIN_TIMEOUT:-45}
+RELEASE_JOBS=${RELEASE_JOBS:-1}
+RUN_FULL_RELEASE=${GRIT_RELEASE_QEMU_PENGUIN_BUILD:-0}
+RUN_PENGUIN=${GRIT_RELEASE_QEMU_PENGUIN_RUN:-0}
+
+cd "$ROOT"
+
+usage() {
+    cat <<'EOF'
+usage: tests/integration/release-qemu-penguin [--help]
+
+Plan, and optionally run, a full-release-to-Penguin/QEMU integration check.
+
+Default mode is non-destructive and fast:
+  - validates the full release matrix with scripts/make-release --dry-run
+  - discovers real Penguin projects under local/testing/rehost/projects
+  - maps project architecture/kernel facts to release tuple filters
+  - emits a JSON plan under tests/artifacts/release-qemu-penguin
+
+Opt-in heavy mode:
+  GRIT_RELEASE_QEMU_PENGUIN_BUILD=1 builds and extracts a full release.
+  GRIT_RELEASE_QEMU_PENGUIN_RUN=1 also runs selected Penguin projects with
+  the release-selected griTTYkit artifact injected as /tmp/grit.
+
+Useful knobs:
+  PENGUIN_LIMIT=3
+  PENGUIN_TIMEOUT=60
+  RELEASE_JOBS=4
+  PENGUIN_PROJECT_ROOT=local/testing/rehost/projects
+EOF
+}
+
+case "${1:-}" in
+    --help|-h)
+        usage
+        exit 0
+        ;;
+    "")
+        ;;
+    *)
+        usage >&2
+        exit 2
+        ;;
+esac
+
+mkdir -p "$ARTIFACT_ROOT"
+plan_json="$ARTIFACT_ROOT/plan.json"
+summary_txt="$ARTIFACT_ROOT/summary.txt"
+release_dry_run="$ARTIFACT_ROOT/release-dry-run.txt"
+
+if ! command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' "SKIP release-qemu-penguin: python3 unavailable"
+    exit 0
+fi
+
+scripts/make-release --name penguin-qemu-plan --matrix "$RELEASE_MATRIX" --dry-run >"$release_dry_run"
+
+if [ ! -d "$PENGUIN_PROJECT_ROOT" ]; then
+    printf '%s\n' "SKIP release-qemu-penguin: missing $PENGUIN_PROJECT_ROOT"
+    exit 0
+fi
+
+release_root=
+if [ "$RUN_FULL_RELEASE" = "1" ]; then
+    release_dir="$ARTIFACT_ROOT/release"
+    rm -rf "$release_dir" "$release_dir.tar.gz" "$ARTIFACT_ROOT/extracted"
+    scripts/make-release \
+        --name penguin-qemu \
+        --matrix "$RELEASE_MATRIX" \
+        --strict \
+        --jobs "$RELEASE_JOBS" \
+        --out-dir "$release_dir" \
+        >"$ARTIFACT_ROOT/make-release.log" 2>&1
+    mkdir -p "$ARTIFACT_ROOT/extracted"
+    tar -xzf "$release_dir.tar.gz" -C "$ARTIFACT_ROOT/extracted"
+    release_root="$ARTIFACT_ROOT/extracted/$(basename "$release_dir")"
+fi
+
+python3 - "$PENGUIN_PROJECT_ROOT" "$release_dry_run" "$plan_json" "$PENGUIN_LIMIT" "$release_root" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+project_root = Path(sys.argv[1])
+release_dry_run = Path(sys.argv[2])
+plan_path = Path(sys.argv[3])
+limit = int(sys.argv[4])
+release_root = sys.argv[5]
+
+
+def read_scalar(path):
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    lines = [line.strip() for line in text.splitlines() if line.strip() and line.strip() != "..."]
+    return lines[0] if lines else ""
+
+
+def yaml_value(path, key):
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return ""
+    pattern = re.compile(r"^\s*" + re.escape(key) + r"\s*:\s*['\"]?([^'\"\n#]+)", re.MULTILINE)
+    match = pattern.search(text)
+    return match.group(1).strip() if match else ""
+
+
+def kernel_floor(value):
+    text = str(value or "").strip().strip("'\"")
+    if not text:
+        return ""
+    major = text.split(".", 1)[0]
+    if major.isdigit():
+        number = int(major)
+        if number <= 2:
+            return "2.6" if text.startswith("2.6") else "2.4"
+        if number == 3:
+            return "3.x"
+        if number == 4:
+            return "4.x"
+        return "current"
+    return ""
+
+
+def arch_filter(penguin_arch):
+    return {
+        "mipseb": {"arch": "mips", "endian": "big"},
+        "mipsel": {"arch": "mipsel", "endian": "little"},
+        "armel": {"arch": "armv7", "endian": "little"},
+        "aarch64": {"arch": "aarch64", "endian": "little"},
+    }.get(penguin_arch, {"arch": penguin_arch, "endian": ""})
+
+
+jobs = []
+for line in release_dry_run.read_text(encoding="utf-8").splitlines():
+    if not line.startswith("would build "):
+        continue
+    fields = {}
+    for item in line[len("would build "):].split():
+        if "=" in item:
+            key, value = item.split("=", 1)
+            fields[key] = value
+    if fields:
+        jobs.append(fields)
+
+projects = []
+for config in sorted(project_root.glob("*/config.yaml")):
+    project = config.parent
+    arch = read_scalar(project / "static" / "ArchId.yaml")
+    kernel = yaml_value(project / "static" / "KernelVersionFinder.yaml", "selected_kernel")
+    filters = arch_filter(arch)
+    filters["kernel"] = kernel_floor(kernel)
+    projects.append({
+        "name": project.name,
+        "project_dir": str(project),
+        "config": str(config),
+        "fs": str(project / "base" / "fs.tar.gz"),
+        "arch_id": arch,
+        "selected_kernel": kernel,
+        "release_filters": filters,
+        "has_base_fs": (project / "base" / "fs.tar.gz").is_file(),
+    })
+
+selected = projects[:limit]
+doc = {
+    "schema": 1,
+    "kind": "release-qemu-penguin-plan",
+    "release_matrix": str(Path("tests/matrix/release-full.json")),
+    "release_dry_run": str(release_dry_run),
+    "release_root": release_root,
+    "release_job_count": len(jobs),
+    "release_targets": sorted({job.get("target", "") for job in jobs if job.get("target")}),
+    "release_payload_presets": sorted({job.get("payload", "") for job in jobs if job.get("payload")}),
+    "penguin_project_root": str(project_root),
+    "penguin_project_count": len(projects),
+    "selected_project_count": len(selected),
+    "selected_projects": selected,
+}
+plan_path.write_text(json.dumps(doc, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+PY
+
+python3 - "$plan_json" <<'PY'
+import json
+import sys
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+if doc.get("release_job_count", 0) < 1:
+    raise SystemExit("release dry-run produced no jobs")
+if doc.get("penguin_project_count", 0) < 1:
+    raise SystemExit("no Penguin projects discovered")
+if not doc.get("selected_projects"):
+    raise SystemExit("no Penguin projects selected")
+missing = [item["name"] for item in doc["selected_projects"] if not item.get("has_base_fs")]
+if missing:
+    raise SystemExit("selected Penguin projects lack base fs: " + ", ".join(missing))
+for item in doc["selected_projects"]:
+    filters = item.get("release_filters") or {}
+    if not filters.get("arch"):
+        raise SystemExit("selected Penguin project lacks arch filter: " + item.get("name", ""))
+print("release-qemu-penguin plan ok")
+PY
+
+if [ "$RUN_FULL_RELEASE" != "1" ]; then
+    {
+        printf '%s\n' "PLAN release dry-run only"
+        printf '%s\n' "PLAN full release build skipped; set GRIT_RELEASE_QEMU_PENGUIN_BUILD=1"
+        printf '%s\n' "PLAN Penguin run skipped; set GRIT_RELEASE_QEMU_PENGUIN_RUN=1 after building"
+    } | tee "$summary_txt"
+    exit 0
+fi
+
+if [ ! -d "$release_root" ]; then
+    printf '%s\n' "release-qemu-penguin: extracted release root missing: $release_root" >&2
+    exit 1
+fi
+
+python3 - "$plan_json" "$release_root" "$ARTIFACT_ROOT/selected-artifacts.json" <<'PY'
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+plan = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+release_root = Path(sys.argv[2])
+out_path = Path(sys.argv[3])
+records = []
+for project in plan["selected_projects"]:
+    filters = project["release_filters"]
+    cmd = [str(release_root / "scripts" / "lib" / "release-find")]
+    for key, flag in (("arch", "--arch"), ("kernel", "--kernel")):
+        if filters.get(key):
+            cmd.extend([flag, filters[key]])
+    cmd.extend(["--payload-preset", "survey-core", "--json"])
+    proc = subprocess.run(cmd, cwd=release_root, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+    record = {"project": project, "command": cmd, "returncode": proc.returncode}
+    if proc.returncode == 0:
+        selected = json.loads(proc.stdout)
+        record["selected"] = selected
+        record["artifact_path"] = str(release_root / (selected.get("tuple_artifact") or selected.get("artifact") or ""))
+    else:
+        record["stderr"] = proc.stderr
+    records.append(record)
+out_path.write_text(json.dumps({"schema": 1, "records": records}, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+failed = [rec["project"]["name"] for rec in records if rec["returncode"] != 0]
+if failed:
+    raise SystemExit("release artifact selection failed for: " + ", ".join(failed))
+PY
+
+if [ "$RUN_PENGUIN" != "1" ]; then
+    {
+        printf '%s\n' "PASS full release built and extracted"
+        printf '%s\n' "PASS release artifacts selected for Penguin projects"
+        printf '%s\n' "SKIP Penguin/QEMU execution; set GRIT_RELEASE_QEMU_PENGUIN_RUN=1"
+    } | tee "$summary_txt"
+    exit 0
+fi
+
+if [ ! -x "$PENGUIN_RUNNER" ]; then
+    printf '%s\n' "release-qemu-penguin: missing executable Penguin runner: $PENGUIN_RUNNER" >&2
+    exit 1
+fi
+if ! command -v docker >/dev/null 2>&1; then
+    printf '%s\n' "release-qemu-penguin: docker unavailable for Penguin runner" >&2
+    exit 1
+fi
+
+python3 - "$ARTIFACT_ROOT/selected-artifacts.json" "$ARTIFACT_ROOT/penguin-projects" <<'PY'
+import json
+import os
+import shutil
+import sys
+from pathlib import Path
+
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+out_root = Path(sys.argv[2])
+shutil.rmtree(out_root, ignore_errors=True)
+out_root.mkdir(parents=True, exist_ok=True)
+for rec in doc["records"]:
+    project = Path(rec["project"]["project_dir"])
+    dest = out_root / project.name
+    dest.mkdir()
+    for child in project.iterdir():
+        target = dest / child.name
+        if child.name == "config.yaml":
+            continue
+        os.symlink(child.resolve(), target)
+    config_text = (project / "config.yaml").read_text(encoding="utf-8")
+    config_text = config_text.replace("static_files: {}", "static_files:\n  /tmp/grit:\n    type: host_file\n    host_path: ./grit\n    mode: 73")
+    (dest / "config.yaml").write_text(config_text, encoding="utf-8")
+    shutil.copy2(rec["artifact_path"], dest / "grit")
+PY
+
+: >"$summary_txt"
+project_list="$ARTIFACT_ROOT/selected-projects.txt"
+python3 - "$plan_json" >"$project_list" <<'PY'
+import json
+import sys
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+for item in doc["selected_projects"]:
+    print(item["name"])
+PY
+while IFS= read -r name; do
+    project="$ARTIFACT_ROOT/penguin-projects/$name"
+    output="$ARTIFACT_ROOT/penguin-results/$name"
+    mkdir -p "$(dirname "$output")"
+    printf '%s\n' "penguin: $name"
+    if "$PENGUIN_RUNNER" run "$project" --output "$output" --force --timeout "$PENGUIN_TIMEOUT" --auto >"$ARTIFACT_ROOT/$name.penguin.log" 2>&1; then
+        printf '%s\n' "PASS $name" >>"$summary_txt"
+    else
+        printf '%s\n' "FAIL $name" >>"$summary_txt"
+    fi
+done <"$project_list"
+
+cat "$summary_txt"
+if grep -q '^FAIL ' "$summary_txt"; then
+    exit 1
+fi
