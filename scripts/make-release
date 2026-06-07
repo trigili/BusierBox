@@ -1757,7 +1757,12 @@ def copy_bundle_support(release_dir, include_sources_manifest=True):
     (script_dir / "config-from-survey").chmod(0o755)
     shutil.copy2(ROOT / "scripts" / "grit-console", script_dir / "grit-console")
     (script_dir / "grit-console").chmod(0o755)
-    shutil.copytree(ROOT / "scripts" / "gritlib", script_dir / "gritlib", dirs_exist_ok=True)
+    shutil.copytree(
+        ROOT / "scripts" / "gritlib",
+        script_dir / "gritlib",
+        dirs_exist_ok=True,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
+    )
     write_release_helpers(script_dir)
     for name in ("release-index", "release-find", "release-self-test"):
         shutil.copy2(script_dir / name, script_lib_dir / name)
@@ -1997,7 +2002,7 @@ def release_editor_temp_file(rel):
 
 
 def make_tarball(release_dir):
-    tar_path = release_dir.with_suffix(".tar.gz")
+    tar_path = release_dir.parent / f"{release_dir.name}.tar.gz"
     root_name = release_dir.name
 
     def tar_filter(member):

@@ -391,6 +391,8 @@ for forbidden in (
     if forbidden in checksum:
         raise SystemExit(f"editor temp file included in checksum manifest: {forbidden}")
 tar_path = mod.make_tarball(release_dir)
+if tar_path.name != release_dir.name + ".tar.gz":
+    raise SystemExit(f"unexpected tarball name for release dir: {tar_path.name}")
 with tarfile.open(tar_path, "r:gz") as tf:
     names = set(tf.getnames())
 root = release_dir.name
@@ -402,6 +404,15 @@ for forbidden in (
     name = f"{root}/{forbidden}"
     if name in names:
         raise SystemExit(f"editor temp file included in release tarball: {name}")
+dotted_dir = release_dir.parent / "full-0.3-test"
+if dotted_dir.exists():
+    import shutil
+    shutil.rmtree(dotted_dir)
+dotted_dir.mkdir()
+(dotted_dir / "README.txt").write_text("dotted release name\n", encoding="utf-8")
+dotted_tar = mod.make_tarball(dotted_dir)
+if dotted_tar.name != "full-0.3-test.tar.gz":
+    raise SystemExit(f"dotted release tarball name drifted: {dotted_tar.name}")
 PY
 grep -q 'scripts/grit-console --transport tls-shell' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'GPL-2.0-or-later' "$work/release/LICENSE.grit"
