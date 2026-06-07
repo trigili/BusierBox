@@ -15,6 +15,12 @@ records, `status_counts`, and lookup maps for reports and dashboards.
 The system runner mirrors the same text and JSON summary files under
 `tests/artifacts/qemu-system/`.
 
+`tests/integration/qemu-penguin-image` launches a locally supplied Penguin
+project as a QEMU-backed image and injects griTTYkit as `/tmp/grit`. The
+repository tracks only the harness; users provide legal Penguin fixtures outside
+git. See `tests/fixtures/penguin/README.md` for the fixture contract and setup
+commands.
+
 `tests/smoke/qemu-matrix.sh` is the cheap metadata gate for the QEMU layer. It validates that the committed qemu-user matrix keeps host, x86, ARM, AArch64, little-endian MIPS, big-endian MIPS, musl, uClibc, and old/current kernel-floor coverage, and that the qemu-system example matrix keeps representative disabled environments with boot metadata plus architecture, libc, endian, and kernel-floor coverage.
 
 `make test-all` runs the local smoke and QEMU layers. Real-device testing is

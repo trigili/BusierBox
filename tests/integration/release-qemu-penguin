@@ -325,8 +325,19 @@ for rec in doc["records"]:
             shutil.copytree(child, target)
         else:
             shutil.copy2(child, target)
+    init_dir = dest / "init.d"
+    init_dir.mkdir(exist_ok=True)
+    (init_dir / "zz_grittykit_tmp").write_text(
+        "#!/igloo/utils/sh\n"
+        "set -eu\n"
+        "/igloo/utils/busybox mkdir -p /tmp\n"
+        "/igloo/utils/busybox cp /igloo/grit /tmp/grit\n"
+        "/igloo/utils/busybox chmod 755 /tmp/grit\n"
+        "[ -x /tmp/grit ] && echo '[grittykit] /tmp/grit ready'\n",
+        encoding="utf-8",
+    )
     config_text = (project / "config.yaml").read_text(encoding="utf-8")
-    config_text = config_text.replace("static_files: {}", "static_files:\n  /tmp/grit:\n    type: host_file\n    host_path: ./grit\n    mode: 73")
+    config_text = config_text.replace("static_files: {}", "static_files:\n  /igloo/grit:\n    type: host_file\n    host_path: ./grit\n    mode: 493")
     (dest / "config.yaml").write_text(config_text, encoding="utf-8")
     shutil.copy2(rec["artifact_path"], dest / "grit")
 PY

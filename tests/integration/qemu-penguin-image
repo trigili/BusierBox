@@ -1,0 +1,235 @@
+#!/bin/sh
+set -eu
+
+ROOT=$(cd "$(dirname "$0")/../.." && pwd)
+PENGUIN_RUNNER=${PENGUIN_RUNNER:-"$ROOT/local/testing/penguin/penguin"}
+PENGUIN_PROJECT_ROOT=${PENGUIN_PROJECT_ROOT:-"$ROOT/local/testing/rehost/projects"}
+PROJECT=${PENGUIN_PROJECT:-archer-a7-us-v5-211022}
+ARTIFACT_ROOT=${ARTIFACT_ROOT:-"$ROOT/tests/artifacts/qemu-penguin-image"}
+GRIT_ARTIFACT=${GRIT_ARTIFACT:-}
+TIMEOUT=${PENGUIN_TIMEOUT:-}
+AUTO=0
+VERBOSE=0
+FORCE=1
+BUILD_DEFAULT_GRIT=1
+
+usage() {
+    cat <<'EOF'
+usage: tests/integration/qemu-penguin-image [options]
+
+Launch a real Penguin-backed QEMU image with a griTTYkit artifact injected as
+/tmp/grit. By default this starts Penguin in interactive mode so you can use
+the guest shell. Pass --auto for a bounded smoke-style run.
+
+Options:
+  --project NAME|PATH    Penguin project name or directory
+                         default: archer-a7-us-v5-211022
+  --grit PATH            griTTYkit artifact to inject as /tmp/grit
+                         default: build/select a mips 4.x survey-core release
+  --artifact-root DIR    generated project and run outputs
+  --timeout SECONDS      Penguin timeout; omitted means manual kill
+  --auto                 run Penguin without telnet shell
+  --verbose              pass --verbose to Penguin
+  --no-build             require --grit or GRIT_ARTIFACT instead of building
+  --no-force             do not delete an existing output directory
+  --help                 show this help
+
+Examples:
+  tests/integration/qemu-penguin-image
+  tests/integration/qemu-penguin-image --auto --timeout 90
+  tests/integration/qemu-penguin-image --grit dist/grit-mips-linux-4.x-uclibc-survey-core-full
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+    case "$1" in
+        --project)
+            PROJECT=${2:?--project requires a value}
+            shift 2
+            ;;
+        --grit)
+            GRIT_ARTIFACT=${2:?--grit requires a value}
+            BUILD_DEFAULT_GRIT=0
+            shift 2
+            ;;
+        --artifact-root)
+            ARTIFACT_ROOT=${2:?--artifact-root requires a value}
+            shift 2
+            ;;
+        --timeout)
+            TIMEOUT=${2:?--timeout requires a value}
+            shift 2
+            ;;
+        --auto)
+            AUTO=1
+            shift
+            ;;
+        --verbose)
+            VERBOSE=1
+            shift
+            ;;
+        --no-build)
+            BUILD_DEFAULT_GRIT=0
+            shift
+            ;;
+        --no-force)
+            FORCE=0
+            shift
+            ;;
+        --help|-h)
+            usage
+            exit 0
+            ;;
+        *)
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
+
+cd "$ROOT"
+
+if [ ! -x "$PENGUIN_RUNNER" ]; then
+    printf '%s\n' "qemu-penguin-image: missing executable Penguin runner: $PENGUIN_RUNNER" >&2
+    exit 1
+fi
+if ! command -v docker >/dev/null 2>&1; then
+    printf '%s\n' "qemu-penguin-image: docker is required for Penguin" >&2
+    exit 1
+fi
+if ! command -v python3 >/dev/null 2>&1; then
+    printf '%s\n' "qemu-penguin-image: python3 is required" >&2
+    exit 1
+fi
+
+case "$PROJECT" in
+    /*|.*/*|*/*)
+        project_dir=$PROJECT
+        ;;
+    *)
+        project_dir=$PENGUIN_PROJECT_ROOT/$PROJECT
+        ;;
+esac
+project_dir=$(cd "$project_dir" && pwd)
+project_name=$(basename "$project_dir")
+
+if [ ! -f "$project_dir/config.yaml" ]; then
+    printf '%s\n' "qemu-penguin-image: missing project config: $project_dir/config.yaml" >&2
+    exit 1
+fi
+if [ ! -f "$project_dir/base/fs.tar.gz" ]; then
+    printf '%s\n' "qemu-penguin-image: missing project rootfs: $project_dir/base/fs.tar.gz" >&2
+    exit 1
+fi
+
+mkdir -p "$ARTIFACT_ROOT"
+
+if [ -z "$GRIT_ARTIFACT" ] && [ "$BUILD_DEFAULT_GRIT" = "1" ]; then
+    release_artifacts=$ARTIFACT_ROOT/release-artifacts
+    GRIT_RELEASE_QEMU_PENGUIN_BUILD=1 \
+    PENGUIN_LIMIT=1 \
+    RELEASE_TARGETS=mips-linux-4.x-uclibc \
+    RELEASE_PAYLOAD_PRESETS=survey-core \
+    RELEASE_FORMATS=tgz \
+    ARTIFACT_ROOT="$release_artifacts" \
+        "$ROOT/tests/integration/release-qemu-penguin" >/dev/null
+    GRIT_ARTIFACT=$(python3 - "$release_artifacts/selected-artifacts.json" <<'PY'
+import json
+import sys
+doc = json.load(open(sys.argv[1], "r", encoding="utf-8"))
+records = doc.get("records") or []
+if not records:
+    raise SystemExit("no selected release artifact")
+print(records[0]["artifact_path"])
+PY
+)
+fi
+
+if [ -z "$GRIT_ARTIFACT" ]; then
+    printf '%s\n' "qemu-penguin-image: pass --grit PATH or omit --no-build" >&2
+    exit 1
+fi
+case "$GRIT_ARTIFACT" in
+    /*) ;;
+    *) GRIT_ARTIFACT=$ROOT/$GRIT_ARTIFACT ;;
+esac
+if [ ! -f "$GRIT_ARTIFACT" ]; then
+    printf '%s\n' "qemu-penguin-image: missing grit artifact: $GRIT_ARTIFACT" >&2
+    exit 1
+fi
+
+generated=$ARTIFACT_ROOT/project-$project_name
+run_id=$(date +%Y%m%d-%H%M%S)-$$
+output=$ARTIFACT_ROOT/results-$project_name-$run_id
+rm -rf "$generated"
+mkdir -p "$generated"
+
+python3 - "$project_dir" "$generated" "$GRIT_ARTIFACT" <<'PY'
+import shutil
+import sys
+from pathlib import Path
+
+src = Path(sys.argv[1])
+dest = Path(sys.argv[2])
+grit = Path(sys.argv[3])
+
+for child in src.iterdir():
+    target = dest / child.name
+    if child.name == "config.yaml":
+        continue
+    if child.is_dir():
+        shutil.copytree(child, target)
+    else:
+        shutil.copy2(child, target)
+
+init_dir = dest / "init.d"
+init_dir.mkdir(exist_ok=True)
+(init_dir / "zz_grittykit_tmp").write_text(
+    "#!/igloo/utils/sh\n"
+    "set -eu\n"
+    "/igloo/utils/busybox mkdir -p /tmp\n"
+    "/igloo/utils/busybox cp /igloo/grit /tmp/grit\n"
+    "/igloo/utils/busybox chmod 755 /tmp/grit\n"
+    "[ -x /tmp/grit ] && echo '[grittykit] /tmp/grit ready'\n",
+    encoding="utf-8",
+)
+
+config = (src / "config.yaml").read_text(encoding="utf-8")
+injected = (
+    "static_files:\n"
+    "  /igloo/grit:\n"
+    "    type: host_file\n"
+    "    host_path: ./grit\n"
+    "    mode: 493\n"
+)
+if "static_files: {}" in config:
+    config = config.replace("static_files: {}", injected.rstrip(), 1)
+elif "static_files:\n" in config:
+    config = config.replace("static_files:\n", injected, 1)
+else:
+    config = config.rstrip() + "\n" + injected
+(dest / "config.yaml").write_text(config, encoding="utf-8")
+shutil.copy2(grit, dest / "grit")
+PY
+
+set -- run "$generated" --output "$output"
+if [ "$FORCE" = "1" ]; then
+    set -- "$@" --force
+fi
+if [ -n "$TIMEOUT" ]; then
+    set -- "$@" --timeout "$TIMEOUT"
+fi
+if [ "$AUTO" = "1" ]; then
+    set -- "$@" --auto
+fi
+if [ "$VERBOSE" = "1" ]; then
+    set -- "$@" --verbose
+fi
+
+printf '%s\n' "Penguin project: $generated"
+printf '%s\n' "Injected grit:   $GRIT_ARTIFACT"
+printf '%s\n' "Output dir:      $output"
+printf '%s\n' "Guest path:      /tmp/grit"
+printf '%s\n' "Command:         $PENGUIN_RUNNER $*"
+
+exec "$PENGUIN_RUNNER" "$@"
