@@ -9,6 +9,9 @@ PENGUIN_RUNNER=${PENGUIN_RUNNER:-"$ROOT/local/testing/penguin/penguin"}
 PENGUIN_LIMIT=${PENGUIN_LIMIT:-6}
 PENGUIN_TIMEOUT=${PENGUIN_TIMEOUT:-45}
 RELEASE_JOBS=${RELEASE_JOBS:-1}
+RELEASE_TARGETS=${RELEASE_TARGETS:-}
+RELEASE_PAYLOAD_PRESETS=${RELEASE_PAYLOAD_PRESETS:-}
+RELEASE_FORMATS=${RELEASE_FORMATS:-}
 RUN_FULL_RELEASE=${GRIT_RELEASE_QEMU_PENGUIN_BUILD:-0}
 RUN_PENGUIN=${GRIT_RELEASE_QEMU_PENGUIN_RUN:-0}
 
@@ -35,6 +38,9 @@ Useful knobs:
   PENGUIN_LIMIT=3
   PENGUIN_TIMEOUT=60
   RELEASE_JOBS=4
+  RELEASE_TARGETS=mips-linux-4.x-uclibc
+  RELEASE_PAYLOAD_PRESETS=survey-core
+  RELEASE_FORMATS=tgz
   PENGUIN_PROJECT_ROOT=local/testing/rehost/projects
 EOF
 }
@@ -62,7 +68,17 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 0
 fi
 
-scripts/make-release --name penguin-qemu-plan --matrix "$RELEASE_MATRIX" --dry-run >"$release_dry_run"
+set -- --name penguin-qemu-plan --matrix "$RELEASE_MATRIX" --dry-run
+if [ -n "$RELEASE_TARGETS" ]; then
+    set -- "$@" --targets "$RELEASE_TARGETS"
+fi
+if [ -n "$RELEASE_PAYLOAD_PRESETS" ]; then
+    set -- "$@" --payload-presets "$RELEASE_PAYLOAD_PRESETS"
+fi
+if [ -n "$RELEASE_FORMATS" ]; then
+    set -- "$@" --formats "$RELEASE_FORMATS"
+fi
+scripts/make-release "$@" >"$release_dry_run"
 
 if [ ! -d "$PENGUIN_PROJECT_ROOT" ]; then
     printf '%s\n' "SKIP release-qemu-penguin: missing $PENGUIN_PROJECT_ROOT"
@@ -73,12 +89,23 @@ release_root=
 if [ "$RUN_FULL_RELEASE" = "1" ]; then
     release_dir="$ARTIFACT_ROOT/release"
     rm -rf "$release_dir" "$release_dir.tar.gz" "$ARTIFACT_ROOT/extracted"
-    scripts/make-release \
+    set -- \
         --name penguin-qemu \
         --matrix "$RELEASE_MATRIX" \
         --strict \
         --jobs "$RELEASE_JOBS" \
-        --out-dir "$release_dir" \
+        --out-dir "$release_dir"
+    if [ -n "$RELEASE_TARGETS" ]; then
+        set -- "$@" --targets "$RELEASE_TARGETS"
+    fi
+    if [ -n "$RELEASE_PAYLOAD_PRESETS" ]; then
+        set -- "$@" --payload-presets "$RELEASE_PAYLOAD_PRESETS"
+    fi
+    if [ -n "$RELEASE_FORMATS" ]; then
+        set -- "$@" --formats "$RELEASE_FORMATS"
+    fi
+    scripts/make-release \
+        "$@" \
         >"$ARTIFACT_ROOT/make-release.log" 2>&1
     mkdir -p "$ARTIFACT_ROOT/extracted"
     tar -xzf "$release_dir.tar.gz" -C "$ARTIFACT_ROOT/extracted"
@@ -278,7 +305,6 @@ fi
 
 python3 - "$ARTIFACT_ROOT/selected-artifacts.json" "$ARTIFACT_ROOT/penguin-projects" <<'PY'
 import json
-import os
 import shutil
 import sys
 from pathlib import Path
@@ -295,7 +321,10 @@ for rec in doc["records"]:
         target = dest / child.name
         if child.name == "config.yaml":
             continue
-        os.symlink(child.resolve(), target)
+        if child.is_dir():
+            shutil.copytree(child, target)
+        else:
+            shutil.copy2(child, target)
     config_text = (project / "config.yaml").read_text(encoding="utf-8")
     config_text = config_text.replace("static_files: {}", "static_files:\n  /tmp/grit:\n    type: host_file\n    host_path: ./grit\n    mode: 73")
     (dest / "config.yaml").write_text(config_text, encoding="utf-8")

@@ -5,10 +5,12 @@ ROOT=$(cd "$(dirname "$0")/../.." && pwd)
 
 grep -q 'GRIT_RELEASE_QEMU_PENGUIN_BUILD=1' "$ROOT/tests/integration/release-qemu-penguin"
 grep -q 'GRIT_RELEASE_QEMU_PENGUIN_RUN=1' "$ROOT/tests/integration/release-qemu-penguin"
-grep -q 'scripts/make-release --name penguin-qemu-plan --matrix' "$ROOT/tests/integration/release-qemu-penguin"
+grep -q 'penguin-qemu-plan' "$ROOT/tests/integration/release-qemu-penguin"
 grep -q 'release-find' "$ROOT/tests/integration/release-qemu-penguin"
 grep -q 'ArchId.yaml' "$ROOT/tests/integration/release-qemu-penguin"
 grep -q 'KernelVersionFinder.yaml' "$ROOT/tests/integration/release-qemu-penguin"
+grep -q 'RELEASE_TARGETS=' "$ROOT/tests/integration/release-qemu-penguin"
+grep -q 'RELEASE_PAYLOAD_PRESETS=' "$ROOT/tests/integration/release-qemu-penguin"
 grep -q '^test-release-qemu-penguin:' "$ROOT/Makefile"
 
 if ! command -v python3 >/dev/null 2>&1; then
