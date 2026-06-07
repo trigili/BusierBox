@@ -171,6 +171,7 @@ unit-test-qemu: test-qemu-user test-qemu-system test-qemu-flaky-network
 unit-test-all: unit-test-console unit-test-qemu
 
 smoke-test:
+	@tests/smoke/root-grit-console.sh
 	@GRIT_CONFIG=presets/payload/default.conf GRIT_BUSYBOX_GROUPS="shell fileops disk process network text system" $(MAKE) package-native
 	@tests/smoke/native-artifact-verification.sh dist/grit-native-full
 	@tests/smoke/artifact-tiers.sh

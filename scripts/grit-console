@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""griTTYkit operator console compatibility wrapper."""
+"""griTTYkit operator console and service supervisor compatibility wrapper.
+
+Includes staged file delivery and routes bringup/artifact subcommands through
+the consolidated console application.
+"""
 
 import sys
 from pathlib import Path

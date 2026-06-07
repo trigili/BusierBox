@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""Root-level griTTYkit operator console entry point."""
+
+import sys
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parent
+SCRIPT_DIR = ROOT / "scripts"
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from gritlib.console_app import main
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

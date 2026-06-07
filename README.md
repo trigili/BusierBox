@@ -629,6 +629,7 @@ same runtime root to a full extraction. `./grit clean` removes `./.grit`.
 ## Layout
 
 ```text
+grit-console          root-level operator console entry point; run with python3 grit-console
 src/                  griTTYkit supervisor C source
 third_party/busybox/  BusyBox git submodule
 buildroot/            Buildroot integration (external tree, configs)
@@ -638,7 +639,7 @@ targets/              target presets
 configs/              active build config
 manifests/            source pins, license policy
 scripts/              operator tools and build helpers
-  grit-console         operator console and reverse-access server
+  grit-console         compatibility path for the operator console and reverse-access server
   grit-console bringup guided first-contact and survey loop
   config-from-survey  generate build config from survey JSON
   preset-from-survey  generate reusable target preset from survey JSON
