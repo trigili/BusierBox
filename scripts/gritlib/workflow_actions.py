@@ -314,7 +314,7 @@ def parse_line_daemon_action_args(args):
     verbose = False
     filtered = []
     for item in values:
-        if item == "--dry-run":
+        if item in {"--dry-run", "dry-run"}:
             dry_run = True
         elif item in ("--confirm", "confirm", "yes"):
             confirmed = True
@@ -432,7 +432,7 @@ def print_line_daemon_action_records(records, verbose=False):
     console_table(
         f"Daemon actions  ({len(records)} total)" if records else "Daemon actions  (none)",
         records, cols, detail_fn=_detail,
-        footer="daemon ACTION  |  daemon ACTION --dry-run  |  daemon -v for commands  |  daemon ? for help",
+        footer="daemon ACTION  |  daemon ACTION dry-run  |  daemon verbose for commands  |  daemon ? for help",
     )
 
 

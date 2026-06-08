@@ -22,14 +22,14 @@ def parse_line_binary_args(args):
     values = []
     for item in args:
         lower = item.lower()
-        if lower in {"--start", "--start-service"}:
+        if lower in {"--start", "--start-service", "start", "start-service"}:
             start_file_service = True
-        elif lower in {"--no-start", "--no-start-service"}:
+        elif lower in {"--no-start", "--no-start-service", "no-start", "no-start-service"}:
             no_start = True
         else:
             values.append(item)
     if start_file_service and no_start:
-        raise ValueError("usage: serve-binary [--start|--no-start] [PATH] [NAME]")
+        raise ValueError("usage: serve-binary [start|no-start] [PATH] [NAME]")
     if values:
         selector = values[0]
     if len(values) >= 3 and values[1].lower() == "as":
@@ -151,11 +151,11 @@ def _line_binary_run_hint(rec):
 
 
 def _print_line_binary_staged(rec, fetch_command, run_hint):
-    print("griTTYkit binary staged for target fetch:")
+    print("griTTYkit binary staged for target delivery:")
     print(f"  name: {rec.get('request_name', '')}")
     print(f"  source: {rec.get('source_path', '')}")
     print(f"  sha256: {str(rec.get('sha256', ''))[:16]}...")
-    print(f"  target fetch: {fetch_command}")
+    print(f"  target command: {fetch_command}")
     print(f"  run hint: {run_hint}")
 
 

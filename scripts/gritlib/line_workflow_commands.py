@@ -1,7 +1,11 @@
 """Grouped line-console workflow, file, queue, and job dispatch."""
 
 from gritlib.line_command_queue import dispatch_line_queue_command, parse_line_queue_command
-from gritlib.line_configure import dispatch_line_configure_command, parse_line_configure_command
+from gritlib.line_configure import (
+    dispatch_line_configure_command,
+    parse_line_artifact_command,
+    parse_line_configure_command,
+)
 from gritlib.line_files import (
     dispatch_line_binary_command,
     dispatch_line_download_command,
@@ -154,6 +158,19 @@ def _dispatch_line_configure_family(cmd, args, callbacks):
     return True
 
 
+def _dispatch_line_artifact_family(cmd, args, callbacks):
+    artifact_cmd = parse_line_artifact_command(cmd, args)
+    if not artifact_cmd:
+        return False
+    set_context_func = callbacks.get("set_context_func")
+    dispatch_line_configure_command(
+        artifact_cmd,
+        configure_func=callbacks.get("configure_func"),
+        set_context_func=lambda: set_context_func("artifact") if set_context_func else None,
+    )
+    return True
+
+
 def dispatch_line_workflow_command(
     cmd,
     args,
@@ -190,6 +207,7 @@ def dispatch_line_workflow_command(
         _dispatch_line_queue_family,
         _dispatch_line_jobs_family,
         _dispatch_line_binary_family,
+        _dispatch_line_artifact_family,
         _dispatch_line_configure_family,
     ):
         if dispatch_func(cmd, args, callbacks):

@@ -121,7 +121,7 @@ def select_line_command_queue_action(cfg, records, selector, append_event_fn=app
     label = line_command_queue_action_text(selected)
     suffix = f"  |  {', '.join(flags)}" if flags else ""
     print(f"  queue: {label}  -  {state}{suffix}")
-    print("  queue COMMAND  |  queue list  |  queue clear --confirm  |  back")
+    print("  queue COMMAND  |  queue list  |  queue clear confirm  |  back")
     append_event_fn(cfg, "workbench", "workbench_command_queue_action_selected", details={
         "id": rec_id,
         "action_id": action_id,
@@ -228,7 +228,7 @@ def _print_line_queued_command_records(command_records):
     console_table(
         f"Queued commands  ({len(command_records)} total)",
         command_records[:8], command_cols,
-        footer="queue result N  |  queue clear --confirm  |  queue ? for help",
+        footer="queue result N  |  queue clear confirm  |  queue ? for help",
     )
 
 
@@ -506,8 +506,8 @@ def run_line_queue_command(
             return None
         return print_line_command_result(cfg, queue_summary_func(cfg), " ".join(args[1:]).strip())
     if subcmd == "clear":
-        if "--confirm" not in args[1:]:
-            raise ValueError("usage: queue clear --confirm")
+        if not any(str(item).lower() in {"--confirm", "confirm", "yes"} for item in args[1:]):
+            raise ValueError("usage: queue clear confirm")
         count = clear_queue_func(cfg)
         headless = (
             "scripts/grit-console --config "

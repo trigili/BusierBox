@@ -91,9 +91,9 @@ require_text docs/release-bundles.md 'PID ownership evidence'
 require_text docs/release-bundles.md 'api_resources_by_records_key'
 require_text docs/release-bundles.md 'offline artifact browser discover record keys'
 require_text README.md 'scripts/grit-console artifact config set'
-require_text README.md 'python3 grit-console'
+require_text README.md './grit'
 require_text README.md 'grit-console bringup[[:space:]]+guided first-contact and survey loop'
-require_text grit-console 'Root-level griTTYkit operator console entry point'
+require_text grit 'Root-level griTTYkit operator console entry point'
 require_text README.md 'make unit-test'
 require_text README.md 'make unit-test-qemu'
 require_text README.md 'make unit-test-all'
@@ -121,6 +121,10 @@ require_text docs/release-bundles.md 'scripts/grit-console artifact config set A
 
 if grep -q 'grit-artifact config set' README.md; then
     printf '%s\n' "stale-ux-text: README still recommends grit-artifact config set" >&2
+    exit 1
+fi
+if [ -e scripts/grit-artifact ] || [ -e scripts/grit-bringup ]; then
+    printf '%s\n' "stale-ux-text: deleted compatibility wrappers still exist" >&2
     exit 1
 fi
 if grep -Eq 'scripts/grit-bringup --host|scripts/grit-bringup[[:space:]]*\\' docs/bringup.md docs/survey-and-bringup.md; then

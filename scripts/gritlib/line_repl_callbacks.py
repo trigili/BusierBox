@@ -55,7 +55,7 @@ class LineCallbackBundles(NamedTuple):
     dispatch: LineDispatchCallbacks
 
 
-def build_line_foundation_callbacks(cfg, line_input, *, readline_module=None, have_readline=False):
+def build_line_foundation_callbacks(cfg, line_input):
     line_target_callbacks = build_default_line_target_callbacks(cfg)
 
     line_route_service_callbacks = build_default_line_route_service_callbacks(cfg)
@@ -70,8 +70,6 @@ def build_line_foundation_callbacks(cfg, line_input, *, readline_module=None, ha
 
     line_completion_callbacks = setup_default_line_completion_bundle(
         cfg,
-        readline_module=readline_module,
-        have_readline=have_readline,
         line_route_service_callbacks=line_route_service_callbacks,
         line_target_callbacks=line_target_callbacks,
         line_option_callbacks=line_option_callbacks,
@@ -217,15 +215,10 @@ def build_line_dispatch_callbacks(
 def build_line_callback_bundles(
     cfg,
     line_input,
-    *,
-    readline_module=None,
-    have_readline=False,
 ):
     foundation_callbacks = build_line_foundation_callbacks(
         cfg,
         line_input,
-        readline_module=readline_module,
-        have_readline=have_readline,
     )
     operational_callbacks = build_line_operational_callbacks(
         cfg,

@@ -28,11 +28,33 @@ from gritlib.staged_files import (
 )
 
 
+def _line_option_token(value):
+    text = str(value or "")
+    if text.startswith("-") or "=" in text:
+        return text
+    return "--" + text
+
+
 def parse_line_configure_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
-    if cmd not in {"configure", "trailer"}:
+    if cmd not in {"stamp", "trailer", "configure"}:
         return {}
-    return {"action": "configure", "args": list(args or [])}
+    return {"action": "stamp", "args": list(args or [])}
+
+
+def parse_line_artifact_command(cmd, args):
+    cmd = str(cmd or "").strip().lower()
+    if cmd != "artifact":
+        return {}
+    args = list(args or [])
+    subcmd = str(args[0]).strip().lower() if args else ""
+    if subcmd in {"stamp", "trailer", "configure"}:
+        return {"action": "stamp", "args": args[1:]}
+    if subcmd in {"show", "clear"}:
+        if len(args) < 2:
+            raise ValueError(f"usage: artifact {subcmd} NAME|PATH")
+        return {"action": "stamp", "args": [args[1], f"--{subcmd}", *args[2:]]}
+    return {"action": "stamp", "args": args}
 
 
 def dispatch_line_configure_command(
@@ -50,7 +72,7 @@ def dispatch_line_configure_command(
     except ValueError as exc:
         print(exc)
         return None
-    raise ValueError("unsupported configure command")
+    raise ValueError("unsupported stamp command")
 
 
 def parse_line_config_args(args, cmd_name):
@@ -60,23 +82,24 @@ def parse_line_config_args(args, cmd_name):
     i = 0
     while i < len(args):
         arg = str(args[i])
-        if arg in {"--write-config", "-w"} and i + 1 < len(args):
+        opt = _line_option_token(arg)
+        if opt in {"--write-config", "-w"} and i + 1 < len(args):
             write_config_path = str(args[i + 1])
             i += 2
-        elif arg.startswith("--write-config="):
-            write_config_path = arg.split("=", 1)[1]
+        elif opt.startswith("--write-config="):
+            write_config_path = opt.split("=", 1)[1]
             i += 1
-        elif arg in {
+        elif opt in {
             "--prefer-rshell",
             "--prefer-runtime",
             "--target-preset",
             "--payload-preset",
             "--reality-json",
         } and i + 1 < len(args):
-            extra_args.extend([arg, str(args[i + 1])])
+            extra_args.extend([opt, str(args[i + 1])])
             i += 2
-        elif arg in {"--allow-network-autorun", "--allow-external-writes"}:
-            extra_args.append(arg)
+        elif opt in {"--allow-network-autorun", "--allow-external-writes"}:
+            extra_args.append(opt)
             i += 1
         elif not arg.startswith("-"):
             survey_path = arg
@@ -84,8 +107,8 @@ def parse_line_config_args(args, cmd_name):
         else:
             raise ValueError(
                 f"unknown option: {arg}\n"
-                f"usage: {cmd_name} [PATH] [--write-config FILE] "
-                "[--prefer-rshell auto|ssh|...] [--prefer-runtime auto|...]"
+                f"usage: {cmd_name} [PATH] [write-config FILE] "
+                "[prefer-rshell auto|ssh|...] [prefer-runtime auto|...]"
             )
     return survey_path, write_config_path, extra_args
 
@@ -125,49 +148,50 @@ ARTIFACT_CONFIG_OPTION_KEYS = {
 
 def parse_line_configure_args(args, option_keys=ARTIFACT_CONFIG_OPTION_KEYS):
     if not args:
-        raise ValueError("usage: configure NAME|PATH [--show|--clear|KEY=VALUE|options...]")
+        raise ValueError("usage: stamp NAME|PATH [show|clear|KEY=VALUE|options...]")
     selector = str(args[0])
     rest = list(args[1:])
     if not rest:
-        raise ValueError("usage: configure NAME|PATH [--show|--clear|KEY=VALUE|options...]")
+        raise ValueError("usage: stamp NAME|PATH [show|clear|KEY=VALUE|options...]")
     action = "set"
     obfuscation = "none"
     kv = []
     i = 0
     while i < len(rest):
         item = str(rest[i])
-        if item in {"--show", "show"}:
+        opt = _line_option_token(item)
+        if opt in {"--show", "show"}:
             action = "show"
             i += 1
-        elif item in {"--clear", "clear"}:
+        elif opt in {"--clear", "clear"}:
             action = "clear"
             i += 1
-        elif item == "--obfuscation":
+        elif opt == "--obfuscation":
             if i + 1 >= len(rest):
-                raise ValueError("configure --obfuscation requires none|xor")
+                raise ValueError("stamp obfuscation requires none|xor")
             obfuscation = str(rest[i + 1])
             i += 2
-        elif item.startswith("--obfuscation="):
-            obfuscation = item.split("=", 1)[1]
+        elif opt.startswith("--obfuscation="):
+            obfuscation = opt.split("=", 1)[1]
             i += 1
-        elif item in option_keys:
+        elif opt in option_keys:
             if i + 1 >= len(rest):
-                raise ValueError(f"configure {item} requires a value")
-            kv.append(f"{option_keys[item]}={rest[i + 1]}")
+                raise ValueError(f"stamp {item} requires a value")
+            kv.append(f"{option_keys[opt]}={rest[i + 1]}")
             i += 2
-        elif item.startswith("--") and "=" in item:
-            opt, value = item.split("=", 1)
-            if opt not in option_keys:
-                raise ValueError(f"unknown configure option: {opt}")
-            kv.append(f"{option_keys[opt]}={value}")
+        elif opt.startswith("--") and "=" in opt:
+            opt_name, value = opt.split("=", 1)
+            if opt_name not in option_keys:
+                raise ValueError(f"unknown stamp option: {item}")
+            kv.append(f"{option_keys[opt_name]}={value}")
             i += 1
         elif "=" in item:
             kv.append(item)
             i += 1
         else:
-            raise ValueError(f"unknown configure argument: {item}")
+            raise ValueError(f"unknown stamp argument: {item}")
     if action == "set" and not kv:
-        raise ValueError("configure needs at least one KEY=VALUE or option")
+        raise ValueError("stamp needs at least one KEY=VALUE or option")
     return selector, action, obfuscation, kv
 
 
@@ -254,11 +278,11 @@ def configure_line_artifact(cfg, args, append_event_fn=None):
         staged[request_name] = rec
         atomic_write_json(staged_file_path(cfg), data)
     fetch_command = render_fetch_command(request_name, cfg) if request_name else ""
-    print("Artifact trailer configured:" if action == "set" else f"Artifact trailer {action}:")
+    print("Artifact trailer stamped:" if action == "set" else f"Artifact trailer {action}:")
     print(f"  artifact: {artifact}")
     if request_name:
         print(f"  name: {request_name}")
-        print(f"  target fetch: {fetch_command}")
+        print(f"  target command: {fetch_command}")
     if kv:
         print("  keys: " + ", ".join(item.split("=", 1)[0] for item in kv))
     headless = " ".join(shquote(part) for part in cmd)
@@ -344,7 +368,7 @@ def finish_line_config_run(cfg, write_config_path, event_details, append_event_f
         print("  reload  — apply it now without restarting")
     else:
         build_cfg = str(build_config_path(cfg))
-        print(f"\n  To write: {event_details.get('cmd_name', 'config')} --write-config {shquote(build_cfg)}")
+        print(f"\n  To write: {event_details.get('cmd_name', 'config')} write-config {shquote(build_cfg)}")
         print(
             "  (build config — separate from server config "
             f"{str(cfg.get('_config_path') or DEFAULT_CONFIG)})"
@@ -354,14 +378,14 @@ def finish_line_config_run(cfg, write_config_path, event_details, append_event_f
 
 
 def run_line_probe_config(cfg, args, append_event_fn=None):
-    survey_path, write_config_path, extra_args = parse_line_config_args(args, "probe config")
+    survey_path, write_config_path, extra_args = parse_line_config_args(args, "listener probe config")
     tmp_survey_path = None
     selected_probe_ordinal = ""
     if not survey_path or str(survey_path).isdigit():
         selected_probe_ordinal = str(survey_path or "1")
         rec = probe_result_by_ordinal(cfg, selected_probe_ordinal)
         if not rec:
-            raise ValueError(f"probe result not found: {selected_probe_ordinal} — run: probe results")
+            raise ValueError(f"probe result not found: {selected_probe_ordinal} — run: listener probe results")
         uname_m, endian = probe_effective_arch(rec)
         bits = str(rec.get("word_bits") or "")
         kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
@@ -390,7 +414,7 @@ def run_line_probe_config(cfg, args, append_event_fn=None):
             except OSError:
                 pass
     finish_line_config_run(cfg, write_config_path, {
-        "cmd_name": "probe config",
+        "cmd_name": "listener probe config",
         "survey_path": survey_path,
         "write_config_path": write_config_path or "",
         "exit_code": result.returncode,
@@ -407,7 +431,7 @@ def run_line_survey_config(cfg, args, find_survey_uploads_fn, append_event_fn=No
             raise ValueError(
                 "no full survey uploads found\n"
                 "  on target: grit survey push --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
-                "  or use probe data: probe config"
+                "  or use probe data: listener probe config"
             )
         survey_path = uploads[0].get("stored_path") or ""
         print(f"Using most recent survey upload: {survey_path}")
@@ -504,7 +528,7 @@ def print_line_survey_status(cfg, append_event_fn=None):
     print("")
     if uploads:
         print("  survey config [PATH]         — generate config from full survey")
-        print("  survey preset [PATH] --name  — save a reusable target preset")
+        print("  survey preset [PATH] name    — save a reusable target preset")
     else:
         print("  No full survey uploads yet.")
         print("  After deploying griTTYkit, run on the target:")
@@ -523,16 +547,17 @@ def run_line_survey_preset(cfg, args, find_survey_uploads_fn, append_event_fn=No
     i = 0
     while i < len(args):
         a = str(args[i])
-        if a in {"--name", "-n"} and i + 1 < len(args):
+        opt = _line_option_token(a)
+        if opt in {"--name", "-n"} and i + 1 < len(args):
             preset_name = str(args[i + 1])
             i += 2
-        elif a.startswith("--name="):
-            preset_name = a.split("=", 1)[1]
+        elif opt.startswith("--name="):
+            preset_name = opt.split("=", 1)[1]
             i += 1
-        elif a in {"--write-local", "--write"}:
+        elif opt in {"--write-local", "--write"}:
             write_local = True
             i += 1
-        elif a == "--overwrite":
+        elif opt == "--overwrite":
             overwrite = True
             i += 1
         elif not a.startswith("-"):
@@ -541,7 +566,7 @@ def run_line_survey_preset(cfg, args, find_survey_uploads_fn, append_event_fn=No
         else:
             raise ValueError(
                 f"unknown option: {a}\n"
-                "usage: survey preset [PATH] --name NAME [--write-local] [--overwrite]"
+                "usage: survey preset [PATH] name NAME [write-local] [overwrite]"
             )
     if not survey_path:
         uploads = find_survey_uploads_fn()
@@ -549,7 +574,7 @@ def run_line_survey_preset(cfg, args, find_survey_uploads_fn, append_event_fn=No
             raise ValueError(
                 "no full survey uploads found\n"
                 "  on target: grit survey push --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
-                "  or specify: survey preset PATH --name NAME"
+                "  or specify: survey preset PATH name NAME"
             )
         survey_path = uploads[0].get("stored_path") or ""
         print(f"Using most recent survey upload: {survey_path}")
@@ -562,7 +587,7 @@ def run_line_survey_preset(cfg, args, find_survey_uploads_fn, append_event_fn=No
             preset_name = f"target-{arch}"
         except Exception:
             preset_name = "target-unknown"
-        print(f"Auto-generated preset name: {preset_name}  (override with --name NAME)")
+        print(f"Auto-generated preset name: {preset_name}  (override with name NAME)")
     script = find_preset_from_survey()
     if not script:
         raise ValueError("preset-from-survey script not found")
@@ -582,7 +607,7 @@ def run_line_survey_preset(cfg, args, find_survey_uploads_fn, append_event_fn=No
     if result.returncode != 0:
         raise ValueError(f"preset-from-survey exited {result.returncode}")
     if not write_local:
-        print(f"\n  To save: survey preset {shquote(survey_path)} --name {shquote(preset_name)} --write-local")
+        print(f"\n  To save: survey preset {shquote(survey_path)} name {shquote(preset_name)} write-local")
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_survey_preset_generated", details={
             "survey_path": survey_path,

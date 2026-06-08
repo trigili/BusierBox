@@ -5,7 +5,6 @@ from gritlib.console_workbench import workbench_snapshot
 from gritlib.event_log import append_event
 from gritlib import line_configure
 from gritlib.line_completions import build_line_completion_callbacks
-from gritlib.line_repl_runtime import install_readline_completer
 from gritlib.release_contexts import release_context
 from gritlib.staged_files import load_staged
 
@@ -128,19 +127,9 @@ def build_line_completion_bundle(
     }
 
 
-def install_line_completion_bundle(readline_module, have_readline, completion_callbacks):
-    return install_readline_completer(
-        readline_module,
-        have_readline,
-        completion_callbacks["line_completion_candidates"],
-    )
-
-
 def setup_line_completion_bundle(
     cfg,
     *,
-    readline_module,
-    have_readline,
     workbench_snapshot_func,
     current_action_records_func=None,
     bridge_profile_records_func=None,
@@ -179,15 +168,12 @@ def setup_line_completion_bundle(
         find_survey_uploads_func=find_survey_uploads_func,
         append_event_fn=append_event_fn,
     )
-    install_line_completion_bundle(readline_module, have_readline, bundle)
     return bundle
 
 
 def setup_default_line_completion_bundle(
     cfg,
     *,
-    readline_module,
-    have_readline,
     line_route_service_callbacks,
     line_target_callbacks,
     line_option_callbacks,
@@ -195,8 +181,6 @@ def setup_default_line_completion_bundle(
 ):
     return setup_line_completion_bundle(
         cfg,
-        readline_module=readline_module,
-        have_readline=have_readline,
         workbench_snapshot_func=workbench_snapshot,
         action_callbacks=line_action_callbacks,
         release_context_func=release_context,

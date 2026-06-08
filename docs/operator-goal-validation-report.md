@@ -46,7 +46,7 @@ documentation, and safety tests were implemented first.
   and non-forensic caveats in user-facing status and docs.
 - Recovery workflows include visible evidence push, evidence-then-rshell, and
   dmesg-push actions behind explicit apply and external-write gates.
-- `scripts/grit-bringup` now summarizes the requested ten-step onboarding
+- `scripts/grit-console bringup` now summarizes the requested ten-step onboarding
   flow through `bringup_flow_steps`, lookup maps, summary counts, and API
   collection metadata.
 - Command queue behavior is explicit and opt-in. The current build supports
@@ -133,7 +133,7 @@ Recovery and persistence:
 - `tests/smoke/recovery.sh`
 
 Bringup:
-- `scripts/grit-bringup`
+- `scripts/lib/bringup`
 - `docs/bringup.md`
 - `docs/survey-and-bringup.md`
 - `tests/smoke/integration-glinet-harness.sh`
@@ -183,7 +183,7 @@ Fresh completion-audit commands run on 2026-05-29:
 
 ```sh
 python3 -m py_compile scripts/grit-console tests/smoke/grit-console.py scripts/make-release scripts/index-release-repo scripts/lib/find-artifact scripts/lib/preset-from-survey
-sh -n scripts/lib/config-from-survey scripts/grit-bringup tests/smoke/integration-glinet-harness.sh tests/smoke/release-bundles.sh tests/smoke/release-repo-index.sh tests/smoke/licensing.sh
+sh -n scripts/lib/config-from-survey scripts/lib/bringup tests/smoke/integration-glinet-harness.sh tests/smoke/release-bundles.sh tests/smoke/release-repo-index.sh tests/smoke/licensing.sh
 python3 -m json.tool manifests/license-policy.json
 scripts/lib/check-licensing
 make check-licensing
@@ -376,7 +376,7 @@ Result:
 Earlier full-goal verification also included:
 
 ```sh
-sh -n scripts/grit-bringup tests/smoke/integration-glinet-harness.sh
+sh -n scripts/lib/bringup tests/smoke/integration-glinet-harness.sh
 tests/smoke/integration-glinet-harness.sh
 git diff --check
 make smoke-test

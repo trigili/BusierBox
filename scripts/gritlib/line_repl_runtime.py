@@ -1,42 +1,62 @@
 """Runtime helpers for the line-oriented console REPL."""
 
 import os
-import select
 import signal
 import shlex
 import sys
 import time
 
+from gritlib.line_prompt_toolkit import build_prompt_toolkit_input
+
 
 LINE_REPL_LEGACY_SINGLE_KEY_CHOICES = frozenset({"c", "d", "r", "v", "q"})
 
+CONTEXTUAL_COMMAND_PREFIXES = {
+    "build": {
+        "list", "set", "unset",
+    },
+    "files": {
+        "clear",
+    },
+    "artifact": {
+        "stamp", "trailer", "configure", "show", "clear",
+    },
+    "jobs": {
+        "cancel", "kill", "select", "-i", "-k", "-v",
+    },
+    "listener": set(),
+    "probe": {
+        "start", "queue", "results", "result", "config", "clear", "serve",
+        "delivery", "deliver", "commands", "paste", "serial", "heredoc",
+        "script", "raw", "show", "command", "start-service",
+        "help",
+    },
+    "queue": {
+        "list", "result", "results", "clear", "command",
+    },
+    "release": {
+        "list", "stage", "recommendations", "artifacts", "use", "select",
+    },
+    "routes": {
+        "add", "start", "stop", "delete", "rm", "remove", "print",
+    },
+    "sessions": {
+        "clear", "prune", "clean", "verbose", "list",
+    },
+    "survey": {
+        "results", "result", "config", "preset", "help",
+    },
+}
 
-def configure_readline_history(readline_module, have_readline, limit=500):
-    if have_readline and readline_module is not None:
-        readline_module.set_history_length(limit)
-
-
-def install_readline_completer(readline_module, have_readline, candidate_func):
-    if not have_readline or readline_module is None:
-        return
-    completion_cache = {"line": None, "candidates": []}
-
-    def _rl_completer(_text, state):
-        try:
-            line = readline_module.get_line_buffer()
-            if line != completion_cache["line"]:
-                completion_cache["line"] = line
-                completion_cache["candidates"] = list(candidate_func(line) or [])
-            candidates = completion_cache["candidates"]
-            if state < len(candidates):
-                return candidates[state]
-        except Exception:
-            pass
-        return None
-
-    readline_module.set_completer(_rl_completer)
-    readline_module.set_completer_delims("\t\n")
-    readline_module.parse_and_bind("tab: complete")
+CONTEXTUAL_COMMAND_CANONICAL = {
+    "route": "routes",
+    "route/": "routes",
+    "listener/": "listener",
+    "job": "jobs",
+    "job/": "jobs",
+    "session": "sessions",
+    "session/": "sessions",
+}
 
 
 def resolve_replay_command(choice, line_history, history_command_func):
@@ -61,6 +81,28 @@ def parse_line_command_args(choice):
     return shlex.split(str(choice or ""))
 
 
+def contextual_line_command(cmd, args, *, module=None):
+    """Return command/args with submenu-implied command family applied."""
+    command = str(cmd or "").strip().lower()
+    command_args = list(args or [])
+    module_text = str(module or "").strip().lower()
+    if not command:
+        return command, command_args
+    if command == "clear" and command_args[:1] == ["target"]:
+        return command, command_args
+    if module_text in {"listener/probe", "listener/probe-http"} and command == "probe":
+        return "listener", ["probe", *command_args]
+    if module_text in {"listener/probe", "listener/probe-http"} and command in CONTEXTUAL_COMMAND_PREFIXES.get("probe", set()):
+        return "listener", ["probe", command, *command_args]
+    context = CONTEXTUAL_COMMAND_CANONICAL.get(module_text, module_text.split("/", 1)[0])
+    context = CONTEXTUAL_COMMAND_CANONICAL.get(f"{context}/", context)
+    if command == context:
+        return command, command_args
+    if command not in CONTEXTUAL_COMMAND_PREFIXES.get(context, set()):
+        return command, command_args
+    return context, [command, *command_args]
+
+
 def prepare_repl_choice(
     line,
     line_history,
@@ -68,7 +110,6 @@ def prepare_repl_choice(
     history_command_func,
     record_history_func,
     clear_results_func,
-    readline_module=None,
 ):
     choice = str(line or "").strip()
     if not choice:
@@ -76,6 +117,14 @@ def prepare_repl_choice(
             "continue": True,
             "compact_next_prompt": True,
             "choice": "",
+            "console_args": [],
+            "cmd": "",
+        }
+    if choice.startswith("#"):
+        return {
+            "continue": True,
+            "compact_next_prompt": True,
+            "choice": choice,
             "console_args": [],
             "cmd": "",
         }
@@ -95,7 +144,7 @@ def prepare_repl_choice(
             "console_args": [],
             "cmd": "",
         }
-    record_history_func(line_history, choice, readline_module=readline_module)
+    record_history_func(line_history, choice)
     if replayed_history and str(choice).isdigit():
         clear_results_func()
     if not should_parse_line_command(choice):
@@ -217,6 +266,7 @@ def dispatch_line_parsed_command(
         context_help_printer=context_help_printer,
     ):
         return {"handled": True}
+    cmd, command_args = contextual_line_command(cmd, command_args, module=module)
     if utility_dispatch_func(cmd, command_args):
         return {"handled": True}
     core_result = core_dispatch_func(cmd, command_args)
@@ -239,6 +289,8 @@ def dispatch_line_parsed_command(
 def _line_repl_shutdown_exit_code(shutdown_reason_func):
     if shutdown_reason_func() in ("SIGINT", "SIGTERM", "keyboard_interrupt"):
         return 130
+    if shutdown_reason_func() == "prompt_toolkit_missing":
+        return 2
     return 0
 
 
@@ -258,7 +310,6 @@ def _read_prepared_repl_choice(
     history_command_func,
     record_history_func,
     clear_results_func,
-    readline_module,
 ):
     prompt_result = read_next_repl_line(
         cfg,
@@ -285,7 +336,6 @@ def _read_prepared_repl_choice(
         history_command_func=history_command_func,
         record_history_func=record_history_func,
         clear_results_func=clear_results_func,
-        readline_module=readline_module,
     )
     compact_next_prompt = prompt_result["compact_next_prompt"]
     if prepared.get("compact_next_prompt"):
@@ -390,7 +440,6 @@ def _run_line_repl_iteration(
     history_command_func,
     record_history_func,
     clear_results_func,
-    readline_module,
     module_func,
     target_selected_func,
     command_help_printer,
@@ -419,7 +468,6 @@ def _run_line_repl_iteration(
         history_command_func=history_command_func,
         record_history_func=record_history_func,
         clear_results_func=clear_results_func,
-        readline_module=readline_module,
     )
     _apply_prepared_repl_state(loop_state, prepared)
     if prepared["line"] is None or prepared.get("continue"):
@@ -470,7 +518,6 @@ def run_line_repl_loop(
     history_command_func,
     record_history_func,
     clear_results_func,
-    readline_module,
     module_func,
     target_selected_func,
     command_help_printer,
@@ -503,7 +550,6 @@ def run_line_repl_loop(
             history_command_func=history_command_func,
             record_history_func=record_history_func,
             clear_results_func=clear_results_func,
-            readline_module=readline_module,
             module_func=module_func,
             target_selected_func=target_selected_func,
             command_help_printer=command_help_printer,
@@ -695,76 +741,17 @@ def restore_signal_handlers(previous_handlers):
             pass
 
 
-def read_line(prompt, *, shutdown_event, request_shutdown_func, have_readline,
-              stdin=None, stdout=None, input_func=input, select_func=select.select):
-    """Read one REPL line while honoring shutdown requests."""
-    if shutdown_event.is_set():
-        return None
-    if have_readline:
-        try:
-            line = input_func(prompt)
-        except EOFError:
-            request_shutdown_func("input_eof")
-            return None
-        if shutdown_event.is_set():
-            return None
-        return line
-
-    input_stream = stdin if stdin is not None else sys.stdin
-    output_stream = stdout if stdout is not None else sys.stdout
-    output_stream.write(prompt)
-    output_stream.flush()
-    while not shutdown_event.is_set():
-        try:
-            ready, _w, _x = select_func([input_stream], [], [], 0.5)
-        except (OSError, ValueError):
-            request_shutdown_func("input_error")
-            return None
-        if not ready:
-            continue
-        line = input_stream.readline()
-        if line == "":
-            request_shutdown_func("input_eof")
-            return None
-        return line.rstrip("\n")
-    return None
-
-
-def build_line_repl_input_callback(
-    *,
-    shutdown_event,
-    request_shutdown_func,
-    have_readline,
-    read_line_func=read_line,
-):
-    def line_input(prompt):
-        return read_line_func(
-            prompt,
-            shutdown_event=shutdown_event,
-            request_shutdown_func=request_shutdown_func,
-            have_readline=have_readline,
-        )
-
-    return line_input
-
-
 def setup_line_repl_io(
-    readline_module,
-    have_readline,
     *,
     shutdown_event,
     request_shutdown_func,
-    history_configurer=configure_readline_history,
     signal_installer=install_line_repl_signal_handlers,
-    input_builder=build_line_repl_input_callback,
 ):
-    """Configure REPL-local input state and return callbacks/cleanup state."""
-    history_configurer(readline_module, have_readline)
+    """Configure prompt-toolkit input state and return callbacks/cleanup state."""
     signal_handlers = signal_installer(request_shutdown_func)
-    line_input = input_builder(
+    line_input = build_prompt_toolkit_input(
         shutdown_event=shutdown_event,
         request_shutdown_func=request_shutdown_func,
-        have_readline=have_readline,
     )
     return {
         "line_input": line_input,
@@ -774,6 +761,13 @@ def setup_line_repl_io(
 
 def line_repl_io_input(repl_io):
     return repl_io["line_input"]
+
+
+def set_line_repl_io_completion_func(repl_io, completion_func):
+    line_input = (repl_io or {}).get("line_input")
+    setter = getattr(line_input, "set_completion_func", None)
+    if callable(setter):
+        setter(completion_func)
 
 
 def restore_line_repl_io(repl_io):

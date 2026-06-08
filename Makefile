@@ -164,6 +164,7 @@ smoke-grit-console-transcript:
 unit-test: unit-test-console
 
 unit-test-console:
+	$(call run_if_python3,tests/unit/repl-surface-context.py,python3 REPL surface unit test unavailable)
 	@$(MAKE) smoke-grit-console-transcript
 
 unit-test-qemu: test-qemu-user test-qemu-system test-qemu-flaky-network

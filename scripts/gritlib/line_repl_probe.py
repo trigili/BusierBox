@@ -131,7 +131,7 @@ def _print_line_probe_start_summary(cfg, already_listening, started):
     script_name = cfg.get("GRIT_PROBE_NAME", "probe.sh")
     if not already_listening and not started:
         print(f"Probe listener is not running on port {port}.")
-        print("  start it with: probe start")
+        print("  start it with: listener probe start")
         print("")
     state = "listening" if (already_listening or started) else "not listening"
     print(f"Probe  —  port {port}  |  script {script_name}  |  {state}")

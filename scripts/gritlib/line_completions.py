@@ -3,6 +3,9 @@
 import shlex
 from pathlib import Path
 
+from gritlib.target_store import load_targets
+from gritlib.workbench_jobs import load_workbench_jobs
+
 
 BASE_COMMANDS = [
     "help", "complete", "search", "resource", "makerc", "history", "workspace", "status",
@@ -13,8 +16,9 @@ BASE_COMMANDS = [
     "useagent", "uselistener", "useroute", "usesession", "usemodule",
     "main", "home", "root", "back", "background", "start", "stop",
     "check", "run", "execute", "exploit", "interact", "queue",
-    "download", "get", "probe", "survey", "daemon", "build", "release", "releases", "stage-release", "upload",
-    "fetch", "deploy", "queue-fetch", "serve-binary", "configure", "trailer", "downloads", "unstage",
+    "retrieve", "stage", "deliver", "stamp", "artifact",
+    "survey", "daemon", "build", "release", "releases", "stage-release",
+    "serve-binary", "trailer", "downloads", "unstage",
     "rmfile", "view", "cat", "less", "mailbox", "refresh",
     "quit", "exit", "ips", "reload",
 ]
@@ -30,9 +34,9 @@ USE_KINDS = ["agent", "target", "listener", "service", "route", "session", "job"
 
 HELP_TOPICS = [
     "search", "complete", "commands", "resource", "makerc", "history", "use", "main", "show",
-    "actions", "modules", "options", "next", "workspace", "aliases", "listeners",
-    "routes", "set", "setg", "run", "jobs", "queue", "events", "download", "probe", "survey", "build",
-    "release", "upload", "fetch", "files", "view",
+    "modules", "options", "next", "workspace", "aliases", "listeners",
+    "routes", "set", "setg", "run", "jobs", "queue", "events", "retrieve", "survey", "build",
+    "release", "stage", "deliver", "stamp", "artifact", "files", "view",
     "daemon", "interact", "sessions",
 ]
 
@@ -71,10 +75,10 @@ def completion_provider(providers, name, default=None):
 
 def _completion_target_names(cfg, workbench_snapshot_func):
     names = []
-    unfiltered_cfg = dict(cfg)
-    unfiltered_cfg.pop("_target_id_filter", None)
-    unfiltered_cfg.pop("_target_label_filter", None)
-    for rec in workbench_snapshot_func(unfiltered_cfg).get("targets") or []:
+    del workbench_snapshot_func
+    for rec in (load_targets(cfg).get("targets") or {}).values():
+        if not isinstance(rec, dict):
+            continue
         for item in [rec.get("target_id"), rec.get("label"), *(rec.get("aliases") or [])]:
             value = str(item or "").strip()
             if value:
@@ -83,9 +87,19 @@ def _completion_target_names(cfg, workbench_snapshot_func):
 
 
 def _completion_session_names(cfg, workbench_snapshot_func):
+    del workbench_snapshot_func
     names = []
-    for rec in workbench_snapshot_func(cfg).get("sessions") or []:
-        value = str(rec.get("session_id") or Path(str(rec.get("path", ""))).name)
+    root = Path(str(cfg.get("session_root", "local/sessions")))
+    try:
+        entries = sorted(
+            (entry for entry in root.iterdir() if entry.is_dir()),
+            key=lambda entry: entry.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError:
+        return names
+    for entry in entries[:100]:
+        value = entry.name.strip()
         if value:
             names.append(value)
     return names
@@ -134,28 +148,50 @@ def _completion_command_queue_ids(cfg, command_queue_summary_func):
 
 
 def _completion_daemon_action_ids(cfg, workbench_snapshot_func):
-    snap = workbench_snapshot_func(cfg)
-    return [
-        str(rec.get("id") or "") for rec in (snap.get("operator_daemon_workflow_actions") or [])
-        if rec.get("id")
-    ]
+    del cfg, workbench_snapshot_func
+    return []
 
 
-def _completion_staged_names_snapshot(cfg, workbench_snapshot_func):
-    return [
-        str(name or "")
-        for name in sorted((workbench_snapshot_func(cfg).get("staged") or {}).keys())
-        if str(name or "")
-    ]
+def _completion_job_names(cfg):
+    names = []
+    try:
+        jobs = load_workbench_jobs(cfg).get("jobs") or []
+    except OSError:
+        return names
+    for rec in jobs:
+        if not isinstance(rec, dict):
+            continue
+        value = str(rec.get("id") or "").strip()
+        if value:
+            names.append(value)
+    return names
 
 
 def _completion_session_paths(cfg, workbench_snapshot_func):
+    del workbench_snapshot_func
     path_values = []
-    for rec in workbench_snapshot_func(cfg).get("sessions") or []:
-        for key in ("path", "session_log", "event_log"):
-            value = str(rec.get(key) or "").strip()
-            if value:
-                path_values.append(value)
+    root = Path(str(cfg.get("session_root", "local/sessions")))
+    try:
+        entries = sorted(
+            (entry for entry in root.iterdir() if entry.is_dir()),
+            key=lambda entry: entry.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError:
+        return path_values
+    for entry in entries[:20]:
+        path_values.append(str(entry))
+        for child in (entry / "session.log", entry / "events.jsonl"):
+            if child.exists():
+                path_values.append(str(child))
+        files_dir = entry / "files"
+        if files_dir.is_dir():
+            try:
+                for child in sorted(files_dir.iterdir())[:20]:
+                    if child.is_file():
+                        path_values.append(str(child))
+            except OSError:
+                pass
     return path_values
 
 
@@ -186,10 +222,7 @@ def build_line_completion_providers(
     return {
         "target_names": lambda: _completion_target_names(cfg, workbench_snapshot_func),
         "session_names": lambda: _completion_session_names(cfg, workbench_snapshot_func),
-        "job_names": lambda: [
-            str(rec.get("id") or "") for rec in workbench_snapshot_func(cfg).get("workbench_jobs") or []
-            if str(rec.get("id") or "")
-        ],
+        "job_names": lambda: _completion_job_names(cfg),
         "route_names": lambda: [
             str(rec.get("name") or "") for rec in bridge_profile_records_func(cfg)
             if str(rec.get("name") or "")
@@ -208,7 +241,7 @@ def build_line_completion_providers(
         "service_names": lambda: service_names_func(service_status_rows_func(cfg)),
         "daemon_action_ids": lambda: _completion_daemon_action_ids(cfg, workbench_snapshot_func),
         "staged_names_load": lambda: sorted((load_staged_func(cfg).get("staged") or {}).keys()),
-        "staged_names_snapshot": lambda: _completion_staged_names_snapshot(cfg, workbench_snapshot_func),
+        "staged_names_snapshot": lambda: sorted((load_staged_func(cfg).get("staged") or {}).keys()),
         "session_paths": lambda: _completion_session_paths(cfg, workbench_snapshot_func),
         "survey_upload_paths": lambda: _completion_survey_upload_paths(find_survey_uploads_func),
     }
@@ -301,7 +334,7 @@ def _line_completion_command_candidates(cmd, ctx):
 
     if cmd == "events":
         return [f"events {item}" for item in prefixed(ctx.arg_pfx(1), [
-            "-n", "--since", "service=", "event=", "level=", "target=",
+            "n", "since", "service=", "event=", "level=", "target=",
         ])]
 
     if cmd in {"commands", "target-commands"}:
@@ -339,6 +372,20 @@ def _line_completion_context_candidates(cmd, ctx):
 
     if cmd in {"listener", "service", "listeners", "services",
                "uselistener", "useservice"}:
+        if cmd in {"listener", "service"} and len(ctx.parts) >= 2 and ctx.parts[1].lower() in {"probe", "probe-http"}:
+            if ctx.at_arg(2):
+                return [f"{cmd} {ctx.parts[1]} {item}" for item in prefixed(ctx.arg_pfx(2),
+                    ["start", "queue", "results", "config", "clear", "serve", "delivery", "paste", "script"])]
+            subcmd = ctx.parts[2].lower() if len(ctx.parts) >= 3 else ""
+            if subcmd == "config" and ctx.at_arg(3):
+                return [f"{cmd} {ctx.parts[1]} config {item}" for item in prefixed(ctx.arg_pfx(3),
+                    ["1", "2", "3", "write-config", "prefer-rshell", "prefer-runtime",
+                     "target-preset", "payload-preset"])]
+            if subcmd == "clear" and ctx.at_arg(3):
+                return [f"{cmd} {ctx.parts[1]} clear {item}" for item in prefixed(ctx.arg_pfx(3), ["all", "1", "2", "3"])]
+            if subcmd == "serve" and ctx.at_arg(3):
+                return [f"{cmd} {ctx.parts[1]} serve {item}" for item in prefixed(ctx.arg_pfx(3), ["start"])]
+            return None
         service_values = (["-v"] if cmd in {"listeners", "services"} else []) + ctx.values("service_completion_names")
         return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), service_values)]
 
@@ -366,7 +413,7 @@ def _line_completion_context_candidates(cmd, ctx):
                 ["-v", "-l", "clear", "prune"] + ctx.values("session_names"))]
         subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
         if subcmd in {"clear", "prune", "clean"}:
-            return [f"sessions {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ["--confirm", "--all"])]
+            return [f"sessions {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ["confirm", "all"])]
         return []
 
     if cmd in {"session", "usesession", "interact"}:
@@ -382,7 +429,7 @@ def _line_completion_context_candidates(cmd, ctx):
         return [f"daemon {item}" for item in prefixed(ctx.arg_pfx(1),
             ["start", "stop", "status", "install", "print",
              "systemd-start", "systemd-stop", "systemd-restart", "systemd-status",
-             "--dry-run", "-v", "--verbose"] + ctx.values("daemon_action_ids"))]
+             "dry-run", "v", "verbose"] + ctx.values("daemon_action_ids"))]
 
     if cmd in {"modules", "module"}:
         if ctx.at_arg(1):
@@ -397,34 +444,63 @@ def _line_completion_file_work_candidates(cmd, ctx):
     if cmd in {"files", "staged", "stagers", "loot", "downloads"}:
         if ctx.at_arg(1):
             return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1),
-                ["-v", "upload", "fetch", "unstage", "clear"])]
+                ["v", "stage", "deliver", "unstage", "clear"])]
         subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
         if subcmd in {"unstage", "rm"}:
             return [f"{cmd} {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("staged_names_load"))]
         if subcmd == "clear" and ctx.at_arg(2):
-            return [f"{cmd} clear --confirm"]
+            return [f"{cmd} clear confirm"]
         return None
 
     if cmd in {"usemodule", "useaction", "run", "execute", "exploit", "check"}:
         return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("action_names"))]
 
-    if cmd in {"fetch", "deploy", "queue-fetch", "unstage", "rmfile", "rm-file"}:
+    if cmd in {"deliver", "fetch", "deploy", "queue-fetch", "queue-deliver", "unstage", "rmfile", "rm-file"}:
         return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("staged_names_snapshot"))]
 
-    if cmd in {"configure", "trailer"}:
+    if cmd in {"stamp", "trailer", "configure"}:
         if ctx.at_arg(1):
-            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("staged_names_snapshot"))]
-        return [f"{cmd} {ctx.parts[1]} {item}" for item in prefixed(ctx.arg_pfx(2), [
-            "--show", "--clear", "--operator-host", "--operator-user", "--ssh-port",
-            "--shell-port", "--remote-forward-port", "--target-bind-host",
-            "--transport", "--encryption", "--run-mode", "--session-policy",
-            "--shell-provider", "--zero-arg-mode", "--zero-arg-log-mode",
-            "--runtime-mode", "--noresidue-level", "--retry-count",
-            "--retry-interval", "--retry-backoff", "--retry-max-interval",
-            "--command-queue-enable", "--command-queue-port",
-            "--command-queue-execution", "--command-queue-poll-interval",
-            "--command-queue-max-polls",
+            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("staged_names_load"))]
+            return [f"{cmd} {ctx.parts[1]} {item}" for item in prefixed(ctx.arg_pfx(2), [
+            "show", "clear", "operator-host", "operator-user", "ssh-port",
+            "shell-port", "remote-forward-port", "target-bind-host",
+            "transport", "encryption", "run-mode", "session-policy",
+            "shell-provider", "zero-arg-mode", "zero-arg-log-mode",
+            "runtime-mode", "noresidue-level", "retry-count",
+            "retry-interval", "retry-backoff", "retry-max-interval",
+            "command-queue-enable", "command-queue-port",
+            "command-queue-execution", "command-queue-poll-interval",
+            "command-queue-max-polls",
         ])] if len(ctx.parts) >= 2 else []
+
+    if cmd == "artifact":
+        if ctx.at_arg(1):
+            return [f"artifact {item}" for item in prefixed(ctx.arg_pfx(1), [
+                "stamp", "show", "clear", "trailer",
+            ] + ctx.values("staged_names_load"))]
+        subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
+        if subcmd in {"stamp", "trailer", "configure"}:
+            if ctx.at_arg(2):
+                return [f"artifact {subcmd} {item}" for item in prefixed(
+                    ctx.arg_pfx(2), ctx.values("staged_names_load")
+                )]
+            if len(ctx.parts) >= 3:
+                return [f"artifact {subcmd} {ctx.parts[2]} {item}" for item in prefixed(ctx.arg_pfx(3), [
+                    "show", "clear", "operator-host", "operator-user", "ssh-port",
+                    "shell-port", "remote-forward-port", "target-bind-host",
+                    "transport", "encryption", "run-mode", "session-policy",
+                    "shell-provider", "zero-arg-mode", "zero-arg-log-mode",
+                    "runtime-mode", "noresidue-level", "retry-count",
+                    "retry-interval", "retry-backoff", "retry-max-interval",
+                    "command-queue-enable", "command-queue-port",
+                    "command-queue-execution", "command-queue-poll-interval",
+                    "command-queue-max-polls",
+                ])]
+        if subcmd in {"show", "clear"} and ctx.at_arg(2):
+            return [f"artifact {subcmd} {item}" for item in prefixed(
+                ctx.arg_pfx(2), ctx.values("staged_names_load")
+            )]
+        return []
 
     if cmd in {"view", "cat", "less"}:
         return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("session_paths"))]
@@ -436,12 +512,12 @@ def _line_completion_queue_release_candidates(cmd, ctx):
     if cmd == "queue":
         if ctx.at_arg(1):
             return [f"queue {item}" for item in prefixed(ctx.arg_pfx(1),
-                ["list", "result", "results", "clear", "command", "--"])]
+                ["list", "result", "results", "clear", "command"])]
         subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
         if subcmd in {"result", "results"} and ctx.at_arg(2):
             return [f"queue {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("command_queue_ids"))]
         if subcmd == "clear" and ctx.at_arg(2):
-            return [f"queue clear {item}" for item in prefixed(ctx.arg_pfx(2), ["--confirm"])]
+            return [f"queue clear {item}" for item in prefixed(ctx.arg_pfx(2), ["confirm"])]
         return None
 
     if cmd == "build":
@@ -468,21 +544,6 @@ def _line_completion_queue_release_candidates(cmd, ctx):
 
 
 def _line_completion_probe_survey_candidates(cmd, ctx):
-    if cmd == "probe":
-        if ctx.at_arg(1):
-            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1),
-                ["start", "queue", "results", "config", "clear", "serve", "delivery", "paste", "script", "--start", "--queue"])]
-        subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
-        if subcmd == "config" and ctx.at_arg(2):
-            return [f"probe config {item}" for item in prefixed(ctx.arg_pfx(2),
-                ["1", "2", "3", "--write-config", "--prefer-rshell", "--prefer-runtime",
-                 "--target-preset", "--payload-preset"])]
-        if subcmd == "clear" and ctx.at_arg(2):
-            return [f"probe clear {item}" for item in prefixed(ctx.arg_pfx(2), ["--all", "1", "2", "3"])]
-        if subcmd == "serve" and ctx.at_arg(2):
-            return [f"probe serve {item}" for item in prefixed(ctx.arg_pfx(2), ["--start"])]
-        return None
-
     if cmd == "survey":
         if ctx.at_arg(1):
             return [f"survey {item}" for item in prefixed(ctx.arg_pfx(1),
@@ -490,11 +551,11 @@ def _line_completion_probe_survey_candidates(cmd, ctx):
         subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
         if subcmd == "config" and ctx.at_arg(2):
             return [f"survey config {item}" for item in prefixed(ctx.arg_pfx(2),
-                ctx.values("survey_upload_paths") + ["--write-config", "--prefer-rshell", "--prefer-runtime",
-                                                      "--target-preset", "--payload-preset"])]
+                ctx.values("survey_upload_paths") + ["write-config", "prefer-rshell", "prefer-runtime",
+                                                      "target-preset", "payload-preset"])]
         if subcmd == "preset" and ctx.at_arg(2):
             return [f"survey preset {item}" for item in prefixed(ctx.arg_pfx(2),
-                ctx.values("survey_upload_paths") + ["--name", "--write-local", "--overwrite"])]
+                ctx.values("survey_upload_paths") + ["name", "write-local", "overwrite"])]
         return None
 
     return None

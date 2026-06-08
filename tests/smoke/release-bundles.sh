@@ -309,6 +309,7 @@ test -f "$work/release/devices/native/target.json"
 test -f "$work/release/devices/native/README.txt"
 test -f "$work/release/devices/native/notes.md"
 test -x "$work/release/scripts/lib/artifact-config"
+test -x "$work/release/scripts/lib/bringup"
 test -x "$work/release/scripts/lib/config-from-survey"
 test -x "$work/release/scripts/config-from-survey"
 test -x "$work/release/scripts/grit-console"
@@ -436,9 +437,9 @@ grep -q 'release stage SELECTOR' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'release stage by_device_payload_preset:glinet-mt1300:survey-core' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'serve-binary --start bin/grit-...-full grit' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q 'configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q 'configure grit --zero-arg-mode rshell --retry-count 12 --retry-interval 60' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q 'configure grit --command-queue-enable yes --command-queue-poll-interval 300' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'stamp grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'stamp grit --zero-arg-mode rshell --retry-count 12 --retry-interval 60' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q 'stamp grit --command-queue-enable yes --command-queue-poll-interval 300' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q './grit survey push' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q './grit reality-test push' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q './grit config-push' "$work/release/RELEASE-QUICKSTART.txt"
@@ -452,7 +453,7 @@ if grep -q -- '--survey-bootstrap-port' "$work/release/RELEASE-QUICKSTART.txt"; 
     printf '%s\n' "release-bundles: quickstart advertised stale probe port flag" >&2
     exit 1
 fi
-grep -q 'configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203' "$work/release/docs/README-release.md"
+grep -q 'stamp grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203' "$work/release/docs/README-release.md"
 grep -q 'probe serve --start' "$work/release/docs/README-release.md"
 grep -q 'print plain wget/curl target fetch commands' "$work/release/docs/README-release.md"
 grep -q 'original release artifact remains pristine' "$work/release/docs/README-release.md"
@@ -915,6 +916,8 @@ if doc.get("checksum_original_verified") is not True:
 helpers = doc.get("helpers") or []
 if "grit-console" not in helpers:
     raise SystemExit(f"release self-test helper inventory missing grit-console: {doc!r}")
+if "bringup" not in helpers:
+    raise SystemExit(f"release self-test helper inventory missing bringup: {doc!r}")
 if "config-from-survey" not in helpers:
     raise SystemExit(f"release self-test helper inventory missing config-from-survey: {doc!r}")
 if "grit-server" in helpers:

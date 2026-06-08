@@ -117,20 +117,13 @@ def write_line_makerc(cfg, path_text, line_history):
     return path
 
 
-def record_line_history(line_history, command, readline_module=None, limit=100):
+def record_line_history(line_history, command, limit=100):
     text = str(command or "").strip()
     if not text:
         return
     line_history.append(text)
     if len(line_history) > limit:
         del line_history[:-limit]
-    if readline_module is not None:
-        try:
-            n = readline_module.get_current_history_length()
-            if n == 0 or readline_module.get_history_item(n) != text:
-                readline_module.add_history(text)
-        except Exception:
-            pass
 
 
 def line_history_command(line_history, selector):

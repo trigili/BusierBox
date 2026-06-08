@@ -15,18 +15,9 @@ from gritlib.version import grit_version
 from gritlib.console_workbench import workbench_snapshot
 import gritlib.workflow_runners as workflow_runners
 
-try:
-    import readline as _readline
-    HAVE_READLINE = True
-except ImportError:
-    _readline = None
-    HAVE_READLINE = False
-
 
 def _setup_line_repl_runtime_io():
     repl_io = line_repl_runtime.setup_line_repl_io(
-        _readline,
-        HAVE_READLINE,
         shutdown_event=service_runtime.SHUTDOWN,
         request_shutdown_func=service_runtime.request_shutdown,
     )
@@ -61,7 +52,6 @@ def _run_line_repl_loop(
         input_func=line_input,
         history_command_func=line_resources.line_history_command,
         record_history_func=line_resources.record_line_history,
-        readline_module=_readline if HAVE_READLINE else None,
         command_help_printer=line_help.print_line_command_help,
         context_help_printer=line_help.print_context_line_help,
         unknown_message_func=line_help.line_unknown_command_message,
@@ -74,8 +64,10 @@ def run_line_repl(cfg):
     callback_bundles = line_repl_callbacks.build_line_callback_bundles(
         cfg,
         line_input,
-        readline_module=_readline,
-        have_readline=HAVE_READLINE,
+    )
+    line_repl_runtime.set_line_repl_io_completion_func(
+        repl_io,
+        callback_bundles.foundation.completion["line_completion_candidates"],
     )
 
     try:
@@ -92,7 +84,7 @@ def run_line_repl(cfg):
 
 
 def run_line_console(cfg):
-    """Default interactive mode: readline line console."""
+    """Default interactive mode: prompt-toolkit line console."""
     return line_repl_runtime.run_line_console_lifecycle(
         cfg,
         stdin_isatty_func=sys.stdin.isatty,

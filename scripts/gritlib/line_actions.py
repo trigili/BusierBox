@@ -107,7 +107,7 @@ def select_line_action(cfg, actions, selector):
         flags.append("background ok")
     flag_str = f"  |  {', '.join(flags)}" if flags else ""
     print(f"  {kind}:{action_id}  —  {state}  |  {label}{flag_str}")
-    print("  options / check / run / run --dry-run / back")
+    print("  options / check / run / run dry-run / back")
     return selected
 
 
@@ -134,7 +134,7 @@ def split_line_run_args(values):
     flags = []
     selector_parts = []
     for item in list(values or []):
-        if item in {"--dry-run", "--confirm", "confirm", "yes"}:
+        if item in {"--dry-run", "dry-run", "--confirm", "confirm", "yes"}:
             flags.append(item)
         else:
             selector_parts.append(item)
@@ -185,8 +185,8 @@ def parse_line_action_command(cmd, args):
         canonical = rec["canonical"]
         alias = cmd if cmd != canonical else ""
         if rec["action"] == "run":
-            if not rec.get("dry_run") and any(item in {"-j", "--job"} for item in args):
-                selector = " ".join(item for item in args if item not in {"-j", "--job"}).strip()
+            if not rec.get("dry_run") and any(item in {"-j", "--job", "job"} for item in args):
+                selector = " ".join(item for item in args if item not in {"-j", "--job", "job"}).strip()
                 return {
                     "action": "start-job",
                     "selector": selector,
@@ -260,7 +260,7 @@ def run_line_selected_action(
     dry_run = bool(dry_run_default)
     confirmed = False
     for item in values:
-        if item == "--dry-run":
+        if item in {"--dry-run", "dry-run"}:
             dry_run = True
         elif item in ("--confirm", "confirm", "yes"):
             confirmed = True
@@ -334,8 +334,8 @@ def run_line_module_or_service(
     run_selected_action_func=None,
 ):
     selector, flags = split_line_run_args(values or [])
-    if dry_run_default and "--dry-run" not in flags:
-        flags.append("--dry-run")
+    if dry_run_default and not any(item in {"--dry-run", "dry-run"} for item in flags):
+        flags.append("dry-run")
     selected_action_func = selected_action_func or (lambda: {})
     service_names_func = service_names_func or (lambda: [])
     if selector:

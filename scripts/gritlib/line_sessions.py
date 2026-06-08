@@ -22,23 +22,23 @@ LINE_SESSION_COMMANDS = (
     {
         "action": "help",
         "commands": ("sessions", "session"),
-        "subcommands": ("-h", "--help"),
+        "subcommands": ("-h", "--help", "help"),
     },
     {
         "action": "list",
         "commands": ("sessions", "session"),
-        "subcommands": ("-l", "--list"),
+        "subcommands": ("-l", "--list", "list"),
     },
     {
         "action": "list",
         "commands": ("sessions", "session"),
-        "subcommands": ("-v", "--verbose"),
+        "subcommands": ("-v", "--verbose", "verbose", "details"),
         "verbose": True,
     },
     {
         "action": "interact",
         "commands": ("sessions", "session"),
-        "subcommands": ("-i", "--interact"),
+        "subcommands": ("-i", "--interact", "interact"),
     },
     {
         "action": "interact",
@@ -90,8 +90,8 @@ def parse_line_sessions_command(cmd, args):
             flags = {str(item).lower() for item in args[1:]}
             return {
                 "action": "clear",
-                "all_sessions": "--all" in flags,
-                "confirm": "--confirm" in flags,
+                "all_sessions": bool(flags & {"--all", "all"}),
+                "confirm": bool(flags & {"--confirm", "confirm", "yes"}),
                 "command": cmd,
                 "subcommand": first,
             }
@@ -110,7 +110,7 @@ def parse_line_sessions_command(cmd, args):
             "command": cmd,
             "subcommand": first,
         }
-    if args and first not in {"-l", "--list"}:
+    if args and first not in {"-l", "--list", "list"}:
         for rec in records:
             if rec["action"] == "interact" and rec.get("positional"):
                 return {
@@ -242,15 +242,15 @@ def clear_line_sessions(cfg, root, all_sessions=False, confirm=False, append_eve
     if not candidates:
         msg = "No sessions to clear." if all_sessions else "No finished empty sessions to clear."
         print(msg)
-        print("  Hint: sessions with uploads/fetches/artifacts are kept unless you use --all.")
+        print("  Hint: sessions with uploads/fetches/artifacts are kept unless you use all.")
         return
     for path, state, has_data in candidates:
         flag = "  [has data]" if has_data else ""
         print(f"  {path.name}  ({state}){flag}")
     if not confirm:
-        print(f"\n  {len(candidates)} session(s) would be removed. Run: sessions clear --confirm")
+        print(f"\n  {len(candidates)} session(s) would be removed. Run: sessions clear confirm")
         if not all_sessions:
-            print("  To also remove sessions with data: sessions clear --all --confirm")
+            print("  To also remove sessions with data: sessions clear all confirm")
         return
     removed = 0
     errors = 0

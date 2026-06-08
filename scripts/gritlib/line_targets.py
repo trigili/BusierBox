@@ -181,7 +181,7 @@ def print_line_target_interaction(
     print(f"Agent interaction: {display}")
     print(f"  state: {state}")
     print(target_filter_brief_text(target_filter, prefix="  selected agent:"))
-    print("  commands: queue COMMAND, probe queue, download --queue TARGET_PATH, mailbox, upload --start LOCAL [NAME], fetch --queue NAME, serve-binary --start PATH [NAME], sessions, show activity, clear target")
+    print("  commands: queue COMMAND, probe queue, retrieve queue TARGET_PATH, mailbox, stage start LOCAL [NAME], deliver queue NAME, serve-binary start PATH [NAME], sessions, show activity, clear target")
     pending = [rec for rec in mailbox_records or [] if rec.get("pending_work")]
     if pending:
         print("  pending work:")

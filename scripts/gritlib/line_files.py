@@ -40,18 +40,18 @@ def parse_line_files_command(cmd, args=None):
     args = list(args or [])
     subcmd = str(args[0]).lower() if args else ""
     rest = args[1:]
-    if subcmd in {"upload", "stage", "serve-file"}:
+    if subcmd in {"stage", "upload", "serve-file"}:
         selector, request_name, start_service = parse_line_file_args(rest)
         return {
-            "action": "upload",
+            "action": "stage",
             "selector": selector,
             "request_name": request_name,
             "start_service": start_service,
         }
-    if subcmd in {"fetch", "deploy"}:
+    if subcmd in {"deliver", "fetch", "deploy"}:
         request_name, queue_fetch, start_service = parse_line_fetch_args(rest)
         return {
-            "action": "fetch",
+            "action": "deliver",
             "request_name": request_name,
             "queue": queue_fetch,
             "start_service": start_service,
@@ -61,9 +61,9 @@ def parse_line_files_command(cmd, args=None):
     if subcmd in {"clear", "purge"}:
         return {
             "action": "clear",
-            "confirm": any(str(item).lower() == "--confirm" for item in rest),
+            "confirm": any(str(item).lower() in {"--confirm", "confirm", "yes"} for item in rest),
         }
-    if subcmd in {"-v", "--verbose"}:
+    if subcmd in {"-v", "--verbose", "verbose", "details"}:
         return {"action": "list", "verbose": True}
     return {"action": "list", "verbose": False}
 
@@ -71,21 +71,21 @@ def parse_line_files_command(cmd, args=None):
 def parse_line_file_transfer_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
-    if cmd in {"upload", "stage", "serve-file"}:
+    if cmd in {"stage", "upload", "serve-file"}:
         selector, request_name, start_service = parse_line_file_args(args)
         return {
-            "action": "upload",
+            "action": "stage",
             "selector": selector,
             "request_name": request_name,
             "start_service": start_service,
         }
-    if cmd in {"fetch", "deploy", "queue-fetch"}:
+    if cmd in {"deliver", "fetch", "deploy", "queue-fetch", "queue-deliver"}:
         request_name, queue_fetch, start_service = parse_line_fetch_args(
             args,
-            queue_default=cmd == "queue-fetch",
+            queue_default=cmd in {"queue-fetch", "queue-deliver"},
         )
         return {
-            "action": "fetch",
+            "action": "deliver",
             "request_name": request_name,
             "queue": queue_fetch,
             "start_service": start_service,
@@ -107,13 +107,13 @@ def dispatch_line_file_command(
 ):
     try:
         action = (file_cmd or {}).get("action")
-        if action == "upload" and upload_func:
+        if action == "stage" and upload_func:
             result = upload_func(
                 file_cmd["selector"],
                 file_cmd["request_name"],
                 start_file_service=file_cmd["start_service"],
             )
-        elif action == "fetch" and fetch_func:
+        elif action == "deliver" and fetch_func:
             result = fetch_func(
                 file_cmd["request_name"],
                 queue=file_cmd["queue"],
@@ -326,7 +326,7 @@ def clear_line_files(cfg, confirm=False, target_filter_id="", append_event_fn=No
     for name in sorted(staged):
         print(f"  {name}")
     if not confirm:
-        print(f"\n  {len(staged)} file(s) would be unstaged.  Run: files clear --confirm")
+        print(f"\n  {len(staged)} file(s) would be unstaged.  Run: files clear confirm")
         return 0
     removed = 0
     for name in list(staged):
@@ -347,9 +347,9 @@ def parse_line_download_args(args):
     values = []
     for item in args:
         lower = item.lower()
-        if lower in {"--queue", "-q"}:
+        if lower in {"--queue", "-q", "queue"}:
             queue = True
-        elif lower in {"--start", "--start-service"}:
+        elif lower in {"--start", "--start-service", "start", "start-service"}:
             start_file_service = True
         else:
             values.append(item)
@@ -361,11 +361,11 @@ def parse_line_download_command(cmd, args=None):
     if args is None:
         args = cmd
     else:
-        if str(cmd or "").strip().lower() not in {"download", "get"}:
+        if str(cmd or "").strip().lower() not in {"retrieve", "download", "get"}:
             return {}
     target_path, queue, start_service = parse_line_download_args(args)
     return {
-        "action": "download",
+        "action": "retrieve",
         "target_path": target_path,
         "queue": queue,
         "start_service": start_service,
@@ -391,7 +391,7 @@ def dispatch_line_download_command(
     except ValueError as exc:
         print(exc)
         return None
-    raise ValueError("unsupported download command")
+    raise ValueError("unsupported retrieve command")
 
 
 def parse_line_release_stage_args(args):
@@ -399,7 +399,7 @@ def parse_line_release_stage_args(args):
     values = []
     for item in args:
         lower = item.lower()
-        if lower in {"--start", "--start-service"}:
+        if lower in {"--start", "--start-service", "start", "start-service"}:
             start_file_service = True
         else:
             values.append(item)
@@ -433,7 +433,7 @@ def parse_line_file_args(args):
     values = []
     for item in args:
         lower = item.lower()
-        if lower in {"--start", "--start-service"}:
+        if lower in {"--start", "--start-service", "start", "start-service"}:
             start_file_service = True
         else:
             values.append(item)
@@ -452,14 +452,14 @@ def parse_line_fetch_args(args, queue_default=False):
     values = []
     for item in args:
         lower = item.lower()
-        if lower in {"--queue", "-q"}:
+        if lower in {"--queue", "-q", "queue"}:
             queue = True
-        elif lower in {"--start", "--start-service"}:
+        elif lower in {"--start", "--start-service", "start", "start-service"}:
             start_file_service = True
         else:
             values.append(item)
     if len(values) > 1:
-        raise ValueError("usage: fetch [--queue] [--start] NAME")
+        raise ValueError("usage: deliver [queue] [start] NAME")
     return (values[0] if values else ""), queue, start_file_service
 
 
@@ -476,10 +476,10 @@ def download_line_target(
 ):
     path = str(target_path or "").strip()
     if not path:
-        raise ValueError("usage: download [--queue] [--start] TARGET_PATH")
+        raise ValueError("usage: retrieve [queue] [start] TARGET_PATH")
     target_id = target_id_fn() if target_id_fn else ""
     if not target_id:
-        raise ValueError("select an agent before download; use agent NAME or use target ID")
+        raise ValueError("select an agent before retrieve; use agent NAME or use target ID")
     command = render_file_service_command(["put", path], cfg)
     headless = (
         "scripts/grit-console --config "
@@ -496,7 +496,7 @@ def download_line_target(
         if start_file_service_fn:
             start_file_service_fn()
         started = True
-    print("Target download command:")
+    print("Target retrieval command:")
     print(f"  target: {target_id}")
     target_ctx = target_context_fn() if target_context_fn else {}
     label = str((target_ctx or {}).get("target_label") or "")
@@ -569,7 +569,7 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
 
     def _detail(rec):
         name = rec["_name"]
-        details = [("next", f"fetch {quote(name)}")]
+        details = [("next", f"deliver {quote(name)}")]
         if verbose:
             command = fetch_command(name)
             if command:
@@ -600,7 +600,7 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
     console_table(
         f"Files  ({len(records)} staged)" if records else "Files  (none staged)",
         records, cols, detail_fn=_detail,
-        footer="fetch NAME  |  upload LOCAL  |  unstage NAME  |  files ? for help",
+        footer="deliver NAME  |  stage LOCAL  |  unstage NAME  |  files ? for help",
     )
     return [
         {
@@ -608,7 +608,7 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
             "label": f"{record['_name']} kind={record.get('stage_kind', 'file')}",
             "rec": record,
             "command": fetch_command(record["_name"]),
-            "use_hint": f"fetch {quote(record['_name'])}",
+            "use_hint": f"deliver {quote(record['_name'])}",
         }
         for record in records
     ]
@@ -649,7 +649,7 @@ def stage_line_file(
 ):
     path = str(path_text or "").strip()
     if not path:
-        raise ValueError("usage: upload [--start] LOCAL [NAME]")
+        raise ValueError("usage: stage [start] LOCAL [NAME]")
     name = str(request_name or "").strip() or Path(path).name
     headless = (
         "scripts/grit-console --config "
@@ -662,12 +662,12 @@ def stage_line_file(
     )
     rec = stage_file(cfg, path, name, metadata={"stage_kind": "operator-upload"})
     fetch_command = render_fetch_command(rec["request_name"], cfg)
-    print("File staged for target fetch:")
+    print("File staged for target delivery:")
     print(f"  name: {rec.get('request_name', '')}")
     print(f"  source: {rec.get('source_path', '')}")
     print(f"  sha256: {str(rec.get('sha256', ''))[:16]}...")
-    print(f"  next: fetch {rec.get('request_name', '')}")
-    print("  fetch shows target-side commands; fetch --queue queues it for the selected agent")
+    print(f"  next: deliver {rec.get('request_name', '')}")
+    print("  deliver shows target-side commands; deliver queue queues it for the selected agent")
     fetch_options = staged_fetch_target_commands(rec.get("request_name", ""), cfg)
     started = False
     if start_file_service:
@@ -740,7 +740,7 @@ def _line_staged_target_context(
 ):
     target_id = target_id_fn() if target_id_fn else ""
     if queue and not target_id:
-        raise ValueError("select an agent before fetch --queue; use agent NAME or use target ID")
+        raise ValueError("select an agent before deliver queue; use agent NAME or use target ID")
     staged_target = str(rec.get("target_id") or "")
     if queue and staged_target and staged_target != target_id:
         raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
@@ -781,7 +781,7 @@ def _start_line_file_service(start_file_service, start_file_service_fn):
 
 
 def _print_line_staged_fetch(name, rec, target_id, target_label, fetch_command, scoped, started):
-    print("Staged fetch command:")
+    print("Staged delivery command:")
     print(f"  name: {name}")
     print(f"  source: {rec.get('source_path', '')}")
     if target_id:
@@ -789,7 +789,7 @@ def _print_line_staged_fetch(name, rec, target_id, target_label, fetch_command, 
         if target_label:
             target_text += f" ({target_label})"
         print(f"  target: {target_text}")
-    print(f"  target fetch: {fetch_command}")
+    print(f"  target command: {fetch_command}")
     print_staged_fetch_target_options(name, scoped)
     print_file_service_note(started)
 
@@ -855,7 +855,7 @@ def fetch_line_staged(
 ):
     name, rec = staged_line_record(cfg, request_name)
     if not name:
-        raise ValueError("usage: fetch [--queue] [--start] NAME")
+        raise ValueError("usage: deliver [queue] [start] NAME")
     if not rec:
         raise ValueError(f"staged request not found: {name}")
     target_id, target_label, scoped = _line_staged_target_context(

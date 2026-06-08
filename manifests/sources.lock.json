@@ -34,6 +34,28 @@
             ],
             "license": "GPL-2.0-or-later",
             "homepage": "https://github.com/wojciech-graj/doom-ascii"
+        },
+        {
+            "name": "prompt-toolkit",
+            "version": "3.0.52",
+            "filename": "prompt_toolkit-3.0.52.tar.gz",
+            "sha256": "28cde192929c8e7321de85de1ddbe736f1375148b02f2e17edd840042b1be855",
+            "urls": [
+                "https://files.pythonhosted.org/packages/a1/96/06e01a7b38dce6fe1db213e061a4602dd6032a8a97ef6c1a862537732421/prompt_toolkit-3.0.52.tar.gz"
+            ],
+            "license": "BSD-3-Clause",
+            "homepage": "https://github.com/prompt-toolkit/python-prompt-toolkit"
+        },
+        {
+            "name": "wcwidth",
+            "version": "0.6.0",
+            "filename": "wcwidth-0.6.0.tar.gz",
+            "sha256": "cdc4e4262d6ef9a1a57e018384cbeb1208d8abbc64176027e2c2455c81313159",
+            "urls": [
+                "https://files.pythonhosted.org/packages/35/a2/8e3becb46433538a38726c948d3399905a4c7cabd0df578ede5dc51f0ec2/wcwidth-0.6.0.tar.gz"
+            ],
+            "license": "MIT",
+            "homepage": "https://github.com/jquast/wcwidth"
         }
     ]
 }

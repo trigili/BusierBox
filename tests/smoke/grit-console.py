@@ -130,14 +130,29 @@ def line_console_raw_action_state_present(text):
     return any(state in text for state in raw_states)
 
 
-def line_console_transcript_coverage(text):
-    text = text or ""
+LINE_CONSOLE_ANSI_RE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
+
+
+def line_console_plain_transcript_text(text):
+    return LINE_CONSOLE_ANSI_RE.sub("", text or "").replace("\r", "")
+
+
+def line_console_blank_enter_text(text):
+    text = line_console_plain_transcript_text(text)
+    blank_match = re.search(
+        r"(grit\[[^\]\n]+\]>[ \t]*\n)(?=grit\[[^\]\n]+\]> help\b)",
+        text,
+    )
+    if blank_match:
+        return blank_match.group(1)
     first_prompt = text.find("grit[all]>")
     help_prompt = text.find("grit[all]> help", first_prompt + 1)
-    blank_enter_text = (
-        text[first_prompt:help_prompt]
-        if first_prompt != -1 and help_prompt != -1 else ""
-    )
+    return text[first_prompt:help_prompt] if first_prompt != -1 and help_prompt != -1 else ""
+
+
+def line_console_transcript_coverage(text):
+    text = text or ""
+    blank_enter_text = line_console_blank_enter_text(text)
     coverage_markers = {
         "startup": ("griTTYkit v", "Workspace", "grit[all]>"),
         "blank_enter": ("grit[all]>",),
@@ -150,7 +165,7 @@ def line_console_transcript_coverage(text):
             "Help: events",
             "Help: queue",
             "Help: build",
-            "Help: probe",
+            "Help: listeners",
             "Help: jobs",
             "Help: sessions",
         ),
@@ -315,12 +330,7 @@ def write_line_console_artifacts(stdout_text, stderr_text, returncode, summary=N
     (artifact_dir / "transcript.txt").write_text(stdout_text or "", encoding="utf-8")
     (artifact_dir / "stderr.txt").write_text(stderr_text or "", encoding="utf-8")
     transcript_text = stdout_text or ""
-    first_prompt = transcript_text.find("grit[all]>")
-    help_prompt = transcript_text.find("grit[all]> help", first_prompt + 1)
-    blank_enter_text = (
-        transcript_text[first_prompt:help_prompt]
-        if first_prompt != -1 and help_prompt != -1 else ""
-    )
+    blank_enter_text = line_console_blank_enter_text(transcript_text)
     summary_doc = {
         "kind": "line-console-transcript",
         "returncode": returncode,
@@ -466,7 +476,15 @@ def run_line_local_ips_check():
         find_config_from_survey,
         find_preset_from_survey,
         find_survey_uploads,
+        parse_line_artifact_command,
         parse_line_config_args,
+        parse_line_configure_command,
+    )
+    from gritlib.line_completions import build_line_completion_providers, line_completion_candidates
+    from gritlib.line_files import (
+        parse_line_download_command,
+        parse_line_file_transfer_command,
+        parse_line_files_command,
     )
     from gritlib.line_network import print_line_local_ips
     from gritlib.line_workspace import line_repl_status_bar
@@ -491,6 +509,124 @@ def run_line_local_ips_check():
         print("line local IP renderer did not sort and de-duplicate candidates", file=sys.stderr)
         print(text, file=sys.stderr)
         return 1
+    command_alias_cases = [
+        (parse_line_file_transfer_command("stage", ["local.bin", "bin"]).get("action"), "stage"),
+        (parse_line_file_transfer_command("upload", ["local.bin", "bin"]).get("action"), "stage"),
+        (parse_line_file_transfer_command("deliver", ["bin"]).get("action"), "deliver"),
+        (parse_line_file_transfer_command("fetch", ["bin"]).get("action"), "deliver"),
+        (parse_line_files_command("files", ["stage", "local.bin", "bin"]).get("action"), "stage"),
+        (parse_line_files_command("files", ["deliver", "bin"]).get("action"), "deliver"),
+        (parse_line_download_command("retrieve", ["/etc/config/network"]).get("action"), "retrieve"),
+        (parse_line_download_command("download", ["/etc/config/network"]).get("action"), "retrieve"),
+        (parse_line_configure_command("stamp", ["bin", "show"]).get("action"), "stamp"),
+        (parse_line_configure_command("trailer", ["bin", "show"]).get("action"), "stamp"),
+        (parse_line_configure_command("configure", ["bin", "show"]).get("action"), "stamp"),
+        (parse_line_artifact_command("artifact", ["stamp", "bin", "show"]).get("action"), "stamp"),
+        (parse_line_artifact_command("artifact", ["show", "bin"]).get("args"), ["bin", "--show"]),
+    ]
+    if any(actual != expected for actual, expected in command_alias_cases):
+        print(f"line command rename aliases changed: {command_alias_cases}", file=sys.stderr)
+        return 1
+    fast_staged_completion_providers = {
+        "staged_names_load": lambda: ["grit"],
+        "staged_names_snapshot": lambda: (_ for _ in ()).throw(
+            AssertionError("snapshot provider should not be used for artifact/trailer completions")
+        ),
+    }
+    completion_cases = [
+        ("trailer ", "trailer grit"),
+        ("artifact ", "artifact grit"),
+        ("artifact stamp ", "artifact stamp grit"),
+        ("artifact show ", "artifact show grit"),
+    ]
+    try:
+        completion_results = [
+            (prefix, expected, line_completion_candidates(prefix, providers=fast_staged_completion_providers))
+            for prefix, expected in completion_cases
+        ]
+    except AssertionError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if any(expected not in results for _prefix, expected, results in completion_results):
+        print(f"artifact/trailer completions missed lightweight staged names: {completion_results}", file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory() as tmpdir:
+        completion_root = Path(tmpdir)
+        operator_dir = completion_root / "operator"
+        session_root = completion_root / "sessions"
+        operator_dir.mkdir()
+        (session_root / "sess-1").mkdir(parents=True)
+        (session_root / "sess-1" / "session.log").write_text("hello\n", encoding="utf-8")
+        (operator_dir / "targets.json").write_text(json.dumps({
+            "schema": 1,
+            "targets": {
+                "target-1": {
+                    "target_id": "target-1",
+                    "label": "Lab Target",
+                    "aliases": ["lab-router"],
+                },
+            },
+        }) + "\n", encoding="utf-8")
+        (operator_dir / "staged-files.json").write_text(json.dumps({
+            "schema": 1,
+            "staged": {"grit": {"request_name": "grit"}},
+        }) + "\n", encoding="utf-8")
+        (operator_dir / "workbench-jobs.json").write_text(json.dumps({
+            "schema": 1,
+            "jobs": [{"id": "job-1", "action_id": "status"}],
+        }) + "\n", encoding="utf-8")
+        completion_cfg = {
+            "operator_session_dir": str(operator_dir),
+            "session_root": str(session_root),
+        }
+
+        def fail_snapshot(_cfg):
+            raise AssertionError("completion provider should not build workbench snapshots while typing")
+
+        provider_bundle = build_line_completion_providers(
+            completion_cfg,
+            workbench_snapshot_func=fail_snapshot,
+            line_action_records_func=lambda: [{"id": "status", "kind": "workbench"}],
+            bridge_profile_records_func=lambda _cfg: [{"name": "route-1"}],
+            release_context_func=lambda _cfg: {"artifacts": [{"name": "rel-grit"}]},
+            command_queue_summary_func=lambda _cfg: {"commands": [{"id": "cq-1"}]},
+            generated_target_command_records_func=lambda _cfg: [{"id": "cmd-1"}],
+            workbench_config_field_records_func=lambda _cfg: [{"key": "GRIT_TARGET"}],
+            service_status_rows_func=lambda _cfg: [{"name": "probe"}],
+            service_completion_names_func=lambda _rows: ["probe"],
+            service_names_func=lambda _rows: ["probe"],
+            load_staged_func=lambda _cfg: {
+                "schema": 1,
+                "staged": {"grit": {"request_name": "grit"}},
+            },
+            find_survey_uploads_func=lambda: [{"stored_path": "sessions/sess-1/files/survey.json"}],
+        )
+        no_snapshot_completion_cases = [
+            ("sessions ", "sessions sess-1"),
+            ("session ", "session sess-1"),
+            ("interact ", "interact sess-1"),
+            ("use session ", "use session sess-1"),
+            ("jobs ", "jobs job-1"),
+            ("job ", "job job-1"),
+            ("target ", "target target-1"),
+            ("use target ", "use target target-1"),
+            ("deliver ", "deliver grit"),
+            ("artifact ", "artifact grit"),
+            ("trailer ", "trailer grit"),
+            ("view ", f"view {session_root / 'sess-1'}"),
+            ("cat ", f"cat {session_root / 'sess-1' / 'session.log'}"),
+        ]
+        try:
+            no_snapshot_results = [
+                (prefix, expected, line_completion_candidates(prefix, providers=provider_bundle))
+                for prefix, expected in no_snapshot_completion_cases
+            ]
+        except AssertionError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        if any(expected not in results for _prefix, expected, results in no_snapshot_results):
+            print(f"completion providers missed no-snapshot candidates: {no_snapshot_results}", file=sys.stderr)
+            return 1
     original_local_ips = operator_network.local_ips
     operator_network.local_ips = lambda: ["192.168.8.2", "10.0.0.5", "127.0.0.1"]
     try:
@@ -580,7 +716,7 @@ def run_line_local_ips_check():
     if parse_line_probe_args(["start", "queue"]) != (True, True):
         print("probe start/queue aliases did not map to canonical flags", file=sys.stderr)
         return 1
-    if parse_line_config_args(["1", "--write-config", "configs/grit.conf"], "probe config") != (
+    if parse_line_config_args(["1", "write-config", "configs/grit.conf"], "probe config") != (
             "1", "configs/grit.conf", []):
         print("line config parser did not preserve probe config arguments", file=sys.stderr)
         return 1
@@ -615,7 +751,7 @@ def run_line_local_ips_check():
             return 1
     records = [{"uname_m": "armv7l", "uname_r": "4.1.8", "remote_addr": "192.0.2.1"}]
     search_records = line_probe_result_search_records(records)
-    if not search_records or search_records[0].get("use_hint") != "probe config 1":
+    if not search_records or search_records[0].get("use_hint") != "listener probe config 1":
         print("probe result search records did not preserve numbered config hints", file=sys.stderr)
         return 1
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -656,8 +792,15 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_utility as repl_utility
     import gritlib.line_repl_workflow as repl_workflow
     import gritlib.line_repl_workspace as repl_workspace
+    from gritlib.line_options import print_line_options
+    from gritlib.line_services import start_line_service, stop_line_service
+    from gritlib.line_prompt_toolkit import (
+        MissingPromptToolkitLineInput,
+        build_line_prompt_completer,
+        build_prompt_toolkit_input,
+    )
     from gritlib.line_repl_runtime import (
-        build_line_repl_input_callback,
+        contextual_line_command,
         dispatch_line_help_command,
         dispatch_line_parsed_command,
         dispatch_line_quit_choice,
@@ -665,13 +808,13 @@ def run_line_repl_runtime_check():
         line_repl_has_context_scope,
         line_repl_io_input,
         prepare_repl_choice,
-        read_line,
         read_next_repl_line,
         restore_line_repl_io,
         restore_signal_handlers,
         run_configured_line_repl_loop,
         run_line_console_lifecycle,
         run_line_repl_loop,
+        set_line_repl_io_completion_func,
         setup_line_repl_io,
     )
 
@@ -680,110 +823,45 @@ def run_line_repl_runtime_check():
     def request_shutdown(reason):
         reasons.append(reason)
 
-    shutdown = threading.Event()
-    if read_line(
-            "prompt> ",
-            shutdown_event=shutdown,
-            request_shutdown_func=request_shutdown,
-            have_readline=True,
-            input_func=lambda _prompt: (_ for _ in ()).throw(EOFError())) is not None:
-        print("line REPL runtime did not return None on readline EOF", file=sys.stderr)
-        return 1
-    if reasons != ["input_eof"]:
-        print(f"line REPL runtime did not preserve readline EOF reason: {reasons}", file=sys.stderr)
-        return 1
-
-    reasons.clear()
-    output = io.StringIO()
-    input_stream = io.StringIO("hello\n")
-    line = read_line(
-        "prompt> ",
-        shutdown_event=shutdown,
-        request_shutdown_func=request_shutdown,
-        have_readline=False,
-        stdin=input_stream,
-        stdout=output,
-        select_func=lambda readers, _writers, _errors, _timeout: (readers, [], []),
-    )
-    if line != "hello" or output.getvalue() != "prompt> " or reasons:
-        print("line REPL runtime fallback did not read and strip one line cleanly", file=sys.stderr)
-        return 1
-
-    reasons.clear()
-    eof_line = read_line(
-        "prompt> ",
-        shutdown_event=shutdown,
-        request_shutdown_func=request_shutdown,
-        have_readline=False,
-        stdin=io.StringIO(""),
-        stdout=io.StringIO(),
-        select_func=lambda readers, _writers, _errors, _timeout: (readers, [], []),
-    )
-    if eof_line is not None or reasons != ["input_eof"]:
-        print(f"line REPL runtime fallback did not preserve EOF reason: line={eof_line!r} reasons={reasons}", file=sys.stderr)
-        return 1
-
-    reasons.clear()
-
-    def raise_select_error(_readers, _writers, _errors, _timeout):
-        raise ValueError("closed input")
-
-    error_line = read_line(
-        "prompt> ",
-        shutdown_event=shutdown,
-        request_shutdown_func=request_shutdown,
-        have_readline=False,
-        stdin=io.StringIO("ignored\n"),
-        stdout=io.StringIO(),
-        select_func=raise_select_error,
-    )
-    if error_line is not None or reasons != ["input_error"]:
-        print(f"line REPL runtime fallback did not preserve input error reason: line={error_line!r} reasons={reasons}", file=sys.stderr)
-        return 1
-
-    input_calls = []
-    callback_shutdown = threading.Event()
-    line_input = build_line_repl_input_callback(
-        shutdown_event=callback_shutdown,
-        request_shutdown_func=lambda reason: input_calls.append(("shutdown", reason)),
-        have_readline=True,
-        read_line_func=lambda prompt, shutdown_event, request_shutdown_func, have_readline: input_calls.append(
-            ("read", prompt, shutdown_event is callback_shutdown, have_readline)
-        ) or "typed",
-    )
-    if line_input("grit> ") != "typed" or input_calls != [("read", "grit> ", True, True)]:
-        print(f"line REPL input callback did not forward read_line state: {input_calls}", file=sys.stderr)
-        return 1
-
     setup_calls = []
     restored_handlers = []
     setup_shutdown = threading.Event()
-    repl_io = setup_line_repl_io(
-        "readline-module",
-        True,
-        shutdown_event=setup_shutdown,
-        request_shutdown_func=request_shutdown,
-        history_configurer=lambda readline_module, have_readline: setup_calls.append(
-            ("history", readline_module, have_readline)
-        ),
-        signal_installer=lambda request_shutdown_func: setup_calls.append(
-            ("signals", request_shutdown_func is request_shutdown)
-        ) or [("SIGINT", "previous")],
-        input_builder=lambda shutdown_event, request_shutdown_func, have_readline: setup_calls.append(
-            ("input", shutdown_event is setup_shutdown, request_shutdown_func is request_shutdown, have_readline)
-        ) or (lambda prompt: f"typed:{prompt}"),
+    missing_stderr = io.StringIO()
+    missing_input = MissingPromptToolkitLineInput(
+        request_shutdown_func=lambda reason: setup_calls.append(("missing", reason)),
+        stderr=missing_stderr,
     )
+    if missing_input("grit> ") is not None or setup_calls != [("missing", "prompt_toolkit_missing")]:
+        print(f"missing prompt-toolkit input did not request shutdown: {setup_calls}", file=sys.stderr)
+        return 1
+    if "python-prompt-toolkit is required" not in missing_stderr.getvalue():
+        print("missing prompt-toolkit input did not explain dependency", file=sys.stderr)
+        return 1
+
+    setup_calls.clear()
+    original_prompt_builder = setup_line_repl_io.__globals__["build_prompt_toolkit_input"]
+    setup_line_repl_io.__globals__["build_prompt_toolkit_input"] = lambda **kwargs: setup_calls.append(
+        ("prompt-builder", kwargs["shutdown_event"] is setup_shutdown)
+    ) or missing_input
+    try:
+        repl_io = setup_line_repl_io(
+            shutdown_event=setup_shutdown,
+            request_shutdown_func=request_shutdown,
+            signal_installer=lambda request_shutdown_func: setup_calls.append(
+                ("signals", request_shutdown_func is request_shutdown)
+            ) or [("SIGINT", "previous")],
+        )
+    finally:
+        setup_line_repl_io.__globals__["build_prompt_toolkit_input"] = original_prompt_builder
     if (
         repl_io.get("signal_handlers") != [("SIGINT", "previous")]
-        or repl_io.get("line_input")("grit> ") != "typed:grit> "
-        or line_repl_io_input(repl_io)("again> ") != "typed:again> "
+        or line_repl_io_input(repl_io) is not missing_input
         or setup_calls != [
-            ("history", "readline-module", True),
             ("signals", True),
-            ("input", True, True, True),
+            ("prompt-builder", True),
         ]
     ):
-        print(f"line REPL IO setup did not configure callbacks cleanly: {setup_calls}", file=sys.stderr)
+        print(f"line REPL IO setup did not use prompt-toolkit input cleanly: {setup_calls}", file=sys.stderr)
         return 1
     original_restore_signal_handlers = restore_line_repl_io.__globals__["restore_signal_handlers"]
     restore_line_repl_io.__globals__["restore_signal_handlers"] = lambda handlers: restored_handlers.append(handlers)
@@ -794,6 +872,76 @@ def run_line_repl_runtime_check():
         restore_line_repl_io.__globals__["restore_signal_handlers"] = original_restore_signal_handlers
     if restored_handlers != [[("SIGINT", "previous")], None]:
         print(f"line REPL IO restore wrapper did not forward signal handlers: {restored_handlers}", file=sys.stderr)
+        return 1
+
+    class FakeCompletion:
+        def __init__(self, text, start_position=0):
+            self.text = text
+            self.start_position = start_position
+
+    class FakeCompleter:
+        pass
+
+    class FakeDocument:
+        text_before_cursor = "pr"
+
+    prompt_completer = build_line_prompt_completer(
+        lambda prefix: [prefix + "obe", ""],
+        completer_base=FakeCompleter,
+        completion_class=FakeCompletion,
+    )
+    prompt_completions = list(prompt_completer.get_completions(FakeDocument(), object()))
+    if (
+        len(prompt_completions) != 1
+        or prompt_completions[0].text != "probe"
+        or prompt_completions[0].start_position != -2
+    ):
+        print("prompt-toolkit completer adapter did not convert line completions", file=sys.stderr)
+        return 1
+
+    prompt_calls = []
+
+    class FakePromptSession:
+        def prompt(self, prompt, completer=None):
+            prompt_calls.append((prompt, completer is not None))
+            return "status"
+
+    prompt_input = build_prompt_toolkit_input(
+        shutdown_event=threading.Event(),
+        request_shutdown_func=lambda reason: prompt_calls.append(("shutdown", reason)),
+        session_factory=FakePromptSession,
+        completer_base=FakeCompleter,
+        completion_class=FakeCompletion,
+    )
+    prompt_input.set_completion_func(lambda prefix: [prefix + "atus"])
+    if prompt_input("grit> ") != "status" or prompt_calls != [("grit> ", True)]:
+        print(f"prompt-toolkit input adapter did not read through fake session: {prompt_calls}", file=sys.stderr)
+        return 1
+
+    prompt_setup_calls = []
+    original_prompt_builder = setup_line_repl_io.__globals__["build_prompt_toolkit_input"]
+    setup_line_repl_io.__globals__["build_prompt_toolkit_input"] = lambda **kwargs: prompt_setup_calls.append(
+        ("prompt-builder", kwargs["shutdown_event"] is setup_shutdown)
+    ) or prompt_input
+    try:
+        prompt_repl_io = setup_line_repl_io(
+            shutdown_event=setup_shutdown,
+            request_shutdown_func=request_shutdown,
+            signal_installer=lambda request_shutdown_func: prompt_setup_calls.append(
+                ("signals", request_shutdown_func is request_shutdown)
+            ) or [],
+        )
+    finally:
+        setup_line_repl_io.__globals__["build_prompt_toolkit_input"] = original_prompt_builder
+    set_line_repl_io_completion_func(prompt_repl_io, lambda prefix: [prefix + "obe"])
+    if (
+        line_repl_io_input(prompt_repl_io)("pt> ") != "status"
+        or prompt_setup_calls != [
+            ("signals", True),
+            ("prompt-builder", True),
+        ]
+    ):
+        print(f"line REPL IO did not prefer prompt-toolkit input: {prompt_setup_calls}", file=sys.stderr)
         return 1
 
     sig_reasons = []
@@ -1045,16 +1193,93 @@ def run_line_repl_runtime_check():
         print("line REPL runtime did not preserve blank input preparation", file=sys.stderr)
         return 1
 
+    comment = prepare_repl_choice(
+        "# how do I change the probe IP?",
+        history,
+        history_command_func=lambda _history, _selector: "",
+        record_history_func=lambda *args, **kwargs: recorded.append(args),
+        clear_results_func=lambda: cleared.append("clear"),
+    )
+    if (
+        comment.get("continue") is not True
+        or comment.get("compact_next_prompt") is not True
+        or comment.get("cmd") != ""
+        or comment.get("console_args") != []
+        or recorded
+        or cleared
+    ):
+        print("line REPL runtime did not ignore comment input cleanly", file=sys.stderr)
+        return 1
+
+    probe_options_out = io.StringIO()
+    with contextlib.redirect_stdout(probe_options_out):
+        print_line_options(
+            {
+                "_line_console_module": "probe",
+                "GRIT_PROBE_PORT": 22207,
+                "GRIT_OPERATOR_SERVER_HOST": "192.168.8.241",
+            },
+            module="probe",
+            service_record_func=lambda service: {
+                "name": service,
+                "actual": "listening",
+                "bind_address": "127.0.0.1",
+                "port": 22207,
+            },
+            display_name_func=lambda service: "probe-http" if service == "probe" else service,
+            build_fields_func=lambda: [],
+            target_command_records_func=lambda: [],
+        )
+    probe_options_text = probe_options_out.getvalue()
+    if (
+        "probe-http" not in probe_options_text
+        or "GRIT_OPERATOR_SERVER_HOST" not in probe_options_text
+        or "Action: none" in probe_options_text
+        or "Build options:" in probe_options_text
+    ):
+        print("probe context options did not show probe listener settings", file=sys.stderr)
+        print(probe_options_text, file=sys.stderr)
+        return 1
+
+    service_control_calls = []
+    service_rows = lambda: [{"name": "probe", "actual": "listening", "port": 22207}]
+    service_cfg = {"_line_console_module": "probe"}
+    with contextlib.redirect_stdout(io.StringIO()):
+        stopped_service = stop_line_service(
+            service_cfg,
+            "",
+            service_rows_func=service_rows,
+            service_stop_command_func=lambda service: f"stop {service}",
+            service_stop_func=lambda cfg, service, headless_command=None: service_control_calls.append(
+                ("stop", cfg.get("_line_console_module"), service, headless_command)
+            ),
+        )
+        started_service = start_line_service(
+            service_cfg,
+            "",
+            service_rows_func=service_rows,
+            service_start_command_func=lambda service: f"start {service}",
+            service_start_func=lambda cfg, service, headless_command=None: service_control_calls.append(
+                ("start", cfg.get("_line_console_module"), service, headless_command)
+            ),
+        )
+    if stopped_service != "probe" or started_service != "probe" or service_control_calls != [
+        ("stop", "probe", "probe", "stop probe"),
+        ("start", "probe", "probe", "start probe"),
+    ]:
+        print("service control did not infer probe selector from probe context", file=sys.stderr)
+        print(service_control_calls, file=sys.stderr)
+        return 1
+
     parsed = prepare_repl_choice(
         "targets list",
         history,
         history_command_func=lambda _history, _selector: "",
-        record_history_func=lambda line_history, command, readline_module=None: (
+        record_history_func=lambda line_history, command: (
             line_history.append(command),
-            recorded.append((command, readline_module)),
+            recorded.append(command),
         ),
         clear_results_func=lambda: cleared.append("clear"),
-        readline_module="readline",
     )
     if (
         parsed.get("continue") is not False
@@ -1062,7 +1287,7 @@ def run_line_repl_runtime_check():
         or parsed.get("console_args") != ["targets", "list"]
         or parsed.get("cmd") != "targets"
         or history != ["targets list"]
-        or recorded[-1] != ("targets list", "readline")
+        or recorded[-1] != "targets list"
         or cleared[-1] != "clear"
     ):
         print("line REPL runtime did not preserve parsed command preparation", file=sys.stderr)
@@ -1075,7 +1300,7 @@ def run_line_repl_runtime_check():
             "!!",
             history,
             history_command_func=lambda _history, _selector: "7",
-            record_history_func=lambda line_history, command, readline_module=None: line_history.append(command),
+            record_history_func=lambda line_history, command: line_history.append(command),
             clear_results_func=lambda: cleared.append("clear"),
         )
     if (
@@ -1093,12 +1318,31 @@ def run_line_repl_runtime_check():
         "use 3",
         history,
         history_command_func=lambda _history, _selector: "",
-        record_history_func=lambda line_history, command, readline_module=None: line_history.append(command),
+        record_history_func=lambda line_history, command: line_history.append(command),
         clear_results_func=lambda: cleared.append("clear"),
     )
     if use_result.get("console_args") != ["use", "3"] or cleared:
         print("line REPL runtime did not preserve use-number result context", file=sys.stderr)
         return 1
+
+    contextual_cases = [
+        (("start", [], "listener/probe"), ("listener", ["probe", "start"])),
+        (("queue", [], "listener/probe"), ("listener", ["probe", "queue"])),
+        (("delivery", [], "listener/probe"), ("listener", ["probe", "delivery"])),
+        (("start", ["1"], "routes"), ("routes", ["start", "1"])),
+        (("set", ["9", "/tmp/grit-build"], "build"), ("build", ["set", "9", "/tmp/grit-build"])),
+        (("clear", ["confirm"], "queue"), ("queue", ["clear", "confirm"])),
+        (("clear", ["target"], "queue"), ("clear", ["target"])),
+        (("serve-binary", ["start", "./grit"], "files"), ("serve-binary", ["start", "./grit"])),
+        (("stamp", ["grit-console"], "files"), ("stamp", ["grit-console"])),
+        (("retrieve", ["queue", "/etc/config/network"], "listener/probe"), ("retrieve", ["queue", "/etc/config/network"])),
+        (("show", ["grit-console"], "artifact"), ("artifact", ["show", "grit-console"])),
+        (("probe", ["queue"], "listener/probe"), ("listener", ["probe", "queue"])),
+    ]
+    for contextual_input, expected_contextual in contextual_cases:
+        if contextual_line_command(contextual_input[0], contextual_input[1], module=contextual_input[2]) != expected_contextual:
+            print(f"line REPL contextual command mapping changed: {contextual_input}", file=sys.stderr)
+            return 1
 
     help_calls = []
     if not dispatch_line_help_command(
@@ -1269,6 +1513,28 @@ def run_line_repl_runtime_check():
     )
     if utility_parsed != {"handled": True} or parsed_calls != [("utility", "events", ("list",))]:
         print(f"line REPL runtime parsed utility command incorrectly: {utility_parsed} {parsed_calls}", file=sys.stderr)
+        return 1
+
+    parsed_calls.clear()
+    contextual_parsed = dispatch_line_parsed_command(
+        "queue",
+        ["queue"],
+        module="probe",
+        command_help_printer=lambda topic: parsed_calls.append(("help", topic)),
+        context_help_printer=lambda module, target_selected=False, command_help_printer=None: parsed_calls.append(
+            ("context", module, target_selected, command_help_printer is not None)
+        ),
+        utility_dispatch_func=false_dispatch("utility"),
+        core_dispatch_func=lambda command, args: parsed_calls.append(("core", command, tuple(args))) or True,
+        navigation_dispatch_func=false_dispatch("navigation"),
+        workflow_dispatch_func=false_dispatch("workflow"),
+        unknown_message_func=lambda command, module, target_selected=False: f"unknown {command}",
+    )
+    if contextual_parsed != {"handled": True} or parsed_calls != [
+        ("utility", "probe", ("queue",)),
+        ("core", "probe", ("queue",)),
+    ]:
+        print(f"line REPL runtime did not imply probe command in probe context: {contextual_parsed} {parsed_calls}", file=sys.stderr)
         return 1
 
     parsed_calls.clear()
@@ -2813,12 +3079,11 @@ def run_line_repl_runtime_check():
         prompt_func=lambda cfg: f"grit[{cfg.get('_line_console_module') or 'all'}]> ",
         input_func=loop_input,
         history_command_func=lambda history, selector: history[-1],
-        record_history_func=lambda history, command, readline_module=None: (
+        record_history_func=lambda history, command: (
             history.append(command),
-            loop_calls.append(("history", command, readline_module)),
+            loop_calls.append(("history", command)),
         ),
         clear_results_func=lambda: loop_calls.append("clear-results"),
-        readline_module="readline",
         module_func=lambda cfg: cfg.get("_line_console_module"),
         target_selected_func=lambda cfg: bool(cfg.get("target")),
         command_help_printer=lambda topic: loop_calls.append(("help", topic)),
@@ -2928,8 +3193,7 @@ def run_line_repl_runtime_check():
                 prompt_func=lambda cfg: "> ",
                 input_func=lambda prompt: None,
                 history_command_func=lambda history, selector: "",
-                record_history_func=lambda history, command, readline_module=None: None,
-                readline_module=None,
+                record_history_func=lambda history, command: None,
                 command_help_printer=lambda topic: None,
                 context_help_printer=lambda module, target_selected=False, command_help_printer=None: None,
                 unknown_message_func=lambda command, module, target_selected=False: "") != 0:
@@ -2970,9 +3234,8 @@ def run_line_repl_runtime_check():
         prompt_func=lambda cfg: "> ",
         input_func=lambda prompt: "",
         history_command_func=lambda history, selector: "",
-        record_history_func=lambda history, command, readline_module=None: None,
+        record_history_func=lambda history, command: None,
         clear_results_func=lambda: None,
-        readline_module=None,
         module_func=lambda cfg: "",
         target_selected_func=lambda cfg: False,
         command_help_printer=lambda topic: None,
@@ -3063,7 +3326,6 @@ def run_line_repl_runtime_check():
 
     completion_calls = []
     original_completion_builder = repl_completions.build_line_completion_callbacks
-    original_completion_installer = repl_completions.install_readline_completer
 
     def fake_completion_builder(cfg, **kwargs):
         completion_calls.append(("builder", cfg.get("name"), sorted(kwargs)))
@@ -3115,16 +3377,8 @@ def run_line_repl_runtime_check():
             print("line REPL completion bundle did not return candidates result", file=sys.stderr)
             return 1
         completion_bundle["print_line_completions"]("st")
-        repl_completions.install_readline_completer = (
-            lambda readline_module, have_readline, candidate_func: completion_calls.append(
-                ("install", readline_module, have_readline, candidate_func("in"))
-            )
-        )
-        repl_completions.install_line_completion_bundle("readline", True, completion_bundle)
         setup_bundle = repl_completions.setup_line_completion_bundle(
             completion_cfg,
-            readline_module="readline-setup",
-            have_readline=False,
             workbench_snapshot_func=lambda cfg: {},
             action_callbacks={
                 "current_action_records": lambda: completion_calls.append("setup-actions") or [],
@@ -3172,11 +3426,6 @@ def run_line_repl_runtime_check():
         adapter_printer("ad")
     finally:
         repl_completions.build_line_completion_callbacks = original_completion_builder
-        repl_completions.install_readline_completer = original_completion_installer
-    if ("install", "readline-setup", False, ["status"]) not in completion_calls:
-        print("line REPL completion setup helper did not install readline bundle", file=sys.stderr)
-        print(completion_calls, file=sys.stderr)
-        return 1
     expected_completion_markers = [
         "actions",
         "bridge-records",
@@ -3189,8 +3438,6 @@ def run_line_repl_runtime_check():
         ("event", "completion-cfg", "workbench", "complete", {"prefix": "st"}),
         ("candidates", "st"),
         ("printer", "st"),
-        ("candidates", "in"),
-        ("install", "readline", True, ["status"]),
         ("candidates", "ad"),
         ("printer", "ad"),
     ]
@@ -3676,28 +3923,28 @@ def run_line_session_command_registry_check():
     if clear_subcommands != {"clear", "prune", "clean"}:
         print(f"session command registry lost clear aliases: {clear_subcommands}", file=sys.stderr)
         return 1
-    if not any({"-h", "--help"} == set(rec.get("subcommands") or []) for rec in actions.get("help", [])):
+    if not any({"-h", "--help", "help"} == set(rec.get("subcommands") or []) for rec in actions.get("help", [])):
         print(f"session command registry lost help aliases: {records}", file=sys.stderr)
         return 1
-    if not any({"-v", "--verbose"} == set(rec.get("subcommands") or []) and rec.get("verbose") for rec in actions.get("list", [])):
+    if not any({"-v", "--verbose", "verbose", "details"} == set(rec.get("subcommands") or []) and rec.get("verbose") for rec in actions.get("list", [])):
         print(f"session command registry lost verbose aliases: {records}", file=sys.stderr)
         return 1
 
-    clear = parse_line_sessions_command("sessions", ["prune", "--all", "--confirm"])
+    clear = parse_line_sessions_command("sessions", ["prune", "all", "confirm"])
     if clear.get("action") != "clear" or clear.get("all_sessions") is not True or clear.get("confirm") is not True:
         print(f"session parser did not preserve clear flags: {clear}", file=sys.stderr)
         return 1
-    if parse_line_sessions_command("sessions", ["--help"]).get("action") != "help":
+    if parse_line_sessions_command("sessions", ["help"]).get("action") != "help":
         print("session parser did not preserve help alias", file=sys.stderr)
         return 1
-    verbose = parse_line_sessions_command("sessions", ["--verbose"])
+    verbose = parse_line_sessions_command("sessions", ["verbose"])
     if verbose.get("action") != "list" or verbose.get("verbose") is not True:
         print(f"session parser did not preserve verbose list: {verbose}", file=sys.stderr)
         return 1
-    if parse_line_sessions_command("sessions", ["--list"]).get("action") != "list":
+    if parse_line_sessions_command("sessions", ["list"]).get("action") != "list":
         print("session parser did not preserve explicit list flag", file=sys.stderr)
         return 1
-    interact = parse_line_sessions_command("sessions", ["--interact", "sess-1"])
+    interact = parse_line_sessions_command("sessions", ["interact", "sess-1"])
     if interact.get("action") != "interact" or interact.get("selector") != "sess-1":
         print(f"session parser did not preserve interact flag: {interact}", file=sys.stderr)
         return 1
@@ -3747,7 +3994,7 @@ def run_line_action_command_registry_check():
     if execute.get("action") != "run" or execute.get("alias") != "execute" or execute.get("canonical") != "run":
         print(f"action parser did not preserve execute alias: {execute}", file=sys.stderr)
         return 1
-    start_job = parse_line_action_command("exploit", ["--job", "bridge:inspect"])
+    start_job = parse_line_action_command("exploit", ["job", "bridge:inspect"])
     if start_job.get("action") != "start-job" or start_job.get("selector") != "bridge:inspect" or start_job.get("alias") != "exploit":
         print(f"action parser did not preserve exploit job alias: {start_job}", file=sys.stderr)
         return 1
@@ -7151,9 +7398,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     workspace_empty_text = workspace_empty_buf.getvalue()
     if (
         "No active workspace items yet." not in workspace_empty_text or
-        "probe start          serve the shell probe and print target commands" not in workspace_empty_text or
+        "listener probe start serve the shell probe and print target commands" not in workspace_empty_text or
         "listeners            see services you can start" not in workspace_empty_text or
-        "upload --start FILE  stage a file for target fetch" not in workspace_empty_text
+        "stage start FILE  stage a file for target delivery" not in workspace_empty_text
     ):
         print("line-oriented workspace empty state did not expose getting-started guidance", file=sys.stderr)
         print(workspace_empty_text, file=sys.stderr)
@@ -7198,7 +7445,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "mailbox (2 pending)" not in selected_banner_hint_text or
         "queue COMMAND" not in selected_banner_hint_text or
         "probe queue" not in selected_banner_hint_text or
-        "download --queue PATH" not in selected_banner_hint_text or
+        "retrieve queue PATH" not in selected_banner_hint_text or
         "clear target" not in selected_banner_hint_text
     ):
         print("line-oriented selected-target banner hint did not expose target actions", file=sys.stderr)
@@ -7465,7 +7712,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "help sessions\n"
                 "help modules\n"
                 "help routes\n"
-                "help actions\n"
+                "help daemon\n"
                 "help next\n"
                 "help main\n"
                 "help setg\n"
@@ -7476,9 +7723,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "help commands\n"
                 "help events\n"
                 "help view\n"
-                "help download\n"
+                "help retrieve\n"
                 "help survey\n"
-                "help fetch\n"
+                "help deliver\n"
+                "help artifact\n"
                 "help queue\n"
                 "help build\n"
                 "route add\n"
@@ -7572,12 +7820,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "agents\n"
                 "routes\n"
                 "daemon\n"
-                "daemon -v\n"
+                "daemon verbose\n"
                 "jobs -k missing-job\n"
                 "jobs\n"
-                "jobs -v\n"
-                "jobs -i 99\n"
-                "jobs -i 1\n"
+                "jobs verbose\n"
+                "jobs info 99\n"
+                "jobs info 1\n"
                 "info\n"
                 "?\n"
                 "options\n"
@@ -7587,13 +7835,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "use 1\n"
                 "job line-console-job\n"
                 "background\n"
-                "daemon status --dry-run\n"
-                "show actions\n"
+                "daemon status dry-run\n"
+                "show modules\n"
                 "check operator-daemon-status\n"
-                "run operator-daemon-status --dry-run\n"
+                "run operator-daemon-status dry-run\n"
                 "back\n"
                 "usemodule operator-daemon-status\n"
-                "execute --dry-run\n"
+                "execute dry-run\n"
                 "back\n"
                 "uselistener file-service\n"
                 "back\n"
@@ -7603,9 +7851,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "info\n"
                 "next\n"
                 "check\n"
-                "run --dry-run\n"
+                "run dry-run\n"
                 "back\n"
-                "run -j\n"
+                "run job\n"
                 "use listener file-service\n"
                 "info\n"
                 "next\n"
@@ -7614,8 +7862,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "sessions\n"
                 "sessions -l\n"
                 "sessions -v\n"
-                "sessions -i 99\n"
-                "sessions -i 1\n"
+                "sessions interact 99\n"
+                "sessions interact 1\n"
                 "interact 1\n"
                 f"view {line_console_session / 'session.log'}\n"
                 "use session 1\n"
@@ -7666,24 +7914,29 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "queue list\n"
                 "events -n 3\n"
                 "events service=workbench -n 2\n"
-                "probe\n"
+                "listener probe\n"
+                "options\n"
+                "#how do I change my IP so the GL.iNet can connect to the probe?\n"
+                "stop\n"
                 "wat\n"
                 "?\n"
                 "help\n"
                 "back\n"
-                "probe delivery\n"
-                "probe paste\n"
-                "probe paste --base64\n"
-                "probe --queue\n"
-                "download --queue /etc/config/network\n"
+                "listener probe delivery\n"
+                "listener probe paste\n"
+                "listener probe paste base64\n"
+                "queue\n"
+                "retrieve queue /etc/config/network\n"
                 "show mailbox\n"
                 "show mailbox -v\n"
-                f"upload --start {line_console_upload} console-upload\n"
-                "fetch --queue console-upload\n"
+                f"stage start {line_console_upload} console-upload\n"
+                "deliver queue console-upload\n"
                 "stop file-service\n"
                 "downloads\n"
-                f"serve-binary --start {line_console_binary} grit-console\n"
-                "configure grit-console --operator-host 192.0.2.44 --transport builtin --zero-arg-mode rshell --command-queue-enable yes --command-queue-poll-interval 60\n"
+                f"serve-binary start {line_console_binary} grit-console\n"
+                "stamp grit-console operator-host 192.0.2.44 transport builtin zero-arg-mode rshell command-queue-enable yes command-queue-poll-interval 60\n"
+                "artifact show grit-console\n"
+                "files\n"
                 "stop file-service\n"
                 "show stagers\n"
                 "stagers\n"
@@ -7694,7 +7947,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "?\n"
                 "back\n"
                 "show mailbox\n"
-                "queue clear --confirm\n"
+                "queue clear confirm\n"
                 "queue list\n"
                 "clear target\n"
                 "use agent Console Router\n"
@@ -7867,14 +8120,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "clear",
         "commands",
         "complete",
-        "configure",
+        "artifact",
         "copy",
         "daemon",
-        "download",
+        "deliver",
         "downloads",
         "events",
         "execute",
-        "fetch",
         "files",
         "help",
         "history",
@@ -7891,7 +8143,6 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "next",
         "note",
         "options",
-        "probe",
         "queue",
         "rename",
         "resource",
@@ -7912,7 +8163,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "unset",
         "unsetg",
         "unstage",
-        "upload",
+        "retrieve",
+        "stage",
+        "stamp",
         "use",
         "useagent",
         "uselistener",
@@ -7943,14 +8196,15 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "complete use ag",
         "route start 1",
         "build set 9 /tmp/grit-build",
-        "daemon status --dry-run",
-        "sessions -i 1",
+        "daemon status dry-run",
+        "sessions interact 1",
         "queue grit survey --json",
-        "probe --queue",
-        "upload --start",
-        "serve-binary --start",
-        "configure grit-console",
-        "queue clear --confirm",
+        "queue",
+        "stage start",
+        "serve-binary start",
+        "stamp grit-console",
+        "artifact show grit-console",
+        "queue clear confirm",
     )
     missing_scripted_commands = [
         expected for expected in required_scripted_commands
@@ -7963,12 +8217,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "scripted_commands": scripted_commands,
         }, indent=2, sort_keys=True), file=sys.stderr)
         return 1
-    blank_enter_match = re.search(
-        r"grit\[all\]>[ \t]*\r?\n"
-        r"grit\[all\]> help",
-        line_console_stdout,
-    )
-    if not blank_enter_match:
+    blank_enter_text = line_console_blank_enter_text(line_console_stdout)
+    if "grit[all]>" not in blank_enter_text or "griTTYkit v" in blank_enter_text:
         print("line-oriented blank Enter rerendered output instead of showing a fresh prompt", file=sys.stderr)
         print(line_console_stdout[:2000], file=sys.stderr)
         return 1
@@ -7991,7 +8241,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "Workspace",
         "Target Work",
         "Control Plane",
-        "actions    operator modules, dry-run/run, background jobs",
+        "modules    runnable operator workflows, dry-run/run, background jobs",
         "Console",
         "Aliases: agents=targets  services=listeners  bridges=routes  mailbox=queue",
         "next: ? help",
@@ -8001,13 +8251,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "Help: files",
         "Help: queue",
         "Help: events",
-        "Help: actions",
+        "Help: modules",
         "grit[all]/action/bridge:inspect-status> ?",
-        "Help: actions — selected operator modules and workflows",
+        "Help: modules — runnable operator workflows",
         "grit[Console Router]> ?",
         "Help: targets — target agents, mailbox, and activity",
-        "grit[Console Router]/probe> ?",
-        "Help: probe — lightweight shell probe (no griTTYkit required)",
+        "grit[Console Router]/listener/probe> ?",
+        "Help: listeners — reverse-access listener services",
         "grit[Console Router]/files> ?",
         "Help: files — staging and serving files to targets",
         "Route model: the target connects to LPORT on the operator; the operator bridge forwards to DEST_HOST:DEST_PORT.",
@@ -8032,7 +8282,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "dns:   dig @",
         "Current listeners: probe-http, probe-tftp, probe-ftp, probe-dns",
         "DNS note: nslookup usually needs DNS exposed on port 53; dig can use custom ports.",
-        "paste: probe paste",
+        "paste: listener probe paste",
         "Serial/manual paste:",
         "sh <<'GRIT_PROBE_SCRIPT'",
         "bb_payload=\"schema=1&script=probe.sh",
@@ -8041,8 +8291,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "Serial/manual base64 paste:",
         "bb_probe_b64=$(cat <<'GRIT_PROBE_B64'",
         "base64 decoder not found",
-        "After it runs, use: probe results",
-        "daemon -v for commands",
+        "After it runs, use: listener probe results",
+        "daemon verbose for commands",
         "dry-run: scripts/grit-console --config",
         "saved route: zz-console-added",
         "started route zz-console-added",
@@ -8075,16 +8325,17 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "result: none",
         "Probe  ",
         "wget:  wget -O- ",
-        "Target download command:",
+        "Target retrieval command:",
         "target path: /etc/config/network",
-        "File staged for target fetch:",
-        "next: fetch console-upload",
-        "fetch shows target-side commands; fetch --queue queues it for the selected agent",
-        "Staged fetch command:",
-        "griTTYkit binary staged for target fetch:",
-        "Artifact trailer configured:",
+        "File staged for target delivery:",
+        "next: deliver console-upload",
+        "deliver shows target-side commands; deliver queue queues it for the selected agent",
+        "Staged delivery command:",
+        "griTTYkit binary staged for target delivery:",
+        "Artifact trailer stamped:",
+        "Artifact trailer show:",
         "keys: GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC",
-        "target fetch: grit fetch grit-console",
+        "target command: grit fetch grit-console",
         "run hint: chmod +x ./grit-console && ./grit-console --help",
         "unstaged console-upload",
         "not staged missing-upload",
@@ -8120,14 +8371,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     help_modules_end = line_console_stdout.find("grit[all]> help routes", help_modules_start + 1)
     help_modules_text = line_console_stdout[help_modules_start:help_modules_end] if help_modules_start != -1 and help_modules_end != -1 else ""
     help_routes_start = line_console_stdout.find("grit[all]> help routes")
-    help_routes_end = line_console_stdout.find("grit[all]> help next", help_routes_start + 1)
+    help_routes_end = line_console_stdout.find("grit[all]> help daemon", help_routes_start + 1)
     help_routes_text = line_console_stdout[help_routes_start:help_routes_end] if help_routes_start != -1 and help_routes_end != -1 else ""
     help_events_start = line_console_stdout.find("grit[all]> help events")
     help_events_end = line_console_stdout.find("grit[all]> help view", help_events_start + 1)
     help_events_text = line_console_stdout[help_events_start:help_events_end] if help_events_start != -1 and help_events_end != -1 else ""
     if (not help_modules_text or
-            "show modules -v [FILTER]" not in help_modules_text or
+            "Help: modules" not in help_modules_text or
+            "modules -v" not in help_modules_text or
             not help_routes_text or
+            "Help: routes" not in help_routes_text or
             "routes -v" not in help_routes_text or
             "show selected route context and headless commands" in help_routes_text):
         print("line-oriented help text is stale for verbose command/detail views", file=sys.stderr)
@@ -8142,41 +8395,75 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented events help did not explain concise default event summaries", file=sys.stderr)
         print(help_events_text or line_console_stdout, file=sys.stderr)
         return 1
-    probe_context_help_start = line_console_stdout.find("grit[Console Router]/probe> ?")
-    probe_context_help_end = line_console_stdout.find("grit[Console Router]/probe> back", probe_context_help_start + 1)
+    probe_context_help_start = line_console_stdout.find("grit[Console Router]/listener/probe> ?")
+    probe_context_help_end = line_console_stdout.find("grit[Console Router]/listener/probe> back", probe_context_help_start + 1)
     probe_context_help_text = (
         line_console_stdout[probe_context_help_start:probe_context_help_end]
         if probe_context_help_start != -1 and probe_context_help_end != -1 else ""
     )
     if (not probe_context_help_text or
-            "Help: probe" not in probe_context_help_text or
-            "probe start" not in probe_context_help_text or
-            "probe queue" not in probe_context_help_text or
-            "Compatibility aliases: probe --start and probe --queue still work." not in probe_context_help_text or
+            "Help: listeners" not in probe_context_help_text or
+            "listener probe start" not in probe_context_help_text or
+            "listener probe results" not in probe_context_help_text or
             "Console help topics:" in probe_context_help_text):
         print("line-oriented bare ? did not use probe breadcrumb context", file=sys.stderr)
         print(probe_context_help_text or line_console_stdout, file=sys.stderr)
         return 1
-    probe_unknown_start = line_console_stdout.find("grit[Console Router]/probe> wat")
-    probe_unknown_end = line_console_stdout.find("grit[Console Router]/probe> ?", probe_unknown_start + 1)
+    probe_options_start = line_console_stdout.find("grit[Console Router]/listener/probe> options")
+    probe_options_end = line_console_stdout.find("grit[Console Router]/listener/probe> #how", probe_options_start + 1)
+    probe_options_text = (
+        line_console_stdout[probe_options_start:probe_options_end]
+        if probe_options_start != -1 and probe_options_end != -1 else ""
+    )
+    if (
+            not probe_options_text or
+            "probe-http" not in probe_options_text or
+            "GRIT_OPERATOR_SERVER_HOST" not in probe_options_text or
+            "Action: none" in probe_options_text or
+            "Build options:" in probe_options_text):
+        print("line-oriented probe options did not show probe listener settings", file=sys.stderr)
+        print(probe_options_text or line_console_stdout, file=sys.stderr)
+        return 1
+    probe_comment_start = line_console_stdout.find("grit[Console Router]/listener/probe> #how")
+    probe_comment_end = line_console_stdout.find("grit[Console Router]/listener/probe> stop", probe_comment_start + 1)
+    probe_comment_text = (
+        line_console_stdout[probe_comment_start:probe_comment_end]
+        if probe_comment_start != -1 and probe_comment_end != -1 else ""
+    )
+    if not probe_comment_text or "unknown command: #how" in probe_comment_text:
+        print("line-oriented comment input was treated as an unknown command", file=sys.stderr)
+        print(probe_comment_text or line_console_stdout, file=sys.stderr)
+        return 1
+    probe_stop_start = line_console_stdout.find("grit[Console Router]/listener/probe> stop")
+    probe_stop_end = line_console_stdout.find("grit[Console Router]/listener/probe> wat", probe_stop_start + 1)
+    probe_stop_text = (
+        line_console_stdout[probe_stop_start:probe_stop_end]
+        if probe_stop_start != -1 and probe_stop_end != -1 else ""
+    )
+    if not probe_stop_text or "usage: stop SERVICE|ROUTE" in probe_stop_text:
+        print("line-oriented probe stop did not apply to the probe submenu", file=sys.stderr)
+        print(probe_stop_text or line_console_stdout, file=sys.stderr)
+        return 1
+    probe_unknown_start = line_console_stdout.find("grit[Console Router]/listener/probe> wat")
+    probe_unknown_end = line_console_stdout.find("grit[Console Router]/listener/probe> ?", probe_unknown_start + 1)
     probe_unknown_text = (
         line_console_stdout[probe_unknown_start:probe_unknown_end]
         if probe_unknown_start != -1 and probe_unknown_end != -1 else ""
     )
     if (not probe_unknown_text or
-            "unknown command: wat; type ? for probe help" not in probe_unknown_text or
+            "unknown command: wat; type ? for listeners help" not in probe_unknown_text or
             "type help" in probe_unknown_text):
         print("line-oriented unknown command did not point at contextual help", file=sys.stderr)
         print(probe_unknown_text or line_console_stdout, file=sys.stderr)
         return 1
-    probe_context_bare_help_start = line_console_stdout.find("grit[Console Router]/probe> help")
-    probe_context_bare_help_end = line_console_stdout.find("grit[Console Router]/probe> back", probe_context_bare_help_start + 1)
+    probe_context_bare_help_start = line_console_stdout.find("grit[Console Router]/listener/probe> help")
+    probe_context_bare_help_end = line_console_stdout.find("grit[Console Router]/listener/probe> back", probe_context_bare_help_start + 1)
     probe_context_bare_help_text = (
         line_console_stdout[probe_context_bare_help_start:probe_context_bare_help_end]
         if probe_context_bare_help_start != -1 and probe_context_bare_help_end != -1 else ""
     )
     if (not probe_context_bare_help_text or
-            "Help: probe" not in probe_context_bare_help_text or
+            "Help: listeners" not in probe_context_bare_help_text or
             "Console help topics:" in probe_context_bare_help_text):
         print("line-oriented bare help did not use probe breadcrumb context", file=sys.stderr)
         print(probe_context_bare_help_text or line_console_stdout, file=sys.stderr)
@@ -8220,8 +8507,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented bare ? did not use files breadcrumb context", file=sys.stderr)
         print(files_context_help_text or line_console_stdout, file=sys.stderr)
         return 1
-    probe_queue_start = line_console_stdout.find("grit[Console Router]/probe> probe --queue")
-    probe_queue_end = line_console_stdout.find("grit[Console Router]/probe> download --queue", probe_queue_start + 1)
+    probe_queue_start = line_console_stdout.find("grit[Console Router]/listener/probe> queue")
+    probe_queue_end = line_console_stdout.find("grit[Console Router]/listener/probe> retrieve queue", probe_queue_start + 1)
     probe_queue_text = line_console_stdout[probe_queue_start:probe_queue_end] if probe_queue_start != -1 and probe_queue_end != -1 else ""
     if (not probe_queue_text or
             "  queued: cq-" not in probe_queue_text or
@@ -8286,12 +8573,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented console interpreted a normal command as a stale search result", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
-    upload_start = line_console_stdout.find("File staged for target fetch:")
-    upload_end = line_console_stdout.find("grit[Console Router]/files> fetch --queue console-upload", upload_start + 1)
+    upload_start = line_console_stdout.find("File staged for target delivery:")
+    upload_end = line_console_stdout.find("grit[Console Router]/files> deliver queue console-upload", upload_start + 1)
     upload_text = line_console_stdout[upload_start:upload_end] if upload_start != -1 and upload_end != -1 else ""
     if (not upload_text or
-            "File staged for target fetch:" not in upload_text or
-            "  next: fetch console-upload" not in upload_text or
+            "File staged for target delivery:" not in upload_text or
+            "  next: deliver console-upload" not in upload_text or
             "Target fetch options:" in upload_text or
             "  target fetch:" in upload_text):
         print("line-oriented upload output exposed target fetch commands instead of concise next action", file=sys.stderr)
@@ -8425,7 +8712,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     action_help_end = line_console_stdout.find("grit[all]/action/bridge:inspect-status> info", action_help_start + 1)
     action_help_text = line_console_stdout[action_help_start:action_help_end] if action_help_start != -1 and action_help_end != -1 else ""
     if (not action_help_text or
-            "Help: actions" not in action_help_text or
+            "Help: modules" not in action_help_text or
             "use module NAME|NUMBER" not in action_help_text or
             "check [MODULE]" not in action_help_text or
             "Help: console" in action_help_text):
@@ -8463,7 +8750,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "  reason: run-now",
         "  confirmation: not required",
         "  background: not supported",
-        "  commands: check, run, run --dry-run, run --confirm",
+        "  commands: check, run, run dry-run, run confirm",
         "  next: info, check, run, back",
     )
     action_options_noisy = (
@@ -8513,11 +8800,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented route commands exposed noisy headless commands", file=sys.stderr)
         print(route_text or line_console_stdout, file=sys.stderr)
         return 1
-    routes_verbose_start = line_console_stdout.find("grit[all]/routes> routes -v")
-    routes_verbose_end = line_console_stdout.find("grit[all]/routes> route delete 2", routes_verbose_start + 1)
+    routes_verbose_start = line_console_stdout.find("> routes -v")
+    routes_verbose_end = line_console_stdout.find("> route delete 2", routes_verbose_start + 1)
     routes_verbose_text = line_console_stdout[routes_verbose_start:routes_verbose_end] if routes_verbose_start != -1 and routes_verbose_end != -1 else ""
-    show_routes_verbose_start = line_console_stdout.find("grit[all]/routes> show routes -v")
-    show_routes_verbose_end = line_console_stdout.find("grit[all]/routes> route start 1", show_routes_verbose_start + 1)
+    show_routes_verbose_start = line_console_stdout.find("> show routes -v")
+    show_routes_verbose_end = line_console_stdout.find("> route start 1", show_routes_verbose_start + 1)
     show_routes_verbose_text = (
         line_console_stdout[show_routes_verbose_start:show_routes_verbose_end]
         if show_routes_verbose_start != -1 and show_routes_verbose_end != -1 else ""
@@ -8689,7 +8976,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     queue_result_start = line_console_stdout.find("Command result:", queue_start + 1)
     queue_result_end = line_console_stdout.find("grit[Console Router]/events> queue list", queue_result_start + 1)
     queue_result_text = line_console_stdout[queue_result_start:queue_result_end] if queue_result_start != -1 and queue_result_end != -1 else ""
-    clear_command_start = line_console_stdout.rfind("queue clear --confirm")
+    clear_command_start = line_console_stdout.rfind("queue clear confirm")
     clear_start = line_console_stdout.find("cleared ", clear_command_start + 1)
     clear_end = line_console_stdout.find("no queued commands", clear_start + 1)
     clear_text = line_console_stdout[clear_start:clear_end] if clear_start != -1 and clear_end != -1 else ""
@@ -8849,17 +9136,17 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented console still exposed verbose command queue policy dump", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
-    upload_start = line_console_stdout.find("File staged for target fetch:")
-    upload_end = line_console_stdout.find("grit[Console Router]/files> fetch --queue console-upload", upload_start + 1)
+    upload_start = line_console_stdout.find("File staged for target delivery:")
+    upload_end = line_console_stdout.find("grit[Console Router]/files> deliver queue console-upload", upload_start + 1)
     upload_text = line_console_stdout[upload_start:upload_end] if upload_start != -1 and upload_end != -1 else ""
-    fetch_start = line_console_stdout.find("Staged fetch command:")
+    fetch_start = line_console_stdout.find("Staged delivery command:")
     fetch_end = line_console_stdout.find("grit[Console Router]/files> stop file-service", fetch_start + 1)
     fetch_text = line_console_stdout[fetch_start:fetch_end] if fetch_start != -1 and fetch_end != -1 else ""
     unstage_start = line_console_stdout.find("grit[Console Router]/files> unstage console-upload")
     unstage_end = line_console_stdout.find("grit[Console Router]/files> stagers", unstage_start + 1)
     unstage_text = line_console_stdout[unstage_start:unstage_end] if unstage_start != -1 and unstage_end != -1 else ""
-    if (not upload_text or "File staged for target fetch:" not in upload_text or "headless_command:" in upload_text or
-            not fetch_text or "Staged fetch command:" not in fetch_text or "headless_command:" in fetch_text or
+    if (not upload_text or "File staged for target delivery:" not in upload_text or "headless_command:" in upload_text or
+            not fetch_text or "Staged delivery command:" not in fetch_text or "headless_command:" in fetch_text or
             not unstage_text or "unstaged console-upload" not in unstage_text or "not staged missing-upload" not in unstage_text or "headless_command:" in unstage_text):
         print("line-oriented file transfer commands exposed noisy headless commands", file=sys.stderr)
         print("upload section:", file=sys.stderr)
@@ -8883,15 +9170,15 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("fetch section:", file=sys.stderr)
         print(fetch_text, file=sys.stderr)
         return 1
-    download_start = line_console_stdout.find("Target download command:")
+    download_start = line_console_stdout.find("Target retrieval command:")
     download_end = line_console_stdout.find("grit[Console Router]/files> show mailbox", download_start + 1)
     download_text = line_console_stdout[download_start:download_end] if download_start != -1 and download_end != -1 else ""
     if not download_text or "target path: /etc/config/network" not in download_text or "headless_command:" in download_text:
-        print("line-oriented download command exposed noisy headless command", file=sys.stderr)
+        print("line-oriented retrieve command exposed noisy headless command", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
     if "target command: ./grit put /etc/config/network" not in download_text:
-        print("line-oriented download output missed target command summary", file=sys.stderr)
+        print("line-oriented retrieve output missed target command summary", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
     if ("file_service_started=" in download_text or "target_command=" in download_text or
@@ -8899,11 +9186,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "queued cq-" in download_text or
             "queued:" not in download_text or
             "target=" in download_text):
-        print("line-oriented download output exposed raw generated-command/status fields", file=sys.stderr)
+        print("line-oriented retrieve output exposed raw generated-command/status fields", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
-    binary_end = line_console_stdout.find("Artifact trailer configured:")
-    binary_start = line_console_stdout.rfind("griTTYkit binary staged for target fetch:", 0, binary_end)
+    binary_end = line_console_stdout.find("Artifact trailer stamped:")
+    binary_start = line_console_stdout.rfind("griTTYkit binary staged for target delivery:", 0, binary_end)
     binary_text = line_console_stdout[binary_start:binary_end] if binary_start != -1 and binary_end != -1 else ""
     if not binary_text or "run hint: chmod +x ./grit-console && ./grit-console --help" not in binary_text or "headless_command:" in binary_text:
         print("line-oriented serve-binary command exposed noisy headless command", file=sys.stderr)
@@ -8915,13 +9202,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented serve-binary output exposed raw generated-command/status fields", file=sys.stderr)
         print(binary_text or line_console_stdout, file=sys.stderr)
         return 1
-    configure_start = line_console_stdout.find("Artifact trailer configured:")
-    configure_end = line_console_stdout.find("grit[Console Router]/files> stop file-service", configure_start + 1)
+    configure_start = line_console_stdout.find("Artifact trailer stamped:")
+    configure_end = line_console_stdout.find("grit[Console Router]/artifact> files", configure_start + 1)
     configure_text = line_console_stdout[configure_start:configure_end] if configure_start != -1 and configure_end != -1 else ""
     if (not configure_text or
             "artifact: " not in configure_text or
             "name: grit-console" not in configure_text or
-            "target fetch: grit fetch grit-console" not in configure_text or
+            "target command: grit fetch grit-console" not in configure_text or
             "keys: GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC" not in configure_text or
             "headless_command:" in configure_text or
             "artifact=" in configure_text or
@@ -8929,7 +9216,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "request_name=" in configure_text or
             "keys=" in configure_text or
             "target_fetch_command=" in configure_text):
-        print("line-oriented configure command exposed noisy headless command", file=sys.stderr)
+        print("line-oriented stamp command exposed noisy headless command", file=sys.stderr)
         print(configure_text or line_console_stdout, file=sys.stderr)
         return 1
     stagers_start = line_console_stdout.find("grit[Console Router]/files> show stagers")
@@ -8937,15 +9224,15 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     stagers_text = line_console_stdout[stagers_start:stagers_end] if stagers_start != -1 and stagers_end != -1 else ""
     if (not stagers_text or
             "Files  (" not in stagers_text or
-            "next: fetch console-upload" not in stagers_text or
-            "next: fetch grit-console" not in stagers_text or
+            "next: deliver console-upload" not in stagers_text or
+            "next: deliver grit-console" not in stagers_text or
             "target_fetch_command=" in stagers_text or
             "target command:" in stagers_text or
             "headless_command:" in stagers_text):
         print("line-oriented files view exposed noisy fetch commands", file=sys.stderr)
         print(stagers_text or line_console_stdout, file=sys.stderr)
         return 1
-    daemon_action_start = line_console_stdout.find("grit[all]/jobs> daemon status --dry-run")
+    daemon_action_start = line_console_stdout.find("grit[all]/jobs> daemon status dry-run")
     daemon_action_end = line_console_stdout.find("grit[all]> uselistener", daemon_action_start + 1)
     daemon_action_text = line_console_stdout[daemon_action_start:daemon_action_end] if daemon_action_start != -1 and daemon_action_end != -1 else ""
     if (not daemon_action_text or
@@ -8958,7 +9245,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(daemon_action_text or line_console_stdout, file=sys.stderr)
         return 1
     module_action_start = line_console_stdout.find("grit[all]/action/operator-daemon-status> check")
-    module_action_end = line_console_stdout.find("grit[all]> run -j", module_action_start + 1)
+    module_action_end = line_console_stdout.find("grit[all]> run job", module_action_start + 1)
     module_action_text = line_console_stdout[module_action_start:module_action_end] if module_action_start != -1 and module_action_end != -1 else ""
     if (not module_action_text or
             "operator daemon workflow action: operator-daemon-status" not in module_action_text or
@@ -9023,7 +9310,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(session_options_text, file=sys.stderr)
         return 1
     daemon_start = line_console_stdout.find("grit[all]/routes> daemon")
-    daemon_verbose_start = line_console_stdout.find("grit[all]/daemon> daemon -v", daemon_start + 1)
+    daemon_verbose_start = line_console_stdout.find("grit[all]/daemon> daemon verbose", daemon_start + 1)
     daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""
     daemon_verbose_text = line_console_stdout[daemon_verbose_start:] if daemon_verbose_start != -1 else ""
     if (not daemon_plain_text or
@@ -9035,7 +9322,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "operator-daemon-status" in daemon_plain_text or
             "\n     run: scripts/grit-console" in daemon_plain_text or
             "\n     dry-run: scripts/grit-console" in daemon_plain_text or
-            "daemon -v for commands" not in daemon_plain_text or
+            "daemon verbose for commands" not in daemon_plain_text or
             "\n     id: operator-daemon-status" not in daemon_verbose_text or
             "\n     run: scripts/grit-console" not in daemon_verbose_text or
             "\n     dry-run: scripts/grit-console" not in daemon_verbose_text):
@@ -9045,8 +9332,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("verbose daemon section:", file=sys.stderr)
         print(daemon_verbose_text[:4000], file=sys.stderr)
         return 1
-    jobs_verbose_start = line_console_stdout.find("jobs -v", line_console_stdout.find("jobs -k missing-job"))
-    jobs_verbose_end = line_console_stdout.find("jobs -i 99", jobs_verbose_start + 1)
+    jobs_verbose_start = line_console_stdout.find("jobs verbose", line_console_stdout.find("jobs -k missing-job"))
+    jobs_verbose_end = line_console_stdout.find("jobs info 99", jobs_verbose_start + 1)
     jobs_verbose_text = line_console_stdout[jobs_verbose_start:jobs_verbose_end] if jobs_verbose_start != -1 and jobs_verbose_end != -1 else ""
     job_info_start = line_console_stdout.find("grit[all]/job/line-console-job> info")
     job_info_end = line_console_stdout.find("grit[all]/job/line-console-job> ?", job_info_start + 1)
@@ -9110,10 +9397,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "grit[all]/routes> route start 2",
         "grit[Console Router]/queue> mailbox targets",
         "grit[Console Router]/queue> queue",
-        "grit[Console Router]/files> fetch --queue console-upload",
+        "grit[Console Router]/files> deliver queue console-upload",
         "grit[Console Router]/files> show stagers",
-        "grit[all]/daemon> daemon -v",
-        "grit[all]/jobs> jobs -v",
+        "grit[all]/daemon> daemon verbose",
+        "grit[all]/jobs> jobs verbose",
     ]
     missing_collection_prompts = [
         expected for expected in collection_prompt_expectations
@@ -9326,13 +9613,6 @@ def main(argv=None):
         print(artifact_help_out.stdout, file=sys.stderr)
         print(artifact_help_out.stderr, file=sys.stderr)
         return 1
-    artifact_wrapper_help_out = run("scripts/grit-artifact", "inspect", "--help")
-    if (artifact_wrapper_help_out.returncode != 0 or
-            "usage: grit-artifact inspect ARTIFACT" not in artifact_wrapper_help_out.stdout):
-        print("grit-artifact compatibility wrapper did not share artifact dispatcher", file=sys.stderr)
-        print(artifact_wrapper_help_out.stdout, file=sys.stderr)
-        print(artifact_wrapper_help_out.stderr, file=sys.stderr)
-        return 1
     bringup_help_out = run("scripts/grit-console", "bringup", "--help")
     if (bringup_help_out.returncode != 0 or
             "Guided target bring-up flow." not in (bringup_help_out.stdout + bringup_help_out.stderr)):
@@ -9352,13 +9632,13 @@ def main(argv=None):
             "jobs, jobs -i ID, job ID" not in console_help or
             "interact agent ID|LABEL" not in console_help or
             "commands, copy N" not in console_help or
-            "serve-binary [--start] [PATH] [NAME]" not in console_help or
+            "serve-binary [start] [PATH] [NAME]" not in console_help or
             "configure NAME|PATH KEY=VALUE" not in console_help or
-            "configure NAME --operator-host HOST --transport builtin" not in console_help or
+            "configure NAME operator-host HOST transport builtin" not in console_help or
             "release, release stage SELECTOR" not in console_help or
             "by_device_payload_preset:NAME:PRESET" not in console_help or
             "by_tuple_payload_preset:PATH:PRESET" not in console_help or
-            "fetch [--queue] [--start] NAME" not in console_help or
+            "fetch [queue] [start] NAME" not in console_help or
             "queue list|result|clear" not in console_help or
             "build, build set KEY|NUMBER VALUE" not in console_help or
             "resource FILE" not in console_help or
@@ -9518,7 +9798,7 @@ def main(argv=None):
                  "operator_state_unhealthy_count", "target_legacy_single_target_activity_present",
                  "target_id:", "target_label:", "target_filter_summary_text",
                  "observed_seen=", "Events  (", "target_filter_evidence_lines",
-                 "Workspace:", "queue clear --confirm", "line_banner_hint(snap)",
+                 "Workspace:", "queue clear confirm", "line_banner_hint(snap)",
                  "Console commands",
                  "refreshed workbench at",
                  "Operator console workflow summary:", "operator_console_workflows_by_group",
@@ -14365,8 +14645,8 @@ def main(argv=None):
         actions_by_enter = queue_status_json.get("workbench_actions_by_can_run_from_curses_enter") or {}
         actions_by_enter_action = queue_status_json.get("workbench_actions_by_curses_enter_action") or {}
         workbench_summary = queue_status_json.get("summary") or {}
-        artifact_inspect_help = run("scripts/grit-artifact", "inspect", "--help")
-        artifact_verify_help = run("scripts/grit-artifact", "verify", "--help")
+        artifact_inspect_help = run("scripts/grit-console", "artifact", "inspect", "--help")
+        artifact_verify_help = run("scripts/grit-console", "artifact", "verify", "--help")
         fetch_sources_help = run("scripts/lib/fetch-sources", "--help")
         verify_sources_help = run("scripts/lib/verify-sources", "--help")
         offline_unpack_help = run("scripts/lib/offline-unpack", "--help")
@@ -14374,9 +14654,9 @@ def main(argv=None):
         check_licensing_help = run("scripts/lib/check-licensing", "--help")
         install_dropin_help = run("scripts/tools/install-dropin-tool", "--help")
         if (artifact_inspect_help.returncode != 0 or
-                "usage: grit-artifact inspect ARTIFACT" not in artifact_inspect_help.stdout or
+                "usage: grit-console artifact inspect ARTIFACT" not in artifact_inspect_help.stdout or
                 artifact_verify_help.returncode != 0 or
-                "usage: grit-artifact verify ARTIFACT" not in artifact_verify_help.stdout or
+                "usage: grit-console artifact verify ARTIFACT" not in artifact_verify_help.stdout or
                 fetch_sources_help.returncode != 0 or
                 "usage: scripts/lib/fetch-sources [MANIFEST]" not in fetch_sources_help.stdout or
                 verify_sources_help.returncode != 0 or
@@ -19383,9 +19663,9 @@ def main(argv=None):
         if (line_stage_proc.returncode != 0 or
                 "Traceback" in (line_stage_stderr or "") or
                 "headless_command:" in line_stage_stdout or
-                "griTTYkit binary staged for target fetch:" not in line_stage_stdout or
+                "griTTYkit binary staged for target delivery:" not in line_stage_stdout or
                 "name: grit" not in line_stage_stdout or
-                "target fetch: grit fetch grit" not in line_stage_stdout or
+                "target command: grit fetch grit" not in line_stage_stdout or
                 "run hint: chmod +x ./grit && ./grit --help" not in line_stage_stdout or
                 "Target fetch options:" not in line_stage_stdout or
                 "wget --no-check-certificate -O ./grit " not in line_stage_stdout or
@@ -20489,13 +20769,13 @@ def main(argv=None):
         if (line_proc.returncode != 0 or
                 "Traceback" in (line_stderr or "") or
                 "Help: release" not in _line_stdout or
-                "stage-release [--start] SELECTOR" not in _line_stdout or
+                "stage-release [start] SELECTOR" not in _line_stdout or
                 "release stage SELECTOR  |  release ? for help" not in _line_stdout or
                 "Preset selectors:" not in _line_stdout or
                 "by_tuple_payload_preset:by-tuple/native/host/host/host:default" not in _line_stdout or
                 "selector=by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout or
                 "Release artifact staged:" not in _line_stdout or
-                "target fetch: grit fetch grit-test" not in _line_stdout or
+                "target command: grit fetch grit-test" not in _line_stdout or
                 "Target fetch options:" not in _line_stdout or
                 f"http://{advertised_operator_host}:{fetch_port}/fetch?name=grit-test" not in _line_stdout or
                 f"--host {advertised_operator_host} --port {fetch_port}" not in _line_stdout or
@@ -20692,7 +20972,7 @@ def main(argv=None):
             os.close(no_release_slave)
             no_release_slave = -1
             time.sleep(0.3)
-            os.write(no_release_master, b"probe serve\nq\n")
+            os.write(no_release_master, b"listener probe serve\nq\n")
             no_release_output = b""
             deadline = time.time() + 8
             while no_release_proc.poll() is None and time.time() < deadline:
@@ -20726,7 +21006,7 @@ def main(argv=None):
                 "Expected artifact stem: grit-mipsel-linux-current-LIBC-PRESET" not in no_release_text or
                 "Common payload presets: builtin-core-shell, survey-core, default, payload-bash, socat-rescue, ssh-operator, full-debug" not in no_release_text or
                 "set release_dir /path/to/extracted-release" not in no_release_text or
-                "probe serve --start" not in no_release_text):
+                "listener probe serve start" not in no_release_text):
             print("probe serve without a release did not provide actionable guidance", file=sys.stderr)
             print(no_release_text, file=sys.stderr)
             print(no_release_stderr or "", file=sys.stderr)
@@ -20846,7 +21126,7 @@ def main(argv=None):
             os.close(probe_slave)
             probe_slave = -1
             time.sleep(0.3)
-            os.write(probe_master, b"probe results\n2\nprobe config 1\nprobe clear 2\nprobe results\nprobe serve\n1\nq\nq\n")
+            os.write(probe_master, b"listener probe results\n2\nlistener probe config 1\nlistener probe clear 2\nlistener probe results\nlistener probe serve\n1\nq\nq\n")
             probe_output = b""
             deadline = time.time() + 8
             while probe_proc.poll() is None and time.time() < deadline:

@@ -91,24 +91,24 @@ Context:
 def _console_help_operations_text():
     return """\
 Operations:
-  serve-binary [--start] [PATH] [NAME]
+  serve-binary [start] [PATH] [NAME]
                                 stage and optionally serve a griTTYkit binary
   configure NAME|PATH KEY=VALUE...
                                 apply runtime trailer overrides to a binary
-  configure NAME --operator-host HOST --transport builtin
+  configure NAME operator-host HOST transport builtin
                                 guided trailer override flags for staged payloads
-  upload [--start] LOCAL [NAME] stage and optionally serve a local file
+  upload [start] LOCAL [NAME] stage and optionally serve a local file
   release, release stage SELECTOR
                                 list or stage release artifacts
                                 selectors include by_device:NAME,
                                 by_device_payload_preset:NAME:PRESET,
                                 by_tuple_path:PATH, and
                                 by_tuple_payload_preset:PATH:PRESET
-  fetch [--queue] [--start] NAME
+  fetch [queue] [start] NAME
                                 show or queue target fetch of a staged file
-  download [--queue] TARGET_PATH
+  download [queue] TARGET_PATH
                                 show or queue a target-to-operator upload command
-  probe [--start|--queue], probe delivery, probe paste
+  listener probe [start|queue], listener probe delivery, listener probe paste
                                 show, serve, queue, or print probe delivery commands
                                 listeners: probe-http, probe-tftp, probe-ftp, probe-dns
   downloads                     list target-fetchable staged files
@@ -131,8 +131,8 @@ Operations:
   route delete NAME              remove a reusable bridge route profile
   queue COMMAND                 queue work for the selected/offline target
   queue list|result|clear       inspect results or clear queued work
-  events service=NAME           filter event log by service, event, level, target, or --since
-  run [MODULE] [--dry-run]      run selected or named module
+  events service=NAME           filter event log by service, event, level, target, or since
+  run [MODULE] [dry-run]        run selected or named module
   execute, exploit              aliases for run
   check [MODULE]                dry-run selected or named module
   run -j                        start selected background-capable action as a job
@@ -143,7 +143,7 @@ Operations:
   interact                      inspect selected session or selected-agent work context
   interact agent ID|LABEL       select and inspect an agent work context
   daemon [-v]                   list daemon/systemd workflows; -v shows commands
-  daemon ACTION [--dry-run]     preview or run daemon/systemd workflow
+  daemon ACTION [dry-run]       preview or run daemon/systemd workflow
 """
 
 

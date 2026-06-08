@@ -242,7 +242,7 @@ def _print_line_action_context_options(action):
     print(f"  reason: {action.get('operator_action_reason', '') or '-'}")
     print(f"  confirmation: {'required' if action.get('requires_confirmation') else 'not required'}")
     print(f"  background: {'supported' if action.get('background_supported') else 'not supported'}")
-    print("  commands: check, run, run --dry-run, run --confirm")
+    print("  commands: check, run, run dry-run, run confirm")
     if action.get("background_supported"):
         print("  background command: run -j")
     print("  next: info, check, run, back")
@@ -300,8 +300,12 @@ def print_line_options(
     selected_action_func=None,
 ):
     module = str(module or "root")
+    service = ""
     if module.startswith(("listener/", "service/")):
         service = module.split("/", 1)[1]
+    elif module in SERVICE_OPTIONS:
+        service = module
+    if service:
         build_records = build_fields_func() if build_fields_func else workbench_config_field_records(cfg)
         target_records = target_command_records_func() if target_command_records_func else []
         print_line_service_options(

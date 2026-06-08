@@ -1,6 +1,7 @@
 """Application entrypoint for grit-console."""
 
 import sys
+from pathlib import Path
 from gritlib.config_utils import load_config
 from gritlib.console_artifact import handle_artifact_command
 from gritlib.console_args import (
@@ -22,7 +23,10 @@ from gritlib.version import grit_version
 
 def _handle_console_subcommand(raw_argv):
     if raw_argv and raw_argv[0] == "artifact":
-        return handle_artifact_command(raw_argv[1:], program="grit-console artifact")
+        return handle_artifact_command(
+            raw_argv[1:],
+            program=f"{Path(sys.argv[0]).name} artifact",
+        )
     if raw_argv and raw_argv[0] == "bringup":
         return handle_bringup_command(raw_argv[1:])
     return None

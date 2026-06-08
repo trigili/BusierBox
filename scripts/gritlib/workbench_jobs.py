@@ -38,7 +38,7 @@ def parse_line_jobs_command(cmd, args):
         return {"action": "cancel", "selector": " ".join(args[1:]).strip()}
     if len(args) >= 2 and first in {"-i", "--info", "info"}:
         return {"action": "select", "selector": " ".join(args[1:]).strip()}
-    if first in {"-v", "--verbose"}:
+    if first in {"-v", "--verbose", "verbose", "details"}:
         return {"action": "list", "verbose": True}
     return {"action": "list", "verbose": False}
 

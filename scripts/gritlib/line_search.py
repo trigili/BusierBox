@@ -306,7 +306,7 @@ def use_line_search_result(
     selection = line_number_selection_result(
         selector,
         results,
-        no_active_message="no numbered results active; run search, targets, listeners, sessions, files, jobs, routes, or probe results",
+        no_active_message="no numbered results active; run search, targets, listeners, sessions, files, jobs, routes, or listener probe results",
     )
     if not selection.handled:
         raise ValueError("usage: use N")

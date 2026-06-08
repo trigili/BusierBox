@@ -41,23 +41,23 @@ The probe bootstrap (`probe.sh`) is a ~40-line POSIX sh script served
 on-demand by the operator console. It runs before griTTYkit exists on the
 device — all it needs is `wget` or `curl` and `/bin/sh`. It determines arch,
 kernel version, word size, and endianness, then POSTs the results back to the
-operator. From there, `probe config` generates a build config and `probe serve`
-stages the right binary for the detected architecture.
+operator. From there, `listener probe config` generates a build config and
+`listener probe serve` stages the right binary for the detected architecture.
 
 ```sh
 # operator side — one command
-grit[all]> probe --start
+grit[all]> listener probe start
   wget -O- http://192.168.1.10:22207/probe.sh | /bin/sh   # ← run this on target
-grit[all]> probe results      # see what came back
-grit[all]> probe config --write-config configs/grit.conf
-grit[all]> probe serve --start
+grit[all]> listener probe results      # see what came back
+grit[all]> listener probe config write-config configs/grit.conf
+grit[all]> listener probe serve start
 ```
 
-`probe serve --start` stages the selected binary, starts the file service when
-requested, and prints target-side fetch options. For first deployment use the
-shown `wget` or `curl` command; when the file service is configured without TLS,
-the console also prints a raw HTTP `nc` fallback. After griTTYkit is already
-present, use the shown `grit fetch ...` command.
+`listener probe serve start` stages the selected binary, starts the file service
+when requested, and prints target-side fetch options. For first deployment use
+the shown `wget` or `curl` command; when the file service is configured without
+TLS, the console also prints a raw HTTP `nc` fallback. After griTTYkit is
+already present, use the shown `grit fetch ...` command.
 
 ### Finds somewhere to live, no matter what
 
@@ -202,19 +202,21 @@ ssh root@router 'chmod +x /tmp/grit && /tmp/grit doctor'
 
 ## Operator Console
 
-The operator side is managed through `scripts/grit-console`, which provides an
+The operator side is managed through `./grit` from a source checkout, or
+`scripts/grit-console` from a release/script bundle. It provides an
 interactive console, reverse-access listeners, a file service, and command
 queueing for targets that phone home.
 
 ### Starting the console
 
 ```sh
-scripts/grit-console
+./grit
 ```
 
 The console opens with a compact status banner and a `grit[all]>` prompt. It
-supports readline editing — arrow-key history, `Ctrl+L` to clear, `Ctrl+R` to
-search, and `Tab` for context-aware completions.
+uses prompt-toolkit for line editing, arrow-key history, `Ctrl+L` to clear,
+`Ctrl+R` to search, and `Tab` for context-aware completions. Install
+`python-prompt-toolkit` on operator hosts before starting the interactive REPL.
 
 ```
 griTTYkit Workbench  0 listening  |  2 targets  |  6 staged  |  50608 events
@@ -234,10 +236,10 @@ Console help topics:
 
   workspace   overview, status, info, search, next
   targets     agents, select, mailbox, activity feed
-  listeners   services, start/stop, options
+  listeners   services, start/stop, probe discovery, options
   sessions    list, select, inspect, interact
-  files       stage, fetch, download, release, serve-binary, view
-  probe       shell probe (pre-deployment): run probe.sh, see results, gen config
+  files       stage, deliver, retrieve, release, serve-binary, view
+  artifact    stamp trailer config into staged binaries or artifacts
   survey      full griTTYkit survey (post-deployment): config, presets
   queue       command queue, mailbox, results
   routes      bridge profiles, multi-hop tunnels
@@ -274,24 +276,24 @@ grit[all]> use target my-router     # select a target context
 grit[my-router]> sessions           # list sessions for this target
 grit[my-router]> sessions -v        # with paths and log locations
 grit[my-router]> sessions clear     # preview cleanup of finished sessions
-grit[my-router]> sessions clear --confirm
+grit[my-router]> sessions clear confirm
 ```
 
 ### Files
 
-Stage a file so a target can fetch it:
+Stage a file so a target can retrieve it:
 
 ```
-grit[all]> upload ./grit-mipsel-linux-4.x-musl-full grit --start
+grit[all]> stage start ./grit-mipsel-linux-4.x-musl-full grit
 ```
 
-`--start` also starts the file-service listener. The console prints the
+`start` also starts the file-service listener. The console prints the
 target-side fetch command to run on the device.
 
 ```
-grit[all]> files          # list staged files and fetch commands
+grit[all]> files          # list staged files and delivery commands
 grit[all]> release        # list release artifacts and selectors
-grit[all]> release stage by_device:glinet-mt1300 --start
+grit[all]> release stage start by_device:glinet-mt1300
 grit[all]> release stage by_device_payload_preset:glinet-mt1300:survey-core
 grit[all]> release stage by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:ssh-operator
 ```
@@ -340,19 +342,19 @@ Getting a config from scratch — no BusyBox required on the target, just
 Start the probe listener and run the shown command on the target:
 
 ```
-grit[all]> probe --start
+grit[all]> listener probe start
 
 Probe:
   port=22207  script=probe.sh  listening=yes
   wget -O- http://192.168.8.241:22207/probe.sh | /bin/sh
 
-  Run the command above on the target, then: probe results
+  Run the command above on the target, then: listener probe results
 ```
 
 The probe captures arch, kernel, word size, and endian, and POSTs them back.
 
 ```
-grit[all]> probe results
+grit[all]> listener probe results
 
 Probe results  (1 received)
 
@@ -361,15 +363,15 @@ Probe results  (1 received)
   1  192.168.8.1:...  mips    5.10.176  Linux  32    big     05-31 14:41
 
   Next steps:
-    probe config                           — generate config from most recent result
-    probe config --write-config FILE       — generate and save
-    probe serve [--start]                  — stage the matching binary for this arch
+    listener probe config                           — generate config from most recent result
+    listener probe config write-config FILE         — generate and save
+    listener probe serve [start]                    — stage the matching binary for this arch
 ```
 
 Generate and save a config from probe data:
 
 ```
-grit[all]> probe config --write-config configs/grit.conf
+grit[all]> listener probe config write-config configs/grit.conf
 ```
 
 This writes a build/artifact config. It is separate from the operator console
@@ -378,7 +380,7 @@ server config such as `local/server-config.json`.
 Stage the right binary for the detected architecture:
 
 ```
-grit[all]> probe serve --start
+grit[all]> listener probe serve start
 
 Release artifact staged:
   target_fetch_command=grit fetch grit-mipsel-linux-4.x-musl-default-full ...
@@ -401,8 +403,8 @@ grit survey push --host 192.168.8.241 --port 8080
 
 ```
 grit[all]> survey results    # see the uploaded survey.json
-grit[all]> survey config --write-config local/server-config.json
-grit[all]> survey preset --name gl-mt1300 --write-local
+grit[all]> survey config write-config local/server-config.json
+grit[all]> survey preset name gl-mt1300 write-local
 ```
 
 The full survey captures libc, filesystem layout, writable paths, available
@@ -629,7 +631,8 @@ same runtime root to a full extraction. `./grit clean` removes `./.grit`.
 ## Layout
 
 ```text
-grit-console          root-level operator console entry point; run with python3 grit-console
+grit                  root-level operator console entry point
+scripts/grit-console script-bundle operator console entry point
 src/                  griTTYkit supervisor C source
 third_party/busybox/  BusyBox git submodule
 buildroot/            Buildroot integration (external tree, configs)
@@ -639,7 +642,7 @@ targets/              target presets
 configs/              active build config
 manifests/            source pins, license policy
 scripts/              operator tools and build helpers
-  grit-console         compatibility path for the operator console and reverse-access server
+  grit-console         operator console and reverse-access server
   grit-console bringup guided first-contact and survey loop
   config-from-survey  generate build config from survey JSON
   preset-from-survey  generate reusable target preset from survey JSON

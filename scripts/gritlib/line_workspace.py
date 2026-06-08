@@ -260,12 +260,12 @@ def line_banner_hint(snap):
             hints.append(f"mailbox ({pending_work} pending)")
         else:
             hints.append("mailbox")
-        hints.extend(["queue COMMAND", "probe queue", "download --queue PATH", "clear target"])
+        hints.extend(["queue COMMAND", "listener probe queue", "retrieve queue PATH", "clear target"])
     elif target_count:
         hints.append(f"targets ({target_count})")
         hints.extend(["use N", "search TERM"])
     else:
-        hints.append("probe start")
+        hints.append("listener probe start")
     if pending_work or poll_overdue:
         if pending_work and poll_overdue:
             hints.append(f"queue ({pending_work} pending, {poll_overdue} overdue)")
@@ -399,9 +399,9 @@ def _print_line_workspace_empty_help(summary, targets, sessions, staged, routes,
         print("")
         print("  No active workspace items yet.")
         print("  Start here:")
-        print("    probe start          serve the shell probe and print target commands")
+        print("    listener probe start serve the shell probe and print target commands")
         print("    listeners            see services you can start")
-        print("    upload --start FILE  stage a file for target fetch")
+        print("    stage start FILE  stage a file for target delivery")
         print("    help workflow        see the probe-to-payload flow")
 
 
@@ -436,7 +436,7 @@ def _print_line_action_info(action):
     print(f"  workflow: {action.get('workflow', '') or '-'}")
     print(f"  confirmation: {'required' if action.get('requires_confirmation') else 'not required'}")
     print(f"  background: {'supported' if action.get('background_supported') else 'not supported'}")
-    print("  commands: check, run, run --dry-run, run --confirm")
+    print("  commands: check, run, run dry-run, run confirm")
     if action.get("background_supported"):
         print("  background command: run -j")
     print("  next: options, check, run, back")
@@ -595,7 +595,7 @@ def print_line_next(
         action = selected_action()
         if action:
             print(f"  selected module: {action.get('kind', '')}:{action.get('id', '')}")
-            print("  commands: options, check, run, run --dry-run, run --confirm, background")
+            print("  commands: options, check, run, run dry-run, run confirm, background")
             if action.get("background_supported"):
                 print("  background job: run -j")
         else:
@@ -623,7 +623,7 @@ def print_line_next(
     elif target_id:
         target_filter = snap.get("target_filter") or {}
         print(target_filter_brief_text(target_filter, prefix="  selected agent:"))
-        print("  commands: interact, queue COMMAND, probe queue, download --queue TARGET_PATH, upload --start LOCAL NAME, fetch --queue NAME, show activity, serve-binary --start PATH NAME, clear target")
+        print("  commands: interact, queue COMMAND, listener probe queue, retrieve queue TARGET_PATH, stage start LOCAL NAME, deliver queue NAME, show activity, serve-binary start PATH NAME, clear target")
     else:
         print("  selected agent: all")
         print("  commands: workspace, agents, listeners, routes, sessions, show categories, search TERM")

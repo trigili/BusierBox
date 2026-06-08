@@ -69,10 +69,10 @@ def parse_line_listener_command(cmd, args):
         if rec["action"] == "list":
             return {
                 "action": "list",
-                "verbose": any(str(item).lower() in {"-v", "--verbose"} for item in args),
+                "verbose": any(str(item).lower() in {"-v", "--verbose", "verbose", "details"} for item in args),
                 "command": cmd,
             }
-        if args and str(args[0]).lower() in {"-v", "--verbose"}:
+        if args and str(args[0]).lower() in {"-v", "--verbose", "verbose", "details"}:
             return {"action": "list", "verbose": True, "command": cmd}
         selector = " ".join(args).strip()
         return {
@@ -257,13 +257,16 @@ def start_line_service(
     service = str(service or "").strip()
     if service.lower().startswith("route ") and route_start_func:
         return route_start_func(service.split(None, 1)[1])
+    service_rows_func = service_rows_func or (lambda: [])
+    service_rows = service_rows_func()
+    if not service:
+        service = resolve_line_service_selector((cfg or {}).get("_line_console_module"), service_rows)
     if not service:
         raise ValueError("usage: start SERVICE|ROUTE")
-    service_rows_func = service_rows_func or (lambda: [])
-    resolved_service = resolve_line_service_selector(service, service_rows_func())
+    resolved_service = resolve_line_service_selector(service, service_rows)
     if resolved_service:
         service = resolved_service
-    if service not in line_service_names(service_rows_func()):
+    if service not in line_service_names(service_rows):
         if route_record_func and route_record_func(service):
             if route_start_func:
                 return route_start_func(service)
@@ -302,13 +305,16 @@ def stop_line_service(
     service = str(service or "").strip()
     if service.lower().startswith("route ") and route_stop_func:
         return route_stop_func(service.split(None, 1)[1])
+    service_rows_func = service_rows_func or (lambda: [])
+    service_rows = service_rows_func()
+    if not service:
+        service = resolve_line_service_selector((cfg or {}).get("_line_console_module"), service_rows)
     if not service:
         raise ValueError("usage: stop SERVICE|ROUTE")
-    service_rows_func = service_rows_func or (lambda: [])
-    resolved_service = resolve_line_service_selector(service, service_rows_func())
+    resolved_service = resolve_line_service_selector(service, service_rows)
     if resolved_service:
         service = resolved_service
-    if service not in line_service_names(service_rows_func()):
+    if service not in line_service_names(service_rows):
         if route_record_func and route_record_func(service):
             if route_stop_func:
                 return route_stop_func(service)

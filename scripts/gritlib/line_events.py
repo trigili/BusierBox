@@ -10,7 +10,7 @@ from gritlib.session_state import parse_utc_timestamp
 def parse_line_event_since(text):
     value = str(text or "").strip().lower()
     if not value:
-        raise ValueError("usage: events --since 2h")
+        raise ValueError("usage: events since 2h")
     unit = value[-1]
     number_text = value[:-1] if unit.isalpha() else value
     multipliers = {
@@ -21,7 +21,7 @@ def parse_line_event_since(text):
     }
     multiplier = multipliers.get(unit, 1)
     if not number_text.isdigit() or int(number_text) <= 0:
-        raise ValueError("usage: events --since 30m|2h|1d")
+        raise ValueError("usage: events since 30m|2h|1d")
     return time.time() - (int(number_text) * multiplier)
 
 
@@ -93,25 +93,25 @@ def parse_line_events_args(args):
     while idx < len(args):
         arg = str(args[idx] or "")
         if arg in {"-h", "--help", "help"}:
-            raise ValueError("usage: events [-n N] [service=NAME] [event=NAME] [level=LEVEL] [target=ID|LABEL] [--since 2h]")
-        if arg in {"-n", "--limit"}:
+            raise ValueError("usage: events [n N] [service=NAME] [event=NAME] [level=LEVEL] [target=ID|LABEL] [since 2h]")
+        if arg in {"-n", "--limit", "n", "limit"}:
             idx += 1
             if idx >= len(args) or not str(args[idx]).isdigit() or int(args[idx]) <= 0:
-                raise ValueError("usage: events -n N")
+                raise ValueError("usage: events n N")
             limit = int(args[idx])
         elif arg.startswith("-n") and arg[2:].isdigit():
             limit = int(arg[2:])
-        elif arg.startswith("--limit="):
+        elif arg.startswith("--limit=") or arg.startswith("limit="):
             value = arg.split("=", 1)[1]
             if not value.isdigit() or int(value) <= 0:
-                raise ValueError("usage: events --limit=N")
+                raise ValueError("usage: events limit=N")
             limit = int(value)
-        elif arg == "--since":
+        elif arg in {"--since", "since"}:
             idx += 1
             if idx >= len(args):
-                raise ValueError("usage: events --since 2h")
+                raise ValueError("usage: events since 2h")
             since_epoch = parse_line_event_since(args[idx])
-        elif arg.startswith("--since="):
+        elif arg.startswith("--since=") or arg.startswith("since="):
             since_epoch = parse_line_event_since(arg.split("=", 1)[1])
         elif "=" in arg:
             key, value = arg.split("=", 1)
@@ -120,7 +120,7 @@ def parse_line_events_args(args):
                 raise ValueError(f"unsupported event filter: {key}")
             filters.append((key, value.strip()))
         else:
-            raise ValueError("usage: events [-n N] [service=NAME] [event=NAME] [level=LEVEL] [target=ID|LABEL] [--since 2h]")
+            raise ValueError("usage: events [n N] [service=NAME] [event=NAME] [level=LEVEL] [target=ID|LABEL] [since 2h]")
         idx += 1
     return limit, since_epoch, filters
 

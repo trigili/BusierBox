@@ -5,9 +5,6 @@ fully characterized yet. It is meant to answer: can a conservative griTTYkit
 artifact run, what did the target survey report, and what config should be tried
 next?
 
-`scripts/grit-bringup` remains as a compatibility entry point, but new
-operator workflows should use the console subcommand.
-
 It is different from `scripts/lib/integration-glinet`: bringup is exploratory and
 creates a recommendation, while integration is the repeatable validation
 harness for known cases.

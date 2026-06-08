@@ -96,7 +96,7 @@ def render_probe_paste(script_text):
         script_text,
         delimiter,
         "",
-        "After it runs, use: probe results",
+        "After it runs, use: listener probe results",
     ])
 
 
@@ -123,7 +123,7 @@ def render_probe_base64_paste(script_text):
         "  echo 'base64 decoder not found' >&2; exit 1",
         "fi",
         "",
-        "After it runs, use: probe results",
+        "After it runs, use: listener probe results",
     ])
     return "\n".join(lines)
 
@@ -176,14 +176,14 @@ def render_probe_delivery(cfg):
         f"    nc:    {nc_cmd}",
         f"    ssh:   ssh root@target '{wget_cmd}'",
         f"    copy:  scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'",
-        "    paste: probe paste",
+        "    paste: listener probe paste",
         "",
         "  Current listeners: probe-http, probe-tftp, probe-ftp, probe-dns",
         "  DNS note: nslookup usually needs DNS exposed on port 53; dig can use custom ports.",
         "  If HTTP is blocked but nc works, use the nc command above against the same listener.",
-        "  If the target only has a serial/admin shell, use: probe paste",
+        "  If the target only has a serial/admin shell, use: listener probe paste",
         "",
-        "  probe results  — after running any of the above",
+        "  listener probe results  — after running any of the above",
     ])
 
 
@@ -204,7 +204,7 @@ def parse_line_probe_args(args):
         elif lower in {"show", "command"}:
             continue
         else:
-            raise ValueError("usage: probe [start|queue|--start|--queue]")
+            raise ValueError("usage: listener probe [start|queue]")
     return queue, start_service
 
 
@@ -227,7 +227,7 @@ def parse_line_probe_command(cmd, args=None):
         return {"action": "serve", "args": rest}
     if subcmd in {"delivery", "deliver", "commands"}:
         if rest:
-            raise ValueError("usage: probe delivery")
+            raise ValueError("usage: listener probe delivery")
         return {"action": "delivery"}
     if subcmd in {"paste", "serial", "heredoc"}:
         base64_mode = False
@@ -236,11 +236,11 @@ def parse_line_probe_command(cmd, args=None):
             if lower in {"--base64", "base64", "-b"}:
                 base64_mode = True
             else:
-                raise ValueError("usage: probe paste [--base64]")
+                raise ValueError("usage: listener probe paste [base64]")
         return {"action": "paste", "base64": base64_mode}
     if subcmd in {"script", "raw"}:
         if rest:
-            raise ValueError("usage: probe script")
+            raise ValueError("usage: listener probe script")
         return {"action": "script"}
     if subcmd in {"help", "-h", "--help"}:
         return {"action": "help"}
@@ -251,6 +251,32 @@ def parse_line_probe_command(cmd, args=None):
         "queue": queue_probe,
         "start_service": start_probe,
     }
+
+
+def parse_line_listener_probe_command(cmd, args=None):
+    """Parse listener-scoped probe commands.
+
+    `listener probe` by itself remains a listener selection handled by the
+    navigation dispatcher. Subcommands here mirror the old top-level probe
+    workflow so the interactive surface can live under listeners.
+    """
+    if args is None:
+        args = cmd
+        cmd = "listener"
+    if str(cmd or "").strip().lower() not in {"listener", "listeners", "service", "services"}:
+        return {}
+    args = list(args or [])
+    if not args or str(args[0]).strip().lower() not in {
+        "probe", "probe-http", "http-probe",
+    }:
+        return {}
+    rest = args[1:]
+    if not rest:
+        return {}
+    parsed = parse_line_probe_command("probe", rest)
+    if parsed:
+        parsed["listener_scoped"] = True
+    return parsed
 
 
 def dispatch_line_probe_command(
@@ -288,7 +314,7 @@ def dispatch_line_probe_command(
         if action == "script" and script_func:
             return script_func()
         if action == "help" and help_func:
-            return help_func("probe")
+            return help_func("listeners")
         if action == "start" and start_func:
             if probe_cmd.get("set_context") and set_context_func:
                 set_context_func("probe")

@@ -277,7 +277,7 @@ def stage_line_release(
 ):
     selector = str(selector or "").strip()
     if not selector:
-        raise ValueError("usage: release stage [--start] SELECTOR")
+        raise ValueError("usage: release stage [start] SELECTOR")
     headless = (
         "scripts/grit-console --config "
         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
@@ -299,7 +299,7 @@ def stage_line_release(
     print(f"  release_path={rec.get('release_path', '')}")
     print(f"  tuple_path={rec.get('tuple_path', '')}")
     print(f"  payload_preset={rec.get('payload_preset', '')}")
-    print(f"  target fetch: {fetch_command}")
+    print(f"  target command: {fetch_command}")
     fetch_options = print_staged_fetch_target_options(
         rec.get("request_name", ""),
         cfg,

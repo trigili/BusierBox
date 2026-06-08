@@ -11,6 +11,7 @@ from gritlib.line_workspace import dispatch_line_workspace_command, parse_line_w
 from gritlib.probe_commands import (
     dispatch_line_probe_command,
     dispatch_line_survey_command,
+    parse_line_listener_probe_command,
     parse_line_probe_command,
     parse_line_survey_command,
 )
@@ -94,12 +95,22 @@ def _dispatch_line_probe_family(
     args,
     callbacks,
 ):
-    probe_cmd = parse_line_probe_command(cmd, args)
+    probe_cmd = parse_line_listener_probe_command(cmd, args)
+    listener_scoped = bool(probe_cmd)
+    if not probe_cmd:
+        probe_cmd = parse_line_probe_command(cmd, args)
     if not probe_cmd:
         return ""
+    set_context_func = callbacks.get("set_context_func")
+    probe_context_func = (
+        (lambda _module="": set_context_func("listener/probe"))
+        if set_context_func else None
+    )
+    if listener_scoped and probe_context_func:
+        probe_context_func()
     dispatch_line_probe_command(
         probe_cmd,
-        set_context_func=callbacks.get("set_context_func"),
+        set_context_func=probe_context_func,
         results_func=callbacks.get("probe_results_func"),
         config_func=callbacks.get("probe_config_func"),
         clear_func=callbacks.get("probe_clear_func"),

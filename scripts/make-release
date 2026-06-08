@@ -1415,11 +1415,14 @@ def write_release_helpers(script_dir):
             str(item) for item in (corresponding_source_policy.get("source_reconstruction_inputs") or [])
         ]
         run([str(root / "scripts" / "verify-checksums"), "--original"])
-        helpers = ("artifact-config", "config-from-survey", "grit-console", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find")
+        helpers = ("artifact-config", "bringup", "config-from-survey", "grit-console", "configure-artifact", "configure-all", "verify-checksums", "release-index", "release-find")
         for helper in helpers:
-            path = root / "scripts" / helper
+            if helper in ("artifact-config", "bringup", "config-from-survey", "release-index", "release-find"):
+                path = root / "scripts" / "lib" / helper
+            else:
+                path = root / "scripts" / helper
             if not os.access(path, os.X_OK):
-                fail(f"helper is not executable: scripts/{helper}")
+                fail(f"helper is not executable: {path.relative_to(root)}")
         run([str(root / "scripts" / "lib" / "config-from-survey"), "--help"])
         if not (root / "release-index.json").exists():
             run([str(root / "scripts" / "release-index"), "--write"])
@@ -1755,6 +1758,8 @@ def copy_bundle_support(release_dir, include_sources_manifest=True):
     (script_lib_dir / "config-from-survey").chmod(0o755)
     shutil.copy2(script_lib_dir / "config-from-survey", script_dir / "config-from-survey")
     (script_dir / "config-from-survey").chmod(0o755)
+    shutil.copy2(ROOT / "scripts" / "lib" / "bringup", script_lib_dir / "bringup")
+    (script_lib_dir / "bringup").chmod(0o755)
     shutil.copy2(ROOT / "scripts" / "grit-console", script_dir / "grit-console")
     (script_dir / "grit-console").chmod(0o755)
     shutil.copytree(
@@ -1848,16 +1853,16 @@ def write_release_quickstart(path, name):
                scripts/lib/release-find --device glinet-mt1300
                scripts/lib/release-find --payload-preset survey-core
 
-            4. Configure operator settings with trailer overrides:
+            4. Stamp operator settings with trailer overrides:
 
-               From the console, configure the staged payload copy before the
-               target fetches it:
+               From the console, stamp the staged payload copy before the
+               target retrieves it:
 
-                 configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203
-                 configure grit --zero-arg-mode rshell --retry-count 12 --retry-interval 60
-                 configure grit --command-queue-enable yes --command-queue-poll-interval 300
+                 stamp grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203
+                 stamp grit --zero-arg-mode rshell --retry-count 12 --retry-interval 60
+                 stamp grit --command-queue-enable yes --command-queue-poll-interval 300
 
-               Or configure artifacts noninteractively:
+               Or stamp artifacts noninteractively:
 
                scripts/configure-artifact bin/grit-...-full \\
                  --operator-host 192.168.8.241 \\
@@ -1938,12 +1943,12 @@ def write_release_readme(path, name):
             scripts/grit-console
             scripts/lib/release-find --device glinet-mt1300
             # In the console, probe the target, stage a matching release artifact,
-            # then configure its staged copy before target fetch:
+            # then stamp its staged copy before target retrieval:
             #   probe --start
             #   probe results
             #   probe config --write-config configs/grit.conf
             #   probe serve --start
-            #   configure grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203
+            #   stamp grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/configure-artifact bin/grit-...-full --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/configure-all --operator-host 192.168.8.241 --transport builtin --shell-port 22203
             scripts/verify-checksums --configured
@@ -1956,12 +1961,12 @@ def write_release_readme(path, name):
 
             XOR trailer obfuscation is not encryption and must not be used for secrets or
             private keys. Network autorun and external writes are not enabled by this bundle
-            tooling by default. The console `configure` command edits a staged copy under
+            tooling by default. The console `stamp` command edits a staged copy under
             the operator session so the original release artifact remains pristine.
 
             `scripts/grit-console` is the intended operator entry point for release
             users. It can serve `probe.sh`, recommend a matching tuple, stage release
-            artifacts or local files, print plain wget/curl target fetch commands, configure
+            artifacts or local files, print plain wget/curl target fetch commands, stamp
             staged payload trailers, receive target uploads, and queue work for polling
             targets.
             """

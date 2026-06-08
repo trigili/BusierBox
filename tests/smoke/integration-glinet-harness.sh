@@ -5,7 +5,6 @@ set -eu
 script=${1:-scripts/lib/integration-glinet}
 server=${2:-scripts/grit-console}
 bringup_primary="scripts/grit-console bringup"
-bringup_compat="scripts/grit-bringup"
 
 [ -x "$script" ] || {
     printf '%s\n' "integration-glinet-harness: missing executable $script" >&2
@@ -21,11 +20,14 @@ for case_name in survey-core trailer-runtime-override recovery-fakeroot no-resid
 done
 
 "$script" --dry-run --all-safe --operator-host 127.0.0.1 >/dev/null
-$bringup_compat --help 2>&1 | grep -q 'Guided target bring-up flow'
 $bringup_primary --help 2>&1 | grep -q 'Guided target bring-up flow'
 $bringup_primary --help 2>&1 | grep -q -- '--reality-json PATH'
 $bringup_primary --help 2>&1 | grep -q -- '--max-compatibility LABEL'
-$bringup_primary --help 2>&1 | grep -q 'does not start scripts/grit-console'
+$bringup_primary --help 2>&1 | grep -q 'does not start listener services by itself'
+if $bringup_primary --help 2>&1 | grep -q 'scripts/grit-bringup'; then
+    printf '%s\n' "integration-glinet-harness: bringup help leaked scripts/grit-bringup" >&2
+    exit 1
+fi
 $bringup_primary --help 2>&1 | grep -q 'does not install persistence'
 $bringup_primary --help 2>&1 | grep -q 'integration-glinet is the regression harness'
 $bringup_primary --host root@192.0.2.1 --dry-run >/dev/null
@@ -258,7 +260,7 @@ printf '%s\n' "$repo_release_json" | python3 -c 'import json,sys,pathlib; d=json
 printf '%s\n' "$repo_release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); rec=d["next_command_records_by_request"][d["staged_request_name"]]; by_label=d["next_command_records_by_compatibility_label"]; by_baseline=d["next_command_records_by_compatibility_baseline_label"]; by_source=d["next_command_records_by_compatibility_source"]; assert rec["stage_kind"] == "release-artifact"; assert rec["source_path"] == d["selected_artifact"]; assert rec["compatibility"]["label"] == "likely"; assert rec["compatibility"]["baseline_label"] == "exact"; assert rec["compatibility"]["source"] == "release-index+reality"; assert "/tmp noexec: avoid /tmp extraction" in rec["compatibility"]["reasons"]; assert by_label["likely"][0]["request_name"] == d["staged_request_name"]; assert by_baseline["exact"][0]["request_name"] == d["staged_request_name"]; assert by_source["release-index+reality"][0]["request_name"] == d["staged_request_name"]; assert d["command_record_summary"]["target_staged_fetch_count"] == 1'
 printf '%s\n' "$repo_release_json" | python3 -c 'import json,sys; d=json.load(sys.stdin); s=d["command_record_summary"]; api=d["api_collections"]["next_command_records"]; assert s["stage_kind_counts"]["release-artifact"] == 1; assert s["compatibility_label_counts"]["likely"] == 1; assert s["compatibility_baseline_label_counts"]["exact"] == 1; assert s["compatibility_source_counts"]["release-index+reality"] == 1; assert "next_command_records_by_compatibility_label" in api["indexes"]; assert "next_command_records_by_compatibility_baseline_label" in api["indexes"]; assert "next_command_records_by_compatibility_source" in api["indexes"]'
 rm -rf "$release_repo_tmp"
-grep -q 'GRIT_CONFIG="$recommended" make package' "$bringup_compat"
+grep -q 'GRIT_CONFIG="$recommended" make package' scripts/lib/bringup
 grep -q 'Bringup is a guided onboarding flow' README.md
 grep -q 'docs/bringup.md' README.md
 grep -q 'docs/payload-presets.md' README.md
