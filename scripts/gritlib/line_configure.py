@@ -15,6 +15,11 @@ from gritlib.probe_results import (
     probe_result_by_ordinal,
     probe_synthetic_survey,
 )
+from gritlib.profiles import (
+    active_profile,
+    profile_summary_line,
+    upsert_profile_from_probe,
+)
 from gritlib.session_state import read_json_file
 from gritlib.shell_utils import shquote
 from gritlib.file_transfers import render_fetch_command
@@ -240,6 +245,19 @@ def artifact_config_script(search_roots=None):
 
 
 def configure_line_artifact(cfg, args, append_event_fn=None):
+    if len(args or []) == 1:
+        selector = str(args[0])
+        profile = active_profile(cfg)
+        if not profile:
+            raise ValueError("usage: stamp NAME|PATH [show|clear|KEY=VALUE|options...]")
+        print(f"Artifact configuration suggestions from profile: {profile.get('name') or '-'}")
+        print(f"  artifact: {selector}")
+        if profile.get("operator_host"):
+            print(f"  configure {selector} operator-host {profile.get('operator_host')} transport {profile.get('preferred_transport') or 'ssh'}")
+        else:
+            print(f"  configure {selector} operator-host OPERATOR_HOST transport {profile.get('preferred_transport') or 'ssh'}")
+        print("  This only prints suggestions; trailer writes require explicit key/value arguments.")
+        return None
     selector, action, obfuscation, kv = parse_line_configure_args(args)
     request_name, staged_rec = staged_record_for_configure(cfg, selector)
     if request_name:
@@ -391,7 +409,33 @@ def run_line_probe_config(cfg, args, append_event_fn=None):
         kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
         print(f"Using probe result {selected_probe_ordinal} ({rec.get('received_at', '')})")
         print(f"  arch={uname_m}  kernel={kernel}  bits={bits}  endian={endian}")
-        print("  Note: libc, filesystem, and tool data will use estimated defaults.")
+        if not write_config_path:
+            before = active_profile(cfg)
+            if before:
+                print(f"  updating active profile: {before.get('name')}")
+            else:
+                print("  creating active profile from probe result")
+            profile, created = upsert_profile_from_probe(cfg, rec, ordinal=selected_probe_ordinal)
+            print("")
+            print(f"Profile {'created' if created else 'updated'}: {profile.get('name')}")
+            print(f"  {profile_summary_line(profile)}")
+            print(f"  tuple: {profile.get('tuple_path') or '(will be selected from release metadata)'}")
+            print("")
+            print("Next:")
+            print("  profile")
+            print("  listener serve start")
+            print("  listener ssh start")
+            print("")
+            print("  Export build config if needed:")
+            print("    listener probe config write-config FILE")
+            if append_event_fn:
+                append_event_fn(cfg, "workbench", "workbench_probe_profile_updated", details={
+                    "profile": profile.get("name", ""),
+                    "created": created,
+                    "probe_ordinal": selected_probe_ordinal,
+                })
+            return profile
+        print("  Note: exporting build config from estimated probe defaults.")
         print("")
         synthetic = probe_synthetic_survey(rec)
         tmp = tempfile.NamedTemporaryFile(

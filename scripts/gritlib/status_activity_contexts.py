@@ -684,6 +684,9 @@ def _build_status_activity_base_contexts(
         )
     )
     command_queue_context = _build_command_queue_status_context(cfg)
+    f["unfiltered_counts"]["command_queue_commands"] = command_queue_context[
+        "unfiltered_count"
+    ]
     session_event_activity_context = _build_status_session_event_activity_context(
         cfg,
         event_limit=event_limit,

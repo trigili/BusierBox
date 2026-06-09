@@ -99,6 +99,91 @@ def run_gritlib_import_cycle_check():
     return 0
 
 
+def run_line_profile_workflow_check():
+    sys.path.insert(0, str(ROOT / "scripts"))
+    from gritlib.config_utils import load_config
+    from gritlib.line_completions import line_completion_candidates
+    from gritlib.line_configure import run_line_probe_config, configure_line_artifact
+    from gritlib.line_core_commands import dispatch_line_core_command
+    from gritlib.line_help import line_command_help_topic
+    from gritlib.profiles import active_profile, load_profiles, profiles_path
+    from gritlib.probe_results import append_probe_result
+
+    with tempfile.TemporaryDirectory() as tmp:
+        cfg_path = Path(tmp) / "server-config.json"
+        operator_dir = Path(tmp) / "operator-session"
+        cfg_path.write_text(json.dumps({
+            "operator_session_dir": str(operator_dir),
+            "listen_host": "127.0.0.1",
+        }))
+        cfg = load_config(cfg_path)
+        if Path(str(cfg.get("profiles_file"))) != operator_dir / "profiles.json":
+            print("profile path did not derive from operator_session_dir", file=sys.stderr)
+            return 1
+        append_probe_result(cfg, {
+            "received_at": "2026-06-09T12:00:00Z",
+            "remote_addr": "192.0.2.10:1234",
+            "operator_host": "192.168.8.241",
+            "uname_s": "Linux",
+            "uname_m": "mips",
+            "uname_r": "5.10.176",
+            "word_bits": "32",
+            "endian": "little",
+            "target_label": "glinet",
+        })
+        with contextlib.redirect_stdout(io.StringIO()):
+            run_line_probe_config(cfg, [])
+        profile = active_profile(cfg)
+        if (
+            profile.get("name") != "glinet" or
+            profile.get("arch") != "mipsel" or
+            profile.get("kernel_floor") != "current" or
+            profile.get("operator_host") != "192.168.8.241" or
+            not profiles_path(cfg).is_file()
+        ):
+            print("probe config did not populate active profile", file=sys.stderr)
+            print(json.dumps(load_profiles(cfg), indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        with contextlib.redirect_stdout(io.StringIO()):
+            dispatch_line_core_command(
+                "profile",
+                ["set", "preferred_payload_preset", "ssh-operator"],
+                profile_func=lambda profile_cmd: __import__(
+                    "gritlib.line_profiles", fromlist=["run_profile_command"]
+                ).run_profile_command(cfg, profile_cmd),
+            )
+        if active_profile(cfg).get("preferred_payload_preset") != "ssh-operator":
+            print("global profile dispatch did not edit active profile", file=sys.stderr)
+            return 1
+        suggestion_out = io.StringIO()
+        with contextlib.redirect_stdout(suggestion_out):
+            configure_line_artifact(cfg, ["grit-mipsel-ssh"])
+        suggestion_text = suggestion_out.getvalue()
+        if (
+            "Artifact configuration suggestions from profile" not in suggestion_text or
+            "operator-host 192.168.8.241" not in suggestion_text or
+            "transport ssh" not in suggestion_text
+        ):
+            print("configure ARTIFACT did not print profile suggestions", file=sys.stderr)
+            print(suggestion_text, file=sys.stderr)
+            return 1
+        if line_command_help_topic("profiles") is None:
+            print("profile help topic missing", file=sys.stderr)
+            return 1
+        completions = line_completion_candidates(
+            "listener ",
+            providers={
+                "service_completion_names": ["ssh", "file-service"],
+                "profile_names": ["glinet"],
+            },
+        )
+        if "listener serve" not in completions:
+            print("listener serve completion missing", file=sys.stderr)
+            print(completions, file=sys.stderr)
+            return 1
+    return 0
+
+
 def line_console_artifact_dir():
     explicit = os.environ.get("LINE_CONSOLE_ARTIFACT_DIR")
     if explicit:
@@ -9635,7 +9720,7 @@ def main(argv=None):
             "serve-binary [start] [PATH] [NAME]" not in console_help or
             "configure NAME|PATH KEY=VALUE" not in console_help or
             "configure NAME operator-host HOST transport builtin" not in console_help or
-            "release, release stage SELECTOR" not in console_help or
+            "release, release stage [start] [SELECTOR]" not in console_help or
             "by_device_payload_preset:NAME:PRESET" not in console_help or
             "by_tuple_payload_preset:PATH:PRESET" not in console_help or
             "fetch [queue] [start] NAME" not in console_help or
@@ -10004,6 +10089,8 @@ def main(argv=None):
         return 1
     if run_file_staging_dispatch_check() != 0:
         return 1
+    if run_line_profile_workflow_check() != 0:
+        return 1
 
     if args.section == "preflight":
         print("grit-console smoke preflight ok")
@@ -10154,7 +10241,7 @@ def main(argv=None):
                 stdout=bridge_tui_slave,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={**os.environ, "TERM": "dumb"},
+                env={**os.environ, "TERM": "dumb", "GRIT_LINE_INPUT": "basic"},
             )
             os.close(bridge_tui_slave)
             bridge_tui_slave = -1
@@ -10903,7 +10990,7 @@ def main(argv=None):
                 stdout=survey_tui_slave,
                 stderr=subprocess.PIPE,
                 text=True,
-                env={**os.environ, "TERM": "dumb"},
+                env={**os.environ, "TERM": "dumb", "GRIT_LINE_INPUT": "basic"},
             )
             os.close(survey_tui_slave)
             survey_tui_slave = -1
@@ -20770,7 +20857,7 @@ def main(argv=None):
                 "Traceback" in (line_stderr or "") or
                 "Help: release" not in _line_stdout or
                 "stage-release [start] SELECTOR" not in _line_stdout or
-                "release stage SELECTOR  |  release ? for help" not in _line_stdout or
+                "release stage [start] [SELECTOR]  |  release ? for help" not in _line_stdout or
                 "Preset selectors:" not in _line_stdout or
                 "by_tuple_payload_preset:by-tuple/native/host/host/host:default" not in _line_stdout or
                 "selector=by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout or
@@ -20972,7 +21059,7 @@ def main(argv=None):
             os.close(no_release_slave)
             no_release_slave = -1
             time.sleep(0.3)
-            os.write(no_release_master, b"listener probe serve\nq\n")
+            os.write(no_release_master, b"listener probe serve\nq\nq\n")
             no_release_output = b""
             deadline = time.time() + 8
             while no_release_proc.poll() is None and time.time() < deadline:
@@ -21000,14 +21087,11 @@ def main(argv=None):
         no_release_text = no_release_output.decode("utf-8", errors="replace")
         if (no_release_proc.returncode != 0 or
                 "Traceback" in (no_release_stderr or "") or
-                "No release configured." not in no_release_text or
-                "Probe needs arch=mipsel kernel_floor=current endian=little" not in no_release_text or
-                "Expected tuple shape: by-tuple/mipsel/LIBC/current/CPU" not in no_release_text or
-                "Expected artifact stem: grit-mipsel-linux-current-LIBC-PRESET" not in no_release_text or
-                "Common payload presets: builtin-core-shell, survey-core, default, payload-bash, socat-rescue, ssh-operator, full-debug" not in no_release_text or
-                "set release_dir /path/to/extracted-release" not in no_release_text or
-                "listener probe serve start" not in no_release_text):
-            print("probe serve without a release did not provide actionable guidance", file=sys.stderr)
+                "listener probe serve is deprecated." not in no_release_text or
+                "listener probe config" not in no_release_text or
+                "listener serve" not in no_release_text or
+                "listener serve ssh start" not in no_release_text):
+            print("deprecated probe serve did not provide migration guidance", file=sys.stderr)
             print(no_release_text, file=sys.stderr)
             print(no_release_stderr or "", file=sys.stderr)
             return 1
@@ -21126,7 +21210,7 @@ def main(argv=None):
             os.close(probe_slave)
             probe_slave = -1
             time.sleep(0.3)
-            os.write(probe_master, b"listener probe results\n2\nlistener probe config 1\nlistener probe clear 2\nlistener probe results\nlistener probe serve\n1\nq\nq\n")
+            os.write(probe_master, b"listener probe results\nlistener probe config 1\nlistener probe clear 2\nlistener probe results\nlistener serve\nq\nq\n")
             probe_output = b""
             deadline = time.time() + 8
             while probe_proc.poll() is None and time.time() < deadline:
@@ -21155,24 +21239,19 @@ def main(argv=None):
         if (probe_proc.returncode != 0 or
                 "Traceback" in (probe_stderr or "") or
                 "Probe results  (2 received)" not in probe_text or
-                "Using probe result 2 (2025-12-31T23:59:00Z)" not in probe_text or
-                "GRIT_TARGET_ARCH=x86_64" not in probe_text or
                 "Using probe result 1 (2026-01-01T00:00:00Z)" not in probe_text or
-                "GRIT_TARGET_ARCH=mipsel" not in probe_text or
-                "GRIT_KERNEL_FLOOR=current" not in probe_text or
+                "Profile created:" not in probe_text or
+                "mipsel Linux 5.10.176 little" not in probe_text or
                 "removed probe result 2: 2025-12-31T23:59:00Z 192.0.2.10:50000" not in probe_text or
                 "cleared 1 probe result(s)" not in probe_text or
                 "Probe results  (1 received)" not in probe_text or
-                "Probe arch: mipsel" not in probe_text or
-                "floor: current" not in probe_text or
-                f"Using release: {probe_release_dir}" not in probe_text or
-                "Available for mipsel  (2 found)" not in probe_text or
-                "default               by-tuple/mipsel/musl/4.x/mips32r2-24kc" not in probe_text or
-                "ssh-operator          by-tuple/mipsel/musl/4.x/mips32r2-24kc" not in probe_text or
+                "Using profile:" not in probe_text or
+                "Compatible artifacts  (1 shown)" not in probe_text or
+                "grit-mipsel-default" not in probe_text or
                 "by-tuple/mipsel/musl/4.x/mips32r2-24kc" not in probe_text or
                 "by-tuple/x86_64/musl/4.x/generic" in probe_text or
                 "  1  -                     -" in probe_text or
-                "Staging default: by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:default" not in probe_text or
+                "selector=by_tuple_payload_preset:by-tuple/mipsel/musl/4.x/mips32r2-24kc:default" not in probe_text or
                 "Release artifact staged:" not in probe_text or
                 "Target fetch options:" not in probe_text or
                 f"https://{advertised_operator_host}:" not in probe_text or

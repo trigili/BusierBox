@@ -87,7 +87,7 @@ def _print_no_release_guidance(probe_arch, uname_m, probe_kernel_floor, endian, 
     print("  From a source checkout, build one with: make release-full")
     print("  From this console, point at an extracted release with:")
     print("    set release_dir /path/to/extracted-release")
-    print("    listener probe serve start")
+    print("    listener serve start")
 
 
 def _choose_probe_match(matches, probe_arch, uname_m, line_input_fn):
@@ -184,6 +184,14 @@ def _print_no_match_guidance(rel, probe_arch, uname_m, probe_kernel_floor, endia
 
 def run_line_probe_serve(cfg, args, line_input_fn, stage_line_release_fn, append_event_fn=None):
     start_file_service = parse_line_probe_serve_args(args)
+    print("listener probe serve is deprecated.")
+    print("  Probe now ends after discovery and profile population.")
+    print("")
+    print("Use:")
+    print("  listener probe config")
+    print("  listener serve start" if start_file_service else "  listener serve")
+    print("  listener serve ssh start")
+    return []
     rec = probe_latest_result(cfg)
     if not rec:
         raise ValueError("no probe results - run: listener probe start")

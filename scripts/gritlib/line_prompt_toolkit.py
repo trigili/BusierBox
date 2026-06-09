@@ -1,5 +1,6 @@
 """prompt_toolkit input adapter for the line console."""
 
+import os
 import sys
 
 
@@ -93,6 +94,27 @@ class MissingPromptToolkitLineInput:
         return None
 
 
+class BasicLineInput:
+    def __init__(self, *, shutdown_event, request_shutdown_func):
+        self._shutdown_event = shutdown_event
+        self._request_shutdown_func = request_shutdown_func
+
+    def set_completion_func(self, completion_func):
+        del completion_func
+
+    def __call__(self, prompt):
+        if self._shutdown_event.is_set():
+            return None
+        try:
+            return input(prompt)
+        except EOFError:
+            self._request_shutdown_func("input_eof")
+            return None
+        except KeyboardInterrupt:
+            self._request_shutdown_func("keyboard_interrupt")
+            return None
+
+
 def build_prompt_toolkit_input(
     *,
     shutdown_event,
@@ -101,6 +123,11 @@ def build_prompt_toolkit_input(
     completer_base=None,
     completion_class=None,
 ):
+    if os.environ.get("GRIT_LINE_INPUT") == "basic":
+        return BasicLineInput(
+            shutdown_event=shutdown_event,
+            request_shutdown_func=request_shutdown_func,
+        )
     if session_factory is None:
         session_factory, completer_base, completion_class = _load_prompt_toolkit()
     if session_factory is None:

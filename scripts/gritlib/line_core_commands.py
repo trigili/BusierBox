@@ -7,6 +7,8 @@ from gritlib.line_options import (
     parse_line_option_command,
     parse_line_target_metadata_command,
 )
+from gritlib.line_profile_serve import parse_line_listener_serve_command
+from gritlib.line_profiles import dispatch_line_profile_command, parse_line_profile_command
 from gritlib.line_workspace import dispatch_line_workspace_command, parse_line_workspace_command
 from gritlib.probe_commands import (
     dispatch_line_probe_command,
@@ -88,6 +90,31 @@ def _dispatch_line_target_metadata_family(
         alias_func=callbacks.get("alias_target_func"),
     )
     return "handled"
+
+
+def _dispatch_line_profile_family(cmd, args, callbacks):
+    profile_cmd = parse_line_profile_command(cmd, args)
+    if not profile_cmd:
+        return ""
+    dispatch_line_profile_command(
+        profile_cmd,
+        profile_func=callbacks.get("profile_func"),
+    )
+    return "handled"
+
+
+def _dispatch_line_profile_serve_family(cmd, args, callbacks):
+    serve_cmd = parse_line_listener_serve_command(cmd, args)
+    if not serve_cmd:
+        return ""
+    serve_func = callbacks.get("profile_serve_func")
+    if serve_func:
+        try:
+            serve_func(args[1:] if args and str(args[0]).lower() == "serve" else args)
+        except ValueError as exc:
+            print(exc)
+        return "handled"
+    raise ValueError("profile serve support is unavailable")
 
 
 def _dispatch_line_probe_family(
@@ -176,6 +203,8 @@ def dispatch_line_core_command(
     survey_results_func=None,
     survey_config_func=None,
     survey_preset_func=None,
+    profile_func=None,
+    profile_serve_func=None,
 ):
     args = list(args or [])
     callbacks = locals()
@@ -186,6 +215,10 @@ def dispatch_line_core_command(
     if _dispatch_line_option_family(cmd, args, callbacks):
         return "handled"
     if _dispatch_line_target_metadata_family(cmd, args, callbacks):
+        return "handled"
+    if _dispatch_line_profile_family(cmd, args, callbacks):
+        return "handled"
+    if _dispatch_line_profile_serve_family(cmd, args, callbacks):
         return "handled"
     if _dispatch_line_probe_family(cmd, args, callbacks):
         return "handled"

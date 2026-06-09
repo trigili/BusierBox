@@ -5,6 +5,9 @@ from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
 from gritlib.line_files import parse_line_release_stage_args
 from gritlib.line_search import set_line_search_results
+from gritlib.line_probe_serve import probe_release_matches
+from gritlib.profiles import active_profile, profile_release_selector, profile_summary_line
+from gritlib.release_artifacts import kernel_floor_from_release, normalized_probe_arch
 from gritlib.release_contexts import discover_release_context, release_context
 from gritlib.release_staging import release_nav_records, stage_release_selection
 from gritlib.shell_utils import shquote
@@ -147,6 +150,54 @@ def _release_view_context(rel):
     }
 
 
+def _profile_match_fields(profile):
+    uname_m = str(profile.get("uname_m") or profile.get("arch") or "")
+    endian = str(profile.get("endian") or "")
+    arch = str(profile.get("arch") or normalized_probe_arch(uname_m, endian))
+    kernel = str(profile.get("uname_r") or "")
+    kernel_floor = str(profile.get("kernel_floor") or kernel_floor_from_release(kernel))
+    return arch, kernel_floor
+
+
+def _profile_compatible_artifacts(rel, profile):
+    if not profile:
+        return []
+    arch, kernel_floor = _profile_match_fields(profile)
+    preset = str(profile.get("preferred_payload_preset") or "")
+    matches = probe_release_matches(rel, arch, kernel_floor)
+    if preset:
+        preset_matches = [rec for rec in matches if str(rec.get("payload_preset") or "") == preset]
+        if preset_matches:
+            matches = preset_matches + [
+                rec for rec in matches
+                if str(rec.get("payload_preset") or "") != preset
+            ]
+    return matches
+
+
+def _selector_from_artifact(rec):
+    tuple_path = str(rec.get("tuple_path") or "")
+    preset = str(rec.get("payload_preset") or "")
+    if tuple_path and preset:
+        return f"by_tuple_payload_preset:{tuple_path}:{preset}"
+    return str(rec.get("release_path") or rec.get("path") or rec.get("name") or "")
+
+
+def _profile_default_stage_selector(cfg, profile, preset=""):
+    selector = profile_release_selector(profile, preset)
+    if selector:
+        return selector
+    rel = release_context(cfg)
+    matches = _profile_compatible_artifacts(rel, profile)
+    if preset:
+        preset_matches = [rec for rec in matches if str(rec.get("payload_preset") or "") == preset]
+        if preset_matches:
+            matches = preset_matches
+    if matches:
+        return _selector_from_artifact(matches[0])
+    return ""
+
+
 def _print_release_summary(view):
     print(f"Release  {view['name']}  ({view['rdir']})")
     print(
@@ -258,11 +309,21 @@ def print_line_release(cfg, append_event_fn=None):
     view = _release_view_context(rel)
     _print_release_summary(view)
     search_records = []
+    profile = active_profile(cfg)
+    profile_matches = _profile_compatible_artifacts(rel, profile)
+    if profile:
+        print(f"Active profile: {profile_summary_line(profile)}")
+        if profile_matches:
+            search_records += _print_release_artifacts(profile_matches)
+        else:
+            print("  no compatible artifact found for active profile")
+        print("")
     search_records += _print_release_recommendations(view["recommendations"])
-    search_records += _print_release_artifacts(view["artifacts"])
+    if not profile_matches:
+        search_records += _print_release_artifacts(view["artifacts"])
     _print_release_selectors(view["devices"], view["tuples"], view["recommendations"])
     print("")
-    print("  release stage SELECTOR  |  release ? for help")
+    print("  release stage [start] [SELECTOR]  |  release ? for help")
     set_line_search_results(cfg, search_records)
     _append_release_view_event(cfg, append_event_fn, rel, view)
     return rel
@@ -276,8 +337,17 @@ def stage_line_release(
     append_event_fn=None,
 ):
     selector = str(selector or "").strip()
+    profile = active_profile(cfg)
+    if selector in {"ssh", "ssh-operator"}:
+        selector = _profile_default_stage_selector(cfg, profile, "ssh-operator")
+        if not selector:
+            raise ValueError("no active profile tuple - run: listener probe config or release stage SELECTOR")
+        print(f"Using active profile: {profile.get('name') or '-'}")
     if not selector:
-        raise ValueError("usage: release stage [start] SELECTOR")
+        selector = _profile_default_stage_selector(cfg, profile)
+        if not selector:
+            raise ValueError("usage: release stage [start] SELECTOR  (or set active profile)")
+        print(f"Using active profile: {profile.get('name') or '-'}")
     headless = (
         "scripts/grit-console --config "
         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))

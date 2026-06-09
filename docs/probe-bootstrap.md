@@ -48,8 +48,9 @@ The line-oriented console wraps the same workflow:
 grit[all]> probe --start
 grit[all]> probe delivery
 grit[all]> probe results
-grit[all]> probe config --write-config configs/grit.conf
-grit[all]> probe serve --start
+grit[all]> listener probe config
+grit[all]> profile
+grit[all]> listener serve start
 ```
 
 `probe delivery` shows target-side `wget`, `curl`, raw `nc` HTTP GET, and TFTP
@@ -58,27 +59,29 @@ commands for the current probe route. The current listener families are
 `probe-ftp` and `probe-dns` so the console can grow into separate first-contact
 delivery services without changing the probe result workflow.
 
-`probe serve --start` stages the matching release artifact and prints target
-fetch options. On a target that does not have griTTYkit yet, use the printed
-plain `wget` or `curl` command against `/fetch?name=...`; if the file service
-is configured without TLS, the console also prints a raw HTTP `nc` fallback.
-Then run the printed `chmod +x ./grit... && ./grit... --help` hint. On a
-target that already has griTTYkit, use the printed `grit fetch ...` command
-instead.
+`listener probe config` populates the active target/deployment profile under
+the operator session. `listener serve start` then stages the matching release
+artifact from that active profile and prints target fetch options. On a target
+that does not have griTTYkit yet, use the printed plain `wget` or `curl`
+command against `/fetch?name=...`; if the file service is configured without
+TLS, the console also prints a raw HTTP `nc` fallback. Then run the printed
+`chmod +x ./grit... && ./grit... --help` hint. On a target that already has
+griTTYkit, use the printed `grit fetch ...` command instead.
 
-If `probe serve` says no release is configured, it prints the detected
+If `listener serve` says no release is configured, it prints the detected
 architecture/kernel tuple shape and common payload presets it expected. You do
 not need to restart the console after extracting a release bundle; point the
 current session at it and rerun the serve command:
 
 ```text
 grit[all]> set release_dir /path/to/extracted-release
-grit[all]> probe serve --start
+grit[all]> listener serve start
 ```
 
-`probe config` converts the newest probe result into a generated config. The
-probe only captures basic platform evidence, so a later full `grit survey push`
-can refine the recommendation after a payload is deployed.
+`listener probe config write-config FILE` remains available when you explicitly
+need to export a build/artifact config from the newest probe result. The probe
+only captures basic platform evidence, so a later full `grit survey push` can
+refine the recommendation after a payload is deployed.
 
 When a bridge profile is selected, generated target commands use the bridge's
 target-visible route instead of the direct probe listener:

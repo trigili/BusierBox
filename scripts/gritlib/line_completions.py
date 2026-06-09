@@ -5,6 +5,7 @@ from pathlib import Path
 
 from gritlib.target_store import load_targets
 from gritlib.workbench_jobs import load_workbench_jobs
+from gritlib.profiles import profile_records
 
 
 BASE_COMMANDS = [
@@ -17,6 +18,7 @@ BASE_COMMANDS = [
     "main", "home", "root", "back", "background", "start", "stop",
     "check", "run", "execute", "exploit", "interact", "queue",
     "retrieve", "stage", "deliver", "stamp", "artifact",
+    "profile", "profiles",
     "survey", "daemon", "build", "release", "releases", "stage-release",
     "serve-binary", "trailer", "downloads", "unstage",
     "rmfile", "view", "cat", "less", "mailbox", "refresh",
@@ -30,14 +32,14 @@ SHOW_RESOURCES = [
     "target modules", "workbench modules", "options",
 ]
 
-USE_KINDS = ["agent", "target", "listener", "service", "route", "session", "job", "module", "action"]
+USE_KINDS = ["agent", "target", "listener", "service", "route", "session", "job", "module", "action", "profile"]
 
 HELP_TOPICS = [
     "search", "complete", "commands", "resource", "makerc", "history", "use", "main", "show",
     "modules", "options", "next", "workspace", "aliases", "listeners",
     "routes", "set", "setg", "run", "jobs", "queue", "events", "retrieve", "survey", "build",
     "release", "stage", "deliver", "stamp", "artifact", "files", "view",
-    "daemon", "interact", "sessions",
+    "daemon", "interact", "sessions", "profile", "profiles",
 ]
 
 
@@ -167,6 +169,14 @@ def _completion_job_names(cfg):
     return names
 
 
+def _completion_profile_names(cfg):
+    return [
+        str(rec.get("name") or "")
+        for rec in profile_records(cfg)
+        if str(rec.get("name") or "")
+    ]
+
+
 def _completion_session_paths(cfg, workbench_snapshot_func):
     del workbench_snapshot_func
     path_values = []
@@ -223,6 +233,7 @@ def build_line_completion_providers(
         "target_names": lambda: _completion_target_names(cfg, workbench_snapshot_func),
         "session_names": lambda: _completion_session_names(cfg, workbench_snapshot_func),
         "job_names": lambda: _completion_job_names(cfg),
+        "profile_names": lambda: _completion_profile_names(cfg),
         "route_names": lambda: [
             str(rec.get("name") or "") for rec in bridge_profile_records_func(cfg)
             if str(rec.get("name") or "")
@@ -359,8 +370,35 @@ def _line_completion_command_candidates(cmd, ctx):
             "session": "session_names",
             "job": "job_names",
             "module": "action_names", "action": "action_names",
+            "profile": "profile_names",
         }.get(kind, "")
         return [f"use {kind} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values(candidate_provider))]
+
+    if cmd in {"profile", "profiles"}:
+        if cmd == "profiles":
+            if ctx.at_arg(1):
+                return [f"profiles {item}" for item in prefixed(ctx.arg_pfx(1), ["list", "use"] + ctx.values("profile_names"))]
+            if len(ctx.parts) >= 2 and ctx.parts[1].lower() == "use":
+                return [f"profiles use {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("profile_names"))]
+            return []
+        if ctx.at_arg(1):
+            return [f"profile {item}" for item in prefixed(ctx.arg_pfx(1), [
+                "list", "use", "create", "set", "clear", "delete", "from", "show",
+            ] + ctx.values("profile_names"))]
+        subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
+        if subcmd in {"use", "delete"} and ctx.at_arg(2):
+            suffix = ["confirm"] if subcmd == "delete" else []
+            return [f"profile {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("profile_names") + suffix)]
+        if subcmd == "set" and ctx.at_arg(2):
+            return [f"profile set {item}" for item in prefixed(ctx.arg_pfx(2), [
+                "operator_host", "preferred_payload_preset", "preferred_transport",
+                "tuple_path", "notes", "target_label",
+            ])]
+        if subcmd == "from" and ctx.at_arg(2):
+            return [f"profile from {item}" for item in prefixed(ctx.arg_pfx(2), ["probe"])]
+        if subcmd == "from" and len(ctx.parts) >= 3 and ctx.parts[2].lower() == "probe" and ctx.at_arg(3):
+            return [f"profile from probe {item}" for item in prefixed(ctx.arg_pfx(3), ["1", "2", "3"])]
+        return []
 
     return None
 
@@ -386,7 +424,13 @@ def _line_completion_context_candidates(cmd, ctx):
             if subcmd == "serve" and ctx.at_arg(3):
                 return [f"{cmd} {ctx.parts[1]} serve {item}" for item in prefixed(ctx.arg_pfx(3), ["start"])]
             return None
-        service_values = (["-v"] if cmd in {"listeners", "services"} else []) + ctx.values("service_completion_names")
+        if cmd == "listener" and len(ctx.parts) >= 2 and ctx.parts[1].lower() == "serve":
+            if ctx.at_arg(2):
+                return [f"listener serve {item}" for item in prefixed(ctx.arg_pfx(2), ["start", "ssh", "default", "ssh-operator"])]
+            return []
+        service_values = (["-v"] if cmd in {"listeners", "services"} else []) + (
+            ["serve"] if cmd == "listener" else []
+        ) + ctx.values("service_completion_names")
         return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), service_values)]
 
     if cmd in {"start", "stop"}:
@@ -534,7 +578,7 @@ def _line_completion_queue_release_candidates(cmd, ctx):
                 ["list", "stage", "recommendations", "artifacts"])]
         subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
         if subcmd in {"stage", "use", "select"} and ctx.at_arg(2):
-            return [f"{cmd} {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("release_selectors"))]
+            return [f"{cmd} {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ["start", "ssh"] + ctx.values("release_selectors"))]
         return None
 
     if cmd == "stage-release":

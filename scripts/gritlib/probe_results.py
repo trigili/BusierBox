@@ -155,11 +155,11 @@ def print_probe_result_records(records):
     print("")
     if records:
         print("  Next steps:")
-        print("    listener probe config                  — generate config from most recent result")
-        print("    listener probe config N                — generate config from a numbered result")
-        print("    listener probe config write-config FILE — generate and save config")
+        print("    listener probe config                  — populate active profile from most recent result")
+        print("    listener probe config N                — populate active profile from a numbered result")
+        print("    listener probe config write-config FILE — export build config")
         print("    listener probe clear [N|all]           — remove stale probe results")
-        print("    listener probe serve start             — stage the matching binary for this arch")
+        print("    listener serve start                   — stage a matching binary from active profile")
     else:
         print("  No results yet — run: listener probe start")
 

@@ -74,6 +74,8 @@ Context:
   agent ID|LABEL|NUMBER         select a target device
   use listener SERVICE          select a service module
   listener SERVICE              inspect/select a listener service
+  profile, profiles             inspect or list target/deployment profiles
+  profile use NAME|NUMBER       set the active profile
   use route NAME|NUMBER         select a bridge route
   route NAME                    inspect/select a bridge route
   use module ACTION             select an action module
@@ -91,6 +93,11 @@ Context:
 def _console_help_operations_text():
     return """\
 Operations:
+  listener probe config [N]     populate the active profile from probe results
+  profile from probe [N]        populate the active profile from probe results
+  listener serve [start] [PRESET]
+                                stage a release artifact using the active profile
+  listener serve ssh start      stage ssh-operator payload using the active profile
   serve-binary [start] [PATH] [NAME]
                                 stage and optionally serve a griTTYkit binary
   configure NAME|PATH KEY=VALUE...
@@ -98,7 +105,7 @@ Operations:
   configure NAME operator-host HOST transport builtin
                                 guided trailer override flags for staged payloads
   upload [start] LOCAL [NAME] stage and optionally serve a local file
-  release, release stage SELECTOR
+  release, release stage [start] [SELECTOR]
                                 list or stage release artifacts
                                 selectors include by_device:NAME,
                                 by_device_payload_preset:NAME:PRESET,
@@ -109,7 +116,7 @@ Operations:
   download [queue] TARGET_PATH
                                 show or queue a target-to-operator upload command
   listener probe [start|queue], listener probe delivery, listener probe paste
-                                show, serve, queue, or print probe delivery commands
+                                show, queue, or print probe delivery commands
                                 listeners: probe-http, probe-tftp, probe-ftp, probe-dns
   downloads                     list target-fetchable staged files
   unstage NAME                  remove a staged file request

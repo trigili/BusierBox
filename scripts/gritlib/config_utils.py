@@ -14,6 +14,7 @@ DEFAULT_COMMAND_COPY_FILE = DEFAULT_OPERATOR_SESSION_DIR / "last-command.txt"
 DEFAULT_WORKBENCH_JOBS_FILE = DEFAULT_OPERATOR_SESSION_DIR / "workbench-jobs.json"
 DEFAULT_TARGETS_FILE = DEFAULT_OPERATOR_SESSION_DIR / "targets.json"
 DEFAULT_BRIDGE_PROFILES_FILE = DEFAULT_OPERATOR_SESSION_DIR / "bridge-profiles.json"
+DEFAULT_PROFILES_FILE = DEFAULT_OPERATOR_SESSION_DIR / "profiles.json"
 DEFAULTS = {
     "GRIT_RSHELL_TRANSPORT": "ssh",
     "GRIT_RSHELL_ENCRYPTION": "tls",
@@ -48,6 +49,7 @@ DEFAULTS = {
     "workbench_jobs_file": str(DEFAULT_WORKBENCH_JOBS_FILE),
     "targets_file": str(DEFAULT_TARGETS_FILE),
     "bridge_profiles_file": str(DEFAULT_BRIDGE_PROFILES_FILE),
+    "profiles_file": str(DEFAULT_PROFILES_FILE),
     "GRIT_COMMAND_QUEUE_ENABLE": "no",
     "GRIT_COMMAND_QUEUE_PORT": "22205",
     "GRIT_COMMAND_QUEUE_TLS": "yes",
@@ -89,6 +91,7 @@ def apply_operator_session_path_defaults(
         "workbench_jobs_file": operator_dir / "workbench-jobs.json",
         "targets_file": operator_dir / "targets.json",
         "bridge_profiles_file": operator_dir / "bridge-profiles.json",
+        "profiles_file": operator_dir / "profiles.json",
         "authorized_dbclient_pubkey": operator_dir / "id_dbclient.pub",
         "operator_host_key": operator_dir / "operator_ssh_host_key",
         "tls_cert": operator_dir / "shell-server.crt",

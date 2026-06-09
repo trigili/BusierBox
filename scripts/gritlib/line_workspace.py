@@ -166,6 +166,7 @@ def line_repl_prompt_for_config(cfg):
 def line_repl_status_bar(snap):
     summary = snap.get("summary") or {}
     target_filter = snap.get("target_filter") or {}
+    active_profile = snap.get("active_profile") or {}
     counts = summary.get("connectivity_state_counts") or summary.get("target_connectivity_state_counts") or {}
     state_text = format_counts(counts) if counts else "none"
     pending_targets = (
@@ -207,6 +208,15 @@ def line_repl_status_bar(snap):
             lines.append(f"Selected: {label} ({selected_id})  state {state}")
         else:
             lines.append(f"Selected: {label}  state {state}")
+    if active_profile:
+        lines.append(
+            "Profile: "
+            + str(active_profile.get("name") or "-")
+            + "  "
+            + str(active_profile.get("arch") or active_profile.get("uname_m") or "-")
+            + "  operator "
+            + str(active_profile.get("operator_host") or "-")
+        )
 
     attention = []
     warnings = len(snap.get("warnings") or [])
@@ -413,10 +423,18 @@ def print_line_workspace_snapshot(snap):
     warnings = snap.get("warnings") or []
     staged = summary.get("staged_count", 0)
     routes = summary.get("bridge_profile_count", 0)
+    active_profile = snap.get("active_profile") or {}
 
     parts = _line_workspace_summary_parts(summary, targets, sessions, warnings)
     print("Workspace  " + "  |  ".join(parts))
     selected_id = _print_line_workspace_selected_target(target_filter)
+    if active_profile:
+        print(
+            "  profile: "
+            f"{active_profile.get('name') or '-'}  "
+            f"{active_profile.get('arch') or active_profile.get('uname_m') or '-'}  "
+            f"operator {active_profile.get('operator_host') or '-'}"
+        )
     _print_line_workspace_targets(targets, selected_id)
     _print_line_workspace_warnings(warnings)
     _print_line_workspace_empty_help(summary, targets, sessions, staged, routes, warnings)

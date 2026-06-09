@@ -3,6 +3,8 @@
 from gritlib.event_log import append_event
 from gritlib.line_context import set_line_collection_context
 from gritlib.line_search import set_line_search_results
+from gritlib.profiles import active_profile
+from gritlib.staged_files import load_staged
 
 
 LINE_SERVICE_CATEGORIES = [
@@ -492,8 +494,39 @@ def select_line_service(cfg, selector, rows, start_command=None, stop_command=No
             print(f"  transport: {service}")
     else:
         print(f"  {line_service_display_name(service)}  —  (no status)")
+    if service == "ssh":
+        _print_ssh_profile_guidance(cfg)
     print("  options / info / start / stop / copy start / back")
     return service
+
+
+def _ssh_operator_staged_record(cfg):
+    staged = (load_staged(cfg).get("staged") or {})
+    for name, rec in staged.items():
+        preset = str(rec.get("payload_preset") or "")
+        release_name = str(rec.get("release_artifact_name") or rec.get("request_name") or name)
+        if preset == "ssh-operator" or "ssh" in release_name:
+            out = dict(rec)
+            out.setdefault("request_name", name)
+            return out
+    return {}
+
+
+def _print_ssh_profile_guidance(cfg):
+    profile = active_profile(cfg)
+    if not profile:
+        print("  profile: none - run listener probe config or profile use N")
+        return
+    print(f"  profile: {profile.get('name') or '-'}")
+    staged = _ssh_operator_staged_record(cfg)
+    if not staged:
+        print("  next: listener serve ssh start")
+        return
+    request_name = staged.get("request_name") or "ARTIFACT"
+    host = profile.get("operator_host") or "OPERATOR_HOST"
+    transport = profile.get("preferred_transport") or "ssh"
+    print(f"  configure: configure {request_name} operator-host {host} transport {transport}")
+    print(f"  target: ./{request_name} rshell start")
 
 
 def print_line_services(

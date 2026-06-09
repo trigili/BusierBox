@@ -110,6 +110,7 @@ def prepare_repl_choice(
     history_command_func,
     record_history_func,
     clear_results_func,
+    shutdown_event=None,
 ):
     choice = str(line or "").strip()
     if not choice:
@@ -310,6 +311,7 @@ def _read_prepared_repl_choice(
     history_command_func,
     record_history_func,
     clear_results_func,
+    shutdown_event=None,
 ):
     prompt_result = read_next_repl_line(
         cfg,
@@ -322,6 +324,7 @@ def _read_prepared_repl_choice(
         version_func=version_func,
         prompt_func=prompt_func,
         input_func=input_func,
+        shutdown_event=shutdown_event,
     )
     line = prompt_result["line"]
     if line is None:
@@ -334,9 +337,10 @@ def _read_prepared_repl_choice(
         line,
         line_history,
         history_command_func=history_command_func,
-        record_history_func=record_history_func,
-        clear_results_func=clear_results_func,
-    )
+            record_history_func=record_history_func,
+            clear_results_func=clear_results_func,
+            shutdown_event=shutdown_event,
+        )
     compact_next_prompt = prompt_result["compact_next_prompt"]
     if prepared.get("compact_next_prompt"):
         compact_next_prompt = True
@@ -394,6 +398,7 @@ def _dispatch_repl_quit_or_legacy(
     clear_context_func,
     mark_stopped_func,
     legacy_dispatch_func,
+    shutdown_event=None,
 ):
     quit_result = dispatch_line_quit_choice(
         choice,
@@ -452,6 +457,7 @@ def _run_line_repl_iteration(
     clear_context_func,
     mark_stopped_func,
     legacy_dispatch_func,
+    shutdown_event=None,
 ):
     prepared = _read_prepared_repl_choice(
         cfg,
@@ -468,6 +474,7 @@ def _run_line_repl_iteration(
         history_command_func=history_command_func,
         record_history_func=record_history_func,
         clear_results_func=clear_results_func,
+        shutdown_event=shutdown_event,
     )
     _apply_prepared_repl_state(loop_state, prepared)
     if prepared["line"] is None or prepared.get("continue"):
@@ -562,6 +569,7 @@ def run_line_repl_loop(
             clear_context_func=clear_context_func,
             mark_stopped_func=mark_stopped_func,
             legacy_dispatch_func=legacy_dispatch_func,
+            shutdown_event=shutdown_event,
         )
         if "exit_code" in iteration:
             return iteration["exit_code"]
@@ -694,12 +702,17 @@ def run_line_console_lifecycle(
         append_event_func(cfg, "workbench", "shutdown", details={"reason": reason})
 
 
-def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull):
+def _replace_stdin_with_devnull(stdin=None, devnull_path=os.devnull, close_after=False):
     stream = stdin if stdin is not None else sys.stdin
     null_fd = None
     try:
         null_fd = os.open(devnull_path, os.O_RDONLY)
         os.dup2(null_fd, stream.fileno())
+        if close_after:
+            try:
+                os.close(stream.fileno())
+            except OSError:
+                pass
     except OSError:
         pass
     finally:
@@ -721,7 +734,9 @@ def install_line_repl_signal_handlers(request_shutdown_func, *, stdin=None, shut
         request_shutdown_func(reason)
         if reason == "SIGTERM":
             time.sleep(shutdown_delay_sec)
-        _replace_stdin_with_devnull(stdin=stdin)
+        _replace_stdin_with_devnull(stdin=stdin, close_after=(reason == "SIGTERM"))
+        if reason == "SIGTERM":
+            raise KeyboardInterrupt
 
     try:
         signal.signal(signal.SIGTERM, lambda s, f: _line_repl_shutdown("SIGTERM", s, f))
@@ -793,6 +808,7 @@ def read_next_repl_line(
     version_func=None,
     prompt_func=None,
     input_func=None,
+    shutdown_event=None,
 ):
     """Render the next prompt frame and return the entered line plus updated state."""
     pending_console_lines = pending_console_lines if pending_console_lines is not None else []
@@ -819,7 +835,16 @@ def read_next_repl_line(
         line = pending_console_lines.pop(0)
         print(f"{prompt}{line}")
     else:
-        line = input_func(prompt)
+        if shutdown_event is not None and shutdown_event.is_set():
+            line = None
+        else:
+            try:
+                line = input_func(prompt)
+            except (EOFError, OSError):
+                if shutdown_event is not None and shutdown_event.is_set():
+                    line = None
+                else:
+                    raise
     return {
         "line": line,
         "snapshot": snap,
