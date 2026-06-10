@@ -74,7 +74,7 @@ def line_command_queue_action_summary(records):
         parts.append(f"input needed {needs_input}")
     if confirm:
         parts.append(f"confirm {confirm}")
-    return "  queue actions: " + "  ".join(parts) if parts else ""
+    return "  queue shortcuts: " + "  ".join(parts) if parts else ""
 
 
 def line_command_queue_action_search_records(records, quote=shquote):
@@ -94,17 +94,17 @@ def line_command_queue_action_search_records(records, quote=shquote):
 def select_line_command_queue_action_record(records, selector):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError("usage: use N")
+        raise ValueError("usage:\n  use N")
     records = list(records or [])
     if text.isdigit():
         idx = int(text) - 1
         if 0 <= idx < len(records):
             return records[idx]
-        raise ValueError(f"command queue action number out of range: {text}")
+        raise ValueError(f"command queue shortcut number out of range: {text}")
     for rec in records:
         if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
             return rec
-    raise ValueError(f"command queue action not found: {text}")
+    raise ValueError(f"command queue shortcut not found: {text}")
 
 
 def select_line_command_queue_action(cfg, records, selector, append_event_fn=append_event):
@@ -121,7 +121,10 @@ def select_line_command_queue_action(cfg, records, selector, append_event_fn=app
     label = line_command_queue_action_text(selected)
     suffix = f"  |  {', '.join(flags)}" if flags else ""
     print(f"  queue: {label}  -  {state}{suffix}")
-    print("  queue COMMAND  |  queue list  |  queue clear confirm  |  back")
+    print("  queue COMMAND")
+    print("  queue list")
+    print("  queue clear confirm")
+    print("  back")
     append_event_fn(cfg, "workbench", "workbench_command_queue_action_selected", details={
         "id": rec_id,
         "action_id": action_id,
@@ -174,10 +177,10 @@ def print_line_mailbox_records(mailbox_records, title=None):
         console_table(
             title or f"Mailbox  ({len(mailbox_records)} records)",
             mailbox_records[:8], mailbox_cols, detail_fn=line_command_queue_mailbox_detail,
-            footer="queue result N  |  queue COMMAND  |  queue ? for help",
+            footer="queue result N, queue COMMAND, queue ?",
         )
     else:
-        console_table(title or "Mailbox  (none)", [], [], footer="queue COMMAND  |  queue ? for help")
+        console_table(title or "Mailbox  (none)", [], [], footer="queue COMMAND, queue ?")
 
 
 def _print_line_command_queue_summary(queue_summary, mailbox_records, command_records, detailed=False):
@@ -228,7 +231,7 @@ def _print_line_queued_command_records(command_records):
     console_table(
         f"Queued commands  ({len(command_records)} total)",
         command_records[:8], command_cols,
-        footer="queue result N  |  queue clear confirm  |  queue ? for help",
+        footer="queue result N, queue clear confirm, queue ?",
     )
 
 
@@ -238,18 +241,20 @@ def _print_line_command_queue_actions(command_queue_actions):
         if action_summary:
             print(action_summary)
         action_cols = [
-            ("Action", line_command_queue_action_text),
+            ("Shortcut", line_command_queue_action_text),
             ("State", line_command_queue_state_text),
             ("Pending", lambda r: str(r.get("target_mailbox_pending_work_count", 0))),
             ("Offline", lambda r: str(r.get("fleet_offline_target_count", 0))),
         ]
         console_table(
-            f"Queue actions  ({len(command_queue_actions)} total)",
+            f"Queue shortcuts  ({len(command_queue_actions)} total)",
             command_queue_actions, action_cols,
-            footer="queue COMMAND  |  queue list  |  queue ? for help",
+            footer="queue COMMAND, queue list, queue ?",
         )
     else:
-        print("\n  queue COMMAND  |  queue list  |  queue ? for help")
+        print("\n  queue COMMAND")
+        print("  queue list")
+        print("  queue ?")
 
 
 def print_line_command_queue_records(
@@ -381,7 +386,7 @@ def queue_line_command(
 ):
     text = str(command or "").strip()
     if not text:
-        raise ValueError("usage: queue COMMAND")
+        raise ValueError("usage:\n  queue COMMAND")
     target_filter_func = target_filter_func or (lambda _cfg: "")
     headless = (
         "scripts/grit-console --config "
@@ -396,13 +401,17 @@ def queue_line_command(
     print(f"command: {rec['command']}")
     if rec.get("target_id"):
         print(f"target: {rec.get('target_id', '')} ({rec.get('target_label', '') or '-'})")
+    else:
+        print("target: any polling target (unscoped; select a target first to pin delivery)")
     print(f"execution supported: {'yes' if rec.get('execution_supported') else 'no'}")
     queue_policy = rec.get("queue_policy_snapshot") if isinstance(rec.get("queue_policy_snapshot"), dict) else {}
     if queue_policy.get("configured_for_polling"):
         print("delivery: waiting for target poll")
     else:
         print("delivery: queue record only; enable command queue polling for target pickup")
-    print("next: queue list  |  queue result 1")
+    print("Next:")
+    print(f"  queue result {rec['id']}")
+    print("  queue list")
     append_event(cfg, "workbench", "workbench_command_queued", details={
         "command_id": rec.get("id", ""),
         "target_id": rec.get("target_id", ""),
@@ -422,7 +431,7 @@ def line_command_queue_record(queue_summary, selector):
 def print_line_command_result(cfg, queue_summary, selector):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError("usage: queue result ID|NUMBER")
+        raise ValueError("usage:\n  queue result ID\n  queue result N")
     rec = line_command_queue_record(queue_summary, text)
     if not rec:
         raise ValueError(f"command queue id not found: {text}")
@@ -507,7 +516,13 @@ def run_line_queue_command(
         return print_line_command_result(cfg, queue_summary_func(cfg), " ".join(args[1:]).strip())
     if subcmd == "clear":
         if not any(str(item).lower() in {"--confirm", "confirm", "yes"} for item in args[1:]):
-            raise ValueError("usage: queue clear confirm")
+            queued = len((queue_summary_func(cfg).get("commands") or []))
+            if queued:
+                print(f"{queued} queued command record(s) would be cleared")
+                print("run: queue clear confirm")
+            else:
+                print("no queued command records to clear")
+            return 0
         count = clear_queue_func(cfg)
         headless = (
             "scripts/grit-console --config "

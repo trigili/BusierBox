@@ -43,7 +43,7 @@ def print_line_generated_commands(cfg):
     console_table(
         f"Generated commands  ({len(records)} total)" if records else "Generated commands  (none)",
         records, cols, detail_fn=_detail,
-        footer=f"copy N  |  copy file: {command_copy_path(cfg)}  |  commands ? for help",
+        footer=f"copy N, copy file: {command_copy_path(cfg)}, commands ?",
     )
     search_records = []
     for rec in records:
@@ -65,7 +65,7 @@ def print_line_generated_commands(cfg):
 def copy_line_generated_command(cfg, selector):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError("usage: copy N")
+        raise ValueError("usage:\n  copy N")
     rec = copy_generated_command(cfg, text)
     print(f"Copied command to {rec['path']}")
     print(f"  clipboard: {'yes' if rec['clipboard'] else 'no'}")
@@ -79,7 +79,7 @@ def dispatch_legacy_copy_choice(choice, cfg, *, input_func):
     commands = generated_target_commands(cfg)
     for idx, cmd in enumerate(commands, 1):
         print(f"{idx}: {cmd}")
-    chosen_line = input_func("copy command number, or blank to skip> ")
+    chosen_line = input_func("copy command N; blank skips> ")
     chosen = chosen_line.strip() if chosen_line is not None else ""
     if chosen:
         try:
@@ -103,6 +103,17 @@ def parse_line_copy_command(cmd, args=None):
     if subcmd in {"start", "stop"}:
         return {"action": "service", "subcmd": subcmd}
     return {"action": "generated", "selector": " ".join(args).strip()}
+
+
+def parse_line_service_show_command(cmd, args=None):
+    cmd = str(cmd or "").strip().lower()
+    args = list(args or [])
+    if cmd != "show":
+        return {}
+    subcmd = str(args[0] if args else "").strip().lower()
+    if subcmd in {"start", "stop"}:
+        return {"action": "service", "subcmd": subcmd}
+    return {}
 
 
 def parse_line_generated_commands_command(cmd, args):
@@ -140,10 +151,10 @@ def dispatch_line_copy_command(
     raise ValueError("unsupported copy command")
 
 
-def copy_line_service_command(cfg, subcmd, copy_func, start_command=None, stop_command=None):
+def _line_service_command_text(cfg, subcmd, start_command=None, stop_command=None):
     subcmd = str(subcmd or "").strip().lower()
     if subcmd not in {"start", "stop"}:
-        raise ValueError("usage: copy start|stop|N")
+        raise ValueError("usage:\n  show start\n  show stop\n  copy start\n  copy stop")
     key = f"_service_{subcmd}_command"
     command = str(cfg.get(key) or "")
     if not command:
@@ -154,6 +165,22 @@ def copy_line_service_command(cfg, subcmd, copy_func, start_command=None, stop_c
                 command = start_command(svc)
             elif subcmd == "stop" and stop_command:
                 command = stop_command(svc)
+    return command
+
+
+def show_line_service_command(cfg, subcmd, start_command=None, stop_command=None):
+    command = _line_service_command_text(cfg, subcmd, start_command=start_command, stop_command=stop_command)
+    if not command:
+        print(f"no {subcmd} command available - select a listener first")
+        return {}
+    print(f"{subcmd} command:")
+    print(f"  {command}")
+    return {"command": command}
+
+
+def copy_line_service_command(cfg, subcmd, copy_func, start_command=None, stop_command=None):
+    subcmd = str(subcmd or "").strip().lower()
+    command = _line_service_command_text(cfg, subcmd, start_command=start_command, stop_command=stop_command)
     if not command:
         print(f"no {subcmd} command available - select a listener first")
         return {}
@@ -172,4 +199,4 @@ def run_line_generated_command(cfg, args):
     if subcmd == "copy":
         copy_line_generated_command(cfg, " ".join(args[1:]).strip())
         return
-    raise ValueError("usage: commands [list|copy N]")
+    raise ValueError("usage:\n  commands\n  commands copy N")

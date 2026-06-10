@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "name": "full",
+  "description": "Rebuild uclibc targets only — after _GNU_SOURCE fix for mkstemp",
+  "targets": [
+    "tplink-archer-a7-v5-openwrt-uclibc",
+    "asus-rt-n16-uclibc",
+    "dlink-dir-300-a1-uclibc",
+    "dlink-dir-615-revc-uclibc",
+    "linksys-wrt54g-v5-ddwrt-uclibc",
+    "netgear-wndr3700-v1-uclibc",
+    "mipsel-linux-2.6-uclibc-legacy"
+  ],
+  "payload_presets": ["survey-core", "default", "ssh-operator"],
+  "formats": ["tgz"]
+}

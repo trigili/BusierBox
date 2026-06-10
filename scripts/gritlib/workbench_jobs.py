@@ -34,9 +34,9 @@ def parse_line_jobs_command(cmd, args):
     first = str(args[0]).lower() if args else ""
     if cmd == "job":
         return {"action": "select", "selector": " ".join(args).strip()}
-    if len(args) >= 2 and first in {"-k", "--kill", "--cancel"}:
+    if len(args) >= 2 and first in {"-k", "--kill", "--cancel", "kill", "cancel"}:
         return {"action": "cancel", "selector": " ".join(args[1:]).strip()}
-    if len(args) >= 2 and first in {"-i", "--info", "info"}:
+    if len(args) >= 2 and first in {"-i", "--info", "info", "select", "use"}:
         return {"action": "select", "selector": " ".join(args[1:]).strip()}
     if first in {"-v", "--verbose", "verbose", "details"}:
         return {"action": "list", "verbose": True}
@@ -78,7 +78,7 @@ def dispatch_legacy_line_job_number(
         runnable = [rec for rec in snap.get("workbench_actions") or [] if rec.get("background_supported")]
         for idx, rec in enumerate(runnable, 1):
             print(f"{idx}: {rec.get('id', '')} {rec.get('command', '')}")
-        selected_line = input_func("background action id or number> ") if input_func else None
+        selected_line = input_func("background module id or number> ") if input_func else None
         selected = selected_line.strip() if selected_line is not None else ""
         if selected:
             try:
@@ -192,7 +192,7 @@ def print_line_workbench_job_records(records, verbose=False, command_builder=Non
     console_table(
         f"Jobs  ({len(records)} total)" if records else "Jobs  (none)",
         records, cols, detail_fn=_detail,
-        footer="use N or job ID to select  |  jobs -k ID to cancel  |  jobs ? for help",
+        footer="use N, job ID, jobs cancel ID, jobs ?",
     )
     return [
         {
@@ -277,7 +277,7 @@ def print_current_line_jobs(
 def select_line_job(cfg, snapshot, selector):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError("usage: use job ID|NUMBER")
+        raise ValueError("usage:\n  use job ID\n  use job N")
     rec = require_workbench_job_record((snapshot or {}).get("workbench_jobs") or [], text)
     job_id = str(rec.get("id") or "")
     set_line_collection_context(cfg, f"job/{job_id}")
@@ -285,7 +285,10 @@ def select_line_job(cfg, snapshot, selector):
     action = rec.get("action_id") or "-"
     cancel = "  |  cancellable" if rec.get("cancel_supported") else ""
     print(f"  {job_id}  —  {state}  |  {action}{cancel}")
-    print("  info / options / jobs / back")
+    if rec.get("cancel_supported"):
+        print("  info, options, cancel, jobs, back")
+    else:
+        print("  info, options, jobs, back")
     append_event(cfg, "workbench", "workbench_job_selected", details={
         "job_id": job_id,
         "action_id": rec.get("action_id", ""),
@@ -348,16 +351,16 @@ def start_line_job(
     selector = str(action_selector or "").strip()
     if selector:
         if not select_action_func:
-            raise ValueError("action selection support is unavailable")
+            raise ValueError("module selection support is unavailable")
         action = select_action_func(selector)
     else:
         if not selected_action_func:
-            raise ValueError("selected action support is unavailable")
+            raise ValueError("selected module support is unavailable")
         action = selected_action_func()
     if not action or str(action.get("kind") or "") != "workbench":
-        raise ValueError("no selected background-capable workbench action; use module ACTION first")
+        raise ValueError("no selected background-capable workbench module; use module MODULE first")
     if action.get("background_supported") is not True:
-        raise ValueError(f"workbench action is not background-capable: {action.get('id', '')}")
+        raise ValueError(f"workbench module is not background-capable: {action.get('id', '')}")
     action_id = str(action.get("id") or "")
     if not headless_command_func or not start_job_func or not actions_func:
         raise ValueError("workbench job start support is unavailable")

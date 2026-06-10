@@ -113,12 +113,13 @@ def _build_line_route_action_callbacks(cfg, bridge_profile_records_func, bridge_
             stop_service=service_stop_func,
         )
 
-    def delete_route(route_name):
+    def delete_route(route_name, confirmed=False):
         return delete_line_route(
             cfg,
             route_name,
             bridge_profile_records_func(cfg),
             headless_command_builder=bridge_profile_headless_command,
+            confirmed=confirmed,
         )
 
     return {

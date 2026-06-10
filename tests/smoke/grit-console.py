@@ -105,9 +105,26 @@ def run_line_profile_workflow_check():
     from gritlib.line_completions import line_completion_candidates
     from gritlib.line_configure import run_line_probe_config, configure_line_artifact
     from gritlib.line_core_commands import dispatch_line_core_command
-    from gritlib.line_help import line_command_help_topic
+    from gritlib.bridge_routes import parse_line_route_command, select_line_route
+    from gritlib.line_options import print_line_context_options, print_line_options
+    from gritlib.line_workspace import print_line_next
+    from gritlib.line_navigation_commands import dispatch_line_navigation_command
+    from gritlib.line_repl_runtime import contextual_line_command
+    from gritlib.line_events import (
+        line_event_summary,
+        parse_line_event_since,
+        parse_line_events_args,
+    )
+    from gritlib.line_help import line_command_help_topic, line_unknown_command_message
+    from gritlib.line_actions import print_line_action_result
+    from gritlib.line_profiles import parse_line_profile_command, run_profile_command
+    from gritlib.line_services import select_line_service
+    import gritlib.line_profile_serve as line_profile_serve
     from gritlib.profiles import active_profile, load_profiles, profiles_path
     from gritlib.probe_results import append_probe_result
+    from gritlib.staged_files import stage_file
+    from gritlib.target_selection import set_workbench_target_filter
+    from gritlib.workflow_actions import print_line_daemon_action_records, run_line_daemon_action
 
     with tempfile.TemporaryDirectory() as tmp:
         cfg_path = Path(tmp) / "server-config.json"
@@ -117,6 +134,24 @@ def run_line_profile_workflow_check():
             "listen_host": "127.0.0.1",
         }))
         cfg = load_config(cfg_path)
+        survey_next_out = io.StringIO()
+        with contextlib.redirect_stdout(survey_next_out):
+            print_line_next(cfg, {"sessions": []}, module="survey", prompt_text="grit[all]/survey>")
+        if ("survey context" not in survey_next_out.getvalue() or
+                "survey config PATH" not in survey_next_out.getvalue() or
+                "target-to-operator" not in survey_next_out.getvalue()):
+            print("survey next guidance did not use survey context", file=sys.stderr)
+            print(survey_next_out.getvalue(), file=sys.stderr)
+            return 1
+        survey_options_out = io.StringIO()
+        with contextlib.redirect_stdout(survey_options_out):
+            print_line_context_options(cfg, "survey")
+        if ("Survey:" not in survey_options_out.getvalue() or
+                "survey preset PATH name NAME" not in survey_options_out.getvalue() or
+                "Build options:" in survey_options_out.getvalue()):
+            print("survey options guidance fell back to generic build options", file=sys.stderr)
+            print(survey_options_out.getvalue(), file=sys.stderr)
+            return 1
         if Path(str(cfg.get("profiles_file"))) != operator_dir / "profiles.json":
             print("profile path did not derive from operator_session_dir", file=sys.stderr)
             return 1
@@ -155,6 +190,174 @@ def run_line_profile_workflow_check():
         if active_profile(cfg).get("preferred_payload_preset") != "ssh-operator":
             print("global profile dispatch did not edit active profile", file=sys.stderr)
             return 1
+        with contextlib.redirect_stdout(io.StringIO()):
+            run_profile_command(cfg, {"action": "set", "key": "tuple_path", "value": "by-tuple/mipsel/musl/current/mips32"})
+        original_discover_release_context = line_profile_serve.discover_release_context
+        try:
+            line_profile_serve.discover_release_context = lambda _cfg: ({}, [{
+                "release_dir": str(Path(tmp) / "missing-release"),
+                "detection_reason": "missing-release-json",
+            }])
+            no_release_out = io.StringIO()
+            with contextlib.redirect_stdout(no_release_out):
+                line_profile_serve.run_line_profile_serve(cfg, ["start"])
+            no_release_text = no_release_out.getvalue()
+            if (
+                    "No release bundle found." not in no_release_text
+                    or "Looked for a release bundle in:" not in no_release_text
+                    or "No release configured." in no_release_text
+                    or "make release-full" not in no_release_text
+                    or "set release_dir /path/to/extracted-release" not in no_release_text):
+                print("listener serve no-release guidance was unclear", file=sys.stderr)
+                print(no_release_text, file=sys.stderr)
+                return 1
+            line_profile_serve.discover_release_context = lambda _cfg: ({
+                "release_discovery_source": "manual",
+                "release_dir": str(Path(tmp) / "release"),
+                "artifacts": [],
+            }, [])
+            serve_out = io.StringIO()
+            with contextlib.redirect_stdout(serve_out):
+                line_profile_serve.run_line_profile_serve(
+                    cfg,
+                    ["start"],
+                    stage_line_release_fn=lambda selector, start_file_service=False: {
+                        "request_name": "grit",
+                        "selector": selector,
+                        "started": start_file_service,
+                    },
+                )
+            serve_text = serve_out.getvalue()
+            if (
+                    "Next:\n  stamp grit operator-host 192.168.8.241 transport ssh" not in serve_text
+                    or "  listener serve ssh start" not in serve_text
+                    or "configure grit operator-host" in serve_text
+                    or "\n  listener serve ssh start" not in serve_text):
+                print("listener serve next-step guidance did not prefer stamp/canonical follow-up", file=sys.stderr)
+                print(serve_text, file=sys.stderr)
+                return 1
+        finally:
+            line_profile_serve.discover_release_context = original_discover_release_context
+        profile_invalid_out = io.StringIO()
+        with contextlib.redirect_stdout(profile_invalid_out):
+            invalid_profile_result = dispatch_line_core_command(
+                "profile",
+                ["bad"],
+                profile_func=lambda profile_cmd: __import__(
+                    "gritlib.line_profiles", fromlist=["run_profile_command"]
+                ).run_profile_command(cfg, profile_cmd),
+            )
+        profile_invalid_text = profile_invalid_out.getvalue()
+        if (invalid_profile_result != "handled" or
+                "profile use NAME" not in profile_invalid_text or
+                "profile use N" not in profile_invalid_text or
+                "profile delete NAME confirm" not in profile_invalid_text or
+                "profile delete N confirm" not in profile_invalid_text or
+                "profile [use NAME|N" in profile_invalid_text or
+                "profile use NAME  |  profile use N" in profile_invalid_text or
+                "profile delete NAME confirm  |  profile delete N confirm" in profile_invalid_text or
+                "from probe [N]" in profile_invalid_text or
+                "Traceback" in profile_invalid_text):
+            print("invalid profile command was not handled as usage text", file=sys.stderr)
+            print(profile_invalid_text, file=sys.stderr)
+            return 1
+        profile_usage_cases = [
+            (["use"], "profile use NAME\n  profile use N", "profile use NAME  |  profile use N"),
+            (["create"], "usage:\n  profile create NAME", "usage: profile create NAME"),
+            (["set"], "usage:\n  profile set KEY VALUE", "usage: profile set KEY VALUE"),
+            (["delete"], "profile delete NAME confirm\n  profile delete N confirm", "profile delete NAME confirm  |  profile delete N confirm"),
+        ]
+        for args, expected, forbidden in profile_usage_cases:
+            profile_usage_out = io.StringIO()
+            with contextlib.redirect_stdout(profile_usage_out):
+                dispatch_line_core_command(
+                    "profile",
+                    args,
+                    profile_func=lambda profile_cmd: __import__(
+                        "gritlib.line_profiles", fromlist=["run_profile_command"]
+                    ).run_profile_command(cfg, profile_cmd),
+                )
+            profile_usage_text = profile_usage_out.getvalue()
+            if expected not in profile_usage_text or forbidden in profile_usage_text:
+                print("profile selector usage did not use split copyable forms", file=sys.stderr)
+                print(profile_usage_text, file=sys.stderr)
+                return 1
+        try:
+            parse_line_profile_command("profiles", ["bad"])
+        except ValueError as exc:
+            profiles_usage = str(exc)
+            if (
+                    "profiles\n  profiles use NAME\n  profiles use N" not in profiles_usage
+                    or "profiles  |  profiles use NAME" in profiles_usage):
+                print(f"profiles usage did not use split copyable forms: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("profiles parser did not reject malformed command", file=sys.stderr)
+            return 1
+        profile_use_out = io.StringIO()
+        with contextlib.redirect_stdout(profile_use_out):
+            dispatch_line_core_command(
+                "profile",
+                ["create", "Lab Router"],
+                profile_func=lambda profile_cmd: run_profile_command(cfg, profile_cmd),
+            )
+            dispatch_line_core_command(
+                "profile",
+                ["use", "Lab Router"],
+                profile_func=lambda profile_cmd: run_profile_command(cfg, profile_cmd),
+            )
+        profile_use_text = profile_use_out.getvalue()
+        if (
+                "Next:\n  listener serve start\n  listener serve ssh start" not in profile_use_text
+                or "listener serve start  |  listener serve ssh start" in profile_use_text):
+            print("profile use next-step guidance did not use split commands", file=sys.stderr)
+            print(profile_use_text, file=sys.stderr)
+            return 1
+        if active_profile(cfg).get("name") != "lab-router":
+            print("profile command did not resolve human name to slugged profile name", file=sys.stderr)
+            print(json.dumps(load_profiles(cfg), indent=2, sort_keys=True), file=sys.stderr)
+            return 1
+        profiles_options_out = io.StringIO()
+        with contextlib.redirect_stdout(profiles_options_out):
+            print_line_context_options(cfg, "profiles")
+        if ("Profiles:" not in profiles_options_out.getvalue() or
+                "editable keys:" not in profiles_options_out.getvalue() or
+                "profile delete NAME confirm" not in profiles_options_out.getvalue() or
+                "profile delete N confirm" not in profiles_options_out.getvalue() or
+                "Build options:" in profiles_options_out.getvalue()):
+            print("profile options guidance fell back to generic build options", file=sys.stderr)
+            print(profiles_options_out.getvalue(), file=sys.stderr)
+            return 1
+        profile_clear_out = io.StringIO()
+        with contextlib.redirect_stdout(profile_clear_out):
+            dispatch_line_core_command(
+                "profile",
+                ["clear"],
+                profile_func=lambda profile_cmd: run_profile_command(cfg, profile_cmd),
+            )
+        profile_clear_text = profile_clear_out.getvalue()
+        if (
+                "Next:\n  profile use N\n  listener probe config" not in profile_clear_text
+                or "profile use N  |  listener probe config" in profile_clear_text):
+            print("profile clear next-step guidance did not use split commands", file=sys.stderr)
+            print(profile_clear_text, file=sys.stderr)
+            return 1
+        with contextlib.redirect_stdout(io.StringIO()):
+            dispatch_line_core_command(
+                "profile",
+                ["use", "glinet"],
+                profile_func=lambda profile_cmd: run_profile_command(cfg, profile_cmd),
+            )
+        active_profile_out = io.StringIO()
+        with contextlib.redirect_stdout(active_profile_out):
+            run_profile_command(cfg, {"action": "show"})
+        active_profile_text = active_profile_out.getvalue()
+        if (
+                "Next:\n  listener serve start\n  listener serve ssh start\n  stamp ARTIFACT" not in active_profile_text
+                or "configure ARTIFACT" in active_profile_text):
+            print("active profile guidance did not use canonical stamp wording", file=sys.stderr)
+            print(active_profile_text, file=sys.stderr)
+            return 1
         suggestion_out = io.StringIO()
         with contextlib.redirect_stdout(suggestion_out):
             configure_line_artifact(cfg, ["grit-mipsel-ssh"])
@@ -162,10 +365,37 @@ def run_line_profile_workflow_check():
         if (
             "Artifact configuration suggestions from profile" not in suggestion_text or
             "operator-host 192.168.8.241" not in suggestion_text or
-            "transport ssh" not in suggestion_text
+            "transport ssh" not in suggestion_text or
+            "stamp grit-mipsel-ssh operator-host 192.168.8.241 transport ssh" not in suggestion_text or
+            "configure grit-mipsel-ssh operator-host" in suggestion_text
         ):
-            print("configure ARTIFACT did not print profile suggestions", file=sys.stderr)
+            print("artifact stamp suggestions did not use the active profile", file=sys.stderr)
             print(suggestion_text, file=sys.stderr)
+            return 1
+        ssh_payload = Path(tmp) / "grit-mipsel-ssh"
+        ssh_payload.write_text("#!/bin/sh\n", encoding="utf-8")
+        stage_file(
+            cfg,
+            ssh_payload,
+            "grit-mipsel-ssh",
+            metadata={"stage_kind": "release-artifact", "payload_preset": "ssh-operator"},
+        )
+        ssh_listener_out = io.StringIO()
+        with contextlib.redirect_stdout(ssh_listener_out):
+            select_line_service(
+                cfg,
+                "ssh",
+                [{"name": "ssh", "actual": "listening", "port": 2222}],
+                start_command=lambda _service: "start-ssh",
+                stop_command=lambda _service: "stop-ssh",
+            )
+        ssh_listener_text = ssh_listener_out.getvalue()
+        if (
+                "stamp: stamp grit-mipsel-ssh operator-host 192.168.8.241 transport ssh" not in ssh_listener_text
+                or "configure: configure grit-mipsel-ssh operator-host" in ssh_listener_text
+                or "target: ./grit-mipsel-ssh rshell start" not in ssh_listener_text):
+            print("selected ssh listener guidance did not use canonical stamp wording", file=sys.stderr)
+            print(ssh_listener_text, file=sys.stderr)
             return 1
         if line_command_help_topic("profiles") is None:
             print("profile help topic missing", file=sys.stderr)
@@ -173,14 +403,268 @@ def run_line_profile_workflow_check():
         completions = line_completion_candidates(
             "listener ",
             providers={
-                "service_completion_names": ["ssh", "file-service"],
+                "service_completion_names": ["probe-http", "ssh", "file-service"],
                 "profile_names": ["glinet"],
             },
         )
-        if "listener serve" not in completions:
-            print("listener serve completion missing", file=sys.stderr)
+        listener_probe_completions = line_completion_candidates("listener probe ")
+        if (
+                "listener serve" not in completions
+                or "listener probe serve" in listener_probe_completions
+                or line_completion_candidates("listener probe serve")):
+            print("listener completions advertised stale probe serve workflow", file=sys.stderr)
             print(completions, file=sys.stderr)
+            print(listener_probe_completions, file=sys.stderr)
+            print(line_completion_candidates("listener probe serve"), file=sys.stderr)
             return 1
+        profile_delete_completions = line_completion_candidates(
+            "profile delete ",
+            providers={"profile_names": ["glinet", "lab-router"]},
+        )
+        profile_delete_confirm_completions = line_completion_candidates(
+            "profile delete lab-router ",
+            providers={"profile_names": ["glinet", "lab-router"]},
+        )
+        profile_set_completions = line_completion_candidates(
+            "profile set ",
+            providers={"profile_names": ["glinet", "lab-router"]},
+        )
+        if ("profile delete confirm" in profile_delete_completions or
+                "profile delete lab-router confirm" not in profile_delete_confirm_completions or
+                "profile set arch" not in profile_set_completions or
+                "profile set kernel_floor" not in profile_set_completions):
+            print("profile completions did not guide delete confirmation or editable keys", file=sys.stderr)
+            print(profile_delete_completions, file=sys.stderr)
+            print(profile_delete_confirm_completions, file=sys.stderr)
+            print(profile_set_completions, file=sys.stderr)
+            return 1
+        ssh_serve_completions = line_completion_candidates(
+            "listener serve ssh ",
+            providers={"service_completion_names": ["probe-http", "ssh", "file-service"]},
+        )
+        if "listener serve ssh start" not in ssh_serve_completions:
+            print("listener serve ssh start completion missing", file=sys.stderr)
+            print(ssh_serve_completions, file=sys.stderr)
+            return 1
+        start_completions = line_completion_candidates(
+            "start ",
+            providers={"service_completion_names": ["probe-http", "ssh", "file-service"]},
+        )
+        if "start probe-http" not in start_completions:
+            print("start completion did not use listener display names", file=sys.stderr)
+            print(start_completions, file=sys.stderr)
+            return 1
+        target_completions = line_completion_candidates(
+            "agent",
+            providers={"target_names": ["target-a", "Router A", "router"]},
+        )
+        if (
+                "target target-a" not in target_completions
+                or "target all" not in target_completions
+                or any(item.startswith("agent ") for item in target_completions)):
+            print("exact agent completion did not redirect to target selectors", file=sys.stderr)
+            print(target_completions, file=sys.stderr)
+            return 1
+        use_target_completions = line_completion_candidates(
+            "use target ",
+            providers={"target_names": ["target-a", "Router A", "router"]},
+        )
+        if "use target all" not in use_target_completions or "use target clear" not in use_target_completions:
+            print("use target completion did not include all/clear selectors", file=sys.stderr)
+            print(use_target_completions, file=sys.stderr)
+            return 1
+        use_completions = line_completion_candidates("use ")
+        if "use module" not in use_completions or "use action" in use_completions:
+            print("use completion advertised stale action wording", file=sys.stderr)
+            print(use_completions, file=sys.stderr)
+            return 1
+        root_completions = line_completion_candidates("")
+        stale_root_aliases = [
+            item for item in (
+                "agent", "agents", "service", "services", "releases",
+                "useagent", "uselistener", "useroute", "usesession", "usemodule",
+                "execute", "exploit",
+            )
+            if item in root_completions
+        ]
+        if stale_root_aliases:
+            print(f"root completion advertised compatibility aliases: {stale_root_aliases}", file=sys.stderr)
+            return 1
+        use_completions = line_completion_candidates("use ")
+        stale_use_aliases = [item for item in ("use agent", "use service", "use action") if item in use_completions]
+        if stale_use_aliases:
+            print(f"use completion advertised compatibility aliases: {stale_use_aliases}", file=sys.stderr)
+            return 1
+        try:
+            set_workbench_target_filter(cfg, "missing", targets=[])
+        except ValueError as exc:
+            if "run: targets" not in str(exc) or "use target ID, use target LABEL, or use target N" not in str(exc):
+                print(f"missing-target error did not include recovery guidance: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("missing target selector did not fail", file=sys.stderr)
+            return 1
+        daemon_completions = line_completion_candidates(
+            "daemon ",
+            providers={"daemon_action_ids": ["operator-daemon-start"]},
+        )
+        if (
+                "daemon dry-run" in daemon_completions
+                or "daemon v" in daemon_completions
+                or "daemon verbose" not in daemon_completions
+                or "daemon start" not in daemon_completions):
+            print("daemon completion advertised modifiers without an action", file=sys.stderr)
+            print(daemon_completions, file=sys.stderr)
+            return 1
+        daemon_start_completions = line_completion_candidates("daemon start ")
+        if (
+                "daemon start dry-run" not in daemon_start_completions
+                or "daemon start confirm" not in daemon_start_completions):
+            print("daemon action completion did not include natural modifiers", file=sys.stderr)
+            print(daemon_start_completions, file=sys.stderr)
+            return 1
+        show_daemon_completions = line_completion_candidates(
+            "show daemon modules ",
+            providers={"action_names": ["daemon:operator-daemon-start", "service:file-service-start"]},
+        )
+        if (
+                "show daemon modules daemon:operator-daemon-start" not in show_daemon_completions
+                or "show daemon modules service:file-service-start" in show_daemon_completions):
+            print("show daemon modules completion did not filter daemon modules", file=sys.stderr)
+            print(show_daemon_completions, file=sys.stderr)
+            return 1
+        try:
+            run_line_daemon_action(["dry-run"], print_actions_func=lambda verbose=False: None)
+        except ValueError as exc:
+            text = str(exc)
+            if (
+                    "daemon MODULE dry-run\n  daemon MODULE confirm" not in text
+                    or "daemon MODULE dry-run  |  daemon MODULE confirm" in text):
+                print(f"daemon dry-run usage was unclear: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("daemon dry-run without an action did not fail with usage", file=sys.stderr)
+            return 1
+        daemon_footer_out = io.StringIO()
+        with contextlib.redirect_stdout(daemon_footer_out):
+            print_line_daemon_action_records([{"id": "operator-daemon-start", "workflow": "daemon"}])
+        daemon_footer_text = daemon_footer_out.getvalue()
+        if (
+                "Daemon modules" not in daemon_footer_text
+                or "Daemon actions" in daemon_footer_text
+                or "daemon MODULE, daemon MODULE dry-run, daemon verbose, daemon ?" not in daemon_footer_text
+                or "daemon MODULE  |  daemon MODULE dry-run" in daemon_footer_text):
+            print("daemon action footer did not use comma-separated copyable forms", file=sys.stderr)
+            print(daemon_footer_text, file=sys.stderr)
+            return 1
+        module_result_out = io.StringIO()
+        with contextlib.redirect_stdout(module_result_out):
+            print_line_action_result(0)
+            print_line_action_result(7)
+        module_result_text = module_result_out.getvalue()
+        if (
+                "module complete: ok" not in module_result_text
+                or "module failed: rc=7" not in module_result_text
+                or "action complete: ok" in module_result_text
+                or "action failed: rc=7" in module_result_text):
+            print("selected-module result text still used action wording", file=sys.stderr)
+            print(module_result_text, file=sys.stderr)
+            return 1
+        daemon_result_out = io.StringIO()
+        with contextlib.redirect_stdout(daemon_result_out):
+            run_line_daemon_action(["status"], run_action_func=lambda *args, **kwargs: 0)
+            run_line_daemon_action(["status"], run_action_func=lambda *args, **kwargs: 9)
+        daemon_result_text = daemon_result_out.getvalue()
+        if (
+                "daemon module complete: ok" not in daemon_result_text
+                or "daemon module failed: rc=9" not in daemon_result_text
+                or "daemon action complete: ok" in daemon_result_text
+                or "daemon action failed: rc=9" in daemon_result_text):
+            print("daemon module result text still used action wording", file=sys.stderr)
+            print(daemon_result_text, file=sys.stderr)
+            return 1
+        route_add_completions = line_completion_candidates("route add ")
+        if (
+                "route add NAME LISTEN_PORT DEST_HOST DEST_PORT" not in route_add_completions
+                or "route add NAME LISTEN_PORT DEST_HOST DEST_PORT FROM=TO" not in route_add_completions
+                or "route new" in line_completion_candidates("route ")
+                or "route new NAME LISTEN_PORT DEST_HOST DEST_PORT" in line_completion_candidates("route new ")):
+            print("route completion did not use canonical route add wording", file=sys.stderr)
+            print(route_add_completions, file=sys.stderr)
+            print(line_completion_candidates("route "), file=sys.stderr)
+            print(line_completion_candidates("route new "), file=sys.stderr)
+            return 1
+        route_delete_completions = line_completion_candidates(
+            "route delete ssh-home ",
+            providers={"route_names": ["ssh-home"]},
+        )
+        if "route delete ssh-home confirm" not in route_delete_completions:
+            print("route delete completion did not show confirm suffix", file=sys.stderr)
+            print(route_delete_completions, file=sys.stderr)
+            return 1
+        delete_preview = parse_line_route_command("route", ["delete", "ssh-home"])
+        delete_confirm = parse_line_route_command("route", ["delete", "ssh-home", "confirm"])
+        if (
+                delete_preview.get("action") != "delete"
+                or delete_preview.get("selector") != "ssh-home"
+                or delete_preview.get("confirmed") is not False
+                or delete_confirm.get("confirmed") is not True):
+            print("route delete parser did not preserve preview/confirm state", file=sys.stderr)
+            print(delete_preview, delete_confirm, file=sys.stderr)
+            return 1
+        route_short_calls = []
+        if contextual_line_command("start", [], module="route/ssh-home") != ("route", ["start"]):
+            print("selected-route start did not rewrite to the route command family", file=sys.stderr)
+            return 1
+        if contextual_line_command("start", ["ssh-home"], module="routes") != ("route", ["start", "ssh-home"]):
+            print("routes-list start did not rewrite to the route command family", file=sys.stderr)
+            return 1
+        for command in ("start", "stop"):
+            handled = dispatch_line_navigation_command(
+                command,
+                [],
+                module="route/ssh-home",
+                start_route_func=lambda name: route_short_calls.append(("start", name)),
+                stop_route_func=lambda name: route_short_calls.append(("stop", name)),
+            )
+            if not handled:
+                print(f"selected-route {command} was not handled", file=sys.stderr)
+                return 1
+        if route_short_calls != [("start", "ssh-home"), ("stop", "ssh-home")]:
+            print("selected-route start/stop did not dispatch to route callbacks", file=sys.stderr)
+            print(route_short_calls, file=sys.stderr)
+            return 1
+        route_next_out = io.StringIO()
+        with contextlib.redirect_stdout(route_next_out):
+            print_line_next({}, {"sessions": []}, module="route/ssh-home", prompt_text="grit[all]/route/ssh-home>")
+        route_next_text = route_next_out.getvalue()
+    if (
+            "selected-route commands: options, info, start, stop, delete, back" not in route_next_text
+            or "route delete ssh-home confirm" not in route_next_text
+            or "selected-route commands: options, info, start, stop, back" in route_next_text):
+        print("selected-route next guidance did not expose delete confirmation", file=sys.stderr)
+        print(route_next_text, file=sys.stderr)
+        return 1
+    route_select_out = io.StringIO()
+    with contextlib.redirect_stdout(route_select_out):
+        select_line_route(
+            {},
+            "ssh-home",
+            [{
+                "name": "ssh-home",
+                "listen_host": "127.0.0.1",
+                "listen_port": "2222",
+                "dest_host": "127.0.0.1",
+                "dest_port": "22",
+            }],
+        )
+    route_select_text = route_select_out.getvalue()
+    if (
+            "options, info, start, stop, delete, back" not in route_select_text
+            or "options / info / start / stop / back" in route_select_text):
+        print("selected-route selection guidance did not expose delete or comma commands", file=sys.stderr)
+        print(route_select_text, file=sys.stderr)
+        return 1
     return 0
 
 
@@ -256,7 +740,7 @@ def line_console_transcript_coverage(text):
         ),
         "numbered_selections": (
             "use N",
-            "selected agent: line-console-target",
+            "selected target: line-console-target",
             "selected route console-route",
             "selected session ",
             "numbered result not found: 999;",
@@ -558,28 +1042,94 @@ def run_line_local_ips_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.line_configure import (
+        configure_line_artifact,
         find_config_from_survey,
         find_preset_from_survey,
         find_survey_uploads,
         parse_line_artifact_command,
         parse_line_config_args,
         parse_line_configure_command,
+        parse_line_configure_args,
+        print_line_artifact_info,
+        print_line_artifacts,
+        run_line_survey_preset,
     )
-    from gritlib.line_completions import build_line_completion_providers, line_completion_candidates
+    from gritlib.line_completions import (
+        BASE_COMMANDS,
+        EXACT_COMPLETION_EXPANDERS,
+        build_line_completion_providers,
+        line_completion_candidates,
+    )
+    from gritlib.line_core_commands import dispatch_line_core_command
+    from gritlib.line_events import (
+        line_event_summary,
+        parse_line_event_since,
+        parse_line_events_args,
+    )
+    from gritlib.event_log import append_event
+    from gritlib.line_actions import print_line_action_records, print_line_module_categories
     from gritlib.line_files import (
+        _line_staged_target_context,
+        download_line_target,
+        fetch_line_staged,
         parse_line_download_command,
+        parse_line_fetch_args,
         parse_line_file_transfer_command,
         parse_line_files_command,
+        print_line_file_records,
+        stage_line_file,
+        unstage_line_file,
     )
-    from gritlib.line_network import print_line_local_ips
+    from gritlib.line_binary import parse_line_binary_args
+    from gritlib.line_command_queue import (
+        print_line_command_queue_records,
+        print_line_command_result,
+        queue_line_command,
+        run_line_queue_command,
+        select_line_command_queue_action,
+        select_line_command_queue_action_record,
+    )
+    from gritlib.line_context import parse_line_use_command
+    from gritlib.line_release import parse_line_release_command, stage_line_release
+    from gritlib.line_build import print_line_build_config, run_line_build_command, unset_line_global_build_option
+    from gritlib.bridge_routes import delete_line_route, select_line_route, start_line_route, stop_line_route
+    from gritlib.line_help import line_command_help_topic, line_unknown_command_message
+    from gritlib.line_network import _resolve_ip_selector, dispatch_line_ip_command, print_line_local_ips
+    from gritlib.line_options import alias_line_target, print_line_context_options, print_line_options, rename_line_target
+    from gritlib.line_probe_serve import _choose_probe_match, _print_no_release_guidance, parse_line_probe_serve_args
+    from gritlib.line_repl_probe import _queue_line_probe_command
+    from gritlib.line_repl_runtime import dispatch_line_parsed_command
+    from gritlib.operator_io import view_line_path
+    from gritlib.line_resources import (
+        line_history_command,
+        load_line_resource,
+        print_line_history,
+        write_line_makerc,
+    )
+    from gritlib.line_sessions import print_selected_line_session
+    from gritlib.line_services import print_line_service_records, select_line_service, start_line_service, stop_line_service
+    from gritlib.line_show import dispatch_line_show_resource
+    from gritlib.line_target_commands import (
+        _line_service_command_text,
+        copy_line_generated_command,
+        dispatch_legacy_copy_choice,
+        run_line_generated_command,
+    )
+    from gritlib.line_targets import interact_line_target, print_line_targets, print_selected_line_target
     from gritlib.line_workspace import line_repl_status_bar
-    from gritlib.probe_commands import parse_line_probe_args
+    from gritlib.line_workspace import print_line_info, print_line_next
+    from gritlib.line_utility_commands import dispatch_line_utility_command
+    from gritlib.line_workflow_commands import dispatch_line_workflow_command
+    from gritlib.probe_commands import parse_line_probe_args, parse_line_probe_command, parse_line_survey_command
     from gritlib.probe_results import (
         append_probe_result,
         clear_line_probe_results,
         line_probe_result_search_records,
+        print_probe_result_records,
     )
     from gritlib.status_indexes import operator_network_status
+    from gritlib.workbench_jobs import parse_line_jobs_command, start_line_job
+    from gritlib.workbench_jobs import select_line_job
     import gritlib.operator_network as operator_network
 
     buf = io.StringIO()
@@ -587,12 +1137,258 @@ def run_line_local_ips_check():
         print_line_local_ips({"local_ips": ["192.168.8.2", "10.0.0.5", "127.0.0.1", "10.0.0.5"]})
     text = buf.getvalue()
     if ("Local IPs:" not in text or
-            text.find("  10.0.0.5") > text.find("  192.168.8.2") or
+            text.find("  1  10.0.0.5") > text.find("  2  192.168.8.2") or
             text.count("10.0.0.5") != 1 or
             "127.0.0.1" in text or
-            "set GRIT_OPERATOR_SERVER_HOST" not in text):
+            "ip host N" not in text or
+            "ip host IP" not in text or
+            "ip bind N" not in text or
+            "ip bind IP" not in text or
+            "ip host N  |  ip bind N" in text):
         print("line local IP renderer did not sort and de-duplicate candidates", file=sys.stderr)
         print(text, file=sys.stderr)
+        return 1
+    probe_no_release_out = io.StringIO()
+    with contextlib.redirect_stdout(probe_no_release_out):
+        _print_no_release_guidance(
+            "mipsel",
+            "mips",
+            "4.x",
+            "little",
+            [{"release_dir": "/tmp/no-release", "detection_reason": "missing-release-json"}],
+        )
+    probe_no_release_text = probe_no_release_out.getvalue()
+    if (
+            "No release bundle found." not in probe_no_release_text
+            or "Expected a release directory containing release.json, bin/, and scripts/." not in probe_no_release_text
+            or "No release configured." in probe_no_release_text):
+        print("probe serve no-release guidance was unclear", file=sys.stderr)
+        print(probe_no_release_text, file=sys.stderr)
+        return 1
+    selected_target_out = io.StringIO()
+    with contextlib.redirect_stdout(selected_target_out):
+        print_selected_line_target({
+            "selected": True,
+            "target_id": "target-a",
+            "target_label": "Router A",
+        })
+    selected_target_text = selected_target_out.getvalue()
+    if (
+            "options, next, sessions, queue, mailbox, back" not in selected_target_text
+            or "options / next / sessions / queue / mailbox / back" in selected_target_text):
+        print("selected-target prompt still used slash-separated commands", file=sys.stderr)
+        print(selected_target_text, file=sys.stderr)
+        return 1
+    selected_session_out = io.StringIO()
+    with contextlib.redirect_stdout(selected_session_out):
+        print_selected_line_session({
+            "session_id": "s1",
+            "service": "file-service",
+            "state": "ended",
+        })
+    selected_session_text = selected_session_out.getvalue()
+    if (
+            "info, interact, view, sessions verbose, back" not in selected_session_text
+            or "info / interact / view / sessions verbose / back" in selected_session_text):
+        print("selected-session prompt still used slash-separated commands", file=sys.stderr)
+        print(selected_session_text, file=sys.stderr)
+        return 1
+    target_list_out = io.StringIO()
+    with contextlib.redirect_stdout(target_list_out):
+        print_line_targets(
+            {},
+            lambda _cfg: {"targets": [{"target_id": "router-1", "label": "lab-router"}]},
+        )
+    target_list_text = target_list_out.getvalue()
+    if (
+            "use target N" not in target_list_text
+            or "target ID" not in target_list_text
+            or "target LABEL" not in target_list_text
+            or "agent ID" in target_list_text
+            or "agent LABEL" in target_list_text
+            or "use target N  |  target ID" in target_list_text
+            or "use N or target ID to select" in target_list_text):
+        print("target list footer did not use copyable selector forms", file=sys.stderr)
+        print(target_list_text, file=sys.stderr)
+        return 1
+    listener_list_out = io.StringIO()
+    with contextlib.redirect_stdout(listener_list_out):
+        print_line_service_records([{"name": "ssh", "actual": "stopped", "port": "2222"}])
+    listener_list_text = listener_list_out.getvalue()
+    if (
+            "listener N" not in listener_list_text
+            or "listener NAME" not in listener_list_text
+            or "start N" not in listener_list_text
+            or "stop N" not in listener_list_text
+            or "listener N  |  listener NAME" in listener_list_text
+            or "use N or listener NAME to select" in listener_list_text):
+        print("listener list footer did not use copyable selector forms", file=sys.stderr)
+        print(listener_list_text, file=sys.stderr)
+        return 1
+    module_list_out = io.StringIO()
+    with contextlib.redirect_stdout(module_list_out):
+        print_line_action_records([{"id": "operator-daemon-status", "kind": "daemon", "operator_action_state": "ready"}])
+    module_list_text = module_list_out.getvalue()
+    if (
+            "use N, use module NAME, use module N, modules verbose, modules ?" not in module_list_text
+            or "use N  |  use module NAME" in module_list_text):
+        print("module list footer did not use comma-separated command forms", file=sys.stderr)
+        print(module_list_text, file=sys.stderr)
+        return 1
+    module_categories_out = io.StringIO()
+    with contextlib.redirect_stdout(module_categories_out):
+        print_line_module_categories({}, [{"id": "operator-daemon-status", "kind": "daemon", "operator_action_state": "ready"}])
+    module_categories_text = module_categories_out.getvalue()
+    if (
+            "show service modules, show daemon modules, show target modules, show workbench modules" not in module_categories_text
+            or "show modules FILTER, modules verbose FILTER, use N" not in module_categories_text
+            or "show service modules  |  show daemon modules" in module_categories_text):
+        print("module category footer did not use comma-separated command forms", file=sys.stderr)
+        print(module_categories_text, file=sys.stderr)
+        return 1
+    files_list_out = io.StringIO()
+    with contextlib.redirect_stdout(files_list_out):
+        print_line_file_records([{"_name": "grit", "stage_kind": "operator-upload", "size": 42}])
+    files_list_text = files_list_out.getvalue()
+    if (
+            "deliver NAME, stage LOCAL, unstage NAME, files ?" not in files_list_text
+            or "deliver NAME  |  stage LOCAL" in files_list_text):
+        print("files list footer did not use comma-separated command forms", file=sys.stderr)
+        print(files_list_text, file=sys.stderr)
+        return 1
+    ip_help = line_command_help_topic("ip") or {}
+    if (
+            "operator network addresses" not in str(ip_help.get("title") or "") or
+            "help ip" not in line_completion_candidates("help ip")):
+        print("ip command was not exposed through command help and help completions", file=sys.stderr)
+        print(ip_help, file=sys.stderr)
+        print(line_completion_candidates("help ip"), file=sys.stderr)
+        return 1
+    daemon_help = line_command_help_topic("daemon") or {}
+    daemon_help_text = json.dumps(daemon_help, sort_keys=True)
+    if (
+            "systemd and init daemon modules" not in str(daemon_help.get("title") or "")
+            or "list available daemon modules" not in daemon_help_text
+            or "daemon workflow actions" in daemon_help_text):
+        print("daemon help still exposed action-heavy wording", file=sys.stderr)
+        print(daemon_help, file=sys.stderr)
+        return 1
+    generated_help_topics = {
+        name: line_command_help_topic(name) or {}
+        for name in ("commands", "target-commands", "copy")
+    }
+    lifecycle_help_topics = {
+        name: line_command_help_topic(name) or {}
+        for name in ("start", "stop")
+    }
+    if (
+            any("generated target-side commands" not in str(topic.get("title") or "")
+                for topic in generated_help_topics.values())
+            or any("listener and route lifecycle" not in str(topic.get("title") or "")
+                   for topic in lifecycle_help_topics.values())
+            or "help target-commands" not in line_completion_candidates("help target")
+            or "help copy" not in line_completion_candidates("help copy")
+            or "help start" not in line_completion_candidates("help sta")
+            or "help stop" not in line_completion_candidates("help sto")):
+        print("command-specific help topics were missing for generated-command or lifecycle commands", file=sys.stderr)
+        print(generated_help_topics, file=sys.stderr)
+        print(lifecycle_help_topics, file=sys.stderr)
+        return 1
+    aliases_help = line_command_help_topic("aliases") or {}
+    aliases_help_text = json.dumps(aliases_help, sort_keys=True)
+    if (
+            "legacy compatibility names and preferred REPL forms" not in str(aliases_help.get("title") or "")
+            or "legacy compatibility alias; prefer stage LOCAL NAME" not in aliases_help_text
+            or "legacy compatibility alias; prefer deliver NAME" not in aliases_help_text
+            or "legacy compatibility alias; prefer stamp NAME KEY=VALUE" not in aliases_help_text
+            or "accepted alias for stage LOCAL NAME" in aliases_help_text
+            or "use target/listener/route/session/module" not in aliases_help_text
+            or line_command_help_topic("aliases") == line_command_help_topic("console")):
+        print("aliases help did not render a dedicated canonical-alias topic", file=sys.stderr)
+        print(aliases_help, file=sys.stderr)
+        return 1
+    show_help = line_command_help_topic("show") or {}
+    show_help_text = json.dumps(show_help, sort_keys=True)
+    if (
+            "show listeners" not in show_help_text
+            or "show events" not in show_help_text
+            or "show agents" in show_help_text
+            or "show services" in show_help_text
+            or "show releases" in show_help_text
+            or "alternate service-module form" in show_help_text
+            or "Legacy show aliases remain accepted for scripts" not in show_help_text):
+        print("show help still advertised aliases or missed canonical show forms", file=sys.stderr)
+        print(show_help, file=sys.stderr)
+        return 1
+    listeners_help = line_command_help_topic("listeners") or {}
+    listeners_help_text = json.dumps(listeners_help, sort_keys=True)
+    if (
+            "listeners — reverse-access listeners" not in str(listeners_help.get("title") or "")
+            or "listeners verbose" not in listeners_help_text
+            or "services verbose" in listeners_help_text
+            or "start LISTENER" not in listeners_help_text
+            or "stop LISTENER" not in listeners_help_text
+            or "start SERVICE" in listeners_help_text
+            or "stop SERVICE" in listeners_help_text):
+        print("listeners help still advertised service aliases or stale lifecycle placeholders", file=sys.stderr)
+        print(listeners_help, file=sys.stderr)
+        return 1
+    missing_base_help = [cmd for cmd in BASE_COMMANDS if line_command_help_topic(cmd) is None]
+    if missing_base_help:
+        print("base line-console commands without command-specific help topics", file=sys.stderr)
+        print(missing_base_help, file=sys.stderr)
+        return 1
+    missing_exact_help = [
+        cmd for cmd in sorted(EXACT_COMPLETION_EXPANDERS)
+        if line_command_help_topic(cmd) is None
+    ]
+    if missing_exact_help:
+        print("exact-completion line-console commands without command-specific help topics", file=sys.stderr)
+        print(missing_exact_help, file=sys.stderr)
+        return 1
+    unknown_listener_text = line_unknown_command_message("wat", module="listener/probe")
+    unknown_root_text = line_unknown_command_message("wat")
+    if (
+            unknown_listener_text != "unknown command: wat; run ? to show listeners help"
+            or unknown_root_text != "unknown command: wat; run ? to show help topics"
+            or "type ? for" in unknown_listener_text
+            or "type ? for" in unknown_root_text):
+        print("unknown-command guidance did not use natural help wording", file=sys.stderr)
+        print(unknown_listener_text, file=sys.stderr)
+        print(unknown_root_text, file=sys.stderr)
+        return 1
+    command_help_calls = []
+    quit_help_result = dispatch_line_parsed_command(
+        "quit",
+        ["quit", "?"],
+        command_help_printer=lambda topic: command_help_calls.append(topic),
+        context_help_printer=lambda *_args, **_kwargs: None,
+        utility_dispatch_func=lambda *_args, **_kwargs: False,
+        core_dispatch_func=lambda *_args, **_kwargs: "",
+        navigation_dispatch_func=lambda *_args, **_kwargs: False,
+        workflow_dispatch_func=lambda *_args, **_kwargs: False,
+        unknown_message_func=lambda *_args, **_kwargs: "unknown",
+    )
+    if quit_help_result != {"handled": True} or command_help_calls != ["quit"]:
+        print("quit ? did not route through command help before quit dispatch", file=sys.stderr)
+        print(quit_help_result, command_help_calls, file=sys.stderr)
+        return 1
+    command_help_calls.clear()
+    utility_calls = []
+    console_help_result = dispatch_line_parsed_command(
+        "console",
+        ["console"],
+        command_help_printer=lambda topic: command_help_calls.append(topic),
+        context_help_printer=lambda *_args, **_kwargs: None,
+        utility_dispatch_func=lambda cmd, args: utility_calls.append((cmd, args)) or True,
+        core_dispatch_func=lambda *_args, **_kwargs: "",
+        navigation_dispatch_func=lambda *_args, **_kwargs: False,
+        workflow_dispatch_func=lambda *_args, **_kwargs: False,
+        unknown_message_func=lambda *_args, **_kwargs: "unknown",
+    )
+    if console_help_result != {"handled": True} or command_help_calls or utility_calls != [("console", [])]:
+        print("bare console did not route through utility dispatch for context setup", file=sys.stderr)
+        print(console_help_result, command_help_calls, utility_calls, file=sys.stderr)
         return 1
     command_alias_cases = [
         (parse_line_file_transfer_command("stage", ["local.bin", "bin"]).get("action"), "stage"),
@@ -607,22 +1403,882 @@ def run_line_local_ips_check():
         (parse_line_configure_command("trailer", ["bin", "show"]).get("action"), "stamp"),
         (parse_line_configure_command("configure", ["bin", "show"]).get("action"), "stamp"),
         (parse_line_artifact_command("artifact", ["stamp", "bin", "show"]).get("action"), "stamp"),
-        (parse_line_artifact_command("artifact", ["show", "bin"]).get("args"), ["bin", "--show"]),
+        (parse_line_artifact_command("artifact", ["show", "bin"]).get("args"), ["bin", "show"]),
     ]
     if any(actual != expected for actual, expected in command_alias_cases):
         print(f"line command rename aliases changed: {command_alias_cases}", file=sys.stderr)
         return 1
-    fast_staged_completion_providers = {
-        "staged_names_load": lambda: ["grit"],
-        "staged_names_snapshot": lambda: (_ for _ in ()).throw(
-            AssertionError("snapshot provider should not be used for artifact/trailer completions")
+    artifact_usage_cases = [
+        (
+            lambda: parse_line_artifact_command("artifact", ["show"]),
+            "artifact show NAME\n  artifact show PATH",
+            "artifact show NAME  |  artifact show PATH",
         ),
+        (
+            lambda: parse_line_configure_args([]),
+            "stamp NAME show\n  stamp NAME clear\n  stamp NAME KEY=VALUE",
+            "stamp NAME show  |  stamp NAME clear",
+        ),
+        (
+            lambda: parse_line_configure_args(["grit", "--obfuscation"]),
+            "stamp NAME obfuscation none\n  stamp NAME obfuscation xor",
+            "none|xor",
+        ),
+        (
+            lambda: parse_line_config_args(["--unknown"], "survey config"),
+            "survey config PATH write-config FILE",
+            "[PATH]",
+        ),
+        (
+            lambda: run_line_survey_preset({}, ["--unknown"], lambda: []),
+            "survey preset PATH name NAME write-local",
+            "   or:",
+        ),
+    ]
+    for call, expected, forbidden in artifact_usage_cases:
+        try:
+            call()
+        except ValueError as exc:
+            text = str(exc)
+            if expected not in text or forbidden in text:
+                print(f"artifact/survey usage guidance changed: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("artifact/survey usage guidance did not reject malformed command", file=sys.stderr)
+            return 1
+    jobs_command_cases = [
+        (parse_line_jobs_command("jobs", ["cancel", "job-1"]), {"action": "cancel", "selector": "job-1"}),
+        (parse_line_jobs_command("jobs", ["kill", "job-1"]), {"action": "cancel", "selector": "job-1"}),
+        (parse_line_jobs_command("jobs", ["info", "job-1"]), {"action": "select", "selector": "job-1"}),
+        (parse_line_jobs_command("jobs", ["select", "job-1"]), {"action": "select", "selector": "job-1"}),
+    ]
+    if any(actual != expected for actual, expected in jobs_command_cases):
+        print(f"jobs command parser missed natural forms: {jobs_command_cases}", file=sys.stderr)
+        return 1
+    try:
+        start_line_job({}, selected_action_func=lambda: {})
+    except ValueError as exc:
+        text = str(exc)
+        if (
+                "no selected background-capable workbench module; use module MODULE first" not in text
+                or "workbench action" in text
+                or "use module ACTION" in text):
+            print(f"job start guidance did not use module wording: {exc}", file=sys.stderr)
+            return 1
+    else:
+        print("job start guidance did not reject missing module", file=sys.stderr)
+        return 1
+    try:
+        queue_line_command({}, "", lambda _cfg, command: {"id": "cq-test", "command": command})
+    except ValueError as exc:
+        text = str(exc)
+        if "usage:\n  queue COMMAND" not in text or "usage: queue COMMAND" in text:
+            print(f"queue command usage was not copyable: {exc}", file=sys.stderr)
+            return 1
+    else:
+        print("bare queue command did not reject missing command", file=sys.stderr)
+        return 1
+    selected_usage_cases = [
+        (
+            lambda: select_line_command_queue_action_record([], ""),
+            "usage:\n  use N",
+            "usage: use N",
+        ),
+        (
+            lambda: unstage_line_file({}, ""),
+            "usage:\n  unstage NAME",
+            "usage: unstage NAME",
+        ),
+        (
+            lambda: rename_line_target({}, ""),
+            "usage:\n  rename LABEL",
+            "usage: rename LABEL",
+        ),
+        (
+            lambda: alias_line_target({}, ""),
+            "usage:\n  alias NAME",
+            "usage: alias NAME",
+        ),
+    ]
+    for call, expected, forbidden in selected_usage_cases:
+        try:
+            call()
+        except ValueError as exc:
+            text = str(exc)
+            if expected not in text or forbidden in text:
+                print(f"selected-object usage guidance changed: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("selected-object usage guidance accepted a missing selector", file=sys.stderr)
+            return 1
+    unscoped_queue_out = io.StringIO()
+    with contextlib.redirect_stdout(unscoped_queue_out):
+        queue_line_command(
+            {"_config_path": "local/server-config.json"},
+            "uname -a",
+            lambda _cfg, command: {
+                "id": "cq-test",
+                "command": command,
+                "execution_supported": False,
+                "queue_policy_snapshot": {},
+            },
+            target_filter_func=lambda _cfg: "",
+        )
+    unscoped_queue_text = unscoped_queue_out.getvalue()
+    if (
+            "target: any polling target (unscoped; select a target first to pin delivery)" not in unscoped_queue_text
+            or "Next:\n  queue result cq-test\n  queue list" not in unscoped_queue_text
+            or "next: queue result cq-test  |" in unscoped_queue_text):
+        print("unscoped queue command did not explain target delivery scope", file=sys.stderr)
+        print(unscoped_queue_text, file=sys.stderr)
+        return 1
+    queue_clear_events = []
+    queue_clear_out = io.StringIO()
+    with contextlib.redirect_stdout(queue_clear_out):
+        preview_result = run_line_queue_command(
+            {"_config_path": "local/server-config.json"},
+            ["clear"],
+            queue_summary_func=lambda _cfg: {"commands": [{"id": "cq-1"}, {"id": "cq-2"}]},
+            queue_func=lambda *_args, **_kwargs: {},
+            clear_queue_func=lambda _cfg: queue_clear_events.append("cleared") or 2,
+            view_func=lambda **_kwargs: None,
+        )
+    queue_clear_text = queue_clear_out.getvalue()
+    if (
+            preview_result != 0
+            or "2 queued command record(s) would be cleared" not in queue_clear_text
+            or "run: queue clear confirm" not in queue_clear_text
+            or queue_clear_events):
+        print("queue clear did not preview before confirm", file=sys.stderr)
+        print(queue_clear_text, file=sys.stderr)
+        return 1
+    queue_render_out = io.StringIO()
+    with contextlib.redirect_stdout(queue_render_out):
+        print_line_command_queue_records(
+            {
+                "enabled": "yes",
+                "result_count": 1,
+                "policy_valid": True,
+                "commands": [{"id": "cq-1", "status": "queued"}],
+            },
+            [{"command_id": "cmd-1", "target_id": "router-1", "status": "pending"}],
+            [{"id": "queue-command", "action_id": "queue-command", "operator_action_state": "ready"}],
+        )
+    queue_render_text = queue_render_out.getvalue()
+    if (
+            "queue result N, queue COMMAND, queue ?" not in queue_render_text
+            or "queue COMMAND, queue list, queue ?" not in queue_render_text
+            or "queue result N  |  queue COMMAND" in queue_render_text
+            or "queue COMMAND  |  queue list" in queue_render_text):
+        print("queue view footers did not use comma-separated copyable forms", file=sys.stderr)
+        print(queue_render_text, file=sys.stderr)
+        return 1
+    queue_select_out = io.StringIO()
+    with contextlib.redirect_stdout(queue_select_out):
+        select_line_command_queue_action(
+            {},
+            [{"id": "queue-command", "action_id": "queue-command", "operator_action_state": "ready"}],
+            "queue-command",
+            append_event_fn=lambda *_args, **_kwargs: None,
+        )
+    queue_select_text = queue_select_out.getvalue()
+    if (
+            "queue COMMAND\n  queue list\n  queue clear confirm\n  back" not in queue_select_text
+            or "queue COMMAND  |  queue list" in queue_select_text):
+        print("selected queue action guidance did not use split command forms", file=sys.stderr)
+        print(queue_select_text, file=sys.stderr)
+        return 1
+    target_required_cases = []
+    try:
+        download_line_target({}, "/etc/passwd", queue=True, target_id_fn=lambda: "")
+    except ValueError as exc:
+        target_required_cases.append(str(exc))
+    try:
+        _line_staged_target_context(
+            {},
+            True,
+            {},
+            target_id_fn=lambda: "",
+            target_context_fn=lambda: {},
+            scoped_target_cfg_fn=lambda *_args, **_kwargs: {},
+        )
+    except ValueError as exc:
+        target_required_cases.append(str(exc))
+    try:
+        _queue_line_probe_command({}, True, "wget http://operator/probe.sh", "probe.sh", "", lambda *_args, **_kwargs: {})
+    except ValueError as exc:
+        target_required_cases.append(str(exc))
+    expected_target_hints = [
+        "select a target before retrieve queue; run targets, then target NAME, use target ID, use target LABEL, or use target N",
+        "select a target before deliver queue; run targets, then target NAME, use target ID, use target LABEL, or use target N",
+        "select a target before probe queue; run targets, then target NAME, use target ID, use target LABEL, or use target N",
+    ]
+    if target_required_cases != expected_target_hints:
+        print(f"target-required queue hints changed: {target_required_cases}", file=sys.stderr)
+        return 1
+    usage_error_cases = [
+        (
+            lambda: parse_line_fetch_args(["one", "two"]),
+            "deliver NAME\n  deliver queue NAME\n  deliver start NAME",
+        ),
+        (
+            lambda: download_line_target({}, "", target_id_fn=lambda: ""),
+            "retrieve TARGET_PATH\n  retrieve queue TARGET_PATH",
+        ),
+        (
+            lambda: fetch_line_staged({}, ""),
+            "deliver NAME\n  deliver queue NAME\n  deliver start NAME",
+        ),
+        (
+            lambda: stage_line_file({}, ""),
+            "stage LOCAL NAME\n  stage start LOCAL NAME",
+        ),
+    ]
+    for call, expected_error in usage_error_cases:
+        try:
+            call()
+        except ValueError as exc:
+            text = str(exc)
+            if (
+                    expected_error not in text
+                    or "deliver NAME  |  deliver queue NAME" in text
+                    or "retrieve TARGET_PATH  |  retrieve queue TARGET_PATH" in text
+                    or "stage LOCAL NAME  |  stage start LOCAL NAME" in text):
+                print(f"file-transfer usage guidance changed: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("file-transfer usage guidance did not reject malformed command", file=sys.stderr)
+            return 1
+    utility_usage_cases = [
+        (
+            lambda: parse_line_release_command(["bogus"]),
+            "release stage SELECTOR",
+            "   or:",
+        ),
+        (
+            lambda: stage_line_release({}, ""),
+            "listener probe config",
+            "   or:",
+        ),
+        (
+            lambda: parse_line_binary_args(["start", "no-start", "./grit", "grit"]),
+            "serve-binary start PATH NAME",
+            "   or:",
+        ),
+        (
+            lambda: view_line_path({}, ""),
+            "usage:\n  view PATH",
+            "usage: view PATH",
+        ),
+        (
+            lambda: _line_service_command_text({}, "restart"),
+            "show start\n  show stop\n  copy start\n  copy stop",
+            "show start  |  show stop",
+        ),
+        (
+            lambda: run_line_generated_command({}, ["delete"]),
+            "commands\n  commands copy N",
+            "commands  |  commands copy N",
+        ),
+        (
+            lambda: copy_line_generated_command({}, ""),
+            "usage:\n  copy N",
+            "usage: copy N",
+        ),
+        (
+            lambda: print_line_history([], "nope"),
+            "history\n  history LIMIT",
+            "history  |  history LIMIT",
+        ),
+        (
+            lambda: dispatch_line_show_resource("nope", {}),
+            "show targets",
+            "show targets|services",
+        ),
+        (
+            lambda: run_line_build_command({}, ["bogus"]),
+            "build verbose\n  build set KEY VALUE",
+            "build verbose  |  build set KEY VALUE",
+        ),
+        (
+            lambda: unset_line_global_build_option({}, ""),
+            "usage:\n  unsetg KEY",
+            "usage: unsetg KEY",
+        ),
+    ]
+    for call, expected, forbidden in utility_usage_cases:
+        try:
+            call()
+        except ValueError as exc:
+            text = str(exc)
+            if expected not in text or forbidden in text:
+                print(f"utility usage guidance changed: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("utility usage guidance did not reject malformed command", file=sys.stderr)
+            return 1
+    selector_usage_cases = [
+        (
+            lambda: start_line_service({}, "", service_rows_func=lambda: []),
+            "start LISTENER\n  start ROUTE\n  route start NAME\n  route start N",
+            "start LISTENER  |",
+        ),
+        (
+            lambda: stop_line_service({}, "", service_rows_func=lambda: []),
+            "stop LISTENER\n  stop ROUTE\n  route stop NAME\n  route stop N",
+            "stop LISTENER  |",
+        ),
+        (
+            lambda: select_line_service({}, "missing", []),
+            "use listener NAME or use listener N",
+            "use listener NAME  |  use listener N",
+        ),
+        (
+            lambda: interact_line_target({}, "", lambda _cfg: {"targets": [], "target_filter": {}}),
+            "interact target ID\n  interact target LABEL\n  interact target N",
+            "interact target ID  |  interact target LABEL",
+        ),
+        (
+            lambda: start_line_route({}, "", [], start_service=lambda *_args, **_kwargs: None),
+            "route start NAME\n  route start N",
+            "route start NAME  |",
+        ),
+        (
+            lambda: select_line_route({}, "", []),
+            "route NAME\n  route N",
+            "route NAME  |",
+        ),
+        (
+            lambda: stop_line_route({}, "", [], stop_service=lambda *_args, **_kwargs: None),
+            "route stop NAME\n  route stop N",
+            "route stop NAME  |",
+        ),
+        (
+            lambda: delete_line_route({}, "", []),
+            "route delete NAME\n  route delete NAME confirm\n  route delete N confirm",
+            "route delete ROUTE",
+        ),
+        (
+            lambda: _resolve_ip_selector("", []),
+            "ip host N\n  ip host IP\n  ip bind N\n  ip bind IP",
+            "N|IP",
+        ),
+    ]
+    for call, expected, forbidden in selector_usage_cases:
+        try:
+            call()
+        except ValueError as exc:
+            text = str(exc)
+            if expected not in text or forbidden in text:
+                print(f"selector usage guidance changed: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("selector usage guidance did not reject malformed command", file=sys.stderr)
+            return 1
+    listener_select_out = io.StringIO()
+    with contextlib.redirect_stdout(listener_select_out):
+        select_line_service(
+            {},
+            "probe",
+            [{"name": "probe", "actual": "listening", "port": 22207}],
+            start_command=lambda _service: "start-probe",
+            stop_command=lambda _service: "stop-probe",
+        )
+    listener_select_text = listener_select_out.getvalue()
+    if (
+            "show start, show stop, copy start, copy stop" not in listener_select_text
+            or "options / info / start" in listener_select_text):
+        print("selected-listener selection guidance did not expose copy start/stop", file=sys.stderr)
+        print(listener_select_text, file=sys.stderr)
+        return 1
+    listener_next_out = io.StringIO()
+    with contextlib.redirect_stdout(listener_next_out):
+        print_line_next({}, {"sessions": []}, module="listener/probe", prompt_text="grit[all]/listener/probe>")
+    listener_next_text = listener_next_out.getvalue()
+    if (
+            "selected-listener commands: options, start, stop, show start, show stop, copy start, copy stop, back" not in listener_next_text
+            or "selected-listener commands: options, start, stop, show start, show stop, back" in listener_next_text):
+        print("selected-listener next guidance did not expose copy start/stop", file=sys.stderr)
+        print(listener_next_text, file=sys.stderr)
+        return 1
+    ip_usage_out = io.StringIO()
+    with contextlib.redirect_stdout(ip_usage_out):
+        dispatch_line_ip_command({"action": "usage"})
+    ip_usage_text = ip_usage_out.getvalue()
+    if (
+            "ip host N\n  ip host IP\n  ip bind N\n  ip bind IP" not in ip_usage_text
+            or "ip host N  |  ip host IP" in ip_usage_text
+            or "N|IP" in ip_usage_text):
+        print("ip usage output still used compact N|IP syntax", file=sys.stderr)
+        print(ip_usage_text, file=sys.stderr)
+        return 1
+    listener_options_out = io.StringIO()
+    with contextlib.redirect_stdout(listener_options_out):
+        print_line_options(
+            {
+                "operator_server_host": "192.168.8.241",
+                "probe_listen_port": "22207",
+            },
+            module="listener/probe",
+            service_record_func=lambda _service: {
+                "actual": "listening",
+                "bind_address": "192.168.8.241",
+                "port": "22207",
+            },
+            display_name_func=lambda service: "probe-http" if service == "probe" else service,
+            build_fields_func=lambda: [],
+            target_command_records_func=lambda: [],
+        )
+    listener_options_text = listener_options_out.getvalue()
+    if (
+            "Relevant settings" not in listener_options_text
+            or "set KEY VALUE" not in listener_options_text
+            or "set N VALUE" not in listener_options_text
+            or "build" not in listener_options_text
+            or "set KEY VALUE, set N VALUE, build, back" not in listener_options_text
+            or "Relevant settings  (set KEY VALUE or set N VALUE" in listener_options_text
+            or "set KEY VALUE  /  build  /  back" in listener_options_text):
+        print("listener options guidance did not use split edit commands", file=sys.stderr)
+        print(listener_options_text, file=sys.stderr)
+        return 1
+    listener_info_out = io.StringIO()
+    with contextlib.redirect_stdout(listener_info_out):
+        print_line_info(
+            {},
+            module="listener/ssh",
+            prompt_text="grit[all]/listener/ssh>",
+            service_record=lambda _service: {
+                "actual": "stopped",
+                "port": "2222",
+                "pid": "",
+            },
+        )
+    listener_info_text = listener_info_out.getvalue()
+    if (
+            "options, start, stop, back" not in listener_info_text
+            or "options / start / stop / back" in listener_info_text):
+        print("selected-listener info prompt still used slash-separated commands", file=sys.stderr)
+        print(listener_info_text, file=sys.stderr)
+        return 1
+    root_info_out = io.StringIO()
+    with contextlib.redirect_stdout(root_info_out):
+        print_line_info({"summary": {}, "target_filter": {}}, module="root", prompt_text="grit[all]>")
+    root_info_text = root_info_out.getvalue()
+    if (
+            "Selected workflow: none" not in root_info_text
+            or "run: modules, listeners, routes, sessions, jobs, or ?" not in root_info_text
+            or "Action: none" in root_info_text):
+        print("root info guidance still looked like a dead-end action context", file=sys.stderr)
+        print(root_info_text, file=sys.stderr)
+        return 1
+    root_options_out = io.StringIO()
+    with contextlib.redirect_stdout(root_options_out):
+        print_line_context_options({}, "root")
+    root_options_text = root_options_out.getvalue()
+    if (
+            "Selected workflow: none" not in root_options_text
+            or "use module NAME, listener NAME, route NAME, session ID, job ID" not in root_options_text
+            or "Action: none" in root_options_text):
+        print("root options guidance still looked like a dead-end action context", file=sys.stderr)
+        print(root_options_text, file=sys.stderr)
+        return 1
+    prompt_texts = []
+
+    def preset_input(prompt):
+        prompt_texts.append(prompt)
+        return ""
+
+    with contextlib.redirect_stdout(io.StringIO()):
+        chosen = _choose_probe_match(
+            [
+                {"payload_preset": "default", "tuple_path": "by-tuple/mipsel/musl/4.x/mips32r2"},
+                {"payload_preset": "ssh-operator", "tuple_path": "by-tuple/mipsel/musl/4.x/mips32r2"},
+            ],
+            "mipsel",
+            "mips",
+            preset_input,
+        )
+    if chosen is not None or prompt_texts != ["  Choose preset N or preset NAME; blank cancels> "]:
+        print("probe preset selection prompt was unclear", file=sys.stderr)
+        print(prompt_texts, file=sys.stderr)
+        return 1
+    original_generated_target_commands = dispatch_legacy_copy_choice.__globals__["generated_target_commands"]
+    legacy_prompts = []
+    dispatch_legacy_copy_choice.__globals__["generated_target_commands"] = lambda _cfg: ["wget http://operator/grit"]
+    try:
+        with contextlib.redirect_stdout(io.StringIO()):
+            handled = dispatch_legacy_copy_choice(
+                "c",
+                {},
+                input_func=lambda prompt: legacy_prompts.append(prompt) or "",
+            )
+    finally:
+        dispatch_legacy_copy_choice.__globals__["generated_target_commands"] = original_generated_target_commands
+    if not handled or legacy_prompts != ["copy command N; blank skips> "]:
+        print("legacy copy selection prompt was unclear", file=sys.stderr)
+        print(legacy_prompts, file=sys.stderr)
+        return 1
+    probe_queue_usage_cases = [
+        (
+            lambda: parse_line_probe_args(["bogus"]),
+            "listener probe\n  listener probe start\n  listener probe queue",
+            "listener probe  |",
+        ),
+        (
+            lambda: parse_line_probe_command("probe", ["paste", "bogus"]),
+            "listener probe paste\n  listener probe paste base64",
+            "listener probe paste [base64]",
+        ),
+        (
+            lambda: parse_line_probe_serve_args(["bogus"]),
+            "listener probe serve is deprecated.\nUse:\n  listener probe config\n  listener serve\n  listener serve start\n  listener serve ssh start",
+            "listener probe serve [start]",
+        ),
+        (
+            lambda: parse_line_survey_command("survey", ["bogus"]),
+            "survey\n  survey results\n  survey config\n  survey preset name NAME\n  survey ?",
+            "survey [results|config|preset]",
+        ),
+        (
+            lambda: clear_line_probe_results({}, ["1", "2"]),
+            "listener probe clear confirm\n  listener probe clear N confirm\n  listener probe clear all confirm",
+            "listener probe clear confirm  |",
+        ),
+        (
+            lambda: print_line_command_result({}, {"commands": []}, ""),
+            "queue result ID\n  queue result N",
+            "queue result ID  |  queue result N",
+        ),
+        (
+            lambda: select_line_job({}, {"workbench_jobs": []}, ""),
+            "use job ID\n  use job N",
+            "use job ID  |  use job N",
+        ),
+    ]
+    for call, expected, forbidden in probe_queue_usage_cases:
+        try:
+            call()
+        except ValueError as exc:
+            text = str(exc)
+            if expected not in text or forbidden in text:
+                print(f"probe/queue usage guidance changed: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("probe/queue usage guidance did not reject malformed command", file=sys.stderr)
+            return 1
+    use_usage_cases = [
+        (parse_line_use_command("use", [])["usage"], "use target ID\n  use listener SERVICE", "use KIND SELECTOR"),
+        (parse_line_use_command("use", ["target"])["usage"], "use target ID\n  use target LABEL\n  use target N", "ID  |  use target LABEL"),
+        (parse_line_use_command("use", ["route"])["usage"], "use route NAME\n  use route N", "NAME  |  use route N"),
+        (parse_line_use_command("use", ["job"])["usage"], "use job ID\n  use job N", "ID  |  use job N"),
+        (parse_line_use_command("useagent", [])["usage"], "use target ID\n  use target LABEL\n  use target N", "useagent ID"),
+        (parse_line_use_command("uselistener", [])["usage"], "usage:\n  use listener SERVICE", "uselistener SERVICE"),
+        (parse_line_use_command("useroute", [])["usage"], "use route NAME\n  use route N", "useroute NAME"),
+        (parse_line_use_command("usesession", [])["usage"], "usage:\n  use session SESSION", "usesession SESSION"),
+        (parse_line_use_command("useaction", [])["usage"], "usage:\n  use module MODULE", "usemodule MODULE"),
+        (parse_line_use_command("use", ["action"])["usage"], "usage:\n  use module MODULE", "usage: use module MODULE"),
+    ]
+    for text, expected, forbidden in use_usage_cases:
+        if expected not in text or forbidden in text:
+            print(f"use command usage guidance changed: {text}", file=sys.stderr)
+            return 1
+    resource_error_cases = [
+        ("", "usage:\n  resource FILE\n  !N\n  repeat N"),
+        (
+            "987654321",
+            "resource expects a script file path, not history number 987654321; use !987654321 or repeat 987654321 to replay history",
+        ),
+    ]
+    for resource_arg, expected_error in resource_error_cases:
+        try:
+            load_line_resource({}, resource_arg)
+        except ValueError as exc:
+            text = str(exc)
+            if (
+                    expected_error not in text
+                    or "resource FILE  (use !N or repeat N" in text):
+                print(f"resource guidance changed for {resource_arg!r}: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print(f"resource guidance did not reject {resource_arg!r}", file=sys.stderr)
+            return 1
+    try:
+        write_line_makerc({}, "", ["status"])
+    except ValueError as exc:
+        text = str(exc)
+        if "usage:\n  makerc FILE" not in text or "usage: makerc FILE" in text:
+            print(f"makerc guidance was not copyable: {exc}", file=sys.stderr)
+            return 1
+    else:
+        print("bare makerc did not reject missing path", file=sys.stderr)
+        return 1
+    try:
+        line_history_command(["status"], "bogus")
+    except ValueError as exc:
+        text = str(exc)
+        if "usage:\n  !N\n  repeat N" not in text or "!N or repeat N" in text:
+            print(f"history replay usage guidance was not copyable: {exc}", file=sys.stderr)
+            return 1
+    else:
+        print("invalid history replay selector did not fail", file=sys.stderr)
+        return 1
+    events_limit, _events_since, events_filters = parse_line_events_args([
+        "status=ready",
+        "operation=staged-fetch",
+        "request_name=grit",
+        "command_id=cq-1",
+        "job_id=job-1",
+        "module_id=operator-daemon-status",
+        "n",
+        "3",
+    ])
+    if events_limit != 3 or events_filters != [
+            ("status", "ready"),
+            ("operation", "staged-fetch"),
+            ("request_name", "grit"),
+            ("command_id", "cq-1"),
+            ("job_id", "job-1"),
+            ("action_id", "operator-daemon-status"),
+    ]:
+        print(f"events parser did not preserve supported detail filters: {events_limit} {events_filters}", file=sys.stderr)
+        return 1
+    _compat_limit, _compat_since, compat_filters = parse_line_events_args(["action_id=operator-daemon-status"])
+    if compat_filters != [("action_id", "operator-daemon-status")]:
+        print(f"events parser did not preserve action_id compatibility alias: {compat_filters}", file=sys.stderr)
+        return 1
+    for args in (["n"], ["limit=0"]):
+        try:
+            parse_line_events_args(args)
+        except ValueError as exc:
+            text = str(exc)
+            if "usage:\n  events n N" not in text or "usage: events n N" in text:
+                print(f"events limit usage was not copyable: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print(f"events parser accepted invalid limit: {args}", file=sys.stderr)
+            return 1
+    try:
+        parse_line_events_args(["banana"])
+    except ValueError as exc:
+        event_usage = str(exc)
+        if (
+                "events status=TEXT" not in event_usage
+                or "events request_name=NAME" not in event_usage
+                or "events module_id=ID" not in event_usage
+                or "events target=ID" not in event_usage
+                or "events target=LABEL" not in event_usage
+                or "events [n N]" in event_usage
+                or "[target=ID|LABEL]" in event_usage):
+            print(f"events usage did not list detail filters: {exc}", file=sys.stderr)
+            return 1
+    else:
+        print("events parser did not reject unknown positional argument", file=sys.stderr)
+        return 1
+    try:
+        parse_line_event_since("soon")
+    except ValueError as exc:
+        since_usage = str(exc)
+        if (
+                "events since 30m" not in since_usage
+                or "events since 2h" not in since_usage
+                or "events since 1d" not in since_usage
+                or "30m|2h|1d" in since_usage
+                or "events since 30m  |  events since 2h" in since_usage):
+            print(f"events since usage stayed too grammatical: {exc}", file=sys.stderr)
+            return 1
+    else:
+        print("events since parser did not reject invalid duration", file=sys.stderr)
+        return 1
+    try:
+        parse_line_events_args(["banana=1"])
+    except ValueError as exc:
+        if "supported filters:" not in str(exc) or "request_name" not in str(exc):
+            print(f"events unsupported-filter guidance did not list supported filters: {exc}", file=sys.stderr)
+            return 1
+    else:
+        print("events parser did not reject unsupported filter key", file=sys.stderr)
+        return 1
+    event_summary = line_event_summary({
+        "details": {
+            "request_name": "recommended.conf",
+            "sha256": "80d1c80feb63670cfb5cc372264305455a3d717c93b5ffcbb8a430df7639896e",
+            "command_sha256": "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+        },
+    })
+    if "80d1c80feb63" not in event_summary or "80d1c80feb63670c" in event_summary or "1234567890ab" not in event_summary:
+        print(f"event summary did not abbreviate long hashes: {event_summary}", file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory() as tmpdir:
+        events_cfg = {"operator_session_dir": str(Path(tmpdir) / "operator")}
+        append_event(events_cfg, "workbench", "started", details={"status": "ready", "operation": "startup"})
+        append_event(events_cfg, "file-service", "staged_file_add", details={
+            "request_name": "grit",
+            "status": "available",
+            "operation": "stage",
+        })
+        events_context_calls = []
+        events_dispatch_out = io.StringIO()
+        with contextlib.redirect_stdout(events_dispatch_out):
+            handled = dispatch_line_utility_command(
+                "events",
+                ["service=file-service"],
+                events_func=lambda event_args: __import__(
+                    "gritlib.line_events",
+                    fromlist=["print_line_events_view"],
+                ).print_line_events_view(events_cfg, event_args),
+                set_context_func=lambda module: events_context_calls.append(module),
+            )
+        events_dispatch_text = events_dispatch_out.getvalue()
+        if (
+                not handled
+                or events_context_calls != ["events"]
+                or "file-service" not in events_dispatch_text
+                or "filters: service file-service" not in events_dispatch_text):
+            print("events command did not enter events context and render filters", file=sys.stderr)
+            print(events_dispatch_text, file=sys.stderr)
+            return 1
+        events_options_out = io.StringIO()
+        with contextlib.redirect_stdout(events_options_out):
+            print_line_context_options(events_cfg, "events")
+        events_options_text = events_options_out.getvalue()
+        if (
+                "Events:" not in events_options_text
+                or "records:" not in events_options_text
+                or "events service=NAME level=LEVEL status=TEXT" not in events_options_text
+                or "Action: none" in events_options_text):
+            print("events options guidance fell back to generic build options", file=sys.stderr)
+            print(events_options_text, file=sys.stderr)
+            return 1
+        events_next_out = io.StringIO()
+        with contextlib.redirect_stdout(events_next_out):
+            print_line_next(events_cfg, {"sessions": []}, module="events", prompt_text="grit[all]/events>")
+        events_next_text = events_next_out.getvalue()
+        if (
+                "events context" not in events_next_text
+                or "events since 2h" not in events_next_text
+                or "request_name=NAME" not in events_next_text):
+            print("events next guidance did not use events context", file=sys.stderr)
+            print(events_next_text, file=sys.stderr)
+            return 1
+    console_context_calls = []
+    console_dispatch_out = io.StringIO()
+    with contextlib.redirect_stdout(console_dispatch_out):
+        handled = dispatch_line_utility_command(
+            "console",
+            [],
+            set_context_func=lambda module: console_context_calls.append(module),
+        )
+    console_dispatch_text = console_dispatch_out.getvalue()
+    if (
+            not handled
+            or console_context_calls != ["console"]
+            or "Help: console" not in console_dispatch_text
+            or "resource FILE" not in console_dispatch_text
+            or "Accepted aliases remain for scripts" not in console_dispatch_text
+            or "Preferred forms: targets, listeners, routes, files, run MODULE" not in console_dispatch_text
+            or "execute/exploit=run" in console_dispatch_text
+            or "useagent/uselistener" in console_dispatch_text):
+        print("console command did not enter console context and show console help", file=sys.stderr)
+        print(console_dispatch_text, file=sys.stderr)
+        return 1
+    console_options_out = io.StringIO()
+    with contextlib.redirect_stdout(console_options_out):
+        print_line_context_options({}, "console")
+    console_options_text = console_options_out.getvalue()
+    if (
+            "Console:" not in console_options_text
+            or "history: history, history 50" not in console_options_text
+            or "resource FILE, makerc FILE" not in console_options_text
+            or "navigation: back, main, home, root, quit, exit" not in console_options_text
+            or "\n  navigation: back, main, home, root, q\n" in console_options_text
+            or "Action: none" in console_options_text):
+        print("console options guidance fell back to generic build options", file=sys.stderr)
+        print(console_options_text, file=sys.stderr)
+        return 1
+    console_next_out = io.StringIO()
+    with contextlib.redirect_stdout(console_next_out):
+        print_line_next({}, {"sessions": []}, module="console", prompt_text="grit[all]/console>")
+    console_next_text = console_next_out.getvalue()
+    if (
+            "console context" not in console_next_text
+            or "history LIMIT" not in console_next_text
+            or "navigation: main, back, quit, exit" not in console_next_text
+            or "\n  navigation: main, back, q\n" in console_next_text
+            or "help aliases" not in console_next_text):
+        print("console next guidance did not use console context", file=sys.stderr)
+        print(console_next_text, file=sys.stderr)
+        return 1
+    search_cfg = {
+        "_line_console_search_results": [
+            {"kind": "target", "label": "target-1", "rec": {"target_id": "target-1"}},
+            {"kind": "file", "label": "sample", "rec": {"request_name": "sample"}},
+        ],
+    }
+    search_options_out = io.StringIO()
+    with contextlib.redirect_stdout(search_options_out):
+        print_line_context_options(search_cfg, "search")
+    search_options_text = search_options_out.getvalue()
+    if (
+            "Search:" not in search_options_text
+            or "active numbered results: 2" not in search_options_text
+            or "safe inspection" not in search_options_text
+            or "history replay:\n    !N\n    repeat N" not in search_options_text
+            or "history replay: !N or repeat N" in search_options_text
+            or "Action: none" in search_options_text):
+        print("search options guidance did not explain numbered result workflow", file=sys.stderr)
+        print(search_options_text, file=sys.stderr)
+        return 1
+    search_next_out = io.StringIO()
+    with contextlib.redirect_stdout(search_next_out):
+        print_line_next(search_cfg, {"sessions": []}, module="search", prompt_text="grit[all]/search>")
+    search_next_text = search_next_out.getvalue()
+    if (
+            "search context" not in search_next_text
+            or "numbered results stay active" not in search_next_text
+            or "use N" not in search_next_text):
+        print("search next guidance did not use search context", file=sys.stderr)
+        print(search_next_text, file=sys.stderr)
+        return 1
+    fast_staged_completion_providers = {
+        "release_selectors": lambda: ["by_device:router-a"],
+        "build_config_keys": lambda: [
+            "GRIT_TARGET_PRESET",
+            "GRIT_TARGETS",
+            "GRIT_PAYLOAD_PRESET",
+            "GRIT_BUSYBOX_GROUPS",
+            "GRIT_HEAVY_TOOLS",
+            "GRIT_STATIC_POLICY",
+        ],
+        "staged_names_load": lambda: ["grit"],
+        "staged_names_snapshot": lambda: ["console-upload"],
+        "action_names": lambda: ["daemon:operator-daemon-status"],
+        "job_names": lambda: ["job-1"],
     }
     completion_cases = [
-        ("trailer ", "trailer grit"),
+        ("trailer ", "stamp grit"),
+        ("trailer grit ", "stamp grit show"),
         ("artifact ", "artifact grit"),
         ("artifact stamp ", "artifact stamp grit"),
+        ("artifact stamp grit ", "artifact stamp grit operator-host"),
         ("artifact show ", "artifact show grit"),
+        ("release stage start ", "release stage start by_device:router-a"),
+        ("release stage ssh ", "release stage ssh start"),
+        ("stage-release start ", "release stage start by_device:router-a"),
+        ("build set GRIT_STATIC_POLICY", "build set GRIT_STATIC_POLICY static-preferred"),
+        ("build set 6", "build set 6 static-preferred"),
+        ("events n", "events n 50"),
+        ("events --limit ", "events n 50"),
+        ("events since", "events since 2h"),
+        ("history", "history 50"),
+        ("resource", "resource FILE"),
+        ("makerc", "makerc FILE"),
+        ("search", "search target"),
+        ("execute ", "run daemon:operator-daemon-status"),
+        ("exploit ", "run daemon:operator-daemon-status"),
+        ("usemodule ", "use module daemon:operator-daemon-status"),
+        ("upload ", "stage LOCAL NAME"),
+        ("fetch ", "deliver console-upload"),
+        ("queue-deliver ", "deliver queue console-upload"),
     ]
     try:
         completion_results = [
@@ -634,6 +2290,253 @@ def run_line_local_ips_check():
         return 1
     if any(expected not in results for _prefix, expected, results in completion_results):
         print(f"artifact/trailer completions missed lightweight staged names: {completion_results}", file=sys.stderr)
+        return 1
+    event_flag_completions = line_completion_candidates("events --limit ", providers=fast_staged_completion_providers)
+    if any(item.startswith("events --limit") for item in event_flag_completions):
+        print(f"events completion still suggested flag form: {event_flag_completions}", file=sys.stderr)
+        return 1
+    console_prefixed_candidates = line_completion_candidates("console", providers=fast_staged_completion_providers)
+    if "console history" in console_prefixed_candidates:
+        print(f"console completion suggested a dead prefixed command: {console_prefixed_candidates}", file=sys.stderr)
+        return 1
+    root_completion_candidates = line_completion_candidates("", providers=fast_staged_completion_providers)
+    legacy_file_roots = {
+        "downloads", "upload", "fetch", "deploy", "queue-fetch",
+        "queue-deliver", "rmfile", "rm-file",
+    }
+    if legacy_file_roots.intersection(root_completion_candidates):
+        print(f"root completions advertised legacy file-transfer aliases: {root_completion_candidates}", file=sys.stderr)
+        return 1
+    show_completion_candidates = line_completion_candidates("show ", providers=fast_staged_completion_providers)
+    legacy_show_resources = {
+        "show agents", "show services", "show activity", "show releases",
+        "show stagers", "show loot", "show downloads",
+    }
+    if legacy_show_resources.intersection(show_completion_candidates):
+        print(f"show completions advertised legacy file resource aliases: {show_completion_candidates}", file=sys.stderr)
+        return 1
+    alias_completion_cases = [
+        ("useagent ", "use target router-a", {"target_names": lambda: ["router-a"]}),
+        ("uselistener ", "use listener file-service", {"service_completion_names": lambda: ["file-service"]}),
+        ("useroute ", "use route web-hop", {"route_names": lambda: ["web-hop"]}),
+        ("usesession ", "use session sess-1", {"session_names": lambda: ["sess-1"]}),
+    ]
+    alias_completion_results = [
+        (prefix, expected, line_completion_candidates(prefix, providers=providers))
+        for prefix, expected, providers in alias_completion_cases
+    ]
+    if any(expected not in results for _prefix, expected, results in alias_completion_results):
+        print(f"selector alias completions did not redirect to preferred forms: {alias_completion_results}", file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory() as tmpdir:
+        artifact_root = Path(tmpdir)
+        operator_dir = artifact_root / "operator"
+        operator_dir.mkdir()
+        sample = artifact_root / "sample.bin"
+        sample.write_text("sample artifact\n", encoding="utf-8")
+        (operator_dir / "staged-files.json").write_text(json.dumps({
+            "schema": 1,
+            "staged": {"grit": {
+                "request_name": "grit",
+                "stage_kind": "operator-upload",
+                "source_path": str(sample),
+            }},
+        }) + "\n", encoding="utf-8")
+        artifact_cfg = {
+            "operator_session_dir": str(operator_dir),
+            "release_dir": str(artifact_root / "release"),
+        }
+        artifact_options_out = io.StringIO()
+        with contextlib.redirect_stdout(artifact_options_out):
+            print_line_context_options(artifact_cfg, "artifact")
+        artifact_options_text = artifact_options_out.getvalue()
+        if (
+                "Artifacts:" not in artifact_options_text
+                or "active profile: none" not in artifact_options_text
+                or "artifact info NAME, artifact info N, artifact info PATH" not in artifact_options_text
+                or "stamp: artifact show NAME" not in artifact_options_text
+                or "artifact stamp NAME KEY VALUE" not in artifact_options_text
+                or "artifact info NAME|N|PATH" in artifact_options_text
+                or "trailer: artifact show NAME" in artifact_options_text
+                or "Action: none" in artifact_options_text):
+            print("artifact context options did not explain staged artifact workflow", file=sys.stderr)
+            print(artifact_options_text, file=sys.stderr)
+            return 1
+        artifact_help = line_command_help_topic("artifact") or {}
+        artifact_help_text = json.dumps(artifact_help, sort_keys=True)
+        if (
+                "runtime config stamping" not in artifact_help_text
+                or "stamp embedded runtime config" not in artifact_help_text
+                or "manifest and runtime config metadata" not in artifact_help_text
+                or "manifest/trailer metadata" in artifact_help_text
+                or "current trailer configuration" in artifact_help_text
+                or "trailer stamping" in artifact_help_text
+                or "apply trailer overrides" in artifact_help_text):
+            print("artifact help still used trailer-first wording", file=sys.stderr)
+            print(artifact_help_text, file=sys.stderr)
+            return 1
+        artifact_list_out = io.StringIO()
+        with contextlib.redirect_stdout(artifact_list_out):
+            print_line_artifacts(artifact_cfg)
+        artifact_list_text = artifact_list_out.getvalue()
+        if (
+                "artifact info N\n    artifact info NAME\n    artifact info PATH" not in artifact_list_text
+                or "artifact info N  |  artifact info NAME" in artifact_list_text):
+            print("artifact list next steps did not use split copyable forms", file=sys.stderr)
+            print(artifact_list_text, file=sys.stderr)
+            return 1
+        try:
+            print_line_artifact_info(artifact_cfg, [])
+        except ValueError as exc:
+            artifact_info_usage = str(exc)
+            if (
+                    "artifact info NAME\n  artifact info PATH\n  artifact info N" not in artifact_info_usage
+                    or "artifact info NAME  |  artifact info PATH" in artifact_info_usage):
+                print(f"artifact info usage did not use split copyable forms: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("artifact info without selector did not reject malformed command", file=sys.stderr)
+            return 1
+        artifact_stamp_out = io.StringIO()
+        with contextlib.redirect_stdout(artifact_stamp_out):
+            configure_line_artifact(artifact_cfg, ["grit"])
+        artifact_stamp_text = artifact_stamp_out.getvalue()
+        if (
+                "Artifact stamp action needed:" not in artifact_stamp_text
+                or "artifact show grit" not in artifact_stamp_text
+                or "inspect current stamp: artifact show grit" not in artifact_stamp_text
+                or "clear stamp: artifact clear grit" not in artifact_stamp_text
+                or "no active profile is set" not in artifact_stamp_text):
+            print("artifact stamp without values did not show next steps", file=sys.stderr)
+            print(artifact_stamp_text, file=sys.stderr)
+            return 1
+        if "Artifact trailer action needed:" in artifact_stamp_text or "current trailer" in artifact_stamp_text:
+            print("artifact stamp guidance still used trailer wording", file=sys.stderr)
+            print(artifact_stamp_text, file=sys.stderr)
+            return 1
+        try:
+            configure_line_artifact(artifact_cfg, ["missing"])
+        except ValueError as exc:
+            if "artifact or staged request not found: missing" not in str(exc):
+                print(f"artifact missing selector guidance changed: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("artifact missing selector was not rejected", file=sys.stderr)
+            return 1
+    release_options_out = io.StringIO()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with contextlib.redirect_stdout(release_options_out):
+            print_line_context_options({"release_dir": str(Path(tmpdir) / "missing-release")}, "release")
+    release_options_text = release_options_out.getvalue()
+    if (
+            "Release:" not in release_options_text
+            or "detected: no" not in release_options_text
+            or "profile flow: listener probe config, then listener serve" not in release_options_text
+            or "serve: listener serve start, listener serve ssh start" not in release_options_text
+            or "release stage start SELECTOR" not in release_options_text
+            or "profile flow: listener probe config, then release stage start SELECTOR" in release_options_text
+            or "Action: none" in release_options_text):
+        print("release context options did not explain release workflow", file=sys.stderr)
+        print(release_options_text, file=sys.stderr)
+        return 1
+    invalid_release_out = io.StringIO()
+    with contextlib.redirect_stdout(invalid_release_out):
+        handled = dispatch_line_workflow_command(
+            "release",
+            ["nope"],
+            release_list_func=lambda: None,
+            release_stage_func=lambda *_args, **_kwargs: None,
+            release_help_func=lambda _topic: None,
+        )
+    invalid_release_text = invalid_release_out.getvalue()
+    if (
+            not handled
+            or "usage:\n  release" not in invalid_release_text
+            or "release stage SELECTOR" not in invalid_release_text
+            or "   or:" in invalid_release_text
+            or "release [list|stage SELECTOR]" in invalid_release_text):
+        print("invalid release command did not render usage without traceback", file=sys.stderr)
+        print(invalid_release_text, file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory() as tmpdir:
+        build_cfg = {"_build_config_path": str(Path(tmpdir) / "grit.conf")}
+        build_list_out = io.StringIO()
+        with contextlib.redirect_stdout(build_list_out):
+            print_line_build_config(build_cfg)
+        build_list_text = build_list_out.getvalue()
+        if (
+                "Row  Key" not in build_list_text
+                or "GRIT_STATIC_POLICY" not in build_list_text
+                or "  6    GRIT_STATIC_POLICY" not in build_list_text
+                or "build set KEY VALUE" not in build_list_text
+                or "build set ROW VALUE" not in build_list_text
+                or "build set KEY VALUE  |  build set ROW VALUE" in build_list_text):
+            print("build list did not expose global row numbers for build set ROW", file=sys.stderr)
+            print(build_list_text, file=sys.stderr)
+            return 1
+        build_options_out = io.StringIO()
+        with contextlib.redirect_stdout(build_options_out):
+            print_line_context_options(build_cfg, "build")
+        build_options_text = build_options_out.getvalue()
+        if (
+                "Build:" not in build_options_text
+                or "Guided build fields" not in build_options_text
+                or "edit: set ROW VALUE" not in build_options_text
+                or "Action: none" in build_options_text):
+            print("build context options did not explain guided build config workflow", file=sys.stderr)
+            print(build_options_text, file=sys.stderr)
+            return 1
+    explicit_completion_cases = [
+        ("route", "route add"),
+        ("listener probe", "listener probe start"),
+        ("listener probe clear", "listener probe clear confirm"),
+        ("listener probe clear all", "listener probe clear all confirm"),
+        ("files", "files stage"),
+        ("files", "files verbose"),
+        ("upload", "stage LOCAL NAME"),
+        ("fetch", "deliver console-upload"),
+        ("queue-fetch", "deliver queue console-upload"),
+        ("profile", "profile set"),
+        ("artifact", "artifact stamp"),
+        ("release", "release stage"),
+        ("release stage start", "release stage start by_device:router-a"),
+        ("stage-release start", "release stage start by_device:router-a"),
+        ("sessions", "sessions clear"),
+        ("queue", "queue clear"),
+        ("build", "build set"),
+        ("search", "search target"),
+        ("help", "help search"),
+        ("show modules", "show modules FILTER"),
+        ("show daemon modules", "show daemon modules daemon:operator-daemon-status"),
+        ("show modules daemon ", "show daemon modules daemon:operator-daemon-status"),
+        ("events", "events module_id="),
+        ("jobs", "jobs cancel"),
+        ("jobs --kill ", "jobs cancel job-1"),
+        ("jobs kill ", "jobs cancel job-1"),
+        ("jobs --info ", "jobs info job-1"),
+        ("use", "use target"),
+        ("survey config", "survey config write-config FILE"),
+        ("survey preset", "survey preset name NAME"),
+    ]
+    explicit_completion_results = [
+        (prefix, expected, line_completion_candidates(prefix, providers=fast_staged_completion_providers))
+        for prefix, expected in explicit_completion_cases
+    ]
+    if any(expected not in results for _prefix, expected, results in explicit_completion_results):
+        print(f"explicit command completions did not expand exact command families: {explicit_completion_results}", file=sys.stderr)
+        return 1
+    for prefix in ("jobs ", "jobs --kill ", "jobs kill ", "jobs --info "):
+        candidates = line_completion_candidates(prefix, providers=fast_staged_completion_providers)
+        if any(item.startswith(("jobs --", "jobs kill")) for item in candidates):
+            print(f"jobs completion still suggested legacy flag/kill form for {prefix!r}: {candidates}", file=sys.stderr)
+            return 1
+    files_completions = line_completion_candidates("files ")
+    if "files v" in files_completions or "files verbose" not in files_completions:
+        print(f"files completion advertised shorthand instead of verbose: {files_completions}", file=sys.stderr)
+        return 1
+    partial_completion_results = line_completion_candidates("rout", providers=fast_staged_completion_providers)
+    if "route" not in partial_completion_results or "route add" in partial_completion_results:
+        print(f"partial command completion stopped completing root commands: {partial_completion_results}", file=sys.stderr)
         return 1
     with tempfile.TemporaryDirectory() as tmpdir:
         completion_root = Path(tmpdir)
@@ -664,6 +2567,14 @@ def run_line_local_ips_check():
             "operator_session_dir": str(operator_dir),
             "session_root": str(session_root),
         }
+        append_probe_result(completion_cfg, {
+            "received_at": "2026-06-03T12:00:00Z",
+            "remote_addr": "192.0.2.44",
+        })
+        append_probe_result(completion_cfg, {
+            "received_at": "2026-06-03T12:05:00Z",
+            "remote_addr": "192.0.2.45",
+        })
 
         def fail_snapshot(_cfg):
             raise AssertionError("completion provider should not build workbench snapshots while typing")
@@ -697,7 +2608,10 @@ def run_line_local_ips_check():
             ("use target ", "use target target-1"),
             ("deliver ", "deliver grit"),
             ("artifact ", "artifact grit"),
-            ("trailer ", "trailer grit"),
+            ("trailer ", "stamp grit"),
+            ("listener probe config ", "listener probe config 2"),
+            ("listener probe clear ", "listener probe clear 2"),
+            ("listener probe clear 2 ", "listener probe clear 2 confirm"),
             ("view ", f"view {session_root / 'sess-1'}"),
             ("cat ", f"cat {session_root / 'sess-1' / 'session.log'}"),
         ]
@@ -783,6 +2697,36 @@ def run_line_local_ips_check():
         print("operator host chooser did not preserve manual host selection", file=sys.stderr)
         print(manual_cfg, file=sys.stderr)
         return 1
+    ip_sets = []
+    ip_show_out = io.StringIO()
+    with contextlib.redirect_stdout(ip_show_out):
+        dispatch_line_core_command(
+            "ip",
+            [],
+            workspace_snapshot_func=lambda: {"local_ips": ["192.168.8.2", "10.0.0.5", "127.0.0.1"]},
+            set_global_option_func=lambda key, value: ip_sets.append((key, value)),
+        )
+    with contextlib.redirect_stdout(io.StringIO()):
+        dispatch_line_core_command(
+            "ip",
+            ["host", "2"],
+            workspace_snapshot_func=lambda: {"local_ips": ["192.168.8.2", "10.0.0.5", "127.0.0.1"]},
+            set_global_option_func=lambda key, value: ip_sets.append((key, value)),
+        )
+        dispatch_line_core_command(
+            "ip",
+            ["bind", "1"],
+            workspace_snapshot_func=lambda: {"local_ips": ["192.168.8.2", "10.0.0.5", "127.0.0.1"]},
+            set_global_option_func=lambda key, value: ip_sets.append((key, value)),
+        )
+    if "Local IPs:" not in ip_show_out.getvalue() or "usage: ip host" in ip_show_out.getvalue():
+        print("bare ip command did not render local IP choices", file=sys.stderr)
+        print(ip_show_out.getvalue(), file=sys.stderr)
+        return 1
+    if ip_sets != [("GRIT_OPERATOR_SERVER_HOST", "192.168.8.2"), ("listen_host", "10.0.0.5")]:
+        print("ip command did not map numbered rows to host/bind settings", file=sys.stderr)
+        print(ip_sets, file=sys.stderr)
+        return 1
     status = operator_network_status(["192.168.8.2", "10.0.0.5", "127.0.0.1", "10.0.0.5"])
     if (status.get("selected_local_ip") != "10.0.0.5" or
             [rec.get("ip") for rec in status.get("operator_network_records") or []] != ["10.0.0.5", "192.168.8.2"]):
@@ -800,6 +2744,48 @@ def run_line_local_ips_check():
         return 1
     if parse_line_probe_args(["start", "queue"]) != (True, True):
         print("probe start/queue aliases did not map to canonical flags", file=sys.stderr)
+        return 1
+    probe_option_calls = []
+    with contextlib.redirect_stdout(io.StringIO()):
+        dispatch_line_core_command(
+            "probe",
+            ["options"],
+            set_context_func=lambda module: probe_option_calls.append(("context", module)),
+            options_func=lambda: probe_option_calls.append(("options",)),
+        )
+        dispatch_line_core_command(
+            "listener",
+            ["probe", "options"],
+            set_context_func=lambda module: probe_option_calls.append(("context", module)),
+            options_func=lambda: probe_option_calls.append(("options",)),
+        )
+    if probe_option_calls != [
+            ("context", "listener/probe"),
+            ("options",),
+            ("context", "listener/probe"),
+            ("options",),
+    ]:
+        print("probe options did not route through listener/probe context", file=sys.stderr)
+        print(probe_option_calls, file=sys.stderr)
+        return 1
+    survey_invalid_out = io.StringIO()
+    with contextlib.redirect_stdout(survey_invalid_out):
+        survey_invalid_result = dispatch_line_core_command(
+            "survey",
+            ["banana"],
+            survey_results_func=lambda *args, **kwargs: None,
+            survey_config_func=lambda *args, **kwargs: None,
+            survey_preset_func=lambda *args, **kwargs: None,
+        )
+    survey_invalid_text = survey_invalid_out.getvalue()
+    if (survey_invalid_result != "handled" or
+            "survey results" not in survey_invalid_text or
+            "survey config" not in survey_invalid_text or
+            "survey preset name NAME" not in survey_invalid_text or
+            "survey [results|config|preset]" in survey_invalid_text or
+            "Traceback" in survey_invalid_text):
+        print("invalid survey command was not handled as usage text", file=sys.stderr)
+        print(survey_invalid_text, file=sys.stderr)
         return 1
     if parse_line_config_args(["1", "write-config", "configs/grit.conf"], "probe config") != (
             "1", "configs/grit.conf", []):
@@ -839,6 +2825,18 @@ def run_line_local_ips_check():
     if not search_records or search_records[0].get("use_hint") != "listener probe config 1":
         print("probe result search records did not preserve numbered config hints", file=sys.stderr)
         return 1
+    probe_results_out = io.StringIO()
+    with contextlib.redirect_stdout(probe_results_out):
+        print_probe_result_records(records)
+    probe_results_text = probe_results_out.getvalue()
+    if (
+            "listener probe config                  " not in probe_results_text
+            or "after config: listener serve start" not in probe_results_text
+            or "after config: listener serve ssh start" not in probe_results_text
+            or "    listener serve start                   " in probe_results_text):
+        print("probe results next steps did not make post-config serve order clear", file=sys.stderr)
+        print(probe_results_text, file=sys.stderr)
+        return 1
     with tempfile.TemporaryDirectory() as tmpdir:
         cfg = {"operator_session_dir": tmpdir}
         append_probe_result(cfg, {"received_at": "2026-06-03T12:00:00Z", "remote_addr": "192.0.2.44"})
@@ -850,8 +2848,20 @@ def run_line_local_ips_check():
                 append_event_fn=lambda *args, **kwargs: events.append((args, kwargs)),
             )
         text = buf.getvalue()
+        if removed != 0 or "1 probe result(s) would be cleared" not in text or events:
+            print("probe result clear wrapper did not preview before confirm", file=sys.stderr)
+            print(text, file=sys.stderr)
+            return 1
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            removed = clear_line_probe_results(
+                cfg, ["1", "confirm"],
+                append_event_fn=lambda *args, **kwargs: events.append((args, kwargs)),
+            )
+        text = buf.getvalue()
         if removed != 1 or "cleared 1 probe result(s)" not in text or not events:
-            print("probe result clear wrapper did not clear and emit event details", file=sys.stderr)
+            print("probe result confirmed clear wrapper did not clear and emit event details", file=sys.stderr)
+            print(text, file=sys.stderr)
             return 1
     return 0
 
@@ -877,8 +2887,17 @@ def run_line_repl_runtime_check():
     import gritlib.line_repl_utility as repl_utility
     import gritlib.line_repl_workflow as repl_workflow
     import gritlib.line_repl_workspace as repl_workspace
-    from gritlib.line_options import print_line_options
+    from gritlib.line_options import (
+        dispatch_line_option_command,
+        parse_line_option_command,
+        print_line_options,
+        set_line_option,
+    )
+    from gritlib.line_help import line_help_topic_for_module
+    from gritlib.line_profiles import print_profiles
     from gritlib.line_services import start_line_service, stop_line_service
+    from gritlib.line_workspace import print_line_next
+    from gritlib.workbench_jobs import select_line_job
     from gritlib.line_prompt_toolkit import (
         MissingPromptToolkitLineInput,
         build_line_prompt_completer,
@@ -921,6 +2940,49 @@ def run_line_repl_runtime_check():
         return 1
     if "python-prompt-toolkit is required" not in missing_stderr.getvalue():
         print("missing prompt-toolkit input did not explain dependency", file=sys.stderr)
+        return 1
+    if line_help_topic_for_module("release") != "release":
+        print("release context did not map to release help", file=sys.stderr)
+        return 1
+    with tempfile.TemporaryDirectory() as profile_tmp:
+        profile_out = io.StringIO()
+        with contextlib.redirect_stdout(profile_out):
+            print_profiles({"profiles_file": str(Path(profile_tmp) / "profiles.json")})
+        profile_text = profile_out.getvalue()
+    if (
+            "listener serve ssh start" not in profile_text
+            or "listener ssh start" in profile_text
+            or "run: listener probe config  |" in profile_text):
+        print("profile next-step text did not use listener serve ssh wording", file=sys.stderr)
+        print(profile_text, file=sys.stderr)
+        return 1
+    unset_out = io.StringIO()
+    with contextlib.redirect_stdout(unset_out):
+        dispatch_line_option_command(parse_line_option_command("unset", []))
+        dispatch_line_option_command(parse_line_option_command("unsetg", []))
+    unset_text = unset_out.getvalue()
+    if (
+        "usage:\n  unset KEY\n  back" not in unset_text
+        or "usage:\n  unsetg KEY" not in unset_text
+        or "usage: unsetg KEY  (global option)" in unset_text
+        or "usage: unset KEY  (selected target option)  |" in unset_text
+    ):
+        print("bare unset commands did not explain required key/scope", file=sys.stderr)
+        print(unset_text, file=sys.stderr)
+        return 1
+    try:
+        set_line_option({}, "", "value")
+    except ValueError as exc:
+        set_usage = str(exc)
+        if (
+            "usage:\n  set KEY VALUE\n  set N VALUE\n  options" not in set_usage
+            or "set KEY VALUE  or  set N VALUE" in set_usage
+        ):
+            print("bare set usage did not use split copyable forms", file=sys.stderr)
+            print(set_usage, file=sys.stderr)
+            return 1
+    else:
+        print("bare set option did not reject missing key", file=sys.stderr)
         return 1
 
     setup_calls.clear()
@@ -1326,6 +3388,113 @@ def run_line_repl_runtime_check():
         print(probe_options_text, file=sys.stderr)
         return 1
 
+    session_options_out = io.StringIO()
+    with contextlib.redirect_stdout(session_options_out):
+        print_line_options(
+            {"_line_console_module": "session/s1"},
+            module="session/s1",
+            build_fields_func=lambda: [{"key": "GRIT_RUNTIME_ROOT"}],
+            session_record_func=lambda _session_id: {
+                "session_id": "s1",
+                "service": "file-service",
+                "state": "ended",
+                "exit_reason": "complete",
+                "path": "/tmp/s1",
+                "event_count": 1,
+            },
+        )
+    session_options_text = session_options_out.getvalue()
+    if (
+        "Session: s1" not in session_options_text
+        or "activity: 0 uploads, 0 fetches, 1 events" not in session_options_text
+        or "Action: none" in session_options_text
+        or "Build options:" in session_options_text
+    ):
+        print("selected session options leaked unrelated action/build options", file=sys.stderr)
+        print(session_options_text, file=sys.stderr)
+        return 1
+
+    job_options_out = io.StringIO()
+    with contextlib.redirect_stdout(job_options_out):
+        print_line_options(
+            {"_line_console_module": "job/job-1"},
+            module="job/job-1",
+            build_fields_func=lambda: [{"key": "GRIT_RUNTIME_ROOT"}],
+            job_record_func=lambda _job_id: {
+                "id": "job-1",
+                "action_id": "package-artifact",
+                "state": "exited",
+                "cancel_supported": True,
+                "log_path": "/tmp/job-1.log",
+                "log_exists": True,
+            },
+        )
+    job_options_text = job_options_out.getvalue()
+    if (
+        "Job: job-1" not in job_options_text
+        or "module: package-artifact" not in job_options_text
+        or "action: package-artifact" in job_options_text
+        or "cancel: cancel, jobs cancel job-1" not in job_options_text
+        or "next: info, cancel, jobs, jobs verbose, back" not in job_options_text
+        or "Action: none" in job_options_text
+        or "Build options:" in job_options_text
+    ):
+        print("selected job options leaked unrelated action/build options", file=sys.stderr)
+        print(job_options_text, file=sys.stderr)
+        return 1
+    job_next_out = io.StringIO()
+    with contextlib.redirect_stdout(job_next_out):
+        print_line_next(
+            {},
+            {"sessions": []},
+            module="job/job-1",
+            prompt_text="grit[all]/job/job-1>",
+            job_record=lambda _job_id: {
+                "id": "job-1",
+                "action_id": "package-artifact",
+                "effective_state": "running",
+                "cancel_supported": True,
+            },
+        )
+    job_next_text = job_next_out.getvalue()
+    if (
+            "selected-job commands: info, options, cancel, back" not in job_next_text
+            or "global forms: jobs, jobs info ID, jobs cancel ID" not in job_next_text):
+        print("selected job next guidance did not expose cancellable job shortcut", file=sys.stderr)
+        print(job_next_text, file=sys.stderr)
+        return 1
+    job_select_out = io.StringIO()
+    with contextlib.redirect_stdout(job_select_out):
+        select_line_job({}, {"workbench_jobs": [{
+            "id": "job-1",
+            "action_id": "package-artifact",
+            "effective_state": "running",
+            "cancel_supported": True,
+        }]}, "job-1")
+    job_select_text = job_select_out.getvalue()
+    if (
+            "info, options, cancel, jobs, back" not in job_select_text
+            or "info / options / jobs / back" in job_select_text):
+        print("selected job prompt did not expose cancellable job shortcut", file=sys.stderr)
+        print(job_select_text, file=sys.stderr)
+        return 1
+    job_select_done_out = io.StringIO()
+    with contextlib.redirect_stdout(job_select_done_out):
+        select_line_job({}, {"workbench_jobs": [{
+            "id": "job-2",
+            "action_id": "package-artifact",
+            "effective_state": "exited",
+            "cancel_supported": False,
+        }]}, "job-2")
+    job_select_done_text = job_select_done_out.getvalue()
+    if (
+            "info, options, jobs, back" not in job_select_done_text
+            or "info, options, cancel, jobs, back" in job_select_done_text
+            or "info / options / jobs / back" in job_select_done_text):
+        print("selected completed-job prompt incorrectly exposed cancel or slash commands", file=sys.stderr)
+        print(job_select_done_text, file=sys.stderr)
+        return 1
+
     service_control_calls = []
     service_rows = lambda: [{"name": "probe", "actual": "listening", "port": 22207}]
     service_cfg = {"_line_console_module": "probe"}
@@ -1398,6 +3567,24 @@ def run_line_repl_runtime_check():
         print("line REPL runtime did not preserve replayed numeric preparation", file=sys.stderr)
         return 1
 
+    bad_repeat_out = io.StringIO()
+    with contextlib.redirect_stdout(bad_repeat_out):
+        bad_repeat = prepare_repl_choice(
+            "repeat 1 extra",
+            history,
+            history_command_func=lambda _history, _selector: "status",
+            record_history_func=lambda line_history, command: line_history.append(command),
+            clear_results_func=lambda: cleared.append("clear"),
+        )
+    bad_repeat_text = bad_repeat_out.getvalue()
+    if (
+            bad_repeat.get("continue") is not True
+            or "usage:\n  repeat N" not in bad_repeat_text
+            or "usage: repeat N" in bad_repeat_text):
+        print("malformed repeat usage did not use copyable form", file=sys.stderr)
+        print(bad_repeat_text, file=sys.stderr)
+        return 1
+
     cleared.clear()
     use_result = prepare_repl_choice(
         "use 3",
@@ -1410,11 +3597,26 @@ def run_line_repl_runtime_check():
         print("line REPL runtime did not preserve use-number result context", file=sys.stderr)
         return 1
 
+    for read_only_line in ("?", "help search", "options", "next", "complete search", "history"):
+        cleared.clear()
+        prepared = prepare_repl_choice(
+            read_only_line,
+            history,
+            history_command_func=lambda _history, _selector: "",
+            record_history_func=lambda line_history, command: line_history.append(command),
+            clear_results_func=lambda: cleared.append("clear"),
+        )
+        if prepared.get("cmd") not in {"?", "help", "options", "next", "complete", "history"} or cleared:
+            print(f"line REPL runtime cleared numbered results for read-only command: {read_only_line}", file=sys.stderr)
+            return 1
+
     contextual_cases = [
         (("start", [], "listener/probe"), ("listener", ["probe", "start"])),
         (("queue", [], "listener/probe"), ("listener", ["probe", "queue"])),
         (("delivery", [], "listener/probe"), ("listener", ["probe", "delivery"])),
-        (("start", ["1"], "routes"), ("routes", ["start", "1"])),
+        (("serve", [], "listener/probe"), ("listener", ["serve"])),
+        (("serve", ["ssh", "start"], "listener/probe"), ("listener", ["serve", "ssh", "start"])),
+        (("start", ["1"], "routes"), ("route", ["start", "1"])),
         (("set", ["9", "/tmp/grit-build"], "build"), ("build", ["set", "9", "/tmp/grit-build"])),
         (("clear", ["confirm"], "queue"), ("queue", ["clear", "confirm"])),
         (("clear", ["target"], "queue"), ("clear", ["target"])),
@@ -3859,16 +6061,34 @@ def run_line_context_transition_check():
         )[2]
         line_context.configured_target_filter = lambda cfg: cfg.get("_target_id_filter", "")
         cfg = {"_line_console_module": "route/field"}
-        if line_context.back_line_module_context(cfg) != "routes" or cfg.get("_line_console_module") != "routes":
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            back_result = line_context.back_line_module_context(cfg)
+        if back_result != "routes" or cfg.get("_line_console_module") != "routes" or "returned to routes context" not in out.getvalue():
             print(f"line context back did not preserve route parent transition: {cfg}", file=sys.stderr)
             return 1
         cfg = {"_line_console_module": "targets"}
-        if line_context.back_line_module_context(cfg) != "" or "_line_console_module" in cfg:
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            back_result = line_context.back_line_module_context(cfg)
+        if back_result != "" or "_line_console_module" in cfg or "returned to main workspace" not in out.getvalue():
             print(f"line context back did not clear module context: {cfg}", file=sys.stderr)
             return 1
         cfg = {"_target_id_filter": "target-1", "_target_label_filter": "Target One"}
-        if line_context.back_line_module_context(cfg) != "" or cfg or clear_calls[-1] != ("all", []):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            back_result = line_context.back_line_module_context(cfg)
+        if back_result != "" or cfg or clear_calls[-1] != ("all", []) or "target filter cleared" not in out.getvalue():
             print(f"line context back did not clear target context: {cfg} {clear_calls}", file=sys.stderr)
+            return 1
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            back_result = line_context.back_line_module_context({})
+        if back_result != "" or "already at main workspace" not in out.getvalue():
+            print(f"line context back did not explain root no-op: {out.getvalue()}", file=sys.stderr)
+            return 1
+        if line_context.parse_line_context_command("unset", {}).get("action"):
+            print("line context should not treat bare unset as navigation", file=sys.stderr)
             return 1
     finally:
         line_context.set_workbench_target_filter = original_set_filter
@@ -3991,9 +6211,13 @@ def run_line_session_command_registry_check():
     if scripts_dir not in sys.path:
         sys.path.insert(0, scripts_dir)
     from gritlib.line_sessions import (
+        interact_current_line_session,
         line_session_command_records,
         parse_line_sessions_command,
+        select_current_line_session,
     )
+    from gritlib.line_completions import line_completion_candidates
+    from gritlib.line_navigation_commands import dispatch_line_navigation_command
 
     records = line_session_command_records()
     actions = {}
@@ -4034,8 +6258,63 @@ def run_line_session_command_registry_check():
         print(f"session parser did not preserve interact flag: {interact}", file=sys.stderr)
         return 1
     positional = parse_line_sessions_command("session", ["sess-2"])
-    if positional.get("action") != "interact" or positional.get("selector") != "sess-2":
+    if positional.get("action") != "select" or positional.get("selector") != "sess-2":
         print(f"session parser did not preserve positional session selector: {positional}", file=sys.stderr)
+        return 1
+    for call, expected, forbidden in [
+        (
+            lambda: select_current_line_session({}, lambda: {"sessions": []}, ""),
+            "usage:\n  use session SESSION",
+            "usage: use session SESSION",
+        ),
+        (
+            lambda: interact_current_line_session({}, lambda: {"sessions": []}, ""),
+            "usage:\n  interact SESSION",
+            "usage: interact SESSION",
+        ),
+    ]:
+        try:
+            call()
+        except ValueError as exc:
+            text = str(exc)
+            if expected not in text or forbidden in text:
+                print(f"session usage guidance changed: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("session usage guidance accepted an empty selector", file=sys.stderr)
+            return 1
+    sessions_clear_all = line_completion_candidates("sessions clear all")
+    sessions_clear_all_spaced = line_completion_candidates("sessions clear all ")
+    if (
+            "sessions clear all confirm" not in sessions_clear_all
+            or "sessions clear all confirm" not in sessions_clear_all_spaced):
+        print("sessions clear all completion did not include confirm", file=sys.stderr)
+        print(sessions_clear_all, sessions_clear_all_spaced, file=sys.stderr)
+        return 1
+    session_completions = line_completion_candidates(
+        "session ",
+        providers={"session_names": ["sess-2"]},
+    )
+    if "session agent" in session_completions or "session sess-2" not in session_completions:
+        print("session completion mixed target interaction with session selection", file=sys.stderr)
+        print(session_completions, file=sys.stderr)
+        return 1
+    session_nav_calls = []
+    if not dispatch_line_navigation_command(
+        "session",
+        ["sess-2"],
+        select_session_func=lambda selector: session_nav_calls.append(("select", selector)),
+        interact_session_func=lambda selector: session_nav_calls.append(("interact", selector)),
+        print_sessions_func=lambda verbose=False: session_nav_calls.append(("list", verbose)),
+        clear_sessions_func=lambda **_kwargs: None,
+        session_help_func=lambda topic: None,
+        set_sessions_context_func=lambda: None,
+    ):
+        print("session selection command was not handled by navigation", file=sys.stderr)
+        return 1
+    if session_nav_calls != [("select", "sess-2")]:
+        print("session selection dispatched to the wrong callback", file=sys.stderr)
+        print(session_nav_calls, file=sys.stderr)
         return 1
     legacy_edge = parse_line_sessions_command("sessions", ["-i"])
     if legacy_edge.get("action") != "interact" or legacy_edge.get("selector") != "-i":
@@ -4054,6 +6333,10 @@ def run_line_action_command_registry_check():
     from gritlib.line_actions import (
         line_action_command_records,
         parse_line_action_command,
+        run_line_module_or_service,
+        run_line_selected_action,
+        select_line_action,
+        select_line_action_record,
     )
 
     records = {rec.get("action"): [] for rec in line_action_command_records()}
@@ -4094,6 +6377,46 @@ def run_line_action_command_registry_check():
     if parse_line_action_command("unknown", []):
         print("action parser consumed unknown command", file=sys.stderr)
         return 1
+    action_usage_cases = [
+        (lambda: select_line_action_record([], ""), "usage:\n  use module MODULE", "usage: use module MODULE"),
+        (lambda: select_line_action({}, [], ""), "usage:\n  use module MODULE", "usage: use module MODULE"),
+        (lambda: select_line_action_record([], "99"), "module number out of range: 99", "action number out of range"),
+        (lambda: select_line_action_record([], "missing"), "module not found: missing", "action not found"),
+        (lambda: run_line_selected_action({}, None), "no selected module; use module MODULE first", "action module"),
+        (lambda: run_line_selected_action({}, {"kind": "service", "id": "file-service-start"}), "service module runner is unavailable", "service action runner"),
+        (lambda: run_line_selected_action({}, {"kind": "daemon", "id": "operator-daemon-start"}), "daemon module runner is unavailable", "daemon action runner"),
+        (lambda: run_line_selected_action({}, {"kind": "workbench", "id": "status"}), "workbench module runner is unavailable", "workbench action runner"),
+        (lambda: run_line_selected_action({}, {"kind": "target", "id": "queue-probe"}), "target module runner is unavailable", "target action runner"),
+        (lambda: run_line_selected_action({}, {"kind": "bridge", "id": "bridge-inspect"}), "unsupported selected module kind: bridge", "unsupported selected action kind"),
+        (lambda: run_line_module_or_service(["bridge-inspect"], select_action_func=lambda _selector: None), "selected module runner is unavailable", "selected action runner"),
+        (lambda: run_line_module_or_service([], selected_action_func=lambda: {"id": "bridge-inspect"}), "selected module runner is unavailable", "selected action runner"),
+    ]
+    for call, expected, forbidden in action_usage_cases:
+        try:
+            call()
+        except ValueError as exc:
+            text = str(exc)
+            if expected not in text or forbidden in text:
+                print(f"module selection usage was unclear: {exc}", file=sys.stderr)
+                return 1
+        else:
+            print("module selection usage did not reject missing module", file=sys.stderr)
+            return 1
+    selected_action_out = io.StringIO()
+    with contextlib.redirect_stdout(selected_action_out):
+        select_line_action({}, [{
+            "id": "bridge-inspect",
+            "kind": "bridge",
+            "label": "Inspect bridge",
+            "operator_action_state": "ready",
+        }], "bridge-inspect")
+    selected_action_text = selected_action_out.getvalue()
+    if (
+            "options, check, run, run dry-run, back" not in selected_action_text
+            or "options / check / run / run dry-run / back" in selected_action_text):
+        print("selected-module prompt still used slash-separated commands", file=sys.stderr)
+        print(selected_action_text, file=sys.stderr)
+        return 1
     return 0
 
 
@@ -4109,7 +6432,7 @@ def run_line_route_command_registry_check():
     records = {}
     for rec in line_route_command_records():
         records.setdefault(rec.get("action"), []).append(rec)
-    if not any(tuple(rec.get("commands") or ()) == ("route",) and tuple(rec.get("subcommands") or ()) == ("add",) for rec in records.get("add", [])):
+    if not any(tuple(rec.get("commands") or ()) == ("route",) and tuple(rec.get("subcommands") or ()) == ("add", "new") for rec in records.get("add", [])):
         print(f"route command registry lost add command: {records}", file=sys.stderr)
         return 1
     delete_subcommands = set()
@@ -4118,10 +6441,11 @@ def run_line_route_command_registry_check():
     if delete_subcommands != {"delete", "rm", "remove"}:
         print(f"route command registry lost delete aliases: {delete_subcommands}", file=sys.stderr)
         return 1
-    if not any(tuple(rec.get("commands") or ()) == ("routes", "route") and {"-h", "--help"} == set(rec.get("subcommands") or []) for rec in records.get("help", [])):
+    route_list_aliases = ("routes", "route", "bridges", "bridge")
+    if not any(tuple(rec.get("commands") or ()) == route_list_aliases and {"-h", "--help"} == set(rec.get("subcommands") or []) for rec in records.get("help", [])):
         print(f"route command registry lost help aliases: {records}", file=sys.stderr)
         return 1
-    if not any(tuple(rec.get("commands") or ()) == ("routes", "route") and {"-v", "--verbose"} == set(rec.get("subcommands") or []) and rec.get("verbose") for rec in records.get("list", [])):
+    if not any(tuple(rec.get("commands") or ()) == route_list_aliases and {"-v", "--verbose", "verbose", "details"} == set(rec.get("subcommands") or []) and rec.get("verbose") for rec in records.get("list", [])):
         print(f"route command registry lost verbose list aliases: {records}", file=sys.stderr)
         return 1
     if not any(tuple(rec.get("commands") or ()) == ("route",) and rec.get("positional") for rec in records.get("select", [])):
@@ -4133,6 +6457,26 @@ def run_line_route_command_registry_check():
     if add.get("action") != "add" or add.get("args") != add_args:
         print(f"route parser did not preserve add behavior: {add}", file=sys.stderr)
         return 1
+    new_args = ["new", "ssh-home", "2222", "127.0.0.1", "22"]
+    new = parse_line_route_command("route", new_args)
+    if new.get("action") != "add" or new.get("args") != new_args:
+        print(f"route parser did not preserve new alias behavior: {new}", file=sys.stderr)
+        return 1
+    try:
+        __import__("gritlib.bridge_routes", fromlist=["add_line_route"]).add_line_route({}, ["add", "ssh-home"])
+    except ValueError as exc:
+        route_add_usage = str(exc)
+        if (
+                "route add NAME LISTEN_PORT DEST_HOST DEST_PORT" not in route_add_usage
+                or "route add NAME LISTEN_PORT DEST_HOST DEST_PORT FROM=TO" not in route_add_usage
+                or "   or:" in route_add_usage
+                or "route new NAME LISTEN_PORT DEST_HOST DEST_PORT" in route_add_usage):
+            print("route add usage still advertised route new alias", file=sys.stderr)
+            print(route_add_usage, file=sys.stderr)
+            return 1
+    else:
+        print("route add without enough arguments did not fail", file=sys.stderr)
+        return 1
     for subcmd in ("start", "stop", "delete", "rm", "remove"):
         parsed = parse_line_route_command("route", [subcmd, "ssh-home"])
         expected_action = "delete" if subcmd in {"rm", "remove"} else subcmd
@@ -4142,9 +6486,27 @@ def run_line_route_command_registry_check():
     if parse_line_route_command("routes", ["--help"]).get("action") != "help":
         print("route parser did not preserve routes --help alias", file=sys.stderr)
         return 1
+    if parse_line_route_command("bridges", []).get("action") != "list":
+        print("route parser did not preserve bridges list alias", file=sys.stderr)
+        return 1
+    if parse_line_route_command("bridges", ["--help"]).get("action") != "help":
+        print("route parser did not preserve bridges --help alias", file=sys.stderr)
+        return 1
+    bridges_verbose = parse_line_route_command("bridges", ["-v"])
+    if bridges_verbose.get("action") != "list" or bridges_verbose.get("verbose") is not True:
+        print(f"route parser did not preserve bridges verbose alias: {bridges_verbose}", file=sys.stderr)
+        return 1
+    bridges_word_verbose = parse_line_route_command("bridges", ["verbose"])
+    if bridges_word_verbose.get("action") != "list" or bridges_word_verbose.get("verbose") is not True:
+        print(f"route parser did not preserve bridges word verbose alias: {bridges_word_verbose}", file=sys.stderr)
+        return 1
     verbose = parse_line_route_command("route", ["--verbose"])
     if verbose.get("action") != "list" or verbose.get("verbose") is not True:
         print(f"route parser did not preserve verbose list: {verbose}", file=sys.stderr)
+        return 1
+    word_verbose = parse_line_route_command("route", ["details"])
+    if word_verbose.get("action") != "list" or word_verbose.get("verbose") is not True:
+        print(f"route parser did not preserve word verbose list: {word_verbose}", file=sys.stderr)
         return 1
     printed = parse_line_route_command("route", ["print"])
     if printed.get("action") != "list" or printed.get("verbose") is not False:
@@ -4231,6 +6593,7 @@ def run_line_selection_result_check():
     from gritlib.line_search import (
         dispatch_line_number_selection,
         line_number_selection_result,
+        print_line_search_results,
         use_line_search_result,
     )
 
@@ -4275,6 +6638,53 @@ def run_line_selection_result_check():
     if calls != [("use", "1"), "clear"]:
         print(f"line selection dispatch did not preserve use/clear order: {calls}", file=sys.stderr)
         return 1
+    module_search_out = io.StringIO()
+    with contextlib.redirect_stdout(module_search_out):
+        records = print_line_search_results(
+            "bridge",
+            action_records=[{
+                "kind": "workbench",
+                "id": "bridge:inspect-status",
+                "label": "Inspect bridge status",
+                "workflow": "bridge",
+            }],
+        )
+    module_search_text = module_search_out.getvalue()
+    if (
+            "command: use module bridge:inspect-status" not in module_search_text
+            or "module workbench:bridge:inspect-status  state -" not in module_search_text
+            or "action workbench:bridge:inspect-status" in module_search_text
+            or "use action" in module_search_text
+            or records[0].get("use_hint") != "use module bridge:inspect-status"):
+        print("line search module result did not advertise use module", file=sys.stderr)
+        print(module_search_text, file=sys.stderr)
+        return 1
+    listener_search_out = io.StringIO()
+    with contextlib.redirect_stdout(listener_search_out):
+        listener_records = print_line_search_results(
+            "file-service",
+            service_records=[{"name": "file-service", "actual": "stopped", "port": 22231}],
+        )
+    listener_search_text = listener_search_out.getvalue()
+    if (
+            "listener file-service  status stopped  port 22231" not in listener_search_text
+            or "command: use listener file-service" not in listener_search_text
+            or "service file-service" in listener_search_text
+            or "command: use service" in listener_search_text
+            or listener_records[0].get("kind") != "service"):
+        print("line search listener result did not advertise listener wording", file=sys.stderr)
+        print(listener_search_text, file=sys.stderr)
+        return 1
+    try:
+        print_line_search_results("")
+    except ValueError as exc:
+        search_usage = str(exc)
+        if "usage:\n  search TERM" not in search_usage or "usage: search TERM" in search_usage:
+            print(f"line search empty query usage changed: {exc}", file=sys.stderr)
+            return 1
+    else:
+        print("line search accepted empty query", file=sys.stderr)
+        return 1
     try:
         use_line_search_result(
             "x",
@@ -4288,7 +6698,8 @@ def run_line_selection_result_check():
             probe_result_config=lambda args: args,
         )
     except ValueError as exc:
-        if str(exc) != "usage: use N":
+        search_use_usage = str(exc)
+        if "usage:\n  use N" not in search_use_usage or "usage: use N" in search_use_usage:
             print(f"line selection use error changed: {exc}", file=sys.stderr)
             return 1
     else:
@@ -7483,9 +9894,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     workspace_empty_text = workspace_empty_buf.getvalue()
     if (
         "No active workspace items yet." not in workspace_empty_text or
-        "listener probe start serve the shell probe and print target commands" not in workspace_empty_text or
-        "listeners            see services you can start" not in workspace_empty_text or
-        "stage start FILE  stage a file for target delivery" not in workspace_empty_text
+        "listener probe start  serve the shell probe and print target commands" not in workspace_empty_text or
+        "listeners             see listeners you can start" not in workspace_empty_text or
+        "stage start FILE      stage a file for target delivery" not in workspace_empty_text or
+        "help workflow         see the probe-to-payload flow" not in workspace_empty_text or
+        "Commands:\n  search TERM\n  targets\n  sessions\n  files\n  listeners\n  routes\n  ?" not in workspace_empty_text or
+        "search TERM  |  targets" in workspace_empty_text
     ):
         print("line-oriented workspace empty state did not expose getting-started guidance", file=sys.stderr)
         print(workspace_empty_text, file=sys.stderr)
@@ -7513,7 +9927,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "sessions (1)" not in banner_hint_text or
         "routes (1)" not in banner_hint_text or
         "listeners" not in banner_hint_text or
-        "workspace" not in banner_hint_text
+        "workspace" not in banner_hint_text or
+        "  |  " in banner_hint_text
     ):
         print("line-oriented banner hint did not expose useful counts", file=sys.stderr)
         print(banner_hint_text, file=sys.stderr)
@@ -7531,7 +9946,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "queue COMMAND" not in selected_banner_hint_text or
         "probe queue" not in selected_banner_hint_text or
         "retrieve queue PATH" not in selected_banner_hint_text or
-        "clear target" not in selected_banner_hint_text
+        "clear target" not in selected_banner_hint_text or
+        "  |  " in selected_banner_hint_text
     ):
         print("line-oriented selected-target banner hint did not expose target actions", file=sys.stderr)
         print(selected_banner_hint_text, file=sys.stderr)
@@ -7676,7 +10092,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         time.sleep(0.3)
         os.write(
             numeric_master,
-            b"listener probe-http\n?\noptions\nback\nlisteners\nuse 1\nback\nlisteners\nstart 99\nstart 1\nlistener 1\noptions\nback\nstop 1\nlistener 1\noptions\nback\nq\nq\n",
+            b"probe options\nback\nlistener probe-http\n?\noptions\nback\nlisteners\nuse 1\nback\nlisteners\nstart 99\nstart 1\nlistener 1\noptions\nback\nstop 1\nlistener 1\noptions\nback\nq\nq\n",
         )
         numeric_chunks = []
         deadline = time.time() + 8
@@ -7713,6 +10129,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     )
     if "grit[all]/service/probe>" in numeric_stdout:
         print("line console listener selection still used service/probe prompt", file=sys.stderr)
+        print(numeric_stdout, file=sys.stderr)
+        return 1
+    if "grit[all]/probe>" in numeric_stdout:
+        print("line console top-level probe options still used standalone probe prompt", file=sys.stderr)
         print(numeric_stdout, file=sys.stderr)
         return 1
     if (not numeric_listener_help_text or
@@ -7758,6 +10178,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "numbered result not found: 99" in numeric_stdout or
             "grit[all]/listener> use 1" not in numeric_stdout or
             "grit[all]/listener/probe> back" not in numeric_stdout or
+            "returned to listener context" not in numeric_stdout or
             "service or route not found: 1" in numeric_stdout):
         print("line console numbered listener start/stop UX failed", file=sys.stderr)
         print(numeric_stdout, file=sys.stderr)
@@ -7789,10 +10210,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "\n"
                 "help\n"
                 "?\n"
+                "console\n"
+                "help show\n"
                 "help search\n"
                 "help resource\n"
                 "help makerc\n"
                 "help aliases\n"
+                "help workflow\n"
                 "help use\n"
                 "help sessions\n"
                 "help modules\n"
@@ -7815,15 +10239,18 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "help queue\n"
                 "help build\n"
                 "route add\n"
+                "show\n"
                 "complete\n"
                 "complete use ag\n"
-                "complete agent Con\n"
+                "complete target Con\n"
                 "complete route a\n"
                 "complete route d\n"
                 "complete route st\n"
                 "complete start route c\n"
                 "complete use job\n"
                 "complete show m\n"
+                "complete show modules\n"
+                "complete show modules daemon\n"
                 "complete use module operator-daemon\n"
                 "complete copy\n"
                 "complete view\n"
@@ -7837,7 +10264,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 f"makerc {line_console_makerc}\n"
                 "repeat 1\n"
                 "search name=file-service\n"
-                "show agents\n"
+                "show targets\n"
                 "use 1\n"
                 "clear target\n"
                 "show listeners\n"
@@ -7847,14 +10274,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "999\n"
                 f"route add zz-console-added {line_console_added_route_port} 127.0.0.1 {line_console_added_route_dest_port} operator:{line_console_added_route_port}=rack-hop:9100 rack-hop:9100=127.0.0.1:{line_console_added_route_dest_port}\n"
                 "show routes\n"
-                "show routes -v\n"
+                "next\n"
+                "show routes verbose\n"
                 "route start 9\n"
                 "route start 1\n"
                 "route start 2\n"
                 "route stop 1\n"
                 "route stop 2\n"
-                "routes -v\n"
+                "routes verbose\n"
                 "route delete 2\n"
+                "route delete 2 confirm\n"
                 "use 1\n"
                 "back\n"
                 "route print\n"
@@ -7875,7 +10304,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "show workbench modules\n"
                 "show modules daemon\n"
                 "modules file-service\n"
-                "show service modules -v\n"
+                "show modules verbose service\n"
                 "use module 99\n"
                 "use module 1\n"
                 "?\n"
@@ -7887,7 +10316,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "commands\n"
                 "copy 1\n"
                 "build\n"
-                "build -v\n"
+                "next\n"
+                "build verbose\n"
                 "build set 99 /tmp/nope\n"
                 "build set 9 /tmp/grit-build\n"
                 "build unset 9\n"
@@ -7896,18 +10326,20 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "unsetg GRIT_RUNTIME_ROOT\n"
                 "show options\n"
                 "listeners\n"
-                "listeners -v\n"
+                "listeners verbose\n"
                 "listener file-service\n"
                 "options\n"
-                "set 1 22231\n"
+        "set 2 22231\n"
                 "back\n"
                 "set GRIT_OPERATOR_FILE_SERVICE_TLS no\n"
-                "agents\n"
+                "targets\n"
                 "routes\n"
                 "daemon\n"
                 "daemon verbose\n"
-                "jobs -k missing-job\n"
+                "jobs cancel missing-job\n"
+                "jobs cancel missing-job\n"
                 "jobs\n"
+                "next\n"
                 "jobs verbose\n"
                 "jobs info 99\n"
                 "jobs info 1\n"
@@ -7922,15 +10354,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "background\n"
                 "daemon status dry-run\n"
                 "show modules\n"
+                "next\n"
                 "check operator-daemon-status\n"
                 "run operator-daemon-status dry-run\n"
                 "back\n"
-                "usemodule operator-daemon-status\n"
-                "execute dry-run\n"
+                "use module operator-daemon-status\n"
+                "run dry-run\n"
                 "back\n"
-                "uselistener file-service\n"
+                "use listener file-service\n"
                 "back\n"
-                "useroute console-route\n"
+                "use route console-route\n"
                 "back\n"
                 "use module operator-daemon-status\n"
                 "info\n"
@@ -7943,10 +10376,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "info\n"
                 "next\n"
                 "back\n"
-                "services\n"
+                "listeners\n"
                 "sessions\n"
-                "sessions -l\n"
-                "sessions -v\n"
+                "next\n"
+                "sessions list\n"
+                "sessions verbose\n"
                 "sessions interact 99\n"
                 "sessions interact 1\n"
                 "interact 1\n"
@@ -7958,22 +10392,22 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "next\n"
                 "interact\n"
                 "back\n"
-                "usesession 1\n"
+                "use session 1\n"
                 "background\n"
                 "targets\n"
-                "useagent Console Router\n"
+                "use target Console Router\n"
                 "interact\n"
                 "clear target\n"
-                "agent Console Router\n"
+                "target Console Router\n"
                 "interact\n"
                 "clear target\n"
-                "use agent Console Router\n"
+                "use target Console Router\n"
                 "next\n"
                 "b\n"
                 "b\n"
-                "use agent Console Router\n"
+                "use target Console Router\n"
                 "main\n"
-                "use agent Console Router\n"
+                "use target Console Router\n"
                 "info\n"
                 "?\n"
                 "rename Console Router\n"
@@ -7985,7 +10419,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "?\n"
                 "mailbox targets\n"
                 "queue\n"
-                "show queue -v\n"
+                "show queue verbose\n"
                 "use 99\n"
                 "use 1\n"
                 "show options\n"
@@ -7993,12 +10427,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "set target.alias console-alias\n"
                 "show options\n"
                 "unset target.notes\n"
-                "show activity\n"
+                "show events\n"
                 "queue grit survey --json\n"
                 "queue result 1\n"
                 "queue list\n"
-                "events -n 3\n"
-                "events service=workbench -n 2\n"
+                "events n 3\n"
+                "events service=workbench n 2\n"
                 "listener probe\n"
                 "options\n"
                 "#how do I change my IP so the GL.iNet can connect to the probe?\n"
@@ -8013,29 +10447,36 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 "queue\n"
                 "retrieve queue /etc/config/network\n"
                 "show mailbox\n"
-                "show mailbox -v\n"
-                f"stage start {line_console_upload} console-upload\n"
+                "show mailbox verbose\n"
+                f"stage {line_console_upload} console-upload\n"
                 "deliver queue console-upload\n"
                 "stop file-service\n"
-                "downloads\n"
+                "files\n"
                 f"serve-binary start {line_console_binary} grit-console\n"
                 "stamp grit-console operator-host 192.0.2.44 transport builtin zero-arg-mode rshell command-queue-enable yes command-queue-poll-interval 60\n"
                 "artifact show grit-console\n"
+                "next\n"
+                "files\n"
+                "next\n"
+                "release\n"
+                "?\n"
+                "next\n"
                 "files\n"
                 "stop file-service\n"
-                "show stagers\n"
-                "stagers\n"
+                "show files\n"
+                "files\n"
                 "files\n"
                 "unstage console-upload\n"
-                "rmfile missing-upload\n"
-                "stagers\n"
+                "unstage missing-upload\n"
+                "files\n"
                 "?\n"
                 "back\n"
                 "show mailbox\n"
+                "queue clear\n"
                 "queue clear confirm\n"
                 "queue list\n"
                 "clear target\n"
-                "use agent Console Router\n"
+                "use target Console Router\n"
                 "q\n"
                 "q\n"
                 "q\n"
@@ -8194,8 +10635,6 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     required_primary_commands = (
         "<blank>",
         "?",
-        "agent",
-        "agents",
         "alias",
         "back",
         "background",
@@ -8209,9 +10648,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "copy",
         "daemon",
         "deliver",
-        "downloads",
         "events",
-        "execute",
         "files",
         "help",
         "history",
@@ -8236,12 +10673,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "run",
         "search",
         "serve-binary",
-        "services",
         "sessions",
         "set",
         "setg",
         "show",
-        "stagers",
         "status",
         "stop",
         "targets",
@@ -8252,11 +10687,6 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "stage",
         "stamp",
         "use",
-        "useagent",
-        "uselistener",
-        "usemodule",
-        "useroute",
-        "usesession",
         "view",
     )
     missing_primary_commands = [
@@ -8285,7 +10715,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "sessions interact 1",
         "queue grit survey --json",
         "queue",
-        "stage start",
+        "stage ",
         "serve-binary start",
         "stamp grit-console",
         "artifact show grit-console",
@@ -8312,7 +10742,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "grit[all]/session/",
         "Session: 20260101T000000-file-service",
         "service: file-service",
-        "commands: info, options, interact, sessions -v, background",
+        "selected-session commands: info, options, interact, back",
+        "global forms: sessions list, sessions verbose, sessions interact ID, view PATH",
     ]
     line_console_missing_markers = [
         marker for marker in line_console_session_markers
@@ -8321,39 +10752,77 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     line_console_required_markers = [
         "Console commands",
         "Usage:",
-        "  help <topic>    show detailed help",
-        "  <topic> ?       show detailed help",
+        "  help TOPIC      show detailed help",
+        "  TOPIC ?         show detailed help",
         "Workspace",
         "Target Work",
         "Control Plane",
-        "modules    runnable operator workflows, dry-run/run, background jobs",
+        "workflow   first-run probe-to-payload path",
+        "modules    runnable operator workflows, dry-run, run, background jobs",
         "Console",
-        "Aliases: agents=targets  services=listeners  bridges=routes  mailbox=queue",
+        "Compatibility: help aliases",
+        "Help: aliases — legacy compatibility names and preferred REPL forms",
+        "Interactive help and completions prefer canonical forms",
+        "Help: show — resource lists and current context",
+        "Bare `show` prints usage; choose a resource so the result is predictable.",
+        "Help: search — find and select console resources",
+        "Search results are temporary. Run a list command or another search to replace the numbered result set.",
         "next: ? help",
         "targets (",
         "use N",
         "search TERM",
         "Help: files",
+        "Legacy file aliases remain accepted for scripts; prefer `stage`, `deliver`, and `retrieve` in the REPL.",
+        "Help: release",
         "Help: queue",
+        "queue COMMAND                   global form: queue a shell command; selected target scopes delivery",
+        "Without a selected target, `queue COMMAND` creates an unscoped record for any polling target.",
         "Help: events",
+        "events request_name=grit",
+        "Filters can be combined, for example `events service=workbench status=ready n 10`.",
+        "Help: workflow",
         "Help: modules",
-        "grit[all]/action/bridge:inspect-status> ?",
+        "grit[all]/module/bridge:inspect-status> ?",
         "Help: modules — runnable operator workflows",
+        "modules list context",
+        "selected modules: use N, then options, check, run, run confirm, background",
         "grit[Console Router]> ?",
-        "Help: targets — target agents, mailbox, and activity",
+        "Help: targets — target list, mailbox, and activity",
         "grit[Console Router]/listener/probe> ?",
-        "Help: listeners — reverse-access listener services",
+        "Help: listeners — reverse-access listeners",
         "grit[Console Router]/files> ?",
         "Help: files — staging and serving files to targets",
+        "files context",
+        "artifact/release: artifact, artifact info NAME, release, release stage SELECTOR",
+        "artifact context",
+        "commands: artifact, artifact info NAME, artifact info N, artifact info PATH, artifact show NAME, artifact stamp NAME KEY=VALUE",
+        "release context",
+        "commands: release, release stage SELECTOR, release stage start SELECTOR, release stage ssh start",
         "Route model: the target connects to LPORT on the operator; the operator bridge forwards to DEST_HOST:DEST_PORT.",
         "DEST_HOST:DEST_PORT is the endpoint visible from the operator/server running grit-console.",
         "Use hops to document the path the target uses to reach the operator listener; hops do not change the TCP relay destination.",
-        "route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]",
+        "route add NAME LISTEN_PORT DEST_HOST DEST_PORT FROM=TO",
+        "routes list context",
+        "multi-hop: route add NAME LPORT DEST_HOST DEST_PORT FROM=TO",
         "Direct target-to-operator SSH: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222",
         "Meaning: target connects to operator:2222; operator forwards that connection to 127.0.0.1:22.",
         "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
         "Meaning: target reaches jump:9001, jump reaches operator:8080; operator forwards to 192.168.1.1:80.",
-        "Completions for <root>:",
+        "usage:",
+        "show targets",
+        "show listeners",
+        "show queue",
+        "show modules FILTER",
+        "show service modules",
+        "show workbench modules",
+        "show context",
+        "Completions for root:",
+        "Completions for show modules:",
+        "show modules FILTER",
+        "Completions for show modules daemon:",
+        "show daemon modules daemon:operator-daemon-status",
+        "events request_name=",
+        "events module_id=",
         "numbered result not found: 999; run a list command first, then use N",
         "resource ",
         "Workspace",
@@ -8368,6 +10837,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "Current listeners: probe-http, probe-tftp, probe-ftp, probe-dns",
         "DNS note: nslookup usually needs DNS exposed on port 53; dig can use custom ports.",
         "paste: listener probe paste",
+        "jobs list context",
+        "background modules: modules, use module NAME, use module N, run job",
+        "jobs cancel ID",
+        "sessions list context",
+        "cleanup: sessions clear, sessions clear confirm, sessions clear all confirm",
         "Serial/manual paste:",
         "sh <<'GRIT_PROBE_SCRIPT'",
         "bb_payload=\"schema=1&script=probe.sh",
@@ -8377,24 +10851,31 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "bb_probe_b64=$(cat <<'GRIT_PROBE_B64'",
         "base64 decoder not found",
         "After it runs, use: listener probe results",
-        "daemon verbose for commands",
+        "listener probe options",
+        "daemon MODULE",
+        "daemon MODULE, daemon MODULE dry-run, daemon verbose, daemon ?",
         "dry-run: scripts/grit-console --config",
         "saved route: zz-console-added",
         "started route zz-console-added",
         "stopped route zz-console-added",
+        "Route would be deleted: zz-console-added",
+        "run: route delete zz-console-added confirm",
         "deleted route zz-console-added",
         "selected route console-route",
         "configured: ",
         "command-queue  (13 fields)",
+        "build context",
+        "commands: build, build verbose, build set KEY VALUE, build set ROW VALUE, build unset KEY, build unset ROW",
         "build option set: GRIT_RUNTIME_ROOT",
         "global build option set: GRIT_RUNTIME_ROOT",
         "set GRIT_OPERATOR_FILE_SERVICE_PORT=\"22231\"",
         "set GRIT_OPERATOR_FILE_SERVICE_TLS=\"no\"",
         "operator daemon workflow action: operator-daemon-status",
         "Session interaction:",
-        "Agent interaction: Console Router (line-console-target)",
+        "Target interaction: Console Router (line-console-target)",
         "  state: online",
-        "selected agent: line-console-target (Console Router)  state online  mailbox 0 pending",
+        "binaries: listener serve start, listener serve ssh start, serve-binary start PATH NAME",
+        "selected target: line-console-target (Console Router)  state online  mailbox 0 pending",
         "target renamed: line-console-target",
         "target note updated: line-console-target",
         "target alias updated: line-console-target",
@@ -8414,11 +10895,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "target path: /etc/config/network",
         "File staged for target delivery:",
         "next: deliver console-upload",
-        "deliver shows target-side commands; deliver queue queues it for the selected agent",
+        "deliver shows target-side commands; deliver queue queues it for the selected target",
         "Staged delivery command:",
         "griTTYkit binary staged for target delivery:",
-        "Artifact trailer stamped:",
-        "Artifact trailer show:",
+        "Artifact stamp applied:",
+        "Artifact stamp show:",
         "keys: GRIT_OPERATOR_SERVER_HOST, GRIT_RSHELL_TRANSPORT, GRIT_ZERO_ARG_MODE, GRIT_COMMAND_QUEUE_ENABLE, GRIT_COMMAND_QUEUE_POLL_INTERVAL_SEC",
         "target command: grit fetch grit-console",
         "run hint: chmod +x ./grit-console && ./grit-console --help",
@@ -8433,6 +10914,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         marker for marker in line_console_required_markers
         if marker not in line_console_stdout
     ]
+    if ("aliases: route new NAME LPORT DEST_HOST DEST_PORT" in line_console_stdout):
+        print("line-oriented routes next guidance still advertised route new alias", file=sys.stderr)
+        print(line_console_stdout, file=sys.stderr)
+        return 1
     if ("Traceback" in (line_console_stderr or "") or line_console_missing_required):
         print("line-oriented console commands did not expose expected UX", file=sys.stderr)
         print(f"missing line console markers: {line_console_missing_required}", file=sys.stderr)
@@ -8447,26 +10932,68 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             not re.search(r"(?m)^Workspace\r?$", main_help_text) or
             not re.search(r"(?m)^Target Work\r?$", main_help_text) or
             not re.search(r"(?m)^Control Plane\r?$", main_help_text) or
+            "Compatibility: help aliases" not in main_help_text or
+            "Aliases: agents=targets" in main_help_text or
             "Console help topics:" in main_help_text or
             "Topics:" in main_help_text):
         print("line-oriented top-level help did not use grouped operator command sections", file=sys.stderr)
         print(main_help_text or line_console_stdout, file=sys.stderr)
         return 1
-    help_modules_start = line_console_stdout.find("grit[all]> help modules")
-    help_modules_end = line_console_stdout.find("grit[all]> help routes", help_modules_start + 1)
+    workspace_start = line_console_stdout.find("grit[all]/console> workspace")
+    workspace_end = line_console_stdout.find("grit[all]> next", workspace_start + 1)
+    workspace_text = line_console_stdout[workspace_start:workspace_end] if workspace_start != -1 and workspace_end != -1 else ""
+    if (
+            not workspace_text
+            or "Targets  (1 total)" not in workspace_text
+            or "Agents  (1 total)" in workspace_text):
+        print("line-oriented workspace overview did not use target wording", file=sys.stderr)
+        print(workspace_text or line_console_stdout, file=sys.stderr)
+        return 1
+    target_completion_start = line_console_stdout.find("grit[all]/console> complete target Con")
+    target_completion_end = line_console_stdout.find("grit[all]/console> complete route a", target_completion_start + 1)
+    target_completion_text = (
+        line_console_stdout[target_completion_start:target_completion_end]
+        if target_completion_start != -1 and target_completion_end != -1 else ""
+    )
+    if (
+            not target_completion_text
+            or "Completions for target Con:" not in target_completion_text
+            or "target Console Router" not in target_completion_text
+            or "complete agent Con" in line_console_stdout
+            or "agent Console Router" in line_console_stdout):
+        print("line-oriented target completion still used agent alias wording", file=sys.stderr)
+        print(target_completion_text or line_console_stdout, file=sys.stderr)
+        return 1
+    console_help_start = line_console_stdout.find("grit[all]> console")
+    console_help_end = line_console_stdout.find("grit[all]/console> help show", console_help_start + 1)
+    console_help_text = (
+        line_console_stdout[console_help_start:console_help_end]
+        if console_help_start != -1 and console_help_end != -1 else ""
+    )
+    if (
+            not console_help_text
+            or "Help: console" not in console_help_text
+            or "console — navigation, scripting, and aliases" not in console_help_text
+            or "unknown command: console" in console_help_text):
+        print("bare console command did not render console help context", file=sys.stderr)
+        print(console_help_text or line_console_stdout, file=sys.stderr)
+        return 1
+    help_modules_start = line_console_stdout.find("grit[all]/console> help modules")
+    help_modules_end = line_console_stdout.find("grit[all]/console> help routes", help_modules_start + 1)
     help_modules_text = line_console_stdout[help_modules_start:help_modules_end] if help_modules_start != -1 and help_modules_end != -1 else ""
-    help_routes_start = line_console_stdout.find("grit[all]> help routes")
-    help_routes_end = line_console_stdout.find("grit[all]> help daemon", help_routes_start + 1)
+    help_routes_start = line_console_stdout.find("grit[all]/console> help routes")
+    help_routes_end = line_console_stdout.find("grit[all]/console> help daemon", help_routes_start + 1)
     help_routes_text = line_console_stdout[help_routes_start:help_routes_end] if help_routes_start != -1 and help_routes_end != -1 else ""
-    help_events_start = line_console_stdout.find("grit[all]> help events")
-    help_events_end = line_console_stdout.find("grit[all]> help view", help_events_start + 1)
+    help_events_start = line_console_stdout.find("grit[all]/console> help events")
+    help_events_end = line_console_stdout.find("grit[all]/console> help view", help_events_start + 1)
     help_events_text = line_console_stdout[help_events_start:help_events_end] if help_events_start != -1 and help_events_end != -1 else ""
     if (not help_modules_text or
             "Help: modules" not in help_modules_text or
-            "modules -v" not in help_modules_text or
+            "modules verbose" not in help_modules_text or
+            "generated headless" in help_modules_text.lower() or
             not help_routes_text or
             "Help: routes" not in help_routes_text or
-            "routes -v" not in help_routes_text or
+            "routes verbose" not in help_routes_text or
             "show selected route context and headless commands" in help_routes_text):
         print("line-oriented help text is stale for verbose command/detail views", file=sys.stderr)
         print("help modules:", file=sys.stderr)
@@ -8490,6 +11017,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "Help: listeners" not in probe_context_help_text or
             "listener probe start" not in probe_context_help_text or
             "listener probe results" not in probe_context_help_text or
+            "listener probe options" not in probe_context_help_text or
             "Console help topics:" in probe_context_help_text):
         print("line-oriented bare ? did not use probe breadcrumb context", file=sys.stderr)
         print(probe_context_help_text or line_console_stdout, file=sys.stderr)
@@ -8504,6 +11032,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             not probe_options_text or
             "probe-http" not in probe_options_text or
             "GRIT_OPERATOR_SERVER_HOST" not in probe_options_text or
+            "Relevant settings" not in probe_options_text or
+            "set KEY VALUE" not in probe_options_text or
+            "set N VALUE" not in probe_options_text or
+            "Relevant settings  (set KEY VALUE or set N VALUE" in probe_options_text or
             "Action: none" in probe_options_text or
             "Build options:" in probe_options_text):
         print("line-oriented probe options did not show probe listener settings", file=sys.stderr)
@@ -8536,7 +11068,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         if probe_unknown_start != -1 and probe_unknown_end != -1 else ""
     )
     if (not probe_unknown_text or
-            "unknown command: wat; type ? for listeners help" not in probe_unknown_text or
+            "unknown command: wat; run ? to show listeners help" not in probe_unknown_text or
+            "type ? for listeners help" in probe_unknown_text or
             "type help" in probe_unknown_text):
         print("line-oriented unknown command did not point at contextual help", file=sys.stderr)
         print(probe_unknown_text or line_console_stdout, file=sys.stderr)
@@ -8565,8 +11098,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         line_console_stdout[target_info_start:target_info_end]
         if target_info_start != -1 and target_info_end != -1 else ""
     )
+    target_next_start = line_console_stdout.find("grit[Console Router]> next")
+    target_next_end = line_console_stdout.find("grit[Console Router]> b", target_next_start + 1)
+    target_next_text = (
+        line_console_stdout[target_next_start:target_next_end]
+        if target_next_start != -1 and target_next_end != -1 else ""
+    )
     if (not target_info_text or
-            "selected agent: line-console-target (Console Router)  state online  mailbox 0 pending" not in target_info_text or
+            "selected target: line-console-target (Console Router)  state online  mailbox 0 pending" not in target_info_text or
             "  target: line-console-target" in target_info_text or
             "mailbox_pending=" in target_info_text or
             "target_cmds=" in target_info_text or
@@ -8574,8 +11113,18 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented target info did not use concise target summary", file=sys.stderr)
         print(target_info_text or line_console_stdout, file=sys.stderr)
         return 1
+    if (
+            not target_next_text
+            or "selected-target commands: interact, queue COMMAND, mailbox, show events, rename, note, alias" not in target_next_text
+            or "show activity" in target_next_text):
+        print("line-oriented target next guidance did not use canonical events wording", file=sys.stderr)
+        print(target_next_text or line_console_stdout, file=sys.stderr)
+        return 1
     if (not target_context_help_text or
             "Help: targets" not in target_context_help_text or
+            "show events" not in target_context_help_text or
+            "selected-target command: show the target activity feed" not in target_context_help_text or
+            "show activity" in target_context_help_text or
             "Console help topics:" in target_context_help_text):
         print("line-oriented bare ? did not use selected target context", file=sys.stderr)
         print(target_context_help_text or line_console_stdout, file=sys.stderr)
@@ -8588,6 +11137,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     )
     if (not files_context_help_text or
             "Help: files" not in files_context_help_text or
+            "files, staged, stagers, loot" in files_context_help_text or
+            "downloads" in files_context_help_text or
             "Console help topics:" in files_context_help_text):
         print("line-oriented bare ? did not use files breadcrumb context", file=sys.stderr)
         print(files_context_help_text or line_console_stdout, file=sys.stderr)
@@ -8604,11 +11155,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(probe_queue_text or line_console_stdout, file=sys.stderr)
         return 1
     main_start = line_console_stdout.find("grit[Console Router]> main")
-    main_end = line_console_stdout.find("grit[all]> use agent Console Router", main_start + 1)
+    main_end = line_console_stdout.find("grit[all]> use target Console Router", main_start + 1)
     main_text = line_console_stdout[main_start:main_end] if main_start != -1 and main_end != -1 else ""
     if (not main_text or
             "returned to main workspace" not in main_text or
-            "  next: workspace, agents, listeners, routes, sessions, show categories" not in main_text or
+            "  next: workspace, targets, listeners, routes, sessions, show categories" not in main_text or
             "  cleared module:" in main_text or
             "  cleared target:" in main_text or
             "cleared_module=" in main_text or
@@ -8616,15 +11167,18 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented main command did not use concise reset labels", file=sys.stderr)
         print(main_text or line_console_stdout, file=sys.stderr)
         return 1
-    target_back_start = line_console_stdout.find("grit[Console Router]/targets> b")
-    target_back_end = line_console_stdout.find("grit[all]> use agent Console Router", target_back_start + 1)
+    target_back_start = line_console_stdout.find("grit[Console Router]> b")
+    target_back_end = line_console_stdout.find("grit[all]> use target Console Router", target_back_start + 1)
     target_back_text = line_console_stdout[target_back_start:target_back_end] if target_back_start != -1 and target_back_end != -1 else ""
     if (not target_back_text or
-            "grit[Console Router]> b" not in target_back_text):
-        print("line-oriented b command did not step through module and target breadcrumbs", file=sys.stderr)
+            "target filter cleared" not in target_back_text or
+            "grit[all]> b" not in target_back_text or
+            "already at main workspace" not in target_back_text or
+            "grit[Console Router]/targets>" in target_back_text):
+        print("line-oriented b command did not leave selected target context cleanly", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
-    context_quit_start = line_console_stdout.find("grit[Console Router]/queue> q")
+    context_quit_start = line_console_stdout.rfind("grit[Console Router]> q")
     context_quit_end = line_console_stdout.find("grit[all]> q", context_quit_start + 1)
     context_quit_text = (
         line_console_stdout[context_quit_start:context_quit_end]
@@ -8633,7 +11187,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     if (not context_quit_text or
             "returned to main workspace" in context_quit_text or
             "module context cleared" in context_quit_text or
-            "grit[Console Router]> q" in context_quit_text):
+            "target filter cleared" in context_quit_text or
+            "grit[Console Router]/queue> q" in context_quit_text):
         print("line-oriented q command did not return quietly to root from selected context", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
@@ -8721,8 +11276,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented service lifecycle output exposed raw process details", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
         return 1
-    if ("command_id=" in line_console_stdout or
-            "matching_count=" in line_console_stdout or
+    if ("matching_count=" in line_console_stdout or
             "filters: limit=" in line_console_stdout or
             "Raw JSONL:" in line_console_stdout):
         print("line-oriented events output exposed raw summary fields", file=sys.stderr)
@@ -8744,11 +11298,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     target_interactions = []
     target_search_pos = 0
     while True:
-        target_interaction_start = line_console_stdout.find("grit[Console Router]/targets> interact", target_search_pos)
+        target_interaction_start = line_console_stdout.find("grit[Console Router]> interact", target_search_pos)
         if target_interaction_start == -1:
             break
         target_interaction_end = line_console_stdout.find(
-            "grit[Console Router]/targets> clear target",
+            "grit[Console Router]> clear target",
             target_interaction_start + 1,
         )
         target_interactions.append(
@@ -8757,12 +11311,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         )
         target_search_pos = target_interaction_start + 1
     if (len(target_interactions) < 2 or
-            any(not text or "Agent interaction: Console Router (line-console-target)" not in text
+            any(not text or "Target interaction: Console Router (line-console-target)" not in text
                 for text in target_interactions[:2]) or
             any("  state: online" not in text for text in target_interactions[:2]) or
             any("label=Console Router" in text or "state=online" in text
                 for text in target_interactions[:2]) or
-            any("selected agent: line-console-target (Console Router)  state online  mailbox 0 pending" not in text
+            any("selected target: line-console-target (Console Router)  state online  mailbox 0 pending" not in text
+                for text in target_interactions[:2]) or
+            any("binaries: listener serve start, listener serve ssh start, serve-binary start PATH NAME" not in text
+                for text in target_interactions[:2]) or
+            any("binaries: serve-binary start PATH NAME, sessions" in text
                 for text in target_interactions[:2]) or
             any("  status: line-console-target" in text
                 for text in target_interactions[:2]) or
@@ -8776,42 +11334,61 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     service_modules_start = line_console_stdout.find("grit[all]/categories> show service modules")
     service_modules_end = line_console_stdout.find("grit[all]> show daemon modules", service_modules_start + 1)
     service_modules_text = line_console_stdout[service_modules_start:service_modules_end] if service_modules_start != -1 and service_modules_end != -1 else ""
-    service_modules_verbose_start = line_console_stdout.find("grit[all]/modules> show service modules -v")
+    show_modules_daemon_start = line_console_stdout.find("show modules daemon", service_modules_end + 1)
+    show_modules_daemon_end = line_console_stdout.find("modules file-service", show_modules_daemon_start + 1)
+    show_modules_daemon_text = (
+        line_console_stdout[show_modules_daemon_start:show_modules_daemon_end]
+        if show_modules_daemon_start != -1 and show_modules_daemon_end != -1 else ""
+    )
+    service_modules_verbose_start = line_console_stdout.find("grit[all]/modules> show modules verbose service")
     service_modules_verbose_end = line_console_stdout.find("grit[all]/modules> use module 99", service_modules_verbose_start + 1)
     service_modules_verbose_text = line_console_stdout[service_modules_verbose_start:service_modules_verbose_end] if service_modules_verbose_start != -1 and service_modules_verbose_end != -1 else ""
     if (not service_modules_text or
             "Modules  (service)" not in service_modules_text or
+            not show_modules_daemon_text or
+            "Modules  (daemon)" not in show_modules_daemon_text or
+            "Modules  filter='daemon'" in show_modules_daemon_text or
             "\n      run: scripts/grit-console" in service_modules_text or
-            "modules -v for commands" not in service_modules_text or
+            "use N, use module NAME, use module N, modules verbose, modules ?" not in service_modules_text or
             not service_modules_verbose_text or
             "\n      run: scripts/grit-console" not in service_modules_verbose_text or
-            "action number out of range: 99" not in line_console_stdout or
+            "module number out of range: 99" not in line_console_stdout or
+            "action number out of range: 99" in line_console_stdout or
             "numbered result not found: 99;" in line_console_stdout):
         print("line-oriented module list did not keep generated commands behind verbose mode", file=sys.stderr)
         print("default service modules:", file=sys.stderr)
         print(service_modules_text or line_console_stdout, file=sys.stderr)
+        print("show modules daemon:", file=sys.stderr)
+        print(show_modules_daemon_text, file=sys.stderr)
         print("verbose service modules:", file=sys.stderr)
         print(service_modules_verbose_text, file=sys.stderr)
         return 1
-    action_help_start = line_console_stdout.find("grit[all]/action/bridge:inspect-status> ?")
-    action_help_end = line_console_stdout.find("grit[all]/action/bridge:inspect-status> info", action_help_start + 1)
+    action_help_start = line_console_stdout.find("grit[all]/module/bridge:inspect-status> ?")
+    action_help_end = line_console_stdout.find("grit[all]/module/bridge:inspect-status> info", action_help_start + 1)
     action_help_text = line_console_stdout[action_help_start:action_help_end] if action_help_start != -1 and action_help_end != -1 else ""
     if (not action_help_text or
             "Help: modules" not in action_help_text or
-            "use module NAME|NUMBER" not in action_help_text or
-            "check [MODULE]" not in action_help_text or
+            "use module NAME" not in action_help_text or
+            "use module NUMBER" not in action_help_text or
+            "check MODULE" not in action_help_text or
+            "selected-module prompt is active" not in action_help_text or
+            "grit/.../action/...>" in action_help_text or
+            "grit[all]/action/bridge:inspect-status>" in action_help_text or
             "Help: console" in action_help_text):
         print("line-oriented action context help fell back to generic console help", file=sys.stderr)
         print(action_help_text or line_console_stdout, file=sys.stderr)
         return 1
-    action_info_start = line_console_stdout.find("grit[all]/action/bridge:inspect-status> info")
-    action_info_end = line_console_stdout.find("grit[all]/action/bridge:inspect-status> next", action_info_start + 1)
+    action_info_start = line_console_stdout.find("grit[all]/module/bridge:inspect-status> info")
+    action_info_end = line_console_stdout.find("grit[all]/module/bridge:inspect-status> next", action_info_start + 1)
     action_info_text = line_console_stdout[action_info_start:action_info_end] if action_info_start != -1 and action_info_end != -1 else ""
     if (not action_info_text or
             "Console context:" not in action_info_text or
-            "  prompt: grit[all]/action/bridge:inspect-status>" not in action_info_text or
-            "  module: action/bridge:inspect-status" not in action_info_text or
-            "Action: service:bridge:inspect-status" not in action_info_text or
+            "  prompt: grit[all]/module/bridge:inspect-status>" not in action_info_text or
+            "  module: module/bridge:inspect-status" not in action_info_text or
+            "  prompt: grit[all]/action/bridge:inspect-status>" in action_info_text or
+            "  module: action/bridge:inspect-status" in action_info_text or
+            "Module: service:bridge:inspect-status" not in action_info_text or
+            "Action: service:bridge:inspect-status" in action_info_text or
             "  state: ready" not in action_info_text or
             "  reason: run-now" not in action_info_text or
             "  confirmation: not required" not in action_info_text or
@@ -8823,11 +11400,11 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented action info did not use concise labels", file=sys.stderr)
         print(action_info_text or line_console_stdout, file=sys.stderr)
         return 1
-    action_options_start = line_console_stdout.find("grit[all]/action/bridge:inspect-status> options")
-    action_options_end = line_console_stdout.find("grit[all]/action/bridge:inspect-status> background", action_options_start + 1)
+    action_options_start = line_console_stdout.find("grit[all]/module/bridge:inspect-status> options")
+    action_options_end = line_console_stdout.find("grit[all]/module/bridge:inspect-status> background", action_options_start + 1)
     action_options_text = line_console_stdout[action_options_start:action_options_end] if action_options_start != -1 and action_options_end != -1 else ""
     action_option_labels = (
-        "Action: service:bridge:inspect-status",
+        "Module: service:bridge:inspect-status",
         "  label: Inspect bridge service status",
         "  category: inspect",
         "  workflow: service-lifecycle",
@@ -8839,6 +11416,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "  next: info, check, run, back",
     )
     action_options_noisy = (
+        "Action: service:bridge:inspect-status",
         "action.kind=",
         "action.id=",
         "action.label=",
@@ -8871,6 +11449,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "started route zz-console-added" not in route_text or
             "stopped route console-route" not in route_text or
             "stopped route zz-console-added" not in route_text or
+            "Route would be deleted: zz-console-added" not in route_text or
+            "run: route delete zz-console-added confirm" not in route_text or
             "deleted route zz-console-added" not in route_text or
             "route number out of range: 9" not in route_text or
             "numbered result not found: 9" in route_text or
@@ -8885,10 +11465,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented route commands exposed noisy headless commands", file=sys.stderr)
         print(route_text or line_console_stdout, file=sys.stderr)
         return 1
-    routes_verbose_start = line_console_stdout.find("> routes -v")
+    routes_verbose_start = line_console_stdout.find("> routes verbose")
     routes_verbose_end = line_console_stdout.find("> route delete 2", routes_verbose_start + 1)
     routes_verbose_text = line_console_stdout[routes_verbose_start:routes_verbose_end] if routes_verbose_start != -1 and routes_verbose_end != -1 else ""
-    show_routes_verbose_start = line_console_stdout.find("> show routes -v")
+    show_routes_verbose_start = line_console_stdout.find("> show routes verbose")
     show_routes_verbose_end = line_console_stdout.find("> route start 1", show_routes_verbose_start + 1)
     show_routes_verbose_text = (
         line_console_stdout[show_routes_verbose_start:show_routes_verbose_end]
@@ -8910,9 +11490,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             not route_print_text or
             "\n     start: scripts/grit-console" in route_print_text):
         print("line-oriented route print did not keep generated commands behind verbose mode", file=sys.stderr)
-        print("routes -v:", file=sys.stderr)
+        print("routes verbose:", file=sys.stderr)
         print(routes_verbose_text or line_console_stdout, file=sys.stderr)
-        print("show routes -v:", file=sys.stderr)
+        print("show routes verbose:", file=sys.stderr)
         print(show_routes_verbose_text, file=sys.stderr)
         print("route print:", file=sys.stderr)
         print(route_print_text, file=sys.stderr)
@@ -8945,8 +11525,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         "  hops: 2",
         "  multi-hop: yes",
         "  target: line-console-target",
-        "  commands: route console-route, route start console-route, route stop console-route, route delete console-route",
-        "  next: options, start, stop, routes -v, back",
+        "  commands: route console-route, route start console-route, route stop console-route",
+        "  delete: route delete console-route, route delete console-route confirm",
+        "  next: options, start, stop, delete, routes verbose, back",
     )
     route_context_noisy = (
         "state=",
@@ -9003,7 +11584,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(generated_copy_text or line_console_stdout, file=sys.stderr)
         return 1
     build_view_start = line_console_stdout.find("grit[all]> build")
-    build_view_end = line_console_stdout.find("grit[all]/build> build -v", build_view_start + 1)
+    build_view_end = line_console_stdout.find("grit[all]/build> build verbose", build_view_start + 1)
     build_view_text = line_console_stdout[build_view_start:build_view_end] if build_view_start != -1 and build_view_end != -1 else ""
     if (not build_view_text or
             "configured: " not in build_view_text or
@@ -9022,7 +11603,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented build config view was noisy or missing grouped summary", file=sys.stderr)
         print(build_view_text or line_console_stdout, file=sys.stderr)
         return 1
-    build_verbose_start = line_console_stdout.find("grit[all]/build> build -v")
+    build_verbose_start = line_console_stdout.find("grit[all]/build> build verbose")
     build_verbose_end = line_console_stdout.find("grit[all]/build> build set 9 /tmp/grit-build", build_verbose_start + 1)
     build_verbose_text = line_console_stdout[build_verbose_start:build_verbose_end] if build_verbose_start != -1 and build_verbose_end != -1 else ""
     if (not build_verbose_text or
@@ -9030,7 +11611,9 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "examples: ./.grit" not in build_verbose_text or
             "note: affects generated artifacts or payload contents" not in build_verbose_text or
             "set: build set GRIT_RUNTIME_ROOT VALUE" not in build_verbose_text or
-            "build set KEY|NUMBER VALUE" not in build_verbose_text or
+            "build set KEY VALUE" not in build_verbose_text or
+            "build set ROW VALUE" not in build_verbose_text or
+            "build set KEY VALUE  |  build set ROW VALUE" in build_verbose_text or
             "--set-build-config" in build_verbose_text or
             "headless_command:" in build_verbose_text):
         print("line-oriented verbose build config view missed options or exposed headless command", file=sys.stderr)
@@ -9061,6 +11644,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     queue_result_start = line_console_stdout.find("Command result:", queue_start + 1)
     queue_result_end = line_console_stdout.find("grit[Console Router]/events> queue list", queue_result_start + 1)
     queue_result_text = line_console_stdout[queue_result_start:queue_result_end] if queue_result_start != -1 and queue_result_end != -1 else ""
+    clear_preview_start = line_console_stdout.rfind("queued command record(s) would be cleared")
+    clear_preview_end = line_console_stdout.find("queue clear confirm", clear_preview_start + 1)
+    clear_preview_text = (
+        line_console_stdout[clear_preview_start:clear_preview_end]
+        if clear_preview_start != -1 and clear_preview_end != -1 else ""
+    )
     clear_command_start = line_console_stdout.rfind("queue clear confirm")
     clear_start = line_console_stdout.find("cleared ", clear_command_start + 1)
     clear_end = line_console_stdout.find("no queued commands", clear_start + 1)
@@ -9071,24 +11660,32 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "target: line-console-target (Console Router)" not in queue_text or
             "execution supported: no" not in queue_text or
             "delivery: queue record only; enable command queue polling for target pickup" not in queue_text or
-            "next: queue list  |  queue result 1" not in queue_text or
+            "Next:" not in queue_text or
+            "queue result cq-" not in queue_text or
+            "queue list" not in queue_text or
+            "next: queue result cq-" in queue_text or
+            "|  queue list" in queue_text or
             "target=" in queue_text or "execution_supported=" in queue_text or
             "delivery_supported=" in queue_text or "headless_command:" in queue_text or
             not queue_result_text or "result: none" not in queue_result_text or
             "waiting for: delivery" not in queue_result_text or
             "result_status=" in queue_result_text or "waiting_for=" in queue_result_text or
             "created=" in queue_result_text or "target=" in queue_result_text or
+            not clear_preview_text or "queued command record(s) would be cleared" not in clear_preview_text or
+            "run: queue clear confirm" not in line_console_stdout or
             not clear_text or "cleared " not in clear_text or "headless_command:" in clear_text):
         print("line-oriented queue commands exposed noisy headless commands", file=sys.stderr)
         print("queue section:", file=sys.stderr)
         print(queue_text or line_console_stdout, file=sys.stderr)
         print("queue result:", file=sys.stderr)
         print(queue_result_text or line_console_stdout, file=sys.stderr)
+        print("clear preview:", file=sys.stderr)
+        print(clear_preview_text or line_console_stdout, file=sys.stderr)
         print("clear section:", file=sys.stderr)
         print(clear_text or line_console_stdout, file=sys.stderr)
         return 1
     metadata_start = line_console_stdout.find("notes: Rack shelf A")
-    metadata_end = line_console_stdout.find("show activity", metadata_start + 1)
+    metadata_end = line_console_stdout.find("show events", metadata_start + 1)
     metadata_text = line_console_stdout[metadata_start:metadata_end] if metadata_start != -1 and metadata_end != -1 else ""
     direct_metadata_start = line_console_stdout.find("target renamed: line-console-target")
     direct_metadata_end = line_console_stdout.find("Search results for Console Router", direct_metadata_start + 1)
@@ -9115,31 +11712,38 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("direct metadata section:", file=sys.stderr)
         print(direct_metadata_text or line_console_stdout, file=sys.stderr)
         return 1
-    job_search_start = line_console_stdout.find("Search results for line-console-job:")
-    job_search_end = line_console_stdout.find("grit[all]/jobs> use 1", job_search_start + 1)
-    job_search_text = line_console_stdout[job_search_start:job_search_end] if job_search_start != -1 and job_search_end != -1 else ""
-    target_search_start = line_console_stdout.find("Search results for Console Router:")
-    target_search_end = line_console_stdout.find("grit[Console Router]> mailbox", target_search_start + 1)
-    target_search_text = line_console_stdout[target_search_start:target_search_end] if target_search_start != -1 and target_search_end != -1 else ""
-    service_search_start = line_console_stdout.find("Search results for name=file-service:")
-    service_search_end = line_console_stdout.find("grit[all]/listener> workspace", service_search_start + 1)
-    service_search_text = line_console_stdout[service_search_start:service_search_end] if service_search_start != -1 and service_search_end != -1 else ""
+    def transcript_section_after(marker):
+        start = line_console_stdout.find(marker)
+        if start == -1:
+            return ""
+        prompt = re.search(r"\ngrit\[[^\n\]]+\](?:/[^\n>]+)?> ", line_console_stdout[start + len(marker):])
+        end = start + len(marker) + prompt.start() if prompt else len(line_console_stdout)
+        return line_console_stdout[start:end]
+
+    job_search_text = transcript_section_after("Search results for line-console-job:")
+    target_search_text = transcript_section_after("Search results for Console Router:")
+    service_search_text = transcript_section_after("Search results for name=file-service:")
     if (not job_search_text or
-            "job line-console-job action: package-artifact state: running" not in job_search_text or
+            "job line-console-job module: package-artifact state: running" not in job_search_text or
+            "job line-console-job action: package-artifact state: running" in job_search_text or
             "command: use job line-console-job" not in job_search_text or
             "action=package-artifact" in job_search_text or
             "command: scripts/grit-console" in job_search_text or
             not target_search_text or
             "target line-console-target (Console Router)  state online" not in target_search_text or
             "route console-route  state configured  path " not in target_search_text or
-            "action target:line-console-target:queue-bridge-start:console-route  state queueable offline" not in target_search_text or
+            "module target:line-console-target:queue-bridge-start:console-route  state queueable offline" not in target_search_text or
+            "action target:line-console-target:queue-bridge-start:console-route" in target_search_text or
             "label=Console Router" in target_search_text or
             "state=configured" in target_search_text or
             "state=queueable offline" in target_search_text or
             "command: use target line-console-target" not in target_search_text or
             "command: scripts/grit-console" in target_search_text or
             not service_search_text or
-            "service file-service  status stopped  port " not in service_search_text or
+            "listener file-service  status stopped  port " not in service_search_text or
+            "command: use listener file-service" not in service_search_text or
+            "service file-service" in service_search_text or
+            "command: use service" in service_search_text or
             "actual=stopped" in service_search_text):
         print("line-oriented search results exposed generated commands by default", file=sys.stderr)
         print("job search:", file=sys.stderr)
@@ -9149,12 +11753,13 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("service search:", file=sys.stderr)
         print(service_search_text, file=sys.stderr)
         return 1
-    mailbox_start = line_console_stdout.find("grit[Console Router]> mailbox")
+    mailbox_prompt = re.search(r"\ngrit\[Console Router\](?:/[^\n>]+)?> mailbox", line_console_stdout)
+    mailbox_start = mailbox_prompt.start() + 1 if mailbox_prompt else -1
     mailbox_help_start = line_console_stdout.find("grit[Console Router]/queue> mailbox ?", mailbox_start + 1)
     queue_context_help_start = line_console_stdout.find("grit[Console Router]/queue> ?", mailbox_help_start + 1)
     mailbox_targets_start = line_console_stdout.find("grit[Console Router]/queue> mailbox targets", queue_context_help_start + 1)
     queue_view_start = line_console_stdout.find("grit[Console Router]/queue> queue", mailbox_targets_start + 1)
-    queue_verbose_start = line_console_stdout.find("grit[Console Router]/queue> show queue -v", queue_view_start + 1)
+    queue_verbose_start = line_console_stdout.find("grit[Console Router]/queue> show queue verbose", queue_view_start + 1)
     queue_view_end = queue_verbose_start
     queue_verbose_end = line_console_stdout.find("grit[Console Router]/queue> use 99", queue_verbose_start + 1)
     mailbox_text = line_console_stdout[mailbox_start:mailbox_help_start] if mailbox_start != -1 and mailbox_help_start != -1 else ""
@@ -9176,7 +11781,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "Review queue" not in queue_view_text or
             "Queue command" not in queue_view_text or
             "Start mailbox listener" not in queue_view_text or
-            "queue actions: ready 3" not in queue_view_text or
+            "queue shortcuts: ready 3" not in queue_view_text or
+            "queue actions:" in queue_view_text or
             "policy details:" not in queue_verbose_text or
             "policy details: execution metadata-only" not in queue_verbose_text or
             "result upload yes" not in queue_verbose_text or
@@ -9196,7 +11802,8 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented mailbox/queue view consumed stale numbered results", file=sys.stderr)
         print(mailbox_queue_text, file=sys.stderr)
         return 1
-    if ("command queue action number out of range: 99" not in line_console_stdout or
+    if ("command queue shortcut number out of range: 99" not in line_console_stdout or
+            "command queue action number out of range: 99" in line_console_stdout or
             "numbered result not found: 99;" in line_console_stdout):
         print("line-oriented command queue numbered action did not use queue-specific selection", file=sys.stderr)
         print(line_console_stdout, file=sys.stderr)
@@ -9228,7 +11835,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     fetch_end = line_console_stdout.find("grit[Console Router]/files> stop file-service", fetch_start + 1)
     fetch_text = line_console_stdout[fetch_start:fetch_end] if fetch_start != -1 and fetch_end != -1 else ""
     unstage_start = line_console_stdout.find("grit[Console Router]/files> unstage console-upload")
-    unstage_end = line_console_stdout.find("grit[Console Router]/files> stagers", unstage_start + 1)
+    unstage_end = line_console_stdout.find("grit[Console Router]/files> files", unstage_start + 1)
     unstage_text = line_console_stdout[unstage_start:unstage_end] if unstage_start != -1 and unstage_end != -1 else ""
     if (not upload_text or "File staged for target delivery:" not in upload_text or "headless_command:" in upload_text or
             not fetch_text or "Staged delivery command:" not in fetch_text or "headless_command:" in fetch_text or
@@ -9274,7 +11881,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented retrieve output exposed raw generated-command/status fields", file=sys.stderr)
         print(download_text or line_console_stdout, file=sys.stderr)
         return 1
-    binary_end = line_console_stdout.find("Artifact trailer stamped:")
+    binary_end = line_console_stdout.find("Artifact stamp applied:")
     binary_start = line_console_stdout.rfind("griTTYkit binary staged for target delivery:", 0, binary_end)
     binary_text = line_console_stdout[binary_start:binary_end] if binary_start != -1 and binary_end != -1 else ""
     if not binary_text or "run hint: chmod +x ./grit-console && ./grit-console --help" not in binary_text or "headless_command:" in binary_text:
@@ -9287,7 +11894,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented serve-binary output exposed raw generated-command/status fields", file=sys.stderr)
         print(binary_text or line_console_stdout, file=sys.stderr)
         return 1
-    configure_start = line_console_stdout.find("Artifact trailer stamped:")
+    configure_start = line_console_stdout.find("Artifact stamp applied:")
     configure_end = line_console_stdout.find("grit[Console Router]/artifact> files", configure_start + 1)
     configure_text = line_console_stdout[configure_start:configure_end] if configure_start != -1 and configure_end != -1 else ""
     if (not configure_text or
@@ -9304,7 +11911,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("line-oriented stamp command exposed noisy headless command", file=sys.stderr)
         print(configure_text or line_console_stdout, file=sys.stderr)
         return 1
-    stagers_start = line_console_stdout.find("grit[Console Router]/files> show stagers")
+    stagers_start = line_console_stdout.find("grit[Console Router]/files> show files")
     stagers_end = line_console_stdout.find("grit[Console Router]/files> unstage console-upload", stagers_start + 1)
     stagers_text = line_console_stdout[stagers_start:stagers_end] if stagers_start != -1 and stagers_end != -1 else ""
     if (not stagers_text or
@@ -9318,23 +11925,25 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(stagers_text or line_console_stdout, file=sys.stderr)
         return 1
     daemon_action_start = line_console_stdout.find("grit[all]/jobs> daemon status dry-run")
-    daemon_action_end = line_console_stdout.find("grit[all]> uselistener", daemon_action_start + 1)
+    daemon_action_end = line_console_stdout.find("grit[all]> use listener", daemon_action_start + 1)
     daemon_action_text = line_console_stdout[daemon_action_start:daemon_action_end] if daemon_action_start != -1 and daemon_action_end != -1 else ""
     if (not daemon_action_text or
             "operator daemon workflow action: operator-daemon-status" not in daemon_action_text or
-            "daemon action complete: ok" not in daemon_action_text or
+            "daemon module complete: ok" not in daemon_action_text or
+            "daemon action complete: ok" in daemon_action_text or
             "daemon_workflow_returncode=" in daemon_action_text or
             "headless_command:" in daemon_action_text or
             "headless_command=" in daemon_action_text):
         print("line-oriented daemon action commands exposed noisy headless commands", file=sys.stderr)
         print(daemon_action_text or line_console_stdout, file=sys.stderr)
         return 1
-    module_action_start = line_console_stdout.find("grit[all]/action/operator-daemon-status> check")
+    module_action_start = line_console_stdout.find("grit[all]/module/operator-daemon-status> check")
     module_action_end = line_console_stdout.find("grit[all]> run job", module_action_start + 1)
     module_action_text = line_console_stdout[module_action_start:module_action_end] if module_action_start != -1 and module_action_end != -1 else ""
     if (not module_action_text or
             "operator daemon workflow action: operator-daemon-status" not in module_action_text or
-            "action complete: ok" not in module_action_text or
+            "module complete: ok" not in module_action_text or
+            "action complete: ok" in module_action_text or
             "action_returncode=" in module_action_text or
             "headless_command:" in module_action_text or
             "headless_command=" in module_action_text):
@@ -9372,7 +11981,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "event log:" not in session_info_text or
             not session_help_text or
             "Help: sessions" not in session_help_text or
-            "interact [SESSION]" not in session_help_text or
+            "interact SESSION" not in session_help_text or
             "Console help topics:" in session_help_text or
             "session=" in session_info_text or
             "service=" in session_info_text or
@@ -9399,15 +12008,17 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
     daemon_plain_text = line_console_stdout[daemon_start:daemon_verbose_start] if daemon_start != -1 and daemon_verbose_start != -1 else ""
     daemon_verbose_text = line_console_stdout[daemon_verbose_start:] if daemon_verbose_start != -1 else ""
     if (not daemon_plain_text or
-            "Daemon actions" not in daemon_plain_text or
+            "Daemon modules" not in daemon_plain_text or
+            "Daemon actions" in daemon_plain_text or
             "Start operator daemon" not in daemon_plain_text or
             "Check operator daemon" not in daemon_plain_text or
-            "Run selected listener services in the background" not in daemon_plain_text or
+            "Run selected listeners in the background" not in daemon_plain_text or
             "Show daemon health and managed service state" not in daemon_plain_text or
             "operator-daemon-status" in daemon_plain_text or
             "\n     run: scripts/grit-console" in daemon_plain_text or
             "\n     dry-run: scripts/grit-console" in daemon_plain_text or
-            "daemon verbose for commands" not in daemon_plain_text or
+            "daemon MODULE, daemon MODULE dry-run, daemon verbose, daemon ?" not in daemon_plain_text or
+            "daemon MODULE  |  daemon MODULE dry-run" in daemon_plain_text or
             "\n     id: operator-daemon-status" not in daemon_verbose_text or
             "\n     run: scripts/grit-console" not in daemon_verbose_text or
             "\n     dry-run: scripts/grit-console" not in daemon_verbose_text):
@@ -9417,7 +12028,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print("verbose daemon section:", file=sys.stderr)
         print(daemon_verbose_text[:4000], file=sys.stderr)
         return 1
-    jobs_verbose_start = line_console_stdout.find("jobs verbose", line_console_stdout.find("jobs -k missing-job"))
+    jobs_verbose_start = line_console_stdout.find("jobs verbose", line_console_stdout.find("jobs cancel missing-job"))
     jobs_verbose_end = line_console_stdout.find("jobs info 99", jobs_verbose_start + 1)
     jobs_verbose_text = line_console_stdout[jobs_verbose_start:jobs_verbose_end] if jobs_verbose_start != -1 and jobs_verbose_end != -1 else ""
     job_info_start = line_console_stdout.find("grit[all]/job/line-console-job> info")
@@ -9438,12 +12049,15 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "numbered result not found: 99;" in line_console_stdout or
             not job_info_text or
             "Job: line-console-job" not in job_info_text or
-            "action: package-artifact" not in job_info_text or
+            "module: package-artifact" not in job_info_text or
+            "action: package-artifact" in job_info_text or
             "state: running" not in job_info_text or
             "cancel supported:" not in job_info_text or
             not job_help_text or
             "Help: jobs" not in job_help_text or
-            "jobs -k ID" not in job_help_text or
+            "jobs cancel ID" not in job_help_text or
+            "jobs cancel N" not in job_help_text or
+            "selected-job command: cancel the selected job" not in job_help_text or
             "Console help topics:" in job_help_text or
             "job=" in job_info_text or
             "action=" in job_info_text or
@@ -9451,8 +12065,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             "cancel=scripts/grit-console" in job_info_text or
             not job_options_text or
             "Job: line-console-job" not in job_options_text or
-            "action: package-artifact" not in job_options_text or
+            "module: package-artifact" not in job_options_text or
+            "action: package-artifact" in job_options_text or
             "state: running" not in job_options_text or
+            "cancel: cancel, jobs cancel line-console-job" in job_options_text or
+            "next: info, cancel, jobs, jobs verbose, back" in job_options_text or
+            "next: info, jobs, jobs verbose, back" not in job_options_text or
             "job.id=" in job_options_text or
             "job.action=" in job_options_text or
             "job.log_path=" in job_options_text or
@@ -9460,13 +12078,16 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             not job_next_text or
             "  context: grit[all]/job/line-console-job>" not in job_next_text or
             "  selected job: line-console-job" not in job_next_text or
-            "  action: package-artifact" not in job_next_text or
+            "  module: package-artifact" not in job_next_text or
+            "  action: package-artifact" in job_next_text or
             "  state: running" not in job_next_text or
+            "selected-job commands: info, options, cancel, back" in job_next_text or
+            "selected-job commands: info, options, back" not in job_next_text or
             "context=" in job_next_text or
             "selected job=" in job_next_text or
             "action=" in job_next_text):
         print("line-oriented selected job context exposed generated cancel command by default", file=sys.stderr)
-        print("jobs -v:", file=sys.stderr)
+        print("jobs verbose:", file=sys.stderr)
         print(jobs_verbose_text or line_console_stdout, file=sys.stderr)
         print("job info:", file=sys.stderr)
         print(job_info_text, file=sys.stderr)
@@ -9476,14 +12097,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(job_next_text, file=sys.stderr)
         return 1
     collection_prompt_expectations = [
-        "grit[all]/build> build -v",
+        "grit[all]/build> build verbose",
         "grit[all]/build> listeners",
-        "grit[all]/listener> listeners -v",
+        "grit[all]/listener> listeners verbose",
         "grit[all]/routes> route start 2",
         "grit[Console Router]/queue> mailbox targets",
         "grit[Console Router]/queue> queue",
         "grit[Console Router]/files> deliver queue console-upload",
-        "grit[Console Router]/files> show stagers",
+        "grit[Console Router]/files> show files",
         "grit[all]/daemon> daemon verbose",
         "grit[all]/jobs> jobs verbose",
     ]
@@ -9498,7 +12119,7 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
         print(line_console_stdout, file=sys.stderr)
         return 1
     resource_start = line_console_stdout.find(f"resource {line_console_resource}")
-    resource_end = line_console_stdout.find("grit[all]> workspace", resource_start + 1)
+    resource_end = line_console_stdout.find("grit[all]/console> workspace", resource_start + 1)
     resource_text = line_console_stdout[resource_start:resource_end] if resource_start != -1 and resource_end != -1 else ""
     if (not resource_text or
             "Resource loaded:" not in resource_text or
@@ -9564,19 +12185,12 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             not any(event.get("event") == "workbench_route_started" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
             not any(event.get("event") == "workbench_route_stopped" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
             not any(event.get("event") == "workbench_route_deleted" and (event.get("details") or {}).get("name") == "zz-console-added" for event in line_console_events) or
-            not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "daemon" for event in line_console_events) or
             not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("filter") == "file-service" for event in line_console_events) or
             not any(event.get("event") == "workbench_console_module_categories_listed" for event in line_console_events) or
             not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "service" for event in line_console_events) or
             not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "daemon" for event in line_console_events) or
             not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "target" for event in line_console_events) or
             not any(event.get("event") == "workbench_console_modules_listed" and (event.get("details") or {}).get("kind") == "workbench" for event in line_console_events) or
-            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "usemodule" and (event.get("details") or {}).get("canonical") == "use module" for event in line_console_events) or
-            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "execute" and (event.get("details") or {}).get("canonical") == "run" for event in line_console_events) or
-            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "uselistener" and (event.get("details") or {}).get("canonical") == "use listener" for event in line_console_events) or
-            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "useroute" and (event.get("details") or {}).get("canonical") == "use route" for event in line_console_events) or
-            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "usesession" and (event.get("details") or {}).get("canonical") == "use session" for event in line_console_events) or
-            not any(event.get("event") == "workbench_console_alias_used" and (event.get("details") or {}).get("alias") == "useagent" and (event.get("details") or {}).get("canonical") == "use agent" for event in line_console_events) or
             not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "root" for event in line_console_events) or
             not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "route/console-route" for event in line_console_events) or
             not any(event.get("event") == "workbench_console_next_shown" and (event.get("details") or {}).get("module") == "action/operator-daemon-status" for event in line_console_events) or
@@ -9598,10 +12212,10 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
             not any(event.get("event") == "workbench_staged_fetch_command_shown" and (event.get("details") or {}).get("target_id") == "line-console-target" and (event.get("details") or {}).get("request_name") == "console-upload" and (event.get("details") or {}).get("queued") is True for event in line_console_events) or
             len([event for event in line_console_events if event.get("event") == "workbench_command_queue_inspected"]) < 2 or
             not any(
-                event.get("event") == "workbench_file_uploaded" and
+                event.get("event") == "workbench_file_staged" and
                 (event.get("details") or {}).get("request_name") == "console-upload" and
                 (event.get("details") or {}).get("target_id") == "line-console-target" and
-                (event.get("details") or {}).get("started_file_service") is True
+                (event.get("details") or {}).get("started_file_service") is False
                 for event in line_console_events) or
             not any(
                 event.get("event") == "workbench_file_unstaged" and
@@ -9623,6 +12237,14 @@ def run_line_console_smoke(server, tmp, upload_cfg, session_root, section="line-
                 for event in line_console_events)):
         print("line-oriented console commands did not record expected events", file=sys.stderr)
         print(json.dumps(line_console_status_doc, indent=2, sort_keys=True), file=sys.stderr)
+        return 1
+    alias_events = [
+        event for event in line_console_events
+        if event.get("event") == "workbench_console_alias_used"
+    ]
+    if alias_events:
+        print("line-console first-run transcript still exercised compatibility aliases", file=sys.stderr)
+        print(json.dumps(alias_events, indent=2, sort_keys=True), file=sys.stderr)
         return 1
 
     line_console_staged_doc = json.loads(line_console_staged.read_text(encoding="utf-8"))
@@ -9686,7 +12308,21 @@ def main(argv=None):
     if ("griTTYkit operator control plane." not in concise_help or
             "--help-console prints interactive console commands and examples." not in concise_help or
             "--help-all prints every compatibility/API flag." not in concise_help or
-            "artifact inspect|verify|config ARTIFACT" not in concise_help or
+            "Interactive workflow:" not in concise_help or
+            "listener probe start" not in concise_help or
+            "listener probe config" not in concise_help or
+            "profiles" not in concise_help or
+            "listener serve ssh start" not in concise_help or
+            "stamp NAME operator-host HOST transport builtin" not in concise_help or
+            "Headless/service examples:" not in concise_help or
+            "--systemd-user-action status" not in concise_help or
+            "--systemd-user-action start" not in concise_help or
+            "artifact inspect ARTIFACT" not in concise_help or
+            "artifact verify ARTIFACT" not in concise_help or
+            "artifact config ARTIFACT" in concise_help or
+            "bringup --recommend-only --survey-json survey.json" in concise_help or
+            "artifact inspect|verify|config ARTIFACT" in concise_help or
+            "--systemd-user-action print|install|start|stop|restart|status" in concise_help or
             "--run-target-workflow-action" in concise_help):
         print("grit-console concise help did not stay operator-focused", file=sys.stderr)
         print(concise_help, file=sys.stderr)
@@ -9711,21 +12347,61 @@ def main(argv=None):
         return 1
     console_help = help_console_out.stdout + help_console_out.stderr
     if ("griTTYkit operator console reference." not in console_help or
-            "use agent ID|LABEL|NUMBER" not in console_help or
-            "agent ID|LABEL|NUMBER" not in console_help or
-            "use job ID|NUMBER" not in console_help or
-            "jobs, jobs -i ID, job ID" not in console_help or
-            "interact agent ID|LABEL" not in console_help or
+            "use target ID" not in console_help or
+            "use target LABEL" not in console_help or
+            "use target N" not in console_help or
+            "use job ID" not in console_help or
+            "use job N" not in console_help or
+            "jobs, jobs info ID, job ID" not in console_help or
+            "interact target ID" not in console_help or
+            "interact target LABEL" not in console_help or
             "commands, copy N" not in console_help or
-            "serve-binary [start] [PATH] [NAME]" not in console_help or
-            "configure NAME|PATH KEY=VALUE" not in console_help or
-            "configure NAME operator-host HOST transport builtin" not in console_help or
-            "release, release stage [start] [SELECTOR]" not in console_help or
+            "listener probe config N" not in console_help or
+            "listener serve start PRESET" not in console_help or
+            "manual form: stage a local griTTYkit binary" not in console_help or
+            "serve-binary start PATH NAME" not in console_help or
+            "stage a griTTYkit binary\n" in console_help or
+            "stage and optionally serve a griTTYkit binary" in console_help or
+            "stamp NAME KEY=VALUE" not in console_help or
+            "stamp PATH KEY=VALUE" not in console_help or
+            "stamp NAME operator-host HOST transport builtin" not in console_help or
+            "stamp embedded runtime config into a binary" not in console_help or
+            "guided embedded config fields for staged payloads" not in console_help or
+            "apply runtime trailer overrides to a binary" in console_help or
+            "guided trailer override flags for staged payloads" in console_help or
+            "configure NAME KEY=VALUE" in console_help or
+            "configure PATH KEY=VALUE" in console_help or
+            "release stage start SELECTOR" not in console_help or
             "by_device_payload_preset:NAME:PRESET" not in console_help or
             "by_tuple_payload_preset:PATH:PRESET" not in console_help or
-            "fetch [queue] [start] NAME" not in console_help or
-            "queue list|result|clear" not in console_help or
-            "build, build set KEY|NUMBER VALUE" not in console_help or
+            "stage start LOCAL NAME" not in console_help or
+            "deliver queue NAME" not in console_help or
+            "retrieve queue TARGET_PATH" not in console_help or
+            "listener probe queue" not in console_help or
+            "run MODULE dry-run" not in console_help or
+            "check MODULE" not in console_help or
+            "start selected background-capable module as a job" not in console_help or
+            "background-capable action" in console_help or
+            "history LIMIT" not in console_help or
+            "listener probe config [N]" in console_help or
+            "serve-binary [start] [PATH] [NAME]" in console_help or
+            "release, release stage [start] [SELECTOR]" in console_help or
+            "deliver [queue] [start] NAME" in console_help or
+            "retrieve [queue] TARGET_PATH" in console_help or
+            "compatibility aliases" not in console_help or
+            "upload=stage" in console_help or
+            "fetch/deploy=deliver" in console_help or
+            "execute, exploit" in console_help or
+            "useagent/usemodule" in console_help or
+            "downloads                     list target-fetchable staged files" in console_help or
+            "queue list" not in console_help or
+            "queue result ID" not in console_help or
+            "queue result N" not in console_help or
+            "queue list|result|clear" in console_help or
+            "rename|note|alias VALUE" in console_help or
+            "view PATH, cat PATH" in console_help or
+            "build set KEY VALUE" not in console_help or
+            "build set ROW VALUE" not in console_help or
             "resource FILE" not in console_help or
             "makerc FILE" not in console_help or
             "!!, !N, repeat N" not in console_help or
@@ -9864,6 +12540,16 @@ def main(argv=None):
     if "get_name()" not in src + ssh_keys_src or "get_base64()" not in src + ssh_keys_src:
         print("grit-console: Paramiko key comparison missing get_name()/get_base64()", file=sys.stderr)
         return 1
+    if (
+            "background module id or number> " not in workbench_jobs_src
+            or "background action id or number> " in workbench_jobs_src
+            or "use module 15 for the prompted target module list" not in workflow_actions_src
+            or "use action 15 for the prompted target workflow list" in workflow_actions_src
+            or "use module 15 for the prompted target workflow list" in workflow_actions_src
+            or "background module; use module 12" not in workflow_actions_src
+            or "background action; use action 12" in workflow_actions_src):
+        print("grit-console: workflow module prompts still use action wording", file=sys.stderr)
+        return 1
     # Should not use bare == or 'is' for key objects
     # (keys_equal helper function should exist)
     if "keys_equal" not in src + ssh_keys_src:
@@ -9893,24 +12579,24 @@ def main(argv=None):
                  "capability=", "compatibility=", "event_tail_availability_text",
                  "Targets:", "select_line_target", "set_workbench_target_filter",
                  "Files", "target_file_transfer_records", "target_file_transfer_record_summary", "view_line_path",
-                 "target_activity_records", "target_activity_records_by_target_id", "show activity",
+                 "target_activity_records", "target_activity_records_by_target_id", "show events",
                  "target_activity_record_summary", "target_activity_feed_status_context",
-                 "Target workflow actions:", "run_line_selected_action", "select_line_action",
+                 "Target modules:", "run_line_selected_action", "select_line_action",
                  "operator_action_state", "operator_action_reason", "can_run_from_curses_enter",
                  "service_workflow_actions", "service_workflow_actions_by_service", "line_action_records_from_snapshot",
                  "run_line_selected_action",
-                 "Operator daemon workflow action summary:", "operator_daemon_workflow_actions_by_workflow",
+                 "Operator daemon module summary:", "operator_daemon_workflow_actions_by_workflow",
                  "operator_daemon_workflow_actions",
                  "operator_daemon_workflow_action_selected", "operator_daemon_workflow_action_completed",
-                 "Probe workflow action summary:", "probe_workflow_actions_by_route_kind",
+                 "Probe module summary:", "probe_workflow_actions_by_route_kind",
                  "probe_workflow_actions:",
                  "probe_workflow_action_selected", "probe_workflow_action_completed",
-                 "Command queue workflow action summary:", "command_queue_workflow_actions_by_action_id",
-                 "queue COMMAND  |  queue list",
+                 "Command queue shortcut summary:", "command_queue_workflow_actions_by_action_id",
+                 "queue COMMAND, queue list, queue ?",
                  "command_queue_workflow_action_selected", "command_queue_workflow_action_completed",
-                 "File service workflow action summary:", "file_service_workflow_actions_by_action_id",
+                 "File service shortcut summary:", "file_service_workflow_actions_by_action_id",
                  "file_service_workflow_action_selected", "file_service_workflow_action_completed",
-                 "File service workflow actions:",
+                 "File service shortcuts:",
                  "staged_file_workflow_actions", "staged_file_workflow_actions_by_request_name",
                  "staged_file_workflow_action_selected", "staged_file_workflow_action_completed",
                  "show-fetch-command", "list-staged-files",
@@ -10957,7 +13643,7 @@ def main(argv=None):
         )
         if ("Generated target commands:" not in bridged_survey_text_status.stdout or
                 "routes: bridge=" not in bridged_survey_text_status.stdout or
-                "Probe workflow action summary:" not in bridged_survey_text_status.stdout or
+                "Probe module summary:" not in bridged_survey_text_status.stdout or
                 "probe routes: bridge=4" not in bridged_survey_text_status.stdout or
                 "bridge profiles: survey-route=" not in bridged_survey_text_status.stdout or
                 f"route=bridge bridge_profile=survey-route path=operator:{survey_route_port} -> rack-host:19001" not in bridged_survey_text_status.stdout or
@@ -11210,11 +13896,11 @@ def main(argv=None):
         actions_tui_text = actions_tui_output.decode("utf-8", errors="replace")
         if (actions_tui_proc.returncode != 0 or
                 "Traceback" in (actions_tui_stderr or "") or
-                "Workbench action summary:" not in actions_tui_text or
+                "Workbench module summary:" not in actions_tui_text or
                 "headless_command:" in actions_tui_text or
                 "headless_command=" in actions_tui_text or
                 "operator-daemon-status" not in actions_tui_text or
-                "operator action id/number to run" not in actions_tui_text or
+                "operator module id/number to run" not in actions_tui_text or
                 "foreground_runnable=yes" not in actions_tui_text or
                 "service 1:" not in actions_tui_text or
                 "file-service:start-service" not in actions_tui_text or
@@ -13591,9 +16277,10 @@ def main(argv=None):
                 "file-service started" in queue_tui_text or
                 "tls-shell started" in queue_tui_text or
                 "Command queue  (" not in queue_tui_text or
-                "queue actions:" not in queue_tui_text or
+                "queue shortcuts:" not in queue_tui_text or
+                "queue actions:" in queue_tui_text or
                 "needs input 1" not in queue_tui_text or
-                "queue COMMAND  |  queue list" not in queue_tui_text or
+                "queue COMMAND, queue list, queue ?" not in queue_tui_text or
                 "Show mailbox" not in queue_tui_text or
                 "Queue command" not in queue_tui_text or
                 "Clear queue" not in queue_tui_text or
@@ -16196,8 +18883,8 @@ def main(argv=None):
             print("line console summary did not report populated event counts", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
             return 1
-        if ("copy start" not in tui_owned_text or
-                "copy the start command" not in tui_owned_text or
+        if ("show start" not in tui_owned_text or
+                "print the start command" not in tui_owned_text or
                 "recent events: filter events by service file-service" not in tui_owned_text):
             print("line console service start did not expose transport command", file=sys.stderr)
             print(tui_owned_text, file=sys.stderr)
@@ -17802,7 +20489,7 @@ def main(argv=None):
                 "state=needs input reason=input-required enter=no" not in line_text or
                 "state=queueable offline reason=queues-until-phone-home enter=yes" not in line_text or
                 "target_workflow_action_returncode=0" not in line_text or
-                "Target activity after action:" not in line_text or
+                "Target activity after module:" not in line_text or
                 "Activity  (" not in line_text or
                 "target-action" not in line_text or
                 "mailbox" not in line_text or
@@ -17810,7 +20497,7 @@ def main(argv=None):
                 "queued" not in line_text or
                 "mailbox_pending=1 poll_overdue=no" not in line_text or
                 "mailbox queued=1 delivered=0 results=0 expired=0 pending=1" not in line_text or
-                "Target workflow actions:" not in line_text):
+                "Target modules:" not in line_text):
             print("line console target detail exposed noisy headless command or missed mailbox/activity state", file=sys.stderr)
             print(line_text, file=sys.stderr)
             return 1
@@ -18177,7 +20864,7 @@ def main(argv=None):
             return 1
         target_commands = upload_doc.get("target_commands") or []
         for expected_command in (
-            "./grit survey push",
+"./grit survey retrieve",
             "./grit reality-test push",
             "./grit manifest push",
             "./grit config-push",
@@ -19759,11 +22446,13 @@ def main(argv=None):
                 "curl -fLk -o ./grit " not in line_stage_stdout or
                 "nc:    requires file-service TLS=no" not in line_stage_stdout or
                 "/fetch?name=grit" not in line_stage_stdout or
-                "File service workflow actions:" not in line_stage_stdout or
+                "File service shortcuts:" not in line_stage_stdout or
+                "File service workflow actions:" in line_stage_stdout or
                 "file-service:list-staged-files state=ready reason=run-now enter=yes" not in line_stage_stdout or
                 "file-service:stage-file state=needs-input reason=input-required" not in line_stage_stdout or
                 "file-service:show-upload-command state=needs-input reason=input-required" not in line_stage_stdout or
-                "Staged file workflow actions:" not in line_stage_stdout or
+                "Staged file shortcuts:" not in line_stage_stdout or
+                "Staged file workflow actions:" in line_stage_stdout or
                 "/tmp/line-stage:show-fetch-command" not in line_stage_stdout or
                 "/tmp/line-stage:queue-staged-fetch state=needs-target reason=target-required" not in line_stage_stdout):
             print("line-oriented console stage/unstage exposed noisy headless commands or missed expected summaries", file=sys.stderr)
@@ -20014,7 +22703,9 @@ def main(argv=None):
                 "transport_support: poll=no live_polling=no" not in tui.stdout or
                 "execution_supported=no delivery_supported=no result_upload_supported=yes" not in tui.stdout or
                 "session_root:" not in tui.stdout or
-                "Operator workflow actions:" not in tui.stdout or
+                "Operator modules:" not in tui.stdout or
+                "Operator workflow actions:" in tui.stdout or
+                "Target workflow actions:" in tui.stdout or
                 "make package" not in tui.stdout or
                 "scripts/grit-console bringup --recommend-only --json --operator-config" not in tui.stdout or
                 "--stage-recommended-artifact" not in tui.stdout):
@@ -20856,8 +23547,11 @@ def main(argv=None):
         if (line_proc.returncode != 0 or
                 "Traceback" in (line_stderr or "") or
                 "Help: release" not in _line_stdout or
-                "stage-release [start] SELECTOR" not in _line_stdout or
-                "release stage [start] [SELECTOR]  |  release ? for help" not in _line_stdout or
+                "stage-release [start] SELECTOR" in _line_stdout or
+                "Legacy `stage-release` remains accepted for scripts" not in _line_stdout or
+                "release stage SELECTOR\n" not in _line_stdout or
+                "release stage start SELECTOR\n" not in _line_stdout or
+                "release ? for help" not in _line_stdout or
                 "Preset selectors:" not in _line_stdout or
                 "by_tuple_payload_preset:by-tuple/native/host/host/host:default" not in _line_stdout or
                 "selector=by_tuple_path:by-tuple/native/host/host/host" not in _line_stdout or
@@ -21210,7 +23904,7 @@ def main(argv=None):
             os.close(probe_slave)
             probe_slave = -1
             time.sleep(0.3)
-            os.write(probe_master, b"listener probe results\nlistener probe config 1\nlistener probe clear 2\nlistener probe results\nlistener serve\nq\nq\n")
+            os.write(probe_master, b"listener probe results\nlistener probe config 1\nlistener probe clear 2 confirm\nlistener probe results\nlistener serve\nq\nq\n")
             probe_output = b""
             deadline = time.time() + 8
             while probe_proc.poll() is None and time.time() < deadline:

@@ -1,3 +1,9 @@
+#ifndef _DEFAULT_SOURCE
+#define _DEFAULT_SOURCE 1
+#endif
+#ifndef _BSD_SOURCE
+#define _BSD_SOURCE 1
+#endif
 #define _POSIX_C_SOURCE 200809L
 
 #include <ctype.h>
@@ -532,17 +538,18 @@ int applet_survey_main(int argc, char **argv)
 
     if (is_help(argc, argv)) {
         puts("usage: grit survey [--json] [--shell-probe] [--shell-script] [--write-shell-script PATH]");
-        puts("       grit survey push [--host HOST] [--port PORT] [--tls yes|no]");
+        puts("       grit survey retrieve [--host HOST] [--port PORT] [--tls yes|no]");
         puts("Print embedded Linux target triage.");
         return 0;
     }
-    if (argc > 1 && !strcmp(argv[1], "push")) {
+    if (argc > 1 && (!strcmp(argv[1], "retrieve") || !strcmp(argv[1], "push"))) {
         const char *roots[] = { ".", "/tmp", NULL };
         char path[PATH_MAX];
         int r;
         if (argc > 2 && (!strcmp(argv[2], "--help") || !strcmp(argv[2], "-h"))) {
-            puts("usage: grit survey push [--host HOST] [--port PORT] [--tls yes|no]");
-            puts("Generate survey JSON and upload it to the receive-only operator file service.");
+            puts("usage: grit survey retrieve [--host HOST] [--port PORT] [--tls yes|no]");
+            puts("Generate survey JSON and send it to the receive-only operator file service.");
+            puts("compat: grit survey push is still accepted.");
             return 0;
         }
         for (r = 0; roots[r]; r++) {

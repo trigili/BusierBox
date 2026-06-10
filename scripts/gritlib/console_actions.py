@@ -179,6 +179,11 @@ def handle_workflow_action_args(
     run_staged_file_workflow_action_func,
     run_target_workflow_action_func,
 ):
+    """Dispatch one headless workflow-action flag to its domain runner.
+
+    This stays centralized because argparse owns the mutually exclusive flag
+    surface, while each runner owns command behavior and side effects.
+    """
     if args.run_service_workflow_action:
         return run_service_workflow_action_func(
             cfg,

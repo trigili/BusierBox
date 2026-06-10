@@ -4,6 +4,7 @@ from pathlib import Path
 
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
+from gritlib.line_context import clear_line_module_context
 from gritlib.line_search import set_line_search_results
 from gritlib.target_context import configured_target_filter
 from gritlib.target_records import (
@@ -90,7 +91,7 @@ def print_line_target_records(targets, current_target_id="", quote=None):
     console_table(
         f"Targets  ({len(rows)} total)" if rows else "Targets  (none)",
         rows, cols,
-        footer="use N or agent ID to select  |  * = currently selected  |  targets ? for help",
+        footer="use target N, target ID, target LABEL, * = selected, targets ?",
     )
     return [
         {
@@ -114,7 +115,7 @@ def print_selected_line_target(rec):
         label = rec.get("target_label") or ""
         display = f"{label}  ({tid})" if label and label != tid else tid
         print(f"  {display}")
-        print("  options / next / sessions / queue / mailbox / back")
+        print("  options, next, sessions, queue, mailbox, back")
     else:
         print("  target filter cleared  —  showing all targets")
 
@@ -147,6 +148,7 @@ def print_line_targets(cfg, snapshot_func, quote=None):
 def select_line_target(cfg, selector, snapshot_func, targets=None, quote=None):
     targets = targets if targets is not None else print_line_targets(cfg, snapshot_func, quote=quote)
     rec = set_workbench_target_filter(cfg, selector, targets=targets)
+    clear_line_module_context(cfg)
     print_selected_line_target(rec)
     return rec
 
@@ -158,7 +160,13 @@ def interact_line_target(cfg, selector, snapshot_func, quote=None):
         select_line_target(cfg, text, snapshot_func, targets=targets, quote=quote)
     target_id = configured_target_filter(cfg)
     if not target_id:
-        raise ValueError("usage: interact agent ID|LABEL|NUMBER or select an agent first")
+        raise ValueError(
+            "usage:\n"
+            "  interact target ID\n"
+            "  interact target LABEL\n"
+            "  interact target N\n"
+            "  select a target first"
+        )
     snap = snapshot_func(cfg)
     target = current_line_target_record(cfg, snapshot_func)
     target_filter = snap.get("target_filter") or {}
@@ -178,10 +186,11 @@ def print_line_target_interaction(
     label = target.get("label") or target_filter.get("target_label") or "-"
     state = target.get("connectivity_state") or target_filter.get("connectivity_state") or "-"
     display = f"{label} ({target_id})" if label and label != "-" and label != target_id else target_id
-    print(f"Agent interaction: {display}")
+    print(f"Target interaction: {display}")
     print(f"  state: {state}")
-    print(target_filter_brief_text(target_filter, prefix="  selected agent:"))
-    print("  commands: queue COMMAND, probe queue, retrieve queue TARGET_PATH, mailbox, stage start LOCAL [NAME], deliver queue NAME, serve-binary start PATH [NAME], sessions, show activity, clear target")
+    print(target_filter_brief_text(target_filter, prefix="  selected target:"))
+    print("  commands: queue COMMAND, probe queue, retrieve queue TARGET_PATH, mailbox, stage start LOCAL NAME, deliver queue NAME")
+    print("  binaries: listener serve start, listener serve ssh start, serve-binary start PATH NAME")
     pending = [rec for rec in mailbox_records or [] if rec.get("pending_work")]
     if pending:
         print("  pending work:")

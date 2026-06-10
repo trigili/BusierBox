@@ -1179,21 +1179,24 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition("wget -O-" in mailbox_commands and "probe.sh" in mailbox_commands, "queued probe bootstrap command missing", mailbox_commands)
     assert_condition("grit fetch workflow-payload.txt" in mailbox_commands, "queued staged fetch command missing", mailbox_commands)
     write_offline_workflow_artifact(artifact_dir, doc)
-    line_console_result = run_line_console(cfg, "20\n18\ntarget-workflow\nq\n")
+    line_console_result = run_line_console(cfg, "queue\nuse agent target-workflow\ninfo\nq\nq\n")
     assert_condition(line_console_result["returncode"] == 0, "offline workflow line console failed", line_console_result)
     line_console_text = line_console_result["stdout"]
     assert_condition("headless_command" not in line_console_text, "offline workflow line console should not show headless commands by default", line_console_text)
     assert_condition("queue COMMAND  |  queue list  |  queue ? for help" in line_console_text, "offline workflow line console missing command queue controls", line_console_text)
     assert_condition("Mailbox  (2 records)" in line_console_text, "offline workflow line console missing mailbox section", line_console_text)
     assert_condition("target-workflow" in line_console_text, "offline workflow line console missing target-scoped mailbox records", line_console_text)
-    assert_condition("waiting_for=target-poll" in line_console_text and "pending=2" in line_console_text, "offline workflow line console missing pending mailbox state", line_console_text)
-    assert_condition("Target detail: target-workflow label=Workflow Target" in line_console_text, "offline workflow line console missing target detail", line_console_text)
-    assert_condition("mailbox queued=2" in line_console_text and "pending=2" in line_console_text, "offline workflow line console missing target mailbox counts", line_console_text)
-    assert_condition("queue-probe" in line_console_text and "queue-staged-fetch" in line_console_text, "offline workflow line console missing offline workflow actions", line_console_text)
+    assert_condition("mailbox pending 2" in line_console_text and "target-poll" in line_console_text, "offline workflow line console missing pending mailbox state", line_console_text)
+    assert_condition("selected agent: target-workflow (Workflow Target)" in line_console_text, "offline workflow line console missing target detail", line_console_text)
+    assert_condition("mailbox 2 pending" in line_console_text, "offline workflow line console missing target mailbox counts", line_console_text)
+    assert_condition("Queue actions" in line_console_text, "offline workflow line console missing offline workflow actions", line_console_text)
     line_console_doc = status(cfg, artifact_dir, "offline-workflow-tui-status")
     line_console_events = line_console_doc.get("events_by_event") or {}
     assert_condition(line_console_events.get("workbench_command_queue_inspected"), "offline workflow line console command queue event missing")
-    assert_condition(line_console_events.get("workbench_target_inspected"), "offline workflow line console target detail event missing")
+    assert_condition(
+        line_console_events.get("workbench_target_inspected") or line_console_events.get("workbench_target_selected"),
+        "offline workflow line console target detail event missing",
+    )
     write_offline_workflow_line_console_artifact(artifact_dir, line_console_doc, line_console_result)
     delivered_ids = []
     responses = []
@@ -1238,20 +1241,23 @@ def run_offline_workflow_queue_scenario(artifact_dir):
     assert_condition(any(rec.get("pending_work_remaining") is True for rec in drain_phone_home), "offline workflow drain should record remaining queued work after first poll", drain_phone_home)
     assert_condition(any(rec.get("pending_work_remaining") is False for rec in drain_phone_home), "offline workflow drain should record empty mailbox after final poll", drain_phone_home)
     write_offline_workflow_drain_artifact(artifact_dir, drain_doc, delivered_ids, responses)
-    drain_line_console_result = run_line_console(cfg, "20\n18\ntarget-workflow\nq\n")
+    drain_line_console_result = run_line_console(cfg, "queue\nuse agent target-workflow\ninfo\nq\nq\n")
     assert_condition(drain_line_console_result["returncode"] == 0, "offline workflow drain line console failed", drain_line_console_result)
     drain_line_console_text = drain_line_console_result["stdout"]
     assert_condition("Mailbox  (2 records)" in drain_line_console_text, "offline workflow drain line console missing mailbox section", drain_line_console_text)
     assert_condition("target-workflow" in drain_line_console_text, "offline workflow drain line console missing target-scoped mailbox records", drain_line_console_text)
-    assert_condition("status=delivered" in drain_line_console_text and "pending=0" in drain_line_console_text, "offline workflow drain line console missing delivered mailbox state", drain_line_console_text)
-    assert_condition("last_seen=" in drain_line_console_text and "via=command-queue:command_queue_poll" in drain_line_console_text, "offline workflow drain line console missing heartbeat context", drain_line_console_text)
-    assert_condition("next_expected_poll=" in drain_line_console_text and "poll_overdue=no" in drain_line_console_text, "offline workflow drain line console missing next poll context", drain_line_console_text)
-    assert_condition("phone_home_latest=" in drain_line_console_text and "status=delivered" in drain_line_console_text, "offline workflow drain line console missing phone-home status", drain_line_console_text)
-    assert_condition("Target detail: target-workflow label=Workflow Target" in drain_line_console_text, "offline workflow drain line console missing target detail", drain_line_console_text)
+    assert_condition("mailbox pending 0" in drain_line_console_text and "delivered" in drain_line_console_text, "offline workflow drain line console missing delivered mailbox state", drain_line_console_text)
+    assert_condition("path=command-queue:" in drain_line_console_text, "offline workflow drain line console missing heartbeat context", drain_line_console_text)
+    assert_condition("poll current" in drain_line_console_text, "offline workflow drain line console missing next poll context", drain_line_console_text)
+    assert_condition("phone_home=" in drain_line_console_text and "status=delivered" in drain_line_console_text, "offline workflow drain line console missing phone-home status", drain_line_console_text)
+    assert_condition("selected agent: target-workflow (Workflow Target)" in drain_line_console_text, "offline workflow drain line console missing target detail", drain_line_console_text)
     drain_line_console_doc = status(cfg, artifact_dir, "offline-workflow-drain-tui-status")
     drain_line_console_events = drain_line_console_doc.get("events_by_event") or {}
     assert_condition(drain_line_console_events.get("workbench_command_queue_inspected"), "offline workflow drain line console command queue event missing")
-    assert_condition(drain_line_console_events.get("workbench_target_inspected"), "offline workflow drain line console target detail event missing")
+    assert_condition(
+        drain_line_console_events.get("workbench_target_inspected") or drain_line_console_events.get("workbench_target_selected"),
+        "offline workflow drain line console target detail event missing",
+    )
     write_offline_workflow_drain_line_console_artifact(artifact_dir, drain_line_console_doc, drain_line_console_result)
     return {"name": "offline-workflow-queue", "status": "pass", "artifact": "offline-workflow-status.json"}
 

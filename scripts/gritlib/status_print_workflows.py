@@ -20,7 +20,7 @@ def print_generated_target_commands(doc):
 
 
 def print_operator_workflow_actions(doc):
-    print("Operator workflow actions:")
+    print("Operator modules:")
     print_workbench_action_summary(doc)
     for rec in doc.get("workbench_actions") or []:
         bg = "yes" if rec.get("background_supported") else "no"
@@ -38,7 +38,7 @@ def print_operator_workflow_actions(doc):
 
 def print_target_workflow_actions(doc):
     if doc.get("target_workflow_actions"):
-        print("Target workflow actions:")
+        print("Target modules:")
         for rec in doc.get("target_workflow_actions") or []:
             requires_input = "yes" if rec.get("requires_input") else "no"
             available = "yes" if rec.get("available") else "no"
@@ -78,7 +78,7 @@ def print_workbench_jobs(doc):
 
 
 def print_snapshot_workflow_actions(snap):
-    print("Operator workflow actions:")
+    print("Operator modules:")
     print_workbench_action_summary(snap)
     actions = snap.get("workbench_actions") or []
     preview_action_limit = 12
@@ -95,12 +95,12 @@ def print_snapshot_workflow_actions(snap):
         if rec.get("start_job_command"):
             print(f"    start_job: {rec.get('start_job_command', '')}")
     if len(actions) > preview_action_limit:
-        print(f"  ... {len(actions) - preview_action_limit} more operator workflow action(s); choose action 11 in line mode for the full list")
+        print(f"  ... {len(actions) - preview_action_limit} more operator module(s); choose module 11 in line mode for the full list")
 
 
 def print_snapshot_target_workflow_actions(snap):
     if snap.get("target_workflow_actions"):
-        print("Target workflow actions:")
+        print("Target modules:")
         actions = snap.get("target_workflow_actions") or []
         for rec in actions[:3]:
             requires_input = "yes" if rec.get("requires_input") else "no"
@@ -118,7 +118,7 @@ def print_snapshot_target_workflow_actions(snap):
             )
             print(f"    {rec.get('headless_command', rec.get('command', ''))}")
         if len(actions) > 3:
-            print(f"  ... {len(actions) - 3} more target workflow action(s); choose action 11 in line mode for the full list")
+            print(f"  ... {len(actions) - 3} more target module(s); choose module 11 in line mode for the full list")
 
 
 def print_snapshot_workbench_jobs(snap):

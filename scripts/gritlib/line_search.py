@@ -173,7 +173,7 @@ def _line_search_matches(
     for rec in snap.get("workbench_jobs") or []:
         add(
             "job",
-            f"{rec.get('id', '')} action: {rec.get('action_id', '') or '-'} state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}",
+            f"{rec.get('id', '')} module: {rec.get('action_id', '') or '-'} state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}",
             rec,
             job_cancel_command_builder(str(rec.get("id") or "")),
         )
@@ -190,11 +190,11 @@ def _line_search_use_hint(kind, rec, quote):
     if kind == "target":
         return f"use target {quote(str(rec.get('target_id', '')))}"
     if kind == "service":
-        return f"use service {quote(str(rec.get('name', '')))}"
+        return f"use listener {quote(str(rec.get('name', '')))}"
     if kind == "route":
         return f"use route {quote(str(rec.get('name', '')))}"
     if kind == "action":
-        return f"use action {quote(str(rec.get('id', '')))}"
+        return f"use module {quote(str(rec.get('id', '')))}"
     if kind == "session":
         session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
         return f"use session {quote(str(session_id))}"
@@ -203,10 +203,18 @@ def _line_search_use_hint(kind, rec, quote):
     return ""
 
 
+def _line_search_display_kind(kind):
+    if kind == "service":
+        return "listener"
+    if kind == "action":
+        return "module"
+    return kind
+
+
 def _print_line_search_matches(matches, quote):
     search_records = []
     for idx, (kind, label, rec, command) in enumerate(matches, 1):
-        print(f"  {idx}: {kind} {label}")
+        print(f"  {idx}: {_line_search_display_kind(kind)} {label}")
         use_hint = _line_search_use_hint(kind, rec, quote)
         stored_command = command
         if use_hint:
@@ -234,7 +242,7 @@ def print_line_search_results(
 ):
     term = str(query or "").strip().lower()
     if not term:
-        raise ValueError("usage: search TERM")
+        raise ValueError("usage:\n  search TERM")
     snap = snap or {}
     service_records = list(service_records or [])
     route_records = list(route_records or [])
@@ -309,7 +317,7 @@ def use_line_search_result(
         no_active_message="no numbered results active; run search, targets, listeners, sessions, files, jobs, routes, or listener probe results",
     )
     if not selection.handled:
-        raise ValueError("usage: use N")
+        raise ValueError("usage:\n  use N")
     if not selection.selected:
         raise ValueError(selection.message)
     text = selection.selector
@@ -327,7 +335,7 @@ def use_line_search_result(
     if kind == "queue-action":
         if select_queue_action:
             return select_queue_action(str(rec.get("id") or ""))
-        raise ValueError("command queue action selection is unavailable")
+        raise ValueError("command queue shortcut selection is unavailable")
     if kind == "session":
         session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
         return select_session(str(session_id))

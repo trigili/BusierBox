@@ -7,6 +7,7 @@ from gritlib.line_options import (
     parse_line_option_command,
     parse_line_target_metadata_command,
 )
+from gritlib.line_network import dispatch_line_ip_command, parse_line_ip_command
 from gritlib.line_profile_serve import parse_line_listener_serve_command
 from gritlib.line_profiles import dispatch_line_profile_command, parse_line_profile_command
 from gritlib.line_workspace import dispatch_line_workspace_command, parse_line_workspace_command
@@ -24,6 +25,14 @@ def _dispatch_line_workspace_family(
     args,
     callbacks,
 ):
+    ip_cmd = parse_line_ip_command(cmd, args)
+    if ip_cmd:
+        dispatch_line_ip_command(
+            ip_cmd,
+            snap_func=callbacks.get("workspace_snapshot_func"),
+            set_option_func=callbacks.get("set_global_option_func"),
+        )
+        return "handled"
     workspace_cmd = parse_line_workspace_command(cmd, args)
     if not workspace_cmd:
         return ""
@@ -93,9 +102,16 @@ def _dispatch_line_target_metadata_family(
 
 
 def _dispatch_line_profile_family(cmd, args, callbacks):
-    profile_cmd = parse_line_profile_command(cmd, args)
+    try:
+        profile_cmd = parse_line_profile_command(cmd, args)
+    except ValueError as exc:
+        print(exc)
+        return "handled"
     if not profile_cmd:
         return ""
+    set_context_func = callbacks.get("set_context_func")
+    if set_context_func:
+        set_context_func("profiles")
     dispatch_line_profile_command(
         profile_cmd,
         profile_func=callbacks.get("profile_func"),
@@ -146,6 +162,7 @@ def _dispatch_line_probe_family(
         paste_func=callbacks.get("probe_paste_func"),
         script_func=callbacks.get("probe_script_func"),
         help_func=callbacks.get("help_func"),
+        options_func=callbacks.get("options_func"),
         start_func=callbacks.get("probe_start_func"),
     )
     return "handled"
@@ -156,7 +173,11 @@ def _dispatch_line_survey_family(
     args,
     callbacks,
 ):
-    survey_cmd = parse_line_survey_command(cmd, args)
+    try:
+        survey_cmd = parse_line_survey_command(cmd, args)
+    except ValueError as exc:
+        print(exc)
+        return "handled"
     if not survey_cmd:
         return ""
     dispatch_line_survey_command(
@@ -175,6 +196,7 @@ def dispatch_line_core_command(
     args,
     *,
     status_func=None,
+    workspace_snapshot_func=None,
     ips_func=None,
     workspace_func=None,
     reload_func=None,

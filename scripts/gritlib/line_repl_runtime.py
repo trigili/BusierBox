@@ -26,7 +26,7 @@ CONTEXTUAL_COMMAND_PREFIXES = {
     },
     "listener": set(),
     "probe": {
-        "start", "queue", "results", "result", "config", "clear", "serve",
+        "start", "queue", "results", "result", "config", "clear",
         "delivery", "deliver", "commands", "paste", "serial", "heredoc",
         "script", "raw", "show", "command", "start-service",
         "help",
@@ -40,6 +40,9 @@ CONTEXTUAL_COMMAND_PREFIXES = {
     "routes": {
         "add", "start", "stop", "delete", "rm", "remove", "print",
     },
+    "route": {
+        "add", "start", "stop", "delete", "rm", "remove", "print",
+    },
     "sessions": {
         "clear", "prune", "clean", "verbose", "list",
     },
@@ -49,8 +52,9 @@ CONTEXTUAL_COMMAND_PREFIXES = {
 }
 
 CONTEXTUAL_COMMAND_CANONICAL = {
-    "route": "routes",
-    "route/": "routes",
+    "routes": "route",
+    "route": "route",
+    "route/": "route",
     "listener/": "listener",
     "job": "jobs",
     "job/": "jobs",
@@ -67,7 +71,7 @@ def resolve_replay_command(choice, line_history, history_command_func):
     if text.lower().startswith("repeat "):
         repeat_args = shlex.split(text)
         if len(repeat_args) != 2:
-            raise ValueError("usage: repeat N")
+            raise ValueError("usage:\n  repeat N")
         return history_command_func(line_history, repeat_args[1]), True
     return choice, False
 
@@ -90,6 +94,8 @@ def contextual_line_command(cmd, args, *, module=None):
         return command, command_args
     if command == "clear" and command_args[:1] == ["target"]:
         return command, command_args
+    if module_text in {"listener/probe", "listener/probe-http"} and command == "serve":
+        return "listener", ["serve", *command_args]
     if module_text in {"listener/probe", "listener/probe-http"} and command == "probe":
         return "listener", ["probe", *command_args]
     if module_text in {"listener/probe", "listener/probe-http"} and command in CONTEXTUAL_COMMAND_PREFIXES.get("probe", set()):
@@ -167,7 +173,11 @@ def prepare_repl_choice(
         }
     cmd = console_args[0].lower() if console_args else ""
     preserve_line_results = (
-        cmd == "use" and len(console_args) == 2 and console_args[1].isdigit()
+        (cmd == "use" and len(console_args) == 2 and console_args[1].isdigit())
+        or cmd in {
+            "?", "help", "options", "next", "complete", "completions",
+            "history", "console",
+        }
     )
     if not preserve_line_results:
         clear_results_func()
@@ -253,11 +263,6 @@ def dispatch_line_parsed_command(
     """Dispatch a parsed line-console command through the standard handler order."""
     args = list(console_args or [])
     command_args = args[1:]
-    if cmd in {"q", "quit", "exit"}:
-        return {
-            "handled": False,
-            "choice": "q",
-        }
     if dispatch_line_help_command(
         cmd,
         args,
@@ -267,6 +272,11 @@ def dispatch_line_parsed_command(
         context_help_printer=context_help_printer,
     ):
         return {"handled": True}
+    if cmd in {"q", "quit", "exit"}:
+        return {
+            "handled": False,
+            "choice": "q",
+        }
     cmd, command_args = contextual_line_command(cmd, command_args, module=module)
     if utility_dispatch_func(cmd, command_args):
         return {"handled": True}

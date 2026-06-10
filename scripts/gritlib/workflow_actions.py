@@ -22,18 +22,18 @@ from gritlib.workbench_jobs import workbench_job_records
 def select_workflow_action(records, selector, label, extra_keys=()):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError(f"{label} workflow action is required")
+        raise ValueError(f"{label} module is required")
     records = records or []
     if text.isdigit():
         idx = int(text) - 1
         if idx < 0 or idx >= len(records):
-            raise ValueError(f"{label} workflow action number out of range: {text}")
+            raise ValueError(f"{label} module number out of range: {text}")
         return records[idx]
     keys = ("id", "action_id", *tuple(extra_keys or ()))
     for rec in records:
         if text in tuple(str(rec.get(key) or "") for key in keys):
             return rec
-    raise ValueError(f"{label} workflow action not found: {text}")
+    raise ValueError(f"{label} module not found: {text}")
 
 
 def _legacy_workbench_headless_status_command(cfg):
@@ -46,7 +46,7 @@ def _legacy_workbench_headless_status_command(cfg):
 
 def _print_legacy_workbench_action_summary(summary):
     print(
-        "Workbench action summary: "
+        "Workbench module summary: "
         f"total={summary.get('workbench_action_count', 0)} "
         f"background_supported={summary.get('workbench_action_background_supported_count', 0)} "
         f"foreground_runnable={summary.get('workbench_action_foreground_runnable_count', 0)} "
@@ -56,7 +56,7 @@ def _print_legacy_workbench_action_summary(summary):
 
 def _print_legacy_operator_daemon_workflow_summary(summary):
     print(
-        "Operator daemon workflow action summary: "
+        "Operator daemon module summary: "
         f"total={summary.get('operator_daemon_workflow_action_count', 0)} "
         f"attached={summary.get('operator_daemon_workflow_action_attached_count', 0)} "
         f"enter_runnable={summary.get('operator_daemon_workflow_action_can_run_from_curses_enter_count', 0)} "
@@ -119,7 +119,7 @@ def _legacy_service_action_preview(records):
 def _print_legacy_service_action_preview(service_actions, preview):
     if service_actions:
         print(
-            "Service workflow actions: "
+            "Service modules: "
             f"total={len(service_actions)} preview={len(preview)} "
             f"runnable/file-service actions shown"
         )
@@ -141,7 +141,7 @@ def _print_legacy_service_action_preview(service_actions, preview):
 
 def _print_legacy_target_workflow_action_hint(target_actions):
     if target_actions:
-        print(f"Target workflow actions: total={len(target_actions)}; use action 15 for the prompted target workflow list")
+        print(f"Target modules: total={len(target_actions)}; use module 15 for the prompted target module list")
 
 
 def _append_legacy_workbench_actions_viewed(cfg, append_event_fn, headless, snap):
@@ -158,7 +158,7 @@ def _run_selected_legacy_workbench_action(cfg, selected, *, input_func, actions_
         actions = actions_func()
         action = select_workbench_action(actions, selected)
         if action.get("background_supported") is True:
-            print("background action; use action 12 to start it as a managed job")
+            print("background module; use module 12 to start it as a managed job")
             return True
         dry_line = input_func("dry-run/preview only? [Y/n]> ")
         dry_run = dry_line is None or dry_line.strip().lower() not in ("n", "no")
@@ -205,7 +205,7 @@ def dispatch_legacy_workbench_action_number(
     _print_legacy_service_action_preview(service_actions, _legacy_service_action_preview(service_actions))
     _print_legacy_target_workflow_action_hint(snap.get("target_workflow_actions") or [])
     _append_legacy_workbench_actions_viewed(cfg, append_event_fn, headless, snap)
-    selected_line = input_func("operator action id/number to run, or blank> ")
+    selected_line = input_func("operator module id/number to run, or blank> ")
     selected = selected_line.strip() if selected_line is not None else ""
     if selected:
         return _run_selected_legacy_workbench_action(
@@ -239,7 +239,7 @@ def dispatch_legacy_target_workflow_number(
             f"workflow={rec.get('workflow', '')} "
             f"input={'yes' if rec.get('requires_input') else 'no'}"
         )
-    selected_line = input_func("target workflow action id or number> ") if input_func else None
+    selected_line = input_func("target module id or number> ") if input_func else None
     selected = selected_line.strip() if selected_line is not None else ""
     if selected:
         try:
@@ -255,7 +255,7 @@ def dispatch_legacy_target_workflow_number(
             if target_id and scoped_target_cfg_func and print_target_summary_func and snapshot_func:
                 target_label = str(rec.get("target_label") or "")
                 scoped = scoped_target_cfg_func(cfg, target_id, target_label=target_label)
-                print("Target activity after action:")
+                print("Target activity after module:")
                 print_target_summary_func(snapshot_func(scoped), limit=2)
         except (ValueError, IndexError) as exc:
             print(exc)
@@ -276,7 +276,7 @@ LINE_DAEMON_ACTION_LABELS = {
 
 
 LINE_DAEMON_ACTION_PURPOSES = {
-    "operator-daemon-start": "Run selected listener services in the background",
+    "operator-daemon-start": "Run selected listeners in the background",
     "operator-daemon-status": "Show daemon health and managed service state",
     "operator-daemon-stop": "Stop the operator daemon and managed services",
     "systemd-user-print": "Preview a user systemd unit for the daemon",
@@ -386,6 +386,8 @@ def run_line_daemon_action(
 ):
     daemon_cmd = parse_line_daemon_action_args(args)
     if daemon_cmd["action"] == "list":
+        if daemon_cmd["dry_run"] or daemon_cmd["confirmed"]:
+            raise ValueError("usage:\n  daemon MODULE dry-run\n  daemon MODULE confirm")
         if print_actions_func:
             return print_actions_func(verbose=daemon_cmd["verbose"])
         return None
@@ -402,9 +404,9 @@ def run_line_daemon_action(
     except (TypeError, ValueError):
         rc_code = 1
     if rc_code == 0:
-        print("daemon action complete: ok")
+        print("daemon module complete: ok")
     else:
-        print(f"daemon action failed: rc={rc_code}")
+        print(f"daemon module failed: rc={rc_code}")
     return rc
 
 
@@ -421,7 +423,7 @@ def print_line_daemon_action_records(records, verbose=False):
         return details
 
     cols = [
-        ("Action", line_daemon_action_label),
+        ("Module", line_daemon_action_label),
         ("Use", line_daemon_action_alias),
         ("Purpose", line_daemon_action_purpose),
         ("Workflow", lambda r: r.get("workflow") or "-"),
@@ -430,9 +432,9 @@ def print_line_daemon_action_records(records, verbose=False):
         ("Confirm", lambda r: "yes" if r.get("requires_confirmation") else "no"),
     ]
     console_table(
-        f"Daemon actions  ({len(records)} total)" if records else "Daemon actions  (none)",
+        f"Daemon modules  ({len(records)} total)" if records else "Daemon modules  (none)",
         records, cols, detail_fn=_detail,
-        footer="daemon ACTION  |  daemon ACTION dry-run  |  daemon verbose for commands  |  daemon ? for help",
+        footer="daemon MODULE, daemon MODULE dry-run, daemon verbose, daemon ?",
     )
 
 
@@ -787,7 +789,7 @@ def _print_build_config_field_summary(summary):
 
 def _print_workbench_action_record_summary(summary):
     print(
-        "Workbench action summary: "
+        "Workbench module summary: "
         f"total={summary.get('workbench_action_count', 0)} "
         f"background_supported={summary.get('workbench_action_background_supported_count', 0)} "
         f"long_running={summary.get('workbench_action_long_running_count', 0)} "
@@ -802,12 +804,12 @@ def _print_workbench_action_record_summary(summary):
     print(f"  categories: {format_counts(summary.get('workbench_action_category_counts') or {})}")
     print(f"  execution defaults: {format_counts(summary.get('workbench_action_execution_default_counts') or {})}")
     print(f"  events: {format_counts(summary.get('workbench_action_event_counts') or {})}")
-    print(f"  action states: {format_counts(summary.get('workbench_action_operator_action_state_counts') or {})}")
+    print(f"  module states: {format_counts(summary.get('workbench_action_operator_action_state_counts') or {})}")
 
 
 def _print_operator_daemon_workflow_action_summary(summary):
     print(
-        "Operator daemon workflow action summary: "
+        "Operator daemon module summary: "
         f"total={summary.get('operator_daemon_workflow_action_count', 0)} "
         f"attached={summary.get('operator_daemon_workflow_action_attached_count', 0)} "
         f"background_supported={summary.get('operator_daemon_workflow_action_background_supported_count', 0)} "
@@ -819,12 +821,12 @@ def _print_operator_daemon_workflow_action_summary(summary):
         f"fleet_poll_overdue={format_counts(summary.get('operator_daemon_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
     )
     print(f"  daemon workflows: {format_counts(summary.get('operator_daemon_workflow_action_workflow_counts') or {})}")
-    print(f"  daemon action states: {format_counts(summary.get('operator_daemon_workflow_action_operator_action_state_counts') or {})}")
+    print(f"  daemon module states: {format_counts(summary.get('operator_daemon_workflow_action_operator_action_state_counts') or {})}")
 
 
 def _print_service_workflow_action_summary(summary):
     print(
-        "Service workflow action summary: "
+        "Service module summary: "
         f"total={summary.get('service_workflow_action_count', 0)} "
         f"available={summary.get('service_workflow_action_available_count', 0)} "
         f"requires_confirmation={summary.get('service_workflow_action_requires_confirmation_count', 0)} "
@@ -834,12 +836,12 @@ def _print_service_workflow_action_summary(summary):
         f"fleet_poll_overdue={format_counts(summary.get('service_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
     )
     print(f"  service workflows: {format_counts(summary.get('service_workflow_action_workflow_counts') or {})}")
-    print(f"  service action states: {format_counts(summary.get('service_workflow_action_operator_action_state_counts') or {})}")
+    print(f"  service module states: {format_counts(summary.get('service_workflow_action_operator_action_state_counts') or {})}")
 
 
 def _print_target_workflow_action_summary(summary):
     print(
-        "Target workflow action summary: "
+        "Target module summary: "
         f"total={summary.get('target_workflow_action_count', 0)} "
         f"available={summary.get('target_workflow_action_available_count', 0)} "
         f"requires_input={summary.get('target_workflow_action_requires_input_count', 0)} "
@@ -850,12 +852,12 @@ def _print_target_workflow_action_summary(summary):
     print(f"  target workflow categories: {format_counts(summary.get('target_workflow_action_category_counts') or {})}")
     print(f"  target workflows: {format_counts(summary.get('target_workflow_action_workflow_counts') or {})}")
     print(f"  offline work: {format_counts(summary.get('target_workflow_action_queues_offline_work_counts') or {})}")
-    print(f"  action states: {format_counts(summary.get('target_workflow_action_operator_action_state_counts') or {})}")
+    print(f"  module states: {format_counts(summary.get('target_workflow_action_operator_action_state_counts') or {})}")
 
 
 def _print_probe_workflow_action_summary(summary):
     print(
-        "Probe workflow action summary: "
+        "Probe module summary: "
         f"total={summary.get('probe_workflow_action_count', 0)} "
         f"available={summary.get('probe_workflow_action_available_count', 0)} "
         f"requires_confirmation={summary.get('probe_workflow_action_requires_confirmation_count', 0)} "
@@ -867,12 +869,12 @@ def _print_probe_workflow_action_summary(summary):
     )
     print(f"  probe routes: {format_counts(summary.get('probe_workflow_action_route_kind_counts') or {})}")
     print(f"  probe bridges: {format_counts(summary.get('probe_workflow_action_bridge_profile_counts') or {})}")
-    print(f"  probe action states: {format_counts(summary.get('probe_workflow_action_operator_action_state_counts') or {})}")
+    print(f"  probe module states: {format_counts(summary.get('probe_workflow_action_operator_action_state_counts') or {})}")
 
 
 def _print_command_queue_workflow_action_summary(summary):
     print(
-        "Command queue workflow action summary: "
+        "Command queue shortcut summary: "
         f"total={summary.get('command_queue_workflow_action_count', 0)} "
         f"requires_input={summary.get('command_queue_workflow_action_requires_input_count', 0)} "
         f"requires_confirmation={summary.get('command_queue_workflow_action_requires_confirmation_count', 0)} "
@@ -884,12 +886,12 @@ def _print_command_queue_workflow_action_summary(summary):
         f"fleet_poll_overdue={format_counts(summary.get('command_queue_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
     )
     print(f"  command queue categories: {format_counts(summary.get('command_queue_workflow_action_category_counts') or {})}")
-    print(f"  command queue action states: {format_counts(summary.get('command_queue_workflow_action_operator_action_state_counts') or {})}")
+    print(f"  command queue shortcut states: {format_counts(summary.get('command_queue_workflow_action_operator_action_state_counts') or {})}")
 
 
 def _print_file_service_workflow_action_summary(summary):
     print(
-        "File service workflow action summary: "
+        "File service shortcut summary: "
         f"total={summary.get('file_service_workflow_action_count', 0)} "
         f"available={summary.get('file_service_workflow_action_available_count', 0)} "
         f"requires_input={summary.get('file_service_workflow_action_requires_input_count', 0)} "
@@ -900,7 +902,7 @@ def _print_file_service_workflow_action_summary(summary):
         f"fleet_poll_overdue={format_counts(summary.get('file_service_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
     )
     print(f"  file workflows: {format_counts(summary.get('file_service_workflow_action_workflow_counts') or {})}")
-    print(f"  file action states: {format_counts(summary.get('file_service_workflow_action_operator_action_state_counts') or {})}")
+    print(f"  file shortcut states: {format_counts(summary.get('file_service_workflow_action_operator_action_state_counts') or {})}")
 
 
 def print_workbench_action_summary(doc):

@@ -4,7 +4,7 @@ from pathlib import Path
 import shutil
 
 from gritlib.console_display import console_table
-from gritlib.line_context import set_line_collection_context
+from gritlib.line_context import clear_line_module_context, set_line_collection_context
 from gritlib.line_search import set_line_search_results
 from gritlib.shell_utils import shquote
 from gritlib.session_state import read_json_file
@@ -41,7 +41,7 @@ LINE_SESSION_COMMANDS = (
         "subcommands": ("-i", "--interact", "interact"),
     },
     {
-        "action": "interact",
+        "action": "select",
         "commands": ("session",),
         "subcommands": (),
         "positional": True,
@@ -112,9 +112,9 @@ def parse_line_sessions_command(cmd, args):
         }
     if args and first not in {"-l", "--list", "list"}:
         for rec in records:
-            if rec["action"] == "interact" and rec.get("positional"):
+            if rec.get("positional"):
                 return {
-                    "action": "interact",
+                    "action": rec["action"],
                     "selector": " ".join(args).strip(),
                     "command": cmd,
                 }
@@ -134,6 +134,7 @@ def dispatch_line_sessions_command(
     clear_func=None,
     help_func=None,
     interact_func=None,
+    select_func=None,
     list_func=None,
 ):
     action = (session_cmd or {}).get("action")
@@ -147,6 +148,8 @@ def dispatch_line_sessions_command(
             return help_func("sessions")
         if action == "interact" and interact_func:
             return interact_func(session_cmd.get("selector", ""))
+        if action == "select" and select_func:
+            return select_func(session_cmd.get("selector", ""))
         if action == "list" and list_func:
             return list_func(verbose=bool(session_cmd.get("verbose")))
     except ValueError as exc:
@@ -203,7 +206,7 @@ def require_line_session_record(sessions, selector):
     if not selected and text.isdigit():
         raise ValueError(f"session number out of range: {text}")
     if not selected:
-        raise ValueError(f"session not found: {text}")
+        raise ValueError(f"session not found: {text}; run: sessions or sessions verbose")
     return selected
 
 
@@ -254,13 +257,18 @@ def clear_line_sessions(cfg, root, all_sessions=False, confirm=False, append_eve
         return
     removed = 0
     errors = 0
+    removed_names = set()
     for path, _state, _has_data in candidates:
         try:
             shutil.rmtree(path)
+            removed_names.add(path.name)
             removed += 1
         except OSError as exc:
             print(f"  error removing {path.name}: {exc}")
             errors += 1
+    module = str((cfg or {}).get("_line_console_module") or "")
+    if module.startswith("session/") and module.split("/", 1)[1] in removed_names:
+        clear_line_module_context(cfg)
     print(f"\n  Cleared {removed} session(s)." + (f"  {errors} error(s)." if errors else ""))
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_sessions_cleared", details={
@@ -277,7 +285,7 @@ def print_selected_line_session(rec):
     if state_str == "-":
         state_str = "?"
     print(f"  {session_id}  —  {service}  |  {state_str}")
-    print("  info / interact / view / sessions -v / back")
+    print("  info, interact, view, sessions verbose, back")
 
 
 def print_line_session_interaction(rec, headless):
@@ -287,7 +295,7 @@ def print_line_session_interaction(rec, headless):
     print(f"  state: {rec.get('state', '') or '-'}")
     print(f"  path: {path}")
     print(f"  view: view {shquote(path)}")
-    print(f"  next: view {path}, sessions -l, sessions -v")
+    print(f"  next: view {path}, sessions list, sessions verbose")
     if rec.get("session_log"):
         print(f"  session log: {rec.get('session_log', '')}")
         print(f"  tail: tail -n 40 {shquote(str(rec.get('session_log', '')))}")
@@ -333,7 +341,7 @@ def _line_session_columns(shown, verbose):
 
 
 def _line_session_footer(total):
-    footer = "use N to select  |  sessions -v for details  |  sessions ? for help"
+    footer = "use N, sessions verbose, sessions ?"
     if total > 12:
         footer = f"showing 12 of {total}  —  " + footer
     return footer
@@ -403,7 +411,7 @@ def print_current_line_sessions(
 def select_current_line_session(cfg, snapshot_func, selector, append_event_fn=None):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError("usage: use session SESSION")
+        raise ValueError("usage:\n  use session SESSION")
     snapshot = snapshot_func() if snapshot_func else {}
     selected = require_line_session_record((snapshot or {}).get("sessions") or [], text)
     session_id = str(selected.get("session_id") or Path(str(selected.get("path", ""))).name)
@@ -434,7 +442,7 @@ def interact_current_line_session(
         if module.startswith("session/"):
             text = module.split("/", 1)[1]
     if not text:
-        raise ValueError("usage: interact SESSION")
+        raise ValueError("usage:\n  interact SESSION")
     snapshot = snapshot_func() if snapshot_func else {}
     selected = require_line_session_record((snapshot or {}).get("sessions") or [], text)
     path = str(selected.get("path") or "")

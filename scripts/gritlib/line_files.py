@@ -18,7 +18,10 @@ from gritlib.staged_files import load_staged, stage_file, unstage_file
 
 
 def print_file_service_note(started):
-    print(f"  file service {'started' if started else 'not started'}")
+    if started:
+        print("  file service started by this command")
+    else:
+        print("  file service not started by this command; use deliver start NAME if needed")
 
 
 def print_file_queue_note(queued):
@@ -199,6 +202,7 @@ def _dispatch_legacy_stage_file(cfg, input_func, append_event_fn):
                 "stage_kind": rec.get("stage_kind", ""),
                 "target_id": rec.get("target_id", ""),
                 "target_label": rec.get("target_label", ""),
+                "started_file_service": False,
             })
     except ValueError as exc:
         print(exc)
@@ -208,7 +212,7 @@ def _dispatch_legacy_stage_file(cfg, input_func, append_event_fn):
 def _print_legacy_file_service_actions(file_actions):
     if not file_actions:
         return
-    print("File service workflow actions:")
+    print("File service shortcuts:")
     for rec in file_actions:
         print(
             f"  {rec.get('id', '')} "
@@ -227,7 +231,7 @@ def _print_legacy_file_service_actions(file_actions):
 def _print_legacy_staged_file_actions(staged_actions):
     if not staged_actions:
         return
-    print("Staged file workflow actions:")
+    print("Staged file shortcuts:")
     for rec in staged_actions:
         print(
             f"  {rec.get('id', '')} "
@@ -446,6 +450,22 @@ def parse_line_file_args(args):
     return selector, request_name, start_file_service
 
 
+def _line_file_usage(*commands):
+    return "usage:\n" + "\n".join(f"  {command}" for command in commands)
+
+
+def _line_deliver_usage():
+    return _line_file_usage("deliver NAME", "deliver queue NAME", "deliver start NAME")
+
+
+def _line_retrieve_usage():
+    return _line_file_usage("retrieve TARGET_PATH", "retrieve queue TARGET_PATH")
+
+
+def _line_stage_usage():
+    return _line_file_usage("stage LOCAL NAME", "stage start LOCAL NAME")
+
+
 def parse_line_fetch_args(args, queue_default=False):
     queue = bool(queue_default)
     start_file_service = False
@@ -459,7 +479,7 @@ def parse_line_fetch_args(args, queue_default=False):
         else:
             values.append(item)
     if len(values) > 1:
-        raise ValueError("usage: deliver [queue] [start] NAME")
+        raise ValueError(_line_deliver_usage())
     return (values[0] if values else ""), queue, start_file_service
 
 
@@ -476,10 +496,10 @@ def download_line_target(
 ):
     path = str(target_path or "").strip()
     if not path:
-        raise ValueError("usage: retrieve [queue] [start] TARGET_PATH")
+        raise ValueError(_line_retrieve_usage())
     target_id = target_id_fn() if target_id_fn else ""
     if not target_id:
-        raise ValueError("select an agent before retrieve; use agent NAME or use target ID")
+        raise ValueError("select a target before retrieve queue; run targets, then target NAME, use target ID, use target LABEL, or use target N")
     command = render_file_service_command(["put", path], cfg)
     headless = (
         "scripts/grit-console --config "
@@ -600,7 +620,7 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
     console_table(
         f"Files  ({len(records)} staged)" if records else "Files  (none staged)",
         records, cols, detail_fn=_detail,
-        footer="deliver NAME  |  stage LOCAL  |  unstage NAME  |  files ? for help",
+        footer="deliver NAME, stage LOCAL, unstage NAME, files ?",
     )
     return [
         {
@@ -649,7 +669,7 @@ def stage_line_file(
 ):
     path = str(path_text or "").strip()
     if not path:
-        raise ValueError("usage: stage [start] LOCAL [NAME]")
+        raise ValueError(_line_stage_usage())
     name = str(request_name or "").strip() or Path(path).name
     headless = (
         "scripts/grit-console --config "
@@ -667,7 +687,7 @@ def stage_line_file(
     print(f"  source: {rec.get('source_path', '')}")
     print(f"  sha256: {str(rec.get('sha256', ''))[:16]}...")
     print(f"  next: deliver {rec.get('request_name', '')}")
-    print("  deliver shows target-side commands; deliver queue queues it for the selected agent")
+    print("  deliver shows target-side commands; deliver queue queues it for the selected target")
     fetch_options = staged_fetch_target_commands(rec.get("request_name", ""), cfg)
     started = False
     if start_file_service:
@@ -676,7 +696,7 @@ def stage_line_file(
         started = True
     print_file_service_note(started)
     if append_event_fn:
-        append_event_fn(cfg, "workbench", "workbench_file_uploaded", details={
+        append_event_fn(cfg, "workbench", "workbench_file_staged", details={
             "headless_command": headless,
             "request_name": rec.get("request_name", ""),
             "source_path": rec.get("source_path", ""),
@@ -711,7 +731,7 @@ def staged_line_record(cfg, request_name):
 def unstage_line_file(cfg, request_name, append_event_fn=None):
     name = str(request_name or "").strip()
     if not name:
-        raise ValueError("usage: unstage NAME")
+        raise ValueError("usage:\n  unstage NAME")
     headless = (
         "scripts/grit-console --config "
         + shquote(str(cfg.get("_config_path", DEFAULT_CONFIG)))
@@ -740,7 +760,7 @@ def _line_staged_target_context(
 ):
     target_id = target_id_fn() if target_id_fn else ""
     if queue and not target_id:
-        raise ValueError("select an agent before deliver queue; use agent NAME or use target ID")
+        raise ValueError("select a target before deliver queue; run targets, then target NAME, use target ID, use target LABEL, or use target N")
     staged_target = str(rec.get("target_id") or "")
     if queue and staged_target and staged_target != target_id:
         raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
@@ -855,7 +875,7 @@ def fetch_line_staged(
 ):
     name, rec = staged_line_record(cfg, request_name)
     if not name:
-        raise ValueError("usage: deliver [queue] [start] NAME")
+        raise ValueError(_line_deliver_usage())
     if not rec:
         raise ValueError(f"staged request not found: {name}")
     target_id, target_label, scoped = _line_staged_target_context(

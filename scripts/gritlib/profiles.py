@@ -27,6 +27,10 @@ PROFILE_EDITABLE_KEYS = {
     "preferred_transport",
     "notes",
 }
+PROFILE_KEY_HINTS = (
+    "target_id", "target_label", "arch", "kernel_floor", "tuple_path",
+    "operator_host", "preferred_payload_preset", "preferred_transport", "notes",
+)
 
 
 def profiles_path(cfg):
@@ -101,6 +105,9 @@ def resolve_profile_name(cfg, selector):
         return str(data.get("active") or "")
     if text in profiles:
         return text
+    slug = profile_slug(text)
+    if slug in profiles:
+        return slug
     if text.isdigit():
         records = profile_records(cfg)
         idx = int(text) - 1
@@ -171,7 +178,8 @@ def delete_profile(cfg, selector):
 def set_profile_value(cfg, key, value):
     key = str(key or "").strip()
     if key not in PROFILE_EDITABLE_KEYS:
-        raise ValueError(f"unknown profile key: {key}")
+        hints = ", ".join(PROFILE_KEY_HINTS)
+        raise ValueError(f"unknown profile key: {key}; editable keys include: {hints}")
     data = load_profiles(cfg)
     name = str(data.get("active") or "")
     if not name:

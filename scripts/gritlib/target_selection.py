@@ -64,10 +64,10 @@ def set_workbench_target_filter(cfg, selector, targets=None, default_config=DEFA
                 selected = rec
                 break
         if not selected:
-            raise ValueError(f"target not found: {text}")
+            raise ValueError(f"target not found: {text}; run: targets, then target NAME, use target ID, use target LABEL, or use target N")
     target_id = str(selected.get("target_id") or "").strip()
     if not target_id:
-        raise ValueError(f"target not found: {text}")
+        raise ValueError(f"target not found: {text}; run: targets, then target NAME, use target ID, use target LABEL, or use target N")
     target_label = str(selected.get("label") or selected.get("target_label") or "")
     cfg["_target_id_filter"] = target_id
     if target_label:

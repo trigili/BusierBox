@@ -23,6 +23,7 @@ def run_probe_workflow_action(
     start_service_process_func=None,
     stop_recorded_service_func=None,
 ):
+    """Run one probe workflow action selected from the workbench snapshot."""
     if print_status_func is None:
         raise ValueError("probe workflow runner requires print_status_func")
     if start_service_process_func is None:

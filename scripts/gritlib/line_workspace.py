@@ -139,6 +139,8 @@ def line_display_module(module):
     listener = line_listener_module_name(module)
     if listener:
         return f"listener/{listener}"
+    if module.startswith("action/"):
+        return f"module/{module.split('/', 1)[1]}"
     return module
 
 
@@ -298,7 +300,7 @@ def line_banner_hint(snap):
     for hint in hints:
         if hint not in deduped:
             deduped.append(hint)
-    return "  next: " + "  |  ".join(deduped[:12])
+    return "  next: " + ", ".join(deduped[:12])
 
 
 def print_line_console_banner(snap, version):
@@ -384,7 +386,7 @@ def _print_line_workspace_targets(targets, selected_id):
         ]
         shown = targets[:6]
         console_table(
-            f"Agents  ({len(targets)} total)" if len(targets) > 6 else f"Agents  ({len(targets)} total)",
+            f"Targets  ({len(targets)} total)",
             shown, cols,
         )
         if len(targets) > 6:
@@ -409,10 +411,10 @@ def _print_line_workspace_empty_help(summary, targets, sessions, staged, routes,
         print("")
         print("  No active workspace items yet.")
         print("  Start here:")
-        print("    listener probe start serve the shell probe and print target commands")
-        print("    listeners            see services you can start")
-        print("    stage start FILE  stage a file for target delivery")
-        print("    help workflow        see the probe-to-payload flow")
+        print("    listener probe start  serve the shell probe and print target commands")
+        print("    listeners             see listeners you can start")
+        print("    stage start FILE      stage a file for target delivery")
+        print("    help workflow         see the probe-to-payload flow")
 
 
 def print_line_workspace_snapshot(snap):
@@ -439,14 +441,21 @@ def print_line_workspace_snapshot(snap):
     _print_line_workspace_warnings(warnings)
     _print_line_workspace_empty_help(summary, targets, sessions, staged, routes, warnings)
     print("")
-    print("  search TERM  |  targets  sessions  files  listeners  routes  |  ? help")
+    print("Commands:")
+    print("  search TERM")
+    print("  targets")
+    print("  sessions")
+    print("  files")
+    print("  listeners")
+    print("  routes")
+    print("  ?")
 
 
 def _print_line_action_info(action):
     action_kind = action.get("kind", "")
     action_id = action.get("id", "")
     action_name = f"{action_kind}:{action_id}" if action_kind else action_id
-    print(f"Action: {action_name}")
+    print(f"Module: {action_name}")
     print(f"  state: {action.get('operator_action_state', '') or '-'}")
     print(f"  reason: {action.get('operator_action_reason', '') or '-'}")
     print(f"  label: {action.get('label', '') or '-'}")
@@ -456,7 +465,7 @@ def _print_line_action_info(action):
     print(f"  background: {'supported' if action.get('background_supported') else 'not supported'}")
     print("  commands: check, run, run dry-run, run confirm")
     if action.get("background_supported"):
-        print("  background command: run -j")
+        print("  background command: run job")
     print("  next: options, check, run, back")
 
 
@@ -471,7 +480,7 @@ def _print_line_listener_info(module, service_record, probe_delivery_printer):
         if probe_delivery_printer:
             probe_delivery_printer()
     else:
-        print("    options / start / stop / back")
+        print("    options, start, stop, back")
 
 
 def _print_line_route_info(module, route_record):
@@ -488,7 +497,8 @@ def _print_line_route_info(module, route_record):
         print(f"  multi-hop: {'yes' if rec.get('multi_hop') else 'no'}")
         print(f"  target: {rec.get('target_id', '') or '-'}")
     print(f"  commands: route {route_name}, route start {route_name}, route stop {route_name}")
-    print("  next: options, start, stop, routes -v, back")
+    print(f"  delete: route delete {route_name}, route delete {route_name} confirm")
+    print("  next: options, start, stop, delete, routes verbose, back")
 
 
 def _print_line_session_info(module, session_record):
@@ -506,7 +516,7 @@ def _print_line_session_info(module, session_record):
             print(f"  session log: {rec.get('session_log', '')}")
         if rec.get("event_log"):
             print(f"  event log: {rec.get('event_log', '')}")
-    print("  next: options, interact, sessions -v, view PATH, back")
+    print("  next: options, interact, sessions verbose, view PATH, back")
 
 
 def _print_line_job_info(module, job_record):
@@ -514,7 +524,7 @@ def _print_line_job_info(module, job_record):
     rec = job_record(job_id)
     print(f"Job: {job_id}")
     if rec:
-        print(f"  action: {rec.get('action_id', '') or '-'}")
+        print(f"  module: {rec.get('action_id', '') or '-'}")
         print(f"  state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}")
         print(f"  pid: {rec.get('pid', '') or '-'}")
         print(f"  managed: {'yes' if rec.get('pid_managed') else 'no'}")
@@ -526,17 +536,17 @@ def _print_line_job_info(module, job_record):
             print("  last output:")
             for line in rec.get("last_output_tail") or []:
                 print(f"    {line}")
-    print("  next: options, jobs, jobs -v, back")
+    print("  next: options, jobs, jobs verbose, back")
 
 
 def _print_line_selected_agent_info(snap):
     target_filter = (snap or {}).get("target_filter") or {}
     if target_filter.get("active"):
-        print(target_filter_brief_text(target_filter, prefix="  selected agent:"))
+        print(target_filter_brief_text(target_filter, prefix="  selected target:"))
         for line in target_filter_evidence_lines(target_filter):
             print(f"    {line}")
     else:
-        print("  selected agent: all")
+        print("  selected target: all")
 
 
 def print_line_info(
@@ -559,7 +569,7 @@ def print_line_info(
     print("Console context:")
     print(f"  prompt: {str(prompt_text or '').strip()}")
     module = str(module or "root")
-    print(f"  module: {module}")
+    print(f"  module: {line_display_module(module)}")
     action = selected_action()
     if action:
         _print_line_action_info(action)
@@ -572,7 +582,8 @@ def print_line_info(
     elif module.startswith("job/"):
         _print_line_job_info(module, job_record)
     else:
-        print("Action: none")
+        print("Selected workflow: none")
+        print("  run: modules, listeners, routes, sessions, jobs, or ?")
     _print_line_selected_agent_info(snap)
 
 
@@ -607,48 +618,165 @@ def print_line_next(
     target_id = str(target_id or "").strip()
     selected_action = selected_action or (lambda: {})
     job_record = job_record or (lambda _job_id: {})
-    print("Next actions:")
+    print("Next steps:")
     print(f"  context: {str(prompt_text or '').strip()}")
+    context_specific = False
     if module.startswith("action/"):
         action = selected_action()
         if action:
+            context_specific = True
             print(f"  selected module: {action.get('kind', '')}:{action.get('id', '')}")
-            print("  commands: options, check, run, run dry-run, run confirm, background")
+            print("  selected-module commands: options, check, run, run dry-run, run confirm, background")
             if action.get("background_supported"):
-                print("  background job: run -j")
+                print("  background job: run job")
+            print("  global forms: show modules, modules verbose, use module NAME, use module N")
+            print("  help: help modules, help jobs")
         else:
             print("  selected module is stale; commands: show modules, search TERM, back")
     elif line_listener_module_name(module):
+        context_specific = True
         service = line_listener_module_name(module)
         print(f"  selected listener: {service}")
-        print("  options / start / stop / listeners -v / back")
+        print("  selected-listener commands: options, start, stop, show start, show stop, copy start, copy stop, back")
+        print("  global forms: listener NAME, start LISTENER, stop LISTENER, listeners verbose")
+        print("  help: help listeners")
     elif module.startswith("route/"):
+        context_specific = True
         route_name = module.split("/", 1)[1]
         print(f"  selected route: {route_name}")
-        print("  options / start / stop / routes -v / back")
+        print("  selected-route commands: options, info, start, stop, delete, back")
+        print(f"  global forms: route {route_name}, route start {route_name}, route stop {route_name}, route delete {route_name} confirm, routes verbose")
+        print("  help: help routes")
     elif module.startswith("session/"):
+        context_specific = True
         session_id = module.split("/", 1)[1]
         print(f"  selected session: {session_id}")
-        print("  commands: info, options, interact, sessions -v, background")
+        print("  selected-session commands: info, options, interact, back")
+        print("  global forms: sessions list, sessions verbose, sessions interact ID, view PATH")
+        print("  help: help sessions")
     elif module.startswith("job/"):
+        context_specific = True
         job_id = module.split("/", 1)[1]
         rec = job_record(job_id)
         print(f"  selected job: {job_id}")
         if rec:
-            print(f"  action: {rec.get('action_id', '') or '-'}")
+            print(f"  module: {rec.get('action_id', '') or '-'}")
             print(f"  state: {rec.get('effective_state', '') or rec.get('state', '') or '-'}")
-        print("  commands: info, options, jobs, jobs -i ID, background")
+        if rec.get("cancel_supported"):
+            print("  selected-job commands: info, options, cancel, back")
+        else:
+            print("  selected-job commands: info, options, back")
+        print("  global forms: jobs, jobs info ID, jobs cancel ID")
+        print("  help: help jobs")
+    elif module == "listener":
+        context_specific = True
+        print("  listener list context")
+        print("  commands: listeners, listener NAME, listener N, start LISTENER, stop LISTENER")
+        print("  probe flow: listener probe start, listener probe results, listener probe config")
+        print("  help: help listeners")
+    elif module == "routes":
+        context_specific = True
+        print("  routes list context")
+        print("  commands: routes verbose, route NAME, route N, route add NAME LPORT DEST_HOST DEST_PORT")
+        print("  multi-hop: route add NAME LPORT DEST_HOST DEST_PORT FROM=TO")
+        print("  help: help routes")
+    elif module == "sessions":
+        context_specific = True
+        print("  sessions list context")
+        print("  commands: sessions list, sessions verbose, session ID, session N, use session ID, use session N")
+        print("  cleanup: sessions clear, sessions clear confirm, sessions clear all confirm")
+        print("  help: help sessions")
+    elif module == "jobs":
+        context_specific = True
+        print("  jobs list context")
+        print("  commands: jobs, job ID, job N, jobs info ID, jobs info N, jobs cancel ID, jobs cancel N")
+        print("  background modules: modules, use module NAME, use module N, run job")
+        print("  help: help jobs, help modules")
+    elif module == "modules":
+        context_specific = True
+        print("  modules list context")
+        print("  commands: modules, modules verbose, use module NAME, use module N, check MODULE, run MODULE dry-run")
+        print("  selected modules: use N, then options, check, run, run confirm, background")
+        print("  help: help modules, help jobs")
+    elif module == "profiles":
+        context_specific = True
+        print("  profiles context")
+        print("  commands: profiles, profile, profile use NAME, profile use N, profile create NAME, profile set KEY VALUE")
+        print("  probe flow: listener probe config, listener probe config N, profile from probe N")
+        print("  deployment: listener serve start, listener serve ssh start")
+        print("  help: help profiles, help workflow")
+    elif module == "files":
+        context_specific = True
+        print("  files context")
+        print("  commands: files, stage LOCAL NAME, deliver NAME, deliver start NAME, unstage NAME")
+        print("  target-to-operator: retrieve TARGET_PATH")
+        print("  artifact/release: artifact, artifact info NAME, release, release stage SELECTOR")
+        print("  help: help files, help artifact, help release")
+    elif module == "artifact":
+        context_specific = True
+        print("  artifact context")
+        print("  commands: artifact, artifact info NAME, artifact info N, artifact info PATH, artifact show NAME, artifact stamp NAME KEY=VALUE")
+        print("  delivery: files, deliver NAME")
+        print("  help: help artifact, help files")
+    elif module == "release":
+        context_specific = True
+        print("  release context")
+        print("  commands: release, release stage SELECTOR, release stage start SELECTOR, release stage ssh start")
+        print("  profile defaults: profiles, profile, listener probe config")
+        print("  after staging: files, deliver NAME")
+        print("  help: help release, help workflow")
+    elif module == "survey":
+        context_specific = True
+        print("  survey context")
+        print("  commands: survey, survey results, survey config PATH, survey preset PATH name NAME")
+        print("  target-to-operator: deploy griTTYkit, then run grit survey retrieve on the target")
+        print("  outputs: survey config write-config FILE, survey preset name NAME write-local")
+        print("  help: help survey, help workflow")
+    elif module == "build":
+        context_specific = True
+        print("  build context")
+        print("  commands: build, build verbose, build set KEY VALUE, build set ROW VALUE, build unset KEY, build unset ROW")
+        print("  context settings: options, set KEY VALUE, setg KEY VALUE")
+        print("  help: help build")
+    elif module == "events":
+        context_specific = True
+        print("  events context")
+        print("  commands: events, events n 50, events since 2h")
+        print("  filters: events service=NAME, events level=warning, events status=TEXT")
+        print("  detail filters: request_name=NAME, command_id=ID, job_id=ID, module_id=ID")
+        print("  raw log: options, then view PATH")
+        print("  help: help events")
+    elif module == "console":
+        context_specific = True
+        print("  console context")
+        print("  commands: history LIMIT, resource FILE, makerc FILE, complete PREFIX")
+        print("  replay: !!, !N, repeat N")
+        print("  navigation: main, back, quit, exit")
+        print("  help: help console, help aliases")
+    elif module == "search":
+        context_specific = True
+        print("  search context")
+        print("  commands: search TERM, use N")
+        print("  inspect safely: ?, options, next, complete PREFIX")
+        print("  numbered results stay active while using help/options/next")
+        print("  replace results: run another search or list command")
+        print("  help: help search")
     elif target_id:
+        context_specific = True
         target_filter = snap.get("target_filter") or {}
-        print(target_filter_brief_text(target_filter, prefix="  selected agent:"))
-        print("  commands: interact, queue COMMAND, listener probe queue, retrieve queue TARGET_PATH, stage start LOCAL NAME, deliver queue NAME, show activity, serve-binary start PATH NAME, clear target")
+        print(target_filter_brief_text(target_filter, prefix="  selected target:"))
+        print("  selected-target commands: interact, queue COMMAND, mailbox, show events, rename, note, alias")
+        print("  target delivery: listener probe queue, retrieve queue TARGET_PATH, stage start LOCAL NAME, deliver queue NAME")
+        print("  global forms: targets, clear target, files, listeners")
+        print("  help: help targets, help queue, help files")
     else:
-        print("  selected agent: all")
-        print("  commands: workspace, agents, listeners, routes, sessions, show categories, search TERM")
+        print("  selected target: all")
+        print("  commands: workspace, targets, listeners, routes, sessions, show categories, search TERM")
     sessions = snap.get("sessions") or []
-    if sessions:
-        print("  sessions: sessions -l, sessions -v, sessions -i ID, use session ID")
-    print("  help: help use, help modules, help routes, help sessions")
+    if not context_specific:
+        if sessions:
+            print("  sessions: sessions list, sessions verbose, sessions interact ID, use session ID")
+        print("  help: help workflow, help listeners, help files, help use")
     append_event(cfg, "workbench", "workbench_console_next_shown", details={
         "module": module or "root",
         "target_id": target_id,

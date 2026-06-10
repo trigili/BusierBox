@@ -142,7 +142,7 @@ def _queue_line_probe_command(cfg, queue, command, script_name, target_id, queue
     if not queue:
         return {}
     if not target_id:
-        raise ValueError("select an agent before probe queue; use agent NAME or use target ID")
+        raise ValueError("select a target before probe queue; run targets, then target NAME, use target ID, use target LABEL, or use target N")
     queued = queue_command_func(cfg, command, metadata={
         "work_kind": "probe",
         "workflow": "probe",

@@ -72,12 +72,12 @@ def filtered_line_action_records(actions, filter_text="", kind_filter=""):
 def select_line_action_record(actions, selector):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError("usage: use action ACTION")
+        raise ValueError("usage:\n  use module MODULE")
     actions = list(actions or [])
     if text.isdigit():
         idx = int(text) - 1
         if idx < 0 or idx >= len(actions):
-            raise ValueError(f"action number out of range: {text}")
+            raise ValueError(f"module number out of range: {text}")
         return actions[idx]
     lower = text.lower()
     for rec in actions:
@@ -87,13 +87,13 @@ def select_line_action_record(actions, selector):
         qualified = f"{rec.get('kind', '')}:{rec_id}"
         if text in (rec_id, action_id, qualified) or lower == label.lower():
             return rec
-    raise ValueError(f"action not found: {text}")
+    raise ValueError(f"module not found: {text}")
 
 
 def select_line_action(cfg, actions, selector):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError("usage: use action ACTION")
+        raise ValueError("usage:\n  use module MODULE")
     selected = select_line_action_record(actions, text)
     action_id = str(selected.get("id") or "")
     set_line_action_context(cfg, selected.get("kind") or "", action_id)
@@ -107,7 +107,7 @@ def select_line_action(cfg, actions, selector):
         flags.append("background ok")
     flag_str = f"  |  {', '.join(flags)}" if flags else ""
     print(f"  {kind}:{action_id}  —  {state}  |  {label}{flag_str}")
-    print("  options / check / run / run dry-run / back")
+    print("  options, check, run, run dry-run, back")
     return selected
 
 
@@ -244,9 +244,9 @@ def print_line_action_result(rc):
     except (TypeError, ValueError):
         code = 1
     if code == 0:
-        print("action complete: ok")
+        print("module complete: ok")
     else:
-        print(f"action failed: rc={code}")
+        print(f"module failed: rc={code}")
 
 
 def run_line_selected_action(
@@ -255,7 +255,7 @@ def run_line_selected_action(
     target_runner=None, workbench_actions=None, target_input_func=None
 ):
     if not rec:
-        raise ValueError("no selected action module; use action ACTION first")
+        raise ValueError("no selected module; use module MODULE first")
     values = list(args or [])
     dry_run = bool(dry_run_default)
     confirmed = False
@@ -268,13 +268,13 @@ def run_line_selected_action(
     rec_id = str(rec.get("id") or "")
     if kind == "service":
         if service_runner is None:
-            raise ValueError("service action runner is unavailable")
+            raise ValueError("service module runner is unavailable")
         rc = service_runner(cfg, rec_id, dry_run=dry_run, confirmed=confirmed)
         print_line_action_result(rc)
         return rc
     if kind == "daemon":
         if daemon_runner is None:
-            raise ValueError("daemon action runner is unavailable")
+            raise ValueError("daemon module runner is unavailable")
         rc = daemon_runner(
             cfg,
             rec_id,
@@ -286,7 +286,7 @@ def run_line_selected_action(
         return rc
     if kind == "workbench":
         if workbench_runner is None:
-            raise ValueError("workbench action runner is unavailable")
+            raise ValueError("workbench module runner is unavailable")
         rc = workbench_runner(
             cfg,
             workbench_actions or [],
@@ -311,7 +311,7 @@ def run_line_selected_action(
             print_line_action_result(0)
             return 0
         if target_runner is None:
-            raise ValueError("target action runner is unavailable")
+            raise ValueError("target module runner is unavailable")
         rc = target_runner(
             cfg,
             rec_id,
@@ -320,7 +320,7 @@ def run_line_selected_action(
         )
         print_line_action_result(rc)
         return rc
-    raise ValueError(f"unsupported selected action kind: {kind}")
+    raise ValueError(f"unsupported selected module kind: {kind}")
 
 
 def run_line_module_or_service(
@@ -351,13 +351,13 @@ def run_line_module_or_service(
             select_action_func(selector)
         if run_selected_action_func:
             return run_selected_action_func(flags)
-        raise ValueError("selected action runner is unavailable")
+        raise ValueError("selected module runner is unavailable")
     if selected_action_func():
         if run_selected_action_func:
             return run_selected_action_func(flags)
-        raise ValueError("selected action runner is unavailable")
+        raise ValueError("selected module runner is unavailable")
     if dry_run_default:
-        raise ValueError("no selected action module; use check MODULE or use module ACTION first")
+        raise ValueError("no selected module; use check MODULE or use module MODULE first")
     if start_service_func:
         start_service_func("")
         return 0
@@ -392,7 +392,7 @@ def print_line_action_records(actions, filter_text="", kind_filter="", quote=Non
     ]
     console_table(
         title, shown, cols, detail_fn=_detail,
-        footer="use N  |  use module NAME|NUMBER  |  modules -v for commands  |  modules ? for help",
+        footer="use N, use module NAME, use module N, modules verbose, modules ?",
     )
     grouped = {}
     for rec in actions:
@@ -450,7 +450,8 @@ def print_line_module_category_records(actions):
         state_summary = "  ".join(f"{state}={count}" for state, count in sorted(states.items()))
         print(f"  {kind:{col}}{len(items)} modules   {state_summary}")
     print("")
-    print("  show service|daemon|target|workbench modules  |  modules FILTER  |  use N")
+    print("  show service modules, show daemon modules, show target modules, show workbench modules")
+    print("  show modules FILTER, modules verbose FILTER, use N")
     return {
         "module_count": total,
         "kind_counts": {kind: len(items) for kind, items in grouped.items()},

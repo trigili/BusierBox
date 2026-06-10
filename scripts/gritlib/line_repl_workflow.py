@@ -78,6 +78,8 @@ def build_line_workflow_callbacks(
         list_jobs_func=job_callbacks["print_line_jobs"],
         stage_binary_func=file_callbacks["stage_binary"],
         configure_func=file_callbacks["configure_artifact"],
+        artifact_list_func=file_callbacks.get("artifact_list"),
+        artifact_info_func=file_callbacks.get("artifact_info"),
         append_event_fn=append_event_fn,
     )
     return {"dispatch_line_workflow": dispatch_workflow}
@@ -158,6 +160,8 @@ def _workflow_dispatch_kwargs(ctx):
     kwargs.update({
         "stage_binary_func": ctx["stage_binary_func"],
         "configure_func": ctx["configure_func"],
+        "artifact_list_func": ctx["artifact_list_func"],
+        "artifact_info_func": ctx["artifact_info_func"],
     })
     return kwargs
 
@@ -186,6 +190,8 @@ def build_line_workflow_dispatch_callback(
     list_jobs_func,
     stage_binary_func,
     configure_func,
+    artifact_list_func=None,
+    artifact_info_func=None,
     append_event_fn,
 ):
     ctx = locals()

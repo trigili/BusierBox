@@ -1894,7 +1894,7 @@ def write_release_quickstart(path, name):
                scripts/grit-console --daemon --daemon-service file-service --daemon-service command-queue
 
                ./grit put /tmp/evidence.txt
-               ./grit survey push
+./grit survey retrieve
                ./grit reality-test push
                ./grit manifest push
                ./grit config-push

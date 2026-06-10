@@ -119,7 +119,7 @@ def target_filter_summary_text(target_filter, prefix="target_filter:"):
     )
 
 
-def target_filter_brief_text(target_filter, prefix="selected agent:"):
+def target_filter_brief_text(target_filter, prefix="selected target:"):
     if not isinstance(target_filter, dict) or not target_filter.get("active"):
         return ""
     counts = target_filter.get("filtered_counts") or {}

@@ -29,7 +29,12 @@ def parse_line_binary_args(args):
         else:
             values.append(item)
     if start_file_service and no_start:
-        raise ValueError("usage: serve-binary [start|no-start] [PATH] [NAME]")
+        raise ValueError(
+            "usage:\n"
+            "  serve-binary PATH NAME\n"
+            "  serve-binary start PATH NAME\n"
+            "  serve-binary no-start PATH NAME"
+        )
     if values:
         selector = values[0]
     if len(values) >= 3 and values[1].lower() == "as":
@@ -83,7 +88,10 @@ def dispatch_line_binary_command(
 
 
 def _print_file_service_note(started):
-    print(f"  file service {'started' if started else 'not started'}")
+    if started:
+        print("  file service started by this command")
+    else:
+        print("  file service not started by this command; use deliver start NAME if needed")
 
 
 def _print_line_binary_release_choices(rel, prompt_for_missing):

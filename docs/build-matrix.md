@@ -28,6 +28,35 @@ Run a small native matrix:
 scripts/lib/build-matrix --targets native --payload-presets survey-core,default --formats tgz
 ```
 
+Run the standing compatibility gate:
+
+```sh
+scripts/lib/build-matrix \
+  --matrix tests/matrix/compatibility-ci.json \
+  --fail-fast \
+  --run-dir local/matrix-runs/compatibility-ci
+```
+
+`tests/matrix/compatibility-ci.json` is the pre-release/CI-style compatibility
+matrix. It is intentionally smaller than `release-full.json`, but covers legacy
+uClibc, musl, MIPS big/little endian, ARMv7, AArch64, current x86_64, and the
+`survey-core`, `default`, and `ssh-operator` payload presets. Normal
+`make smoke-test` dry-runs this matrix through
+`tests/smoke/compatibility-matrix.sh` so drift in the standing gate is caught
+without rebuilding every cross artifact.
+
+For targeted uClibc regressions, run:
+
+```sh
+scripts/lib/build-matrix \
+  --matrix tests/matrix/release-uclibc-fix.json \
+  --fail-fast \
+  --run-dir local/matrix-runs/uclibc-regression
+```
+
+For full release coverage, run `make release-full` or invoke
+`scripts/lib/build-matrix --matrix tests/matrix/release-full.json` directly.
+
 The script generates per-job configs under:
 
 ```text

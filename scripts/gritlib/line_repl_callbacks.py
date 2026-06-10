@@ -2,6 +2,7 @@
 
 from typing import NamedTuple
 
+import gritlib.line_context as line_context
 from gritlib.line_repl_actions import build_default_line_action_callbacks
 from gritlib.line_repl_completions import setup_default_line_completion_bundle
 from gritlib.line_repl_core import build_default_line_core_callbacks
@@ -165,6 +166,7 @@ def build_line_dispatch_callbacks(
         line_search_callbacks=operational_callbacks.search,
         line_display_show_callbacks=operational_callbacks.display_show,
         line_route_service_callbacks=foundation_callbacks.route_service,
+        set_context_func=line_context.set_line_collection_context,
     )
     line_core_callbacks = build_default_line_core_callbacks(
         cfg,

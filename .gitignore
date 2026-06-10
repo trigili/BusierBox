@@ -59,6 +59,9 @@ tests/qemu-system/rootfs/
 # AI Slop 🙂
 .antigravitycli/
 .codex/
+.serena/
+.claude/
+
 
 # Local 
 local/*

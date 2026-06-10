@@ -1,43 +1,35 @@
 """Service workflow action runner for grit-console."""
 
-from pathlib import Path
-
 import gritlib.bridge_routes as bridge_routes
-from gritlib.console_workbench import status_document, workbench_snapshot
 from gritlib.event_log import append_event
-import gritlib.service_lifecycle as service_lifecycle
-from gritlib.service_runtime import current_shutdown_reason, start_child_process
 from gritlib.service_status import (
     run_service_workflow_action_headless_command,
     service_status_rows,
 )
-from gritlib.status_print import print_status_document
+import gritlib.workflow_runtime as workflow_runtime
 from gritlib.workflow_actions import select_workflow_action
 
 
 def _print_status(cfg, json_output=False):
-    return print_status_document(status_document(cfg), json_output=json_output)
+    return workflow_runtime.print_status(cfg, json_output=json_output)
 
 
 def _start_service_process(cfg, service, argv_extra=None, headless_command="", state_service=None):
-    return service_lifecycle.start_service_process(
+    return workflow_runtime.start_service_process(
         cfg,
         service,
         argv_extra=argv_extra,
         headless_command=headless_command,
         state_service=state_service,
-        start_child_process=start_child_process,
-        script_path=Path(__file__).resolve().parents[1] / "grit-console",
     )
 
 
 def _stop_recorded_service(cfg, service, via="workbench-stop", headless_command="", quiet=False):
-    return service_lifecycle.stop_recorded_service(
+    return workflow_runtime.stop_recorded_service(
         cfg,
         service,
         via=via,
         headless_command=headless_command,
-        shutdown_reason=current_shutdown_reason(),
         quiet=quiet,
     )
 
@@ -155,7 +147,7 @@ def _append_service_workflow_completed_event(cfg, rec, context, rc, dry_run=Fals
 
 
 def run_service_workflow_action(cfg, selector, dry_run=False, confirmed=False):
-    snap = workbench_snapshot(cfg)
+    snap = workflow_runtime.workbench_snapshot(cfg)
     rec = select_workflow_action(snap.get("service_workflow_actions") or [], selector, "service")
     context = _service_workflow_context(cfg, rec, dry_run=dry_run, confirmed=confirmed)
     _print_workflow_action_header(
@@ -295,7 +287,7 @@ def _append_bridge_profile_workflow_completed_event(cfg, rec, context, rc, confi
 
 
 def run_bridge_profile_workflow_action(cfg, selector, dry_run=False, confirmed=False):
-    snap = workbench_snapshot(cfg)
+    snap = workflow_runtime.workbench_snapshot(cfg)
     rec = select_workflow_action(
         snap.get("bridge_profile_workflow_actions") or [],
         selector,

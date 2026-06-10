@@ -53,7 +53,7 @@ LINE_ROUTE_COMMANDS = (
     {
         "action": "add",
         "commands": ("route",),
-        "subcommands": ("add",),
+        "subcommands": ("add", "new"),
     },
     {
         "action": "start",
@@ -72,13 +72,13 @@ LINE_ROUTE_COMMANDS = (
     },
     {
         "action": "help",
-        "commands": ("routes", "route"),
+        "commands": ("routes", "route", "bridges", "bridge"),
         "subcommands": ("-h", "--help"),
     },
     {
         "action": "list",
-        "commands": ("routes", "route"),
-        "subcommands": ("-v", "--verbose"),
+        "commands": ("routes", "route", "bridges", "bridge"),
+        "subcommands": ("-v", "--verbose", "verbose", "details"),
         "verbose": True,
     },
     {
@@ -94,7 +94,7 @@ LINE_ROUTE_COMMANDS = (
     },
     {
         "action": "list",
-        "commands": ("routes", "route"),
+        "commands": ("routes", "route", "bridges", "bridge"),
         "subcommands": (),
     },
 )
@@ -129,9 +129,15 @@ def parse_line_route_command(cmd, args):
         if rec["action"] == "add":
             return {"action": "add", "args": args, "command": cmd, "subcommand": subcmd}
         if rec["action"] in {"start", "stop", "delete"}:
+            selector_parts = [str(item) for item in args[1:]]
+            confirmed = False
+            if rec["action"] == "delete" and selector_parts and selector_parts[-1].lower() == "confirm":
+                confirmed = True
+                selector_parts = selector_parts[:-1]
             return {
                 "action": rec["action"],
-                "selector": " ".join(args[1:]).strip(),
+                "selector": " ".join(selector_parts).strip(),
+                "confirmed": confirmed,
                 "command": cmd,
                 "subcommand": subcmd,
             }
@@ -171,7 +177,7 @@ def dispatch_line_route_command(
         if action == "stop" and stop_func:
             return stop_func(route_cmd.get("selector", ""))
         if action == "delete" and delete_func:
-            return delete_func(route_cmd.get("selector", ""))
+            return delete_func(route_cmd.get("selector", ""), confirmed=bool(route_cmd.get("confirmed")))
         if action == "help" and help_func:
             return help_func("routes")
         if action == "select" and select_func:
@@ -655,7 +661,7 @@ def print_bridge_route_records(records, verbose=False, command_builder=None, quo
     console_table(
         f"Routes  ({len(records)} total)" if records else "Routes  (none)",
         records, cols, detail_fn=_detail,
-        footer="use N or route NAME|NUMBER to select  |  start/stop NAME|NUMBER  |  routes ? for help",
+        footer="use N, route NAME, route N, route start NAME, route start N, routes ?",
     )
     return bridge_route_search_records(records, command_builder=command_builder, quote=quote)
 
@@ -701,7 +707,7 @@ def require_line_route_record(records, selector):
     if not rec and text.isdigit():
         raise ValueError(f"route number out of range: {text}")
     if not rec:
-        raise ValueError(f"route not found: {text}")
+        raise ValueError(f"route not found: {text}; run: routes or route add NAME LISTEN_PORT DEST_HOST DEST_PORT")
     return rec
 
 
@@ -726,7 +732,11 @@ def print_line_routes(
 def select_line_route(cfg, selector, records):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError("usage: route NAME|NUMBER")
+        raise ValueError(
+            "usage:\n"
+            "  route NAME\n"
+            "  route N"
+        )
     records = list(records or [])
     selected = require_line_route_record(records, text)
     name = str(selected.get("name") or "")
@@ -737,7 +747,7 @@ def select_line_route(cfg, selector, records):
     dest = f"{selected.get('dest_host','?')}:{selected.get('dest_port','?')}"
     active = "active" if selected.get("active") else "inactive"
     print(f"  {name}  —  {state} ({active})  |  {listen} → {dest}")
-    print("  options / info / start / stop / back")
+    print("  options, info, start, stop, delete, back")
     append_event(cfg, "workbench", "workbench_route_selected", details={
         "name": name,
         "route_path": selected.get("route_path", ""),
@@ -750,7 +760,9 @@ def add_line_route(cfg, args, headless_command_builder=None):
     values = list(args or [])
     if len(values) < 5:
         raise ValueError(
-            "usage: route add NAME LISTEN_PORT DEST_HOST DEST_PORT [FROM=TO ...]\n"
+            "usage:\n"
+            "  route add NAME LISTEN_PORT DEST_HOST DEST_PORT\n"
+            "  route add NAME LISTEN_PORT DEST_HOST DEST_PORT FROM=TO\n"
             + "\n".join(f"  {line}" for line in ROUTE_HELP_LINES)
         )
     name = values[1]
@@ -883,7 +895,15 @@ def start_line_route(
 ):
     name = str(route_name or "").strip()
     if not name:
-        raise ValueError("usage: start ROUTE")
+        module = str(cfg.get("_line_console_module") or "")
+        if module.startswith("route/"):
+            name = module.split("/", 1)[1]
+    if not name:
+        raise ValueError(
+            "usage:\n"
+            "  route start NAME\n"
+            "  route start N"
+        )
     rec = require_line_route_record(records, name)
     name = str(rec.get("name") or name)
     headless_command_builder = headless_command_builder or (
@@ -915,7 +935,11 @@ def stop_line_route(
         if module.startswith("route/"):
             name = module.split("/", 1)[1]
     if not name:
-        raise ValueError("usage: stop ROUTE")
+        raise ValueError(
+            "usage:\n"
+            "  route stop NAME\n"
+            "  route stop N"
+        )
     rec = require_line_route_record(records, name)
     name = str(rec.get("name") or name)
     headless_command_builder = headless_command_builder or (
@@ -932,20 +956,30 @@ def stop_line_route(
     })
 
 
-def delete_line_route(cfg, route_name, records, headless_command_builder=None):
+def delete_line_route(cfg, route_name, records, headless_command_builder=None, confirmed=False):
     name = str(route_name or "").strip()
     if not name:
         module = str(cfg.get("_line_console_module") or "")
         if module.startswith("route/"):
             name = module.split("/", 1)[1]
     if not name:
-        raise ValueError("usage: route delete ROUTE")
+        raise ValueError(
+            "usage:\n"
+            "  route delete NAME\n"
+            "  route delete NAME confirm\n"
+            "  route delete N confirm"
+        )
     rec = require_line_route_record(records, name)
     name = str(rec.get("name") or name)
     headless_command_builder = headless_command_builder or (
         lambda _action, _name="", extra=None: ""
     )
     headless = headless_command_builder("delete", name)
+    if not confirmed:
+        print(f"Route would be deleted: {name}")
+        print(f"  path: {rec.get('route_path', '')}")
+        print(f"  run: route delete {name} confirm")
+        return rec
     rec = delete_bridge_profile(cfg, name)
     if str(cfg.get("_line_console_module") or "") == f"route/{name}":
         clear_line_module_context(cfg)

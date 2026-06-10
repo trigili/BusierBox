@@ -80,7 +80,7 @@ def main():
             help_checks = [
                 ([str(bb), "config-push", "--help"], "usage: grit config-push"),
                 ([str(bb), "evidence", "push", "--help"], "usage: grit evidence push"),
-                ([str(bb), "survey", "push", "--help"], "usage: grit survey push"),
+                ([str(bb), "survey", "retrieve", "--help"], "usage: grit survey retrieve"),
                 ([str(bb), "manifest", "push", "--help"], "usage: grit manifest push"),
                 ([str(bb), "reality-test", "push", "--help"], "usage: grit reality-test push"),
             ]
@@ -100,7 +100,7 @@ def main():
                 [str(bb), "put", str(sample), "--quiet"],
                 [str(bb), "config-push", "--quiet"],
                 [str(bb), "evidence", "push", "--quiet"],
-                [str(bb), "survey", "push", "--quiet"],
+                [str(bb), "survey", "retrieve", "--quiet"],
                 [str(bb), "manifest", "push", "--quiet"],
                 [str(bb), "reality-test", "push", "--quiet"],
             ]
@@ -170,7 +170,7 @@ def main():
                     raise SystemExit("operator-upload: evidence push uploaded invalid report")
             elif expected == "grit-survey.json":
                 if doc.get("schema") != 2 or "grit" not in doc or "recommendations" not in doc:
-                    raise SystemExit("operator-upload: survey push uploaded invalid report")
+                    raise SystemExit("operator-upload: survey retrieve uploaded invalid report")
             elif expected == "grit-manifest.json":
                 if doc.get("schema") != 1 or "grit" not in doc or "payload" not in doc or "operator_services" not in doc:
                     raise SystemExit("operator-upload: manifest push uploaded invalid report")

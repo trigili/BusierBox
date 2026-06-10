@@ -440,7 +440,7 @@ grep -q 'serve-binary --start bin/grit-...-full grit' "$work/release/RELEASE-QUI
 grep -q 'stamp grit --operator-host 192.168.8.241 --transport builtin --shell-port 22203' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'stamp grit --zero-arg-mode rshell --retry-count 12 --retry-interval 60' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'stamp grit --command-queue-enable yes --command-queue-poll-interval 300' "$work/release/RELEASE-QUICKSTART.txt"
-grep -q './grit survey push' "$work/release/RELEASE-QUICKSTART.txt"
+grep -q './grit survey retrieve' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q './grit reality-test push' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q './grit config-push' "$work/release/RELEASE-QUICKSTART.txt"
 grep -q 'stage release artifacts' "$work/release/RELEASE-QUICKSTART.txt"

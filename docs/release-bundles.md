@@ -467,7 +467,7 @@ fetch command or poll command queue work.
 ```sh
 scripts/grit-console --file-service --file-port 22204
 ./grit put /tmp/evidence.txt
-./grit survey push
+./grit survey retrieve
 ./grit reality-test push
 ./grit manifest push
 ./grit config-push

@@ -51,7 +51,11 @@ def _dispatch_line_daemon_family(cmd, args, callbacks):
 
 
 def _dispatch_line_release_family(cmd, args, callbacks):
-    release_cmd = parse_line_release_alias_command(cmd, args)
+    try:
+        release_cmd = parse_line_release_alias_command(cmd, args)
+    except ValueError as exc:
+        print(exc)
+        return True
     if not release_cmd:
         return False
     dispatch_line_release_command(
@@ -166,6 +170,8 @@ def _dispatch_line_artifact_family(cmd, args, callbacks):
     dispatch_line_configure_command(
         artifact_cmd,
         configure_func=callbacks.get("configure_func"),
+        artifact_list_func=callbacks.get("artifact_list_func"),
+        artifact_info_func=callbacks.get("artifact_info_func"),
         set_context_func=lambda: set_context_func("artifact") if set_context_func else None,
     )
     return True
@@ -194,6 +200,8 @@ def dispatch_line_workflow_command(
     list_jobs_func=None,
     stage_binary_func=None,
     configure_func=None,
+    artifact_list_func=None,
+    artifact_info_func=None,
 ):
     args = list(args or [])
     callbacks = locals()

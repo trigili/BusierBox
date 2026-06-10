@@ -27,7 +27,13 @@ def parse_line_release_command(args):
         }
     if subcmd in {"-h", "--help", "help"}:
         return {"action": "help"}
-    raise ValueError("usage: release [list|stage SELECTOR]")
+    raise ValueError(
+        "usage:\n"
+        "  release\n"
+        "  release stage SELECTOR\n"
+        "  release stage start SELECTOR\n"
+        "  release stage ssh start"
+    )
 
 
 def parse_line_release_alias_command(cmd, args):
@@ -323,7 +329,9 @@ def print_line_release(cfg, append_event_fn=None):
         search_records += _print_release_artifacts(view["artifacts"])
     _print_release_selectors(view["devices"], view["tuples"], view["recommendations"])
     print("")
-    print("  release stage [start] [SELECTOR]  |  release ? for help")
+    print("  release stage SELECTOR")
+    print("  release stage start SELECTOR")
+    print("  release ? for help")
     set_line_search_results(cfg, search_records)
     _append_release_view_event(cfg, append_event_fn, rel, view)
     return rel
@@ -346,7 +354,12 @@ def stage_line_release(
     if not selector:
         selector = _profile_default_stage_selector(cfg, profile)
         if not selector:
-            raise ValueError("usage: release stage [start] SELECTOR  (or set active profile)")
+            raise ValueError(
+                "usage:\n"
+                "  release stage SELECTOR\n"
+                "  release stage start SELECTOR\n"
+                "  listener probe config"
+            )
         print(f"Using active profile: {profile.get('name') or '-'}")
     headless = (
         "scripts/grit-console --config "

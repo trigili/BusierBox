@@ -202,6 +202,13 @@ def target_next_expected_poll(rec):
     return utc_from_epoch(epoch)
 
 
+def int_value(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     last_seen = str(rec.get("last_seen_at") or rec.get("latest_activity_at") or "")
     last_seen_epoch = parse_utc_timestamp(last_seen)
@@ -213,11 +220,16 @@ def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     )
     counts = mailbox_counts.get(str(rec.get("target_id") or ""), {})
     latest_result_rec = latest_result.get(str(rec.get("target_id") or ""), {})
+    stored_pending = rec.get("mailbox_pending_work_count")
     rec["last_seen"] = last_seen
     rec["last_seen_via"] = target_last_seen_via(rec)
     rec["offline_for_sec"] = offline_for_sec if offline_for_sec is not None else ""
     rec["offline_age_bucket"] = mailbox_wait_bucket(rec["offline_for_sec"])
-    rec["connectivity_state"] = target_connectivity_state(offline_for_sec)
+    rec["connectivity_state"] = (
+        target_connectivity_state(offline_for_sec)
+        if offline_for_sec is not None
+        else str(rec.get("connectivity_state") or "unknown")
+    )
     rec["connectivity_online_window_sec"] = TARGET_ONLINE_WINDOW_SEC
     rec["connectivity_recent_window_sec"] = TARGET_RECENT_WINDOW_SEC
     rec["connectivity_stale_window_sec"] = TARGET_STALE_WINDOW_SEC
@@ -229,7 +241,11 @@ def enrich_target_record(rec, now_epoch, mailbox_counts, latest_result):
     rec["mailbox_result_received_command_count"] = int(counts.get("result-received", 0) or 0)
     rec["mailbox_expired_command_count"] = int(counts.get("expired", 0) or 0)
     rec["mailbox_command_count"] = int(counts.get("total", 0) or 0)
-    rec["mailbox_pending_work_count"] = rec["mailbox_queued_command_count"]
+    rec["mailbox_pending_work_count"] = (
+        rec["mailbox_queued_command_count"]
+        if counts
+        else int_value(stored_pending)
+    )
     rec["latest_command_result_at"] = str(latest_result_rec.get("result_received_at") or "")
     rec["latest_command_result_id"] = str(latest_result_rec.get("id") or "")
     return rec
@@ -344,5 +360,5 @@ def target_filter_summary_text(target_filter, prefix="target_filter:"):
     return target_filter_display.target_filter_summary_text(target_filter, prefix)
 
 
-def target_filter_brief_text(target_filter, prefix="selected agent:"):
+def target_filter_brief_text(target_filter, prefix="selected target:"):
     return target_filter_display.target_filter_brief_text(target_filter, prefix)

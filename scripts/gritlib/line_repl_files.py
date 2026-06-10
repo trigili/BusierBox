@@ -3,7 +3,11 @@
 from gritlib import command_queue as command_queue_module
 from gritlib.event_log import append_event
 from gritlib.file_transfers import render_fetch_command
-from gritlib.line_configure import configure_line_artifact
+from gritlib.line_configure import (
+    configure_line_artifact,
+    print_line_artifact_info,
+    print_line_artifacts,
+)
 from gritlib.line_binary import stage_line_binary
 from gritlib.line_files import (
     download_line_target,
@@ -89,6 +93,8 @@ def _build_release_stage_callbacks(cfg, line_input_fn, start_file_service_proces
         "stage_release": stage_release,
         "stage_binary": stage_binary,
         "configure_artifact": configure_artifact,
+        "artifact_list": lambda: print_line_artifacts(cfg),
+        "artifact_info": lambda args: print_line_artifact_info(cfg, args),
     }
 
 
@@ -237,6 +243,8 @@ def build_line_file_workflow_callbacks(
         "stage_release": release_callbacks["stage_release"],
         "stage_binary": release_callbacks["stage_binary"],
         "configure_artifact": release_callbacks["configure_artifact"],
+        "artifact_list": release_callbacks["artifact_list"],
+        "artifact_info": release_callbacks["artifact_info"],
         "stage_file": staged_callbacks["stage_file"],
         "download_target": transfer_callbacks["download_target"],
         "fetch_staged": transfer_callbacks["fetch_staged"],

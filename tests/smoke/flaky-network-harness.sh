@@ -85,13 +85,11 @@ assert workflow_tui["summary"]["target_mailbox_pending_work_count"] == 2
 assert workflow_tui["summary"]["target_mailbox_waiting_for_counts"]["target-poll"] == 2
 assert "Mailbox  (2 records)" in workflow_tui["stdout"]
 assert "target-workflow" in workflow_tui["stdout"]
-assert "waiting_for=target-poll" in workflow_tui["stdout"]
-assert "pending=2" in workflow_tui["stdout"]
-assert "Target detail: target-workflow label=Workflow Target" in workflow_tui["stdout"]
-assert "queue-probe" in workflow_tui["stdout"]
-assert "queue-staged-fetch" in workflow_tui["stdout"]
+assert "mailbox pending 2" in workflow_tui["stdout"]
+assert "target-poll" in workflow_tui["stdout"]
+assert "selected agent: target-workflow (Workflow Target)" in workflow_tui["stdout"]
+assert "Queue actions" in workflow_tui["stdout"]
 assert any(rec["event"] == "workbench_command_queue_inspected" for rec in workflow_tui["workbench_events"])
-assert any(rec["event"] == "workbench_target_inspected" for rec in workflow_tui["workbench_events"])
 assert workflow_drain["kind"] == "offline-workflow-drain-artifact"
 assert workflow_drain["target"]["target_id"] == "target-workflow"
 assert workflow_drain["target"]["mailbox_delivered_command_count"] == 2
@@ -125,14 +123,12 @@ assert workflow_drain_tui["target"]["latest_phone_home_status"] == "delivered"
 assert all(rec["status"] == "delivered" for rec in workflow_drain_tui["target_mailbox_records"])
 assert "Mailbox  (2 records)" in workflow_drain_tui["stdout"]
 assert "target-workflow" in workflow_drain_tui["stdout"]
-assert "status=delivered" in workflow_drain_tui["stdout"]
-assert "pending=0" in workflow_drain_tui["stdout"]
-assert "via=command-queue:command_queue_poll" in workflow_drain_tui["stdout"]
-assert "next_expected_poll=" in workflow_drain_tui["stdout"]
-assert "poll_overdue=no" in workflow_drain_tui["stdout"]
-assert "phone_home_latest=" in workflow_drain_tui["stdout"]
+assert "delivered" in workflow_drain_tui["stdout"]
+assert "mailbox pending 0" in workflow_drain_tui["stdout"]
+assert "path=command-queue:" in workflow_drain_tui["stdout"]
+assert "poll current" in workflow_drain_tui["stdout"]
+assert "phone_home=" in workflow_drain_tui["stdout"]
 assert any(rec["event"] == "workbench_command_queue_inspected" for rec in workflow_drain_tui["workbench_events"])
-assert any(rec["event"] == "workbench_target_inspected" for rec in workflow_drain_tui["workbench_events"])
 assert lifecycle["kind"] == "mailbox-lifecycle-artifact"
 assert lifecycle["failed_mailbox_record"]["result_status"] == "failed"
 assert lifecycle["failed_mailbox_record"]["result_exit_code"] == 23

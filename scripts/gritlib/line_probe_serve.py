@@ -28,7 +28,15 @@ def parse_line_probe_serve_args(args):
         if arg in {"--start", "start"}:
             start_file_service = True
         else:
-            raise ValueError(f"unknown option: {arg}\nusage: listener probe serve [start]")
+            raise ValueError(
+                f"unknown option: {arg}\n"
+                "listener probe serve is deprecated.\n"
+                "Use:\n"
+                "  listener probe config\n"
+                "  listener serve\n"
+                "  listener serve start\n"
+                "  listener serve ssh start"
+            )
     return start_file_service
 
 
@@ -68,7 +76,7 @@ def probe_release_matches(rel, probe_arch, probe_kernel_floor):
 
 
 def _print_no_release_guidance(probe_arch, uname_m, probe_kernel_floor, endian, checked_releases):
-    print("No release configured.")
+    print("No release bundle found.")
     expected_floor = probe_kernel_floor or "KERNEL"
     expected_arch = probe_arch or uname_m or "ARCH"
     print(f"  Probe needs arch={expected_arch} kernel_floor={expected_floor} endian={endian or '-'}")
@@ -111,7 +119,7 @@ def _choose_probe_match(matches, probe_arch, uname_m, line_input_fn):
         tuple_path = rec.get("tuple_path") or "-"
         print(f"    {i}  {preset:<20}  {tuple_path:<42}  {desc}")
     print("")
-    choice_line = line_input_fn("  Select preset (number or name, blank to cancel)> ")
+    choice_line = line_input_fn("  Choose preset N or preset NAME; blank cancels> ")
     choice = (choice_line or "").strip()
     if not choice:
         print("  Cancelled.")

@@ -105,8 +105,8 @@ def _base_file_service_target_command_records(cfg, host, file_route):
             "explicitly upload a target file to the operator file service",
         ),
         _file_service_target_command_record(
-            cfg, host, file_route, ["survey", "push"],
-            "explicitly upload passive target survey evidence",
+            cfg, host, file_route, ["survey", "retrieve"],
+            "explicitly send passive target survey evidence to the operator",
         ),
         _file_service_target_command_record(
             cfg, host, file_route, ["reality-test", "push"],

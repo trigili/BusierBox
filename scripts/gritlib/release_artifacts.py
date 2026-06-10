@@ -54,7 +54,7 @@ def print_release_summary(doc):
         f"total_size={summary.get('release_artifact_total_size', (release.get('artifact_stats') or {}).get('total_size', 0))}"
     )
     print(
-        "  artifact workflow actions: "
+        "  release artifact modules: "
         f"total={summary.get('release_artifact_workflow_action_count', 0)} "
         f"available={summary.get('release_artifact_workflow_action_available_count', 0)} "
         f"stage={summary.get('release_artifact_workflow_action_writes_staged_files_count', 0)} "

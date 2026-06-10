@@ -135,21 +135,49 @@
         "Do not bundle Doom WAD data unless its separate license permits redistribution."
       ]
     },
-    {
-      "name": "miniz",
-      "kind": "vendored-helper",
-      "license": "MIT OR Unlicense",
-      "source": "third_party/miniz",
-      "source_lock_name": "miniz",
-      "source_lock_license": "MIT OR Unlicense",
-      "upstream_license_url": "https://github.com/richgel999/miniz",
-      "gplv2_compatible_with_current_stack": true,
-      "compatibility": "Permissive license compatible with GPL distribution when notices are preserved",
-      "distribution_obligations": [
-        "Preserve the vendored miniz license notice when distributing source or binaries that include miniz-derived code."
-      ]
-    }
-  ],
+        {
+            "name": "miniz",
+            "kind": "vendored-helper",
+            "license": "MIT OR Unlicense",
+            "source": "third_party/miniz",
+            "source_lock_name": "miniz",
+            "source_lock_license": "MIT OR Unlicense",
+            "upstream_license_url": "https://github.com/richgel999/miniz",
+            "gplv2_compatible_with_current_stack": true,
+            "compatibility": "Permissive license compatible with GPL distribution when notices are preserved",
+            "distribution_obligations": [
+                "Preserve the vendored miniz license notice when distributing source or binaries that include miniz-derived code."
+            ]
+        },
+        {
+            "name": "prompt-toolkit",
+            "kind": "operator-tooling",
+            "license": "BSD-3-Clause",
+            "source": "manifests/sources.lock.json:name=prompt-toolkit",
+            "source_lock_name": "prompt-toolkit",
+            "source_lock_license": "BSD-3-Clause",
+            "upstream_license_url": "https://github.com/prompt-toolkit/python-prompt-toolkit",
+            "gplv2_compatible_with_current_stack": true,
+            "compatibility": "Permissive BSD-style operator-side dependency compatible with GPL distribution when notices are preserved",
+            "distribution_obligations": [
+                "Preserve prompt-toolkit license notices when redistributing the pinned source archive or an offline operator tooling bundle."
+            ]
+        },
+        {
+            "name": "wcwidth",
+            "kind": "operator-tooling",
+            "license": "MIT",
+            "source": "manifests/sources.lock.json:name=wcwidth",
+            "source_lock_name": "wcwidth",
+            "source_lock_license": "MIT",
+            "upstream_license_url": "https://github.com/jquast/wcwidth",
+            "gplv2_compatible_with_current_stack": true,
+            "compatibility": "Permissive operator-side dependency compatible with GPL distribution when notices are preserved",
+            "distribution_obligations": [
+                "Preserve wcwidth license notices when redistributing the pinned source archive or an offline operator tooling bundle."
+            ]
+        }
+    ],
   "distribution_guidance": [
     "Keep LICENSE.grit, LICENSE, NOTICE, and LICENSES/ with release bundles.",
     "Keep manifests/sources.lock.json pinned for downloaded source archives; release bundles include it as both sources.lock.json and manifests/sources.lock.json.",

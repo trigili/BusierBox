@@ -420,7 +420,7 @@ def _operator_console_build_config_workflow_record(
         "workflow": "build-config",
         "group": "artifacts",
         "label": "Build Config",
-        "description": "Configure compiled binary and payload options with equivalent headless commands.",
+        "description": "Configure compiled binary and payload options with equivalent generated commands.",
         "primary_collection": "workbench_config_fields",
         "source_collections": ["workbench_config_fields", "workbench_actions"],
         "action_collections": ["workbench_actions"],

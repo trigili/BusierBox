@@ -100,6 +100,7 @@ def dispatch_line_listener_command(
             return select_func(listener_cmd.get("selector", ""))
     except ValueError as exc:
         print(exc)
+        print("run: listeners")
         return None
     raise ValueError("unsupported listener command")
 
@@ -264,7 +265,13 @@ def start_line_service(
     if not service:
         service = resolve_line_service_selector((cfg or {}).get("_line_console_module"), service_rows)
     if not service:
-        raise ValueError("usage: start SERVICE|ROUTE")
+        raise ValueError(
+            "usage:\n"
+            "  start LISTENER\n"
+            "  start ROUTE\n"
+            "  route start NAME\n"
+            "  route start N"
+        )
     resolved_service = resolve_line_service_selector(service, service_rows)
     if resolved_service:
         service = resolved_service
@@ -272,13 +279,13 @@ def start_line_service(
         if route_record_func and route_record_func(service):
             if route_start_func:
                 return route_start_func(service)
-        raise ValueError(f"service or route not found: {service}")
+        raise ValueError(f"service or route not found: {service}; run: listeners or routes")
     if not service_start_command_func or not service_start_func:
         raise ValueError("service start support is unavailable")
     headless = service_start_command_func(service)
     cfg["_service_start_command"] = headless
     service_start_func(cfg, service, headless_command=headless)
-    print("  copy start  — copy the start command")
+    print("  show start  — print the start command")
     if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"} and probe_delivery_func:
         for _ in range(10):
             if sleep_func:
@@ -312,7 +319,13 @@ def stop_line_service(
     if not service:
         service = resolve_line_service_selector((cfg or {}).get("_line_console_module"), service_rows)
     if not service:
-        raise ValueError("usage: stop SERVICE|ROUTE")
+        raise ValueError(
+            "usage:\n"
+            "  stop LISTENER\n"
+            "  stop ROUTE\n"
+            "  route stop NAME\n"
+            "  route stop N"
+        )
     resolved_service = resolve_line_service_selector(service, service_rows)
     if resolved_service:
         service = resolved_service
@@ -320,7 +333,7 @@ def stop_line_service(
         if route_record_func and route_record_func(service):
             if route_stop_func:
                 return route_stop_func(service)
-        raise ValueError(f"service or route not found: {service}")
+        raise ValueError(f"service or route not found: {service}; run: listeners or routes")
     if not service_stop_command_func or not service_stop_func:
         raise ValueError("service stop support is unavailable")
     headless = service_stop_command_func(service)
@@ -468,7 +481,7 @@ def print_line_service_records(rows, verbose=False, start_command=None, stop_com
     detail_fn = lambda rec: _line_service_detail_rows(rec, verbose, start_command, stop_command)
     _print_line_service_table(rows, verbose, detail_fn)
     print("")
-    print("  use N or listener NAME to select  |  start/stop N or NAME  |  listeners ? for help")
+    print("  listener N, listener NAME, start N, stop N, listeners ?")
     return _line_service_search_records(rows, start_command, quote)
 
 
@@ -476,7 +489,7 @@ def select_line_service(cfg, selector, rows, start_command=None, stop_command=No
     text = str(selector or "").strip()
     service = resolve_line_service_selector(text, rows)
     if not service:
-        raise ValueError(f"service not found: {text}")
+        raise ValueError(f"service not found: {text}; use listener NAME or use listener N")
     set_line_collection_context(cfg, f"listener/{service}")
     start_command = start_command or (lambda _name: "")
     stop_command = stop_command or (lambda _name: "")
@@ -496,7 +509,7 @@ def select_line_service(cfg, selector, rows, start_command=None, stop_command=No
         print(f"  {line_service_display_name(service)}  —  (no status)")
     if service == "ssh":
         _print_ssh_profile_guidance(cfg)
-    print("  options / info / start / stop / copy start / back")
+    print("  options, info, start, stop, show start, show stop, copy start, copy stop, back")
     return service
 
 
@@ -525,7 +538,7 @@ def _print_ssh_profile_guidance(cfg):
     request_name = staged.get("request_name") or "ARTIFACT"
     host = profile.get("operator_host") or "OPERATOR_HOST"
     transport = profile.get("preferred_transport") or "ssh"
-    print(f"  configure: configure {request_name} operator-host {host} transport {transport}")
+    print(f"  stamp: stamp {request_name} operator-host {host} transport {transport}")
     print(f"  target: ./{request_name} rshell start")
 
 

@@ -62,7 +62,7 @@ def _choose_profile_release_match(rel, profile, preset=""):
 
 def _print_profile_serve_no_release(profile, checked_releases):
     _uname_m, endian, arch, kernel, kernel_floor = _profile_probe_match_fields(profile)
-    print("No release configured.")
+    print("No release bundle found.")
     print(f"  profile: {profile_summary_line(profile)}")
     print(f"  needs arch={arch or '-'} kernel={kernel or '-'} floor={kernel_floor or '-'} endian={endian or '-'}")
     print("")
@@ -136,15 +136,15 @@ def run_line_profile_serve(
     if not stage_line_release_fn:
         raise ValueError("release staging support is unavailable")
     rec = stage_line_release_fn(selector, start_file_service=bool(serve_cmd.get("start")))
+    print("")
+    print("Next:")
     if profile.get("operator_host"):
-        print("")
-        print("Next:")
         print(
-            f"  configure {rec.get('request_name', 'ARTIFACT')} "
+            f"  stamp {rec.get('request_name', 'ARTIFACT')} "
             f"operator-host {profile.get('operator_host')} "
             f"transport {profile.get('preferred_transport') or 'ssh'}"
         )
-    print("  listener ssh start")
+    print("  listener serve ssh start")
     if rec and append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_profile_serve_run", details={
             "profile": profile.get("name", ""),

@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "name": "compatibility-ci",
+  "description": "Representative libc/kernel/architecture compatibility gate for pre-release and CI-style smoke runs.",
+  "targets": [
+    "mips-linux-2.4-uclibc",
+    "mipsel-linux-2.6-uclibc-legacy",
+    "mipsel-linux-3.x-musl",
+    "armv7-linux-3.x-musl",
+    "aarch64-linux-4.x-musl",
+    "x86_64-linux-current-musl"
+  ],
+  "payload_presets": ["survey-core", "default", "ssh-operator"],
+  "formats": ["tgz"]
+}

@@ -7,6 +7,32 @@ from gritlib.event_log import EventLog, append_event
 from gritlib.session_state import parse_utc_timestamp
 
 
+EVENT_FILTER_KEYS = (
+    "service", "event", "level", "target", "remote", "session", "status",
+    "operation", "request_name", "filename", "command_id", "job_id", "module_id", "action_id",
+)
+EVENT_FILTER_ALIASES = {
+    "module_id": "action_id",
+}
+EVENT_USAGE = "\n".join([
+    "usage:",
+    "  events",
+    "  events n N",
+    "  events since 2h",
+    "  events service=NAME",
+    "  events event=NAME",
+    "  events level=LEVEL",
+    "  events target=ID",
+    "  events target=LABEL",
+    "  events status=TEXT",
+    "  events operation=TEXT",
+    "  events request_name=NAME",
+    "  events command_id=ID",
+    "  events job_id=ID",
+    "  events module_id=ID",
+])
+
+
 def parse_line_event_since(text):
     value = str(text or "").strip().lower()
     if not value:
@@ -21,7 +47,7 @@ def parse_line_event_since(text):
     }
     multiplier = multipliers.get(unit, 1)
     if not number_text.isdigit() or int(number_text) <= 0:
-        raise ValueError("usage: events since 30m|2h|1d")
+        raise ValueError("usage:\n  events since 30m\n  events since 2h\n  events since 1d")
     return time.time() - (int(number_text) * multiplier)
 
 
@@ -45,6 +71,13 @@ def line_event_matches_filter(event, key, expected):
     return any(expected in str(value or "").lower() for value in values)
 
 
+def line_event_summary_value(key, value):
+    text = str(value)
+    if key in {"sha256", "command_sha256"} and len(text) > 16:
+        return text[:12]
+    return text
+
+
 def line_event_summary(event):
     details = event.get("details") if isinstance(event.get("details"), dict) else {}
     hidden_keys = {"command", "dry_run_command", "headless_command", "run_command", "start_job_command"}
@@ -58,7 +91,7 @@ def line_event_summary(event):
         "total_count": "total",
         "invalid_count": "invalid",
         "target_mailbox_record_count": "mailbox records",
-        "command_queue_workflow_action_count": "queue actions",
+        "command_queue_workflow_action_count": "queue shortcuts",
         "command_count": "commands",
     }
     order = (
@@ -76,7 +109,7 @@ def line_event_summary(event):
             continue
         if isinstance(value, (dict, list)):
             continue
-        interesting.append(f"{labels.get(key, key.replace('_', ' '))} {value}")
+        interesting.append(f"{labels.get(key, key.replace('_', ' '))} {line_event_summary_value(key, value)}")
         if len(interesting) >= 4:
             break
     summary = "  ".join(interesting)
@@ -93,18 +126,18 @@ def parse_line_events_args(args):
     while idx < len(args):
         arg = str(args[idx] or "")
         if arg in {"-h", "--help", "help"}:
-            raise ValueError("usage: events [n N] [service=NAME] [event=NAME] [level=LEVEL] [target=ID|LABEL] [since 2h]")
+            raise ValueError(EVENT_USAGE)
         if arg in {"-n", "--limit", "n", "limit"}:
             idx += 1
             if idx >= len(args) or not str(args[idx]).isdigit() or int(args[idx]) <= 0:
-                raise ValueError("usage: events n N")
+                raise ValueError("usage:\n  events n N")
             limit = int(args[idx])
         elif arg.startswith("-n") and arg[2:].isdigit():
             limit = int(arg[2:])
         elif arg.startswith("--limit=") or arg.startswith("limit="):
             value = arg.split("=", 1)[1]
             if not value.isdigit() or int(value) <= 0:
-                raise ValueError("usage: events limit=N")
+                raise ValueError("usage:\n  events n N")
             limit = int(value)
         elif arg in {"--since", "since"}:
             idx += 1
@@ -116,11 +149,12 @@ def parse_line_events_args(args):
         elif "=" in arg:
             key, value = arg.split("=", 1)
             key = key.strip().lower()
-            if key not in {"service", "event", "level", "target", "remote", "session", "status", "operation", "request_name", "filename", "command_id", "job_id", "action_id"}:
-                raise ValueError(f"unsupported event filter: {key}")
+            if key not in EVENT_FILTER_KEYS:
+                raise ValueError(f"unsupported event filter: {key}; supported filters: {', '.join(EVENT_FILTER_KEYS)}")
+            key = EVENT_FILTER_ALIASES.get(key, key)
             filters.append((key, value.strip()))
         else:
-            raise ValueError("usage: events [n N] [service=NAME] [event=NAME] [level=LEVEL] [target=ID|LABEL] [since 2h]")
+            raise ValueError(EVENT_USAGE)
         idx += 1
     return limit, since_epoch, filters
 

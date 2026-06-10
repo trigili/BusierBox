@@ -52,9 +52,19 @@ def dispatch_line_resource_command(
 def load_line_resource(cfg, path_text):
     text = str(path_text or "").strip()
     if not text:
-        raise ValueError("usage: resource FILE")
+        raise ValueError(
+            "usage:\n"
+            "  resource FILE\n"
+            "  !N\n"
+            "  repeat N"
+        )
     path = Path(text).expanduser()
     if not path.is_file():
+        if text.isdigit():
+            raise ValueError(
+                f"resource expects a script file path, not history number {text}; "
+                f"use !{text} or repeat {text} to replay history"
+            )
         raise ValueError(f"resource file not found: {text}")
     try:
         raw_lines = path.read_text(encoding="utf-8").splitlines()
@@ -90,7 +100,7 @@ def load_line_resource(cfg, path_text):
 def write_line_makerc(cfg, path_text, line_history):
     text = str(path_text or "").strip()
     if not text:
-        raise ValueError("usage: makerc FILE")
+        raise ValueError("usage:\n  makerc FILE")
     path = Path(text).expanduser()
     commands = list(line_history or [])
     if commands and commands[-1].strip().lower().startswith("makerc "):
@@ -135,7 +145,11 @@ def line_history_command(line_history, selector):
     if text.startswith("!"):
         text = text[1:]
     if not text.isdigit():
-        raise ValueError("usage: !N or repeat N")
+        raise ValueError(
+            "usage:\n"
+            "  !N\n"
+            "  repeat N"
+        )
     idx = int(text) - 1
     if idx < 0 or idx >= len(line_history):
         raise ValueError(f"history number out of range: {text}")
@@ -147,7 +161,7 @@ def print_line_history(line_history, limit_text=""):
     text = str(limit_text or "").strip()
     if text:
         if not text.isdigit() or int(text) <= 0:
-            raise ValueError("usage: history [LIMIT]")
+            raise ValueError("usage:\n  history\n  history LIMIT")
         limit = int(text)
     print("Command history:")
     if not line_history:

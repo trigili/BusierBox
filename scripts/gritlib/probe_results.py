@@ -50,7 +50,12 @@ def clear_probe_results(cfg, selector=""):
         count = 1
         data["results"] = results
     else:
-        raise ValueError("usage: probe clear [N|all]")
+        raise ValueError(
+            "usage:\n"
+            "  listener probe clear\n"
+            "  listener probe clear N\n"
+            "  listener probe clear all"
+        )
     atomic_write_json(path, data)
     return {
         "count": count,
@@ -58,6 +63,40 @@ def clear_probe_results(cfg, selector=""):
         "remaining_count": len(data.get("results") or []),
         "removed": removed,
         "had_results": True,
+    }
+
+
+def preview_probe_results_clear(cfg, selector=""):
+    results = probe_all_results(cfg)
+    text = str(selector or "").strip()
+    if not results:
+        return {
+            "count": 0,
+            "selector": text,
+            "had_results": False,
+            "selected": [],
+        }
+    if not text or text in {"--all", "all"}:
+        selected = results
+        selector_text = text or "--all"
+    elif text.isdigit() and int(text) > 0:
+        ordinal = int(text)
+        if ordinal > len(results):
+            raise ValueError(f"probe result number out of range: {text}")
+        selected = [results[ordinal - 1]]
+        selector_text = text
+    else:
+        raise ValueError(
+            "usage:\n"
+            "  listener probe clear confirm\n"
+            "  listener probe clear N confirm\n"
+            "  listener probe clear all confirm"
+        )
+    return {
+        "count": len(selected),
+        "selector": selector_text,
+        "had_results": True,
+        "selected": selected,
     }
 
 
@@ -124,7 +163,7 @@ def probe_synthetic_survey(rec):
         "_probe_remote": str(rec.get("remote_addr") or ""),
         "_note": (
             "Synthesized from probe only. "
-            "Deploy griTTYkit and run 'grit survey push' for libc, "
+"Deploy griTTYkit and run 'grit survey retrieve' for libc, "
             "filesystem, and tool capability data."
         ),
     }
@@ -158,8 +197,13 @@ def print_probe_result_records(records):
         print("    listener probe config                  — populate active profile from most recent result")
         print("    listener probe config N                — populate active profile from a numbered result")
         print("    listener probe config write-config FILE — export build config")
-        print("    listener probe clear [N|all]           — remove stale probe results")
-        print("    listener serve start                   — stage a matching binary from active profile")
+        print("    listener probe clear                  — preview clearing all probe results")
+        print("    listener probe clear N                — preview clearing a numbered result")
+        print("    listener probe clear all              — preview clearing all probe results")
+        print("    listener probe clear N confirm        — remove a numbered result")
+        print("    listener probe clear all confirm      — remove all probe results")
+        print("    after config: listener serve start     — stage a matching binary from active profile")
+        print("    after config: listener serve ssh start — stage ssh-operator payload from active profile")
     else:
         print("  No results yet — run: listener probe start")
 
@@ -193,7 +237,31 @@ def print_line_probe_results(cfg, append_event_fn=None):
 
 
 def clear_line_probe_results(cfg, args, append_event_fn=None):
-    text = " ".join(str(arg or "") for arg in args).strip()
+    tokens = [str(arg or "").strip() for arg in (args or []) if str(arg or "").strip()]
+    confirm = any(token.lower() in {"--confirm", "confirm", "yes"} for token in tokens)
+    selectors = [token for token in tokens if token.lower() not in {"--confirm", "confirm", "yes"}]
+    if len(selectors) > 1:
+        raise ValueError(
+            "usage:\n"
+            "  listener probe clear confirm\n"
+            "  listener probe clear N confirm\n"
+            "  listener probe clear all confirm"
+        )
+    text = selectors[0] if selectors else ""
+    if not confirm:
+        details = preview_probe_results_clear(cfg, text)
+        if not details.get("had_results"):
+            print("no probe results to clear")
+            return 0
+        count = int(details.get("count") or 0)
+        selector_text = "" if details.get("selector") in {"", "--all"} else f" {details.get('selector')}"
+        selected = details.get("selected") if isinstance(details.get("selected"), list) else []
+        for rec in selected[:10]:
+            print(f"  {rec.get('received_at', '') or '-'}  {rec.get('remote_addr', '') or '-'}")
+        if len(selected) > 10:
+            print(f"  ... {len(selected) - 10} more")
+        print(f"\n  {count} probe result(s) would be cleared. Run: listener probe clear{selector_text} confirm")
+        return 0
     details = clear_probe_results(cfg, text)
     if not details.get("had_results"):
         print("no probe results to clear")

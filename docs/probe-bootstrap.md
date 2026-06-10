@@ -80,7 +80,7 @@ grit[all]> listener serve start
 
 `listener probe config write-config FILE` remains available when you explicitly
 need to export a build/artifact config from the newest probe result. The probe
-only captures basic platform evidence, so a later full `grit survey push` can
+only captures basic platform evidence, so a later full `grit survey retrieve` can
 refine the recommendation after a payload is deployed.
 
 When a bridge profile is selected, generated target commands use the bridge's

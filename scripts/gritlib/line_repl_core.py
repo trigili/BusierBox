@@ -128,6 +128,7 @@ def _core_workspace_dispatch_kwargs(ctx):
     cfg = ctx["cfg"]
     return {
         "status_func": lambda: ctx["print_func"](line_repl_status_bar(_core_workspace_snapshot(ctx))),
+        "workspace_snapshot_func": lambda: _core_workspace_snapshot(ctx),
         "ips_func": lambda: ctx["local_ips_func"](_core_workspace_snapshot(ctx)),
         "workspace_func": lambda: (
             ctx["clear_module_context_func"](cfg, quiet=True),

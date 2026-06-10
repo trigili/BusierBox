@@ -47,18 +47,45 @@ def parse_line_configure_command(cmd, args):
     return {"action": "stamp", "args": list(args or [])}
 
 
+def _artifact_usage(*commands):
+    return "usage:\n" + "\n".join(f"  {command}" for command in commands)
+
+
+def _artifact_action_usage(subcmd):
+    return _artifact_usage(f"artifact {subcmd} NAME", f"artifact {subcmd} PATH")
+
+
+def _stamp_usage():
+    return _artifact_usage(
+        "stamp NAME show",
+        "stamp NAME clear",
+        "stamp NAME KEY=VALUE",
+        "stamp PATH show",
+        "stamp PATH clear",
+        "stamp PATH KEY=VALUE",
+    )
+
+
+def _artifact_info_usage():
+    return _artifact_usage("artifact info NAME", "artifact info PATH", "artifact info N")
+
+
 def parse_line_artifact_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     if cmd != "artifact":
         return {}
     args = list(args or [])
     subcmd = str(args[0]).strip().lower() if args else ""
+    if not subcmd:
+        return {"action": "list", "args": []}
+    if subcmd in {"info", "inspect"}:
+        return {"action": "info", "args": args[1:]}
     if subcmd in {"stamp", "trailer", "configure"}:
         return {"action": "stamp", "args": args[1:]}
     if subcmd in {"show", "clear"}:
         if len(args) < 2:
-            raise ValueError(f"usage: artifact {subcmd} NAME|PATH")
-        return {"action": "stamp", "args": [args[1], f"--{subcmd}", *args[2:]]}
+            raise ValueError(_artifact_action_usage(subcmd))
+        return {"action": "stamp", "args": [args[1], subcmd, *args[2:]]}
     return {"action": "stamp", "args": args}
 
 
@@ -66,13 +93,24 @@ def dispatch_line_configure_command(
     configure_cmd,
     *,
     configure_func=None,
+    artifact_list_func=None,
+    artifact_info_func=None,
     set_context_func=None,
 ):
     try:
-        if configure_func:
-            result = configure_func(configure_cmd.get("args") or [])
+        action = configure_cmd.get("action")
+        if action == "list" and artifact_list_func:
             if set_context_func:
                 set_context_func()
+            return artifact_list_func()
+        if action == "info" and artifact_info_func:
+            if set_context_func:
+                set_context_func()
+            return artifact_info_func(configure_cmd.get("args") or [])
+        if configure_func:
+            if set_context_func:
+                set_context_func()
+            result = configure_func(configure_cmd.get("args") or [])
             return result
     except ValueError as exc:
         print(exc)
@@ -112,8 +150,11 @@ def parse_line_config_args(args, cmd_name):
         else:
             raise ValueError(
                 f"unknown option: {arg}\n"
-                f"usage: {cmd_name} [PATH] [write-config FILE] "
-                "[prefer-rshell auto|ssh|...] [prefer-runtime auto|...]"
+                f"usage: {cmd_name}\n"
+                f"   or: {cmd_name} PATH\n"
+                f"   or: {cmd_name} PATH write-config FILE\n"
+                f"   or: {cmd_name} PATH prefer-rshell auto\n"
+                f"   or: {cmd_name} PATH prefer-runtime auto"
             )
     return survey_path, write_config_path, extra_args
 
@@ -153,11 +194,11 @@ ARTIFACT_CONFIG_OPTION_KEYS = {
 
 def parse_line_configure_args(args, option_keys=ARTIFACT_CONFIG_OPTION_KEYS):
     if not args:
-        raise ValueError("usage: stamp NAME|PATH [show|clear|KEY=VALUE|options...]")
+        raise ValueError(_stamp_usage())
     selector = str(args[0])
     rest = list(args[1:])
     if not rest:
-        raise ValueError("usage: stamp NAME|PATH [show|clear|KEY=VALUE|options...]")
+        raise ValueError(_stamp_usage())
     action = "set"
     obfuscation = "none"
     kv = []
@@ -173,7 +214,11 @@ def parse_line_configure_args(args, option_keys=ARTIFACT_CONFIG_OPTION_KEYS):
             i += 1
         elif opt == "--obfuscation":
             if i + 1 >= len(rest):
-                raise ValueError("stamp obfuscation requires none|xor")
+                raise ValueError(
+                    "stamp obfuscation requires a value:\n"
+                    "  stamp NAME obfuscation none\n"
+                    "  stamp NAME obfuscation xor"
+                )
             obfuscation = str(rest[i + 1])
             i += 2
         elif opt.startswith("--obfuscation="):
@@ -244,19 +289,142 @@ def artifact_config_script(search_roots=None):
     raise ValueError(f"artifact-config helper not found (searched: {searched})")
 
 
+def inspect_artifact_script(search_roots=None):
+    candidates = []
+    seen = set()
+
+    def _add(path):
+        path = Path(path)
+        text = str(path)
+        if text not in seen:
+            seen.add(text)
+            candidates.append(path)
+
+    module_dir = Path(__file__).resolve().parent
+    argv_dir = Path(sys.argv[0]).resolve().parent if sys.argv and sys.argv[0] else Path.cwd()
+    roots = [
+        *(Path(root) for root in (search_roots or [])),
+        module_dir.parent,
+        module_dir.parent.parent,
+        argv_dir,
+        argv_dir.parent,
+        Path.cwd(),
+    ]
+    for root in roots:
+        _add(root / "lib" / "inspect-artifact")
+        _add(root / "scripts" / "lib" / "inspect-artifact")
+        _add(root / "inspect-artifact")
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    searched = ", ".join(str(path) for path in candidates[:6])
+    raise ValueError(f"inspect-artifact helper not found (searched: {searched})")
+
+
+def _artifact_selector_path(cfg, selector):
+    request_name, staged_rec = staged_record_for_configure(cfg, selector)
+    if request_name:
+        path = Path(str(staged_rec.get("configured_source_path") or staged_rec.get("source_path") or "")).expanduser()
+        if not path.is_file():
+            raise ValueError(f"staged source is missing: {path}")
+        return request_name, path.resolve(), staged_rec
+    path = Path(str(selector or "")).expanduser()
+    if not path.is_file():
+        raise ValueError(f"artifact or staged request not found: {selector}")
+    return "", path.resolve(), {}
+
+
+def print_line_artifacts(cfg):
+    staged = load_staged(cfg).get("staged") or {}
+    records = []
+    for idx, (name, rec) in enumerate(sorted(staged.items()), 1):
+        if not isinstance(rec, dict):
+            continue
+        records.append({
+            "num": str(idx),
+            "name": name,
+            "kind": rec.get("stage_kind") or rec.get("payload_preset") or "file",
+            "source": rec.get("configured_source_path") or rec.get("source_path") or "",
+        })
+    release_dir = str(cfg.get("release_dir") or "")
+    print(f"Artifact workspace  ({len(records)} staged)")
+    print(f"  release dir: {release_dir or '(not set)'}")
+    if records:
+        console_table(
+            "Staged artifacts",
+            records,
+            [
+                ("#", "num"),
+                ("Name", "name"),
+                ("Kind", "kind"),
+                ("Source", "source"),
+            ],
+        )
+    else:
+        print("  staged: none")
+    print("  next:")
+    print("    artifact info N")
+    print("    artifact info NAME")
+    print("    artifact info PATH")
+    print("    artifact show NAME")
+    print("    release")
+
+
+def print_line_artifact_info(cfg, args):
+    selector = " ".join(str(item) for item in (args or [])).strip()
+    if not selector:
+        raise ValueError(_artifact_info_usage())
+    request_name, path, rec = _artifact_selector_path(cfg, selector)
+    print("Artifact info:")
+    if request_name:
+        print(f"  staged name: {request_name}")
+        if rec.get("release_artifact_name"):
+            print(f"  release artifact: {rec.get('release_artifact_name')}")
+        if rec.get("payload_preset"):
+            print(f"  payload preset: {rec.get('payload_preset')}")
+    print(f"  path: {path}")
+    helper = inspect_artifact_script()
+    result = subprocess.run([str(helper), str(path)], cwd=Path(__file__).resolve().parent.parent, text=True, capture_output=True)
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="")
+    if result.returncode != 0:
+        raise ValueError(f"inspect-artifact exited {result.returncode}")
+    return path
+
+
 def configure_line_artifact(cfg, args, append_event_fn=None):
     if len(args or []) == 1:
         selector = str(args[0])
         profile = active_profile(cfg)
+        request_name, staged_rec = staged_record_for_configure(cfg, selector)
+        source = ""
+        if request_name:
+            source = str(staged_rec.get("configured_source_path") or staged_rec.get("source_path") or "")
+        elif Path(selector).expanduser().is_file():
+            source = str(Path(selector).expanduser())
+        elif not profile:
+            raise ValueError(f"artifact or staged request not found: {selector}")
         if not profile:
-            raise ValueError("usage: stamp NAME|PATH [show|clear|KEY=VALUE|options...]")
+            print("Artifact stamp action needed:")
+            print(f"  artifact: {selector}")
+            if source:
+                print(f"  source: {source}")
+            print(f"  inspect current stamp: artifact show {selector}")
+            print(f"  clear stamp: artifact clear {selector}")
+            print(f"  stamp values: artifact stamp {selector} operator-host HOST zero-arg-mode rshell")
+            print("  no active profile is set, so profile-based suggestions are unavailable.")
+            return None
         print(f"Artifact configuration suggestions from profile: {profile.get('name') or '-'}")
         print(f"  artifact: {selector}")
+        if source:
+            print(f"  source: {source}")
         if profile.get("operator_host"):
-            print(f"  configure {selector} operator-host {profile.get('operator_host')} transport {profile.get('preferred_transport') or 'ssh'}")
+            print(f"  stamp {selector} operator-host {profile.get('operator_host')} transport {profile.get('preferred_transport') or 'ssh'}")
         else:
-            print(f"  configure {selector} operator-host OPERATOR_HOST transport {profile.get('preferred_transport') or 'ssh'}")
-        print("  This only prints suggestions; trailer writes require explicit key/value arguments.")
+            print(f"  stamp {selector} operator-host OPERATOR_HOST transport {profile.get('preferred_transport') or 'ssh'}")
+        print("  This only prints suggestions; stamp writes require explicit key/value arguments.")
         return None
     selector, action, obfuscation, kv = parse_line_configure_args(args)
     request_name, staged_rec = staged_record_for_configure(cfg, selector)
@@ -296,7 +464,7 @@ def configure_line_artifact(cfg, args, append_event_fn=None):
         staged[request_name] = rec
         atomic_write_json(staged_file_path(cfg), data)
     fetch_command = render_fetch_command(request_name, cfg) if request_name else ""
-    print("Artifact trailer stamped:" if action == "set" else f"Artifact trailer {action}:")
+    print("Artifact stamp applied:" if action == "set" else f"Artifact stamp {action}:")
     print(f"  artifact: {artifact}")
     if request_name:
         print(f"  name: {request_name}")
@@ -424,7 +592,7 @@ def run_line_probe_config(cfg, args, append_event_fn=None):
             print("Next:")
             print("  profile")
             print("  listener serve start")
-            print("  listener ssh start")
+            print("  listener serve ssh start")
             print("")
             print("  Export build config if needed:")
             print("    listener probe config write-config FILE")
@@ -474,7 +642,7 @@ def run_line_survey_config(cfg, args, find_survey_uploads_fn, append_event_fn=No
         if not uploads:
             raise ValueError(
                 "no full survey uploads found\n"
-                "  on target: grit survey push --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
+"  on target: grit survey retrieve --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
                 "  or use probe data: listener probe config"
             )
         survey_path = uploads[0].get("stored_path") or ""
@@ -571,12 +739,17 @@ def print_line_survey_status(cfg, append_event_fn=None):
     )
     print("")
     if uploads:
-        print("  survey config [PATH]         — generate config from full survey")
-        print("  survey preset [PATH] name    — save a reusable target preset")
+        print("  survey config                — generate config from latest full survey")
+        print("  survey config PATH           — generate config from a specific full survey")
+        print("  survey preset name NAME      — save a reusable target preset from the latest survey")
+        print("  survey preset PATH name NAME — save a reusable target preset from a specific survey")
     else:
         print("  No full survey uploads yet.")
         print("  After deploying griTTYkit, run on the target:")
-        print("    grit survey push --host OPERATOR_IP --port FILE_SERVICE_PORT")
+    if uploads:
+        print("  target-to-operator retrieval command:")
+    print("    grit survey retrieve --host OPERATOR_IP --port FILE_SERVICE_PORT")
+    print("  survey ? for help")
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_survey_status_viewed", details={
             "upload_count": len(uploads),
@@ -610,14 +783,18 @@ def run_line_survey_preset(cfg, args, find_survey_uploads_fn, append_event_fn=No
         else:
             raise ValueError(
                 f"unknown option: {a}\n"
-                "usage: survey preset [PATH] name NAME [write-local] [overwrite]"
+                "usage:\n"
+                "  survey preset name NAME\n"
+                "  survey preset PATH name NAME\n"
+                "  survey preset PATH name NAME write-local\n"
+                "  survey preset PATH name NAME write-local overwrite"
             )
     if not survey_path:
         uploads = find_survey_uploads_fn()
         if not uploads:
             raise ValueError(
                 "no full survey uploads found\n"
-                "  on target: grit survey push --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
+"  on target: grit survey retrieve --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
                 "  or specify: survey preset PATH name NAME"
             )
         survey_path = uploads[0].get("stored_path") or ""

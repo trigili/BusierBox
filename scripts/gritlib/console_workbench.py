@@ -225,6 +225,7 @@ def _build_status_document_contexts(cfg):
 
 
 def status_document(cfg):
+    """Build the full status API document from domain-scoped contexts."""
     contexts = _build_status_document_contexts(cfg)
     target_filter_id = contexts["target_filter_id"]
     foundation_context = contexts["foundation_context"]

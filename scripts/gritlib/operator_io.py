@@ -112,7 +112,7 @@ def dispatch_line_view_command(view_cmd, *, view_func=None):
 def view_line_path(cfg, path_text, append_event_fn=None, via=""):
     path = str(path_text or "").strip()
     if not path:
-        raise ValueError("usage: view PATH")
+        raise ValueError("usage:\n  view PATH")
     headless = view_path_headless_command(cfg, path)
     result = open_path_in_pager(path)
     print(result)

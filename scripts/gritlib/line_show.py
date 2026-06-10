@@ -4,7 +4,25 @@ import shlex
 
 
 VERBOSE_FLAGS = {"-v", "--verbose", "verbose", "details"}
-LINE_SHOW_USAGE = "usage: show targets|services|files|queue|mailbox|jobs|sessions|activity|modules|options"
+LINE_SHOW_USAGE = (
+    "usage:\n"
+    "  show targets\n"
+    "  show listeners\n"
+    "  show files\n"
+    "  show queue\n"
+    "  show mailbox\n"
+    "  show jobs\n"
+    "  show sessions\n"
+    "  show events\n"
+    "  show modules\n"
+    "  show modules FILTER\n"
+    "  show service modules\n"
+    "  show daemon modules\n"
+    "  show target modules\n"
+    "  show workbench modules\n"
+    "  show options\n"
+    "  show context"
+)
 SHOW_RESOURCE_ALIASES = {
     "targets": ("target", "targets", "agent", "agents", "host", "hosts"),
     "listeners": ("service", "services", "listener", "listeners"),
@@ -25,6 +43,21 @@ SHOW_RESOURCE_KIND_BY_ALIAS = {
     alias: kind
     for kind, aliases in SHOW_RESOURCE_ALIASES.items()
     for alias in aliases
+}
+MODULE_KIND_ALIASES = {
+    "service": "service",
+    "services": "service",
+    "listener": "service",
+    "listeners": "service",
+    "daemon": "daemon",
+    "daemons": "daemon",
+    "target": "target",
+    "targets": "target",
+    "agent": "target",
+    "agents": "target",
+    "workbench": "workbench",
+    "job": "workbench",
+    "jobs": "workbench",
 }
 
 
@@ -47,8 +80,14 @@ def parse_line_show_resource(resource):
     filter_text = " ".join(filtered_parts[1:]).strip()
     if len(filtered_parts) >= 2 and filtered_parts[1].lower() in ("module", "modules"):
         kind = "module-kind"
-        kind_filter = key
+        kind_filter = MODULE_KIND_ALIASES.get(key, key)
         filter_text = " ".join(filtered_parts[2:]).strip()
+    elif key in ("module", "modules", "action", "actions") and len(filtered_parts) >= 2:
+        second = filtered_parts[1].lower()
+        if second in MODULE_KIND_ALIASES:
+            kind = "module-kind"
+            kind_filter = MODULE_KIND_ALIASES[second]
+            filter_text = " ".join(filtered_parts[2:]).strip()
     return {
         "key": key,
         "filtered_key": key,
@@ -64,7 +103,7 @@ def parse_line_show_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
     if cmd == "show":
-        resource = " ".join(args).strip() if args else "options"
+        resource = " ".join(args).strip()
     elif cmd in {"categories", "category", "module-categories"}:
         resource = "categories"
     elif cmd in {"modules", "module"}:

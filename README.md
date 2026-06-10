@@ -401,7 +401,7 @@ Once griTTYkit is running on the target, push a rich survey:
 
 ```sh
 # on the target:
-grit survey push --host 192.168.8.241 --port 8080
+grit survey retrieve --host 192.168.8.241 --port 8080
 ```
 
 ```
@@ -423,7 +423,7 @@ a precise build config rather than conservative defaults.
 ```sh
 ./grit survey                 # print target facts to stdout
 ./grit survey --json          # JSON output
-./grit survey push            # upload survey to operator file service
+./grit survey retrieve        # send survey to operator file service
 ./grit envfix                 # print environment repair commands
 eval "$(./grit envfix)"       # apply them
 ./grit extract                # extract full payload to writable location

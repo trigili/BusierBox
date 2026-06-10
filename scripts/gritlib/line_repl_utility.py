@@ -14,6 +14,7 @@ def build_default_line_utility_callbacks(
     line_search_callbacks,
     line_display_show_callbacks,
     line_route_service_callbacks,
+    set_context_func=None,
 ):
     return build_line_utility_callbacks(
         cfg,
@@ -27,8 +28,10 @@ def build_default_line_utility_callbacks(
         generated_run_func=line_target_commands.run_line_generated_command,
         copy_text_func=copy_text_for_operator,
         route_service_callbacks=line_route_service_callbacks,
+        service_show_command_func=line_target_commands.show_line_service_command,
         service_copy_command_func=line_target_commands.copy_line_service_command,
         generated_copy_func=line_target_commands.copy_line_generated_command,
+        set_context_func=set_context_func,
     )
 
 
@@ -46,12 +49,14 @@ def build_line_utility_callbacks(
     copy_text_func,
     service_start_command_func=None,
     service_stop_command_func=None,
-    service_copy_command_func,
+    service_show_command_func=None,
+    service_copy_command_func=None,
     generated_copy_func,
     completion_callbacks=None,
     search_callbacks=None,
     display_callbacks=None,
     route_service_callbacks=None,
+    set_context_func=None,
 ):
     if completion_func is None and completion_callbacks is not None:
         completion_func = completion_callbacks["print_line_completions"]
@@ -79,12 +84,14 @@ def build_line_utility_callbacks(
         events_func=events_func,
         search_func=search_func,
         show_func=show_func,
+        service_show_command_func=service_show_command_func,
         generated_run_func=generated_run_func,
         copy_text_func=copy_text_func,
         service_start_command_func=service_start_command_func,
         service_stop_command_func=service_stop_command_func,
         service_copy_command_func=service_copy_command_func,
         generated_copy_func=generated_copy_func,
+        set_context_func=set_context_func,
     )
     return {
         "dispatch_line_utility": dispatch_utility,
@@ -109,8 +116,10 @@ def build_line_utility_dispatch_callback(
     copy_text_func,
     service_start_command_func,
     service_stop_command_func,
-    service_copy_command_func,
+    service_show_command_func=None,
+    service_copy_command_func=None,
     generated_copy_func,
+    set_context_func=None,
 ):
     def dispatch_utility(command, args):
         return dispatch_line_utility_command(
@@ -128,6 +137,12 @@ def build_line_utility_dispatch_callback(
             events_func=lambda event_args: events_func(cfg, event_args),
             search_func=search_func,
             show_func=show_func,
+            service_show_func=lambda subcmd: service_show_command_func(
+                cfg,
+                subcmd,
+                start_command=lambda service: service_start_command_func(cfg, service),
+                stop_command=lambda service: service_stop_command_func(cfg, service),
+            ),
             generated_run_func=lambda generated_args: generated_run_func(cfg, generated_args),
             service_copy_func=lambda subcmd: service_copy_command_func(
                 cfg,
@@ -144,6 +159,8 @@ def build_line_utility_dispatch_callback(
                 cfg,
                 selector,
             ),
+            set_context_func=lambda module: set_context_func(cfg, module)
+            if set_context_func else None,
         )
 
     return dispatch_utility

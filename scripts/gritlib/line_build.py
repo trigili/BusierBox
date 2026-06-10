@@ -62,6 +62,33 @@ def _build_field_purpose(rec):
     return str(rec.get("label") or "")
 
 
+def _build_field_global_number(rec):
+    return str(rec.get("_build_row") or "")
+
+
+def _build_usage_lines(*commands):
+    return "usage:\n" + "\n".join(f"  {command}" for command in commands)
+
+
+def _build_set_usage():
+    return _build_usage_lines("build set KEY VALUE", "build set ROW VALUE")
+
+
+def _build_unset_usage():
+    return _build_usage_lines("build unset KEY", "build unset ROW")
+
+
+def _build_command_usage():
+    return _build_usage_lines(
+        "build",
+        "build verbose",
+        "build set KEY VALUE",
+        "build set ROW VALUE",
+        "build unset KEY",
+        "build unset ROW",
+    )
+
+
 def print_line_build_config(cfg, verbose=False):
     fields = workbench_config_field_records(cfg)
     configured_count = len([rec for rec in fields if rec.get("configured")])
@@ -87,11 +114,15 @@ def print_line_build_config(cfg, verbose=False):
         return details
 
     for category, records in _group_build_fields(fields):
-        category_records = [rec for _idx, rec in records]
+        category_records = [
+            {**rec, "_build_row": str(idx)}
+            for idx, rec in records
+        ]
         console_table(
             f"{category}  ({len(category_records)} fields)",
             category_records,
             [
+                ("Row", _build_field_global_number),
                 ("Key", _build_field_name),
                 ("State", _build_field_state),
                 ("Value", _build_field_value),
@@ -101,10 +132,11 @@ def print_line_build_config(cfg, verbose=False):
             detail_fn=_detail,
         )
         print("")
-    hint = "build set KEY|NUMBER VALUE  |  build unset KEY|NUMBER  |  build -v for options  |  build ? for help"
-    if verbose:
-        hint = "build set KEY|NUMBER VALUE  |  build unset KEY|NUMBER  |  build ? for help"
-    print(f"  {hint}")
+    print("  build set KEY VALUE")
+    print("  build set ROW VALUE")
+    print("  build unset KEY")
+    print("  build unset ROW")
+    print("  build ? for help" if verbose else "  build verbose for options")
     search_records = [
         {
             "kind": "build-config",
@@ -193,7 +225,7 @@ def build_field_key_by_selector(cfg, selector):
 
 def set_line_build_config(cfg, args):
     if not args:
-        raise ValueError("usage: build set KEY|NUMBER VALUE")
+        raise ValueError(_build_set_usage())
     if "=" in args[0]:
         key, value = args[0].split("=", 1)
         if len(args) > 1:
@@ -202,7 +234,7 @@ def set_line_build_config(cfg, args):
         key = args[0]
         value = " ".join(args[1:]).strip()
     if not key or value == "":
-        raise ValueError("usage: build set KEY|NUMBER VALUE")
+        raise ValueError(_build_set_usage())
     key = build_field_key_by_selector(cfg, key)
     rec = set_workbench_build_config(cfg, f"{key}={value}")
     print(f"build option set: {rec.get('key', key)}")
@@ -214,7 +246,7 @@ def set_line_build_config(cfg, args):
 def unset_line_build_config(cfg, args):
     key = " ".join(args).strip()
     if not key:
-        raise ValueError("usage: build unset KEY|NUMBER")
+        raise ValueError(_build_unset_usage())
     key = build_field_key_by_selector(cfg, key)
     rec = unset_workbench_build_config(cfg, key)
     print(f"build option unset: {rec.get('key', key)}")
@@ -239,7 +271,7 @@ def set_line_global_build_option(cfg, name, value):
 def unset_line_global_build_option(cfg, name):
     key = str(name or "").strip()
     if not key:
-        raise ValueError("usage: unsetg KEY")
+        raise ValueError("usage:\n  unsetg KEY")
     rec = unset_workbench_build_config(cfg, key)
     print(f"global build option unset: {rec.get('key', key)}")
     print(f"  config: {rec.get('config_path', build_config_path(cfg))}")
@@ -293,4 +325,4 @@ def run_line_build_command(cfg, args):
     if subcmd in {"unset", "clear"}:
         unset_line_build_config(cfg, args[1:])
         return
-    raise ValueError("usage: build [-v|list|set KEY VALUE|unset KEY]")
+    raise ValueError(_build_command_usage())

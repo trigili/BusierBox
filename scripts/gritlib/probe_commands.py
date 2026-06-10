@@ -204,7 +204,12 @@ def parse_line_probe_args(args):
         elif lower in {"show", "command"}:
             continue
         else:
-            raise ValueError("usage: listener probe [start|queue]")
+            raise ValueError(
+                "usage:\n"
+                "  listener probe\n"
+                "  listener probe start\n"
+                "  listener probe queue"
+            )
     return queue, start_service
 
 
@@ -236,7 +241,11 @@ def parse_line_probe_command(cmd, args=None):
             if lower in {"--base64", "base64", "-b"}:
                 base64_mode = True
             else:
-                raise ValueError("usage: listener probe paste [base64]")
+                raise ValueError(
+                    "usage:\n"
+                    "  listener probe paste\n"
+                    "  listener probe paste base64"
+                )
         return {"action": "paste", "base64": base64_mode}
     if subcmd in {"script", "raw"}:
         if rest:
@@ -244,6 +253,10 @@ def parse_line_probe_command(cmd, args=None):
         return {"action": "script"}
     if subcmd in {"help", "-h", "--help"}:
         return {"action": "help"}
+    if subcmd in {"options", "option", "settings"}:
+        if rest:
+            raise ValueError("usage: listener probe options")
+        return {"action": "options"}
     queue_probe, start_probe = parse_line_probe_args(args)
     return {
         "action": "start",
@@ -291,6 +304,7 @@ def dispatch_line_probe_command(
     paste_func=None,
     script_func=None,
     help_func=None,
+    options_func=None,
     start_func=None,
 ):
     action = (probe_cmd or {}).get("action")
@@ -315,6 +329,10 @@ def dispatch_line_probe_command(
             return script_func()
         if action == "help" and help_func:
             return help_func("listeners")
+        if action == "options" and options_func:
+            if set_context_func and not probe_cmd.get("listener_scoped"):
+                set_context_func("probe")
+            return options_func()
         if action == "start" and start_func:
             if probe_cmd.get("set_context") and set_context_func:
                 set_context_func("probe")
@@ -404,7 +422,14 @@ def parse_line_survey_command(cmd, args=None):
         return {"action": "preset", "args": rest}
     if subcmd in {"help", "-h", "--help"}:
         return {"action": "help"}
-    raise ValueError("usage: survey [results|config|preset]  —  see: survey ?")
+    raise ValueError(
+        "usage:\n"
+        "  survey\n"
+        "  survey results\n"
+        "  survey config\n"
+        "  survey preset name NAME\n"
+        "  survey ?"
+    )
 
 
 def dispatch_line_survey_command(

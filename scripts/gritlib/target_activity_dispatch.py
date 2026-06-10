@@ -97,6 +97,12 @@ def dispatch_legacy_target_detail_number(
     print_summary_func=None,
     action_state_text_func=None,
 ):
+    """Handle the legacy numeric target-detail prompt.
+
+    New line-console flows select targets through named commands and search
+    results. This compatibility path remains isolated here so the legacy
+    numbered transcript can be retired without touching modern dispatch.
+    """
     if str(choice or "").strip() != "18":
         return False
 
@@ -152,7 +158,7 @@ def dispatch_legacy_target_detail_number(
         target_activity_display.print_target_activity_records(scoped_snap, target_id=target_id, limit=5)
         actions = scoped_snap.get("target_workflow_actions") or []
         if actions:
-            print("Target workflow actions:")
+            print("Target modules:")
             for idx, rec in enumerate(actions[:8], 1):
                 state = action_state_text_func(rec) if action_state_text_func else str(rec.get("operator_action_state") or "-")
                 print(f"  {idx}: {rec.get('id', '')} {rec.get('label', '')}")

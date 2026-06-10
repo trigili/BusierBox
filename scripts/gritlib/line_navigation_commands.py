@@ -55,6 +55,7 @@ def _dispatch_session_navigation(nav):
             clear_func=nav["clear_sessions_func"],
             help_func=nav["session_help_func"],
             interact_func=nav["interact_session_func"],
+            select_func=nav["select_session_func"],
             list_func=lambda verbose=False: (
                 nav["set_sessions_context_func"](),
                 nav["print_sessions_func"](verbose=verbose),
@@ -65,6 +66,14 @@ def _dispatch_session_navigation(nav):
 
 
 def _dispatch_route_navigation(nav):
+    module = str(nav.get("module") or "")
+    if module.startswith("route/") and nav["cmd"] in {"start", "stop"} and not nav["args"]:
+        route_name = module.split("/", 1)[1]
+        if nav["cmd"] == "start":
+            nav["start_route_func"](route_name)
+        else:
+            nav["stop_route_func"](route_name)
+        return True
     if route_cmd := parse_line_route_command(nav["cmd"], nav["args"]):
         dispatch_line_route_command(
             route_cmd,

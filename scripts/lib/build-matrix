@@ -13,7 +13,7 @@ import sys
 
 import grit_matrix as matrix
 
-ROOT = pathlib.Path(__file__).resolve().parents[1]
+ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def sha256_file(path):
@@ -90,7 +90,7 @@ def run_job(job, run_dir, args):
 
     with open(log, "w", encoding="utf-8") as fh:
         proc = subprocess.run(
-            [str(ROOT / "scripts" / "package-target"), job["target"]],
+            [str(ROOT / "scripts" / "lib" / "package-target"), job["target"]],
             cwd=ROOT,
             env=env,
             stdout=fh,

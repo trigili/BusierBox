@@ -59,19 +59,42 @@ def line_context_back_transition(state):
     return LineContextTransition("root")
 
 
+def _usage_lines(*commands):
+    return "usage:\n" + "\n".join(f"  {command}" for command in commands)
+
+
+def _use_target_usage(command):
+    return _usage_lines(
+        f"{command} ID",
+        f"{command} LABEL",
+        f"{command} N",
+        f"{command} all",
+    )
+
+
+def _generic_use_usage():
+    return _usage_lines(
+        "use target ID",
+        "use listener SERVICE",
+        "use route NAME",
+        "use module MODULE",
+        "use N",
+    )
+
+
 def parse_line_use_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
     aliases = {
-        "useagent": ("target", "use agent", "usage: useagent ID|LABEL|NUMBER|all"),
-        "usehost": ("target", "use agent", "usage: useagent ID|LABEL|NUMBER|all"),
-        "usetarget": ("target", "use agent", "usage: useagent ID|LABEL|NUMBER|all"),
-        "uselistener": ("listener", "use listener", "usage: uselistener SERVICE"),
-        "useservice": ("listener", "use listener", "usage: uselistener SERVICE"),
-        "useroute": ("route", "use route", "usage: useroute NAME|NUMBER"),
-        "usesession": ("session", "use session", "usage: usesession SESSION"),
-        "usemodule": ("action", "use module", "usage: usemodule ACTION"),
-        "useaction": ("action", "use module", "usage: usemodule ACTION"),
+        "useagent": ("target", "use target", _use_target_usage("use target")),
+        "usehost": ("target", "use target", _use_target_usage("use target")),
+        "usetarget": ("target", "use target", _use_target_usage("use target")),
+        "uselistener": ("listener", "use listener", _usage_lines("use listener SERVICE")),
+        "useservice": ("listener", "use listener", _usage_lines("use listener SERVICE")),
+        "useroute": ("route", "use route", _usage_lines("use route NAME", "use route N")),
+        "usesession": ("session", "use session", _usage_lines("use session SESSION")),
+        "usemodule": ("action", "use module", "usage:\n  use module MODULE"),
+        "useaction": ("action", "use module", "usage:\n  use module MODULE"),
     }
     if cmd in aliases:
         kind, canonical, usage = aliases[cmd]
@@ -88,22 +111,29 @@ def parse_line_use_command(cmd, args):
     if len(args) == 1 and str(args[0]).isdigit():
         return {"kind": "number", "selector": str(args[0])}
     if not args:
-        return {"kind": "", "selector": "", "usage": "usage: use KIND SELECTOR"}
+        return {
+            "kind": "",
+            "selector": "",
+            "usage": _generic_use_usage(),
+        }
     kind = str(args[0]).lower()
     selector = " ".join(args[1:]).strip()
     kind_aliases = {
-        "target": ("target", "usage: use target ID|LABEL|NUMBER|all"),
-        "agent": ("target", "usage: use agent ID|LABEL|NUMBER|all"),
-        "host": ("target", "usage: use agent ID|LABEL|NUMBER|all"),
+        "target": ("target", _use_target_usage("use target")),
+        "agent": ("target", _use_target_usage("use agent")),
+        "host": ("target", _use_target_usage("use host")),
         "service": ("listener", "usage: use service SERVICE"),
         "listener": ("listener", "usage: use listener SERVICE"),
-        "route": ("route", "usage: use route NAME|NUMBER"),
-        "session": ("session", "usage: use session SESSION"),
-        "job": ("job", "usage: use job ID|NUMBER"),
-        "action": ("action", ""),
+        "route": ("route", _usage_lines("use route NAME", "use route N")),
+        "session": ("session", "usage:\n  use session SESSION"),
+        "job": ("job", _usage_lines("use job ID", "use job N")),
+        "action": ("action", "usage:\n  use module MODULE"),
         "module": ("action", ""),
     }
-    target_kind, usage = kind_aliases.get(kind, ("", "usage: use KIND SELECTOR"))
+    target_kind, usage = kind_aliases.get(
+        kind,
+        ("", _generic_use_usage()),
+    )
     return {
         "kind": target_kind,
         "selector": selector,
@@ -149,7 +179,7 @@ def dispatch_line_use_command(
             return job_func(selector)
         if kind == "action" and action_func:
             return action_func(selector)
-        print(use_cmd.get("usage") or "usage: use KIND SELECTOR")
+        print(use_cmd.get("usage") or _generic_use_usage())
         return None
     except ValueError as exc:
         print(exc)
@@ -195,7 +225,7 @@ def parse_line_context_command(cmd, args):
         return {"action": "clear-target"}
     if cmd == "back" and args[:1] and args[0] in {"all", "main", "root"}:
         return {"action": "root"}
-    if cmd in {"b", "back", "background", "bg", "unset"}:
+    if cmd in {"b", "back", "background", "bg"}:
         return {"action": "back"}
     return {}
 
@@ -259,7 +289,7 @@ def clear_line_console_context(cfg, quiet=False):
     set_workbench_target_filter(cfg, "all", targets=[])
     if not quiet:
         print("returned to main workspace")
-        print("  next: workspace, agents, listeners, routes, sessions, show categories")
+        print("  next: workspace, targets, listeners, routes, sessions, show categories")
     append_event(cfg, "workbench", "workbench_console_main_selected", details={
         "cleared_module": state.has_module,
         "cleared_target": state.has_target,
@@ -289,10 +319,15 @@ def back_line_module_context(cfg):
     cfg.pop("_line_console_action_id", None)
     if transition.module:
         cfg["_line_console_module"] = transition.module
+        print(f"returned to {transition.module} context")
         return transition.module
     if transition.clear_module:
         cfg.pop("_line_console_module", None)
+        print("returned to main workspace")
         return ""
     if transition.clear_target:
         set_workbench_target_filter(cfg, "all", targets=[])
+        print("target filter cleared")
+        return ""
+    print("already at main workspace")
     return ""

@@ -17,9 +17,21 @@ from gritlib.profiles import (
 )
 
 
-PROFILE_COMMAND_HELP = (
-    "usage: profile [use NAME|N|create NAME|set KEY VALUE|clear|delete NAME|N|from probe [N]]"
-)
+PROFILE_COMMAND_HELP = "\n".join([
+    "usage:",
+    "  profile",
+    "  profiles",
+    "  profile use NAME",
+    "  profile use N",
+    "  profile create NAME",
+    "  profile set KEY VALUE",
+    "  profile clear",
+    "  profile delete NAME confirm",
+    "  profile delete N confirm",
+    "  profile from probe N",
+    "  listener probe config",
+    "  listener serve start",
+])
 
 
 def parse_line_profile_command(cmd, args):
@@ -32,7 +44,7 @@ def parse_line_profile_command(cmd, args):
             return {"action": "list"}
         if str(args[0]).lower() in {"use", "select"}:
             return {"action": "use", "selector": " ".join(args[1:]).strip()}
-        raise ValueError("usage: profiles [list|use NAME|N]")
+        raise ValueError("usage:\n  profiles\n  profiles use NAME\n  profiles use N")
     subcmd = str(args[0]).strip().lower() if args else ""
     if not subcmd or subcmd in {"show", "current"}:
         return {"action": "show"}
@@ -44,7 +56,7 @@ def parse_line_profile_command(cmd, args):
         return {"action": "create", "name": " ".join(args[1:]).strip()}
     if subcmd == "set":
         if len(args) < 3:
-            raise ValueError("usage: profile set KEY VALUE")
+            raise ValueError("usage:\n  profile set KEY VALUE")
         return {"action": "set", "key": str(args[1]), "value": " ".join(args[2:])}
     if subcmd == "clear":
         return {"action": "clear"}
@@ -102,7 +114,7 @@ def print_profiles(cfg):
     print("  profile")
     print("  listener probe config")
     print("  listener serve start")
-    print("  listener ssh start")
+    print("  listener serve ssh start")
     return records
 
 
@@ -110,7 +122,10 @@ def print_active_profile(cfg):
     profile = active_profile(cfg)
     if not profile:
         print("Active profile: none")
-        print("  run: listener probe config  |  profile create NAME  |  profile use N")
+        print("Next:")
+        print("  listener probe config")
+        print("  profile create NAME")
+        print("  profile use N")
         return {}
     print(f"Active profile: {profile.get('name') or '-'}")
     fields = [
@@ -127,8 +142,8 @@ def print_active_profile(cfg):
     print("")
     print("Next:")
     print("  listener serve start")
-    print("  listener ssh start")
-    print("  configure ARTIFACT")
+    print("  listener serve ssh start")
+    print("  stamp ARTIFACT")
     return profile
 
 
@@ -142,7 +157,7 @@ def _print_profile_updated(profile, created=False):
     print("Next:")
     print("  profile")
     print("  listener serve start")
-    print("  listener ssh start")
+    print("  listener serve ssh start")
 
 
 def run_profile_command(cfg, profile_cmd, append_event_fn=None):
@@ -154,15 +169,17 @@ def run_profile_command(cfg, profile_cmd, append_event_fn=None):
     if action == "use":
         selector = profile_cmd.get("selector") or ""
         if not selector:
-            raise ValueError("usage: profile use NAME|N")
+            raise ValueError("usage:\n  profile use NAME\n  profile use N")
         profile = set_active_profile(cfg, selector)
         print(f"Active profile: {profile.get('name')}")
-        print("  listener serve start  |  listener ssh start")
+        print("Next:")
+        print("  listener serve start")
+        print("  listener serve ssh start")
         return profile
     if action == "create":
         name = profile_cmd.get("name") or ""
         if not name:
-            raise ValueError("usage: profile create NAME")
+            raise ValueError("usage:\n  profile create NAME")
         profile = create_profile(cfg, name)
         _print_profile_updated(profile, created=True)
         return profile
@@ -174,12 +191,14 @@ def run_profile_command(cfg, profile_cmd, append_event_fn=None):
     if action == "clear":
         clear_active_profile(cfg)
         print("Active profile cleared.")
-        print("  profile use N  |  listener probe config")
+        print("Next:")
+        print("  profile use N")
+        print("  listener probe config")
         return None
     if action == "delete":
         selector = profile_cmd.get("selector") or ""
         if not selector:
-            raise ValueError("usage: profile delete NAME|N confirm")
+            raise ValueError("usage:\n  profile delete NAME confirm\n  profile delete N confirm")
         name = resolve_profile_name(cfg, selector)
         if not name:
             raise ValueError(f"profile not found: {selector}")
@@ -198,6 +217,6 @@ def run_profile_command(cfg, profile_cmd, append_event_fn=None):
         return profile
     if action == "help":
         print(PROFILE_COMMAND_HELP)
-        print("  profile from probe [N] populates the active profile from probe results")
+        print("  profile from probe N populates the active profile from probe results")
         return None
     raise ValueError("unsupported profile command")
