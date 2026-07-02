@@ -4,6 +4,7 @@ from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.event_log import append_event
 from gritlib.line_context import set_line_collection_context
+from gritlib.line_probe_guidance import probe_menu_step_text
 from gritlib.line_state import line_action_state_text
 from gritlib.shell_utils import shquote
 
@@ -27,6 +28,24 @@ def line_command_queue_humanize(text):
     return str(text or "").replace("_", "-").replace("-", " ").strip().capitalize()
 
 
+def line_command_queue_count_text(value, noun):
+    try:
+        count = int(value)
+    except (TypeError, ValueError):
+        count = 0
+    label = noun if count == 1 else f"{noun}s"
+    return f"{count} {label}"
+
+
+def line_command_queue_state_count_text(state, value):
+    try:
+        count = int(value)
+    except (TypeError, ValueError):
+        count = 0
+    label = "control" if count == 1 else "controls"
+    return f"{state} {count} {label}"
+
+
 def dispatch_legacy_line_queue_number(choice, *, view_func=None):
     if str(choice or "").strip() != "20":
         return False
@@ -40,11 +59,11 @@ def line_command_queue_action_text(rec):
     action_key = action_id.rsplit(":", 1)[-1]
     labels = {
         "inspect-command-queue": "Review queue",
-        "list-command-queue": "Show mailbox",
+        "list-command-queue": "Show target check-ins",
         "queue-command": "Queue command",
         "clear-command-queue": "Clear queue",
-        "start-command-queue-listener": "Start mailbox listener",
-        "stop-command-queue-listener": "Stop mailbox listener",
+        "start-command-queue-listener": "Start check-in listener",
+        "stop-command-queue-listener": "Stop check-in listener",
     }
     if action_key in labels:
         return labels[action_key]
@@ -53,28 +72,29 @@ def line_command_queue_action_text(rec):
 
 
 def line_command_queue_state_text(rec):
+    if (rec or {}).get("requires_input"):
+        return "needs command"
     return line_action_state_text(rec)
 
 
 def line_command_queue_action_summary(records):
     counts = {}
-    needs_input = 0
-    confirm = 0
     for rec in records or []:
         state = line_command_queue_state_text(rec)
         counts[state] = counts.get(state, 0) + 1
-        if str((rec or {}).get("operator_action_state") or "") == "needs-input":
-            needs_input += 1
-        if (rec or {}).get("requires_confirmation"):
-            confirm += 1
-    order = ("ready", "needs input", "empty", "stopped", "running", "disabled", "unavailable")
-    parts = [f"{key} {counts[key]}" for key in order if counts.get(key)]
-    parts.extend(f"{key} {value}" for key, value in sorted(counts.items()) if key not in order)
-    if needs_input:
-        parts.append(f"input needed {needs_input}")
-    if confirm:
-        parts.append(f"confirm {confirm}")
-    return "  queue shortcuts: " + "  ".join(parts) if parts else ""
+    order = ("ready", "needs command", "empty", "stopped", "running", "disabled", "unavailable")
+    parts = [line_command_queue_state_count_text(key, counts[key]) for key in order if counts.get(key)]
+    parts.extend(line_command_queue_state_count_text(key, value) for key, value in sorted(counts.items()) if key not in order)
+    return "  queue controls: " + "  ".join(parts) if parts else ""
+
+
+def line_command_queue_enabled_text(value):
+    text = str(value or "no").strip().lower()
+    if text == "yes":
+        return "check-in listener running"
+    if text == "no":
+        return "check-in listener stopped"
+    return f"check-in listener {text or '-'}"
 
 
 def line_command_queue_action_search_records(records, quote=shquote):
@@ -100,11 +120,11 @@ def select_line_command_queue_action_record(records, selector):
         idx = int(text) - 1
         if 0 <= idx < len(records):
             return records[idx]
-        raise ValueError(f"command queue shortcut number out of range: {text}")
+        raise ValueError(f"queue action number out of range: {text}; run queue list")
     for rec in records:
         if text in (str(rec.get("id") or ""), str(rec.get("action_id") or "")):
             return rec
-    raise ValueError(f"command queue shortcut not found: {text}")
+    raise ValueError(f"queue action not found: {text}")
 
 
 def select_line_command_queue_action(cfg, records, selector, append_event_fn=append_event):
@@ -116,12 +136,12 @@ def select_line_command_queue_action(cfg, records, selector, append_event_fn=app
     if selected.get("requires_input"):
         flags.append("needs command")
     if selected.get("requires_confirmation"):
-        flags.append("confirm required")
+        flags.append("needs confirmation")
     state = line_command_queue_state_text(selected)
     label = line_command_queue_action_text(selected)
     suffix = f"  |  {', '.join(flags)}" if flags else ""
     print(f"  queue: {label}  -  {state}{suffix}")
-    print("  queue COMMAND")
+    print("  queue uname -a")
     print("  queue list")
     print("  queue clear confirm")
     print("  back")
@@ -175,37 +195,47 @@ def print_line_mailbox_records(mailbox_records, title=None):
             ("Seen", lambda r: line_command_queue_time_text(r.get("target_last_seen"))),
         ]
         console_table(
-            title or f"Mailbox  ({len(mailbox_records)} records)",
+            title or f"Target check-ins  ({len(mailbox_records)} records)",
             mailbox_records[:8], mailbox_cols, detail_fn=line_command_queue_mailbox_detail,
-            footer="queue result N, queue COMMAND, queue ?",
+            footer="queue list, queue uname -a, help: queue ?",
         )
     else:
-        console_table(title or "Mailbox  (none)", [], [], footer="queue COMMAND, queue ?")
+        console_table(
+            title or "Target check-ins  (none)",
+            [],
+            [],
+            footer="start command-queue, help: queue ?",
+            empty_message=(
+                "No target check-ins yet.\n"
+                "  start check-in listener: start command-queue\n"
+                f"{probe_menu_step_text()}"
+            ),
+        )
 
 
 def _print_line_command_queue_summary(queue_summary, mailbox_records, command_records, detailed=False):
     pending_count = len([rec for rec in mailbox_records if rec.get("pending_work")])
     status_bits = [
-        f"enabled {queue_summary.get('enabled', 'no')}",
+        line_command_queue_enabled_text(queue_summary.get("enabled", "no")),
         f"queued {len(command_records)}",
         f"results {queue_summary.get('result_count', 0)}",
-        f"mailbox pending {pending_count}",
+        f"pending work {pending_count}",
     ]
     print(f"Command queue  ({'  '.join(status_bits)})")
     policy_errors = queue_summary.get("policy_errors") or []
     if policy_errors:
         print(f"  policy: invalid  errors={len(policy_errors)}")
     elif queue_summary.get("policy_valid"):
-        print("  policy: valid")
+        print("  behavior: accepts queued commands; targets receive them after the check-in listener starts")
     else:
         print("  policy: not configured")
     if not detailed:
         return
     print(
-        "  policy details: "
+        "  target behavior: "
         f"execution {queue_summary.get('execution_mode', '-') or '-'}  "
-        f"delivery {'yes' if queue_summary.get('delivery_supported') else 'no'}  "
-        f"result upload {'yes' if queue_summary.get('result_upload_supported') else 'no'}"
+        f"polling {'enabled' if queue_summary.get('delivery_supported') else 'off'}  "
+        f"results {'accepted' if queue_summary.get('result_upload_supported') else 'not accepted'}"
     )
     limits = queue_summary.get("command_limits") if isinstance(queue_summary.get("command_limits"), dict) else {}
     if limits:
@@ -220,6 +250,9 @@ def _print_line_command_queue_summary(queue_summary, mailbox_records, command_re
 def _print_line_queued_command_records(command_records):
     if not command_records:
         print("  no queued commands")
+        print("  add command: queue uname -a")
+        print("  another command: queue id")
+        print("  Everything after `queue` is sent as the target shell command.")
         return
     command_cols = [
         ("Command", lambda r: str(r.get("id") or "-")[:20]),
@@ -231,7 +264,7 @@ def _print_line_queued_command_records(command_records):
     console_table(
         f"Queued commands  ({len(command_records)} total)",
         command_records[:8], command_cols,
-        footer="queue result N, queue clear confirm, queue ?",
+        footer="queue result 1, queue clear confirm, help: queue ?",
     )
 
 
@@ -241,18 +274,19 @@ def _print_line_command_queue_actions(command_queue_actions):
         if action_summary:
             print(action_summary)
         action_cols = [
-            ("Shortcut", line_command_queue_action_text),
-            ("State", line_command_queue_state_text),
-            ("Pending", lambda r: str(r.get("target_mailbox_pending_work_count", 0))),
-            ("Offline", lambda r: str(r.get("fleet_offline_target_count", 0))),
+            ("Control", line_command_queue_action_text),
+            ("Status", line_command_queue_state_text),
+            ("Pending Work", lambda r: line_command_queue_count_text(r.get("target_mailbox_pending_work_count", 0), "item")),
+            ("Offline Targets", lambda r: line_command_queue_count_text(r.get("fleet_offline_target_count", 0), "target")),
         ]
         console_table(
-            f"Queue shortcuts  ({len(command_queue_actions)} total)",
+            f"Queue controls  ({len(command_queue_actions)} total)",
             command_queue_actions, action_cols,
-            footer="queue COMMAND, queue list, queue ?",
+            footer="add command: queue uname -a, queue list, help: queue ?",
         )
     else:
-        print("\n  queue COMMAND")
+        print("\n  add command: queue uname -a")
+        print("  queue uname -a")
         print("  queue list")
         print("  queue ?")
 
@@ -287,6 +321,51 @@ def print_line_command_queue_records(
     _print_line_command_queue_actions(command_queue_actions)
 
 
+def print_queue_context_help(queue_summary=None, mailbox_records=None, target_selected=False):
+    queue_summary = queue_summary or {}
+    mailbox_records = list(mailbox_records or [])
+    command_records = list(queue_summary.get("commands") or [])
+    print("Queue")
+    if target_selected:
+        print("  queue uname -a       queue a shell command to run on the current target")
+    else:
+        print("  queue uname -a       queue a shell command to run on any target that checks in")
+    print("  queue list           review queued commands, target check-ins, and queue controls")
+    print("  queue targets        show target check-ins and pending work")
+    if command_records:
+        example_id = str(command_records[0].get("id") or "cq-...")
+        print(f"  queue result {example_id:<8} inspect a queued command result by id")
+        print("  queue result 1       inspect the first queued command result")
+        print("  queue clear          preview clearing queued commands")
+        print("  queue clear confirm  delete every queued command")
+    else:
+        print("")
+        print("No queued commands yet.")
+        print("Add command: queue uname -a")
+        print("Another command: queue id")
+        print("Everything after `queue` is sent as the target shell command.")
+    if mailbox_records:
+        print("  check-ins            show pending work for the current target")
+    if target_selected:
+        print("  retrieve queue /etc/hosts  queue a target-to-operator retrieval command")
+        print("  deliver queue sample-file  queue the staged-file command for the current target")
+        print("  listener probe queue      queue the probe command for the current target")
+    print("")
+    print("Without a chosen target, `queue uname -a` would be available to any target that checks in.")
+    print("Queued shell commands run on the target when it checks in for queued work.")
+    if target_selected:
+        print("The current target scopes queued retrieve, deliver, and probe commands.")
+    else:
+        print("Select a target first for target-scoped queue commands:")
+        print("  retrieve queue /etc/hosts")
+        print("  deliver queue sample-file")
+        print("To queue the probe for one target:")
+        print("  list targets: targets")
+        print("  select from list: use target 1")
+        print("  queue probe: listener probe queue")
+        print("  this queues the probe command for the current target")
+
+
 def print_line_command_queue_view(
     cfg,
     *,
@@ -306,7 +385,7 @@ def print_line_command_queue_view(
     queue_summary = queue_summary_func(cfg)
 
     if mailbox_only:
-        print_line_mailbox_records(mailbox_records, title=f"Target mailbox  ({len(mailbox_records)} records)")
+        print_line_mailbox_records(mailbox_records, title=f"Target check-ins  ({len(mailbox_records)} records)")
     else:
         print_line_command_queue_records(
             queue_summary,
@@ -354,7 +433,7 @@ def print_line_command_result_record(rec):
         exit_text = exit_code if exit_code != "" else "-"
         print(f"  summary: {status}; result {result_status}; exit {exit_text}")
     else:
-        waiting_for = "delivery" if rec.get("status") == "queued" else "result-upload" if rec.get("status") == "delivered" else "-"
+        waiting_for = "target poll" if rec.get("status") == "queued" else "result upload" if rec.get("status") == "delivered" else "-"
         print(f"  summary: {status}; waiting for {waiting_for}; result none")
     print(f"  id: {rec.get('id', '')}")
     print(f"  status: {status}")
@@ -376,7 +455,7 @@ def print_line_command_result_record(rec):
         print(f"  source: {rec.get('result_source_path', '') or '-'}")
     else:
         print("  result: none")
-        waiting_for = "delivery" if rec.get("status") == "queued" else "result-upload" if rec.get("status") == "delivered" else "-"
+        waiting_for = "target poll" if rec.get("status") == "queued" else "result upload" if rec.get("status") == "delivered" else "-"
         print(f"  waiting for: {waiting_for}")
 
 
@@ -402,13 +481,16 @@ def queue_line_command(
     if rec.get("target_id"):
         print(f"target: {rec.get('target_id', '')} ({rec.get('target_label', '') or '-'})")
     else:
-        print("target: any polling target (unscoped; select a target first to pin delivery)")
-    print(f"execution supported: {'yes' if rec.get('execution_supported') else 'no'}")
+        print("target: any polling target (unscoped; select a target first to pin it)")
+    if rec.get("execution_supported"):
+        print("target execution: enabled for polling targets")
+    else:
+        print("target execution: not enabled for polling targets")
     queue_policy = rec.get("queue_policy_snapshot") if isinstance(rec.get("queue_policy_snapshot"), dict) else {}
     if queue_policy.get("configured_for_polling"):
-        print("delivery: waiting for target poll")
+        print("target poll: waiting for a target to pick it up")
     else:
-        print("delivery: queue record only; enable command queue polling for target pickup")
+        print("target poll: queue record only; enable command queue polling so targets can pick it up")
     print("Next:")
     print(f"  queue result {rec['id']}")
     print("  queue list")
@@ -451,11 +533,11 @@ def print_line_command_result(cfg, queue_summary, selector):
 def parse_line_queue_command(cmd, args):
     cmd = str(cmd or "").strip().lower()
     args = list(args or [])
-    if cmd not in {"mailbox", "queue"}:
+    if cmd not in {"check-ins", "checkins", "mailbox", "queue"}:
         return {}
     if args:
         return {"action": "run", "args": args}
-    return {"action": "view", "args": [], "mailbox_only": cmd == "mailbox"}
+    return {"action": "view", "args": [], "mailbox_only": cmd in {"check-ins", "checkins", "mailbox"}}
 
 
 def dispatch_line_queue_command(
@@ -519,7 +601,7 @@ def run_line_queue_command(
             queued = len((queue_summary_func(cfg).get("commands") or []))
             if queued:
                 print(f"{queued} queued command record(s) would be cleared")
-                print("run: queue clear confirm")
+                print("Run: queue clear confirm")
             else:
                 print("no queued command records to clear")
             return 0
@@ -536,11 +618,6 @@ def run_line_queue_command(
         })
         return count
     if subcmd == "command":
-        return queue_line_command(
-            cfg, " ".join(args[1:]).strip(), queue_func,
-            target_filter_func=target_filter_func, quote=quote,
-        )
-    if subcmd == "--":
         return queue_line_command(
             cfg, " ".join(args[1:]).strip(), queue_func,
             target_filter_func=target_filter_func, quote=quote,

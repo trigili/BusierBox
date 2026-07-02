@@ -32,10 +32,11 @@ def print_line_local_ips(snap):
         except Exception:
             print("  (could not determine local IPs)")
     print("  use:")
-    print("    ip host N")
-    print("    ip host IP")
-    print("    ip bind N")
-    print("    ip bind IP")
+    print("    ip host N   advertise this IP in commands run on the target")
+    print("    ip host IP  advertise a manually entered IP")
+    print("    ip bind N   bind operator listeners to this IP")
+    print("    ip bind IP  bind operator listeners to a manually entered IP")
+    print("  If the address you need is missing, use ip host IP or ip bind IP directly.")
 
 
 def parse_line_ip_command(cmd, args):

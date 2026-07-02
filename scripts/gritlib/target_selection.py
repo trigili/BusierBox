@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from gritlib.event_log import append_event
+from gritlib.line_probe_guidance import open_probe_menu_step_text
 from gritlib.session_state import update_server_state, utc_now
 from gritlib.shell_utils import shquote
 from gritlib.target_context import configured_target_filter
@@ -10,6 +11,15 @@ from gritlib.target_store import load_targets
 
 
 DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
+
+
+def target_selection_recovery_text():
+    return (
+        "\n  list targets: targets"
+        "\n  select from list: use target 1"
+        "\n  if you know the label: use target lab-router"
+        "\n" + open_probe_menu_step_text()
+    )
 
 
 def scoped_target_cfg(cfg, target_id, target_label=""):
@@ -64,10 +74,10 @@ def set_workbench_target_filter(cfg, selector, targets=None, default_config=DEFA
                 selected = rec
                 break
         if not selected:
-            raise ValueError(f"target not found: {text}; run: targets, then target NAME, use target ID, use target LABEL, or use target N")
+            raise ValueError(f"target not found: {text}; {target_selection_recovery_text()}")
     target_id = str(selected.get("target_id") or "").strip()
     if not target_id:
-        raise ValueError(f"target not found: {text}; run: targets, then target NAME, use target ID, use target LABEL, or use target N")
+        raise ValueError(f"target not found: {text}; {target_selection_recovery_text()}")
     target_label = str(selected.get("label") or selected.get("target_label") or "")
     cfg["_target_id_filter"] = target_id
     if target_label:
@@ -168,7 +178,7 @@ def dispatch_legacy_target_filter_number(choice, cfg, *, input_func=None, snapsh
         try:
             rec = set_workbench_target_filter(cfg, selected, targets=targets)
             if rec.get("selected"):
-                print(f"selected target {rec.get('target_id', '')} label={rec.get('target_label', '') or '-'}")
+                print(f"current target {rec.get('target_id', '')} label={rec.get('target_label', '') or '-'}")
             else:
                 print("target filter cleared")
         except ValueError as exc:

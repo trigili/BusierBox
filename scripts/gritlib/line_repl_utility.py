@@ -7,6 +7,19 @@ import gritlib.line_target_commands as line_target_commands
 from gritlib.line_utility_commands import dispatch_line_utility_command
 
 
+def _set_line_utility_context(set_context_func, cfg, module):
+    if not set_context_func:
+        return None
+    try:
+        return set_context_func(
+            cfg,
+            module,
+            preserve_return=(module == "commands"),
+        )
+    except TypeError:
+        return set_context_func(cfg, module)
+
+
 def build_default_line_utility_callbacks(
     cfg,
     *,
@@ -159,7 +172,11 @@ def build_line_utility_dispatch_callback(
                 cfg,
                 selector,
             ),
-            set_context_func=lambda module: set_context_func(cfg, module)
+            set_context_func=lambda module: _set_line_utility_context(
+                set_context_func,
+                cfg,
+                module,
+            )
             if set_context_func else None,
         )
 

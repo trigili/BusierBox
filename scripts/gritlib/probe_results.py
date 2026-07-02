@@ -52,9 +52,9 @@ def clear_probe_results(cfg, selector=""):
     else:
         raise ValueError(
             "usage:\n"
-            "  listener probe clear\n"
-            "  listener probe clear N\n"
-            "  listener probe clear all"
+            "  clear\n"
+            "  clear N\n"
+            "  clear all"
         )
     atomic_write_json(path, data)
     return {
@@ -88,9 +88,9 @@ def preview_probe_results_clear(cfg, selector=""):
     else:
         raise ValueError(
             "usage:\n"
-            "  listener probe clear confirm\n"
-            "  listener probe clear N confirm\n"
-            "  listener probe clear all confirm"
+            "  clear confirm\n"
+            "  clear N confirm\n"
+            "  clear all confirm"
         )
     return {
         "count": len(selected),
@@ -194,18 +194,18 @@ def print_probe_result_records(records):
     print("")
     if records:
         print("  Next steps:")
-        print("    listener probe config                  — populate active profile from most recent result")
-        print("    listener probe config N                — populate active profile from a numbered result")
-        print("    listener probe config write-config FILE — export build config")
-        print("    listener probe clear                  — preview clearing all probe results")
-        print("    listener probe clear N                — preview clearing a numbered result")
-        print("    listener probe clear all              — preview clearing all probe results")
-        print("    listener probe clear N confirm        — remove a numbered result")
-        print("    listener probe clear all confirm      — remove all probe results")
-        print("    after config: listener serve start     — stage a matching binary from active profile")
-        print("    after config: listener serve ssh start — stage ssh-operator payload from active profile")
+        print("    config                                 — populate active profile from most recent result")
+        print("    config 1                               — populate active profile from probe result row 1")
+        print("    config write-config ./grit-probe.conf  — export build config")
+        print("    clear                                  — preview clearing all probe results")
+        print("    clear 1                                — preview clearing probe result row 1")
+        print("    clear all                              — preview clearing all probe results")
+        print("    clear 1 confirm                        — remove probe result row 1")
+        print("    clear all confirm                      — remove all probe results")
+        print("    after profile setup: listener serve start     — stage a release artifact from active profile")
+        print("    after profile setup: listener serve ssh start — stage reverse SSH payload from active profile")
     else:
-        print("  No results yet — run: listener probe start")
+        print("  No results yet. Run `use listener probe`, then `start`.")
 
 
 def line_probe_result_search_records(records):
@@ -243,9 +243,9 @@ def clear_line_probe_results(cfg, args, append_event_fn=None):
     if len(selectors) > 1:
         raise ValueError(
             "usage:\n"
-            "  listener probe clear confirm\n"
-            "  listener probe clear N confirm\n"
-            "  listener probe clear all confirm"
+            "  clear confirm\n"
+            "  clear N confirm\n"
+            "  clear all confirm"
         )
     text = selectors[0] if selectors else ""
     if not confirm:
@@ -260,7 +260,7 @@ def clear_line_probe_results(cfg, args, append_event_fn=None):
             print(f"  {rec.get('received_at', '') or '-'}  {rec.get('remote_addr', '') or '-'}")
         if len(selected) > 10:
             print(f"  ... {len(selected) - 10} more")
-        print(f"\n  {count} probe result(s) would be cleared. Run: listener probe clear{selector_text} confirm")
+        print(f"\n  {count} probe result(s) would be cleared. Run: clear{selector_text} confirm")
         return 0
     details = clear_probe_results(cfg, text)
     if not details.get("had_results"):

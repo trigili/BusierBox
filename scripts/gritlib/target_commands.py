@@ -90,6 +90,7 @@ def _file_service_target_command_record(cfg, host, file_route, args, purpose):
     return attach_target_route_fields({
         "command": render_file_service_command(args, cfg, host=host),
         "purpose": purpose,
+        "direction": "target-to-operator",
         "side": "target",
         "service": "file-service",
         "network": True,
@@ -131,6 +132,7 @@ def _probe_target_command_record(cfg, host, survey_route):
     return attach_target_route_fields({
         "command": render_probe_command(cfg, host=host, port=cfg.get("GRIT_PROBE_PORT", 22207)),
         "purpose": "download and run the architecture-agnostic probe script",
+        "direction": "target discovery",
         "side": "target",
         "service": "probe",
         "network": True,
@@ -143,6 +145,7 @@ def _rshell_target_command_record(cfg):
     return {
         "command": "./grit rshell start",
         "purpose": "start the configured reverse shell transport from the target",
+        "direction": "target-to-operator",
         "side": "target",
         "service": "rshell",
         "network": True,
@@ -164,6 +167,7 @@ def _staged_target_command_record(cfg, host, file_route, name, rec):
     record = attach_target_route_fields({
         "command": render_fetch_command(name, cfg, host=host),
         "purpose": "explicitly fetch an operator-staged file",
+        "direction": "operator-to-target",
         "side": "target",
         "service": "file-service",
         "network": True,

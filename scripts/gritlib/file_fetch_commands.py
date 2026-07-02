@@ -85,7 +85,7 @@ def staged_fetch_target_commands(request_name, cfg, output_name=None, executable
     if parsed.query:
         path += "?" + parsed.query
     if tls:
-        commands["nc_note"] = "requires file-service TLS=no; use wget/curl/grit, or set GRIT_OPERATOR_FILE_SERVICE_TLS=no"
+        commands["nc_note"] = "only available when file-service TLS is off; use wget, curl, or grit, or run options to review file-service TLS"
     else:
         safe_path = path.replace("'", "")
         safe_host = str(host).replace("'", "")
@@ -106,14 +106,21 @@ def staged_fetch_target_commands(request_name, cfg, output_name=None, executable
     return commands
 
 
-def print_staged_fetch_target_options(request_name, cfg, output_name=None, executable=False):
+def print_staged_fetch_target_options(
+    request_name,
+    cfg,
+    output_name=None,
+    executable=False,
+    item_label="item",
+):
     commands = staged_fetch_target_commands(
         request_name,
         cfg,
         output_name=output_name,
         executable=executable,
     )
-    print("  Target fetch options:")
+    print("  Commands to run on the target:")
+    print(f"    choose one; each command downloads this staged {item_label} from the operator")
     print(f"    url:   {commands['url']}")
     print(f"    wget:  {commands['wget']}")
     print(f"    curl:  {commands['curl']}")

@@ -333,8 +333,8 @@ def print_staged(cfg):
         print_staged_fetch_target_options(
             name,
             cfg,
-            output_name=Path(str(rec.get("source_path") or name)).name,
             executable=bool(str(rec.get("stage_kind") or "") in {"release-artifact", "operator-binary"}),
+            item_label=str(rec.get("stage_kind") or "file").replace("-", " "),
         )
 
 

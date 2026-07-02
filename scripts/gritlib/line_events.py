@@ -1,6 +1,7 @@
 """Line-console event browser helpers."""
 
 import time
+from pathlib import Path
 
 from gritlib.console_display import console_table
 from gritlib.event_log import EventLog, append_event
@@ -9,10 +10,25 @@ from gritlib.session_state import parse_utc_timestamp
 
 EVENT_FILTER_KEYS = (
     "service", "event", "level", "target", "remote", "session", "status",
-    "operation", "request_name", "filename", "command_id", "job_id", "module_id", "action_id",
+    "operation", "request_name", "file", "filename", "command_id", "command", "job_id", "job",
+    "module_id", "module", "action_id",
 )
 EVENT_FILTER_ALIASES = {
+    "file": "request_name",
+    "command": "command_id",
+    "job": "job_id",
+    "module": "action_id",
     "module_id": "action_id",
+}
+EVENT_NAME_LABELS = {
+    "target-filter-cleared": "target selection cleared",
+    "main-selected": "returned to root prompt",
+    "next-shown": "next suggestions shown",
+    "files-listed": "files listed",
+    "command-queue-inspected": "queue inspected",
+    "release-viewed": "release viewed",
+    "sessions-listed": "sessions listed",
+    "routes-listed": "routes listed",
 }
 EVENT_USAGE = "\n".join([
     "usage:",
@@ -26,11 +42,21 @@ EVENT_USAGE = "\n".join([
     "  events target=LABEL",
     "  events status=TEXT",
     "  events operation=TEXT",
-    "  events request_name=NAME",
-    "  events command_id=ID",
-    "  events job_id=ID",
-    "  events module_id=ID",
+    "  events file=NAME",
+    "  events command=ID",
+    "  events job=ID",
+    "  events module=ID",
 ])
+
+
+def line_event_normalized_name(event):
+    name = str((event or {}).get("event") or "")
+    if name.startswith("workbench_"):
+        name = name[len("workbench_"):]
+        if name.startswith("console_"):
+            name = name[len("console_"):]
+        name = name.replace("_console_", "_")
+    return name.replace("_", "-") or "-"
 
 
 def parse_line_event_since(text):
@@ -59,6 +85,11 @@ def line_event_matches_filter(event, key, expected):
     values = []
     if key in {"service", "event", "level", "remote", "session"}:
         values.append(event.get(key))
+        if key == "service":
+            values.append(line_event_service_label(event))
+        elif key == "event":
+            values.append(line_event_normalized_name(event))
+            values.append(line_event_name_label(event))
     elif key == "target":
         values.extend([
             details.get("target_id"),
@@ -71,7 +102,24 @@ def line_event_matches_filter(event, key, expected):
     return any(expected in str(value or "").lower() for value in values)
 
 
+def line_event_service_label(event):
+    service = str((event or {}).get("service") or "")
+    if service == "workbench":
+        return "console"
+    return service or "-"
+
+
+def line_event_name_label(event):
+    raw_name = str((event or {}).get("event") or "")
+    if not raw_name.startswith("workbench_"):
+        return raw_name or "-"
+    normalized = line_event_normalized_name(event)
+    return EVENT_NAME_LABELS.get(normalized, normalized)
+
+
 def line_event_summary_value(key, value):
+    if isinstance(value, bool):
+        return "yes" if value else "no"
     text = str(value)
     if key in {"sha256", "command_sha256"} and len(text) > 16:
         return text[:12]
@@ -80,7 +128,10 @@ def line_event_summary_value(key, value):
 
 def line_event_summary(event):
     details = event.get("details") if isinstance(event.get("details"), dict) else {}
-    hidden_keys = {"command", "dry_run_command", "headless_command", "run_command", "start_job_command"}
+    hidden_keys = {
+        "cleared_module", "cleared_target", "command", "dry_run_command", "headless_command",
+        "release_dir", "run_command", "selected_at", "start_job_command", "verbose",
+    }
     labels = {
         "http_status": "http",
         "request_name": "request",
@@ -90,9 +141,18 @@ def line_event_summary(event):
         "matching_count": "matching",
         "total_count": "total",
         "invalid_count": "invalid",
-        "target_mailbox_record_count": "mailbox records",
-        "command_queue_workflow_action_count": "queue shortcuts",
+    "target_mailbox_record_count": "target check-ins",
+        "command_queue_workflow_action_count": "queue controls",
         "command_count": "commands",
+        "has_result": "result",
+        "module": "menu",
+        "session_count": "sessions",
+        "staged_count": "staged",
+        "artifact_count": "artifacts",
+        "device_count": "devices",
+        "recommendation_count": "recommendations",
+        "target_id": "target",
+        "target_label": "label",
     }
     order = (
         "operation", "status", "http_status", "request_name", "filename", "sha256",
@@ -186,6 +246,15 @@ def line_event_time_text(iso):
     return text or "-"
 
 
+def line_event_log_display_path(cfg, path):
+    event_path = Path(path)
+    session_dir = Path(str((cfg or {}).get("operator_session_dir") or "local/operator-session"))
+    try:
+        return str(event_path.relative_to(session_dir.parent))
+    except ValueError:
+        return str(event_path)
+
+
 def print_line_events_view(cfg, args):
     limit, since_epoch, filters = parse_line_events_args(args)
     event_log = EventLog(cfg)
@@ -202,22 +271,22 @@ def print_line_events_view(cfg, args):
     title = f"Events  ({len(shown)} shown of {len(filtered)} matching, {len(records)} total)"
     if invalid_count:
         title += f"  invalid={invalid_count}"
-    footer = f"Event log: view {event_log.path}"
+    footer = "Full event log: view event log"
     if filters or since_epoch is not None or limit != 20:
         active = []
         if limit != 20:
             active.append(f"limit {limit}")
         if since_epoch is not None:
             active.append("since set")
-        active.extend(f"{key} {value}" for key, value in filters)
+        active.extend(f"{key}={value}" for key, value in filters)
         footer += "  filters: " + " ".join(active)
     console_table(
         title,
         shown,
         [
             ("At", lambda r: line_event_time_text(r.get("ts"))),
-            ("Service", lambda r: r.get("service") or "-"),
-            ("Event", lambda r: r.get("event") or "-"),
+            ("Service", line_event_service_label),
+            ("Event", line_event_name_label),
             ("Level", lambda r: r.get("level") or "-"),
             ("Summary", line_event_summary),
         ],

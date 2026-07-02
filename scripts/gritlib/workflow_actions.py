@@ -276,7 +276,7 @@ LINE_DAEMON_ACTION_LABELS = {
 
 
 LINE_DAEMON_ACTION_PURPOSES = {
-    "operator-daemon-start": "Run selected listeners in the background",
+    "operator-daemon-start": "Start configured listeners in the background",
     "operator-daemon-status": "Show daemon health and managed service state",
     "operator-daemon-stop": "Stop the operator daemon and managed services",
     "systemd-user-print": "Preview a user systemd unit for the daemon",
@@ -314,7 +314,7 @@ def parse_line_daemon_action_args(args):
     verbose = False
     filtered = []
     for item in values:
-        if item in {"--dry-run", "dry-run"}:
+        if item in {"--dry-run", "dry-run", "preview"}:
             dry_run = True
         elif item in ("--confirm", "confirm", "yes"):
             confirmed = True
@@ -387,7 +387,7 @@ def run_line_daemon_action(
     daemon_cmd = parse_line_daemon_action_args(args)
     if daemon_cmd["action"] == "list":
         if daemon_cmd["dry_run"] or daemon_cmd["confirmed"]:
-            raise ValueError("usage:\n  daemon MODULE dry-run\n  daemon MODULE confirm")
+            raise ValueError("usage:\n  daemon status preview\n  daemon install confirm")
         if print_actions_func:
             return print_actions_func(verbose=daemon_cmd["verbose"])
         return None
@@ -413,28 +413,50 @@ def run_line_daemon_action(
 def print_line_daemon_action_records(records, verbose=False):
     records = list(records or [])
 
+    def _workflow_label(rec):
+        return str(rec.get("workflow") or "-").replace("-", " ")
+
     def _detail(rec):
         if not verbose:
             return []
         run_cmd = rec.get("run_command") or rec.get("headless_command") or rec.get("command") or ""
         details = [("id", rec.get("id") or "-"), ("run", run_cmd)]
         if rec.get("dry_run_command"):
-            details.append(("dry-run", rec["dry_run_command"]))
+            details.append(("preview", rec["dry_run_command"]))
         return details
 
+    def _confirm_text(rec):
+        if not rec.get("requires_confirmation"):
+            return "-"
+        if str(rec.get("operator_action_state") or "") in {
+            "already-empty", "already-stopped", "disabled", "missing-target", "not-running", "not-supported",
+        }:
+            return "-"
+        alias = line_daemon_action_alias(rec)
+        return f"daemon {alias} confirm" if alias and alias != "-" else "daemon ACTION confirm"
+
     cols = [
-        ("Module", line_daemon_action_label),
+        ("Control", line_daemon_action_label),
         ("Use", line_daemon_action_alias),
         ("Purpose", line_daemon_action_purpose),
-        ("Workflow", lambda r: r.get("workflow") or "-"),
-        ("State", line_action_state_text),
-        ("Attached", lambda r: "yes" if r.get("daemon_attached") else "no"),
-        ("Confirm", lambda r: "yes" if r.get("requires_confirmation") else "no"),
+        ("Area", _workflow_label),
+        ("Status", line_action_state_text),
+        ("Daemon Attached", lambda r: "attached" if r.get("daemon_attached") else "not attached"),
+        ("Confirm Command", _confirm_text),
     ]
+    footer_lines = [
+        "review daemon: daemon status",
+        "preview status: daemon status preview",
+        "list all controls: daemon verbose",
+        "help: daemon ?",
+    ]
+    if any(_confirm_text(rec) != "-" for rec in records):
+        footer_lines.append("confirm install: daemon install confirm")
+    footer = "\n  ".join(footer_lines)
     console_table(
-        f"Daemon modules  ({len(records)} total)" if records else "Daemon modules  (none)",
+        f"Daemon controls  ({len(records)} total)" if records else "Daemon controls  (none)",
         records, cols, detail_fn=_detail,
-        footer="daemon MODULE, daemon MODULE dry-run, daemon verbose, daemon ?",
+        footer=footer,
     )
 
 
@@ -874,7 +896,7 @@ def _print_probe_workflow_action_summary(summary):
 
 def _print_command_queue_workflow_action_summary(summary):
     print(
-        "Command queue shortcut summary: "
+        "Command queue action summary: "
         f"total={summary.get('command_queue_workflow_action_count', 0)} "
         f"requires_input={summary.get('command_queue_workflow_action_requires_input_count', 0)} "
         f"requires_confirmation={summary.get('command_queue_workflow_action_requires_confirmation_count', 0)} "
@@ -886,7 +908,7 @@ def _print_command_queue_workflow_action_summary(summary):
         f"fleet_poll_overdue={format_counts(summary.get('command_queue_workflow_action_fleet_poll_overdue_target_count_counts') or {})}"
     )
     print(f"  command queue categories: {format_counts(summary.get('command_queue_workflow_action_category_counts') or {})}")
-    print(f"  command queue shortcut states: {format_counts(summary.get('command_queue_workflow_action_operator_action_state_counts') or {})}")
+    print(f"  command queue action states: {format_counts(summary.get('command_queue_workflow_action_operator_action_state_counts') or {})}")
 
 
 def _print_file_service_workflow_action_summary(summary):

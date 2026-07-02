@@ -129,9 +129,10 @@ def target_filter_brief_text(target_filter, prefix="selected target:"):
     sessions = counts.get("sessions", 0)
     uploads = counts.get("uploads", 0)
     poll = "overdue" if target_filter.get("selected_target_poll_overdue") else "current"
-    offline_age = target_filter.get("selected_target_offline_age_bucket") or "-"
+    last_seen = target_filter.get("selected_target_offline_age_bucket") or "-"
+    seen_text = "last seen unknown" if last_seen == "-" else f"last seen {last_seen} ago"
     return (
         f"{prefix} {target_filter.get('target_id', '')} ({label})  "
-        f"state {state}  mailbox {pending} pending  sessions {sessions}  "
-        f"uploads {uploads}  poll {poll}  offline {offline_age}"
+        f"state {state}  pending work {pending}  sessions {sessions}  "
+        f"uploads {uploads}  poll {poll}  {seen_text}"
     )

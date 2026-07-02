@@ -4,6 +4,7 @@ from gritlib.command_copy import command_copy_path
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
 from gritlib.line_search import set_line_search_results
+from gritlib.service_status import service_status_rows
 from gritlib.target_commands import (
     copy_generated_command,
     generated_target_command_records,
@@ -12,8 +13,26 @@ from gritlib.target_commands import (
 )
 
 
+def _service_actual_state(cfg, name):
+    try:
+        row = {rec.get("name"): rec for rec in service_status_rows(cfg)}.get(name) or {}
+    except OSError:
+        return ""
+    return str(row.get("actual") or "")
+
+
+def _target_command_prerequisite(cfg, rec):
+    service = str(rec.get("service") or "")
+    if service == "rshell":
+        return "listener serve ssh start stages a reverse SSH artifact from the active profile; then rerun commands"
+    if service == "file-service" and _service_actual_state(cfg, "file-service") != "listening":
+        return "start file-service and wait until it is listening"
+    return ""
+
+
 def print_line_generated_commands(cfg):
     records = generated_target_command_records(cfg)
+    file_service_prerequisite = "start file-service and wait until it is listening"
 
     def _cmd(rec):
         cmd = str(rec.get("command") or "")
@@ -24,27 +43,41 @@ def print_line_generated_commands(cfg):
         details = []
         if len(cmd) > 90:
             details.append(("full", cmd))
-        details.append(("copy", f"copy {rec.get('ordinal', '')}"))
+        details.append(("copy command", f"copy {rec.get('ordinal', '')}"))
+        prerequisite = _target_command_prerequisite(cfg, rec)
+        if prerequisite and prerequisite != file_service_prerequisite:
+            details.append(("prerequisite", prerequisite))
         return details
 
     def _transport(rec):
+        if str(rec.get("service") or "") == "rshell":
+            return "artifact settings"
         route = target_command_route_text(rec)
         if route.startswith("route=direct endpoint="):
-            return "direct  " + route.split("endpoint=", 1)[1]
+            return "operator listener  " + route.split("endpoint=", 1)[1]
         if route.startswith("route=direct"):
-            return "direct"
+            return "operator listener"
         return route or "-"
 
     cols = [
         ("Service", lambda r: r.get("service") or "-"),
-        ("Transport", _transport),
+        ("Direction", lambda r: r.get("direction") or "-"),
+        ("Connection", _transport),
         ("Command", _cmd),
     ]
     console_table(
-        f"Generated commands  ({len(records)} total)" if records else "Generated commands  (none)",
+        f"Target commands  ({len(records)} total)" if records else "Target commands  (none)",
         records, cols, detail_fn=_detail,
-        footer=f"copy N, copy file: {command_copy_path(cfg)}, commands ?",
+        footer="copy 1, commands copy 1, back, help: commands ?",
     )
+    if records:
+        print("  Run these rows on the target device; use `copy 1` to copy the first row.")
+        print("  Direction guide: console `retrieve` sends target files to the operator; console `deliver` sends staged operator files to the target.")
+        if any(_target_command_prerequisite(cfg, rec) == file_service_prerequisite for rec in records):
+            print(f"  Before running file-service rows: {file_service_prerequisite}.")
+        print("  Use `back` to return to the previous menu.")
+    if any("OPERATOR_IP" in str(rec.get("command") or "") for rec in records):
+        print("  OPERATOR_IP is a placeholder; run `ip` to choose an address or `ip host IP` to set it.")
     search_records = []
     for rec in records:
         search_records.append({
@@ -70,6 +103,10 @@ def copy_line_generated_command(cfg, selector):
     print(f"Copied command to {rec['path']}")
     print(f"  clipboard: {'yes' if rec['clipboard'] else 'no'}")
     print(f"  command: {rec.get('text', '')}")
+    prerequisite = _target_command_prerequisite(cfg, rec)
+    if prerequisite:
+        label = "prerequisite" if str(rec.get("service") or "") == "rshell" else "before running"
+        print(f"  {label}: {prerequisite}")
     return rec
 
 
@@ -173,8 +210,11 @@ def show_line_service_command(cfg, subcmd, start_command=None, stop_command=None
     if not command:
         print(f"no {subcmd} command available - select a listener first")
         return {}
+    repl_command = "start" if subcmd == "start" else "stop"
     print(f"{subcmd} command:")
-    print(f"  {command}")
+    print(f"  console command: {repl_command}")
+    print("  terminal shell command:")
+    print(f"    {command}")
     return {"command": command}
 
 

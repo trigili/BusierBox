@@ -3,6 +3,7 @@
 import base64
 
 from .bridge_routes import attach_target_route_fields, target_route_context
+from .command_copy import copy_text_for_operator
 from .config_utils import DEFAULT_CONFIG
 from .operator_network import operator_advertised_host
 from .record_utils import record_count_by_key, records_by_key
@@ -62,16 +63,20 @@ printf '%s\\n' "uname_m=$bb_uname_m"
 printf '%s\\n' "uname_r=$bb_uname_r"
 printf '%s\\n' "word_bits=$bb_word_bits"
 printf '%s\\n' "endian=$bb_endian"
+bb_sender_found=0
 if command -v wget >/dev/null 2>&1; then
+    bb_sender_found=1
     wget -qO- --post-data "$bb_payload" "{url}" >/dev/null 2>&1 && exit 0
     wget -qO /dev/null --post-data "$bb_payload" "{url}" 2>/dev/null && exit 0
     wget -qO- "{url}?$bb_payload" >/dev/null 2>&1 && exit 0
     wget -qO /dev/null "{url}?$bb_payload" 2>/dev/null && exit 0
 fi
 if command -v curl >/dev/null 2>&1; then
+    bb_sender_found=1
     curl -fsS -X POST -d "$bb_payload" "{url}" >/dev/null 2>&1 && exit 0
 fi
 if command -v nc >/dev/null 2>&1; then
+    bb_sender_found=1
     bb_host=$(printf '%s' "{url}" | sed 's|http://||;s|/.*||;s|:.*||')
     bb_port=$(printf '%s' "{url}" | sed 's|http://[^:]*:||;s|/.*||')
     bb_path=$(printf '%s' "{url}" | sed 's|http://[^/]*/|/|')
@@ -79,36 +84,42 @@ if command -v nc >/dev/null 2>&1; then
     printf 'POST %s HTTP/1.0\\r\\nHost: %s:%s\\r\\nContent-Type: application/x-www-form-urlencoded\\r\\nContent-Length: %s\\r\\nConnection: close\\r\\n\\r\\n%s' \\
         "$bb_path" "$bb_host" "$bb_port" "$bb_len" "$bb_payload" | nc "$bb_host" "$bb_port" >/dev/null 2>&1 && exit 0
 fi
-printf '%s\\n' "probe upload failed: no usable wget, curl, or nc" >&2
+if [ "$bb_sender_found" = "0" ]; then
+    printf '%s\\n' "probe result delivery failed: wget, curl, and nc were not found" >&2
+else
+    printf '%s\\n' "probe result delivery failed: wget/curl/nc could not reach {url}" >&2
+fi
 exit 1
 """
 
 
-def render_probe_paste(script_text):
+def render_probe_paste(script_text, *, local_commands=False):
     script_text = str(script_text or "").rstrip()
     delimiter = "GRIT_PROBE_SCRIPT"
+    followup = _probe_results_followup(local_commands=local_commands)
     while delimiter in script_text:
         delimiter += "_END"
     return "\n".join([
         "",
-        "Serial/manual paste:",
+        "Serial paste:",
         f"sh <<'{delimiter}'",
         script_text,
         delimiter,
         "",
-        "After it runs, use: listener probe results",
+        followup,
     ])
 
 
-def render_probe_base64_paste(script_text):
+def render_probe_base64_paste(script_text, *, local_commands=False):
     script_text = str(script_text or "").rstrip()
     encoded = base64.b64encode(script_text.encode("utf-8")).decode("ascii")
     delimiter = "GRIT_PROBE_B64"
+    followup = _probe_results_followup(local_commands=local_commands)
     while delimiter in encoded:
         delimiter += "_END"
     lines = [
         "",
-        "Serial/manual base64 paste:",
+        "Serial base64 paste:",
         "bb_probe_b64=$(cat <<'" + delimiter + "'",
     ]
     lines.extend(encoded[idx:idx + 76] for idx in range(0, len(encoded), 76))
@@ -123,27 +134,53 @@ def render_probe_base64_paste(script_text):
         "  echo 'base64 decoder not found' >&2; exit 1",
         "fi",
         "",
-        "After it runs, use: listener probe results",
+        followup,
     ])
     return "\n".join(lines)
 
 
-def print_line_probe_script(cfg, *, paste=False, base64_mode=False):
+def copy_probe_paste_block(cfg, text, *, base64_mode=False):
+    label = "probe base64 paste" if base64_mode else "probe paste"
+    rec = copy_text_for_operator(cfg, text, label=label, details={
+        "operation": "probe-paste",
+        "base64": bool(base64_mode),
+    })
+    print(f"Copied {label} to {rec['path']}")
+    print(f"  clipboard: {'yes' if rec.get('clipboard') else 'no'}")
+    print("  run this pasted block on the target, then return here with results")
+    return rec
+
+
+def _probe_results_followup(*, local_commands=False):
+    if local_commands:
+        return "review probe data: results"
+    return "back in grit-console: listener probe results"
+
+
+def print_line_probe_script(cfg, *, paste=False, base64_mode=False, copy=False, local_commands=False):
     route = probe_route_context(cfg)
     route_host = str(route.get("host", "OPERATOR_IP") or "OPERATOR_IP")
     route_port = int(route.get("port", cfg.get("GRIT_PROBE_PORT", 22207)) or 22207)
     script_text = probe_script_fn(cfg, route_host, route_port).rstrip()
     if base64_mode:
-        print(render_probe_base64_paste(script_text))
+        paste_text = render_probe_base64_paste(script_text, local_commands=local_commands)
+        if copy:
+            return copy_probe_paste_block(cfg, paste_text, base64_mode=True)
+        print(paste_text)
         return
     if paste:
-        print(render_probe_paste(script_text))
+        paste_text = render_probe_paste(script_text, local_commands=local_commands)
+        if copy:
+            return copy_probe_paste_block(cfg, paste_text, base64_mode=False)
+        print(paste_text)
         return
     print(script_text)
 
 
-def render_probe_delivery(cfg):
-    """Render target-side probe delivery options."""
+def render_probe_delivery(cfg, *, local_commands=False):
+    """Render probe commands to run on the target."""
+    paste_cmd = "paste" if local_commands else "listener probe paste"
+    followup = _probe_results_followup(local_commands=local_commands)
     wget_cmd = render_probe_command(cfg)
     script_name = str(cfg.get("GRIT_PROBE_NAME", "probe.sh")).lstrip("/") or "probe.sh"
     route = probe_route_context(cfg)
@@ -167,29 +204,31 @@ def render_probe_delivery(cfg):
     )
     return "\n".join([
         "",
-        "  Delivery options (pick what the target has):",
+        "  Run on target (paste or type one of these on the target):",
         f"    wget:  {wget_cmd}",
         f"    curl:  {curl_cmd}",
         f"    tftp:  {tftp_cmd}",
         f"    ftp:   {ftp_cmd}",
         f"    dns:   {dns_cmd}",
         f"    nc:    {nc_cmd}",
-        f"    ssh:   ssh root@target '{wget_cmd}'",
-        f"    copy:  scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'",
-        "    paste: listener probe paste",
+        f"    paste: {paste_cmd}",
         "",
-        "  Current listeners: probe-http, probe-tftp, probe-ftp, probe-dns",
+        "  Optional SSH/SCP from this machine (still runs probe on target):",
+        f"    ssh:   ssh root@target '{wget_cmd}'",
+        f"    scp:   scp <(curl -s {shquote(url)}) root@target:/tmp/probe.sh && ssh root@target 'sh /tmp/probe.sh'",
+        "",
+        "  Probe listeners: probe-http, probe-tftp, probe-ftp, probe-dns",
         "  DNS note: nslookup usually needs DNS exposed on port 53; dig can use custom ports.",
         "  If HTTP is blocked but nc works, use the nc command above against the same listener.",
-        "  If the target only has a serial/admin shell, use: listener probe paste",
+        f"  If the target only has a serial or admin shell, use: {paste_cmd}",
         "",
-        "  listener probe results  — after running any of the above",
+        f"  {followup}",
     ])
 
 
-def print_probe_delivery(cfg):
+def print_probe_delivery(cfg, *, local_commands=False):
     """Print all the ways to get probe.sh running on a target."""
-    print(render_probe_delivery(cfg))
+    print(render_probe_delivery(cfg, local_commands=local_commands))
 
 
 def parse_line_probe_args(args):
@@ -232,21 +271,26 @@ def parse_line_probe_command(cmd, args=None):
         return {"action": "serve", "args": rest}
     if subcmd in {"delivery", "deliver", "commands"}:
         if rest:
-            raise ValueError("usage: listener probe delivery")
+            raise ValueError("usage: listener probe commands")
         return {"action": "delivery"}
     if subcmd in {"paste", "serial", "heredoc"}:
         base64_mode = False
+        copy = False
         for item in rest:
             lower = str(item).lower()
             if lower in {"--base64", "base64", "-b"}:
                 base64_mode = True
+            elif lower in {"copy", "clipboard"}:
+                copy = True
             else:
                 raise ValueError(
                     "usage:\n"
                     "  listener probe paste\n"
-                    "  listener probe paste base64"
+                    "  listener probe paste copy\n"
+                    "  listener probe paste base64\n"
+                    "  listener probe paste base64 copy"
                 )
-        return {"action": "paste", "base64": base64_mode}
+        return {"action": "paste", "base64": base64_mode, "copy": copy}
     if subcmd in {"script", "raw"}:
         if rest:
             raise ValueError("usage: listener probe script")
@@ -324,11 +368,14 @@ def dispatch_line_probe_command(
                 set_context_func("probe")
             return delivery_func()
         if action == "paste" and paste_func:
-            return paste_func(base64_mode=bool(probe_cmd.get("base64")))
+            return paste_func(
+                base64_mode=bool(probe_cmd.get("base64")),
+                copy=bool(probe_cmd.get("copy")),
+            )
         if action == "script" and script_func:
             return script_func()
         if action == "help" and help_func:
-            return help_func("listeners")
+            return help_func("probe")
         if action == "options" and options_func:
             if set_context_func and not probe_cmd.get("listener_scoped"):
                 set_context_func("probe")
@@ -593,7 +640,7 @@ def probe_workflow_action_records(cfg, service_row=None, targets=None):
         context,
         "show-target-command",
         "survey",
-        "Show target-side probe command",
+        "Show command to run on target for probe",
         base + " --status",
         "ready",
         "show-command",

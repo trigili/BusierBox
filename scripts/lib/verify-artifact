@@ -200,13 +200,75 @@ def run(cmd, cwd, log):
     return proc.returncode, proc.stdout
 
 
-if len(sys.argv) != 2:
-    die("usage: scripts/lib/verify-artifact dist/grit-<target>")
+def readelf_output(args, artifact):
+    readelf = shutil.which("readelf")
+    if not readelf:
+        die("readelf is required to verify ARM ELF attributes")
+    proc = subprocess.run([readelf, *args, str(artifact)], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    if proc.returncode != 0:
+        die(f"readelf {' '.join(args)} failed: {proc.stderr.strip()}")
+    return proc.stdout
 
-artifact = pathlib.Path(sys.argv[1]).resolve()
+
+def verify_arm_softfloat_attributes(artifact, arch):
+    if arch != "armv7":
+        return
+    header = readelf_output(["-h"], artifact)
+    if "soft-float ABI" not in header:
+        return
+    attrs = readelf_output(["-A"], artifact)
+    forbidden = []
+    for line in attrs.splitlines():
+        text = line.strip()
+        if text.startswith("Tag_FP_arch:"):
+            forbidden.append(text)
+        elif text.startswith("Tag_DIV_use:"):
+            forbidden.append(text)
+        elif text.startswith("Tag_Virtualization_use:"):
+            forbidden.append(text)
+    if forbidden:
+        die(
+            "ARMv7 soft-float artifact advertises unsafe CPU attributes: "
+            + "; ".join(forbidden)
+        )
+
+
+metadata_only = False
+elf_only = False
+elf_arch = ""
+argv = list(sys.argv[1:])
+if "--metadata-only" in argv:
+    metadata_only = True
+    argv.remove("--metadata-only")
+if "--elf-only" in argv:
+    elf_only = True
+    argv.remove("--elf-only")
+if "--arch" in argv:
+    idx = argv.index("--arch")
+    try:
+        elf_arch = argv[idx + 1]
+    except IndexError:
+        die("--arch requires a value")
+    del argv[idx:idx + 2]
+if len(argv) != 1:
+    die("usage: scripts/lib/verify-artifact [--metadata-only] [--elf-only --arch ARCH] dist/grit-<target>")
+
+artifact = pathlib.Path(argv[0]).resolve()
+if elf_only:
+    if not elf_arch:
+        die("--elf-only requires --arch ARCH")
+    verify_arm_softfloat_attributes(artifact, elf_arch)
+    print(f"verify elf metadata ok: {artifact.name} arch={elf_arch}")
+    raise SystemExit(0)
+
 meta, manifest, members, contents = read_payload(artifact)
 verify_static(meta, manifest, members, contents)
+verify_arm_softfloat_attributes(artifact, manifest.get("arch", ""))
 target = manifest.get("target") or artifact.name.replace("grit-", "")
+print(f"inspect ok: {target} arch={manifest.get('arch', '')} applets={len(manifest.get('busybox_applets') or [])} staged_tools={' '.join(manifest.get('staged_payload_tools') or [])} missing_tools={' '.join(manifest.get('missing_payload_tools') or [])}")
+if metadata_only:
+    print(f"verify metadata ok: {target}")
+    raise SystemExit(0)
 artdir = pathlib.Path("tests/artifacts/verify-artifact") / target
 artdir.mkdir(parents=True, exist_ok=True)
 
@@ -224,8 +286,6 @@ qemu = {
 backend = "native" if arch in NATIVE_ARCHES else None
 if not backend and qemu and shutil.which(qemu):
     backend = qemu
-
-print(f"inspect ok: {target} arch={arch} applets={len(manifest.get('busybox_applets') or [])} staged_tools={' '.join(manifest.get('staged_payload_tools') or [])} missing_tools={' '.join(manifest.get('missing_payload_tools') or [])}")
 
 if not backend:
     print(f"verify-artifact: skip execution for {target}; qemu-user not available for arch={arch}")

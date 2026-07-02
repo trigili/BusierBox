@@ -13,15 +13,35 @@ from gritlib.file_transfers import (
 )
 import gritlib.line_binary as line_binary_module
 from gritlib.line_search import set_line_search_results
+from gritlib.service_status import service_status_rows
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged, stage_file, unstage_file
+from gritlib.target_selection import target_selection_recovery_text
 
 
-def print_file_service_note(started):
+def file_service_actual_state(cfg):
+    try:
+        row = {rec.get("name"): rec for rec in service_status_rows(cfg)}.get("file-service") or {}
+    except OSError:
+        return ""
+    return str(row.get("actual") or "")
+
+
+def print_file_service_note(started, cfg=None):
     if started:
-        print("  file service started by this command")
+        print("  file service start requested by this command")
+    elif cfg:
+        state = file_service_actual_state(cfg)
+        if state == "listening":
+            print("  file service already listening")
+        elif state == "starting":
+            print("  file service start is still in progress")
+            print("  open listeners or events service=file-service to check readiness")
+            print("  wait until file-service is listening before running commands on the target")
+        else:
+            print("  file service not running; run deliver start NAME if needed")
     else:
-        print("  file service not started by this command; use deliver start NAME if needed")
+        print("  file service not running; run deliver start NAME if needed")
 
 
 def print_file_queue_note(queued):
@@ -281,7 +301,7 @@ def _dispatch_legacy_unstage_file(cfg, input_func, append_event_fn):
                 + " --list-staged"
             )
             existed = unstage_file(cfg, name)
-            print("unstaged" if existed else "not staged")
+            print(f"unstaged {name}" if existed else f"not staged {name}; run files to list staged names")
             if append_event_fn:
                 append_event_fn(cfg, "workbench", "workbench_file_unstaged", details={
                     "headless_command": headless,
@@ -463,7 +483,7 @@ def _line_retrieve_usage():
 
 
 def _line_stage_usage():
-    return _line_file_usage("stage LOCAL NAME", "stage start LOCAL NAME")
+    return _line_file_usage("stage LOCAL_PATH NAME", "stage start LOCAL_PATH NAME")
 
 
 def parse_line_fetch_args(args, queue_default=False):
@@ -499,7 +519,11 @@ def download_line_target(
         raise ValueError(_line_retrieve_usage())
     target_id = target_id_fn() if target_id_fn else ""
     if not target_id:
-        raise ValueError("select a target before retrieve queue; run targets, then target NAME, use target ID, use target LABEL, or use target N")
+        command_name = "retrieve queue" if queue else "retrieve"
+        raise ValueError(
+            f"Select a target first for {command_name}; the target sends the file back to the operator."
+            f"{target_selection_recovery_text()}"
+        )
     command = render_file_service_command(["put", path], cfg)
     headless = (
         "scripts/grit-console --config "
@@ -523,8 +547,8 @@ def download_line_target(
     if label:
         print(f"  label: {label}")
     print(f"  target path: {path}")
-    print(f"  target command: {command}")
-    print_file_service_note(started)
+    print(f"  run on target: {command}")
+    print_file_service_note(started, cfg)
     queued = {}
     if queue:
         if not queue_command_fn:
@@ -586,6 +610,12 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
     records = list(records or [])
     fetch_command = fetch_command or (lambda _name: "")
     quote = quote or (lambda text: str(text))
+    example_name = str(
+        records[0].get("_name")
+        or records[0].get("request_name")
+        or records[0].get("name")
+        or "sample-file"
+    ) if records else "sample-file"
 
     def _detail(rec):
         name = rec["_name"]
@@ -620,7 +650,17 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
     console_table(
         f"Files  ({len(records)} staged)" if records else "Files  (none staged)",
         records, cols, detail_fn=_detail,
-        footer="deliver NAME, stage LOCAL, unstage NAME, files ?",
+        footer=(
+            f"deliver {quote(example_name)}, stage start ./grit sample-file, unstage {quote(example_name)}, help: files ?"
+            if records else
+            "stage ./grit sample-file, release, help: files ?"
+        ),
+        empty_message=(
+            "No files staged yet. Stage a local file or release artifact to create commands to run on the target.\n"
+            "  stage file: stage ./grit sample-file\n"
+            "  stage and start service: stage start ./grit sample-file\n"
+            "  stage release artifact: release"
+        ),
     )
     return [
         {
@@ -632,6 +672,59 @@ def print_line_file_records(records, verbose=False, fetch_command=None, quote=No
         }
         for record in records
     ]
+
+
+def print_files_context_help(records=None, target_selected=False):
+    records = list(records or [])
+    example_name = str(
+        records[0].get("_name")
+        or records[0].get("request_name")
+        or records[0].get("name")
+        or "sample-file"
+    ) if records else "sample-file"
+    print("Files")
+    print("  files                          list staged files and commands to run on targets")
+    print("  stage ./grit sample-file       stage a local file for deliver commands")
+    print("  stage start ./grit sample-file stage a local file and start file-service")
+    print("  release                        review release artifacts and next steps")
+    print("  release stage by_device:gl-mt3000          stage a release artifact by known device name")
+    print("  release stage start by_device:gl-mt3000    stage a release artifact and start file-service")
+    print("  release stage dist/releases/lab/bin/grit-target-full")
+    print("                                               stage a specific local release artifact path")
+    if target_selected:
+        print("  retrieve /etc/hosts            generate a target-to-operator retrieval command")
+        print("  retrieve queue /etc/hosts      queue a target-to-operator retrieval command")
+    print("  use listener probe             open the probe menu")
+    if records:
+        print(f"  deliver {example_name:<22} show commands to run on the target for a staged file")
+        if target_selected:
+            print(f"  deliver queue {example_name:<16} queue the staged-file command for the current target")
+        print(f"  deliver start {example_name:<16} start file-service and show commands to run on the target")
+        print(f"  stamp {example_name} operator-host 192.168.8.241")
+        print("                                 stamp embedded runtime settings into a staged file or artifact")
+        print(f"  artifact stamp {example_name} transport builtin")
+        print("                                 stamp embedded runtime settings")
+        print(f"  unstage {example_name:<23} remove a staged file")
+        print("  files clear                    preview removal of all staged files")
+        print("  files clear confirm            unstage every staged file")
+    else:
+        print("")
+        print("No staged files yet; add one with stage or release stage.")
+        print("  stage file: stage ./grit sample-file")
+        print("  stage and start service: stage start ./grit sample-file")
+        print("  stage release artifact: release")
+    print("  view ./README.md               view a local path in the configured pager")
+    print("  cat ./README.md                print a local path")
+    print("")
+    print("`stage` and `deliver` are operator-to-target: the target requests a file staged by the operator.")
+    if target_selected:
+        print("`retrieve` is target-to-operator: the current target sends one of its files back to the operator.")
+    else:
+        print("Select a target first for target-scoped file commands:")
+        print("  retrieve /etc/hosts        show a target-to-operator retrieval command")
+        print("  retrieve queue /etc/hosts  queue target-to-operator retrieval")
+        print(f"  deliver queue {example_name:<12} queue the staged-file command after staging a file")
+    print("Use `stage start`, `deliver start`, or `release stage start` when the same command should start file-service.")
 
 
 def print_current_line_files(
@@ -666,6 +759,7 @@ def stage_line_file(
     start_file_service=False,
     start_file_service_fn=None,
     append_event_fn=None,
+    target_selected=False,
 ):
     path = str(path_text or "").strip()
     if not path:
@@ -682,19 +776,25 @@ def stage_line_file(
     )
     rec = stage_file(cfg, path, name, metadata={"stage_kind": "operator-upload"})
     fetch_command = render_fetch_command(rec["request_name"], cfg)
-    print("File staged for target delivery:")
+    print("File staged for deliver commands:")
     print(f"  name: {rec.get('request_name', '')}")
     print(f"  source: {rec.get('source_path', '')}")
     print(f"  sha256: {str(rec.get('sha256', ''))[:16]}...")
     print(f"  next: deliver {rec.get('request_name', '')}")
-    print("  deliver shows target-side commands; deliver queue queues it for the selected target")
+    if target_selected:
+        print("  deliver shows commands to run on the target; deliver queue queues the staged-file command for the current target")
+    else:
+        print(
+            "  deliver shows commands to run on the target; "
+            f"select a target first to queue the staged-file command with deliver queue {rec.get('request_name', '')}"
+        )
     fetch_options = staged_fetch_target_commands(rec.get("request_name", ""), cfg)
     started = False
     if start_file_service:
         if start_file_service_fn:
             start_file_service_fn()
         started = True
-    print_file_service_note(started)
+    print_file_service_note(started, cfg)
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_file_staged", details={
             "headless_command": headless,
@@ -740,7 +840,7 @@ def unstage_line_file(cfg, request_name, append_event_fn=None):
         + " --list-staged"
     )
     existed = unstage_file(cfg, name)
-    print(f"unstaged {name}" if existed else f"not staged {name}")
+    print(f"unstaged {name}" if existed else f"not staged {name}; run files to list staged names")
     if append_event_fn:
         append_event_fn(cfg, "workbench", "workbench_file_unstaged", details={
             "headless_command": headless,
@@ -760,7 +860,10 @@ def _line_staged_target_context(
 ):
     target_id = target_id_fn() if target_id_fn else ""
     if queue and not target_id:
-        raise ValueError("select a target before deliver queue; run targets, then target NAME, use target ID, use target LABEL, or use target N")
+        raise ValueError(
+            "Select a target first for deliver queue (operator-to-target)."
+            f"{target_selection_recovery_text()}"
+        )
     staged_target = str(rec.get("target_id") or "")
     if queue and staged_target and staged_target != target_id:
         raise ValueError(f"staged request target mismatch: expected {target_id}, got {staged_target}")
@@ -800,8 +903,17 @@ def _start_line_file_service(start_file_service, start_file_service_fn):
     return started
 
 
+def _staged_fetch_item_label(rec):
+    stage_kind = str((rec or {}).get("stage_kind") or "file")
+    if stage_kind == "operator-binary":
+        return "binary"
+    if stage_kind == "release-artifact":
+        return "artifact"
+    return "file"
+
+
 def _print_line_staged_fetch(name, rec, target_id, target_label, fetch_command, scoped, started):
-    print("Staged delivery command:")
+    print("Target command generated by deliver:")
     print(f"  name: {name}")
     print(f"  source: {rec.get('source_path', '')}")
     if target_id:
@@ -809,9 +921,14 @@ def _print_line_staged_fetch(name, rec, target_id, target_label, fetch_command, 
         if target_label:
             target_text += f" ({target_label})"
         print(f"  target: {target_text}")
-    print(f"  target command: {fetch_command}")
-    print_staged_fetch_target_options(name, scoped)
-    print_file_service_note(started)
+    executable = str(rec.get("stage_kind") or "") in {"release-artifact", "operator-binary"}
+    item_label = _staged_fetch_item_label(rec)
+    print(f"  run on target: {fetch_command}")
+    if "grit fetch" in str(fetch_command or ""):
+        print("  note: `deliver` is the console command; `grit fetch` is the target command it prints")
+    print(f"  direction: run this on the target to download the staged {item_label} from the operator")
+    print_staged_fetch_target_options(name, scoped, executable=executable, item_label=item_label)
+    print_file_service_note(started, scoped)
 
 
 def _queue_line_staged_fetch(queue, queue_command_fn, scoped, fetch_command, name, rec):

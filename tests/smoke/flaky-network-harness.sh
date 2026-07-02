@@ -88,7 +88,7 @@ assert "target-workflow" in workflow_tui["stdout"]
 assert "mailbox pending 2" in workflow_tui["stdout"]
 assert "target-poll" in workflow_tui["stdout"]
 assert "selected agent: target-workflow (Workflow Target)" in workflow_tui["stdout"]
-assert "Queue actions" in workflow_tui["stdout"]
+assert "Queue controls" in workflow_tui["stdout"]
 assert any(rec["event"] == "workbench_command_queue_inspected" for rec in workflow_tui["workbench_events"])
 assert workflow_drain["kind"] == "offline-workflow-drain-artifact"
 assert workflow_drain["target"]["target_id"] == "target-workflow"

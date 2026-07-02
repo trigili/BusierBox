@@ -838,9 +838,15 @@ def write_release_helpers(script_dir):
             )
             if args.arch and tuple_info.get("arch") != args.arch:
                 return False
+            if args.endian and tuple_info.get("endian") and tuple_info.get("endian") != args.endian:
+                return False
             if args.libc and tuple_info.get("libc") != args.libc:
                 return False
             if args.kernel and tuple_info.get("kernel_floor") != args.kernel:
+                return False
+            if args.cpu and tuple_info.get("cpu") and tuple_info.get("cpu") != args.cpu:
+                return False
+            if args.abi and tuple_info.get("abi") and tuple_info.get("abi") != args.abi:
                 return False
             return True
 
@@ -2615,6 +2621,13 @@ def build_or_copy(job, config, release_dir, args, dry_run=False):
     if not source.exists():
         rec["build_status"] = "failed"
         rec["reason"] = f"missing artifact {source}"
+        return rec
+    verify_log = release_dir / "logs" / f"{stem}.verify.log"
+    verify_rc = run_capture([str(ROOT / "scripts" / "lib" / "verify-artifact"), "--metadata-only", str(source)], verify_log)
+    rec["verify_log"] = f"logs/{verify_log.name}"
+    if verify_rc != 0:
+        rec["build_status"] = "failed"
+        rec["reason"] = f"artifact verification failed, see {rec['verify_log']}"
         return rec
     dest = release_dir / "bin" / stem
     shutil.copy2(source, dest)

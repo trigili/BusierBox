@@ -4,7 +4,7 @@ from gritlib.console_display import console_table, print_dry_run_notice
 from gritlib.event_log import append_event
 from gritlib.line_context import set_line_action_context
 from gritlib.line_search import clear_line_search_results, set_line_search_results
-from gritlib.line_state import line_action_state_text
+from gritlib.line_state import line_action_state_text, line_action_task_text
 
 
 def normalize_line_action_kind(kind):
@@ -19,6 +19,11 @@ def normalize_line_action_kind(kind):
         "jobs": "workbench",
     }
     return aliases.get(text, text)
+
+
+def line_action_kind_display(kind):
+    text = str(kind or "").strip().lower()
+    return "operator" if text == "workbench" else text
 
 
 def line_action_records_from_snapshot(snap):
@@ -77,7 +82,7 @@ def select_line_action_record(actions, selector):
     if text.isdigit():
         idx = int(text) - 1
         if idx < 0 or idx >= len(actions):
-            raise ValueError(f"module number out of range: {text}")
+            raise ValueError(f"module number out of range: {text}; run modules or show modules")
         return actions[idx]
     lower = text.lower()
     for rec in actions:
@@ -100,14 +105,20 @@ def select_line_action(cfg, actions, selector):
     kind = selected.get("kind") or ""
     state = line_action_state_text(selected)
     label = selected.get("label") or action_id
+    cfg["_line_console_action_label"] = str(label or "")
     flags = []
     if selected.get("requires_confirmation"):
-        flags.append("confirm required")
+        flags.append("needs confirmation")
     if selected.get("background_supported"):
         flags.append("background ok")
-    flag_str = f"  |  {', '.join(flags)}" if flags else ""
-    print(f"  {kind}:{action_id}  —  {state}  |  {label}{flag_str}")
-    print("  options, check, run, run dry-run, back")
+    kind_label = line_action_kind_display(kind) or "module"
+    context_parts = [f"{kind_label} module"]
+    context_parts.extend(flags)
+    print(f"  {label}  —  {state}  |  {', '.join(context_parts)}")
+    commands = "options, check, preview, run"
+    if selected.get("requires_confirmation"):
+        commands += ", run confirm"
+    print(f"  {commands}, back")
     return selected
 
 
@@ -134,7 +145,7 @@ def split_line_run_args(values):
     flags = []
     selector_parts = []
     for item in list(values or []):
-        if item in {"--dry-run", "dry-run", "--confirm", "confirm", "yes"}:
+        if item in {"--dry-run", "dry-run", "preview", "--confirm", "confirm", "yes"}:
             flags.append(item)
         else:
             selector_parts.append(item)
@@ -154,9 +165,20 @@ LINE_ACTION_COMMANDS = (
         "dry_run": True,
     },
     {
+        "action": "run",
+        "commands": ("preview",),
+        "canonical": "preview",
+        "dry_run": True,
+    },
+    {
         "action": "cancel-job",
         "commands": ("kill", "cancel"),
         "canonical": "cancel",
+    },
+    {
+        "action": "start-job",
+        "commands": ("background", "bg"),
+        "canonical": "background",
     },
 )
 
@@ -208,6 +230,14 @@ def parse_line_action_command(cmd, args):
                 "selector": " ".join(args).strip(),
                 "command": cmd,
             }
+        if rec["action"] == "start-job":
+            return {
+                "action": "start-job",
+                "selector": " ".join(args).strip(),
+                "alias": alias,
+                "canonical": canonical,
+                "command": cmd,
+            }
     return {}
 
 
@@ -249,18 +279,24 @@ def print_line_action_result(rc):
         print(f"module failed: rc={code}")
 
 
+def line_action_display_name(rec):
+    label = str((rec or {}).get("label") or "").strip()
+    rec_id = str((rec or {}).get("id") or (rec or {}).get("action_id") or "").strip()
+    return label or rec_id or "-"
+
+
 def run_line_selected_action(
     cfg, rec, args=None, dry_run_default=False,
     service_runner=None, daemon_runner=None, workbench_runner=None,
     target_runner=None, workbench_actions=None, target_input_func=None
 ):
     if not rec:
-        raise ValueError("no selected module; use module MODULE first")
+        raise ValueError("no current module; use module MODULE first")
     values = list(args or [])
     dry_run = bool(dry_run_default)
     confirmed = False
     for item in values:
-        if item in {"--dry-run", "dry-run"}:
+        if item in {"--dry-run", "dry-run", "preview"}:
             dry_run = True
         elif item in ("--confirm", "confirm", "yes"):
             confirmed = True
@@ -286,7 +322,7 @@ def run_line_selected_action(
         return rc
     if kind == "workbench":
         if workbench_runner is None:
-            raise ValueError("workbench module runner is unavailable")
+            raise ValueError("operator module runner is unavailable")
         rc = workbench_runner(
             cfg,
             workbench_actions or [],
@@ -320,7 +356,7 @@ def run_line_selected_action(
         )
         print_line_action_result(rc)
         return rc
-    raise ValueError(f"unsupported selected module kind: {kind}")
+    raise ValueError(f"unsupported current module kind: {kind}")
 
 
 def run_line_module_or_service(
@@ -334,8 +370,8 @@ def run_line_module_or_service(
     run_selected_action_func=None,
 ):
     selector, flags = split_line_run_args(values or [])
-    if dry_run_default and not any(item in {"--dry-run", "dry-run"} for item in flags):
-        flags.append("dry-run")
+    if dry_run_default and not any(item in {"--dry-run", "dry-run", "preview"} for item in flags):
+        flags.append("preview")
     selected_action_func = selected_action_func or (lambda: {})
     service_names_func = service_names_func or (lambda: [])
     if selector:
@@ -351,13 +387,13 @@ def run_line_module_or_service(
             select_action_func(selector)
         if run_selected_action_func:
             return run_selected_action_func(flags)
-        raise ValueError("selected module runner is unavailable")
+        raise ValueError("current module runner is unavailable")
     if selected_action_func():
         if run_selected_action_func:
             return run_selected_action_func(flags)
-        raise ValueError("selected module runner is unavailable")
+        raise ValueError("current module runner is unavailable")
     if dry_run_default:
-        raise ValueError("no selected module; use check MODULE or use module MODULE first")
+        raise ValueError("no current module; use modules, use module NAME, then check")
     if start_service_func:
         start_service_func("")
         return 0
@@ -370,29 +406,46 @@ def print_line_action_records(actions, filter_text="", kind_filter="", quote=Non
     shown = actions[:30]
 
     def _detail(rec):
-        if not verbose:
-            return []
-        cmd = str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or "")
-        if len(cmd) > 100:
-            cmd = cmd[:97] + "…"
-        return [("run", cmd)] if cmd else []
+        rows = []
+        task = line_action_task_text(rec)
+        if task and (verbose or str(rec.get("kind") or "") == "target"):
+            rows.append(("task", task))
+        if verbose:
+            cmd = str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or "")
+            if len(cmd) > 100:
+                cmd = cmd[:97] + "…"
+            if cmd:
+                rows.append(("run", cmd))
+        return rows
+
+    def _confirm_text(rec):
+        if not rec.get("requires_confirmation"):
+            return "-"
+        if str(rec.get("operator_action_state") or "") in {
+            "already-empty", "already-stopped", "disabled", "missing-target", "not-running", "not-supported",
+        }:
+            return "-"
+        return "run confirm"
 
     title = "Modules"
     if kind_text:
-        title += f"  ({kind_text})"
+        title += f"  ({line_action_kind_display(kind_text)})"
     if str(filter_text or "").strip():
         title += f"  filter={filter_text!r}"
     title += f"  ({len(shown)} of {len(actions)})" if len(actions) > 30 else f"  ({len(actions)} total)"
 
     cols = [
-        ("Kind", "kind"),
-        ("Module", "id"),
-        ("State", line_action_state_text),
-        ("Confirm", lambda r: "yes" if r.get("requires_confirmation") else "no"),
+        ("Kind", lambda r: line_action_kind_display(r.get("kind"))),
+        ("Module", line_action_display_name),
+        ("Status", line_action_state_text),
+        ("Confirm With", _confirm_text),
     ]
+    footer = "use 1, use module Inspect bridge status, modules service, modules daemon, modules target, modules operator, help: modules ?"
+    if any(_confirm_text(rec) == "run confirm" for rec in shown):
+        footer += "; requires confirmation: select the module, then run confirm"
     console_table(
         title, shown, cols, detail_fn=_detail,
-        footer="use N, use module NAME, use module N, modules verbose, modules ?",
+        footer=footer,
     )
     grouped = {}
     for rec in actions:
@@ -400,7 +453,7 @@ def print_line_action_records(actions, filter_text="", kind_filter="", quote=Non
     search_records = [
         {
             "kind": "action",
-            "label": f"{rec.get('kind', '')}:{rec.get('id', '')}",
+            "label": f"{line_action_kind_display(rec.get('kind'))}:{rec.get('id', '')}",
             "rec": rec,
             "command": str(rec.get("headless_command") or rec.get("run_command") or rec.get("command") or ""),
             "use_hint": f"use module {quote(str(rec.get('id', '')))}",
@@ -440,7 +493,7 @@ def print_line_module_category_records(actions):
             "workflow_counts": workflow_counts,
         }
     print("")
-    col = max(len(kind) for kind in grouped) + 2
+    col = max(len(line_action_kind_display(kind)) for kind in grouped) + 2
     for kind in sorted(grouped):
         items = grouped[kind]
         states = {}
@@ -448,10 +501,12 @@ def print_line_module_category_records(actions):
             state = line_action_state_text(rec)
             states[state] = states.get(state, 0) + 1
         state_summary = "  ".join(f"{state}={count}" for state, count in sorted(states.items()))
-        print(f"  {kind:{col}}{len(items)} modules   {state_summary}")
+        label = line_action_kind_display(kind)
+        print(f"  {label:{col}}{len(items)} modules   {state_summary}")
     print("")
-    print("  show service modules, show daemon modules, show target modules, show workbench modules")
-    print("  show modules FILTER, modules verbose FILTER, use N")
+    print("  modules service, modules daemon, modules target, modules operator")
+    print("  open service modules: modules service")
+    print("  choose first module: use 1")
     return {
         "module_count": total,
         "kind_counts": {kind: len(items) for kind, items in grouped.items()},

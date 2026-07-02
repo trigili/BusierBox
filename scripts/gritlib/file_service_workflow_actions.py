@@ -84,7 +84,7 @@ def file_service_workflow_action_record(
         "execution_default": "show-command",
         "target_execution": False,
         "tui_visible": True,
-        "safety_boundary": "operator-side file workflow metadata; target upload/fetch still requires explicit target-side command or poll",
+        "safety_boundary": "operator-side file workflow metadata; target submissions and staged delivery still require explicit target-side command or poll",
     }
 
 
@@ -186,7 +186,7 @@ def _file_service_inspect_workflow_actions(context):
             context,
             "list-staged-files",
             "staged",
-            "List staged files and target fetch commands",
+            "List staged files and commands to run on targets",
             optional_target_scoped_command(base, target_arg, " --list-staged"),
             "staged-files",
             "ready",
@@ -204,7 +204,7 @@ def _file_service_staged_upload_workflow_actions(cfg, context):
         context,
         "stage-file",
         "staged",
-        "Stage a local file for target fetch",
+        "Stage a local file for deliver commands",
         optional_target_scoped_command(base, target_arg, " --serve-file LOCAL_PATH --as REQUEST_NAME --list-staged"),
         "staged-files",
         "needs-input",

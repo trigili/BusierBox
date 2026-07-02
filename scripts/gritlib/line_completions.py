@@ -4,6 +4,7 @@ import shlex
 from pathlib import Path
 
 from gritlib.build_config import WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS
+from gritlib.line_network import line_local_ip_candidates
 from gritlib.probe_results import probe_all_results
 from gritlib.target_store import load_targets
 from gritlib.workbench_jobs import load_workbench_jobs
@@ -13,60 +14,71 @@ from gritlib.profiles import PROFILE_KEY_HINTS, profile_records
 BASE_COMMANDS = [
     "help", "complete", "search", "resource", "makerc", "history", "workspace", "status",
     "events", "console",
-    "show", "info", "options", "next", "commands", "target-commands", "copy", "set", "setg", "unset", "unsetg",
+    "show", "info", "options", "next", "commands", "copy",
+    "files", "modules",
     "targets", "target", "listeners", "listener",
     "routes", "route", "sessions", "session", "jobs", "job", "use",
-    "main", "home", "root", "back", "background", "start", "stop",
-    "check", "run", "interact", "queue",
+    "main", "back", "quit",
+    "check", "run", "queue",
     "retrieve", "stage", "deliver", "stamp", "artifact",
     "profile", "profiles",
     "survey", "daemon", "build", "release",
-    "serve-binary", "unstage",
-    "view", "cat", "less", "mailbox", "refresh",
-    "quit", "exit", "ips", "ip", "reload",
+    "binary", "unstage",
+    "view", "cat", "less", "check-ins", "refresh",
+    "ips", "ip", "reload",
 ]
 
 SHOW_RESOURCES = [
     "targets", "listeners", "routes", "sessions",
-    "jobs", "queue", "mailbox", "files", "events",
+    "jobs", "queue", "check-ins", "files", "events",
     "release", "modules", "categories", "service modules", "daemon modules",
-    "target modules", "workbench modules", "options",
+    "target modules", "operator modules", "options",
 ]
-MODULE_KIND_COMPLETIONS = ["service", "daemon", "target", "workbench"]
+MODULE_KIND_COMPLETIONS = ["service", "daemon", "target", "operator"]
+MODULE_KIND_COMPLETION_ALIASES = {
+    "service": "service",
+    "daemon": "daemon",
+    "target": "target",
+    "operator": "workbench",
+    "operators": "workbench",
+    "workbench": "workbench",
+    "workbenches": "workbench",
+}
 
 USE_KINDS = ["target", "listener", "route", "session", "job", "module", "profile"]
 
 HELP_TOPICS = [
-    "search", "complete", "commands", "target-commands", "copy", "resource", "makerc", "history",
+    "search", "complete", "commands", "copy", "resource", "makerc", "history",
     "use", "main", "show", "start", "stop",
-    "modules", "options", "next", "workspace", "aliases", "ip", "listeners",
-    "routes", "set", "setg", "run", "jobs", "queue", "events", "retrieve", "survey", "build",
+    "modules", "options", "next", "workspace", "workflow", "aliases", "ip", "listeners",
+    "probe", "listener probe",
+    "routes", "set", "run", "jobs", "queue", "events", "retrieve", "survey", "build",
     "release", "stage", "deliver", "stamp", "artifact", "files", "view",
     "daemon", "interact", "sessions", "profile", "profiles", "console",
 ]
 
 EXACT_COMPLETION_EXPANDERS = {
-    "help", "show", "search", "events", "commands", "target-commands", "copy", "use",
-    "agent", "target", "host", "agents", "targets", "hosts",
-    "profile", "profiles", "ip", "listener", "service", "listeners", "services",
+    "complete", "completions",
+    "help", "show", "search", "events", "commands", "copy", "use",
+    "target", "targets",
+    "profile", "profiles", "ip", "listener", "listeners",
     "start", "stop", "route", "routes", "sessions", "session", "jobs", "job",
-    "daemon", "modules", "module", "files", "staged", "stagers", "loot", "downloads",
-    "run", "execute", "exploit", "check", "stage", "upload", "deliver", "fetch", "deploy", "queue-fetch",
-    "queue-deliver", "unstage", "rmfile", "rm-file", "stamp", "trailer", "configure",
-    "artifact", "view", "cat", "less", "queue", "build", "release", "releases",
-    "stage-release", "survey",
+    "daemon", "modules", "module", "files",
+    "run", "check", "interact", "stage", "deliver", "retrieve", "queue-deliver",
+    "unstage", "stamp",
+    "artifact", "view", "cat", "less", "queue", "build", "release", "binary",
+    "survey",
     "console", "history", "resource", "makerc",
 }
 
 EXACT_COMPLETION_PHRASE_EXPANDERS = {
-    "commands copy", "target-commands copy",
-    "use agent", "use target", "use host", "use listener", "use service",
+    "commands copy",
+    "use target", "use listener",
     "use route", "use session", "use job", "use module", "use profile",
     "profile use", "profile delete", "profile set", "profile from", "profile from probe",
     "profiles use",
-    "listener probe", "listener probe-http", "listener probe config", "listener probe-http config",
-    "listener probe clear", "listener probe-http clear", "listener probe clear all",
-    "listener probe-http clear all", "listener serve",
+    "listener probe", "listener probe config", "listener probe paste", "listener probe paste base64",
+    "listener probe clear", "listener probe clear all", "listener serve",
     "daemon start", "daemon stop", "daemon status", "daemon install", "daemon print",
     "daemon systemd-start", "daemon systemd-stop", "daemon systemd-restart",
     "daemon systemd-status",
@@ -75,15 +87,15 @@ EXACT_COMPLETION_PHRASE_EXPANDERS = {
     "sessions clean", "sessions clean all",
     "queue result", "queue results", "queue clear",
     "build set", "build unset",
+    "ip host", "ip bind",
     "events n", "events since",
     "release stage", "release stage start", "release stage ssh",
-    "release use", "release select", "releases stage", "releases stage start",
-    "releases use", "releases select", "stage-release start",
+    "release use", "release select",
     "survey config", "survey preset",
     "artifact stamp", "artifact trailer", "artifact configure",
     "artifact info", "artifact inspect", "artifact show", "artifact clear",
     "show modules",
-    "show daemon modules", "show service modules", "show target modules", "show workbench modules",
+    "show daemon modules", "show service modules", "show target modules", "show operator modules",
 }
 
 
@@ -117,6 +129,19 @@ def completion_provider(providers, name, default=None):
     if callable(value):
         value = value()
     return list(value or [])
+
+
+def _listener_context_completion_names(names):
+    result = []
+    for name in names or []:
+        value = str(name or "").strip()
+        if not value:
+            continue
+        if value == "probe-http":
+            value = "probe"
+        if value not in result:
+            result.append(value)
+    return result
 
 
 def _completion_target_names(cfg, workbench_snapshot_func):
@@ -156,11 +181,66 @@ def _completion_action_names(line_action_records_func):
     for rec in line_action_records_func():
         rec_id = str(rec.get("id") or "")
         kind = str(rec.get("kind") or "")
+        label = str(rec.get("label") or "").strip()
+        if label:
+            names.append(label)
         if rec_id:
             names.append(rec_id)
             if kind:
                 names.append(f"{kind}:{rec_id}")
     return names
+
+
+def _completion_runnable_action_names(line_action_records_func):
+    names = []
+    seen = set()
+    for rec in line_action_records_func():
+        label = str(rec.get("label") or "").strip()
+        rec_id = str(rec.get("id") or "").strip()
+        for value in (label, rec_id):
+            if value and value not in seen:
+                seen.add(value)
+                names.append(value)
+    return names
+
+
+def _display_runnable_action_names(names):
+    friendly = []
+    for name in names or []:
+        text = str(name or "").strip()
+        if not text:
+            continue
+        if text.startswith(("operator-daemon-", "systemd-user-")):
+            continue
+        if ":" not in text and " " not in text:
+            continue
+        friendly.append(text)
+    return friendly
+
+
+def _display_default_run_action_names(names):
+    friendly = []
+    for name in _display_runnable_action_names(names):
+        if name.endswith((":start-service", ":stop-service")):
+            continue
+        if name.lower().startswith(("start ", "stop ")):
+            continue
+        friendly.append(name)
+    return friendly
+
+
+def _action_completion_values(prefix, names):
+    prefix = str(prefix or "").strip()
+    values = _display_runnable_action_names(names)
+    if not prefix:
+        return values
+    if ":" in prefix:
+        return prefixed(prefix, values)
+    label_matches = [
+        name for name in values
+        if " " in name and prefix.lower() in name.lower()
+    ]
+    return label_matches or prefixed(prefix, values)
 
 
 def _completion_release_selectors(cfg, release_context_func):
@@ -274,6 +354,42 @@ def _completion_build_value_options(selector, keys):
     return list(WORKBENCH_BUILD_CONFIG_FIXED_OPTIONS.get(text, ()))
 
 
+def _completion_editable_build_keys(records):
+    return [
+        str(rec.get("key") or "")
+        for rec in records or []
+        if str(rec.get("key") or "") and not rec.get("fixed_options")
+    ]
+
+
+def _completion_build_set_examples(records, key_prefix=""):
+    examples = []
+    by_key = {
+        str(rec.get("key") or ""): rec
+        for rec in (records or [])
+        if str(rec.get("key") or "")
+    }
+    for key in prefixed(key_prefix, by_key.keys()):
+        rec = by_key[key]
+        key = str(rec.get("key") or "").strip()
+        if not key or rec.get("fixed_options"):
+            continue
+        values = [str(value) for value in (rec.get("options") or rec.get("examples") or []) if str(value)]
+        value = values[0] if values else str(rec.get("value") or "").strip()
+        if value:
+            examples.append(f"build set {key} {value}")
+    return examples
+
+
+def _completion_local_ip_values(snap):
+    candidates = line_local_ip_candidates(snap)
+    values = []
+    for idx, ip in enumerate(candidates, 1):
+        values.append(str(idx))
+        values.append(str(ip))
+    return values
+
+
 def build_line_completion_providers(
     cfg,
     *,
@@ -301,6 +417,7 @@ def build_line_completion_providers(
             if str(rec.get("name") or "")
         ],
         "action_names": lambda: _completion_action_names(line_action_records_func),
+        "runnable_action_names": lambda: _completion_runnable_action_names(line_action_records_func),
         "release_selectors": lambda: _completion_release_selectors(cfg, release_context_func),
         "command_queue_ids": lambda: _completion_command_queue_ids(cfg, command_queue_summary_func),
         "generated_command_ids": lambda: [
@@ -310,6 +427,11 @@ def build_line_completion_providers(
             str(rec.get("key") or "") for rec in workbench_config_field_records_func(cfg)
             if str(rec.get("key") or "")
         ],
+        "build_config_fields": lambda: workbench_config_field_records_func(cfg),
+        "editable_build_config_keys": lambda: _completion_editable_build_keys(
+            workbench_config_field_records_func(cfg)
+        ),
+        "local_ip_values": lambda: _completion_local_ip_values(workbench_snapshot_func(cfg)),
         "service_completion_names": lambda: service_completion_names_func(service_status_rows_func(cfg)),
         "service_names": lambda: service_names_func(service_status_rows_func(cfg)),
         "daemon_action_ids": lambda: _completion_daemon_action_ids(cfg, workbench_snapshot_func),
@@ -403,29 +525,32 @@ def _line_completion_command_candidates(cmd, ctx):
 
     if cmd == "show":
         resource = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
-        if resource in MODULE_KIND_COMPLETIONS and len(ctx.parts) >= 3 and ctx.parts[2].lower() in {"module", "modules"}:
+        if resource in MODULE_KIND_COMPLETION_ALIASES and len(ctx.parts) >= 3 and ctx.parts[2].lower() in {"module", "modules"}:
             kind = resource
+            internal_kind = MODULE_KIND_COMPLETION_ALIASES.get(kind, kind)
             if ctx.at_arg(3):
                 return [f"show {kind} modules {item}" for item in prefixed(ctx.arg_pfx(3),
-                    [name for name in ctx.values("action_names") if name.startswith(f"{kind}:")])]
+                    [name for name in ctx.values("action_names") if name.startswith(f"{internal_kind}:")])]
         if resource in {"module", "modules", "action", "actions"}:
             if ctx.at_arg(2):
                 module_kind_prefix = ctx.arg_pfx(2).lower()
                 if not module_kind_prefix:
-                    return ["show modules FILTER"]
-                if module_kind_prefix in MODULE_KIND_COMPLETIONS:
+                    return ["show modules service"]
+                if module_kind_prefix in MODULE_KIND_COMPLETION_ALIASES:
+                    internal_kind = MODULE_KIND_COMPLETION_ALIASES[module_kind_prefix]
                     return [f"show {module_kind_prefix} modules {item}" for item in prefixed(
-                        "", [name for name in ctx.values("action_names") if name.startswith(f"{module_kind_prefix}:")]
+                        "", [name for name in ctx.values("action_names") if name.startswith(f"{internal_kind}:")]
                     )]
                 matching_kinds = prefixed(module_kind_prefix, MODULE_KIND_COMPLETIONS)
                 if matching_kinds:
                     return [f"show {kind} modules" for kind in matching_kinds]
                 return [f"show modules {item}" for item in prefixed(ctx.arg_pfx(2),
                     ctx.values("action_names"))]
-            if len(ctx.parts) >= 3 and ctx.parts[2].lower() in MODULE_KIND_COMPLETIONS and ctx.at_arg(3):
+            if len(ctx.parts) >= 3 and ctx.parts[2].lower() in MODULE_KIND_COMPLETION_ALIASES and ctx.at_arg(3):
                 kind = ctx.parts[2].lower()
+                internal_kind = MODULE_KIND_COMPLETION_ALIASES.get(kind, kind)
                 return [f"show {kind} modules {item}" for item in prefixed(ctx.arg_pfx(3),
-                    [name for name in ctx.values("action_names") if name.startswith(f"{kind}:")])]
+                    [name for name in ctx.values("action_names") if name.startswith(f"{internal_kind}:")])]
         pfx = "" if ctx.trailing_space else " ".join(ctx.parts[1:])
         return [f"show {item}" for item in prefixed(pfx, SHOW_RESOURCES)]
 
@@ -442,11 +567,16 @@ def _line_completion_command_candidates(cmd, ctx):
                 )]
         return [f"events {item}" for item in prefixed(ctx.arg_pfx(1), [
             "n", "since", "service=", "event=", "level=", "target=",
-            "status=", "operation=", "request_name=", "command_id=", "job_id=", "module_id=",
+            "status=", "operation=", "file=", "command=", "job=", "module=",
         ])]
 
     if cmd == "console":
         return []
+
+    if cmd in {"complete", "completions"}:
+        return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), [
+            "listener", "files", "modules", "run", "build set", "ip bind",
+        ])]
 
     if cmd == "search":
         return [f"search {item}" for item in prefixed(ctx.arg_pfx(1), [
@@ -458,10 +588,14 @@ def _line_completion_command_candidates(cmd, ctx):
         return [f"history {item}" for item in prefixed(ctx.arg_pfx(1), ["10", "20", "50", "100"])]
 
     if cmd == "resource":
-        return [f"resource {item}" for item in prefixed(ctx.arg_pfx(1), ["FILE"])]
+        return [f"resource {item}" for item in prefixed(ctx.arg_pfx(1), [
+            "./commands.gritrc", "./last-session.gritrc",
+        ])]
 
     if cmd == "makerc":
-        return [f"makerc {item}" for item in prefixed(ctx.arg_pfx(1), ["FILE"])]
+        return [f"makerc {item}" for item in prefixed(ctx.arg_pfx(1), [
+            "./last-session.gritrc", "./commands.gritrc",
+        ])]
 
     if cmd in {"commands", "target-commands"}:
         if ctx.at_arg(1):
@@ -527,35 +661,41 @@ def _line_completion_command_candidates(cmd, ctx):
 
 
 def _line_completion_context_candidates(cmd, ctx):
-    if cmd in {"agent", "target", "host", "agents", "targets", "hosts",
-               "useagent", "usetarget", "usehost"}:
+    if cmd in {"target", "targets"}:
         values = ctx.values("target_names")
-        if cmd in {"agent", "target", "host", "useagent", "usetarget", "usehost"}:
+        if cmd == "target":
             values = values + ["all", "clear"]
-        preferred_cmd = {
-            "agent": "target",
-            "agents": "targets",
-            "host": "target",
-            "hosts": "targets",
-            "useagent": "use target",
-            "usetarget": "use target",
-            "usehost": "use target",
-            "uselistener": "use listener",
-            "useservice": "use listener",
-        }.get(cmd, cmd)
-        return [f"{preferred_cmd} {item}" for item in prefixed(ctx.arg_pfx(1), values)]
+        return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), values)]
 
     if cmd == "ip":
         if ctx.at_arg(1):
             return [f"ip {item}" for item in prefixed(ctx.arg_pfx(1), ["host", "bind", "show"])]
+        action = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
+        if action in {"host", "operator", "advertise", "use", "bind", "listen", "listener"} and ctx.at_arg(2):
+            values = ctx.values("local_ip_values") or ["IP"]
+            return [f"ip {ctx.parts[1]} {item}" for item in prefixed(
+                ctx.arg_pfx(2),
+                values,
+            )]
         return []
 
-    if cmd in {"listener", "service", "listeners", "services",
-               "uselistener", "useservice"}:
-        if cmd in {"listener", "service"} and len(ctx.parts) >= 2 and ctx.parts[1].lower() in {"probe", "probe-http"}:
+    if cmd in {"listener", "listeners"}:
+        if cmd == "listener" and len(ctx.parts) >= 2 and ctx.parts[1].lower() == "probe":
             if ctx.at_arg(2):
-                return [f"{cmd} {ctx.parts[1]} {item}" for item in prefixed(ctx.arg_pfx(2),
-                    ["start", "queue", "results", "config", "clear", "delivery", "paste", "script", "options"])]
+                if ctx.arg_pfx(2):
+                    return []
+                return [
+                    "listener probe",
+                    "use listener probe",
+                    "listener probe start",
+                    "listener probe results",
+                    "listener probe config",
+                    "listener probe paste",
+                    "listener probe paste copy",
+                    "listener probe paste base64",
+                    "listener probe paste base64 copy",
+                    "listener probe queue",
+                ]
             subcmd = ctx.parts[2].lower() if len(ctx.parts) >= 3 else ""
             if subcmd == "config" and ctx.at_arg(3):
                 return [f"{cmd} {ctx.parts[1]} config {item}" for item in prefixed(ctx.arg_pfx(3),
@@ -567,39 +707,45 @@ def _line_completion_context_candidates(cmd, ctx):
                 return [f"{cmd} {ctx.parts[1]} clear {item}" for item in prefixed(ctx.arg_pfx(3), ["confirm", "all"] + ordinals)]
             if subcmd == "clear" and ctx.at_arg(4):
                 return [f"{cmd} {ctx.parts[1]} clear {ctx.parts[3]} {item}" for item in prefixed(ctx.arg_pfx(4), ["confirm"])]
+            if subcmd == "paste" and ctx.at_arg(3):
+                return [f"{cmd} {ctx.parts[1]} paste {item}" for item in prefixed(ctx.arg_pfx(3), ["copy", "base64"])]
+            if subcmd == "paste" and len(ctx.parts) >= 4 and ctx.parts[3].lower() == "base64" and ctx.at_arg(4):
+                return [f"{cmd} {ctx.parts[1]} paste base64 {item}" for item in prefixed(ctx.arg_pfx(4), ["copy"])]
             return None
         if cmd == "listener" and len(ctx.parts) >= 2 and ctx.parts[1].lower() == "serve":
             if ctx.at_arg(2):
-                return [f"listener serve {item}" for item in prefixed(ctx.arg_pfx(2), ["start", "ssh", "default", "ssh-operator"])]
+                return [f"listener serve {item}" for item in prefixed(
+                    ctx.arg_pfx(2),
+                    ["default", "start default", "ssh", "ssh start"],
+                )]
             if len(ctx.parts) >= 3 and ctx.parts[2].lower() in {"ssh", "ssh-operator"} and ctx.at_arg(3):
                 return [f"listener serve {ctx.parts[2]} {item}" for item in prefixed(ctx.arg_pfx(3), ["start"])]
             return []
-        service_values = (["verbose", "details"] if cmd in {"listeners", "services"} else []) + (
+        if cmd == "listener" and ctx.trailing_space and len(ctx.parts) >= 2:
+            return []
+        service_values = (["verbose", "details"] if cmd == "listeners" else []) + (
             ["serve"] if cmd == "listener" else []
-        ) + ctx.values("service_completion_names")
-        preferred_cmd = {
-            "uselistener": "use listener",
-            "useservice": "use listener",
-        }.get(cmd, cmd)
-        return [f"{preferred_cmd} {item}" for item in prefixed(ctx.arg_pfx(1), service_values)]
+        ) + _listener_context_completion_names(ctx.values("service_completion_names"))
+        return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), service_values)]
 
     if cmd in {"start", "stop"}:
         if len(ctx.parts) >= 2 and ctx.parts[1].lower() == "route":
             return [f"{cmd} route {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("route_names"))]
-        services = ctx.values("service_completion_names") or ctx.values("service_names")
+        services = _listener_context_completion_names(
+            ctx.values("service_completion_names") or ctx.values("service_names")
+        )
         return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), services + ctx.values("route_names"))]
 
-    if cmd in {"route", "useroute"}:
+    if cmd == "route":
         route_names = ctx.values("route_names")
         if ctx.at_arg(1):
-            preferred_cmd = "use route" if cmd == "useroute" else "route"
-            return [f"{preferred_cmd} {item}" for item in prefixed(ctx.arg_pfx(1),
+            return [f"route {item}" for item in prefixed(ctx.arg_pfx(1),
                 ["add", "start", "stop", "delete", "rm", "print"] + route_names)]
         subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
         if subcmd in {"add", "new"} and ctx.at_arg(2):
             return [
-                "route add NAME LISTEN_PORT DEST_HOST DEST_PORT",
-                "route add NAME LISTEN_PORT DEST_HOST DEST_PORT FROM=TO",
+                "route add ssh-home 2222 127.0.0.1 22",
+                "route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222",
             ]
         if subcmd in {"start", "stop", "delete", "rm", "remove"} and ctx.at_arg(2):
             return [f"route {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), route_names)]
@@ -618,15 +764,27 @@ def _line_completion_context_candidates(cmd, ctx):
         if subcmd in {"clear", "prune", "clean"}:
             if ctx.at_arg(3) and len(ctx.parts) >= 3 and ctx.parts[2].lower() == "all":
                 return [f"sessions {subcmd} all {item}" for item in prefixed(ctx.arg_pfx(3), ["confirm"])]
-            return [f"sessions {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ["confirm", "all"])]
+            return [f"sessions {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ["confirm", "all", "all confirm"])]
         return []
 
-    if cmd in {"session", "usesession"}:
-        preferred_cmd = "use session" if cmd == "usesession" else cmd
-        return [f"{preferred_cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("session_names"))]
+    if cmd == "session":
+        return [f"session {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("session_names"))]
 
     if cmd == "interact":
-        return [f"interact {item}" for item in prefixed(ctx.arg_pfx(1), ["agent"] + ctx.values("session_names"))]
+        subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
+        target_selectors = ctx.values("target_names") or ["1"]
+        if subcmd in {"target", "agent", "host"} and ctx.at_arg(2):
+            return [
+                f"interact target {item}"
+                for item in prefixed(ctx.arg_pfx(2), target_selectors)
+            ]
+        return [
+            f"interact {item}"
+            for item in prefixed(
+                ctx.arg_pfx(1),
+                [f"target {item}" for item in target_selectors] + ctx.values("session_names"),
+            )
+        ]
 
     if cmd == "jobs":
         if ctx.at_arg(1):
@@ -650,23 +808,33 @@ def _line_completion_context_candidates(cmd, ctx):
         if ctx.at_arg(1):
             return [f"daemon {item}" for item in prefixed(ctx.arg_pfx(1), actions + ["verbose", "details"])]
         if ctx.at_arg(2):
-            return [f"daemon {ctx.parts[1]} {item}" for item in prefixed(ctx.arg_pfx(2), ["dry-run", "confirm"])]
+            return [f"daemon {ctx.parts[1]} {item}" for item in prefixed(ctx.arg_pfx(2), ["preview", "confirm"])]
         return []
 
     if cmd in {"modules", "module"}:
         if ctx.at_arg(1):
-            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1),
-                MODULE_KIND_COMPLETIONS + ctx.values("action_names"))]
+            values = MODULE_KIND_COMPLETIONS
+            if ctx.arg_pfx(1):
+                values = values + ctx.values("action_names")
+            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), values)]
         return []
 
     return None
 
 
 def _line_completion_file_work_candidates(cmd, ctx):
-    if cmd in {"files", "staged", "stagers", "loot", "downloads"}:
+    if cmd == "files":
         if ctx.at_arg(1):
-            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1),
-                ["verbose", "details", "stage", "deliver", "unstage", "clear"])]
+            return prefixed(ctx.arg_pfx(1), [
+                "files verbose",
+                "files details",
+                "stage ./grit sample-file",
+                "stage start ./grit sample-file",
+                "deliver sample-file",
+                "deliver start sample-file",
+                "unstage sample-file",
+                "files clear",
+            ])
         subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
         if subcmd in {"unstage", "rm"}:
             return [f"{cmd} {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("staged_names_load"))]
@@ -676,24 +844,52 @@ def _line_completion_file_work_candidates(cmd, ctx):
 
     if cmd in {"usemodule", "useaction"}:
         return [f"use module {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("action_names"))]
-    if cmd in {"execute", "exploit"}:
-        return [f"run {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("action_names"))]
     if cmd in {"run", "check"}:
-        return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("action_names"))]
+        prefix = ctx.arg_pfx(1)
+        runnable_names = _action_completion_values(prefix, ctx.values("runnable_action_names"))
+        if not prefix:
+            label_names = [name for name in runnable_names if " " in name]
+            runnable_names = label_names or runnable_names
+        if cmd == "run" and not prefix:
+            runnable_names = _display_default_run_action_names(runnable_names)
+        if cmd == "check" and not runnable_names:
+            runnable_names = ["Inspect bridge status", "Inspect probe status"]
+        return [f"{cmd} {item}" for item in runnable_names]
 
-    if cmd in {"stage", "serve-file"}:
-        return [f"{cmd} LOCAL NAME"]
-    if cmd == "upload":
-        return ["stage LOCAL NAME"]
+    if cmd == "stage":
+        return [f"{cmd} LOCAL_PATH NAME"]
+
+    if cmd == "binary":
+        return [f"binary {item}" for item in prefixed(ctx.arg_pfx(1), [
+            "scripts/grit-console grit-console",
+            "start scripts/grit-console grit-console",
+            "no-start scripts/grit-console grit-console",
+        ])]
 
     if cmd == "deliver":
-        return [f"deliver {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("staged_names_snapshot"))]
-    if cmd in {"fetch", "deploy"}:
-        return [f"deliver {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("staged_names_snapshot"))]
-    if cmd in {"queue-fetch", "queue-deliver"}:
+        staged_names = ctx.values("staged_names_snapshot")
+        if staged_names:
+            return [f"deliver {item}" for item in prefixed(ctx.arg_pfx(1), staged_names)]
+        return [f"deliver {item}" for item in prefixed(ctx.arg_pfx(1), [
+            "sample-file", "queue sample-file", "start sample-file",
+        ])]
+    if cmd == "queue-deliver":
         return [f"deliver queue {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("staged_names_snapshot"))]
-    if cmd in {"unstage", "rmfile", "rm-file"}:
-        return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("staged_names_snapshot"))]
+    if cmd == "retrieve":
+        examples = ["/etc/hosts", "/etc/config/network", "queue", "queue /etc/hosts"]
+        if ctx.at_arg(1):
+            return [f"retrieve {item}" for item in prefixed(ctx.arg_pfx(1), examples)]
+        if len(ctx.parts) >= 2 and ctx.parts[1].lower() == "queue" and ctx.at_arg(2):
+            return [
+                f"retrieve queue {item}"
+                for item in prefixed(ctx.arg_pfx(2), ["/etc/hosts", "/etc/config/network"])
+            ]
+        return []
+    if cmd == "unstage":
+        staged_names = ctx.values("staged_names_snapshot")
+        if staged_names:
+            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), staged_names)]
+        return [f"{cmd} sample-file"]
 
     trailer_fields = [
         "show", "clear", "operator-host", "operator-user", "ssh-port",
@@ -709,7 +905,13 @@ def _line_completion_file_work_candidates(cmd, ctx):
 
     if cmd == "stamp":
         if ctx.at_arg(1):
-            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("staged_names_load"))]
+            staged_names = ctx.values("staged_names_load")
+            if staged_names:
+                return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), staged_names)]
+            return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1), [
+                "sample-file operator-host 192.168.8.241",
+                "sample-file transport builtin",
+            ])]
         if len(ctx.parts) >= 2:
             return [f"{cmd} {ctx.parts[1]} {item}" for item in prefixed(ctx.arg_pfx(2), trailer_fields)]
         return []
@@ -722,14 +924,28 @@ def _line_completion_file_work_candidates(cmd, ctx):
 
     if cmd == "artifact":
         if ctx.at_arg(1):
-            return [f"artifact {item}" for item in prefixed(ctx.arg_pfx(1), [
-                "info", "inspect", "stamp", "show", "clear",
-            ] + ctx.values("staged_names_load"))]
+            staged_names = ctx.values("staged_names_load")
+            examples = []
+            for name in staged_names[:3]:
+                examples.extend([
+                    f"artifact info {name}",
+                    f"artifact stamp {name} transport builtin",
+                    f"artifact show {name}",
+                    f"artifact clear {name}",
+                ])
+            examples.extend([
+                "artifact info ./grit",
+                "artifact stamp ./grit transport builtin",
+                "artifact show ./grit",
+                "artifact clear ./grit",
+            ])
+            return prefixed(ctx.arg_pfx(1), examples)
         subcmd = ctx.parts[1].lower() if len(ctx.parts) >= 2 else ""
         if subcmd == "stamp":
             if ctx.at_arg(2):
+                values = ctx.values("staged_names_load") or ["./grit"]
                 return [f"artifact {subcmd} {item}" for item in prefixed(
-                    ctx.arg_pfx(2), ctx.values("staged_names_load")
+                    ctx.arg_pfx(2), values
                 )]
             if len(ctx.parts) >= 3:
                 return [
@@ -738,8 +954,9 @@ def _line_completion_file_work_candidates(cmd, ctx):
                 ]
         if subcmd in {"trailer", "configure"}:
             if ctx.at_arg(2):
+                values = ctx.values("staged_names_load") or ["./grit"]
                 return [f"artifact stamp {item}" for item in prefixed(
-                    ctx.arg_pfx(2), ctx.values("staged_names_load")
+                    ctx.arg_pfx(2), values
                 )]
             if len(ctx.parts) >= 3:
                 return [
@@ -747,8 +964,9 @@ def _line_completion_file_work_candidates(cmd, ctx):
                     for item in prefixed(ctx.arg_pfx(3), trailer_fields)
                 ]
         if subcmd in {"info", "inspect", "show", "clear"} and ctx.at_arg(2):
+            values = ctx.values("staged_names_load") or ["./grit"]
             return [f"artifact {subcmd} {item}" for item in prefixed(
-                ctx.arg_pfx(2), ctx.values("staged_names_load")
+                ctx.arg_pfx(2), values
             )]
         return []
 
@@ -785,10 +1003,16 @@ def _line_completion_queue_release_candidates(cmd, ctx):
                     for item in prefixed(ctx.arg_pfx(3), value_options)
                 ]
         if subcmd in {"set", "unset"} and ctx.at_arg(2):
-            return [f"build {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values("build_config_keys"))]
+            if subcmd == "set":
+                return _completion_build_set_examples(
+                    ctx.values("build_config_fields"),
+                    key_prefix=ctx.arg_pfx(2),
+                )
+            provider_name = "editable_build_config_keys" if subcmd == "set" else "build_config_keys"
+            return [f"build {subcmd} {item}" for item in prefixed(ctx.arg_pfx(2), ctx.values(provider_name))]
         return None
 
-    if cmd in {"release", "releases"}:
+    if cmd == "release":
         if ctx.at_arg(1):
             return [f"{cmd} {item}" for item in prefixed(ctx.arg_pfx(1),
                 ["list", "stage", "recommendations", "artifacts"])]
@@ -805,16 +1029,6 @@ def _line_completion_queue_release_candidates(cmd, ctx):
             if modifier in {"ssh", "ssh-operator"} and ctx.at_arg(3):
                 return [f"{cmd} {subcmd} {ctx.parts[2]} {item}" for item in prefixed(ctx.arg_pfx(3), ["start"])]
         return None
-
-    if cmd == "stage-release":
-        if ctx.at_arg(1):
-            return [f"release stage {item}" for item in prefixed(ctx.arg_pfx(1), ["start"] + ctx.values("release_selectors"))]
-        if len(ctx.parts) >= 2 and ctx.parts[1].lower() == "start" and ctx.at_arg(2):
-            return [
-                f"release stage start {item}"
-                for item in prefixed(ctx.arg_pfx(2), ctx.values("release_selectors"))
-            ]
-        return [f"release stage {item}" for item in prefixed(ctx.arg_pfx(1), ctx.values("release_selectors"))]
 
     return None
 
@@ -881,19 +1095,63 @@ def line_completion_candidates(prefix="", providers=None):
         if candidates is not None:
             return candidates
 
+    if trailing_space:
+        return []
     return prefixed(ctx.current, BASE_COMMANDS)
+
+
+def _completion_empty_hint(prefix):
+    text = str(prefix or "").strip().lower()
+    if text.startswith("-"):
+        return "Console commands do not use -- flags; run ? to browse word commands such as confirm."
+    if text in {"profile delete", "profiles delete", "profile use", "profiles use"}:
+        return "No saved profiles match; run profiles to review them or profile create lab-router to add one."
+    if text.startswith("use "):
+        return "No numbered or named item matches; open a list such as targets, listeners, files, or modules first."
+    return "Try a shorter prefix, or use ? to browse help topics."
+
+
+def _completion_overflow_hint(prefix):
+    text = str(prefix or "").strip()
+    lower = text.lower()
+    if not lower:
+        return "Narrow it: complete files, complete modules, complete listener, or complete run."
+    if lower in {"run", "check"}:
+        return f"Narrow it: complete {lower} bridge, modules service, or show modules service."
+    return f"Narrow it: complete {text} TEXT."
+
+
+def _completion_context_hint(prefix):
+    text = str(prefix or "").strip().lower()
+    if text == "listener probe":
+        return "Probe commands work from any prompt; after use listener probe, short forms such as start, results, and config work in that menu."
+    if text == "listener serve":
+        return "Preset names stage that payload; add start to also start file-service."
+    if text == "listener serve ssh":
+        return "ssh stages the reverse SSH preset; add start to also start file-service."
+    if text == "ip host":
+        return "Use a listed number, or type an address directly, for example ip host 192.168.8.241."
+    if text == "ip bind":
+        return "Use a listed number, or type an address directly, for example ip bind 192.168.8.241."
+    return ""
 
 
 def print_line_completions(prefix="", candidates=None, append_event_func=None):
     candidates = list(candidates or [])
     print(f"Completions for {prefix or 'root'}:")
     if not candidates:
-        print("  none")
+        print("  (no completions)")
+        print(f"  {_completion_empty_hint(prefix)}")
     else:
         for candidate in candidates[:40]:
             print(f"  {candidate}")
         if len(candidates) > 40:
             print(f"  ... {len(candidates) - 40} more")
+            print(f"  {_completion_overflow_hint(prefix)}")
+        context_hint = _completion_context_hint(prefix)
+        if context_hint:
+            print(f"  {context_hint}")
+        print("  Run one of these commands. For deeper choices, add a space and run complete again.")
     if append_event_func:
         append_event_func("workbench", "workbench_console_completions_shown", details={
             "prefix": str(prefix or ""),

@@ -42,6 +42,7 @@ def build_line_display_callbacks(
             cfg,
             workbench_snapshot_func(cfg),
             selected_action=selected_action_func,
+            route_record=route_record_func,
             job_record=job_record_func,
         )
 

@@ -86,7 +86,7 @@ def _add_console_core_args(parser):
                                  "builtin-tls", "plain-shell", "file-service", "command-queue", "bridge", "probe", "probe-tftp", "probe-ftp", "probe-dns"),
                         help="transport to listen for (overrides config)")
     parser.add_argument("--file-service", action="store_true",
-                        help="receive target-initiated file uploads and store them under local/sessions")
+                        help="receive target-to-operator file submissions and serve staged delivery files")
     parser.add_argument("--version", action="store_true",
                         help="print griTTYkit version and exit")
     parser.add_argument("--help-console", action="store_true",
@@ -123,19 +123,19 @@ def _add_console_core_args(parser):
 
 def _add_console_file_target_args(parser):
     parser.add_argument("--serve-file",
-                        help="stage a local file for explicit target fetch")
+                        help="stage a local file for explicit deliver commands")
     parser.add_argument("--as", dest="serve_as",
                         help="target request name for --serve-file, for example /tmp/myfile")
     parser.add_argument("--serve-dir",
-                        help="stage direct child files from a local directory for explicit target fetch")
+                        help="stage direct child files from a local directory for explicit deliver commands")
     parser.add_argument("--stage-release-artifact",
-                        help="stage an artifact from the current or configured release bundle for explicit target fetch")
+                        help="stage an artifact from the current or configured release bundle for explicit deliver commands")
     parser.add_argument("--release-dir",
                         help="release bundle directory to inspect for status or --stage-release-artifact")
     parser.add_argument("--list-staged", action="store_true",
-                        help="list operator-staged target fetch files and commands")
+                        help="list operator-staged files and commands to run on targets")
     parser.add_argument("--unstage",
-                        help="remove a staged target fetch request name")
+                        help="remove a staged deliver request name")
     parser.add_argument("--state-file",
                         help="operator workbench state JSON path")
     parser.add_argument("--staged-file",

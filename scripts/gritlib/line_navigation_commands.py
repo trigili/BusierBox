@@ -74,6 +74,13 @@ def _dispatch_route_navigation(nav):
         else:
             nav["stop_route_func"](route_name)
         return True
+    if module.startswith("route/") and nav["cmd"] == "delete":
+        route_name = module.split("/", 1)[1]
+        confirmed = len(nav["args"]) == 1 and str(nav["args"][0]).lower() == "confirm"
+        if nav["args"] and not confirmed:
+            return False
+        nav["delete_route_func"](route_name, confirmed=confirmed)
+        return True
     if route_cmd := parse_line_route_command(nav["cmd"], nav["args"]):
         dispatch_line_route_command(
             route_cmd,

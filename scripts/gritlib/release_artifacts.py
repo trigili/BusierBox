@@ -289,6 +289,63 @@ def release_artifact_matches_probe(release, artifact, probe_arch, probe_kernel_f
     return False
 
 
+def _normalized_abi(value):
+    text = str(value or "").strip().lower()
+    if text in {"hardfloat", "hard-float", "hf", "armhf"}:
+        return "eabihf"
+    if text in {"softfloat", "soft-float", "soft", "armel"}:
+        return "eabi"
+    return text
+
+
+def _release_tuple_info(release, artifact):
+    tuple_path = str(artifact.get("tuple_path") or "")
+    tuple_rec = (release.get("tuples_by_path") or {}).get(tuple_path) or {}
+    return tuple_rec.get("tuple") if isinstance(tuple_rec.get("tuple"), dict) else {}
+
+
+def release_artifact_profile_mismatch_reasons(release, artifact, profile):
+    profile = profile or {}
+    tuple_info = _release_tuple_info(release, artifact)
+    reasons = []
+    target_arch = normalized_probe_arch(profile.get("arch") or profile.get("uname_m") or "", profile.get("endian") or "")
+    target_kernel = str(profile.get("kernel_floor") or kernel_floor_from_release(profile.get("uname_r") or "")).strip().lower()
+    target_libc = str(profile.get("libc") or "").strip().lower()
+    target_abi = _normalized_abi(profile.get("abi") or "")
+    tuple_arch = normalized_probe_arch(tuple_info.get("arch") or "")
+    tuple_kernel = str(tuple_info.get("kernel_floor") or "").strip().lower()
+    tuple_libc = str(tuple_info.get("libc") or "").strip().lower()
+    tuple_abi = _normalized_abi(tuple_info.get("abi") or "")
+
+    if target_arch and tuple_arch and target_arch != tuple_arch:
+        reasons.append(f"arch mismatch: target {target_arch}, artifact {tuple_arch}")
+    if target_kernel and tuple_kernel and tuple_kernel not in {"host", "current"}:
+        if not release_artifact_matches_probe(release, artifact, target_arch, target_kernel):
+            reasons.append(f"kernel floor mismatch: target {target_kernel}, artifact {tuple_kernel}")
+    if target_libc and tuple_libc and target_libc != tuple_libc:
+        reasons.append(f"libc mismatch: target {target_libc}, artifact {tuple_libc}")
+    if target_abi and tuple_abi and target_abi != tuple_abi:
+        reasons.append(f"ABI mismatch: target {target_abi}, artifact {tuple_abi}")
+
+    if target_arch == "armv7" and not profile.get("tuple_path"):
+        missing = []
+        if tuple_libc and not target_libc:
+            missing.append("libc")
+        if tuple_abi and not target_abi:
+            missing.append("ABI")
+        if missing:
+            reasons.append(
+                "ARMv7 profile needs explicit "
+                + "/".join(missing)
+                + " before automatic artifact selection"
+            )
+    return reasons
+
+
+def release_artifact_matches_profile(release, artifact, profile):
+    return not release_artifact_profile_mismatch_reasons(release, artifact, profile)
+
+
 def _release_license_notice_state(release_dir):
     notice_files = [
         rel for rel in RELEASE_LICENSE_NOTICE_FILES if (release_dir / rel).is_file()

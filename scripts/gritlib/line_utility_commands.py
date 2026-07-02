@@ -39,6 +39,16 @@ def dispatch_line_utility_command(
             set_context_func("console")
         print_line_command_help("console")
         return True
+    if str(cmd or "").strip().lower() == "aliases":
+        if set_context_func:
+            set_context_func("aliases")
+        print_line_command_help("aliases")
+        return True
+    if str(cmd or "").strip().lower() == "workflow":
+        if set_context_func:
+            set_context_func("workflow")
+        print_line_command_help("workflow")
+        return True
     if completion_cmd := parse_line_completion_command(cmd, args):
         if completion_func:
             completion_func(completion_cmd["prefix"])
@@ -69,6 +79,8 @@ def dispatch_line_utility_command(
         dispatch_line_show_command(show_cmd, show_func=show_func)
         return True
     if commands_cmd := parse_line_generated_commands_command(cmd, args):
+        if set_context_func:
+            set_context_func("commands")
         dispatch_line_generated_commands_command(
             commands_cmd,
             run_func=generated_run_func,

@@ -64,7 +64,7 @@ def _workbench_configuration_action_records(config_path, build_config):
         {
             "id": "resolve-target",
             "category": "configuration",
-            "label": "Resolve target/device preset metadata",
+            "label": "Resolve target preset metadata",
             "script": "scripts/lib/resolve-target",
             "command": "scripts/lib/resolve-target --config " + shquote(config_path),
             "config_path": config_path,

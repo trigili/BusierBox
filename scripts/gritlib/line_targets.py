@@ -5,6 +5,7 @@ from pathlib import Path
 from gritlib.console_display import console_table
 from gritlib.event_log import append_event
 from gritlib.line_context import clear_line_module_context
+from gritlib.line_probe_guidance import probe_menu_step_text, print_probe_menu_steps
 from gritlib.line_search import set_line_search_results
 from gritlib.target_context import configured_target_filter
 from gritlib.target_records import (
@@ -91,7 +92,15 @@ def print_line_target_records(targets, current_target_id="", quote=None):
     console_table(
         f"Targets  ({len(rows)} total)" if rows else "Targets  (none)",
         rows, cols,
-        footer="use target N, target ID, target LABEL, * = selected, targets ?",
+        footer=(
+            "use target N, target ID, target LABEL, * = current, help: targets ?"
+            if rows else
+            "open probe menu: use listener probe; help: targets ?"
+        ),
+        empty_message=(
+            "No targets yet.\n"
+            f"{probe_menu_step_text()}"
+        ),
     )
     return [
         {
@@ -108,6 +117,38 @@ def print_line_target_records(targets, current_target_id="", quote=None):
     ]
 
 
+def print_targets_context_help(targets=None, target_selected=False):
+    targets = list(targets or [])
+    print("Targets")
+    print("  targets           list known targets")
+    if targets:
+        print("  target lab-router inspect and select a target by label, id, or number")
+        print("  use target ID     select a target context by id")
+        print("  use target lab-router")
+        print("                    select a target context by label")
+        print("  use target 1      select a target context by row number")
+        print("  use N             select a numbered result from search or list")
+        print("  show events       show the target activity feed")
+        print("  clear target      deselect the current target context")
+    else:
+        print("  queue targets     show target check-ins and pending work")
+        print("No targets yet.")
+        print_probe_menu_steps()
+        return
+    if target_selected:
+        print("")
+        print("Current target")
+        print("  check-ins         show pending work for the current target")
+        print("  interact          show log paths and interaction commands")
+        print("  rename LABEL      set a display label")
+        print("  note TEXT         add notes")
+        print("  alias NAME        set a short alias")
+        print("  These shortcuts use the current target.")
+    else:
+        print("")
+        print("Choose a target first to use pending work, interact, rename, note, and alias.")
+
+
 def print_selected_line_target(rec):
     rec = rec or {}
     if rec.get("selected"):
@@ -115,7 +156,7 @@ def print_selected_line_target(rec):
         label = rec.get("target_label") or ""
         display = f"{label}  ({tid})" if label and label != tid else tid
         print(f"  {display}")
-        print("  options, next, sessions, queue, mailbox, back")
+        print("  options, next, sessions, queue, check-ins, back")
     else:
         print("  target filter cleared  —  showing all targets")
 
@@ -188,9 +229,10 @@ def print_line_target_interaction(
     display = f"{label} ({target_id})" if label and label != "-" and label != target_id else target_id
     print(f"Target interaction: {display}")
     print(f"  state: {state}")
-    print(target_filter_brief_text(target_filter, prefix="  selected target:"))
-    print("  commands: queue COMMAND, probe queue, retrieve queue TARGET_PATH, mailbox, stage start LOCAL NAME, deliver queue NAME")
-    print("  binaries: listener serve start, listener serve ssh start, serve-binary start PATH NAME")
+    print(target_filter_brief_text(target_filter, prefix="  current target:"))
+    print("  commands: queue uname -a, retrieve queue /etc/hosts, check-ins, stage start ./grit sample-file, deliver queue sample-file")
+    print("  probe queue: listener probe queue")
+    print("  delivery: stage start ./grit sample-file, listener serve start default, listener serve ssh start")
     pending = [rec for rec in mailbox_records or [] if rec.get("pending_work")]
     if pending:
         print("  pending work:")

@@ -4,10 +4,15 @@ from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULT_CONFIG
 from gritlib.file_transfers import print_staged_fetch_target_options, render_fetch_command
 from gritlib.line_files import parse_line_release_stage_args
+from gritlib.line_probe_guidance import print_probe_menu_steps
 from gritlib.line_search import set_line_search_results
 from gritlib.line_probe_serve import probe_release_matches
 from gritlib.profiles import active_profile, profile_release_selector, profile_summary_line
-from gritlib.release_artifacts import kernel_floor_from_release, normalized_probe_arch
+from gritlib.release_artifacts import (
+    kernel_floor_from_release,
+    normalized_probe_arch,
+    release_artifact_matches_profile,
+)
 from gritlib.release_contexts import discover_release_context, release_context
 from gritlib.release_staging import release_nav_records, stage_release_selection
 from gritlib.shell_utils import shquote
@@ -170,7 +175,10 @@ def _profile_compatible_artifacts(rel, profile):
         return []
     arch, kernel_floor = _profile_match_fields(profile)
     preset = str(profile.get("preferred_payload_preset") or "")
-    matches = probe_release_matches(rel, arch, kernel_floor)
+    matches = [
+        rec for rec in probe_release_matches(rel, arch, kernel_floor)
+        if release_artifact_matches_profile(rel, rec, profile)
+    ]
     if preset:
         preset_matches = [rec for rec in matches if str(rec.get("payload_preset") or "") == preset]
         if preset_matches:
@@ -207,8 +215,10 @@ def _profile_default_stage_selector(cfg, profile, preset=""):
 def _print_release_summary(view):
     print(f"Release  {view['name']}  ({view['rdir']})")
     print(
-        f"  {len(view['recommendations'])} recommendations  {len(view['artifacts'])} artifacts  "
-        f"{len(view['devices'])} devices  {len(view['tuples'])} tuples"
+        f"  compatible artifacts: {len(view['recommendations'])}  "
+        f"release artifacts: {len(view['artifacts'])}  "
+        f"known devices: {len(view['devices'])}  "
+        f"target tuples: {len(view['tuples'])}"
     )
     print("")
 
@@ -246,7 +256,7 @@ def _print_release_recommendations(recommendations):
     if not recommendations:
         return []
     console_table(
-        f"Recommendations  ({len(recommendations[:8])} shown)",
+        f"Matching artifacts  ({len(recommendations[:8])} shown)",
         recommendations[:8],
         [
             ("Selector",     _release_recommendation_selector),
@@ -275,20 +285,91 @@ def _print_release_artifacts(artifacts):
     return _release_artifact_search_records(artifacts)
 
 
-def _print_release_selectors(devices, tuples, recommendations):
+def _print_release_selectors(devices, tuples, recommendations, include_tuple=True):
     if devices:
         selectors = "  ".join(f"by_device:{rec.get('name')}" for rec in devices[:8] if rec.get("name"))
         print(f"  Device selectors:  {selectors}")
-    if tuples:
+    if include_tuple and tuples:
         selectors = "  ".join(f"by_tuple_path:{rec.get('path')}" for rec in tuples[:6] if rec.get("path"))
         print(f"  Tuple selectors:   {selectors}")
     preset_selectors = [
         str(rec.get("id") or "")
         for rec in recommendations
-        if str(rec.get("scope") or "") in {"by_device_payload_preset", "by_tuple_payload_preset"}
+        if str(rec.get("scope") or "") in (
+            {"by_device_payload_preset", "by_tuple_payload_preset"}
+            if include_tuple else {"by_device_payload_preset"}
+        )
     ]
     if preset_selectors:
         print(f"  Preset selectors:  {'  '.join(preset_selectors[:6])}")
+
+
+def release_selector_example_lines(rel=None, include_tuple=True):
+    has_release_context = isinstance(rel, dict) and bool(rel)
+    rel = rel if isinstance(rel, dict) else {}
+    examples = []
+    for rec in rel.get("recommendation_records") or []:
+        selector = _release_recommendation_selector(rec)
+        if not selector:
+            continue
+        if not include_tuple and "by_tuple" in selector:
+            continue
+        examples.append(f"release stage {selector}")
+        break
+    for rec in rel.get("devices") or []:
+        name = str(rec.get("name") or "")
+        if name:
+            examples.append(f"release stage by_device:{name}")
+            break
+    if include_tuple:
+        for rec in rel.get("tuples") or []:
+            path = str(rec.get("path") or "")
+            if path:
+                examples.append(f"release stage by_tuple_path:{path}")
+                break
+    for rec in rel.get("artifacts") or []:
+        selector = _release_artifact_selector(rec)
+        if selector:
+            examples.append(f"release stage {selector}")
+            break
+    if not examples and has_release_context:
+        return []
+    if not examples:
+        examples = [
+            "release stage by_device:gl-mt3000",
+            "release stage dist/releases/lab/bin/grit-target-full",
+        ]
+        if include_tuple:
+            examples.insert(1, "release stage by_tuple_path:by-tuple/mipsel/musl/4.x/mips32r2-24kc")
+    unique = []
+    for example in examples:
+        if example not in unique:
+            unique.append(example)
+    return unique[:3]
+
+
+def release_selector_example_label(example):
+    text = str(example or "")
+    if " by_device:" in text:
+        return "stage by known device"
+    if " by_tuple_path:" in text:
+        return "stage by target tuple"
+    return "stage by local path"
+
+
+def print_release_selector_examples(rel=None, indent="  ", include_tuple=True):
+    examples = release_selector_example_lines(rel, include_tuple=include_tuple)
+    print(f"{indent}staging choices:")
+    if not examples:
+        print(f"{indent}  No stageable release artifacts found in this release.")
+        return False
+    for example in examples:
+        print(f"{indent}  {release_selector_example_label(example)}: {example}")
+    return True
+
+
+def release_selector_examples_are_placeholders(examples):
+    return any("DEVICE_NAME" in str(example) or "ARTIFACT_PATH" in str(example) for example in examples or [])
 
 
 def _append_release_view_event(cfg, append_event_fn, rel, view):
@@ -324,17 +405,94 @@ def print_line_release(cfg, append_event_fn=None):
         else:
             print("  no compatible artifact found for active profile")
         print("")
+    else:
+        print("No active profile yet; create a custom profile or populate one from probe results.")
+        print("  To match release artifacts to a target:")
+        print_probe_menu_steps("    ")
+        print("    create manually: profile create lab-router")
     search_records += _print_release_recommendations(view["recommendations"])
     if not profile_matches:
         search_records += _print_release_artifacts(view["artifacts"])
-    _print_release_selectors(view["devices"], view["tuples"], view["recommendations"])
+    _print_release_selectors(
+        view["devices"],
+        view["tuples"],
+        view["recommendations"],
+        include_tuple=bool(profile),
+    )
     print("")
-    print("  release stage SELECTOR")
-    print("  release stage start SELECTOR")
-    print("  release ? for help")
+    examples = release_selector_example_lines(rel, include_tuple=bool(profile))
+    examples_are_placeholders = release_selector_examples_are_placeholders(examples)
+    if examples and not examples_are_placeholders:
+        if profile:
+            print(f"  try: {examples[0]}")
+            print(f"  stage and start service: {examples[0].replace('release stage ', 'release stage start ', 1)}")
+        else:
+            print(f"  stage by known device: {examples[0]}")
+            print(f"  stage and start file-service: {examples[0].replace('release stage ', 'release stage start ', 1)}")
+        if examples[1:]:
+            print("  other staging choices:")
+            for example in examples[1:]:
+                print(f"    {example}")
+        if not profile:
+            print("  More target-matched staging choices appear after a profile has probe or device details.")
+    elif not examples:
+        print("  No stageable release artifacts found in this release.")
+        print("  Build or unpack a release artifact, then rerun release.")
+    elif profile:
+        print("  release stage ssh start")
+        print("  release stage by_device:gl-mt3000")
+    else:
+        print("Next:")
+        print("  profiles")
+        print("  use listener probe")
+        print("  profile create lab-router")
+        print("  staging help: release ?")
+    if profile:
+        print("  help: release ?")
+    else:
+        print("  help: release ?, profiles ?")
     set_line_search_results(cfg, search_records)
     _append_release_view_event(cfg, append_event_fn, rel, view)
     return rel
+
+
+def print_release_context_help(cfg, staged_records=None):
+    profile = active_profile(cfg)
+    staged_records = list(staged_records or [])
+    print("Release")
+    print("  release                                    review release artifacts and next steps")
+    print("  release stage by_device:gl-mt3000          stage a release artifact by known device name")
+    print("  release stage start by_device:gl-mt3000    stage a release artifact and start file-service")
+    print("  release stage dist/releases/lab/bin/grit-target-full")
+    print("                                             stage a specific local release artifact path")
+    print("  files                                      show staged release artifacts after staging")
+    if profile:
+        print("  release stage ssh start                    stage reverse SSH payload and start file-service using the active profile")
+    else:
+        print_probe_menu_steps()
+    if staged_records:
+        print("  deliver grit                  show the command to run on the target")
+        print("  deliver queue grit            queue the staged-file command for the current target")
+    else:
+        print("")
+        print("No staged release artifact yet.")
+        rel = release_context(cfg)
+        if profile:
+            print("Use the staging choices below to stage a matching artifact.")
+        else:
+            print("Create or populate a profile first for target-matched staging.")
+            rel_has_choices = bool(release_selector_example_lines(rel, include_tuple=False))
+            if rel_has_choices:
+                print("Known device or artifact path: use one of the staging choices below.")
+        has_choices = print_release_selector_examples(rel, include_tuple=bool(profile))
+        if not profile and has_choices:
+            print("  More target-matched staging choices appear after a profile has probe or device details.")
+    print("")
+    print("Release staging is operator-to-target: it selects a local release artifact and stages it for deliver commands.")
+    if profile:
+        print("The active profile supplies default release tuple, device, and payload choices.")
+    else:
+        print("Probe menu `config` or `profile from probe 1` supplies default release tuple, device, and payload choices.")
 
 
 def stage_line_release(
@@ -349,7 +507,15 @@ def stage_line_release(
     if selector in {"ssh", "ssh-operator"}:
         selector = _profile_default_stage_selector(cfg, profile, "ssh-operator")
         if not selector:
-            raise ValueError("no active profile tuple - run: listener probe config or release stage SELECTOR")
+            raise ValueError(
+                "no active profile tuple\n"
+                "  open probe menu: use listener probe\n"
+                "  discover target: listener probe start\n"
+                "  review probe data: listener probe results\n"
+                "  update active profile: listener probe config\n"
+                "  create manually: profile create lab-router\n"
+                "  release stage SELECTOR"
+            )
         print(f"Using active profile: {profile.get('name') or '-'}")
     if not selector:
         selector = _profile_default_stage_selector(cfg, profile)
@@ -358,7 +524,11 @@ def stage_line_release(
                 "usage:\n"
                 "  release stage SELECTOR\n"
                 "  release stage start SELECTOR\n"
-                "  listener probe config"
+                "  open probe menu: use listener probe\n"
+                "  discover target: listener probe start\n"
+                "  review probe data: listener probe results\n"
+                "  update active profile: listener probe config\n"
+                "  create manually: profile create lab-router"
             )
         print(f"Using active profile: {profile.get('name') or '-'}")
     headless = (
@@ -382,12 +552,13 @@ def stage_line_release(
     print(f"  release_path={rec.get('release_path', '')}")
     print(f"  tuple_path={rec.get('tuple_path', '')}")
     print(f"  payload_preset={rec.get('payload_preset', '')}")
-    print(f"  target command: {fetch_command}")
+    print(f"  run on target: {fetch_command}")
     fetch_options = print_staged_fetch_target_options(
         rec.get("request_name", ""),
         cfg,
         output_name=rec.get("request_name", ""),
         executable=True,
+        item_label="artifact",
     )
     print(f"  file service: {'started' if started else 'not started'}")
     if append_event_fn:

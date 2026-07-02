@@ -1,4 +1,4 @@
-"""Line-console resource script and history helpers."""
+"""Line-console automation-file and history helpers."""
 
 import shlex
 from pathlib import Path
@@ -62,7 +62,7 @@ def load_line_resource(cfg, path_text):
     if not path.is_file():
         if text.isdigit():
             raise ValueError(
-                f"resource expects a script file path, not history number {text}; "
+                f"resource expects a command file path, not history number {text}; "
                 f"use !{text} or repeat {text} to replay history"
             )
         raise ValueError(f"resource file not found: {text}")
@@ -110,16 +110,16 @@ def write_line_makerc(cfg, path_text, line_history):
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            "# griTTYkit operator console resource script\n"
+            "# griTTYkit operator console automation file\n"
             + "\n".join(commands)
             + "\n",
             encoding="utf-8",
         )
     except OSError as exc:
-        raise ValueError(f"could not write resource script: {exc}") from exc
-    print(f"Resource script saved: {path}")
+        raise ValueError(f"could not write command file: {exc}") from exc
+    print(f"Automation file saved: {path}")
     print(f"  commands: {len(commands)}")
-    print(f"replay: resource {shquote(str(path))}")
+    print(f"replay later: resource {shquote(str(path))}")
     append_event(cfg, "workbench", "workbench_console_makerc_saved", details={
         "path": str(path),
         "command_count": len(commands),

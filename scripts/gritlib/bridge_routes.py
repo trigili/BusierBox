@@ -18,10 +18,10 @@ DEFAULT_OPERATOR_SESSION_DIR = Path("local/operator-session")
 DEFAULT_CONFIG = DEFAULT_OPERATOR_SESSION_DIR / "config.json"
 DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 ROUTE_HELP_LINES = [
-    "Route model: the target connects to LPORT on the operator; the operator bridge forwards to DEST_HOST:DEST_PORT.",
-    "DEST_HOST:DEST_PORT is the endpoint visible from the operator/server running grit-console.",
+    "Route model example: target connects to operator:2222; the operator bridge forwards to 127.0.0.1:22.",
+    "The destination, such as 127.0.0.1:22, must be reachable from the machine running grit-console.",
     "Use hops to document the path the target uses to reach the operator listener; hops do not change the TCP relay destination.",
-    "HOP syntax: FROM=TO, FROM->TO, or FROM,TO; use endpoint labels such as target:PORT, jump:PORT, operator:PORT.",
+    "Hop examples use labels such as target:2222, jump:9001, and operator:8080.",
     "Direct target-to-operator SSH: route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222",
     "  Meaning: target connects to operator:2222; operator forwards that connection to 127.0.0.1:22.",
     "Multi-hop web admin: route add web-hop 8080 192.168.1.1 80 target:8080=jump:9001 jump:9001=operator:8080",
@@ -302,7 +302,7 @@ def _print_legacy_bridge_profile_selection(
     *,
     profile_action_count=0,
 ):
-    print(f"selected bridge profile {name}")
+    print(f"current bridge profile {name}")
     print(f"  route_path: {rec.get('route_path', '')}")
     print(f"  bridge_profile_workflow_actions: {profile_action_count}")
     for action_id in ("inspect-profile", "start-profile", "stop-profile", "delete-profile"):
@@ -633,6 +633,7 @@ def bridge_route_dest_text(rec):
 def print_bridge_route_records(records, verbose=False, command_builder=None, quote=shquote):
     records = list(records or [])
     command_builder = command_builder or (lambda _action, _name: "")
+    example_name = str(records[0].get("name") or "ssh-home") if records else "ssh-home"
 
     def _detail(rec):
         if not verbose:
@@ -661,9 +662,57 @@ def print_bridge_route_records(records, verbose=False, command_builder=None, quo
     console_table(
         f"Routes  ({len(records)} total)" if records else "Routes  (none)",
         records, cols, detail_fn=_detail,
-        footer="use N, route NAME, route N, route start NAME, route start N, routes ?",
+        footer=(
+            f"use 1, route {quote(example_name)}, route start {quote(example_name)}, help: routes ?"
+            if records else
+            "route add ssh-home 2222 127.0.0.1 22, help: routes ?"
+        ),
+        empty_message=(
+            "No bridge routes yet.\n"
+            "  create route: route add ssh-home 2222 127.0.0.1 22\n"
+            "  inspect route: route ssh-home\n"
+            "  start route: route start ssh-home"
+        ),
     )
     return bridge_route_search_records(records, command_builder=command_builder, quote=quote)
+
+
+def print_routes_context_help(records=None):
+    records = list(records or [])
+    example_name = str(records[0].get("name") or "ssh-home") if records else "ssh-home"
+
+    def route_help_row(command, description):
+        print(f"  {command:<55} {description}")
+
+    print("Routes")
+    route_help_row("routes", "list bridge route profiles")
+    route_help_row("routes verbose", "show route hop details and start commands")
+    route_help_row("route add ssh-home 2222 127.0.0.1 22", "create a direct route profile")
+    print("  route add ssh-home 2222 127.0.0.1 22 target:2222=operator:2222")
+    print("                                                         document the target-to-operator path")
+    if records:
+        route_help_row(f"route {shquote(example_name)}", "inspect and choose a route")
+        route_help_row("route 1", "inspect and select a route by row number")
+        route_help_row(f"use route {shquote(example_name)}", "choose a route by name")
+        route_help_row(f"route start {shquote(example_name)}", "start a route by name")
+        route_help_row("route start 1", "start route row 1")
+        route_help_row(f"route stop {shquote(example_name)}", "stop a route by name")
+        route_help_row("route stop 1", "stop route row 1")
+        route_help_row(f"route delete {shquote(example_name)}", "preview route profile removal")
+        route_help_row(f"route delete {shquote(example_name)} confirm", "remove a route profile")
+        print("")
+        print("Inside the route menu")
+        print("  start                                                  start the current route")
+        print("  stop                                                   stop the current route")
+        print("  info                                                   show current route details")
+        print("  options                                                show current route details")
+    else:
+        print("")
+        print("No routes yet.")
+        print("Create route: route add ssh-home 2222 127.0.0.1 22")
+    print("")
+    for line in ROUTE_HELP_LINES:
+        print(f"  {line}")
 
 
 def bridge_route_search_records(records, command_builder=None, quote=shquote):
@@ -705,7 +754,7 @@ def require_line_route_record(records, selector):
     text = str(selector or "").strip()
     rec = line_route_record(records, text)
     if not rec and text.isdigit():
-        raise ValueError(f"route number out of range: {text}")
+        raise ValueError(f"route number out of range: {text}; run routes")
     if not rec:
         raise ValueError(f"route not found: {text}; run: routes or route add NAME LISTEN_PORT DEST_HOST DEST_PORT")
     return rec
@@ -741,13 +790,13 @@ def select_line_route(cfg, selector, records):
     selected = require_line_route_record(records, text)
     name = str(selected.get("name") or "")
     set_line_collection_context(cfg, f"route/{name}")
-    print(f"selected route {name}")
+    print(f"current route {name}")
     state = selected.get("current_state") or "stopped"
     listen = f"{selected.get('listen_host','') or '0.0.0.0'}:{selected.get('listen_port','?')}"
     dest = f"{selected.get('dest_host','?')}:{selected.get('dest_port','?')}"
     active = "active" if selected.get("active") else "inactive"
     print(f"  {name}  —  {state} ({active})  |  {listen} → {dest}")
-    print("  options, info, start, stop, delete, back")
+    print("  " + ", ".join(line_route_context_commands(selected)))
     append_event(cfg, "workbench", "workbench_route_selected", details={
         "name": name,
         "route_path": selected.get("route_path", ""),
@@ -756,13 +805,20 @@ def select_line_route(cfg, selector, records):
     return selected
 
 
+def line_route_context_commands(rec):
+    base = ["options", "info"]
+    if (rec or {}).get("active"):
+        return base + ["stop", "delete", "back"]
+    return base + ["start", "delete", "back"]
+
+
 def add_line_route(cfg, args, headless_command_builder=None):
     values = list(args or [])
     if len(values) < 5:
         raise ValueError(
-            "usage:\n"
+            "Route add examples:\n"
             "  route add NAME LISTEN_PORT DEST_HOST DEST_PORT\n"
-            "  route add NAME LISTEN_PORT DEST_HOST DEST_PORT FROM=TO\n"
+            "  route add NAME LISTEN_PORT DEST_HOST DEST_PORT target:PORT=operator:PORT\n"
             + "\n".join(f"  {line}" for line in ROUTE_HELP_LINES)
         )
     name = values[1]
@@ -978,12 +1034,26 @@ def delete_line_route(cfg, route_name, records, headless_command_builder=None, c
     if not confirmed:
         print(f"Route would be deleted: {name}")
         print(f"  path: {rec.get('route_path', '')}")
-        print(f"  run: route delete {name} confirm")
+        if str(cfg.get("_line_console_module") or "") == f"route/{name}":
+            print("  confirm here: delete confirm")
+            print(f"  from root menu: route delete {name} confirm")
+        else:
+            print(f"  confirm: route delete {name} confirm")
         return rec
     rec = delete_bridge_profile(cfg, name)
     if str(cfg.get("_line_console_module") or "") == f"route/{name}":
         clear_line_module_context(cfg)
     print(f"deleted route {name}: {rec.get('route_path', '')}")
+    remaining = bridge_profile_records(cfg)
+    print("")
+    print("Next:")
+    print("  routes")
+    if remaining:
+        print("  route start N")
+        print("  route delete N")
+    else:
+        print("  create route: route add ssh-home 2222 127.0.0.1 22")
+        print("  help: routes ?")
     append_event(cfg, "workbench", "workbench_route_deleted", details={
         "name": name,
         "route_path": rec.get("route_path", ""),

@@ -172,6 +172,13 @@ def line_service_display_name(name):
     return LINE_SERVICE_DISPLAY_NAMES.get(text, text)
 
 
+def line_service_context_name(name):
+    text = str(name or "").strip()
+    if text == "probe":
+        return "probe"
+    return line_service_display_name(text)
+
+
 def ordered_line_service_records(rows):
     order = {name: i for i, name in enumerate(
         s for _, names in LINE_SERVICE_CATEGORIES for s in names
@@ -267,7 +274,8 @@ def start_line_service(
     if not service:
         raise ValueError(
             "usage:\n"
-            "  start LISTENER\n"
+            "  start NAME\n"
+            "  start N\n"
             "  start ROUTE\n"
             "  route start NAME\n"
             "  route start N"
@@ -285,7 +293,10 @@ def start_line_service(
     headless = service_start_command_func(service)
     cfg["_service_start_command"] = headless
     service_start_func(cfg, service, headless_command=headless)
-    print("  show start  — print the start command")
+    print("  show start  — show console and terminal shell command")
+    if service in {"ssh", "tls-shell", "plain-shell"}:
+        print("  commands    — list commands to run on the target for reverse access")
+        print("  prerequisite: listener serve ssh start stages a reverse SSH artifact from the active profile")
     if service in {"probe", "probe-tftp", "probe-ftp", "probe-dns"} and probe_delivery_func:
         for _ in range(10):
             if sleep_func:
@@ -321,7 +332,8 @@ def stop_line_service(
     if not service:
         raise ValueError(
             "usage:\n"
-            "  stop LISTENER\n"
+            "  stop NAME\n"
+            "  stop N\n"
             "  stop ROUTE\n"
             "  route stop NAME\n"
             "  route stop N"
@@ -355,7 +367,29 @@ def line_service_status_text(rec):
     configured = rec.get("configured") or "-"
     if actual == configured or configured in {"-", "unknown"}:
         return actual
+    if actual == "stopped" and configured == "starting":
+        return "stopped; start requested"
+    if actual == "stopped" and configured == "listening":
+        return "stopped; saved as listening"
     return f"{actual} (configured {configured})"
+
+
+def line_service_context_commands(rec):
+    name = str((rec or {}).get("name") or "").strip().lower()
+    actual = str((rec or {}).get("actual") or "").strip().lower()
+    base = ["options", "info"]
+    if name in {"probe", "probe-http", "http-probe"}:
+        workflow = ["commands", "paste", "results", "config", "queue"]
+        if actual in {"listening", "starting"}:
+            return base + workflow + ["stop", "show stop", "copy stop", "back"]
+        if actual in {"stopped", "not-running", "not running"}:
+            return base + ["start"] + workflow + ["show start", "copy start", "back"]
+        return base + ["start"] + workflow + ["stop", "show start", "show stop", "copy start", "copy stop", "back"]
+    if actual in {"listening", "starting"}:
+        return base + ["stop", "show stop", "copy stop", "back"]
+    if actual in {"stopped", "not-running", "not running"}:
+        return base + ["start", "show start", "copy start", "back"]
+    return base + ["start", "stop", "show start", "show stop", "copy start", "copy stop", "back"]
 
 
 def _line_service_detail_rows(rec, verbose, start_command, stop_command):
@@ -379,7 +413,7 @@ def _line_service_columns():
         ("Status", line_service_status_text),
         ("Bind", line_service_bind_text),
         ("TLS", lambda r: "yes" if r.get("tls") else "no"),
-        ("PID", lambda r: str(r.get("pid") or "-")),
+        ("Process", lambda r: str(r.get("pid") or "-")),
     ]
 
 
@@ -467,7 +501,7 @@ def _line_service_search_records(rows, start_command, quote):
             ),
             "rec": rec,
             "command": start_command(str(rec.get("name") or "")),
-            "use_hint": f"use listener {quote(line_service_display_name(str(rec.get('name') or '')))}",
+            "use_hint": f"use listener {quote(line_service_context_name(str(rec.get('name') or '')))}",
         }
         for rec in rows
     ]
@@ -481,7 +515,7 @@ def print_line_service_records(rows, verbose=False, start_command=None, stop_com
     detail_fn = lambda rec: _line_service_detail_rows(rec, verbose, start_command, stop_command)
     _print_line_service_table(rows, verbose, detail_fn)
     print("")
-    print("  listener N, listener NAME, start N, stop N, listeners ?")
+    print("  listener 1, listener probe, start 1, stop 1, help: listeners ?")
     return _line_service_search_records(rows, start_command, quote)
 
 
@@ -489,7 +523,7 @@ def select_line_service(cfg, selector, rows, start_command=None, stop_command=No
     text = str(selector or "").strip()
     service = resolve_line_service_selector(text, rows)
     if not service:
-        raise ValueError(f"service not found: {text}; use listener NAME or use listener N")
+        raise ValueError(f"listener not found: {text}; run listeners, then use listener NAME or use listener N")
     set_line_collection_context(cfg, f"listener/{service}")
     start_command = start_command or (lambda _name: "")
     stop_command = stop_command or (lambda _name: "")
@@ -498,18 +532,18 @@ def select_line_service(cfg, selector, rows, start_command=None, stop_command=No
     rec = line_service_record(rows, service)
     if rec:
         actual = rec.get("actual") or "?"
-        port = rec.get("port") or "-"
+        bind = line_service_bind_text(rec)
         tls = "TLS: yes" if rec.get("tls") else "TLS: no"
         pid = rec.get("pid")
-        pid_str = f"  |  pid {pid}" if pid else ""
-        print(f"  {line_service_display_name(service)}  —  {actual}  |  :{port}  |  {tls}{pid_str}")
+        pid_str = f"  |  service pid {pid}" if pid else ""
+        print(f"  {line_service_display_name(service)}  —  {actual}  |  {bind}  |  {tls}{pid_str}")
         if line_service_display_name(service) != service:
             print(f"  transport: {service}")
     else:
         print(f"  {line_service_display_name(service)}  —  (no status)")
     if service == "ssh":
         _print_ssh_profile_guidance(cfg)
-    print("  options, info, start, stop, show start, show stop, copy start, copy stop, back")
+    print("  " + ", ".join(line_service_context_commands(rec)))
     return service
 
 
@@ -528,7 +562,10 @@ def _ssh_operator_staged_record(cfg):
 def _print_ssh_profile_guidance(cfg):
     profile = active_profile(cfg)
     if not profile:
-        print("  profile: none - run listener probe config or profile use N")
+        print("  profile: none")
+        print("  use listener probe")
+        print("  config")
+        print("  profile use N")
         return
     print(f"  profile: {profile.get('name') or '-'}")
     staged = _ssh_operator_staged_record(cfg)

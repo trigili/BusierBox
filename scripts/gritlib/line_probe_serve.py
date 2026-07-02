@@ -32,7 +32,8 @@ def parse_line_probe_serve_args(args):
                 f"unknown option: {arg}\n"
                 "listener probe serve is deprecated.\n"
                 "Use:\n"
-                "  listener probe config\n"
+                "  use listener probe\n"
+                "  config\n"
                 "  listener serve\n"
                 "  listener serve start\n"
                 "  listener serve ssh start"
@@ -196,13 +197,14 @@ def run_line_probe_serve(cfg, args, line_input_fn, stage_line_release_fn, append
     print("  Probe now ends after discovery and profile population.")
     print("")
     print("Use:")
-    print("  listener probe config")
+    print("  use listener probe")
+    print("  config")
     print("  listener serve start" if start_file_service else "  listener serve")
     print("  listener serve ssh start")
     return []
     rec = probe_latest_result(cfg)
     if not rec:
-        raise ValueError("no probe results - run: listener probe start")
+        raise ValueError("no probe results - run `use listener probe`, then `start`")
     uname_m, endian = probe_effective_arch(rec)
     kernel = str(rec.get("uname_r") or rec.get("kernel") or "")
     probe_arch = normalized_probe_arch(uname_m, endian)

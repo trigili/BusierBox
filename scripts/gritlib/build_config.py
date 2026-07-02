@@ -18,20 +18,20 @@ def shquote(value):
 DEFAULT_SERVER_CONFIG = Path("local/server-config.json")
 
 WORKBENCH_BUILD_CONFIG_FIELDS = [
-    ("target", "GRIT_TARGET_PRESET", "target/device preset", "mipsel-linux-4.x-musl native"),
+    ("target", "GRIT_TARGET_PRESET", "target preset", "mipsel-linux-4.x-musl native"),
     ("target", "GRIT_TARGETS", "target build list", "mipsel-linux-4.x-musl armv7-linux-3.x-musl"),
     ("payload", "GRIT_PAYLOAD_PRESET", "payload set", "survey-core default ssh-operator"),
     ("payload", "GRIT_BUSYBOX_GROUPS", "BusyBox applet groups", "shell fileops disk process network text system"),
     ("payload", "GRIT_HEAVY_TOOLS", "heavy payload tools", "tmux strace gdbserver"),
     ("build", "GRIT_STATIC_POLICY", "static-first build policy", "static-preferred static-only dynamic-ok"),
-    ("build", "GRIT_BUILD_INTERNAL_CORE", "build internal griTTYkit core", "no yes"),
+    ("build", "GRIT_BUILD_INTERNAL_CORE", "build bundled griTTYkit core", "no yes"),
     ("runtime", "GRIT_RUNTIME_MODE", "runtime mode", "extract embedded"),
     ("runtime", "GRIT_RUNTIME_ROOT", "runtime root", "./.grit"),
     ("runtime", "GRIT_NORESIDUE_LEVEL", "no-residue behavior", "best-effort aggressive"),
     ("runtime", "GRIT_RUNTIME_ALLOW_EXTERNAL_WRITES", "allow external writes", "no yes"),
-    ("trailer", "GRIT_TRAILER_OVERRIDES_ENABLE", "runtime trailer defaults", "yes no"),
-    ("trailer", "GRIT_TRAILER_OVERRIDE_CATEGORIES", "trailer override categories", "runtime operator launch retry"),
-    ("recovery", "GRIT_AUTORUN_GUARD_ENABLE", "autorun/recovery guard", "yes no"),
+    ("trailer", "GRIT_TRAILER_OVERRIDES_ENABLE", "runtime override defaults", "yes no"),
+    ("trailer", "GRIT_TRAILER_OVERRIDE_CATEGORIES", "runtime override categories", "runtime operator launch retry"),
+    ("recovery", "GRIT_AUTORUN_GUARD_ENABLE", "autorun recovery guard", "yes no"),
     ("recovery", "GRIT_RECOVERY_BINARY_NAME", "recovery binary name", "grit_recovery"),
     ("rshell", "GRIT_RSHELL_TRANSPORT", "reverse shell transport", "ssh socat builtin none"),
     ("rshell", "GRIT_RSHELL_RUN_MODE", "reverse shell run mode", "auto foreground background"),
@@ -87,10 +87,10 @@ def workbench_config_safety_metadata(category, key):
     }.get(str(category or ""), "build-config")
     control_like = boundary in ("reverse-access", "command-queue")
     note = {
-        "build-artifact": "affects generated artifacts or payload contents",
-        "target-runtime": "affects target runtime behavior after explicit artifact use",
-        "reverse-access": "affects explicit reverse-access behavior",
-        "command-queue": "affects explicit opt-in command queue behavior",
+        "build-artifact": "changes what gets built or bundled",
+        "target-runtime": "changes how the deployed artifact runs on the target",
+        "reverse-access": "changes reverse shell behavior",
+        "command-queue": "changes target command queue behavior",
         "build-config": "updates shared build configuration",
     }.get(boundary, "updates shared build configuration")
     return {

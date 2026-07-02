@@ -114,6 +114,45 @@ device_tuple = mod.tuple_metadata({
 })
 if mod.preferred_tuple_path_for_alias(device_tuple, built) != "by-tuple/armv7/musl/4.x/generic":
     raise SystemExit("device tuple did not fall back to generic tuple")
+
+from gritlib.release_artifacts import release_artifact_matches_profile, release_artifact_profile_mismatch_reasons
+
+release = {
+    "tuples_by_path": {
+        "by-tuple/armv7/musl/4.x/eabi": {
+            "tuple": {
+                "arch": "armv7",
+                "libc": "musl",
+                "kernel_floor": "4.x",
+                "abi": "eabi",
+            }
+        }
+    }
+}
+artifact = {
+    "tuple_path": "by-tuple/armv7/musl/4.x/eabi",
+    "payload_preset": "default",
+}
+cisco_profile = {
+    "arch": "armv7",
+    "kernel_floor": "4.x",
+    "libc": "glibc",
+    "abi": "eabi",
+}
+if release_artifact_matches_profile(release, artifact, cisco_profile):
+    raise SystemExit("Cisco ARMv7 glibc/eabi profile matched ARMv7 musl artifact")
+reasons = "\n".join(release_artifact_profile_mismatch_reasons(release, artifact, cisco_profile))
+if "libc mismatch" not in reasons:
+    raise SystemExit(f"Cisco rejection lacked libc mismatch reason: {reasons}")
+ambiguous_arm_profile = {
+    "arch": "armv7",
+    "kernel_floor": "4.x",
+}
+if release_artifact_matches_profile(release, artifact, ambiguous_arm_profile):
+    raise SystemExit("ambiguous ARMv7 profile matched without explicit libc/ABI")
+reasons = "\n".join(release_artifact_profile_mismatch_reasons(release, artifact, ambiguous_arm_profile))
+if "ARMv7 profile needs explicit libc/ABI" not in reasons:
+    raise SystemExit(f"ambiguous ARMv7 rejection reason missing: {reasons}")
 PY
 scripts/make-release --name reverse-smoke --targets native --payload-presets survey-core --reverse-access-profiles builtin,ssh,socat --dry-run >"$work/reverse-dry-run.out"
 grep -q 'would build target=native payload=survey-core format=tgz' "$work/reverse-dry-run.out"
@@ -144,6 +183,7 @@ if '--jobs "$(RELEASE_JOBS)"' not in target:
     raise SystemExit("make release-full must pass release jobs through to scripts/make-release")
 PY
 sh -n scripts/lib/package-target
+python3 -m py_compile scripts/lib/verify-artifact
 python3 - <<'PY'
 from pathlib import Path
 
@@ -160,6 +200,14 @@ if text.index("PAYLOAD_ROOT=\"$package_payload_root\"") > text.index("scripts/li
     raise SystemExit("package-target must pass isolated PAYLOAD_ROOT before native payload staging")
 if text.index("PAYLOAD_ROOT=\"$package_payload_root\"") > text.index("scripts/lib/buildroot-build-payload"):
     raise SystemExit("package-target must pass isolated PAYLOAD_ROOT before Buildroot payload staging")
+if "verify_core_elf_metadata" not in text:
+    raise SystemExit("package-target must verify raw core ELF metadata before publishing artifacts")
+if "scripts/lib/verify-artifact --metadata-only \"$artifact\"" not in text:
+    raise SystemExit("package-target must metadata-verify embedded artifacts before compatibility copies")
+verify_artifact = Path("scripts/lib/verify-artifact").read_text(encoding="utf-8")
+for required in ("--elf-only", "--arch", "Tag_FP_arch:", "Tag_DIV_use:", "Tag_Virtualization_use:"):
+    if required not in verify_artifact:
+        raise SystemExit(f"verify-artifact missing ARM ELF guard: {required}")
 make_release = Path("scripts/make-release").read_text(encoding="utf-8")
 if 'PACKAGE_TARGET_ISOLATED_PAYLOAD"] = "1"' not in make_release:
     raise SystemExit("make-release must enable isolated package-target payload staging")

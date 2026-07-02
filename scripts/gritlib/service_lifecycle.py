@@ -167,21 +167,26 @@ def start_service_process(
     state_service = str(state_service or service)
     headless_command = headless_command or service_start_headless_command(cfg, service, argv_extra)
     current = {row["name"]: row for row in service_status_rows(cfg)}.get(state_service)
-    if current and current.get("actual") == "listening":
+    if current and current.get("actual") in ("listening", "starting"):
+        reason = "already-listening" if current.get("actual") == "listening" else "already-starting"
         append_event(
             cfg,
             state_service,
             "service_start_skipped",
             details={
-                "reason": "already-listening",
+                "reason": reason,
                 "port": current.get("port", 0),
                 "listener_pids": current.get("listener_pids") or [],
                 "pid": current.get("pid", ""),
                 "headless_command": headless_command,
             },
         )
-        print(f"{state_service} already listening on port {current.get('port', '')}; not starting duplicate")
-        print(f"  recent events: filter events by service {state_service}")
+        if current.get("actual") == "listening":
+            print(f"{state_service} already listening on port {current.get('port', '')}; not starting duplicate")
+        else:
+            print(f"{state_service} is already starting; not starting duplicate")
+        print(f"  diagnostics: events service={state_service}")
+        print(f"  next: listeners, events service={state_service}")
         return None
     cmd = [
         sys.executable,
@@ -227,14 +232,14 @@ def start_service_process(
     if state_service not in started:
         started.append(state_service)
     print(f"{state_service} started")
-    print(f"  pid {proc.pid}  log {log_path}")
-    print(f"  recent events: filter events by service {state_service}")
+    print(f"  diagnostics: events service={state_service}")
+    print(f"  next: listeners, events service={state_service}")
     return proc
 
 
 def stop_workbench_started_services(cfg, *, stop_service):
     for service in reversed(cfg.get("_workbench_started_services") or []):
-        stop_service(cfg, service)
+        stop_service(cfg, service, quiet=True)
     cfg["_workbench_started_services"] = []
 
 
@@ -247,7 +252,8 @@ def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="
     if headless_command:
         details_base["headless_command"] = headless_command
     if not pid:
-        print(f"{service}: no recorded pid")
+        if not quiet:
+            print(f"{service} is not running; run start {service} or listeners")
         reason = shutdown_reason if shutdown_reason else "no-pid"
         stopped_reason = f"{via}:{reason}" if shutdown_reason else f"{via}:no-pid"
         details = {**details_base, "reason": reason}
@@ -279,7 +285,11 @@ def stop_recorded_service(cfg, service, via="workbench-stop", headless_command="
         os.kill(int(pid), signal.SIGTERM)
         if wait_service_port_released(cfg, service, pid=pid):
             print(f"{service} stopped; port released")
-            print(f"  pid {pid}")
+            print(f"  diagnostics: events service={service}")
+            print("  next: listeners")
+            print(f"  restart: start {service}")
+            if service == "file-service":
+                print("  staged files: files")
             mark_service_stopped(cfg, service, f"{via}:SIGTERM")
             append_event(cfg, service, "service_stop", details={**details_base, "pid": pid, "ownership_evidence": ownership_evidence, "port_released": True})
         else:

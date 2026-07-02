@@ -16,6 +16,12 @@ from gritlib.shell_utils import shquote
 DEFAULT_CONFIG = "local/operator-session/config.json"
 
 
+def _build_category_label(category):
+    return {
+        "trailer": "runtime overrides",
+    }.get(str(category or ""), str(category or "build-config"))
+
+
 def _group_build_fields(fields):
     groups = []
     by_category = {}
@@ -48,7 +54,7 @@ def _build_field_value(rec, limit=34):
 def _build_field_options_text(rec):
     count = int(rec.get("option_count") or len(rec.get("options") or []) or 0)
     if count:
-        return str(count)
+        return f"{count} option" if count == 1 else f"{count} options"
     if rec.get("examples"):
         return "examples"
     return "-"
@@ -64,6 +70,21 @@ def _build_field_purpose(rec):
 
 def _build_field_global_number(rec):
     return str(rec.get("_build_row") or "")
+
+
+def _build_field_example_value(rec):
+    values = [str(value) for value in (rec.get("options") or rec.get("examples") or [])]
+    if values:
+        return values[0]
+    current = str(rec.get("value") or "")
+    if current:
+        return current
+    return "VALUE"
+
+
+def _build_field_set_example(rec):
+    key = str(rec.get("key") or "GRIT_RUNTIME_ROOT")
+    return f"build set {key} {_build_field_example_value(rec)}"
 
 
 def _build_usage_lines(*commands):
@@ -95,7 +116,7 @@ def print_line_build_config(cfg, verbose=False):
 
     print(f"Build config  ({build_config_path(cfg)})")
     print(f"  configured: {configured_count}/{len(fields)}")
-    print("  state: set=configured  default=using generated default  choose=operator choice recommended")
+    print("  state guide: set = configured; default = automatic; choose = pick a value; fixed = locked")
     print("")
 
     def _detail(rec):
@@ -110,7 +131,10 @@ def print_line_build_config(cfg, verbose=False):
             safety = str(rec.get("safety_note") or "")
             if safety:
                 details.append(("note", safety))
-            details.append(("set", f"build set {rec.get('key', '')} VALUE"))
+            if _build_field_state(rec) == "fixed":
+                details.append(("locked", "fixed option; choose a preset or profile instead"))
+            else:
+                details.append(("set", _build_field_set_example(rec)))
         return details
 
     for category, records in _group_build_fields(fields):
@@ -119,7 +143,7 @@ def print_line_build_config(cfg, verbose=False):
             for idx, rec in records
         ]
         console_table(
-            f"{category}  ({len(category_records)} fields)",
+            f"{_build_category_label(category)}  ({len(category_records)} fields)",
             category_records,
             [
                 ("Row", _build_field_global_number),
@@ -130,20 +154,21 @@ def print_line_build_config(cfg, verbose=False):
                 ("Purpose", _build_field_purpose),
             ],
             detail_fn=_detail,
+            show_numbers=False,
         )
         print("")
-    print("  build set KEY VALUE")
-    print("  build set ROW VALUE")
-    print("  build unset KEY")
-    print("  build unset ROW")
-    print("  build ? for help" if verbose else "  build verbose for options")
+    print("  build set GRIT_RUNTIME_ROOT ./.grit")
+    print("  build set 16 ssh")
+    print("  build unset GRIT_RUNTIME_ROOT")
+    print("  build unset 16")
+    print("  help: build ?" if verbose else "  build verbose for options")
     search_records = [
         {
             "kind": "build-config",
             "label": str(rec.get("key") or ""),
             "rec": rec,
             "command": str(rec.get("set_command") or ""),
-            "use_hint": f"build set {rec.get('key', '')} VALUE",
+            "use_hint": _build_field_set_example(rec),
         }
         for rec in fields
     ]
@@ -153,6 +178,29 @@ def print_line_build_config(cfg, verbose=False):
         "field_count": len(fields),
         "verbose": bool(verbose),
     })
+
+
+def print_build_context_help():
+    print("Help: build — griTTYkit build configuration")
+    print("")
+    print("  build                show current guided build config")
+    print("  build verbose        show build config options and examples")
+    print("  build set GRIT_RUNTIME_ROOT ./.grit")
+    print("                       set a build config field by key")
+    print("  build set 16 ssh     set a build config field by row number")
+    print("  build unset GRIT_RUNTIME_ROOT")
+    print("                       clear a build config field by key")
+    print("  build unset 16       clear a build config field by row number")
+    print("  set GRIT_RUNTIME_ROOT ./.grit")
+    print("                       set a build config field here")
+    print("  set 16 ssh           set a build config field by row here")
+    print("  options              show guided build config options")
+    print("  back                 go up one breadcrumb level")
+    print("  Open `build` first to see row numbers and valid keys.")
+    print("  Concrete build examples work from any menu: `build set GRIT_RUNTIME_ROOT ./.grit`, `build unset GRIT_RUNTIME_ROOT`.")
+    print("  set row: build set 16 ssh")
+    print("  clear row: build unset 16")
+    print("  Use listeners, targets, profiles, modules, or routes when changing those areas.")
 
 
 def dispatch_legacy_line_build_number(choice, cfg, *, input_func=None):
@@ -169,7 +217,7 @@ def dispatch_legacy_line_build_number(choice, cfg, *, input_func=None):
         category = str(rec.get("category") or "build-config")
         if category != current_category:
             current_category = category
-            print(f"{category}:")
+            print(f"{_build_category_label(category)}:")
             print("  " + " " * num_w + "  "
                   + f"{'Key':{key_w}}  {'Value':{value_w}}  Purpose")
             print("  " + "-" * num_w + "  "
@@ -216,7 +264,7 @@ def build_field_key_by_selector(cfg, selector):
         idx = int(text) - 1
         if 0 <= idx < len(fields):
             return str(fields[idx].get("key") or "")
-        raise ValueError(f"build config number out of range: {text}")
+        raise ValueError(f"build config number out of range: {text}; run build")
     keys = {str(rec.get("key") or "") for rec in fields}
     if text in keys:
         return text
@@ -261,7 +309,7 @@ def set_line_global_build_option(cfg, name, value):
         key = key.split(".", 1)[1]
     build_keys = {rec.get("key") for rec in workbench_config_field_records(cfg)}
     if key not in build_keys:
-        raise ValueError(f"setg only supports guided build/workbench options: {name}")
+        raise ValueError(f"setg only supports guided build or console options: {name}")
     rec = set_workbench_build_config(cfg, f"{key}={text}")
     print(f"global build option set: {rec.get('key', key)}")
     print(f"  value: {shell_double_quote(rec.get('value', text))}")

@@ -12,6 +12,9 @@ from gritlib.console_display import console_table
 from gritlib.config_utils import DEFAULTS, DEFAULT_CONFIG
 from gritlib.event_log import append_event
 from gritlib.event_log import EventLog
+from gritlib.bridge_routes import line_route_context_commands
+from gritlib.line_network import line_local_ip_candidates
+from gritlib.line_probe_guidance import print_probe_menu_steps
 from gritlib.line_services import line_service_status_text
 from gritlib.profiles import (
     PROFILE_KEY_HINTS,
@@ -20,7 +23,7 @@ from gritlib.profiles import (
     profile_release_selector,
 )
 from gritlib.release_contexts import release_context
-from gritlib.line_search import line_search_results
+from gritlib.line_search import line_search_display_kind, line_search_results
 from gritlib.session_state import atomic_write_json
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import load_staged
@@ -34,7 +37,7 @@ SERVICE_OPTIONS = {
     "ssh": [
         ("listen_host", "listen_host", "local address for operator listeners"),
         ("GRIT_OPERATOR_REMOTE_FORWARD_PORT", "forward_port", "port the target opens for reverse forward"),
-        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP/hostname the target connects to"),
+        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP address or hostname the target connects to"),
         ("GRIT_OPERATOR_SERVER_SSH_PORT", "GRIT_OPERATOR_SERVER_SSH_PORT", "operator SSH port"),
         ("GRIT_OPERATOR_SERVER_USER", "GRIT_OPERATOR_SERVER_USER", "SSH user on the operator side"),
         ("GRIT_OPERATOR_KNOWN_HOSTS_POLICY", "GRIT_OPERATOR_KNOWN_HOSTS_POLICY", "how to handle host key verification"),
@@ -42,7 +45,7 @@ SERVICE_OPTIONS = {
     "tls-shell": [
         ("listen_host", "listen_host", "local address for operator listeners"),
         ("GRIT_RSHELL_SOCAT_PORT", "GRIT_RSHELL_SOCAT_PORT", "port to listen on (and target connects to)"),
-        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP/hostname for target-side command"),
+        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP address or hostname for commands run on the target"),
         ("GRIT_RSHELL_ENCRYPTION", "encryption", "transport encryption: tls / none"),
         ("GRIT_RSHELL_ALLOW_PLAINTEXT", "GRIT_RSHELL_ALLOW_PLAINTEXT", "allow unencrypted fallback"),
         ("GRIT_RSHELL_TRANSPORT", "build", "active reverse-shell transport"),
@@ -51,7 +54,7 @@ SERVICE_OPTIONS = {
     "plain-shell": [
         ("listen_host", "listen_host", "local address for operator listeners"),
         ("GRIT_RSHELL_SOCAT_PORT", "GRIT_RSHELL_SOCAT_PORT", "port to listen on"),
-        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP/hostname for target-side command"),
+        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP address or hostname for commands run on the target"),
         ("GRIT_RSHELL_TRANSPORT", "build", "active reverse-shell transport"),
         ("GRIT_RSHELL_SHELL_PROVIDER", "GRIT_RSHELL_SHELL_PROVIDER", "shell to launch on the target"),
     ],
@@ -60,7 +63,7 @@ SERVICE_OPTIONS = {
         ("GRIT_OPERATOR_FILE_SERVICE_PORT", "GRIT_OPERATOR_FILE_SERVICE_PORT", "file service listen port"),
         ("GRIT_OPERATOR_FILE_SERVICE_TLS", "GRIT_OPERATOR_FILE_SERVICE_TLS", "TLS for file service connections"),
         ("GRIT_OPERATOR_FILE_SERVICE_ENABLE", "GRIT_OPERATOR_FILE_SERVICE_ENABLE", "enable file service in zero-arg mode"),
-        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP used in staged fetch commands"),
+        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP address or hostname for commands run on the target"),
     ],
     "command-queue": [
         ("listen_host", "listen_host", "local address for operator listeners"),
@@ -74,7 +77,7 @@ SERVICE_OPTIONS = {
     "bridge": [
         ("listen_host", "listen_host", "local address for operator listeners"),
         ("GRIT_OPERATOR_TARGET_BIND_HOST", "GRIT_OPERATOR_TARGET_BIND_HOST", "bind address for bridge listeners"),
-        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP for generated commands"),
+        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP address or hostname for generated commands"),
     ],
     "probe": [
         ("listen_host", "listen_host", "local address for probe listeners"),
@@ -83,26 +86,26 @@ SERVICE_OPTIONS = {
         ("GRIT_PROBE_FTP_PORT", "GRIT_PROBE_FTP_PORT", "probe FTP listen port"),
         ("GRIT_PROBE_DNS_PORT", "GRIT_PROBE_DNS_PORT", "probe DNS UDP listen port"),
         ("GRIT_PROBE_DNS_NAME", "GRIT_PROBE_DNS_NAME", "probe DNS TXT query name"),
-        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP used in probe command"),
+        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP address or hostname for commands run on the target"),
     ],
     "probe-tftp": [
         ("listen_host", "listen_host", "local address for probe TFTP listener"),
         ("GRIT_PROBE_TFTP_PORT", "GRIT_PROBE_TFTP_PORT", "probe TFTP UDP listen port"),
         ("GRIT_PROBE_PORT", "GRIT_PROBE_PORT", "probe HTTP result upload port embedded in probe.sh"),
-        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP used in TFTP command"),
+        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP address or hostname for commands run on the target"),
     ],
     "probe-ftp": [
         ("listen_host", "listen_host", "local address for probe FTP listener"),
         ("GRIT_PROBE_FTP_PORT", "GRIT_PROBE_FTP_PORT", "probe FTP listen port"),
         ("GRIT_PROBE_PORT", "GRIT_PROBE_PORT", "probe HTTP result upload port embedded in probe.sh"),
-        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP used in FTP command"),
+        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP address or hostname for commands run on the target"),
     ],
     "probe-dns": [
         ("listen_host", "listen_host", "local address for probe DNS listener"),
         ("GRIT_PROBE_DNS_PORT", "GRIT_PROBE_DNS_PORT", "probe DNS UDP listen port"),
         ("GRIT_PROBE_DNS_NAME", "GRIT_PROBE_DNS_NAME", "probe DNS TXT query name"),
         ("GRIT_PROBE_PORT", "GRIT_PROBE_PORT", "probe HTTP result upload port embedded in probe.sh"),
-        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP used in DNS command"),
+        ("GRIT_OPERATOR_SERVER_HOST", "GRIT_OPERATOR_SERVER_HOST", "operator IP address or hostname for commands run on the target"),
     ],
 }
 
@@ -112,6 +115,96 @@ GRIT_TO_CFG_KEY = {
     for entries in SERVICE_OPTIONS.values()
     for grit, cfg_key, _desc in entries
 }
+
+SERVICE_OPTION_LABELS = {
+    "listen_host": "bind IP",
+    "GRIT_OPERATOR_REMOTE_FORWARD_PORT": "remote forward port",
+    "GRIT_OPERATOR_SERVER_HOST": "operator host",
+    "GRIT_OPERATOR_SERVER_SSH_PORT": "operator SSH port",
+    "GRIT_OPERATOR_SERVER_USER": "operator SSH user",
+    "GRIT_OPERATOR_KNOWN_HOSTS_POLICY": "host key policy",
+    "GRIT_RSHELL_SOCAT_PORT": "listener port",
+    "GRIT_RSHELL_ENCRYPTION": "encryption",
+    "GRIT_RSHELL_ALLOW_PLAINTEXT": "plaintext fallback",
+    "GRIT_RSHELL_TRANSPORT": "transport",
+    "GRIT_RSHELL_SHELL_PROVIDER": "shell provider",
+    "GRIT_OPERATOR_FILE_SERVICE_PORT": "file service port",
+    "GRIT_OPERATOR_FILE_SERVICE_TLS": "file service TLS",
+    "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "file service auto-start",
+    "GRIT_COMMAND_QUEUE_PORT": "command queue port",
+    "GRIT_COMMAND_QUEUE_TLS": "command queue TLS",
+    "GRIT_COMMAND_QUEUE_ENABLE": "command queue auto-start",
+    "GRIT_COMMAND_QUEUE_REQUIRE_TOKEN": "require queue token",
+    "GRIT_COMMAND_QUEUE_TOKEN": "queue token",
+    "GRIT_COMMAND_QUEUE_EXECUTION": "queue execution",
+    "GRIT_OPERATOR_TARGET_BIND_HOST": "bridge bind IP",
+    "GRIT_PROBE_PORT": "probe HTTP port",
+    "GRIT_PROBE_TFTP_PORT": "probe TFTP port",
+    "GRIT_PROBE_FTP_PORT": "probe FTP port",
+    "GRIT_PROBE_DNS_PORT": "probe DNS port",
+    "GRIT_PROBE_DNS_NAME": "probe DNS name",
+}
+
+
+def line_service_option_display_key(key):
+    return SERVICE_OPTION_LABELS.get(key, key)
+
+
+def line_service_option_display_value(key, value):
+    text = str(value)
+    if key == "GRIT_RSHELL_TRANSPORT" and text.strip().lower() == "none":
+        return "artifact needed"
+    if key == "GRIT_RSHELL_SHELL_PROVIDER" and text.strip().lower() in ("", "(not set)", "none"):
+        return "auto"
+    return text
+
+
+def _line_service_option_example_value(row, cfg):
+    key = str((row or {}).get("key") or "")
+    value = str((row or {}).get("value") or "").strip()
+    if key == "listen_host":
+        return _line_ip_options_example(cfg)
+    if key == "GRIT_RSHELL_TRANSPORT" and value == "artifact needed":
+        return "ssh"
+    if key == "GRIT_RSHELL_SHELL_PROVIDER" and value == "auto":
+        return "auto"
+    if value and value != "(not set)":
+        return value
+    examples = {
+        "GRIT_OPERATOR_REMOTE_FORWARD_PORT": "2222",
+        "GRIT_OPERATOR_SERVER_HOST": _line_ip_options_example(cfg),
+        "GRIT_OPERATOR_SERVER_SSH_PORT": "22",
+        "GRIT_OPERATOR_SERVER_USER": "root",
+        "GRIT_OPERATOR_KNOWN_HOSTS_POLICY": "accept-new",
+        "GRIT_RSHELL_SOCAT_PORT": "22203",
+        "GRIT_RSHELL_ENCRYPTION": "tls",
+        "GRIT_RSHELL_ALLOW_PLAINTEXT": "no",
+        "GRIT_OPERATOR_FILE_SERVICE_PORT": "22206",
+        "GRIT_OPERATOR_FILE_SERVICE_TLS": "no",
+        "GRIT_OPERATOR_FILE_SERVICE_ENABLE": "yes",
+        "GRIT_COMMAND_QUEUE_PORT": "22205",
+        "GRIT_COMMAND_QUEUE_TLS": "no",
+        "GRIT_COMMAND_QUEUE_ENABLE": "yes",
+        "GRIT_COMMAND_QUEUE_REQUIRE_TOKEN": "no",
+        "GRIT_COMMAND_QUEUE_TOKEN": "changeme",
+        "GRIT_COMMAND_QUEUE_EXECUTION": "metadata-only",
+        "GRIT_OPERATOR_TARGET_BIND_HOST": _line_ip_options_example(cfg),
+        "GRIT_PROBE_PORT": "22207",
+        "GRIT_PROBE_TFTP_PORT": "22269",
+        "GRIT_PROBE_FTP_PORT": "22221",
+        "GRIT_PROBE_DNS_PORT": "22253",
+        "GRIT_PROBE_DNS_NAME": "probe.grit",
+    }
+    return examples.get(key, "value")
+
+
+def _line_service_option_example(rows, cfg):
+    for idx, row in enumerate(rows or [], start=1):
+        if str(row.get("key") or "") != "listen_host":
+            return f"set {idx} {_line_service_option_example_value(row, cfg)}"
+    if rows:
+        return f"set 1 {_line_service_option_example_value(rows[0], cfg)}"
+    return "set 1 value"
 
 
 def print_line_service_options(
@@ -141,9 +234,13 @@ def print_line_service_options(
     print(f"{display_name}  ─  {status}{bind}{tls if service_record else ''}")
     if display_name != service:
         print(f"transport: {service}")
+    service_actual = str((service_record or {}).get("actual") or "")
+    if service_actual == "starting":
+        print(f"startup requested; open listeners or events service={service} to check readiness")
     print("")
 
     relevant = SERVICE_OPTIONS.get(service, [])
+    rows = []
     if relevant:
         rows = []
         for grit_name, cfg_key, desc in relevant:
@@ -155,7 +252,14 @@ def print_line_service_options(
                 raw = cfg.get(cfg_key)
                 value = str(raw) if raw not in (None, "") else "(not set)"
                 opts = []
-            rows.append({"key": grit_name, "value": value, "desc": desc, "opts": opts})
+            value = line_service_option_display_value(grit_name, value)
+            rows.append({
+                "key": grit_name,
+                "setting": line_service_option_display_key(grit_name),
+                "value": value,
+                "desc": desc,
+                "opts": opts,
+            })
 
         def _opts(row):
             if row["opts"]:
@@ -167,20 +271,39 @@ def print_line_service_options(
             "Relevant settings",
             rows,
             [
-                ("Key", "key"),
+                ("Setting", "setting"),
                 ("Value", "value"),
                 ("Description", "desc"),
             ],
             detail_fn=_opts,
         )
-        print("  set KEY VALUE")
-        print("  set N VALUE")
+        set_example = _line_service_option_example(rows, cfg)
+        print(f"  edit setting: {set_example}")
         print("  build")
+        guided_setup_keys = {
+            row["key"]
+            for row in rows
+            if (
+                (row.get("key") == "GRIT_RSHELL_TRANSPORT" and row.get("value") == "artifact needed")
+                or (row.get("key") == "GRIT_RSHELL_SHELL_PROVIDER" and row.get("value") == "auto")
+            )
+        }
+        if guided_setup_keys:
+            print("  note: reverse-shell artifact settings can come from the active profile, build config, or this menu")
+        if "GRIT_RSHELL_TRANSPORT" in guided_setup_keys:
+            print("  set transport: set 4 ssh; profile default: profile set transport ssh")
+            print_probe_menu_steps()
+            print("  before target command: after profile setup, listener serve ssh start stages the reverse SSH artifact")
+        if "GRIT_RSHELL_SHELL_PROVIDER" in guided_setup_keys:
+            print("  set shell provider: set 5 auto")
+        has_bind_menu = any(row["key"] == "listen_host" for row in rows)
+        if has_bind_menu:
+            bind_example = _line_ip_options_example(cfg)
+            print(f"  choose bind IP: ips, ip bind 1, ip bind {bind_example}")
     else:
         cfg.pop("_options_keys", None)
         print("  No specific options for this service.  Run: build")
 
-    service_actual = str((service_record or {}).get("actual") or "")
     if target_command_records and service_actual == "listening":
         print("")
         print("  Target command:")
@@ -189,7 +312,11 @@ def print_line_service_options(
             print(f"    {command}")
 
     print("")
-    print("  set KEY VALUE, set N VALUE, build, back")
+    if relevant and has_bind_menu:
+        bind_example = _line_ip_options_example(cfg)
+        print(f"  {_line_service_option_example(rows, cfg)}, ips, ip bind 1, ip bind {bind_example}, build, back")
+    else:
+        print(f"  {_line_service_option_example(rows, cfg)}, build, back")
 
 
 def _print_line_route_context_options(module, route_record):
@@ -200,16 +327,19 @@ def _print_line_route_context_options(module, route_record):
         print(f"  listen: {rec.get('listen_host', '')}:{rec.get('listen_port', '')}")
         print(f"  destination: {rec.get('dest_host', '')}:{rec.get('dest_port', '')}")
         print(f"  path: {rec.get('route_path', '') or '-'}")
-        print(f"  state: {rec.get('current_state', '') or '-'}")
+        print(f"  status: {rec.get('current_state', '') or '-'}")
         print(f"  active: {'yes' if rec.get('active') else 'no'}")
         print(f"  hops: {rec.get('hop_count', 0)}")
         print(f"  multi-hop: {'yes' if rec.get('multi_hop') else 'no'}")
         print(f"  target: {rec.get('target_id', '') or '-'}")
         print(f"  last success: {rec.get('last_successful_relay_at', '') or '-'}")
         print(f"  last failure: {rec.get('last_failure_reason', '') or '-'}")
-    print(f"  commands: route {route_name}, route start {route_name}, route stop {route_name}")
+    if rec and rec.get("active"):
+        print(f"  commands: route {route_name}, route stop {route_name}")
+    else:
+        print(f"  commands: route {route_name}, route start {route_name}")
     print(f"  delete: route delete {route_name}, route delete {route_name} confirm")
-    print("  next: options, start, stop, delete, routes verbose, back")
+    print("  next: " + ", ".join(line_route_context_commands(rec)))
 
 
 def _print_line_session_context_options(module, session_record):
@@ -233,7 +363,7 @@ def _print_line_session_context_options(module, session_record):
             print(f"  session log: {rec.get('session_log', '')}")
         if rec.get("event_log"):
             print(f"  event log: {rec.get('event_log', '')}")
-    print("  next: info, interact, sessions verbose, view PATH, back")
+    print("  next: info, interact, sessions verbose, view ./README.md, back")
 
 
 def _print_line_job_context_options(module, job_record):
@@ -261,15 +391,23 @@ def _print_line_action_context_options(action):
     action_kind = action.get("kind", "")
     action_id = action.get("id", "")
     action_name = f"{action_kind}:{action_id}" if action_kind else action_id
-    print(f"Module: {action_name}")
-    print(f"  label: {action.get('label', '') or '-'}")
-    print(f"  category: {action.get('category', '') or '-'}")
-    print(f"  workflow: {action.get('workflow', '') or '-'}")
-    print(f"  state: {action.get('operator_action_state', '') or '-'}")
-    print(f"  reason: {action.get('operator_action_reason', '') or '-'}")
-    print(f"  confirmation: {'required' if action.get('requires_confirmation') else 'not required'}")
-    print(f"  background: {'supported' if action.get('background_supported') else 'not supported'}")
-    print("  commands: check, run, run dry-run, run confirm")
+    label = action.get("label", "") or action_name or "-"
+    readiness = action.get("operator_action_reason", "") or "-"
+    if readiness == "run-now":
+        readiness = "ready to run"
+    workflow = str(action.get("workflow", "") or "-").replace("-", " ")
+    print(f"Module: {label}")
+    print(f"  select: use module {label}")
+    print(f"  type: {action.get('category', '') or '-'}")
+    print(f"  area: {workflow}")
+    print(f"  status: {action.get('operator_action_state', '') or '-'}")
+    print(f"  run check: {readiness}")
+    print(f"  confirmation needed: {'yes' if action.get('requires_confirmation') else 'no'}")
+    print(f"  can run in background: {'yes' if action.get('background_supported') else 'no'}")
+    commands = ["check", "preview", "run"]
+    if action.get("requires_confirmation"):
+        commands.append("run confirm")
+    print("  commands: " + ", ".join(commands))
     if action.get("background_supported"):
         print("  background command: run job")
     print("  next: info, check, run, back")
@@ -315,10 +453,11 @@ def _print_line_build_options(cfg):
             ("Choices", "choices"),
             ("Purpose", "purpose"),
         ],
+        show_numbers=False,
     )
-    print("  edit: set ROW VALUE, build set KEY VALUE, build unset ROW")
+    print("  edit: set 16 ssh, build set GRIT_RUNTIME_ROOT ./.grit, build set 16 ssh, build unset 16")
     print("  details: build verbose")
-    print("  help: help build")
+    print("  help: build ?")
 
 
 def _print_line_events_options(cfg):
@@ -343,21 +482,124 @@ def _print_line_events_options(cfg):
     print(f"  statuses: {_counts(stats.get('by_detail_status'))}")
     print("  browse: events, events n 50, events since 2h")
     print("  filters: events service=NAME level=LEVEL status=TEXT")
-    print("  details: events request_name=NAME command_id=ID job_id=ID module_id=ID")
+    print("  ids: events file=NAME command=ID job=ID module=ID")
     print(f"  raw log: view {log.path}")
-    print("  help: help events")
+    print("  help: events ?")
 
 
 def _print_line_console_options(cfg):
-    print("Console:")
+    print("Console reference:")
+    print("  scope: these commands work from any prompt; do not prefix them with console")
     print("  history: history, history 50")
-    print("  replay: !!, !N, repeat N")
-    print("  scripts: resource FILE, makerc FILE")
-    print("  completions: complete, complete PREFIX")
-    print("  search: search TERM, use N")
-    print("  navigation: back, main, home, root, quit, exit")
-    print("  aliases: help aliases")
-    print("  help: help console")
+    print("  replay: !!, !1, repeat 1")
+    print("  command files: resource ./commands.gritrc, makerc ./last-session.gritrc")
+    print("  completions: complete, complete listener")
+    print("  search: search listener, use 1")
+    print("  navigation: back")
+    print("  return to root: main  (aliases: home/root)")
+    print("  quit from root: quit  (alias: exit)")
+    print("  help: console ?")
+
+
+def _print_line_workflow_options():
+    print("Workflow:")
+    print_probe_menu_steps()
+    print("  profile: profiles, profile")
+    print("  after profile setup: listener serve, listener serve start default")
+    print("  reverse SSH after profile setup: listener serve ssh start")
+    print("  after staging: files, deliver sample-file")
+    print("  help: workflow ?")
+
+
+def _print_line_aliases_options():
+    print("Aliases:")
+    print("  preferred forms: targets, listeners, routes, files, modules")
+    print("  legacy aliases: accepted for older command files; use aliases ? to inspect")
+    print("  selection: use target lab-router, use listener probe, use route ssh-home, use module Inspect bridge status")
+    print("  help: aliases ?")
+
+
+def _print_line_list_context_options(module, cfg=None):
+    module = str(module or "")
+    records = {
+        "targets": (
+            "Targets",
+            "list: targets",
+            "select after targets list has rows: use target 1, use target lab-router",
+            "activity: queue targets, show events",
+            "help: targets ?",
+        ),
+        "listeners": (
+            "Listeners",
+            "list: listeners, listeners verbose",
+            "select: listener 1, listener probe, use listener probe",
+            "controls: start 1, start probe, stop 1, stop probe",
+            "help: listeners ?",
+        ),
+        "routes": (
+            "Routes",
+            "list: routes, routes verbose",
+            "select after routes list has rows: route 1, route ssh-home, use route ssh-home",
+            "create: route add ssh-home 2222 127.0.0.1 22",
+            "help: routes ?",
+        ),
+        "sessions": (
+            "Sessions",
+            "list: sessions, sessions verbose",
+            "select after sessions list has rows: session 1, use session 1",
+            "create sessions: start plain-shell, start ssh, start command-queue",
+            "help: sessions ?",
+        ),
+        "jobs": (
+            "Jobs",
+            "list: jobs",
+            "inspect after jobs list has rows: job 1, jobs info 1",
+            "control after jobs list has rows: jobs cancel 1",
+            "help: jobs ?",
+        ),
+        "modules": (
+            "Modules",
+            "overview: modules",
+            "list: modules service, modules daemon, modules target, modules operator",
+            "verbose: modules verbose service",
+            "select: use 1, use module Inspect bridge status",
+            "help: modules ?",
+        ),
+        "queue": (
+            "Queue",
+            "list: queue, queue list, queue targets",
+            "add: queue uname -a",
+            "preview cleanup: queue clear",
+            "confirm cleanup: queue clear confirm",
+            "help: queue ?",
+        ),
+    }.get(module)
+    if module == "files":
+        staged = {}
+        if isinstance(cfg, dict) and (cfg.get("staged_files") or cfg.get("operator_session_dir")):
+            staged = load_staged(cfg).get("staged") or {}
+        if staged:
+            records = (
+                "Files",
+                "list: files",
+                "deliver staged file: deliver NAME, deliver start NAME, deliver queue NAME",
+                "stage more: stage ./grit sample-file, release stage by_device:gl-mt3000",
+                "help: files ?",
+            )
+        else:
+            records = (
+                "Files",
+                "list: files",
+                "stage: stage ./grit sample-file, stage start ./grit sample-file",
+                "release staging: release, release stage by_device:gl-mt3000",
+                "help: files ?",
+            )
+    if not records:
+        return False
+    print(records[0] + ":")
+    for line in records[1:]:
+        print(f"  {line}")
+    return True
 
 
 def _print_line_search_options(cfg):
@@ -366,15 +608,31 @@ def _print_line_search_options(cfg):
     print(f"  active numbered results: {len(results)}")
     if results:
         first = results[0] if isinstance(results[0], dict) else {}
-        print(f"  first result: {first.get('kind') or '-'} {first.get('label') or '-'}")
-    print("  search: search TERM")
-    print("  select: use N")
-    print("  safe inspection: ?, options, next, complete PREFIX")
-    print("  replace results: run another search or list command")
+        kind = line_search_display_kind(first.get("kind") or "-")
+        print(f"  first result: {kind} {first.get('label') or '-'}")
+    print("  search: search listener")
+    print("  select: use 1")
+    print("  keep results: ?, options, next, complete listener")
+    print("  replace results: targets, listeners, files, or search listener")
     print("  history replay:")
-    print("    !N")
-    print("    repeat N")
-    print("  help: help search")
+    print("    !1")
+    print("    repeat 1")
+    print("  help: search ?")
+
+
+def _line_ip_options_example(cfg):
+    local_ips = (cfg or {}).get("local_ips") or []
+    candidates = line_local_ip_candidates({"local_ips": local_ips} if local_ips else {})
+    return str(candidates[0]) if candidates else "192.168.8.241"
+
+
+def _print_line_ip_options(cfg=None):
+    example_ip = _line_ip_options_example(cfg)
+    print("IP address selection")
+    print("  list: ip")
+    print(f"  advertised host for commands run on the target: ip host 1, ip host {example_ip}")
+    print(f"  listener bind address: ip bind 1, ip bind {example_ip}")
+    print("  help: ip ?")
 
 
 def _print_selected_target_options(cfg):
@@ -390,25 +648,26 @@ def _print_selected_target_options(cfg):
     print(f"  aliases: {aliases}")
     print(f"  notes: {notes or '-'}")
     print(f"  state: {rec.get('connectivity_state') or '-'}")
-    print(f"  mailbox pending: {rec.get('mailbox_pending_work_count') or 0}")
+    print(f"  pending work: {rec.get('mailbox_pending_work_count') or 0}")
     print("  commands: rename LABEL, note TEXT, alias NAME, clear target")
-    print("  next: info, next, mailbox, queue COMMAND, sessions, back")
+    print("  next: info, next, check-ins, queue uname -a, sessions, back")
     return True
 
 
 def _print_line_survey_options():
     print("Survey:")
-    print("  purpose: turn a full target survey upload into build config or a target preset")
+    print("  purpose: turn a received full target survey into build config or a target preset")
     print("  status: survey, survey results")
     print("  config: survey config, survey config PATH, survey config PATH write-config FILE")
     print("  preset: survey preset PATH name NAME, survey preset PATH name NAME write-local")
     print("  target-to-operator: deploy griTTYkit, then run grit survey retrieve on the target")
-    print("  help: help survey")
+    print("  help: survey ?")
 
 
 def _print_line_profiles_options(cfg):
     records = profile_records(cfg)
     active = active_profile(cfg)
+    example = (active or {}).get("name") or ((records[0] or {}).get("name") if records else "lab-router")
     print("Profiles:")
     print(f"  saved: {len(records)}")
     print(f"  active: {active.get('name') or '-'}")
@@ -417,13 +676,20 @@ def _print_line_profiles_options(cfg):
         print(f"  operator_host: {active.get('operator_host') or '-'}")
         print(f"  payload: {active.get('preferred_payload_preset') or 'default'}")
         print(f"  transport: {active.get('preferred_transport') or 'ssh'}")
-    print("  commands: profiles, profile, profile use NAME, profile use N, profile create NAME")
-    print("  edit: profile set KEY VALUE")
+    if records:
+        print(f"  commands: profiles, profile, profile use {example}, profile use 1, profile create lab-router")
+    else:
+        print("  commands: profiles, profile, profile create lab-router")
+    print("  edit: profile set FIELD VALUE")
     print("  editable keys: " + ", ".join(PROFILE_KEY_HINTS))
-    print("  cleanup: profile delete NAME, then profile delete NAME confirm")
-    print("  cleanup by number: profile delete N, then profile delete N confirm")
-    print("  probe import: listener probe config, listener probe config N, profile from probe N")
-    print("  deployment: listener serve start, listener serve ssh start")
+    if records:
+        print(f"  cleanup: profile delete {example}, then profile delete {example} confirm")
+        print("  cleanup by number: profile delete 1, then profile delete 1 confirm")
+    print("  from probe results:")
+    print("    use listener probe")
+    print("    config")
+    print("    profile from probe 1")
+    print("  deployment: listener serve start default, listener serve ssh start")
 
 
 def _print_line_artifact_options(cfg):
@@ -459,10 +725,10 @@ def _print_line_artifact_options(cfg):
                 ("Configured", "configured"),
             ],
         )
-    print("  inspect: artifact info NAME, artifact info N, artifact info PATH")
-    print("  stamp: artifact show NAME, artifact stamp NAME KEY VALUE, artifact clear NAME")
-    print("  delivery: files, deliver NAME")
-    print("  help: help artifact")
+    print("  inspect: artifact info grit, artifact info 1, artifact info ./grit")
+    print("  stamp: artifact show grit, artifact stamp grit transport builtin, artifact clear grit")
+    print("  deliver command: files, deliver grit")
+    print("  help: artifact ?")
 
 
 def _print_line_release_options(cfg):
@@ -490,12 +756,13 @@ def _print_line_release_options(cfg):
         print(f"  ssh preset: release stage ssh start")
     else:
         print("  active profile: none")
-        print("  profile flow: listener probe config, then listener serve")
+        print_probe_menu_steps()
         print("  serve: listener serve start, listener serve ssh start")
     print("  browse: release")
-    print("  stage: release stage SELECTOR, release stage start SELECTOR")
-    print("  after staging: files, deliver NAME")
-    print("  help: help release")
+    print("  stage: release stage by_device:gl-mt3000, release stage start by_device:gl-mt3000")
+    print("  path stage: release stage dist/releases/lab/bin/grit-target-full")
+    print("  after staging: files, deliver grit")
+    print("  help: release ?")
 
 
 def print_line_context_options(
@@ -511,6 +778,9 @@ def print_line_context_options(
     session_record = session_record if isinstance(session_record, dict) else {}
     job_record = job_record if isinstance(job_record, dict) else {}
     selected_action = selected_action if isinstance(selected_action, dict) else {}
+
+    if _print_line_list_context_options(module, cfg):
+        return
 
     if module.startswith("route/"):
         _print_line_route_context_options(module, route_record)
@@ -544,8 +814,20 @@ def print_line_context_options(
         _print_line_console_options(cfg)
         return
 
+    if module == "workflow":
+        _print_line_workflow_options()
+        return
+
+    if module == "aliases":
+        _print_line_aliases_options()
+        return
+
     if module == "search":
         _print_line_search_options(cfg)
+        return
+
+    if module == "ip":
+        _print_line_ip_options(cfg)
         return
 
     if module == "artifact":
@@ -559,11 +841,12 @@ def print_line_context_options(
     action = selected_action
     if action:
         _print_line_action_context_options(action)
+        return
     elif _print_selected_target_options(cfg):
         return
     else:
-        print("Selected workflow: none")
-        print("  use module NAME, listener NAME, route NAME, session ID, job ID")
+        print("Current area: workspace")
+        print("  choose: targets, listeners, routes, sessions, modules, jobs, or search listener")
 
     _print_line_build_options_summary(cfg)
 
@@ -777,7 +1060,7 @@ def set_line_option(cfg, name, value):
         raise ValueError(
             "usage:\n"
             "  set KEY VALUE\n"
-            "  set N VALUE\n"
+            "  set ROW VALUE\n"
             "  options"
         )
 

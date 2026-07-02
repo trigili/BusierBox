@@ -103,7 +103,7 @@ def dispatch_legacy_line_job_number(
         snap = snapshot_func(cfg) if snapshot_func else {}
         for rec in snap.get("workbench_jobs") or []:
             print(
-                f"{rec.get('id', '')}: action={rec.get('action_id', '')} "
+                f"{rec.get('id', '')}: module={rec.get('action_id', '')} "
                 f"state={rec.get('effective_state', '')} "
                 f"managed={'yes' if rec.get('pid_managed') else 'no'} "
                 f"cancel_supported={'yes' if rec.get('cancel_supported') else 'no'}"
@@ -172,6 +172,12 @@ def print_workbench_job_ownership(rec):
 def print_line_workbench_job_records(records, verbose=False, command_builder=None, quote=shquote):
     records = list(records or [])
     command_builder = command_builder or (lambda _job_id: "")
+    example_id = str(records[0].get("id") or "job-1") if records else "job-1"
+    footer = "browse background modules: modules operator; help: jobs ?"
+    if records:
+        footer = f"use 1, job {quote(example_id)}, jobs info 1, help: jobs ?"
+        if any(rec.get("cancel_supported") for rec in records):
+            footer = f"use 1, job {quote(example_id)}, jobs cancel {quote(example_id)}, help: jobs ?"
 
     def _detail(rec):
         if not verbose:
@@ -179,12 +185,13 @@ def print_line_workbench_job_records(records, verbose=False, command_builder=Non
         details = []
         if rec.get("log_path"):
             details.append(("log", rec["log_path"]))
-        details.append(("cancel", command_builder(str(rec.get("id") or ""))))
+        if rec.get("cancel_supported"):
+            details.append(("cancel", command_builder(str(rec.get("id") or ""))))
         return details
 
     cols = [
         ("Job", "id"),
-        ("Action", "action_id"),
+        ("Module", "action_id"),
         ("State", lambda r: r.get("effective_state") or r.get("state") or "-"),
         ("Managed", lambda r: "yes" if r.get("pid_managed") else "no"),
         ("Cancel", lambda r: "yes" if r.get("cancel_supported") else "no"),
@@ -192,18 +199,67 @@ def print_line_workbench_job_records(records, verbose=False, command_builder=Non
     console_table(
         f"Jobs  ({len(records)} total)" if records else "Jobs  (none)",
         records, cols, detail_fn=_detail,
-        footer="use N, job ID, jobs cancel ID, jobs ?",
+        footer=footer,
+        empty_message=(
+            "No background jobs yet.\n"
+            "  open operator modules: modules operator\n"
+            "  choose module: use module Build current target and stage a small release\n"
+            "  start job: run job"
+        ),
     )
     return [
         {
             "kind": "job",
-            "label": f"{rec.get('id','')} action={rec.get('action_id','')} state={rec.get('effective_state','')}",
+            "label": f"{rec.get('id','')} module={rec.get('action_id','')} state={rec.get('effective_state','')}",
             "rec": rec,
             "command": command_builder(str(rec.get("id") or "")),
             "use_hint": f"use job {quote(str(rec.get('id', '')))}",
         }
         for rec in records
     ]
+
+
+def print_jobs_context_help(records=None):
+    records = list(records or [])
+    example_id = str(records[0].get("id") or "job-1") if records else "job-1"
+    cancel_supported = any(rec.get("cancel_supported") for rec in records)
+    print("Help: jobs — background jobs")
+    print("")
+    print("  jobs            list managed background jobs")
+    if records:
+        print(f"  job {shquote(example_id):<10} inspect a background job by id")
+        print("  job 1           inspect a background job by row number")
+        print(f"  jobs info {shquote(example_id):<5} inspect a background job by id")
+        print("  jobs info 1     inspect a background job by row number")
+        if cancel_supported:
+            print(f"  jobs cancel {shquote(example_id):<3} cancel a background job by id")
+            print("  jobs cancel 1   cancel a background job by row number")
+        print(f"  use job {shquote(example_id):<6} select a job context by id")
+        print("  use job 1       select a job context by row number")
+        print("  run job         start the current module as a background job")
+    else:
+        print("  modules         browse modules that can run in the background")
+        print("  modules operator")
+        print("                  show operator modules, including build jobs that can run in the background")
+        print("  use module Build current target and stage a small release")
+        print("                  choose a concrete job-capable module")
+    if records:
+        print("  info            show the selected job context")
+        print("  options         show selected job details and shortcuts")
+        print("  next            show suggested commands for the selected job")
+        if cancel_supported:
+            print("  cancel          cancel the current job")
+    print("  back            go up one breadcrumb level")
+    if records:
+        if cancel_supported:
+            print(f"  Use job commands such as `jobs info {shquote(example_id)}` or `jobs cancel {shquote(example_id)}` to manage existing jobs.")
+        else:
+            print(f"  Use job commands such as `jobs info {shquote(example_id)}` to inspect existing jobs.")
+    else:
+        print("  No background jobs yet.")
+        print("  open operator modules: modules operator")
+        print("  choose module: use module Build current target and stage a small release")
+        print("  start job: run job")
 
 
 def workbench_job_record_by_selector(records, selector):
@@ -225,9 +281,9 @@ def require_workbench_job_record(records, selector):
     text = str(selector or "").strip()
     rec = workbench_job_record_by_selector(records, text)
     if not rec and text.isdigit():
-        raise ValueError(f"job number out of range: {text}")
+        raise ValueError(f"job number out of range: {text}; run jobs or jobs verbose")
     if not rec:
-        raise ValueError(f"unknown workbench job: {text}")
+        raise ValueError(f"unknown background job: {text}; run jobs or jobs verbose")
     return rec
 
 
@@ -277,18 +333,21 @@ def print_current_line_jobs(
 def select_line_job(cfg, snapshot, selector):
     text = str(selector or "").strip()
     if not text:
-        raise ValueError("usage:\n  use job ID\n  use job N")
+        raise ValueError("usage:\n  use job job-1\n  use job 1")
     rec = require_workbench_job_record((snapshot or {}).get("workbench_jobs") or [], text)
     job_id = str(rec.get("id") or "")
     set_line_collection_context(cfg, f"job/{job_id}")
     state = rec.get("effective_state") or rec.get("state") or "?"
     action = rec.get("action_id") or "-"
     cancel = "  |  cancellable" if rec.get("cancel_supported") else ""
-    print(f"  {job_id}  —  {state}  |  {action}{cancel}")
+    print(f"  current job: {job_id}")
+    print(f"  state: {state}  |  module: {action}{cancel}")
     if rec.get("cancel_supported"):
-        print("  info, options, cancel, jobs, back")
+        print("  in this prompt: info, options, cancel, back")
+        print(f"  also available: jobs, jobs info {shquote(job_id)}, jobs cancel {shquote(job_id)}")
     else:
-        print("  info, options, jobs, back")
+        print("  in this prompt: info, options, back")
+        print(f"  also available: jobs, jobs info {shquote(job_id)}")
     append_event(cfg, "workbench", "workbench_job_selected", details={
         "job_id": job_id,
         "action_id": rec.get("action_id", ""),
@@ -355,12 +414,12 @@ def start_line_job(
         action = select_action_func(selector)
     else:
         if not selected_action_func:
-            raise ValueError("selected module support is unavailable")
+            raise ValueError("current module support is unavailable")
         action = selected_action_func()
     if not action or str(action.get("kind") or "") != "workbench":
-        raise ValueError("no selected background-capable workbench module; use module MODULE first")
+        raise ValueError("no current module that can run in the background; use module MODULE first")
     if action.get("background_supported") is not True:
-        raise ValueError(f"workbench module is not background-capable: {action.get('id', '')}")
+        raise ValueError(f"current module cannot run in the background: {action.get('id', '')}")
     action_id = str(action.get("id") or "")
     if not headless_command_func or not start_job_func or not actions_func:
         raise ValueError("workbench job start support is unavailable")
@@ -720,7 +779,7 @@ def cancel_workbench_job_record(cfg, actions, job_id, headless_command=""):
             "headless_command": headless_command or cancel_workbench_job_headless_command(cfg, job_id),
         })
         return current
-    raise ValueError(f"unknown workbench job: {job_id}")
+    raise ValueError(f"unknown background job: {job_id}; run jobs or jobs verbose")
 
 
 def read_workbench_job_exit_status(path_text):

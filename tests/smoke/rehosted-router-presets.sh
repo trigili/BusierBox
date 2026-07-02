@@ -32,6 +32,14 @@ for preset in $presets; do
     }
 done
 
+GRIT_CONFIG="$tmp/no-grit.conf" scripts/lib/gen-buildroot-defconfig armv7-linux-4.x-musl >/dev/null
+grep -q '^BR2_ARM_SOFT_FLOAT=y$' buildroot/generated-configs/armv7-linux-4.x-musl-eabi_defconfig
+grep -q '^BR2_GCC_TARGET_ARCH="armv7-a"$' buildroot/generated-configs/armv7-linux-4.x-musl-eabi_defconfig
+grep -q '^BR2_GCC_TARGET_CPU=""$' buildroot/generated-configs/armv7-linux-4.x-musl-eabi_defconfig
+grep -q '^BR2_TARGET_OPTIMIZATION="-march=armv7-a"$' buildroot/generated-configs/armv7-linux-4.x-musl-eabi_defconfig
+GRIT_CONFIG="$tmp/no-grit.conf" GRIT_RSHELL_TRANSPORT=builtin scripts/lib/gen-buildroot-defconfig armv7-linux-4.x-musl >/dev/null
+grep -q '^BR2_PACKAGE_WOLFSSL=y$' buildroot/generated-configs/armv7-linux-4.x-musl-eabi_defconfig
+
 scripts/lib/rehost-router-examples --help >/dev/null
 scripts/lib/rehost-router-examples --list >"$tmp/list"
 grep -q 'archer-a7-us-v5-211022' "$tmp/list"

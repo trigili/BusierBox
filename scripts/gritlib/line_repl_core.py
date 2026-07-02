@@ -124,16 +124,19 @@ def _core_workspace_snapshot(ctx):
     return snap
 
 
+def _core_show_root_workspace(ctx):
+    cfg = ctx["cfg"]
+    ctx["clear_console_context_func"](cfg, quiet=True)
+    ctx["print_workspace_snapshot_func"](_core_workspace_snapshot(ctx))
+
+
 def _core_workspace_dispatch_kwargs(ctx):
     cfg = ctx["cfg"]
     return {
         "status_func": lambda: ctx["print_func"](line_repl_status_bar(_core_workspace_snapshot(ctx))),
         "workspace_snapshot_func": lambda: _core_workspace_snapshot(ctx),
         "ips_func": lambda: ctx["local_ips_func"](_core_workspace_snapshot(ctx)),
-        "workspace_func": lambda: (
-            ctx["clear_module_context_func"](cfg, quiet=True),
-            ctx["print_workspace_snapshot_func"](_core_workspace_snapshot(ctx)),
-        ),
+        "workspace_func": lambda: _core_show_root_workspace(ctx),
         "reload_func": lambda: ctx["reload_config_func"](
             cfg,
             default_config=ctx["default_config"],
@@ -190,10 +193,11 @@ def _core_probe_dispatch_kwargs(ctx):
             append_event_fn=ctx["append_event_fn"],
         ),
         "probe_delivery_func": lambda: ctx["probe_delivery_func"](cfg),
-        "probe_paste_func": lambda base64_mode=False: ctx["probe_paste_func"](
+        "probe_paste_func": lambda base64_mode=False, copy=False: ctx["probe_paste_func"](
             cfg,
             paste=True,
             base64_mode=base64_mode,
+            copy=copy,
         ),
         "probe_script_func": lambda: ctx["probe_script_func"](cfg, paste=False),
         "profile_serve_func": lambda serve_args: ctx["profile_serve_func"](

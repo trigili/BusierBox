@@ -98,7 +98,7 @@ def _build_release_stage_callbacks(cfg, line_input_fn, start_file_service_proces
     }
 
 
-def _build_staged_file_callbacks(cfg, start_file_service_process, append_event_fn):
+def _build_staged_file_callbacks(cfg, target_id_func, start_file_service_process, append_event_fn):
     def stage_file(path_text="", request_name="", start_file_service=False):
         return stage_line_file(
             cfg,
@@ -107,6 +107,7 @@ def _build_staged_file_callbacks(cfg, start_file_service_process, append_event_f
             start_file_service=start_file_service,
             start_file_service_fn=start_file_service_process,
             append_event_fn=append_event_fn,
+            target_selected=bool(target_id_func(cfg)),
         )
 
     def unstage_file(request_name):
@@ -220,7 +221,7 @@ def build_line_file_workflow_callbacks(
         service_start_command_func,
     )
     release_callbacks = _build_release_stage_callbacks(cfg, line_input_fn, start_file_service_process, append_event_fn)
-    staged_callbacks = _build_staged_file_callbacks(cfg, start_file_service_process, append_event_fn)
+    staged_callbacks = _build_staged_file_callbacks(cfg, target_id_func, start_file_service_process, append_event_fn)
     transfer_callbacks = _build_target_file_transfer_callbacks(
         cfg,
         target_id_func,

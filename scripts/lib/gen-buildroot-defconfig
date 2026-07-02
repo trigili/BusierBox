@@ -46,7 +46,7 @@ esac
 eval "$resolved"
 
 GRIT_RSHELL_TRANSPORT=${GRIT_RSHELL_TRANSPORT:-${GRIT_RSHELL_MODE:-ssh}}
-GRIT_BUILTIN_TLS_ENABLE=${GRIT_BUILTIN_TLS_ENABLE:-no}
+GRIT_BUILTIN_TLS_ENABLE=${GRIT_BUILTIN_TLS_ENABLE:-}
 GRIT_HEAVY_TOOLS=${GRIT_HEAVY_TOOLS:-}
 GRIT_BUSYBOX_GROUPS=${GRIT_BUSYBOX_GROUPS:-shell fileops disk process network text system}
 GRIT_BUSYBOX_APPLETS=${GRIT_BUSYBOX_APPLETS:-}
@@ -67,8 +67,10 @@ if [ -f "$config" ]; then
     . "$config"
     [ -n "${GRIT_STATIC_POLICY:-}" ] && TARGET_STATIC_POLICY=$GRIT_STATIC_POLICY
     GRIT_RSHELL_TRANSPORT=${GRIT_RSHELL_TRANSPORT:-${GRIT_RSHELL_MODE:-ssh}}
-    # Derive GRIT_BUILTIN_TLS_ENABLE from transport, consistent with menuconfig
-    [ "$GRIT_RSHELL_TRANSPORT" = builtin ] && GRIT_BUILTIN_TLS_ENABLE=yes || GRIT_BUILTIN_TLS_ENABLE=no
+    # Derive GRIT_BUILTIN_TLS_ENABLE from transport, consistent with menuconfig.
+    if [ -z "${GRIT_BUILTIN_TLS_ENABLE:-}" ]; then
+        [ "$GRIT_RSHELL_TRANSPORT" = builtin ] && GRIT_BUILTIN_TLS_ENABLE=yes || GRIT_BUILTIN_TLS_ENABLE=no
+    fi
     GRIT_HEAVY_TOOLS=${GRIT_HEAVY_TOOLS:-}
     GRIT_BUSYBOX_GROUPS=${GRIT_BUSYBOX_GROUPS:-shell fileops disk process network text system}
     GRIT_BUSYBOX_APPLETS=${GRIT_BUSYBOX_APPLETS:-}
@@ -97,6 +99,9 @@ GRIT_USER_OVERLAY_ENABLE=${GRIT_USER_OVERLAY_ENABLE:-no}
 GRIT_USER_OVERLAY_ROOT=${GRIT_USER_OVERLAY_ROOT:-}
 GRIT_USER_OVERLAY_ALLOW_OVERRIDE=${GRIT_USER_OVERLAY_ALLOW_OVERRIDE:-no}
 GRIT_DOOM_WAD_PATH=${GRIT_DOOM_WAD_PATH:-}
+if [ -z "${GRIT_BUILTIN_TLS_ENABLE:-}" ]; then
+    [ "$GRIT_RSHELL_TRANSPORT" = builtin ] && GRIT_BUILTIN_TLS_ENABLE=yes || GRIT_BUILTIN_TLS_ENABLE=no
+fi
 
 STRICT_HEAVY_TOOLS=${GRIT_STRICT_HEAVY_TOOLS:-${STRICT_HEAVY_TOOLS:-0}}
 
@@ -225,7 +230,13 @@ hostname=$(printf '%s' "grit-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
             esac
             case "$TARGET_ABI" in
                 hardfloat|eabihf) printf '%s\n' "BR2_ARM_EABIHF=y" ;;
-                *) printf '%s\n' "BR2_ARM_EABI=y" ;;
+                *)
+                    printf '%s\n' "BR2_ARM_EABI=y"
+                    printf '%s\n' "BR2_ARM_SOFT_FLOAT=y"
+                    printf '%s\n' 'BR2_GCC_TARGET_ARCH="armv7-a"'
+                    printf '%s\n' 'BR2_GCC_TARGET_CPU=""'
+                    printf '%s\n' 'BR2_TARGET_OPTIMIZATION="-march=armv7-a"'
+                    ;;
             esac
             ;;
         aarch64)
@@ -263,6 +274,9 @@ hostname=$(printf '%s' "grit-$TARGET_NAME" | tr -c 'A-Za-z0-9._-' '-')
         printf '%s\n' "BR2_PACKAGE_BUSYBOX_CONFIG=\"$_bbcfg\""
     else
         printf '%s\n' "BR2_PACKAGE_BUSYBOX_CONFIG=\"package/busybox/busybox.config\""
+    fi
+    if [ "$GRIT_BUILTIN_TLS_ENABLE" = yes ]; then
+        printf '%s\n' "BR2_PACKAGE_WOLFSSL=y"
     fi
     for tool in $GRIT_HEAVY_TOOLS; do
         if [ "$tool" = "gdbserver" ]; then

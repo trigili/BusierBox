@@ -14,7 +14,7 @@ from gritlib.workflow_actions import (
 
 
 def _print_workflow_action_header(label, rec_id, command="", headless_command="", show_headless=False, show_command=True):
-    print(f"{label} workflow action: {rec_id}")
+    print(f"{label} module: {rec_id}")
     if show_headless and headless_command:
         print(f"headless_command={headless_command}")
     if show_command and command:

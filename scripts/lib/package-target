@@ -305,6 +305,10 @@ copy_payload_artifacts() {
     fi
 }
 
+verify_core_elf_metadata() {
+    scripts/lib/verify-artifact --elf-only --arch "$TARGET_ARCH" "$1"
+}
+
 find_cross_cc() {
     out_dir="$BUILDROOT_OUTPUT_BASE/$target"
     host_bin="$out_dir/host/bin"
@@ -704,6 +708,7 @@ if [ "$target" = native ]; then
         GRIT_GDBSERVER_PROVIDER="$GRIT_GDBSERVER_PROVIDER" \
         GRIT_GDBSERVER_USER_PATH="$GRIT_GDBSERVER_USER_PATH" \
         scripts/lib/build-native
+    verify_core_elf_metadata "$full_core"
 else
     if [ "$TARGET_SOURCE" = config ]; then
         gen_output=$(scripts/lib/gen-buildroot-defconfig --from-config "$config")
@@ -863,12 +868,14 @@ else
         GRIT_GDBSERVER_PROVIDER="$GRIT_GDBSERVER_PROVIDER" \
         GRIT_GDBSERVER_USER_PATH="$GRIT_GDBSERVER_USER_PATH" \
         scripts/lib/build-native
+    verify_core_elf_metadata "$full_core"
 fi
 
 scripts/lib/check-payload-tar "dist/payload-$target.tar"
 if [ "$GRIT_BUILD_FULL" = yes ]; then
     scripts/lib/embed-payload "$full_core" "$payload" "$artifact"
     rm -f "$full_core"
+    scripts/lib/verify-artifact --metadata-only "$artifact"
     sha256_write "$artifact" "$artifact.sha256"
     cp "$artifact" "$compat_artifact"
     cp "$artifact.sha256" "$compat_artifact.sha256"
@@ -913,6 +920,7 @@ if [ "$GRIT_BUILD_INTERNAL_CORE" = yes ]; then
             GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC="$GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC" \
             GRIT_COMMAND_QUEUE_MAX_POLLS="$GRIT_COMMAND_QUEUE_MAX_POLLS" \
             scripts/lib/build-native
+        verify_core_elf_metadata "$core"
     else
         PAYLOAD_ROOT="$package_payload_root" CC="$cross_cc" OUT="$core" ARTIFACT_TIER=core ADVERTISE_PAYLOAD_TOOLS=0 \
             GRIT_TARGET_PRESET="$manifest_target_preset" \
@@ -949,6 +957,7 @@ if [ "$GRIT_BUILD_INTERNAL_CORE" = yes ]; then
             GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC="$GRIT_COMMAND_QUEUE_POLL_MAX_INTERVAL_SEC" \
             GRIT_COMMAND_QUEUE_MAX_POLLS="$GRIT_COMMAND_QUEUE_MAX_POLLS" \
             scripts/lib/build-native
+        verify_core_elf_metadata "$core"
     fi
 fi
 

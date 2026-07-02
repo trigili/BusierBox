@@ -544,7 +544,7 @@ def _operator_console_observability_workflow_records(base, context, target_activ
             "workflow": "activity",
             "group": "observability",
             "label": "Target Activity",
-            "description": "Review combined per-target mailbox, phone-home, file, bridge, and session activity.",
+            "description": "Review combined per-target check-in, phone-home, file, bridge, and session activity.",
             "primary_collection": "target_activity_records",
             "source_collections": ["target_activity_records", "targets"],
             "action_collections": [],

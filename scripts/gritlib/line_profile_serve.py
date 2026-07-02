@@ -5,6 +5,7 @@ from gritlib.line_probe_serve import PROBE_PRESET_DESCRIPTIONS, probe_release_ma
 from gritlib.profiles import active_profile, profile_release_selector, profile_summary_line
 from gritlib.release_contexts import discover_release_context
 from gritlib.release_artifacts import kernel_floor_from_release, normalized_probe_arch
+from gritlib.release_artifacts import release_artifact_matches_profile
 
 
 def parse_line_listener_serve_command(cmd, args):
@@ -41,7 +42,10 @@ def _choose_profile_release_match(rel, profile, preset=""):
     tuple_selector = profile_release_selector(profile, requested_preset)
     if tuple_selector:
         return tuple_selector, requested_preset, []
-    matches = probe_release_matches(rel, arch, kernel_floor)
+    matches = [
+        rec for rec in probe_release_matches(rel, arch, kernel_floor)
+        if release_artifact_matches_profile(rel, rec, profile)
+    ]
     if requested_preset:
         preset_matches = [
             rec for rec in matches
@@ -104,7 +108,12 @@ def run_line_profile_serve(
     serve_cmd = parse_line_listener_serve_command("listener", ["serve", *(args or [])])
     profile = active_profile(cfg)
     if not profile:
-        raise ValueError("no active profile - run: listener probe config or profile use N")
+        raise ValueError(
+            "no active profile\n"
+            "  use listener probe\n"
+            "  config\n"
+            "  profile use N"
+        )
     preset = str(serve_cmd.get("preset") or profile.get("preferred_payload_preset") or "default")
     rel, checked_releases = discover_release_context(cfg)
     if not rel:

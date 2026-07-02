@@ -5,12 +5,20 @@ import shutil
 
 from gritlib.console_display import console_table
 from gritlib.line_context import clear_line_module_context, set_line_collection_context
+from gritlib.line_probe_guidance import probe_menu_step_text, print_probe_menu_steps
 from gritlib.line_search import set_line_search_results
 from gritlib.shell_utils import shquote
 from gritlib.session_state import read_json_file
 
 
 _FINISHED_SESSION_STATES = {"ended", "stopped", "complete", "done", "error", "failed"}
+
+_EMPTY_SESSIONS_MESSAGE = (
+    "No sessions yet.\n"
+    "  shell access: start plain-shell or start ssh\n"
+    f"{probe_menu_step_text()}\n"
+    "  start check-in listener: start command-queue"
+)
 
 
 LINE_SESSION_COMMANDS = (
@@ -204,7 +212,7 @@ def require_line_session_record(sessions, selector):
     text = str(selector or "").strip()
     selected = line_session_record_by_selector(sessions, text)
     if not selected and text.isdigit():
-        raise ValueError(f"session number out of range: {text}")
+        raise ValueError(f"session number out of range: {text}; run sessions or sessions verbose")
     if not selected:
         raise ValueError(f"session not found: {text}; run: sessions or sessions verbose")
     return selected
@@ -251,9 +259,10 @@ def clear_line_sessions(cfg, root, all_sessions=False, confirm=False, append_eve
         flag = "  [has data]" if has_data else ""
         print(f"  {path.name}  ({state}){flag}")
     if not confirm:
-        print(f"\n  {len(candidates)} session(s) would be removed. Run: sessions clear confirm")
+        confirm_command = "sessions clear all confirm" if all_sessions else "sessions clear confirm"
+        print(f"\n  {len(candidates)} session(s) would be removed. Run: {confirm_command}")
         if not all_sessions:
-            print("  To also remove sessions with data: sessions clear all confirm")
+            print("  To also delete sessions with saved activity: sessions clear all confirm")
         return
     removed = 0
     errors = 0
@@ -284,8 +293,10 @@ def print_selected_line_session(rec):
     state_str = line_session_state_text(rec)
     if state_str == "-":
         state_str = "?"
-    print(f"  {session_id}  —  {service}  |  {state_str}")
-    print("  info, interact, view, sessions verbose, back")
+    print(f"  current session: {session_id}")
+    print(f"  service: {service}  |  state: {state_str}")
+    print("  in this prompt: info, options, interact, back")
+    print(f"  also available: sessions verbose, sessions interact {shquote(session_id)}")
 
 
 def print_line_session_interaction(rec, headless):
@@ -294,7 +305,7 @@ def print_line_session_interaction(rec, headless):
     print(f"  service: {rec.get('service', '') or '-'}")
     print(f"  state: {rec.get('state', '') or '-'}")
     print(f"  path: {path}")
-    print(f"  view: view {shquote(path)}")
+    print(f"  view command: view {shquote(path)}")
     print(f"  next: view {path}, sessions list, sessions verbose")
     if rec.get("session_log"):
         print(f"  session log: {rec.get('session_log', '')}")
@@ -341,7 +352,9 @@ def _line_session_columns(shown, verbose):
 
 
 def _line_session_footer(total):
-    footer = "use N, sessions verbose, sessions ?"
+    if not total:
+        return "listeners, files, help: sessions ?"
+    footer = "use N, sessions verbose, help: sessions ?"
     if total > 12:
         footer = f"showing 12 of {total}  —  " + footer
     return footer
@@ -374,12 +387,53 @@ def print_line_session_records(sessions, verbose=False, view_command=None, quote
         _line_session_columns(shown, verbose),
         detail_fn=lambda rec: _line_session_detail_rows(rec, verbose),
         footer=_line_session_footer(total),
+        empty_message=_EMPTY_SESSIONS_MESSAGE,
     )
 
     return [
         _line_session_search_record(rec, view_command, quote)
         for rec in shown
     ]
+
+
+def print_sessions_context_help(sessions=None):
+    sessions = list(sessions or [])
+    example_session = sessions[0] if sessions else {}
+    example_id = str(
+        example_session.get("session_id")
+        or Path(str(example_session.get("path", ""))).name
+        or "sess-1"
+    )
+    print("Help: sessions — captured shells and file transfers")
+    print("")
+    print("  sessions                    list sessions")
+    print("  sessions list               list sessions")
+    print("  sessions verbose            list sessions with detail")
+    if sessions:
+        print(f"  session {shquote(example_id):<19} inspect and select a session context")
+        print(f"  use session {shquote(example_id):<15} select a session context by id")
+        print("  use session 1               select a session context by row number")
+        print("  sessions interact 1         show session inspection commands")
+        print("  interact                    show log paths and interaction commands")
+        print(f"  interact {shquote(example_id):<18} show log paths and interaction commands for a session")
+    print("  view ./README.md            view a local path in pager")
+    print("  cat ./README.md             print a local path")
+    if sessions:
+        print("  sessions clear              preview deletion of finished sessions with no saved activity")
+        print("  sessions clear confirm      delete finished sessions with no saved activity")
+        print("  sessions clear all confirm  delete every session record")
+        print("  info                        show the current session context")
+        print("  options                     show session paths and activity")
+    print("  back                        go up one breadcrumb level")
+    if sessions:
+        print("  command-queue sessions accumulate quickly — they're created per poll cycle.")
+        print("  sessions clear removes ended/stopped sessions with no uploads, fetches, or artifacts.")
+        print("  Inside a selected session prompt, short forms such as `info`, `options`, `interact`, and `back` act on that session.")
+    else:
+        print("  No sessions yet.")
+        print("  shell access: start plain-shell or start ssh")
+        print_probe_menu_steps()
+        print("  start check-in listener: start command-queue")
 
 
 def print_current_line_sessions(

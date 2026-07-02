@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from gritlib.line_state import line_action_state_text
+from gritlib.line_state import line_action_state_text, line_action_task_text
 
 
 @dataclass(frozen=True)
@@ -127,6 +127,29 @@ def line_searchable_text(rec):
     return " ".join(parts).lower()
 
 
+def _line_search_requested_kind(term):
+    text = str(term or "").strip().lower()
+    return {
+        "target": "target",
+        "targets": "target",
+        "listener": "service",
+        "listeners": "service",
+        "service": "service",
+        "services": "service",
+        "route": "route",
+        "routes": "route",
+        "module": "action",
+        "modules": "action",
+        "session": "session",
+        "sessions": "session",
+        "job": "job",
+        "jobs": "job",
+        "file": "file",
+        "files": "file",
+        "queue": "queue",
+    }.get(text)
+
+
 def _line_search_matches(
     term,
     snap,
@@ -137,12 +160,13 @@ def _line_search_matches(
     job_cancel_command_builder,
 ):
     matches = []
+    requested_kind = _line_search_requested_kind(term)
 
     def add(kind, label, rec, command=""):
-        if len(matches) >= 30:
+        if requested_kind and kind != requested_kind:
             return
         haystack = f"{kind} {label} {command} {line_searchable_text(rec)}".lower()
-        if term in haystack:
+        if requested_kind or term in haystack:
             matches.append((kind, label, rec, command))
 
     for rec in snap.get("targets") or []:
@@ -203,7 +227,7 @@ def _line_search_use_hint(kind, rec, quote):
     return ""
 
 
-def _line_search_display_kind(kind):
+def line_search_display_kind(kind):
     if kind == "service":
         return "listener"
     if kind == "action":
@@ -213,13 +237,17 @@ def _line_search_display_kind(kind):
 
 def _print_line_search_matches(matches, quote):
     search_records = []
-    for idx, (kind, label, rec, command) in enumerate(matches, 1):
-        print(f"  {idx}: {_line_search_display_kind(kind)} {label}")
+    for idx, (kind, label, rec, command) in enumerate(matches[:30], 1):
+        print(f"  {idx}: {line_search_display_kind(kind)} {label}")
+        if kind == "action":
+            task = line_action_task_text(rec)
+            if task:
+                print(f"     task: {task}")
         use_hint = _line_search_use_hint(kind, rec, quote)
         stored_command = command
         if use_hint:
-            print(f"     use: use {idx}")
-            print(f"     command: {use_hint}")
+            print(f"     select: use {idx}")
+            print(f"     full command: {use_hint}")
         search_records.append({
             "kind": kind,
             "label": label,
@@ -227,6 +255,9 @@ def _print_line_search_matches(matches, quote):
             "command": stored_command,
             "use_hint": use_hint,
         })
+    omitted = max(0, len(matches) - len(search_records))
+    if omitted:
+        print(f"  ... {omitted} more; narrow the search term or run a list command such as listeners, modules, files, or targets")
     return search_records
 
 
@@ -335,7 +366,7 @@ def use_line_search_result(
     if kind == "queue-action":
         if select_queue_action:
             return select_queue_action(str(rec.get("id") or ""))
-        raise ValueError("command queue shortcut selection is unavailable")
+        raise ValueError("queue action selection is unavailable")
     if kind == "session":
         session_id = rec.get("session_id") or Path(str(rec.get("path", ""))).name
         return select_session(str(session_id))

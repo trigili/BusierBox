@@ -126,7 +126,7 @@ def parse_line_use_command(cmd, args):
         "listener": ("listener", "usage: use listener SERVICE"),
         "route": ("route", _usage_lines("use route NAME", "use route N")),
         "session": ("session", "usage:\n  use session SESSION"),
-        "job": ("job", _usage_lines("use job ID", "use job N")),
+    "job": ("job", _usage_lines("use job job-1", "use job 1")),
         "action": ("action", "usage:\n  use module MODULE"),
         "module": ("action", ""),
     }
@@ -225,7 +225,7 @@ def parse_line_context_command(cmd, args):
         return {"action": "clear-target"}
     if cmd == "back" and args[:1] and args[0] in {"all", "main", "root"}:
         return {"action": "root"}
-    if cmd in {"b", "back", "background", "bg"}:
+    if cmd in {"b", "back"}:
         return {"action": "back"}
     return {}
 
@@ -255,19 +255,26 @@ def clear_line_module_context(cfg, quiet=True):
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
     cfg.pop("_line_console_module", None)
+    cfg.pop("_line_console_return_module", None)
 
 
-def set_line_collection_context(cfg, module):
+def set_line_collection_context(cfg, module, *, preserve_return=False):
     module = str(module or "").strip()
     if not module:
         return
     module = {
-        "listeners": "listener",
-        "services": "listener",
+        "service": "listeners",
+        "services": "listeners",
     }.get(module, module)
+    current_module = str(cfg.get("_line_console_module") or "").strip()
+    if preserve_return and current_module and current_module != module:
+        cfg["_line_console_return_module"] = current_module
+    elif not preserve_return:
+        cfg.pop("_line_console_return_module", None)
     cfg["_line_console_module"] = module
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
+    cfg.pop("_line_console_action_label", None)
 
 
 def set_line_action_context(cfg, kind, action_id):
@@ -276,6 +283,7 @@ def set_line_action_context(cfg, kind, action_id):
         return
     cfg["_line_console_action_kind"] = str(kind or "")
     cfg["_line_console_action_id"] = action_id
+    cfg.pop("_line_console_action_label", None)
     cfg["_line_console_module"] = f"action/{action_id}"
 
 
@@ -283,13 +291,15 @@ def clear_line_console_context(cfg, quiet=False):
     state = line_context_state(cfg)
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
+    cfg.pop("_line_console_action_label", None)
     cfg.pop("_line_console_module", None)
+    cfg.pop("_line_console_return_module", None)
     cfg.pop("_target_id_filter", None)
     cfg.pop("_target_label_filter", None)
     set_workbench_target_filter(cfg, "all", targets=[])
     if not quiet:
-        print("returned to main workspace")
-        print("  next: workspace, targets, listeners, routes, sessions, show categories")
+        print("returned to grit[all]>")
+        print("  next: targets, listeners, routes, sessions, modules")
     append_event(cfg, "workbench", "workbench_console_main_selected", details={
         "cleared_module": state.has_module,
         "cleared_target": state.has_target,
@@ -304,30 +314,36 @@ def line_module_parent(module):
         return ""
     parent = module.split("/", 1)[0]
     return {
-        "action": "",
+        "action": "modules",
         "job": "jobs",
-        "listener": "listener",
-        "service": "listener",
+        "listener": "listeners",
+        "service": "listeners",
         "route": "routes",
         "session": "sessions",
     }.get(parent, parent)
 
 
 def back_line_module_context(cfg):
-    transition = line_context_back_transition(line_context_state(cfg))
+    state = line_context_state(cfg)
+    return_module = str(cfg.pop("_line_console_return_module", "") or "").strip()
+    if state.module == "commands" and return_module:
+        cfg["_line_console_module"] = return_module
+        print(f"returned to {return_module} menu")
+        return return_module
+    transition = line_context_back_transition(state)
     cfg.pop("_line_console_action_kind", None)
     cfg.pop("_line_console_action_id", None)
     if transition.module:
         cfg["_line_console_module"] = transition.module
-        print(f"returned to {transition.module} context")
+        print(f"returned to {transition.module} menu")
         return transition.module
     if transition.clear_module:
         cfg.pop("_line_console_module", None)
-        print("returned to main workspace")
+        print("returned to grit[all]>")
         return ""
     if transition.clear_target:
         set_workbench_target_filter(cfg, "all", targets=[])
         print("target filter cleared")
         return ""
-    print("already at main workspace")
+    print("already at grit[all]>")
     return ""

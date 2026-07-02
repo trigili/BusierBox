@@ -442,6 +442,8 @@ write_manifest() {
 [ -f "$profile" ] || die "unknown TARGET=$TARGET; missing $profile"
 [ -f "$defconfig" ] || die "missing Buildroot defconfig $defconfig"
 requested_tools=$(profile_value REQUESTED_TOOLS)
+TARGET_ARCH=$(profile_value ARCH 2>/dev/null || true)
+TARGET_ABI=$(profile_value ABI 2>/dev/null || true)
 _profile_operator_identity=$(profile_value OPERATOR_DBCLIENT_IDENTITY_FILE 2>/dev/null || true)
 GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE=${GRIT_OPERATOR_DBCLIENT_IDENTITY_FILE:-$_profile_operator_identity}
 _profile_operator_authkey=$(profile_value OPERATOR_AUTHORIZED_KEY_FILE 2>/dev/null || true)
@@ -494,7 +496,12 @@ printf '%s\n' "configuring Buildroot payload for $TARGET..."
 cp "$defconfig" "$out_dir/.config"
 _br_dl_args=
 [ -n "${BUILDROOT_DL_DIR:-}" ] && _br_dl_args="BR2_DL_DIR=$BUILDROOT_DL_DIR"
-make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/griTTYkit" $_br_dl_args olddefconfig
+_br_cpu_args=
+case "${TARGET_ARCH:-}:${TARGET_ABI:-}" in
+    armv7:hardfloat|armv7:eabihf) ;;
+    armv7:*) _br_cpu_args='GCC_TARGET_ARCH=armv7-a GCC_TARGET_CPU=' ;;
+esac
+make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/griTTYkit" $_br_dl_args $_br_cpu_args olddefconfig
 if [ "${GRIT_BUILDROOT_CONFIG_ONLY:-0}" = "1" ]; then
     printf '%s\n' "Buildroot configuration validated for $TARGET"
     exit 0
@@ -508,7 +515,7 @@ fi
 printf '%s\n' "building Buildroot BusyBox payload for $TARGET..."
 build_failed_tools=
 _build_ok=0
-if make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/griTTYkit" $_br_dl_args -j"$JOBS"; then
+if make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/griTTYkit" $_br_dl_args $_br_cpu_args -j"$JOBS"; then
     _build_ok=1
 fi
 
@@ -568,8 +575,8 @@ if [ "$_build_ok" = "0" ]; then
     printf '%s\n' "BR2_TOOLCHAIN_BUILDROOT_CXX=n" >>"$_retry_cfg"
     cp "$_retry_cfg" "$out_dir/.config"
     rm -f "$_retry_cfg"
-    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/griTTYkit" $_br_dl_args olddefconfig
-    if ! make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/griTTYkit" $_br_dl_args -j"$JOBS"; then
+    make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/griTTYkit" $_br_dl_args $_br_cpu_args olddefconfig
+    if ! make -C "$BUILDROOT_DIR" O="$out_abs" BR2_EXTERNAL="$(pwd)/buildroot/external/griTTYkit" $_br_dl_args $_br_cpu_args -j"$JOBS"; then
         die "Buildroot build failed even without optional heavy tools for $TARGET; inspect $out_dir/build"
     fi
 fi

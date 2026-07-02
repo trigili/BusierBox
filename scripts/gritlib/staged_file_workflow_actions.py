@@ -127,7 +127,7 @@ def _staged_file_workflow_action_record(base, targets_by_id, fleet_context, rec,
         "execution_default": "show-command",
         "target_execution": False,
         "tui_visible": True,
-        "safety_boundary": "operator-side staged file workflow; target fetch still requires explicit target-side command or poll",
+        "safety_boundary": "operator-side staged file workflow; delivery still requires explicit target-side command or poll",
     }
 
 
@@ -172,7 +172,7 @@ def _staged_file_single_request_workflow_actions(base, targets_by_id, fleet_cont
         base + " --list-staged", "file-service", "ready", "run-now",
     )
     add(
-        "show-fetch-command", "file-transfer", f"Show target fetch command for {request}",
+        "show-fetch-command", "file-transfer", f"Show command to run on target for {request}",
         base + " --list-staged", "file-service", "ready", "show-command",
         can_run_from_curses_enter=True, curses_enter_action="show-fetch-command",
     )

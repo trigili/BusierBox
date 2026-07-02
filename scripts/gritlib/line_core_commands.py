@@ -27,10 +27,12 @@ def _dispatch_line_workspace_family(
 ):
     ip_cmd = parse_line_ip_command(cmd, args)
     if ip_cmd:
+        if ip_cmd.get("action") == "show" and callbacks.get("set_context_func"):
+            callbacks["set_context_func"]("ip")
         dispatch_line_ip_command(
             ip_cmd,
             snap_func=callbacks.get("workspace_snapshot_func"),
-            set_option_func=callbacks.get("set_global_option_func"),
+            set_option_func=callbacks.get("set_context_option_func"),
         )
         return "handled"
     workspace_cmd = parse_line_workspace_command(cmd, args)

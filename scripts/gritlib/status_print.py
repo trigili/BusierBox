@@ -117,10 +117,10 @@ def _print_status_warnings(doc):
                 print(f"  operator path kind mismatch: {rec.get('path', '')} expected={rec.get('expected_kind', '')} actual={actual}")
     if any(row["stale"] for row in doc["services"]):
         print_warnings_header_once()
-        print("  stale state detected; run scripts/grit-console --stop to clean managed records")
+        print("  saved service state says listening, but no active listener was found; run listeners, then stop SERVICE to clean it")
     if any(row["actual"] == "listening" and row["configured"] not in ("listening", "starting") for row in doc["services"]):
         print_warnings_header_once()
-        print("  actual listener detected while configured state is not listening; inspect listener PID ownership")
+        print("  listener is active, but saved service state is not marked listening; run listeners, then stop SERVICE if it should not be running")
     if any(row.get("listener_bind_mismatch") for row in doc["services"]):
         print_warnings_header_once()
         print("  listener found on configured port but not configured bind address; inspect listener address/PID ownership")

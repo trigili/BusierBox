@@ -293,7 +293,13 @@ def service_status_rows(cfg):
         rec = dict(info["state"])
         pid = rec.get("pid")
         ownership_evidence = managed_server_evidence(pid, cfg=cfg, rec=rec) if pid else []
-        actual = "listening" if info["listening"] else "stopped"
+        pid_is_alive = pid_alive(pid) if pid else False
+        if info["listening"]:
+            actual = "listening"
+        elif rec.get("status") == "starting" and pid_is_alive and ownership_evidence:
+            actual = "starting"
+        else:
+            actual = "stopped"
         stale = bool(rec.get("status") == "listening" and not info["listening"])
         session_log = str(rec.get("session_log", "") or "")
         process_log = str(rec.get("process_log", "") or "")
@@ -306,7 +312,7 @@ def service_status_rows(cfg):
             "actual": actual,
             "configured": rec.get("status", "unknown"),
             "pid": pid or "",
-            "pid_alive": pid_alive(pid) if pid else False,
+            "pid_alive": pid_is_alive,
             "pid_managed": bool(ownership_evidence),
             "ownership_evidence": ownership_evidence,
             "listener_pids": info.get("listener_pids", []),
@@ -737,8 +743,8 @@ def status_summary_and_warnings(services):
             if row.get("configured") not in ("listening", "starting"):
                 warnings.append({**warning_context(row),
                     "type": "unexpected_listener",
-                    "message": "actual listener was found but configured state does not say the service is listening",
-                    "suggested_action": "inspect the listener PID and run scripts/grit-console --stop if it is managed",
+                    "message": "listener is active, but the saved service state is not marked listening",
+                    "suggested_action": f"run status or listeners, then stop {row.get('name', 'SERVICE')} if it should not be running",
                 })
         if row.get("listener_bind_mismatch"):
             warnings.append({**warning_context(row),
@@ -756,14 +762,14 @@ def status_summary_and_warnings(services):
             warnings.append({**warning_context(row),
                 "type": "service_error",
                 "message": message,
-                "suggested_action": "scripts/grit-console --status or scripts/grit-console --stop",
+                "suggested_action": f"run status or stop {row.get('name', 'SERVICE')}",
             })
         if row.get("stale"):
             summary["stale_count"] += 1
             warnings.append({**warning_context(row),
                 "type": "stale_state",
-                "message": "configured state says listening, but no actual listener was found",
-                "suggested_action": "scripts/grit-console --stop",
+                "message": "saved service state says listening, but no active listener was found",
+                "suggested_action": f"run status or listeners, then stop {row.get('name', 'SERVICE')} to clean the saved state",
             })
         if row.get("pid") and row.get("pid_alive") and not row.get("pid_managed"):
             warnings.append({**warning_context(row),
@@ -842,6 +848,10 @@ def service_lifecycle_action_states(service):
         start_state = "already-running"
         start_reason = "already-listening"
         start_enter = False
+    elif actual == "starting":
+        start_state = "already-starting"
+        start_reason = "already-starting"
+        start_enter = False
     else:
         start_state = "ready"
         start_reason = "start-listener"
@@ -905,7 +915,7 @@ def service_workflow_action_records(cfg, services, targets=None):
             service,
             "inspect-status",
             "inspect",
-            f"Inspect {name} service status",
+            f"Inspect {name} status",
             status_command,
             "ready",
             "run-now",
@@ -916,7 +926,7 @@ def service_workflow_action_records(cfg, services, targets=None):
             service,
             "start-service",
             "service",
-            f"Start {name} service",
+            f"Start {name}",
             service_start_headless_command(cfg, name),
             lifecycle_states["start_state"],
             lifecycle_states["start_reason"],
@@ -927,7 +937,7 @@ def service_workflow_action_records(cfg, services, targets=None):
             service,
             "stop-service",
             "service",
-            f"Stop {name} service",
+            f"Stop {name}",
             service_stop_headless_command(cfg, name),
             lifecycle_states["stop_state"],
             lifecycle_states["stop_reason"],

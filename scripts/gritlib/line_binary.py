@@ -9,7 +9,11 @@ from gritlib.file_transfers import (
     render_fetch_command,
 )
 from gritlib.release_contexts import release_context
-from gritlib.release_staging import release_nav_records, stage_release_selection
+from gritlib.release_staging import (
+    release_nav_records,
+    stage_release_selection,
+)
+from gritlib.service_status import service_status_rows
 from gritlib.shell_utils import shquote
 from gritlib.staged_files import stage_file
 
@@ -31,9 +35,9 @@ def parse_line_binary_args(args):
     if start_file_service and no_start:
         raise ValueError(
             "usage:\n"
-            "  serve-binary PATH NAME\n"
-            "  serve-binary start PATH NAME\n"
-            "  serve-binary no-start PATH NAME"
+            "  binary PATH NAME\n"
+            "  binary start PATH NAME\n"
+            "  binary no-start PATH NAME"
         )
     if values:
         selector = values[0]
@@ -87,11 +91,29 @@ def dispatch_line_binary_command(
     raise ValueError("unsupported binary command")
 
 
-def _print_file_service_note(started):
+def _file_service_actual_state(cfg):
+    try:
+        row = {rec.get("name"): rec for rec in service_status_rows(cfg)}.get("file-service") or {}
+    except OSError:
+        return ""
+    return str(row.get("actual") or "")
+
+
+def _print_file_service_note(started, cfg=None):
     if started:
-        print("  file service started by this command")
+        print("  file service start requested by this command")
+    elif cfg:
+        state = _file_service_actual_state(cfg)
+        if state == "listening":
+            print("  file service already listening")
+        elif state == "starting":
+            print("  file service start is still in progress")
+            print("  open listeners or events service=file-service to check readiness")
+            print("  wait until file-service is listening before running commands on the target")
+        else:
+            print("  file service not running; run deliver start NAME if needed")
     else:
-        print("  file service not started by this command; use deliver start NAME if needed")
+        print("  file service not running; run deliver start NAME if needed")
 
 
 def _print_line_binary_release_choices(rel, prompt_for_missing):
@@ -159,12 +181,14 @@ def _line_binary_run_hint(rec):
 
 
 def _print_line_binary_staged(rec, fetch_command, run_hint):
-    print("griTTYkit binary staged for target delivery:")
+    print("griTTYkit binary staged for deliver commands:")
     print(f"  name: {rec.get('request_name', '')}")
     print(f"  source: {rec.get('source_path', '')}")
     print(f"  sha256: {str(rec.get('sha256', ''))[:16]}...")
-    print(f"  target command: {fetch_command}")
-    print(f"  run hint: {run_hint}")
+    print(f"  next: deliver {rec.get('request_name', '')}")
+    print(f"  run on target: {fetch_command}")
+    print("  direction: run this on the target to download the staged binary from the operator")
+    print(f"  run after download: {run_hint}")
 
 
 def _maybe_start_line_binary_file_service(
@@ -241,6 +265,7 @@ def stage_line_binary(
         cfg,
         output_name=rec.get("request_name", ""),
         executable=True,
+        item_label="binary",
     )
     if show_headless:
         print(f"headless_command: {headless}")
@@ -250,7 +275,7 @@ def stage_line_binary(
         line_input_fn,
         start_file_service_fn,
     )
-    _print_file_service_note(started)
+    _print_file_service_note(started, cfg)
     _append_line_binary_event(
         cfg,
         append_event_fn,

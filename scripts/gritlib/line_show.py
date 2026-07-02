@@ -5,21 +5,23 @@ import shlex
 
 VERBOSE_FLAGS = {"-v", "--verbose", "verbose", "details"}
 LINE_SHOW_USAGE = (
-    "usage:\n"
+    "Show resources:\n"
     "  show targets\n"
     "  show listeners\n"
     "  show files\n"
-    "  show queue\n"
-    "  show mailbox\n"
-    "  show jobs\n"
     "  show sessions\n"
+    "  show jobs\n"
+    "  show routes\n"
+    "  show queue\n"
+    "  show check-ins\n"
     "  show events\n"
     "  show modules\n"
-    "  show modules FILTER\n"
+    "  show modules service\n"
     "  show service modules\n"
     "  show daemon modules\n"
     "  show target modules\n"
-    "  show workbench modules\n"
+    "  show operator modules\n"
+    "  show release\n"
     "  show options\n"
     "  show context"
 )
@@ -33,7 +35,7 @@ SHOW_RESOURCE_ALIASES = {
     "modules": ("action", "actions", "module", "modules"),
     "sessions": ("session", "sessions"),
     "routes": ("route", "routes"),
-    "queue": ("queue", "mailbox", "commands"),
+    "queue": ("queue", "check-ins", "checkins", "mailbox", "commands"),
     "events": ("activity", "events"),
     "release": ("release", "releases", "artifact", "artifacts"),
     "options": ("options", "option"),
@@ -55,7 +57,10 @@ MODULE_KIND_ALIASES = {
     "targets": "target",
     "agent": "target",
     "agents": "target",
+    "operator": "workbench",
+    "operators": "workbench",
     "workbench": "workbench",
+    "workbenches": "workbench",
     "job": "workbench",
     "jobs": "workbench",
 }
@@ -173,14 +178,18 @@ def build_line_show_resource_callback(
             "daemon": lambda _p: show_collection("daemon", lambda: print_daemon_func(snapshot_func(cfg))),
             "categories": lambda _p: show_collection("categories", print_categories_func),
             "modules": lambda p: show_collection(
-                "modules", lambda: print_actions_func(p["filter_text"], verbose=p["verbose"])),
+                "modules",
+                print_categories_func
+                if not p["filter_text"] and not p["verbose"]
+                else lambda: print_actions_func(p["filter_text"], verbose=p["verbose"]),
+            ),
             "sessions": lambda _p: show_collection("sessions", print_sessions_func),
             "routes": lambda p: show_collection("routes", lambda: print_routes_func(verbose=p["verbose"])),
             "queue": lambda p: show_collection(
                 "queue",
                 lambda: print_queue_func(
                     detailed=p["verbose"],
-                    mailbox_only=p["key"] == "mailbox",
+                    mailbox_only=p["key"] in {"check-ins", "checkins", "mailbox"},
                 ),
             ),
             "events": show_events,

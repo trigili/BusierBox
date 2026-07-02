@@ -1,5 +1,6 @@
 """Line REPL probe callback adapters."""
 
+import inspect
 import sys
 from gritlib import command_queue as command_queue_module
 from gritlib.console_workbench import workbench_snapshot
@@ -8,7 +9,16 @@ from gritlib import line_configure
 from gritlib.operator_network import choose_operator_host_for_target
 from gritlib import probe_commands
 from gritlib import probe_results
+from gritlib.target_selection import target_selection_recovery_text
 from gritlib import workflow_runners
+
+
+def _callback_accepts_local_commands(func):
+    try:
+        sig = inspect.signature(func)
+    except (TypeError, ValueError):
+        return False
+    return "local_commands" in sig.parameters
 
 
 def build_line_probe_callbacks(
@@ -50,6 +60,18 @@ def build_line_probe_callbacks(
         if target_context_func is None:
             target_context = target_callbacks["target_context"]
             target_context_func = lambda _cfg: target_context()
+    if _callback_accepts_local_commands(probe_delivery_func):
+        local_probe_delivery_func = lambda _cfg=cfg: probe_delivery_func(_cfg, local_commands=True)
+    else:
+        local_probe_delivery_func = lambda _cfg=cfg: probe_delivery_func(_cfg)
+    if probe_paste_func and _callback_accepts_local_commands(probe_paste_func):
+        local_probe_paste_func = lambda *args, **kwargs: probe_paste_func(
+            *args,
+            local_commands=True,
+            **kwargs,
+        )
+    else:
+        local_probe_paste_func = probe_paste_func
 
     return {
         "probe_line_start": build_line_probe_start_callback(
@@ -66,15 +88,15 @@ def build_line_probe_callbacks(
             queue_command_func=queue_command_func,
             target_filter_func=target_filter_func,
             target_context_func=target_context_func,
-            probe_delivery_func=probe_delivery_func,
+            probe_delivery_func=local_probe_delivery_func,
             append_event_fn=append_event_fn,
         ),
         "probe_results": probe_results_func,
         "probe_config": probe_config_func,
         "probe_clear": probe_clear_func,
         "probe_serve_input": input_func,
-        "probe_delivery": probe_delivery_func,
-        "probe_paste": probe_paste_func,
+        "probe_delivery": local_probe_delivery_func,
+        "probe_paste": local_probe_paste_func,
         "probe_script": probe_script_func,
     }
 
@@ -131,7 +153,7 @@ def _print_line_probe_start_summary(cfg, already_listening, started):
     script_name = cfg.get("GRIT_PROBE_NAME", "probe.sh")
     if not already_listening and not started:
         print(f"Probe listener is not running on port {port}.")
-        print("  start it with: listener probe start")
+        print("  start it with: start")
         print("")
     state = "listening" if (already_listening or started) else "not listening"
     print(f"Probe  —  port {port}  |  script {script_name}  |  {state}")
@@ -142,7 +164,10 @@ def _queue_line_probe_command(cfg, queue, command, script_name, target_id, queue
     if not queue:
         return {}
     if not target_id:
-        raise ValueError("select a target before probe queue; run targets, then target NAME, use target ID, use target LABEL, or use target N")
+        raise ValueError(
+            "Select a target first for probe queue (target-side probe command)."
+            f"{target_selection_recovery_text()}"
+        )
     queued = queue_command_func(cfg, command, metadata={
         "work_kind": "probe",
         "workflow": "probe",

@@ -20,6 +20,9 @@ PROFILE_EDITABLE_KEYS = {
     "word_bits",
     "endian",
     "arch",
+    "libc",
+    "abi",
+    "cpu",
     "kernel_floor",
     "tuple_path",
     "operator_host",
@@ -28,9 +31,26 @@ PROFILE_EDITABLE_KEYS = {
     "notes",
 }
 PROFILE_KEY_HINTS = (
-    "target_id", "target_label", "arch", "kernel_floor", "tuple_path",
-    "operator_host", "preferred_payload_preset", "preferred_transport", "notes",
+    "target-id", "target-label", "arch", "libc", "abi", "cpu", "kernel", "tuple",
+    "operator-host", "payload", "transport", "notes",
 )
+PROFILE_KEY_ALIASES = {
+    "target-id": "target_id",
+    "target-label": "target_label",
+    "label": "target_label",
+    "kernel": "kernel_floor",
+    "tuple": "tuple_path",
+    "operator": "operator_host",
+    "operator-host": "operator_host",
+    "operator_host": "operator_host",
+    "payload": "preferred_payload_preset",
+    "payload-preset": "preferred_payload_preset",
+    "payload_preset": "preferred_payload_preset",
+    "transport": "preferred_transport",
+    "preferred-payload": "preferred_payload_preset",
+    "preferred-payload-preset": "preferred_payload_preset",
+    "preferred-transport": "preferred_transport",
+}
 
 
 def profiles_path(cfg):
@@ -176,7 +196,9 @@ def delete_profile(cfg, selector):
 
 
 def set_profile_value(cfg, key, value):
-    key = str(key or "").strip()
+    raw_key = str(key or "").strip()
+    alias_key = raw_key.lower().replace("_", "-")
+    key = PROFILE_KEY_ALIASES.get(alias_key, raw_key)
     if key not in PROFILE_EDITABLE_KEYS:
         hints = ", ".join(PROFILE_KEY_HINTS)
         raise ValueError(f"unknown profile key: {key}; editable keys include: {hints}")
@@ -242,6 +264,9 @@ def profile_from_probe_result(rec, ordinal="", existing=None):
         "word_bits": str(rec.get("word_bits") or ""),
         "endian": endian,
         "arch": arch,
+        "libc": str(rec.get("libc") or rec.get("target_libc_guess") or ""),
+        "abi": str(rec.get("abi") or rec.get("target_abi_guess") or ""),
+        "cpu": str(rec.get("cpu") or rec.get("target_cpu_guess") or ""),
         "kernel_floor": kernel_floor,
         "tuple_path": tuple_path,
         "operator_host": str(operator_host),

@@ -123,7 +123,7 @@ def handle_file_service_http(cfg, conn, files_dir, addr):
         metadata = {
             "operation": "upload",
             "status": "rejected",
-            "reason": "file service accepts only target-initiated PUT/POST uploads or GET staged fetches",
+            "reason": "file service accepts target-to-operator PUT/POST submissions or GET requests for staged delivery",
             "method": method,
             "source_path": target,
             "remote_addr": f"{addr[0]}:{addr[1]}",
@@ -180,8 +180,8 @@ def _start_file_service_record(cfg, service, log_dir, port, use_tls):
     files_dir = log_dir / "files"
     files_dir.mkdir(parents=True, exist_ok=True)
     (log_dir / "config.json").write_text(json.dumps(cfg, indent=2) + "\n", encoding="utf-8")
-    print("Receive-only file service. Accepts target-initiated PUT/POST uploads.")
-    print("Also serves operator-staged files only when the target explicitly requests them with grit fetch.")
+    print("File service. Receives target-to-operator file submissions.")
+    print("Also serves operator-staged files only when the target explicitly requests delivery with grit fetch.")
     print("This service does not execute commands or provide callback RPC.")
     update_server_state(cfg, service, "starting", {"session_log": str(log_dir), "staged_file": str(staged_file_path(cfg))})
     return files_dir
@@ -305,11 +305,11 @@ def serve_file_service(cfg, timeout, max_sessions=0):
         sock.settimeout(timeout)
         _mark_file_service_listening(cfg, service, log_dir, port, use_tls)
         while not SHUTDOWN.is_set():
-            print("Waiting for file upload/fetch...")
+            print("Waiting for target submission or staged delivery request...")
             try:
                 raw, addr = sock.accept()
             except socket.timeout:
-                print("timeout waiting for file upload/fetch", file=sys.stderr)
+                print("timeout waiting for target submission or staged delivery request", file=sys.stderr)
                 return 1 if sessions == 0 else 0
             except OSError:
                 if SHUTDOWN.is_set():

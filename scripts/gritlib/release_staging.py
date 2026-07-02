@@ -1,9 +1,15 @@
 """Release navigation and artifact staging helpers."""
 
+import subprocess
+import sys
 from pathlib import Path
 
 from gritlib.release_contexts import release_context
 from gritlib.staged_files import stage_file
+
+
+ROOT = Path(__file__).resolve().parents[2]
+VERIFY_ARTIFACT = ROOT / "scripts" / "lib" / "verify-artifact"
 
 
 def release_nav_records(release, release_devices, release_tuples, limit=5):
@@ -73,12 +79,27 @@ def _release_artifact_staging_metadata(rec, requested, recommendation):
     }
 
 
+def verify_release_artifact_for_staging(path):
+    result = subprocess.run(
+        [sys.executable, str(VERIFY_ARTIFACT), "--metadata-only", str(path)],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        check=False,
+    )
+    if result.returncode != 0:
+        output = (result.stdout or "").strip().splitlines()
+        detail = output[-1] if output else f"verify-artifact exited {result.returncode}"
+        raise ValueError(f"release artifact failed metadata verification: {detail}")
+
+
 def stage_release_artifact(
     cfg,
     artifact_name,
     *,
     release_context_func=None,
     stage_file_func=stage_file,
+    verify_artifact_func=verify_release_artifact_for_staging,
 ):
     release_context_func = release_context_func or _default_release_context
     rel = release_context_func(cfg)
@@ -120,6 +141,7 @@ def stage_release_artifact(
     rec = matches[0]
     request = rec.get("request_name") or Path(str(rec.get("path"))).name
     metadata = _release_artifact_staging_metadata(rec, requested, recommendation)
+    verify_artifact_func(rec["path"])
     return stage_file_func(cfg, rec["path"], request, metadata=metadata)
 
 
